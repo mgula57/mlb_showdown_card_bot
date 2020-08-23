@@ -55,7 +55,6 @@ class BaseballReferenceScraper:
 
         top_result_url = search_results[0]["href"]
         player_b_ref_id = top_result_url.split('.shtml')[0].split('/')[-1]
-
         return player_b_ref_id
 
     def __soup_for_url(self, url, is_baseball_ref_page=False):
@@ -120,7 +119,7 @@ class BaseballReferenceScraper:
         # DEFENSE
         positional_fielding = self.positional_fielding(soup_for_homepage_stats)
         stats_dict.update(positional_fielding)
-        
+
         # HAND / TYPE
         type = self.type(positional_fielding)
         stats_dict['type'] = type
@@ -393,5 +392,5 @@ class BaseballReferenceScraper:
             if name_no_suffix.endswith(suffix):
                 name_no_suffix = name_no_suffix.replace(suffix, '')
 
-        last_initial = name_no_suffix.split(' ')[-1][:1]
+        last_initial = name_no_suffix.split(' ')[1][:1]
         return last_initial

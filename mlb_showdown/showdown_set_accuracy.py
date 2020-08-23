@@ -31,7 +31,7 @@ class ShowdownSetAccuracy:
         Returns:
           Dict with in game positions and defensive ratings
         """
-        
+
         sum_of_card_accuracy = 0
         num_perfect_match = 0
         category_accuracies = []
@@ -48,7 +48,7 @@ class ShowdownSetAccuracy:
                 real_player_stats = real_player_stats.to_dict('records')[0]
             else:
                 # NEED TO SCRAPE FROM BASEBALL REFERENCE
-                # print('Scraping - {} stats for {}'.format(wotc_player_card.Name, str(wotc_player_card.Year)))
+                print('Scraping - {} stats for {}'.format(wotc_player_card.Name, str(wotc_player_card.Year - 1)))
                 if wotc_player_card.name in ['Craig Wilson', 'John Vander Wal']:
                     continue
                 try:
@@ -91,11 +91,10 @@ class ShowdownSetAccuracy:
         """
 
         wotc_player_card_dict = {
-            'command': int(wotc_player_card.OnbaseOrControl),
-            'outs': int(wotc_player_card.OUTS)
+            'command-outs': '{}-{}'.format(int(wotc_player_card.OnbaseOrControl),int(wotc_player_card.OUTS))
         }
         if not self.is_only_command_outs_accuracy:
-            wotc_player_card_dict = {
+            wotc_player_card_dict.update({
                 '1b': int(wotc_player_card['1B']),
                 '2b': int(wotc_player_card['2B']) if int(wotc_player_card['2B']) < 21 else 0,
                 'bb': int(wotc_player_card['BB']),
@@ -103,9 +102,7 @@ class ShowdownSetAccuracy:
                 'gb': int(wotc_player_card['GB']),
                 'hr': int(wotc_player_card['HR']) if int(wotc_player_card['HR']) < 21 else 0,
                 'so': int(wotc_player_card['SO']),
-                'command': int(wotc_player_card.OnbaseOrControl),
-                'outs': int(wotc_player_card.OUTS)
-            }
+            })
             if is_pitcher:
                 wotc_player_card_dict.update({'pu': int(wotc_player_card['PU'])})
             else:

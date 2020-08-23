@@ -9,7 +9,7 @@ NUMBER_OF_GAMES = 10
 
 BASELINE_PITCHER = {
     '2000': {
-        'control': 3.5,
+        'command': 3.5,
         'outs': 15.5,
         'pu': 2.32,
         'so': 4.1,
@@ -22,7 +22,7 @@ BASELINE_PITCHER = {
         'hr': 0.085
     },
     '2001': {
-        'control': 3.35,
+        'command': 3.35,
         'outs': 15.97,
         'pu': 2.69,
         'so': 4.30,
@@ -35,7 +35,7 @@ BASELINE_PITCHER = {
         'hr': 0.1
     },
     '2002': {
-        'control': 3.22,
+        'command': 3.22,
         'outs': 17.11,
         'pu': 3.10,
         'so': 4.93,
@@ -48,7 +48,7 @@ BASELINE_PITCHER = {
         'hr': 0.06
     },
     '2003': {
-        'control': 4.1,
+        'command': 4.1,
         'outs': 16.06,
         'pu': 2.1,
         'so': 4.33,
@@ -61,7 +61,7 @@ BASELINE_PITCHER = {
         'hr': 0.32
     },
     '2004': {
-        'control': 3.61,
+        'command': 3.61,
         'outs': 16.24,
         'pu': 2.09,
         'so': 4.63,
@@ -74,7 +74,7 @@ BASELINE_PITCHER = {
         'hr': 0.02
     },
     '2005': {
-        'control': 3.2,
+        'command': 3.2,
         'outs': 16.08,
         'pu': 2.01,
         'so': 4.31,
@@ -90,8 +90,8 @@ BASELINE_PITCHER = {
 
 BASELINE_HITTER = {
     '2000': {
-        'onbase': 7.5,
-        'outs': 4.01,
+        'command': 7.7,
+        'outs': 3.5,
         'pu': 0,
         'so': 1.15,
         'gb': 1.77,
@@ -99,12 +99,12 @@ BASELINE_HITTER = {
         'bb': 4.70,
         '1b': 6.60,
         '1b+': 0.41,
-        '2b': 1.96,
+        '2b': 1.95,
         '3b': 0.34,
         'hr': 1.98
     },
     '2001': {
-        'onbase': 7.91,
+        'command': 7.91,
         'outs': 4.04,
         'pu': 0,
         'so': 1.31,
@@ -118,7 +118,7 @@ BASELINE_HITTER = {
         'hr': 2.15
     },
     '2002': {
-        'onbase': 10.33,
+        'command': 10.33,
         'outs': 6.44,
         'pu': 0,
         'so': 2.09,
@@ -132,7 +132,7 @@ BASELINE_HITTER = {
         'hr': 1.52
     },
     '2003': {
-        'onbase': 9.50,
+        'command': 9.50,
         'outs': 6.0,
         'pu': 0,
         'so': 1.44,
@@ -146,7 +146,7 @@ BASELINE_HITTER = {
         'hr': 1.22
     },
     '2004': {
-        'onbase': 10.47,
+        'command': 10.47,
         'outs': 6.11,
         'pu': 0,
         'so': 1.46,
@@ -160,7 +160,7 @@ BASELINE_HITTER = {
         'hr': 1.29
     },
     '2005': {
-        'onbase': 10.21,
+        'command': 10.21,
         'outs': 6.09,
         'pu': 0,
         'so': 1.44,
@@ -309,6 +309,54 @@ POINT_CATEGORY_WEIGHTS = {
             'onbase': 380,
             'average': 100,
             'strikeouts': 40,
+            'slugging': 110
+        },
+        'relief_pitcher': {
+            'ip': 70,
+            'onbase': 100,
+            'average': 30,
+            'strikeouts': 10,
+            'slugging': 45
+        }
+    },
+    '2001': {
+        'position_player': {
+            'defense': 80,
+            'speed': 70,
+            'onbase': 250,
+            'average': 150,
+            'slugging': 100,
+            'home_runs': 50
+        },
+        'starting_pitcher': {
+            'ip': 70,
+            'onbase': 380,
+            'average': 100,
+            'strikeouts': 40,
+            'slugging': 110
+        },
+        'relief_pitcher': {
+            'ip': 70,
+            'onbase': 100,
+            'average': 30,
+            'strikeouts': 10,
+            'slugging': 45
+        }
+    },
+    '2002': {
+        'position_player': {
+            'defense': 80,
+            'speed': 70,
+            'onbase': 250,
+            'average': 150,
+            'slugging': 100,
+            'home_runs': 50
+        },
+        'starting_pitcher': {
+            'ip': 70,
+            'onbase': 380,
+            'average': 100,
+            'strikeouts': 40,
             'sluggin_pct': 110
         },
         'relief_pitcher': {
@@ -320,6 +368,54 @@ POINT_CATEGORY_WEIGHTS = {
         }
     },
     '2003': {
+        'position_player': {
+            'defense': 80,
+            'speed': 70,
+            'onbase': 250,
+            'average': 150,
+            'slugging': 100,
+            'home_runs': 50
+        },
+        'starting_pitcher': {
+            'ip': 70,
+            'onbase': 380,
+            'average': 100,
+            'strikeouts': 40,
+            'sluggin_pct': 110
+        },
+        'relief_pitcher': {
+            'ip': 70,
+            'onbase': 100,
+            'average': 30,
+            'strikeouts': 10,
+            'sluggin_pct': 45
+        }
+    },
+    '2004': {
+        'position_player': {
+            'defense': 80,
+            'speed': 70,
+            'onbase': 250,
+            'average': 150,
+            'slugging': 100,
+            'home_runs': 50
+        },
+        'starting_pitcher': {
+            'ip': 70,
+            'onbase': 380,
+            'average': 100,
+            'strikeouts': 40,
+            'sluggin_pct': 110
+        },
+        'relief_pitcher': {
+            'ip': 70,
+            'onbase': 100,
+            'average': 30,
+            'strikeouts': 10,
+            'sluggin_pct': 45
+        }
+    },
+    '2005': {
         'position_player': {
             'defense': 80,
             'speed': 70,
@@ -359,7 +455,59 @@ POSITION_DEFENSE_RANGE = {
         'LF/RF': 2.0,
         'DH': 0
     },
+    '2001': {
+        'C': 12.0,
+        '1B': 2.0,
+        '2B': 5.0,
+        '3B': 4.0,
+        'SS': 5.0,
+        'LF': 2.0,
+        'CF': 3.0,
+        'RF': 2.0,
+        'OF': 2.0,
+        'LF/RF': 2.0,
+        'DH': 0
+    },
+    '2002': {
+        'C': 12.0,
+        '1B': 2.0,
+        '2B': 5.0,
+        '3B': 4.0,
+        'SS': 5.0,
+        'LF': 2.0,
+        'CF': 3.0,
+        'RF': 2.0,
+        'OF': 2.0,
+        'LF/RF': 2.0,
+        'DH': 0
+    },
     '2003': {
+        'C': 12.0,
+        '1B': 2.0,
+        '2B': 5.0,
+        '3B': 4.0,
+        'SS': 5.0,
+        'LF': 2.0,
+        'CF': 3.0,
+        'RF': 2.0,
+        'OF': 2.0,
+        'LF/RF': 2.0,
+        'DH': 0
+    },
+    '2004': {
+        'C': 12.0,
+        '1B': 2.0,
+        '2B': 5.0,
+        '3B': 4.0,
+        'SS': 5.0,
+        'LF': 2.0,
+        'CF': 3.0,
+        'RF': 2.0,
+        'OF': 2.0,
+        'LF/RF': 2.0,
+        'DH': 0
+    },
+    '2005': {
         'C': 12.0,
         '1B': 2.0,
         '2B': 5.0,
@@ -379,7 +527,23 @@ ONBASE_PCT_RANGE = {
         'min': 0.250,
         'max': 0.450
     },
+    '2001': {
+        'min': 0.250,
+        'max': 0.450
+    },
+    '2002': {
+        'min': 0.250,
+        'max': 0.450
+    },
     '2003': {
+        'min': 0.250,
+        'max': 0.450
+    },
+    '2004': {
+        'min': 0.250,
+        'max': 0.450
+    },
+    '2005': {
         'min': 0.250,
         'max': 0.450
     }
@@ -390,7 +554,23 @@ BATTING_AVG_RANGE = {
         'min': 0.225,
         'max': 0.330
     },
+    '2001': {
+        'min': 0.225,
+        'max': 0.330
+    },
+    '2002': {
+        'min': 0.225,
+        'max': 0.330
+    },
     '2003': {
+        'min': 0.225,
+        'max': 0.330
+    },
+    '2004': {
+        'min': 0.225,
+        'max': 0.330
+    },
+    '2005': {
         'min': 0.225,
         'max': 0.330
     }
@@ -401,7 +581,23 @@ SLG_RANGE = {
         'min': 0.350,
         'max': 0.550
     },
+    '2001': {
+        'min': 0.350,
+        'max': 0.550
+    },
+    '2002': {
+        'min': 0.350,
+        'max': 0.550
+    },
     '2003': {
+        'min': 0.350,
+        'max': 0.550
+    },
+    '2004': {
+        'min': 0.350,
+        'max': 0.550
+    },
+    '2005': {
         'min': 0.350,
         'max': 0.550
     }
@@ -412,9 +608,36 @@ SPEED_RANGE = {
         'min': 10,
         'max': 20
     },
+    '2001': {
+        'min': 10,
+        'max': 20
+    },
+    '2002': {
+        'min': 10,
+        'max': 20
+    },
     '2003': {
         'min': 10,
         'max': 20
+    },
+    '2004': {
+        'min': 10,
+        'max': 20
+    },
+    '2005': {
+        'min': 10,
+        'max': 20
+    },
+}
+
+IP_RANGE = {
+    'starting_pitcher': {
+        'min': 5,
+        'max': 8
+    },
+    'relief_pitcher': {
+        'min': 1,
+        'max': 2
     }
 }
 
@@ -423,8 +646,132 @@ HR_RANGE = {
         'min': 10,
         'max': 35
     },
+    '2001': {
+        'min': 10,
+        'max': 35
+    },
+    '2002': {
+        'min': 10,
+        'max': 35
+    },
     '2003': {
         'min': 10,
         'max': 35
     },
+    '2004': {
+        'min': 10,
+        'max': 35
+    },
+    '2005': {
+        'min': 10,
+        'max': 35
+    }
+}
+
+TEST_COMMAND_RANGE_HITTER = {
+    '2000': {
+        'min': 7.5,
+        'max': 8.3
+    },
+    '2001': {
+        'min': 7.5,
+        'max': 8.3
+    },
+    '2002': {
+        'min': 9.0,
+        'max': 10.3
+    },
+    '2003': {
+        'min': 9.0,
+        'max': 10.3
+    },
+    '2004': {
+        'min': 9.0,
+        'max': 10.3
+    },
+    '2005': {
+        'min': 9.0,
+        'max': 10.3
+    }
+}
+
+TEST_OUT_RANGE_HITTER = {
+    '2000': {
+        'min': 3.4,
+        'max': 4.3
+    },
+    '2001': {
+        'min': 3.4,
+        'max': 4.3
+    },
+    '2002': {
+        'min': 5.9,
+        'max': 7.1
+    },
+    '2003': {
+        'min': 5.9,
+        'max': 7.1
+    },
+    '2004': {
+        'min': 5.9,
+        'max': 7.1
+    },
+    '2005': {
+        'min': 5.9,
+        'max': 7.1
+    }
+}
+
+TEST_COMMAND_RANGE_PITCHER = {
+    '2000': {
+        'min': 3.0,
+        'max': 4.0
+    },
+    '2001': {
+        'min': 3.0,
+        'max': 4.0
+    },
+    '2002': {
+        'min': 3.0,
+        'max': 4.2
+    },
+    '2003': {
+        'min': 3.0,
+        'max': 4.2
+    },
+    '2004': {
+        'min': 3.0,
+        'max': 4.2
+    },
+    '2005': {
+        'min': 3.0,
+        'max': 4.2
+    }
+}
+
+TEST_OUT_RANGE_PITCHER = {
+    '2000': {
+        'min': 15.0,
+        'max': 16.2
+    },
+    '2001': {
+        'min': 15.0,
+        'max': 16.2
+    },
+    '2002': {
+        'min': 15.7,
+        'max': 17.2
+    },
+    '2003': {
+        'min': 15.2,
+        'max': 16.6
+    },
+    '2004': {
+        'min': 15.2,
+        'max': 16.6
+    },
+    '2005': {
+        'min': 15.2,
+        'max': 16.6
+    }
 }

@@ -29,9 +29,12 @@ class ShowdownPlayerCardGenerator:
         self.chart_ranges = self.__ranges_for_chart(self.chart)
         self.real_stats = self.__stats_for_full_season(chart_results_per_400_abs)
 
-        self.icons = self.__icons(stats['award_summary'])
+        self.icons = self.__icons(stats['award_summary'] if 'award_summary' in stats.keys() else '')
 
-        self.points = self.__point_value(self.chart, self.real_stats, self.positions_and_defense, self.speed)
+        self.points = self.__point_value(chart=self.chart,
+                                        real_stats=self.real_stats,
+                                        positions_and_defense=self.positions_and_defense,
+                                        speed_or_ip=self.ip if self.is_pitcher else self.speed)
         if printOutput:
             self.print_player()
 
@@ -350,9 +353,9 @@ class ShowdownPlayerCardGenerator:
           Dict object with onbase, control, pitcher outs, hitter outs
         """
 
-        onbaseBaseline = sc.BASELINE_HITTER[self.context]['onbase'] if self.test_numbers is None else self.test_numbers[0]
+        onbaseBaseline = sc.BASELINE_HITTER[self.context]['command'] if self.test_numbers is None else self.test_numbers[0]
         hitterOutsBaseline = sc.BASELINE_HITTER[self.context]['outs'] if self.test_numbers is None else self.test_numbers[1]
-        controlBaseline = sc.BASELINE_PITCHER[self.context]['control'] if self.test_numbers is None else self.test_numbers[0]
+        controlBaseline = sc.BASELINE_PITCHER[self.context]['command'] if self.test_numbers is None else self.test_numbers[0]
         pitcherOutsBaseline = sc.BASELINE_PITCHER[self.context]['outs'] if self.test_numbers is None else self.test_numbers[1]
 
         return {
@@ -429,7 +432,7 @@ class ShowdownPlayerCardGenerator:
         }
 
         for category, results_per_400_pa in stats_for_400_pa.items():
-            if '_per_400_pa' in category:
+            if '_per_400_pa' in category and category != 'h_per_400_pa':
                 # CONVERT EACH REAL STAT CATEGORY INTO NUMBER OF RESULTS ON CHART
                 key = category[:2]
                 if key == 'sb':
@@ -462,8 +465,8 @@ class ShowdownPlayerCardGenerator:
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_for_400_pa = self.__chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20)
         weights = {
-            'batting_avg': 5.0,
-            'slugging_perc': 2.0,
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 1.0,
             'onbase_perc': 5.0
         }
         accuracy, categorical_accuracy = self.accuracy_between_dicts(in_game_stats_for_400_pa, stats_for_400_pa, weights)
@@ -480,6 +483,7 @@ class ShowdownPlayerCardGenerator:
         Returns:
           Tuple of PU, GB, FB out result ints.
         """
+
 
         if out_slots_remaining > 0:
             # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
@@ -586,8 +590,7 @@ class ShowdownPlayerCardGenerator:
         Returns:
           Dict of stats weighted for n PA.
         """
-
-        pct_of_n_pa = float(stats['PA']) / plate_appearances
+        pct_of_n_pa = (float(stats['PA']) - float(stats['SH'])) / plate_appearances
         stats_for_n_pa = {
             'PA': plate_appearances,
             'pct_of_{}_pa'.format(plate_appearances): pct_of_n_pa,
@@ -600,7 +603,7 @@ class ShowdownPlayerCardGenerator:
 
         stats['1B'] = int(stats['H']) - int(stats['HR']) - int(stats['3B']) - int(stats['2B'])
 
-        chart_result_categories = ['SO','BB','1B','2B','3B','HR','SB']
+        chart_result_categories = ['SO','BB','1B','2B','3B','HR','SB','H']
         for category in chart_result_categories:
             key = '{}_per_{}_pa'.format(category.lower(), plate_appearances)
             stats_for_n_pa[key] = int(stats[category]) / pct_of_n_pa
@@ -675,12 +678,13 @@ class ShowdownPlayerCardGenerator:
             '2b_per_400_pa': doubles_per_400_pa,
             '3b_per_400_pa': triples_per_400_pa,
             'hr_per_400_pa': home_runs_per_400_pa,
-            'batting_avg': self.__pct_rate_for_result(command_out_matchup['onbase'],
-                                                      command_out_matchup['control'],
-                                                      hits_hitter_chart,
-                                                      hits_pitcher_chart,
-                                                      hitter_chart['bb'],
-                                                      pitcher_chart['bb']),
+            'h_per_400_pa': singles_per_400_pa + doubles_per_400_pa + triples_per_400_pa + home_runs_per_400_pa,
+            # 'batting_avg': self.__pct_rate_for_result(command_out_matchup['onbase'],
+            #                                           command_out_matchup['control'],
+            #                                           hits_hitter_chart,
+            #                                           hits_pitcher_chart,
+            #                                           hitter_chart['bb'],
+            #                                           pitcher_chart['bb']),
             'onbase_perc': self.__pct_rate_for_result(command_out_matchup['onbase'],command_out_matchup['control'],
                                               20-command_out_matchup['hitterOuts'],20-command_out_matchup['pitcherOuts']),
             'slugging_perc': self.__slugging_pct(400-walks_per_400_pa, singles_per_400_pa, doubles_per_400_pa,
@@ -732,7 +736,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # PLAYER VALUE METHODS
 
-    def __point_value(self, chart, real_stats, positions_and_defense, speed):
+    def __point_value(self, chart, real_stats, positions_and_defense, speed_or_ip):
         """Derive player's value. Uses constants to compare against other cards in set.
 
         Args:
@@ -747,61 +751,91 @@ class ShowdownPlayerCardGenerator:
 
         points = 0
 
-        obp_points = sc.POINT_CATEGORY_WEIGHTS[self.context]['position_player']['onbase'] \
-                     * self.stat_percentile(real_stats['onbase_perc'],sc.ONBASE_PCT_RANGE[self.context])
-        ba_points = sc.POINT_CATEGORY_WEIGHTS[self.context]['position_player']['average'] \
-                    * self.stat_percentile(real_stats['batting_avg'],sc.BATTING_AVG_RANGE[self.context])
-        slg_points = sc.POINT_CATEGORY_WEIGHTS[self.context]['position_player']['slugging'] \
-                     * self.stat_percentile(real_stats['slugging_perc'],sc.SLG_RANGE[self.context])
-        spd_points = sc.POINT_CATEGORY_WEIGHTS[self.context]['position_player']['speed'] \
-                     * self.stat_percentile(speed,sc.SPEED_RANGE[self.context])
-        hr_points = sc.POINT_CATEGORY_WEIGHTS[self.context]['position_player']['home_runs'] \
-                    * self.stat_percentile(real_stats['hr_per_650_pa'],sc.HR_RANGE[self.context])
+        # PARSE PLAYER TYPE
+        is_starting_pitcher = 'STARTER' in positions_and_defense.keys()
+        if self.is_pitcher:
+            player_category = 'starting_pitcher' if is_starting_pitcher else 'relief_pitcher'
+        else:
+            player_category = 'position_player'
 
-        points += (obp_points + ba_points + slg_points + spd_points + hr_points)
+        obp_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['onbase'] \
+                     * self.stat_percentile(real_stats['onbase_perc'],
+                                            sc.ONBASE_PCT_RANGE[self.context],
+                                            is_desc=self.is_pitcher)
+        ba_points = 0
+        # sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['average'] \
+        #             * self.stat_percentile(real_stats['batting_avg'],
+        #                                    sc.BATTING_AVG_RANGE[self.context],
+        #                                    is_desc=self.is_pitcher)
+        slg_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['slugging'] \
+                     * self.stat_percentile(real_stats['slugging_perc'],
+                                            sc.SLG_RANGE[self.context],
+                                            is_desc=self.is_pitcher)
+
+        # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
+        spd_ip_category = 'ip' if self.is_pitcher else 'speed'
+        if self.is_pitcher:
+            spd_ip_range = sc.IP_RANGE['starting_pitcher' if is_starting_pitcher else 'relief_pitcher']
+        else:
+            spd_ip_range = sc.SPEED_RANGE[self.context]
+        spd_ip_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category][spd_ip_category] \
+                         * self.stat_percentile(speed_or_ip,
+                                                spd_ip_range,
+                                                is_desc=False)
+
+        points += (obp_points + ba_points + slg_points + spd_ip_points)
 
         if not self.is_pitcher:
+            # ONLY HITTERS HAVE HR ADD TO POINTS
+            hr_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['home_runs'] \
+                        * self.stat_percentile(real_stats['hr_per_650_pa'],
+                                               sc.HR_RANGE[self.context],
+                                               is_desc=self.is_pitcher)
+            points += hr_points
             defense_points = 0
             for position, fielding in positions_and_defense.items():
                 if position != 'DH':
                     percentile = fielding / sc.POSITION_DEFENSE_RANGE[self.context][position]
-                    positionPts = percentile * sc.POINT_CATEGORY_WEIGHTS[self.context]['position_player']['defense']
+                    positionPts = percentile * sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['defense']
                     defense_points += positionPts
             points_per_position = defense_points / len(positions_and_defense.keys()) if len(positions_and_defense.keys()) > 0 else 1
             points += points_per_position
 
         return int(round(points,-1))
 
-    def stat_percentile(self, stat, min_max_dict):
+    def stat_percentile(self, stat, min_max_dict, is_desc=False):
         """Get the percentile for a particular stat.
 
         Args:
           stat: Value to get percentile of.
           min_max_dict: Dict with 'min' and 'max' range values for the stat
+          is_desc: Boolean for whether the lowest value should be treated as positive.
 
         Returns:
-          Points that the player is worth.
+          Percent of points to give for given category.
         """
 
         min = min_max_dict['min']
         max = min_max_dict['max']
         range = max - min
         stat_within_range = stat - min if stat - min > 0 else 0
-        percentile = stat_within_range / range
+        raw_percentile = stat_within_range / range
+        percentile_adjusted = 1 - raw_percentile if is_desc else raw_percentile
 
-        return percentile
+        return percentile_adjusted
 
 # ------------------------------------------------------------------------
 # GENERIC METHODS
 
-    def accuracy_between_dicts(self, dict1, dict2, weights={}):
+    def accuracy_between_dicts(self, dict1, dict2, weights={}, all_or_nothing=[]):
         """Compare two dictionaries of numbers to get overall difference
 
         Args:
           dict1: First Dictionary. Use this dict to get keys to compare.
           dict2: Second Dictionary.
           weights: X times to count certain category (ex: 3x for command)
-
+          all_or_nothing: List of category names to compare as a boolean 1 or 0 instead
+                          of pct difference.
         Returns:
           Float with accuracy and Dict with accuracy per key.
         """
@@ -811,8 +845,11 @@ class ShowdownPlayerCardGenerator:
         for key, value1 in dict1.items():
             if key in dict2.keys():
                 value2 = dict2[key]
-                pct_difference = self.__pct_difference(value1, value2)
-                accuracy_for_key = 1 - pct_difference
+                if key in all_or_nothing:
+                    accuracy_for_key = 1 if value1 == value2 else 0
+                else:
+                    pct_difference = self.__pct_difference(value1, value2)
+                    accuracy_for_key = 1 - pct_difference
                 output[key] = accuracy_for_key
                 # APPLY WEIGHTS
                 weight = float(weights[key]) if key in weights.keys() else 1
@@ -840,7 +877,14 @@ class ShowdownPlayerCardGenerator:
         Returns:
           Float with overall accuracy and Dict with accuracy per stat category.
         """
-        return self.accuracy_between_dicts(wotc_card_dict,self.chart)
+        chart_w_combined_command_outs = self.chart
+        # del chart_w_combined_command_outs['command']
+        # del chart_w_combined_command_outs['outs']
+        chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart['command'],self.chart['outs'])
+        return self.accuracy_between_dicts(wotc_card_dict,
+                                           chart_w_combined_command_outs,
+                                           weights={},
+                                           all_or_nothing=['command-outs'])
 
 # ------------------------------------------------------------------------
 # OUTPUT PLAYER METHODS
@@ -890,7 +934,7 @@ class ShowdownPlayerCardGenerator:
         print('\nStatline\n')
         print('{:<12}{:>12}'.format('Showdown', 'Real'))
         print('{:<12}{:>12}'.format('----------', '---------'))
-        slash_categories = [('batting_avg', ' BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
+        slash_categories = [('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
         for key, cleaned_category in slash_categories:
             showdown_stat_str = '{}: {}'.format(cleaned_category,round(self.real_stats[key],3))
             real_stat_str = '{}: {}'.format(cleaned_category,self.stats[key])

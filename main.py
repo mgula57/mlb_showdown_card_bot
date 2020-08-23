@@ -16,6 +16,8 @@ parser.add_argument('-o','--offset', metavar='O',
                     help='Get alternate chart n away from most accurate',default=0)
 parser.add_argument('-t','--test', metavar='T',
                     help='Get alternate chart n away from most accurate',default=False)
+parser.add_argument('-pt','--player_type', metavar='P',
+                    help='Choose either Hitter or Pitcher to test',default='Hitter')
 args = parser.parse_args()
 
 def showdown_player_stats():
@@ -33,8 +35,7 @@ def showdown_player_stats():
     )
 
 if __name__ == "__main__":
-    # execute only if run as a script
     if args.test:
-        analyze(int(args.context), 'Hitter')
+        analyze(int(args.context), args.player_type, True)
     else:
         showdown_player_stats()
