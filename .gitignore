@@ -1,0 +1,9 @@
+# VIRTUAL ENVIRONMENTS
+showdown
+venv
+
+# PLAYER CACHE
+cache
+
+# PYCACHE
+__pycache__/
