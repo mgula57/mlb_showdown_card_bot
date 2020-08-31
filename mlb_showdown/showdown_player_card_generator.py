@@ -3,22 +3,32 @@ import pandas as pd
 import math
 import requests
 import operator
+import os
+from io import BytesIO
+from datetime import datetime
 import mlb_showdown.showdown_constants as sc
+from bs4 import BeautifulSoup
 from pprint import pprint
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+import json
+from urllib.request import urlopen, Request
+
 
 class ShowdownPlayerCardGenerator:
 
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, offset=0, test_numbers=None, printOutput=False):
+    def __init__(self, name, year, stats, context, offset=0, test_numbers=None, printOutput=False, player_image_url=None):
         self.name = name
         self.year = year
         self.context = context
         self.stats = stats
+        self.player_image_url = player_image_url
 
         self.test_numbers = test_numbers
         self.is_pitcher = True if stats['type'] == 'Pitcher' else False
+        self.team = stats['team_ID']
 
         self.__player_metadata(stats)
 
@@ -37,6 +47,7 @@ class ShowdownPlayerCardGenerator:
                                         speed_or_ip=self.ip if self.is_pitcher else self.speed)
         if printOutput:
             self.print_player()
+            self.player_image()
 
 # ------------------------------------------------------------------------
 # METADATA METHODS
@@ -63,7 +74,7 @@ class ShowdownPlayerCardGenerator:
         self.positions_and_defense = self.__positions_and_defense(defensive_stats_raw, games_played_raw, games_started_raw, saves_raw)
         self.hand = self.__handedness(hand_raw)
         self.ip = self.__innings_pitched(innings_pitched_raw, games_played_raw)
-        self.speed = self.__speed(sprint_speed_raw, stolen_bases_raw)
+        self.speed, self.speed_letter = self.__speed(sprint_speed_raw, stolen_bases_raw)
 
     def __positions_and_defense(self, defensive_stats, games_played, games_started, saves):
         """Get in game defensive positions and ratings
@@ -179,12 +190,12 @@ class ShowdownPlayerCardGenerator:
           stolen_bases: Number of steals during the season.
 
         Returns:
-          In game speed ability.
+          In game speed ability, in game letter grade
         """
 
         if self.is_pitcher:
             # PITCHER DEFAULTS TO 10
-            return 10
+            return 10, 'C'
 
         if sprint_speed is None or math.isnan(sprint_speed) or sprint_speed == '':
             # NO SPRINT SPEED AVAILABLE
@@ -202,7 +213,13 @@ class ShowdownPlayerCardGenerator:
         speed = 8 if speed_raw < 8 else speed_raw
         speed = 30 if speed_raw > 30 else speed_raw
 
-        return speed
+        if speed < 12:
+            letter = 'C'
+        elif speed < 18:
+            letter = 'B'
+        else:
+            letter = 'A'
+        return speed, letter
 
     def __position_in_game(self, position, num_positions, position_appearances, games_played, games_started, saves):
         """Cleans position name to conform to game standards.
@@ -561,7 +578,7 @@ class ShowdownPlayerCardGenerator:
             category_results = int(chart[category])
             if category_results == 0:
                 # EMPTY RANGE
-                range = '-'
+                range = '—'
             elif category_results == 1:
                 # RANGE IS CURRENT INDEX
                 range = str(current_chart_index)
@@ -570,7 +587,7 @@ class ShowdownPlayerCardGenerator:
                 # MULTIPLE RESULTS
                 range_start = current_chart_index
                 range_end = current_chart_index + category_results - 1
-                range = '{}-{}'.format(range_start,range_end)
+                range = '{}–{}'.format(range_start,range_end)
                 current_chart_index = range_end + 1
 
             chart_ranges['{} Range'.format(category)] = range
@@ -900,49 +917,40 @@ class ShowdownPlayerCardGenerator:
           None
 
         Returns:
-          None
+          String of output text for player info + stats
         """
 
-        print('\n ************************************************ \n')
-        print('{} ({})'.format(self.name,self.year))
-        print('{} Base Set Card\n'.format(self.context))
-
+        # POSITION
+        positions_string = ''
         for position,fielding in self.positions_and_defense.items():
-            positionString = '{}+{}'.format(position,fielding) if not self.is_pitcher else position
-            print(positionString)
-        print(self.hand)
-        if self.speed >= 18:
-            speed_letter = 'A'
-        elif self.speed >= 12:
-            speed_letter = 'B'
-        else:
-            speed_letter = 'C'
-        speed_letter
-        ipOrSpeed = 'Speed {} ({})'.format(speed_letter,self.speed) if not self.is_pitcher else '{} IP'.format(self.ip)
-        print(ipOrSpeed)
-        print('{} PTS'.format(self.points))
+            positions_string += '{}+{}   '.format(position,fielding) if not self.is_pitcher else position
+
+        # IP / SPEED
+        ip_or_speed = 'Speed {} ({})'.format(self.speed_letter,self.speed) if not self.is_pitcher else '{} IP'.format(self.ip)
+
+        # ICON(S)
         icon_string = ''
         for icon in self.icons:
             icon_string += '{}  '.format(icon)
-        print(icon_string)
 
-        print('\n{}: {}'.format('CONTROL' if self.is_pitcher else 'ONBASE',self.chart['command']))
+        # CHART
+        chart_string = ''
         for category in self.__chart_categories():
             range = self.chart_ranges['{} Range'.format(category)]
-            print('{}: {}'.format(category.upper(), range))
+            chart_string += '{}: {}\n'.format(category.upper(), range)
 
-        print('\nStatline\n')
-        print('{:<12}{:>12}'.format('Showdown', 'Real'))
-        print('{:<12}{:>12}'.format('----------', '---------'))
+        # SLASH LINE
         slash_categories = [('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
+        slash_as_string = ''
         for key, cleaned_category in slash_categories:
             showdown_stat_str = '{}: {}'.format(cleaned_category,round(self.real_stats[key],3))
             real_stat_str = '{}: {}'.format(cleaned_category,self.stats[key])
-            print('{:<12}{:>12}'.format(showdown_stat_str,real_stat_str))
+            slash_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str,real_stat_str)
 
+        # RESULT LINE
         real_life_pa = int(self.stats['PA'])
         real_life_pa_ratio = int(self.stats['PA']) / 650.0
-        print('{:<12}{:>12}'.format(' PA: {}'.format(real_life_pa),' PA: {}'.format(real_life_pa)))
+        results_as_string = '{:<12}{:>12}\n'.format(' PA: {}'.format(real_life_pa),' PA: {}'.format(real_life_pa))
         result_categories = [
             ('1b_per_650_pa', '1B'),
             ('2b_per_650_pa', '2B'),
@@ -954,7 +962,292 @@ class ShowdownPlayerCardGenerator:
         for key, cleaned_category in result_categories:
             showdown_stat_str = ' {}: {}'.format(cleaned_category,str(int(round(self.real_stats[key]) * real_life_pa_ratio)).replace('0.',''))
             real_stats_str = ' {}: {}'.format(cleaned_category,self.stats[cleaned_category])
-            print('{:<12}{:>12}'.format(showdown_stat_str, real_stats_str))
+            results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, real_stats_str)
 
+        card_as_string = """
+***********************************************
+{name} ({year}) ({team})
+{context} Base Set Card
 
-        print('\n ************************************************ \n')
+{positions}
+{hand}
+{ip_or_speed}
+{icons}
+{points} PT.
+
+{command_header}: {command}
+{chart}
+
+Statline
+
+Showdown            Real
+----------     ---------
+{slash_line}
+{results}
+***********************************************
+        """.format(
+            name = self.name,
+            year = self.year,
+            team = self.team,
+            context = self.context,
+            positions = positions_string,
+            hand = self.hand,
+            ip_or_speed = ip_or_speed,
+            icons = icon_string,
+            points = str(self.points),
+            command_header = 'CONTROL' if self.is_pitcher else 'ONBASE',
+            command=self.chart['command'],
+            chart = chart_string,
+            slash_line = slash_as_string,
+            results = results_as_string
+        )
+        print(card_as_string)
+        return card_as_string
+
+    def __player_metadata_summary_text(self):
+        """Creates a multi line string with all player metadata for card output.
+
+        Args:
+          None
+
+        Returns:
+          String of output text for player info + stats
+        """
+        positions_string = ''
+        position_num = 1
+        for position,fielding in self.positions_and_defense.items():
+            if self.is_pitcher:
+                positions_string += position
+            else:
+                is_last_element = position_num == len(self.positions_and_defense.keys())
+                positions_string += '{} +{}{}'.format(position,fielding,'' if is_last_element else '\n')
+            position_num += 1
+
+        ip_or_speed = 'Speed {} ({})'.format(self.speed_letter,self.speed) if not self.is_pitcher else '{} IP'.format(self.ip)
+        final_text = """\
+        {line1}
+        {hand}
+        {line3}
+        {points} PT.
+        """.format(
+            line1=positions_string if self.is_pitcher else ip_or_speed,
+            hand=self.hand,
+            line3=ip_or_speed if self.is_pitcher else positions_string,
+            points=self.points
+        )
+        return final_text
+
+    def player_image(self):
+        """Generates a 500/700 player image mocking what a real MLB Showdown card
+           would look like for the player output. Final image is dumped to
+           static/image_output folder.
+
+        Args:
+          None
+
+        Returns:
+          None
+        """
+        # FONTS
+        helvetica_neue_lt_path = os.path.join('static', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
+        helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+
+        helvetica_neue_lt = ImageFont.truetype(helvetica_neue_lt_path, size=32)
+        helvetica_neue_cond_bold = ImageFont.truetype(helvetica_neue_cond_bold_path, size=45)
+        helvetica_neue_cond_bold_alt = ImageFont.truetype(helvetica_neue_cond_bold_path, size=48)
+
+        # LOAD PLAYER IMAGE
+        if self.player_image_url is None:
+            image_url = self.__scrape_player_image_url(url=self.player_image_url)
+        else:
+            image_url = self.player_image_url
+        response = requests.get(image_url)
+        player_image = Image.open(BytesIO(response.content))
+        player_image = self.__center_crop(player_image, (500,700))
+        player_image = self.__round_corners(player_image, 20)
+
+        # LOAD SHOWDOWN TEMPLATE
+        template_image_name = '{context}-{type}-{command}.png'.format(
+            context = str(self.context),
+            type = 'Pitcher' if self.is_pitcher else 'Hitter',
+            command = str(self.chart['command'])
+        )
+        showdown_template_frame_image = Image.open(os.path.join('static', 'templates', template_image_name))
+        player_image.paste(showdown_template_frame_image,(0,0),showdown_template_frame_image)
+
+        # CREATE NAME TEXT
+        name_text = self.__text_image(
+            text = self.name.upper(),
+            size = (700, 100),
+            font = helvetica_neue_lt,
+            rotation = 90,
+            alignment = "right",
+            padding=20
+        )
+        player_image.paste("#FFFFFF", (455,0),  name_text)
+
+        # ADD TEAM LOGO
+        try:
+            team_logo = Image.open(os.path.join('static', 'logos', '{}.png'.format(self.team))).convert("RGBA")
+            team_logo = team_logo.resize((90, 90), Image.ANTIALIAS)
+        except:
+            team_logo = Image.open(os.path.join('static', 'logos', 'mlb.png')).convert("RGBA")
+            team_logo = team_logo.resize((90, 49), Image.ANTIALIAS)
+        player_image.paste(team_logo, (393,358), team_logo)
+
+        # CREATE METADATA TEXT
+        metadata_text = self.__text_image(
+            text = self.__player_metadata_summary_text(),
+            size = (255, 900),
+            font = helvetica_neue_cond_bold,
+            rotation = 0,
+            alignment = "right",
+            padding=0,
+            spacing=22
+        )
+        metadata_text_resized = metadata_text.resize((85,300), Image.ANTIALIAS)
+        player_image.paste("#FFFFFF", (275,510), metadata_text_resized)
+
+        # CREATE CHART RANGES TEXT
+        chart_string = ''
+        for category in self.__chart_categories():
+            range = self.chart_ranges['{} Range'.format(category)]
+            chart_string += '{}\n'.format(range)
+
+        chart_text = self.__text_image(
+            text = chart_string,
+            size = (255, 1200),
+            font = helvetica_neue_cond_bold_alt,
+            rotation = 0,
+            alignment = "right",
+            padding=0,
+            spacing=19
+        )
+        chart_text_resized = chart_text.resize((85,400), Image.ANTIALIAS)
+        player_image.paste("#535252", (327,511), chart_text_resized)
+
+        # SAVE AND SHOW IMAGE
+        self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
+        player_image.save(os.path.join('static', 'images', self.image_name))
+        self.__clean_images_directory()
+
+    def __clean_images_directory(self):
+        """Removes all images from output folder that are not the current card.
+
+        Args:
+          None
+
+        Returns:
+          None
+        """
+        for item in os.listdir(os.path.join('static', 'images')):
+            if item != self.image_name:
+                os.remove(os.path.join('static', 'images', item))
+
+    def __text_image(self,text,size,font,rotation=0,alignment='left',padding=0,spacing=3,opacity=1):
+        """Generates a new PIL image object with text.
+
+        Args:
+          text: string of text to display.
+          size: Tuple of image size.
+          font: PIL font object.
+          rotation: Degrees of rotation for the text (optional)
+          alignment: String (left, center, right) for alignment of text within image.
+          padding: Number of pixels worth of padding from image edge.
+          spacing: Pixels of space between lines of text.
+          opacity: Transparency of text.
+
+        Returns:
+          PIL image object with desired text and formatting.
+        """
+        text_layer = Image.new('L', size)
+        draw = ImageDraw.Draw(text_layer)
+        w, h = draw.textsize(text, font=font)
+        if alignment == "center":
+            x = size[0] / 2.0
+        elif alignment == "right":
+            x = size[0] - padding - w
+        else:
+            x = 0 + padding
+        draw.text((x, 0), text, font=font, spacing=spacing, fill=255, align=alignment)
+        rotated_text_layer = text_layer.rotate(rotation, expand=1)
+        return rotated_text_layer
+
+    def __round_corners(self, image, radius):
+        """Round corners of a given image to a certain radius.
+
+        Args:
+          image: PIL image object to edit.
+          radius: Number of pixels to round corner.
+
+        Returns:
+          PIL image object with desired rounded corners.
+        """
+
+        circle = Image.new ('L', (radius * 2, radius * 2), 0)
+        draw = ImageDraw.Draw (circle)
+        draw.ellipse ((0, 0, radius * 2, radius * 2), fill = 255)
+        alpha = Image.new ('L', image.size, 255)
+        w, h = image.size
+
+        alpha.paste (circle.crop ((0, 0, radius, radius)), (0, 0))
+        alpha.paste (circle.crop ((0, radius, radius, radius * 2)), (0, h-radius))
+        alpha.paste (circle.crop ((radius, 0, radius * 2, radius)), (w-radius, 0))
+        alpha.paste (circle.crop ((radius, radius, radius * 2, radius * 2)), (w-radius, h-radius))
+        image.putalpha (alpha)
+        return image
+
+    def __center_crop(self, image, crop_size):
+        """Uses image size to crop in the middle for given crop size
+
+        Args:
+          image: PIL image object to edit.
+          crop_size: Tuple representing width and height of desired crop.
+
+        Returns:
+          Cropped PIL image object.
+        """
+
+        width, height = image.size
+        crop_width, crop_height = crop_size
+
+        # FIND CLOSEST SIDE (X VS Y)
+        x_ratio = crop_width / width
+        y_ratio = crop_height / height
+        x_diff = abs(x_ratio)
+        y_diff = abs(y_ratio)
+        scale = x_ratio if x_diff > y_diff else y_ratio
+        image = image.resize((int(width * scale), int(height * scale)), Image.ANTIALIAS)
+
+        new_width, new_height = image.size
+        left = (new_width - crop_width) / 2
+        top = (new_height - crop_height) / 2
+        right = (new_width + crop_width) / 2
+        bottom = (new_height + crop_height) / 2
+
+        # CROP THE CENTER OF THE IMAGE
+        return image.crop((left, top, right, bottom))
+
+    def __scrape_player_image_url(self,url=None):
+        """ Scrape google images for guess on picture to use for
+        player background.
+
+        Args:
+            None
+
+        Returns:
+          String url of first player image on google search.
+        """
+        query = '{name}+{year}+{type}'.format(
+            name = self.name.replace(' ', '+'),
+            year = str(self.year),
+            type = 'pitching' if self.is_pitcher else 'batting'
+        )
+        url = 'https://www.bing.com/images/search?q=' + query + '&qft=+filterui:photo-photo+filterui:imagesize-large&form=IRFLTR&first=1&scenario=ImageHoverTitle'
+        header = {'User-Agent':"Chrome/84.0.4147.135"}
+        html = urlopen(Request(url, headers=header))
+        soup = BeautifulSoup(html, 'html.parser')
+        first_image = soup.find('li',{ 'data-idx': "1" })
+        first_image_attributes = first_image.find('a', {'class': "iusc"})
+        first_image_url = json.loads(first_image_attributes.get("m"))['murl']
+        return first_image_url

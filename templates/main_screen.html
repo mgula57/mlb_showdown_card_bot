@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>MLB Showdown Card Bot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" media="screen">
+    <style>
+      .container {
+        max-width: 1000px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo">
+      <br>
+      <form role="form" method='POST' action='/'>
+        <div class="form-group">
+          <label for="name">Player Name</label>
+          <input type="text" name="name" class="form-control" id="name" placeholder="Enter Player Name (ex: Mickey Mantle)..." style="max-width: 300px; padding: 20px;" autofocus required>
+        </div>
+        <div class="form-group">
+          <label for="year">Year</label>
+          <input type="text" name="year" class="form-control" id="year" placeholder="Enter the Year/Season (ex: 1956)..." style="max-width: 300px; padding: 20px;" autofocus required>
+        </div>
+        <div class="form-group">
+          <label for="url">Player Image</label>
+          <input type="text" name="url" class="form-control" id="url" placeholder="(OPTIONAL) Paste a link to a photo to use as the player image..." style="max-width: 300px; padding: 20px;" autofocus>
+        </div>
+        <div class="form-group">
+          <label for="set">Choose a MLB Showdown Set</label>
+          <select id="set" name="set">
+            <!-- <option value="2000">2000</option> -->
+            <!-- <option value="2001">2001</option> -->
+            <!-- <option value="2002">2002</option> -->
+            <option value="2003">2003</option>
+            <!-- <option value="2004">2004</option> -->
+            <!-- <option value="2005">2005</option> -->
+          </select>
+        </div>
+        <button type="submit" class="btn btn-default">Create</button>
+      </form>
+      <br>
+      {% if image %}
+        <img src="{{ image }}" alt="card">
+      {% else %}
+        <h4>Error Producing Card</h4>
+      {% endif %}
+      {% for error in errors %}
+        <h4>{{ error }}</h4>
+      {% endfor %}
+      <br>
+    </div>
+    <script src="//code.jquery.com/jquery-2.2.1.min.js"></script>
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+  </body>
+</html>
