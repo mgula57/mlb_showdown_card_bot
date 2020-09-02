@@ -1058,13 +1058,14 @@ Showdown            Real
 
         # LOAD PLAYER IMAGE
         if self.player_image_url is None:
-            image_url = self.__scrape_player_image_url(url=self.player_image_url)
+            # image_url = self.__scrape_player_image_url(url=self.player_image_url)
+            player_image = Image.open(os.path.join('static', 'templates', 'Default Background.png'))
         else:
             image_url = self.player_image_url
-        response = requests.get(image_url)
-        player_image = Image.open(BytesIO(response.content))
-        player_image = self.__center_crop(player_image, (500,700))
-        player_image = self.__round_corners(player_image, 20)
+            response = requests.get(image_url)
+            player_image = Image.open(BytesIO(response.content))
+            player_image = self.__center_crop(player_image, (500,700))
+            player_image = self.__round_corners(player_image, 20)
 
         # LOAD SHOWDOWN TEMPLATE
         template_image_name = '{context}-{type}-{command}.png'.format(
@@ -1141,7 +1142,7 @@ Showdown            Real
           None
         """
         for item in os.listdir(os.path.join('static', 'images')):
-            if item != self.image_name:
+            if item != self.image_name and item != '.gitkeep':
                 os.remove(os.path.join('static', 'images', item))
 
     def __text_image(self,text,size,font,rotation=0,alignment='left',padding=0,spacing=3,opacity=1):
