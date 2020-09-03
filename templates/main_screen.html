@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>MLB Showdown Card Bot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" media="screen">
+    <style>
+      .container {
+        max-width: 1000px;
+      }
+      .loader {
+        border: 8px solid #f3f3f3; /* Light grey */
+        border-top: 8px solid #3498db; /* Blue */
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 2s linear infinite;
+        display: none;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+		<script type=text/javascript>
+			$(function() {
+			  $('a#create_card').bind('click', function() {
+          $('#loader').show();
+  				$.getJSON('/card_creation', {
+  				  name: $('input[name="name"]').val(),
+            year: $('input[name="year"]').val(),
+            set: $('#set option:selected').text(),
+            url: $('input[name="url"]').val(),
+  				}, function(data) {
+            $("#card_image").attr('src',data.image_path);
+            $("#error").text(data.error);
+            $('.loader').hide();
+  				});
+  				return false;
+			  });
+			});
+		</script>
+  </head>
+  <body>
+    <div class="container">
+      <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" width=288 height=120>
+      <br>
+      <br>
+      <form role="form" method='POST' action='/'>
+        <div class="form-group">
+          <label for="name">Player Name</label>
+          <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" style="max-width: 300px; padding: 20px;" autofocus required>
+        </div>
+        <div class="form-group">
+          <label for="year">Year</label>
+          <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" style="max-width: 300px; padding: 20px;" autofocus required>
+        </div>
+        <div class="form-group">
+          <label for="url">Player Image Link</label>
+          <input type="text" name="url" class="form-control" id="url" placeholder="(OPTIONAL) Paste Link" style="max-width: 300px; padding: 20px;" autofocus>
+        </div>
+        <div class="form-group">
+          <label for="set">Choose a MLB Showdown Set</label>
+          <select id="set" name="set">
+            <!-- <option value="2000">2000</option> -->
+            <!-- <option value="2001">2001</option> -->
+            <!-- <option value="2002">2002</option> -->
+            <option value="2003">2003</option>
+            <!-- <option value="2004">2004</option> -->
+            <!-- <option value="2005">2005</option> -->
+          </select>
+        </div>
+        <a href=# id=create_card>
+          <button type="submit" class="btn btn-default">
+            <span>Submit</span>
+          </button>
+        </a>
+        <br>
+        <br>
+        <div class="loader" id="loader"></div>
+      </form>
+      <br>
+      <br>
+        <img id="card_image" src="static/templates/Blank.png" width=375 height=525 alt="card">
+        <h4 id=error></h4>
+      <br>
+    </div>
+    <script src="//code.jquery.com/jquery-2.2.1.min.js"></script>
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+  </body>
+</html>

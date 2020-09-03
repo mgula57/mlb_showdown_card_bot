@@ -7,3 +7,5 @@ cache
 
 # PYCACHE
 __pycache__/
+
+static/images

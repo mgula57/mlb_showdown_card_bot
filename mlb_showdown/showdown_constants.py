@@ -357,14 +357,14 @@ POINT_CATEGORY_WEIGHTS = {
             'onbase': 380,
             'average': 100,
             'strikeouts': 40,
-            'sluggin_pct': 110
+            'slugging': 110
         },
         'relief_pitcher': {
             'ip': 70,
             'onbase': 100,
             'average': 30,
             'strikeouts': 10,
-            'sluggin_pct': 45
+            'slugging': 45
         }
     },
     '2003': {
@@ -381,14 +381,14 @@ POINT_CATEGORY_WEIGHTS = {
             'onbase': 380,
             'average': 100,
             'strikeouts': 40,
-            'sluggin_pct': 110
+            'slugging': 110
         },
         'relief_pitcher': {
             'ip': 70,
             'onbase': 100,
             'average': 30,
             'strikeouts': 10,
-            'sluggin_pct': 45
+            'slugging': 45
         }
     },
     '2004': {
@@ -405,14 +405,14 @@ POINT_CATEGORY_WEIGHTS = {
             'onbase': 380,
             'average': 100,
             'strikeouts': 40,
-            'sluggin_pct': 110
+            'slugging': 110
         },
         'relief_pitcher': {
             'ip': 70,
             'onbase': 100,
             'average': 30,
             'strikeouts': 10,
-            'sluggin_pct': 45
+            'slugging': 45
         }
     },
     '2005': {
@@ -429,14 +429,14 @@ POINT_CATEGORY_WEIGHTS = {
             'onbase': 380,
             'average': 100,
             'strikeouts': 40,
-            'sluggin_pct': 110
+            'slugging': 110
         },
         'relief_pitcher': {
             'ip': 70,
             'onbase': 100,
             'average': 30,
             'strikeouts': 10,
-            'sluggin_pct': 45
+            'slugging': 45
         }
     }
 }
