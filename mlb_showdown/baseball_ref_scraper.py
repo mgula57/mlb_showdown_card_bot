@@ -307,7 +307,7 @@ class BaseballReferenceScraper:
             stat_category = category['data-stat']
             stat = category.get_text()
             if type == 'Pitcher':
-                pitching_categories = ['earned_run_avg','GS','W','SV','IP']
+                pitching_categories = ['earned_run_avg','GS','W','SV','IP','award_summary']
                 if stat_category in pitching_categories:
                     standard_stats_dict[stat_category] = stat
             else:
