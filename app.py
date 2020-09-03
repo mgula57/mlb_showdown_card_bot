@@ -19,7 +19,6 @@ def card_creator():
         year = str(request.args.get('year'))
         set = str(request.args.get('set'))
         url = request.args.get('url')
-        print(name, year, set, '{}--'.format(url))
 
         # SCRAPE PLAYER DATA
         scraper = BaseballReferenceScraper(name=name,year=year)

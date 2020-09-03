@@ -300,6 +300,19 @@ class ShowdownPlayerCardGenerator:
             if award in awards_upper:
                 icons.append(icon)
 
+        # DATA DRIVEN ICONS
+        if self.is_pitcher:
+            # 20
+            if int(self.stats['W']) >= 20:
+                icons.append('20')
+            # K
+            if int(self.stats['SO']) >= 215:
+                icons.append('K')
+        else:
+            # HR
+            if int(self.stats['HR']) >= 40:
+                icons.append('HR')
+
         return icons
 
 # ------------------------------------------------------------------------
@@ -696,12 +709,12 @@ class ShowdownPlayerCardGenerator:
             '3b_per_400_pa': triples_per_400_pa,
             'hr_per_400_pa': home_runs_per_400_pa,
             'h_per_400_pa': singles_per_400_pa + doubles_per_400_pa + triples_per_400_pa + home_runs_per_400_pa,
-            # 'batting_avg': self.__pct_rate_for_result(command_out_matchup['onbase'],
-            #                                           command_out_matchup['control'],
-            #                                           hits_hitter_chart,
-            #                                           hits_pitcher_chart,
-            #                                           hitter_chart['bb'],
-            #                                           pitcher_chart['bb']),
+            'batting_avg': self.__pct_rate_for_result(command_out_matchup['onbase'],
+                                                      command_out_matchup['control'],
+                                                      hits_hitter_chart,
+                                                      hits_pitcher_chart,
+                                                      hitter_chart['bb'],
+                                                      pitcher_chart['bb']),
             'onbase_perc': self.__pct_rate_for_result(command_out_matchup['onbase'],command_out_matchup['control'],
                                               20-command_out_matchup['hitterOuts'],20-command_out_matchup['pitcherOuts']),
             'slugging_perc': self.__slugging_pct(400-walks_per_400_pa, singles_per_400_pa, doubles_per_400_pa,
@@ -779,11 +792,10 @@ class ShowdownPlayerCardGenerator:
                      * self.stat_percentile(real_stats['onbase_perc'],
                                             sc.ONBASE_PCT_RANGE[self.context],
                                             is_desc=self.is_pitcher)
-        ba_points = 0
-        # sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['average'] \
-        #             * self.stat_percentile(real_stats['batting_avg'],
-        #                                    sc.BATTING_AVG_RANGE[self.context],
-        #                                    is_desc=self.is_pitcher)
+        ba_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['average'] \
+                    * self.stat_percentile(real_stats['batting_avg'],
+                                           sc.BATTING_AVG_RANGE[self.context],
+                                           is_desc=self.is_pitcher)
         slg_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['slugging'] \
                      * self.stat_percentile(real_stats['slugging_perc'],
                                             sc.SLG_RANGE[self.context],
@@ -940,7 +952,7 @@ class ShowdownPlayerCardGenerator:
             chart_string += '{}: {}\n'.format(category.upper(), range)
 
         # SLASH LINE
-        slash_categories = [('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
+        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
         slash_as_string = ''
         for key, cleaned_category in slash_categories:
             showdown_stat_str = '{}: {}'.format(cleaned_category,round(self.real_stats[key],3))
@@ -1126,6 +1138,32 @@ Showdown            Real
         )
         chart_text_resized = chart_text.resize((85,400), Image.ANTIALIAS)
         player_image.paste("#535252", (327,511), chart_text_resized)
+
+        # ICONS
+        icon_positional_mapping = [(335,635), (335,610), (310,635), (310,610)]
+        for index, icon in enumerate(self.icons[0:4]):
+            icon_image = Image.open(os.path.join('static', 'templates', '{}.png'.format(icon)))
+            player_image.paste(icon_image, icon_positional_mapping[index], icon_image)
+
+        # CARD YEAR
+        year_text = self.__text_image(
+            text = "'{}".format(str(self.year)[2:4]),
+            size = (150, 150),
+            font = helvetica_neue_cond_bold,
+            alignment = "left"
+        )
+        year_text = year_text.resize((40,40), Image.ANTIALIAS)
+        player_image.paste("#FFFFFF", (31,595), year_text)
+
+        # CARD NUMBER
+        number_text = self.__text_image(
+            text = '001',
+            size = (150, 150),
+            font = helvetica_neue_cond_bold,
+            alignment = "left"
+        )
+        number_text = number_text.resize((40,40), Image.ANTIALIAS)
+        player_image.paste("#000000", (56,595), number_text)
 
         # SAVE AND SHOW IMAGE
         self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
