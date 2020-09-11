@@ -236,13 +236,7 @@ class ShowdownPlayerCardGenerator:
           In game position name.
         """
 
-        if position_appearances < sc.NUMBER_OF_GAMES:
-            # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
-            return None
-        elif position == 'DH' and num_positions > 1:
-            # PLAYER MAY HAVE PLAYED AT DH, BUT HAS OTHER POSITIONS, SO DH WONT BE LISTED
-            return None
-        elif position == 'P':
+        if position == 'P':
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
             starter_threshold = 0.65
@@ -252,6 +246,12 @@ class ShowdownPlayerCardGenerator:
                 return 'CLOSER'
             else:
                 return 'RELIEVER'
+        elif position_appearances < sc.NUMBER_OF_GAMES:
+            # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
+            return None
+        elif position == 'DH' and num_positions > 1:
+            # PLAYER MAY HAVE PLAYED AT DH, BUT HAS OTHER POSITIONS, SO DH WONT BE LISTED
+            return None
         else:
             # RETURN BASEBALL REFERENCE STRING VALUE
             return position
@@ -294,10 +294,11 @@ class ShowdownPlayerCardGenerator:
             'CYA-1': 'CY',
             'ROY-1': 'RY'
         }
+        awards_list = awards_upper.split(',')
 
         icons = []
         for award, icon in awards_to_icon_map.items():
-            if award in awards_upper:
+            if award in awards_list:
                 icons.append(icon)
 
         # DATA DRIVEN ICONS
@@ -592,6 +593,8 @@ class ShowdownPlayerCardGenerator:
             if category_results == 0:
                 # EMPTY RANGE
                 range = '—'
+            elif category.upper() == 'HR' and int(self.context) > 2001:
+                range = '{}+'.format(str(current_chart_index))
             elif category_results == 1:
                 # RANGE IS CURRENT INDEX
                 range = str(current_chart_index)
@@ -1074,10 +1077,13 @@ Showdown            Real
             player_image = Image.open(os.path.join('static', 'templates', 'Default Background.png'))
         else:
             image_url = self.player_image_url
-            response = requests.get(image_url)
-            player_image = Image.open(BytesIO(response.content))
-            player_image = self.__center_crop(player_image, (500,700))
-            player_image = self.__round_corners(player_image, 20)
+            try:
+                response = requests.get(image_url)
+                player_image = Image.open(BytesIO(response.content))
+                player_image = self.__center_crop(player_image, (500,700))
+                player_image = self.__round_corners(player_image, 20)
+            except:
+                player_image = Image.open(os.path.join('static', 'templates', 'Default Background.png'))
 
         # LOAD SHOWDOWN TEMPLATE
         template_image_name = '{context}-{type}-{command}.png'.format(
