@@ -313,10 +313,10 @@ POINT_CATEGORY_WEIGHTS = {
         },
         'relief_pitcher': {
             'ip': 70,
-            'onbase': 100,
-            'average': 30,
+            'onbase': 180,
+            'average': 60,
             'strikeouts': 10,
-            'slugging': 45
+            'slugging': 65
         }
     },
     '2001': {
@@ -337,10 +337,10 @@ POINT_CATEGORY_WEIGHTS = {
         },
         'relief_pitcher': {
             'ip': 70,
-            'onbase': 100,
-            'average': 30,
+            'onbase': 180,
+            'average': 60,
             'strikeouts': 10,
-            'slugging': 45
+            'slugging': 65
         }
     },
     '2002': {
@@ -361,10 +361,10 @@ POINT_CATEGORY_WEIGHTS = {
         },
         'relief_pitcher': {
             'ip': 70,
-            'onbase': 100,
-            'average': 30,
+            'onbase': 180,
+            'average': 60,
             'strikeouts': 10,
-            'slugging': 45
+            'slugging': 65
         }
     },
     '2003': {
@@ -385,10 +385,10 @@ POINT_CATEGORY_WEIGHTS = {
         },
         'relief_pitcher': {
             'ip': 70,
-            'onbase': 100,
-            'average': 30,
+            'onbase': 180,
+            'average': 60,
             'strikeouts': 10,
-            'slugging': 45
+            'slugging': 65
         }
     },
     '2004': {
@@ -409,10 +409,10 @@ POINT_CATEGORY_WEIGHTS = {
         },
         'relief_pitcher': {
             'ip': 70,
-            'onbase': 100,
-            'average': 30,
+            'onbase': 180,
+            'average': 60,
             'strikeouts': 10,
-            'slugging': 45
+            'slugging': 65
         }
     },
     '2005': {
@@ -433,10 +433,10 @@ POINT_CATEGORY_WEIGHTS = {
         },
         'relief_pitcher': {
             'ip': 70,
-            'onbase': 100,
-            'average': 30,
+            'onbase': 180,
+            'average': 60,
             'strikeouts': 10,
-            'slugging': 45
+            'slugging': 65
         }
     }
 }
