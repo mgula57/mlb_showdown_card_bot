@@ -17,27 +17,59 @@
         animation: spin 2s linear infinite;
         display: none;
       }
+      .form-group {
+        padding-left: 15px;
+      }
       @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
       }
+      h1, h2, h3, h4, h5, h6 {
+        font-weight:500;
+        padding-top: 10px;
+        padding-bottom: 10px;
+      }
     </style>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
 		<script type=text/javascript>
+      function validate() {
+          var name = document.getElementById("name").value;
+          var year = document.getElementById("year").value;
+          if (name == null || name == "") {
+              alert("Please enter a name.");
+              return false;
+          }
+          if (year == null || year == "") {
+              alert("Please enter a year.");
+              return false;
+          }
+          return true;
+      } 
 			$(function() {
 			  $('a#create_card').bind('click', function() {
-          $('#loader').show();
-  				$.getJSON('/card_creation', {
-  				  name: $('input[name="name"]').val(),
-            year: $('input[name="year"]').val(),
-            set: $('#set option:selected').text(),
-            url: $('input[name="url"]').val(),
-  				}, function(data) {
-            $("#card_image").attr('src',data.image_path);
-            $("#error").text(data.error);
-            $('.loader').hide();
-  				});
-  				return false;
+          is_valid = validate()
+          if (is_valid) {
+            $('#loader').show();
+            const sets = document.querySelectorAll('input[name="set"]');
+            let selectedValue;
+            for (const set of sets) {
+                if (set.checked) {
+                    selectedValue = set.value;
+                    break;
+                }
+            }
+    				$.getJSON('/card_creation', {
+    				  name: $('input[name="name"]').val(),
+              year: $('input[name="year"]').val(),
+              set: selectedValue,
+              url: $('input[name="url"]').val(),
+    				}, function(data) {
+              $("#card_image").attr('src',data.image_path);
+              $("#error").text(data.error);
+              $('.loader').hide();
+    				});
+    				return false;
+          }
 			  });
 			});
 		</script>
@@ -48,42 +80,49 @@
       <br>
       <br>
       <form role="form" method='POST' action='/'>
+        <h4><b>Step 1: Select a Player and Season</b></h4>
         <div class="form-group">
-          <label for="name">Player Name</label>
+          <label for="name" style="color:Gray;">Player Name</label>
           <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" style="max-width: 300px; padding: 20px;" autofocus required>
         </div>
         <div class="form-group">
-          <label for="year">Year</label>
+          <label for="year" style="color:Gray;">Year</label>
           <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" style="max-width: 300px; padding: 20px;" autofocus required>
         </div>
         <div class="form-group">
-          <label for="url">Player Image Link</label>
+          <label for="set" style="color:Gray;">MLB Showdown Set</label>
+            <br>
+            <input type="radio" name = "set" value=2000 disabled> 2000</br>
+            <input type="radio" name = "set" value=2001 disabled> 2001</br>
+            <input type="radio" name = "set" value=2002 disabled> 2002</br>
+            <input type="radio" name = "set" value=2003 checked> 2003</br>
+            <input type="radio" name = "set" value=2004 disabled> 2004</br>
+            <input type="radio" name = "set" value=2005 disabled> 2005</br>
+        </div>
+        <h4><b>Step 2: Select an Image (Optional)</b></h4>
+        <h6 style="max-width: 300px; padding: 0px;"><i>** Choose an image where the player is centered. Ideal image size is 500x700</i></h6>
+        <br>
+        <div class="form-group">
+          <label for="url" style="color:Gray;">Player Image Link</label>
           <input type="text" name="url" class="form-control" id="url" placeholder="(OPTIONAL) Paste Link" style="max-width: 300px; padding: 20px;" autofocus>
         </div>
-        <div class="form-group">
-          <label for="set">Choose a MLB Showdown Set</label>
-          <select id="set" name="set">
-            <!-- <option value="2000">2000</option> -->
-            <!-- <option value="2001">2001</option> -->
-            <!-- <option value="2002">2002</option> -->
-            <option value="2003">2003</option>
-            <!-- <option value="2004">2004</option> -->
-            <!-- <option value="2005">2005</option> -->
-          </select>
-        </div>
-        <a href=# id=create_card>
-          <button type="submit" class="btn btn-default">
-            <span>Submit</span>
+        <div style="width:300px; height: 200px; padding-top:20px">
+          <a href=# id=create_card>
+            <button type="submit" class="btn btn-default">
+              <span>Submit</span>
+            </button>
+          </a>
+          <button type="reset" class="btn btn-secondary" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''" style="margin: 20px; margin-left: 25px;">
+            <span>Clear</span>
           </button>
-        </a>
         <br>
+        <hr>
         <br>
         <div class="loader" id="loader"></div>
       </form>
+      <h4 id=error></h4>
+      <img id="card_image" src="static/templates/Blank.png" width=375 height=525 alt="card">
       <br>
-      <br>
-        <img id="card_image" src="static/templates/Blank.png" width=375 height=525 alt="card">
-        <h4 id=error></h4>
       <br>
     </div>
     <script src="//code.jquery.com/jquery-2.2.1.min.js"></script>
