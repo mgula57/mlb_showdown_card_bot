@@ -36,7 +36,7 @@ class ShowdownPlayerCardGenerator:
         command_out_combos = self.__top_accurate_command_out_combos(float(stats['onbase_perc']), 5)
 
         self.chart, chart_results_per_400_abs = self.__most_accurate_chart(command_out_combos, stats_for_400_pa, int(offset))
-        self.chart_ranges = self.__ranges_for_chart(self.chart)
+        self.chart_ranges = self.__ranges_for_chart(self.chart, float(stats_for_400_pa['2b_per_400_pa']), float(stats_for_400_pa['hr_per_400_pa']))
         self.real_stats = self.__stats_for_full_season(chart_results_per_400_abs)
 
         self.icons = self.__icons(stats['award_summary'] if 'award_summary' in stats.keys() else '')
@@ -573,7 +573,7 @@ class ShowdownPlayerCardGenerator:
 
         return categories
 
-    def __ranges_for_chart(self, chart):
+    def __ranges_for_chart(self, chart, dbl_per_400_pa, hr_per_400_pa):
         """Converts chart integers to Range Strings ({1B: 3} -> {'1B': '11-13'})
 
         Args:
@@ -587,14 +587,28 @@ class ShowdownPlayerCardGenerator:
         categories = self.__chart_categories()
         current_chart_index = 1
         chart_ranges = {}
-
+        is_post_2001 = int(self.context) > 2001
         for category in categories:
             category_results = int(chart[category])
-            if category_results == 0:
+            range_end = current_chart_index + category_results - 1
+
+            # HANDLE RANGES > 20
+            if is_post_2001 and range_end >= 20 and self.is_pitcher:
+                add_to_1b, num_of_results_2b = self.__calculate_ranges_over_20(dbl_per_400_pa, hr_per_400_pa)
+                # DEFINE OVER 20 RANGES
+                if category == '1b':
+                    category_results += add_to_1b
+                    range_end = current_chart_index + category_results - 1
+                elif category == '2b':
+                    category_results += num_of_results_2b
+                    range_end = current_chart_index + category_results - 1
+
+            if category.upper() == 'HR' and is_post_2001:
+                # ADD PLUS AFTER HR
+                range = '{}+'.format(str(current_chart_index))
+            elif category_results == 0:
                 # EMPTY RANGE
                 range = '—'
-            elif category.upper() == 'HR' and int(self.context) > 2001:
-                range = '{}+'.format(str(current_chart_index))
             elif category_results == 1:
                 # RANGE IS CURRENT INDEX
                 range = str(current_chart_index)
@@ -602,13 +616,58 @@ class ShowdownPlayerCardGenerator:
             else:
                 # MULTIPLE RESULTS
                 range_start = current_chart_index
-                range_end = current_chart_index + category_results - 1
                 range = '{}–{}'.format(range_start,range_end)
                 current_chart_index = range_end + 1
 
             chart_ranges['{} Range'.format(category)] = range
 
         return chart_ranges
+
+    def __calculate_ranges_over_20(self, dbl_per_400_pa, hr_per_400_pa):
+        """Calculates starting points of 2B and HR ranges for post 2001 cards
+           whose charts expand past 20.
+
+        Args:
+          dbl_per_400_pa: Number of 2B results every 400 PA
+          hr_per_400_pa: Number of HR results every 400 PA
+
+        Returns:
+          Tuple of 1b_additions, 2b results
+        """
+        # TODO: MAKE THIS MORE ACCURATE + ROBUST
+
+        # HR
+        if hr_per_400_pa >= 13:
+            hr_start = 21
+        elif hr_per_400_pa >= 11:
+            hr_start = 22
+        elif hr_per_400_pa >= 8.5:
+            hr_start = 23
+        elif hr_per_400_pa >= 7.0:
+            hr_start = 24
+        elif hr_per_400_pa >= 5.0:
+            hr_start = 25
+        elif hr_per_400_pa >= 3.0:
+            hr_start = 26
+        else:
+            hr_start = 27
+
+        # 2B
+        if dbl_per_400_pa >= 13:
+            dbl_start = 21
+        elif dbl_per_400_pa >= 9.0:
+            dbl_start = 22
+        elif dbl_per_400_pa >= 5.5:
+            dbl_start = 23
+        else:
+            dbl_start = 24
+
+        add_to_1b = dbl_start - 20
+        hr_start_final = hr_start if dbl_start < hr_start else dbl_start + 1
+        num_of_results_2b = hr_start_final - dbl_start
+
+        return add_to_1b, num_of_results_2b
+
 
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
