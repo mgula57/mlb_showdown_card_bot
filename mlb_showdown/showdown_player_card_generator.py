@@ -91,11 +91,13 @@ class ShowdownPlayerCardGenerator:
 
         num_positions = int(len(defensive_stats.keys()) / 3)
         positions_and_defense = {}
+        positions_and_games_played = {}
 
         for position_index in range(1, num_positions+1):
             position_raw = defensive_stats['Position{}'.format(position_index)]
             games_at_position = int(defensive_stats['gPosition{}'.format(position_index)])
             position = self.__position_in_game(position_raw,num_positions,games_at_position,games_played,games_started,saves)
+            positions_and_games_played[position] = games_at_position
             if position is not None:
                 if not self.is_pitcher:
                     try:
@@ -107,16 +109,27 @@ class ShowdownPlayerCardGenerator:
                 else:
                     positions_and_defense[position] = 0
 
-        return self.__combine_like_positions(positions_and_defense)
+        final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played)
+        # LIMIT TO ONLY 2 POSITIONS
+        if len(final_positions_in_game.items()) > 2:
+            sorted_positions = sorted(final_position_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:2]
+            final_positions_in_game = {}
+            for position, value in sorted_positions:
+                final_positions_in_game[position] = value
 
-    def __combine_like_positions(self, positions_and_defense):
+        return final_positions_in_game
+
+    def __combine_like_positions(self, positions_and_defense, positions_and_games_played):
         """Limit and combine positions (ex: combine LF and RF -> LF/RF)
 
         Args:
           positions_and_defense: Dict of positions and in game defensive ratings.
+          positions_and_games_played: Dict of positions and number of appearance at each position.
 
         Returns:
-          Dict with relevant in game positions and defensive ratings
+          Tuple
+            - Dict with relevant in game positions and defensive ratings
+            - Dict with relevant in game positions and games played in those positions
         """
 
         positions_set = set(positions_and_defense.keys())
@@ -125,30 +138,42 @@ class ShowdownPlayerCardGenerator:
             # IF BOTH LF AND RF
             if set(['LF','RF']).issubset(positions_set):
                 lf_rf_rating = round((positions_and_defense['LF'] + positions_and_defense['RF']) / 2)
+                lf_rf_games = positions_and_games_played['LF'] + positions_and_games_played['RF']
                 del positions_and_defense['LF']
                 del positions_and_defense['RF']
+                del positions_and_games_played['LF']
+                del positions_and_games_played['RF']
             # IF JUST LF
             elif 'LF' in positions_set:
                 lf_rf_rating = positions_and_defense['LF']
+                lf_rf_games = positions_and_games_played['LF']
                 del positions_and_defense['LF']
+                del positions_and_games_played['LF']
             # IF JUST RF
             else:
                 lf_rf_rating = positions_and_defense['RF']
+                lf_rf_games = positions_and_games_played['RF']
                 del positions_and_defense['RF']
+                del positions_and_games_played['RF']
             positions_and_defense['LF/RF'] = lf_rf_rating
+            positions_and_games_played['LF/RF'] = lf_rf_games
             positions_set = set(positions_and_defense.keys())
         # IF PLAYER HAS ALL OUTFIELD POSITIONS
         if set(['LF/RF','CF','OF']).issubset(positions_set):
             if self.context in ['2000','2001','2002'] and positions_and_defense['LF/RF'] != positions_and_defense['CF']:
                 del positions_and_defense['OF']
+                del positions_and_games_played['OF']
             else:
                 del positions_and_defense['LF/RF']
                 del positions_and_defense['CF']
+                del positions_and_games_played['LF/RF']
+                del positions_and_games_played['CF']
         # IF JUST OF
         elif 'OF' in positions_set:
             del positions_and_defense['OF']
+            del positions_and_games_played['OF']
 
-        return positions_and_defense
+        return positions_and_defense, positions_and_games_played
 
     def __handedness(self, hand):
         """Get hand of player. Format to how card will display hand.
@@ -474,7 +499,10 @@ class ShowdownPlayerCardGenerator:
                     chart_results = (results_per_400_pa - (opponent_advantages_per_20*opponent_chart[key])) / my_advantages_per_20
                 chart_results = outs if key == 'so' and chart_results > outs else chart_results
                 # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
-                chart[key] = round(chart_results) if chart_results > 0 else 0
+                rounded_results = round(chart_results) if chart_results > 0 else 0
+                # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
+                rounded_results = 13 if key == 'bb' and rounded_results > 13 else rounded_results
+                chart[key] = rounded_results
 
         # FILL "OUT" CATEGORIES (PU, GB, FB)
         out_slots_remaining = outs - float(chart['so'])
@@ -722,8 +750,8 @@ class ShowdownPlayerCardGenerator:
         prob_hitter_advantage = (onbase-control) / 20.0
         prob_pitcher_advantage = 1.0 - prob_hitter_advantage
         # PROBABILTY OF RESULT ASSUMING ADVANTAGE
-        prob_result_after_hitter_advantage = num_results_hitter_chart / hitter_denominator
-        prob_result_after_pitcher_advantage = num_results_pitcher_chart / pitcher_denominator
+        prob_result_after_hitter_advantage = num_results_hitter_chart / hitter_denominator if hitter_denominator != 0 else 0
+        prob_result_after_pitcher_advantage = num_results_pitcher_chart / pitcher_denominator if pitcher_denominator != 0 else 0
         # ADD PROBABILITY OF RESULT FOR BOTH PATHS (HITTER ADV AND PITCHER ADV)
         rate = (prob_hitter_advantage * prob_result_after_hitter_advantage) \
                + (prob_pitcher_advantage * prob_result_after_pitcher_advantage)
@@ -1123,17 +1151,16 @@ Showdown            Real
           None
         """
         # FONTS
-        helvetica_neue_lt_path = os.path.join('static', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
         helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
 
-        helvetica_neue_lt = ImageFont.truetype(helvetica_neue_lt_path, size=32)
         helvetica_neue_cond_bold = ImageFont.truetype(helvetica_neue_cond_bold_path, size=45)
         helvetica_neue_cond_bold_alt = ImageFont.truetype(helvetica_neue_cond_bold_path, size=48)
 
         # LOAD PLAYER IMAGE
+        default_image_path = os.path.join('static', 'templates', 'Default Background - {}.png'.format(self.context))
         if self.player_image_url is None:
             # image_url = self.__scrape_player_image_url(url=self.player_image_url)
-            player_image = Image.open(os.path.join('static', 'templates', 'Default Background.png'))
+            player_image = Image.open(default_image_path)
         else:
             image_url = self.player_image_url
             try:
@@ -1142,93 +1169,46 @@ Showdown            Real
                 player_image = self.__center_crop(player_image, (500,700))
                 player_image = self.__round_corners(player_image, 20)
             except:
-                player_image = Image.open(os.path.join('static', 'templates', 'Default Background.png'))
+                player_image = Image.open(default_image_path)
 
         # LOAD SHOWDOWN TEMPLATE
-        template_image_name = '{context}-{type}-{command}.png'.format(
-            context = str(self.context),
-            type = 'Pitcher' if self.is_pitcher else 'Hitter',
-            command = str(self.chart['command'])
-        )
-        showdown_template_frame_image = Image.open(os.path.join('static', 'templates', template_image_name))
+        showdown_template_frame_image = self.__template_image()
         player_image.paste(showdown_template_frame_image,(0,0),showdown_template_frame_image)
 
         # CREATE NAME TEXT
-        name_text = self.__text_image(
-            text = self.name.upper(),
-            size = (700, 100),
-            font = helvetica_neue_lt,
-            rotation = 90,
-            alignment = "right",
-            padding=20
-        )
-        player_image.paste("#FFFFFF", (455,0),  name_text)
+        name_text, color = self.__player_name_text_image()
+        player_image.paste(color, sc.IMAGE_LOCATIONS['player_name'][str(self.context)],  name_text)
 
         # ADD TEAM LOGO
         try:
             team_logo = Image.open(os.path.join('static', 'logos', '{}.png'.format(self.team))).convert("RGBA")
-            team_logo = team_logo.resize((90, 90), Image.ANTIALIAS)
+            team_logo = team_logo.resize(sc.IMAGE_SIZES['team_logo'][str(self.context)], Image.ANTIALIAS)
         except:
             team_logo = Image.open(os.path.join('static', 'logos', 'mlb.png')).convert("RGBA")
             team_logo = team_logo.resize((90, 49), Image.ANTIALIAS)
-        player_image.paste(team_logo, (393,358), team_logo)
+        player_image.paste(team_logo, sc.IMAGE_LOCATIONS['team_logo'][str(self.context)], team_logo)
 
-        # CREATE METADATA TEXT
-        metadata_text = self.__text_image(
-            text = self.__player_metadata_summary_text(),
-            size = (255, 900),
-            font = helvetica_neue_cond_bold,
-            rotation = 0,
-            alignment = "right",
-            padding=0,
-            spacing=22
-        )
-        metadata_text_resized = metadata_text.resize((85,300), Image.ANTIALIAS)
-        player_image.paste("#FFFFFF", (275,510), metadata_text_resized)
+        # METADATA
+        metadata_image = self.__metadata_image()
+        player_image.paste("#FFFFFF", sc.IMAGE_LOCATIONS['metadata'][str(self.context)], metadata_image)
 
-        # CREATE CHART RANGES TEXT
-        chart_string = ''
-        for category in self.__chart_categories():
-            range = self.chart_ranges['{} Range'.format(category)]
-            chart_string += '{}\n'.format(range)
-
-        chart_text = self.__text_image(
-            text = chart_string,
-            size = (255, 1200),
-            font = helvetica_neue_cond_bold_alt,
-            rotation = 0,
-            alignment = "right",
-            padding=0,
-            spacing=19
-        )
-        chart_text_resized = chart_text.resize((85,400), Image.ANTIALIAS)
-        player_image.paste("#535252", (327,511), chart_text_resized)
+        # CHART
+        chart_image, color = self.__chart_image()
+        if self.context in ['2000','2001']:
+            chart_cords = sc.IMAGE_LOCATIONS['chart']['{}{}'.format(self.context,'p' if self.is_pitcher else 'h')]
+        else:
+            chart_cords = sc.IMAGE_LOCATIONS['chart'][str(self.context)]
+        player_image.paste(color, chart_cords, chart_image)
 
         # ICONS
-        icon_positional_mapping = [(335,635), (335,610), (310,635), (310,610)]
-        for index, icon in enumerate(self.icons[0:4]):
-            icon_image = Image.open(os.path.join('static', 'templates', '{}.png'.format(icon)))
-            player_image.paste(icon_image, icon_positional_mapping[index], icon_image)
+        if int(self.context) > 2002:
+            icon_positional_mapping = [(335,635), (335,610), (310,635), (310,610)]
+            for index, icon in enumerate(self.icons[0:4]):
+                icon_image = Image.open(os.path.join('static', 'templates', '{}.png'.format(icon)))
+                player_image.paste(icon_image, icon_positional_mapping[index], icon_image)
 
-        # CARD YEAR
-        year_text = self.__text_image(
-            text = "'{}".format(str(self.year)[2:4]),
-            size = (150, 150),
-            font = helvetica_neue_cond_bold,
-            alignment = "left"
-        )
-        year_text = year_text.resize((40,40), Image.ANTIALIAS)
-        player_image.paste("#FFFFFF", (31,595), year_text)
-
-        # CARD NUMBER
-        number_text = self.__text_image(
-            text = '001',
-            size = (150, 150),
-            font = helvetica_neue_cond_bold,
-            alignment = "left"
-        )
-        number_text = number_text.resize((40,40), Image.ANTIALIAS)
-        player_image.paste("#000000", (56,595), number_text)
+        set_image = self.__card_set_image()
+        player_image.paste(set_image, (0,0), set_image)
 
         # SAVE AND SHOW IMAGE
         self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
@@ -1268,7 +1248,7 @@ Showdown            Real
         draw = ImageDraw.Draw(text_layer)
         w, h = draw.textsize(text, font=font)
         if alignment == "center":
-            x = size[0] / 2.0
+            x = (size[0]-w) / 2.0
         elif alignment == "right":
             x = size[0] - padding - w
         else:
@@ -1276,6 +1256,270 @@ Showdown            Real
         draw.text((x, 0), text, font=font, spacing=spacing, fill=255, align=alignment)
         rotated_text_layer = text_layer.rotate(rotation, expand=1)
         return rotated_text_layer
+
+    def __template_image(self):
+        """Loads showdown frame template depending on player context.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for Player's template background.
+        """
+        year = str(self.context)
+        type = 'Pitcher' if self.is_pitcher else 'Hitter'
+        if year in ['2000','2001']:
+            template_image_name = '{context}-{type}-{command}.png'.format(
+                context = year,
+                type = type,
+                command = str(self.chart['command'])
+            )
+            if self.is_pitcher:
+                template_image = Image.open(os.path.join('static', 'templates', template_image_name))
+            else:
+                positions_list = list(self.positions_and_defense.keys())
+                is_multi_position = len(positions_list) > 1
+                is_large_position_container = 'LF/RF' in positions_list
+                positions_points_template = '{context}-{type}-{mp}-{sl}.png'.format(
+                    context = year,
+                    type = type,
+                    command = str(self.chart['command']),
+                    mp = 'MULTI' if is_multi_position else 'SINGLE',
+                    sl = 'LRG' if is_large_position_container else 'SML'
+                )
+                template_image = Image.open(os.path.join('static', 'templates', positions_points_template))
+                player_template_image = Image.open(os.path.join('static', 'templates', template_image_name))
+                template_image.paste(player_template_image, (0,0), player_template_image)
+
+        elif year == '2003':
+            template_image_name = '{context}-{type}-{command}.png'.format(
+                context = year,
+                type = type,
+                command = str(self.chart['command'])
+            )
+            template_image = Image.open(os.path.join('static', 'templates', template_image_name))
+        else:
+            template_image_name = '2000-Pitcher.png'
+            template_image = Image.open(os.path.join('static', 'templates', template_image_name))
+
+        return template_image
+
+    def __player_name_text_image(self):
+        """Creates Player name to match showdown context.
+
+        Args:
+          None
+
+        Returns:
+          Tuple
+            - PIL image object for Player's name.
+            - Hex Color of text as a String
+        """
+        first, last = self.name.upper().split(" ", 1)
+        name = self.name.upper() if self.context != '2001' else first
+
+        futura_black_path = os.path.join('static', 'fonts', 'Futura Black.ttf')
+        helvetica_neue_lt_path = os.path.join('static', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
+
+        if self.context == '2000':
+            name_rotation = 90
+            name_alignment = "center"
+            name_size = 45
+            name_color = "#FDFBF4"
+            padding = 0
+            name_font_path = helvetica_neue_lt_path
+        elif self.context == '2001':
+            name_rotation = 90
+            name_alignment = "left"
+            name_size = 32
+            name_color = "#FDFBF4"
+            padding = 0
+            name_font_path = futura_black_path
+        elif self.context == '2003':
+            name_rotation = 90
+            name_alignment = "right"
+            name_size = 32
+            name_color = "#FFFFFF"
+            padding = 20
+            name_font_path = helvetica_neue_lt_path
+        else:
+            rotation = 0
+            name_font_path = helvetica_neue_lt_path
+
+        name_font = ImageFont.truetype(name_font_path, size=name_size)
+
+        final_text = self.__text_image(
+            text = name,
+            size = sc.IMAGE_SIZES['player_name'][self.context],
+            font = name_font,
+            rotation = name_rotation,
+            alignment = name_alignment,
+            padding = padding
+        )
+        if self.context == '2000':
+            text_stretched = final_text.resize((100,1700), Image.ANTIALIAS)
+            final_text = text_stretched.crop((0,515,100,1185))
+        elif self.context == '2001':
+            last_name = self.__text_image(
+                text = last,
+                size = sc.IMAGE_SIZES['player_name'][self.context],
+                font = ImageFont.truetype(name_font_path, size=45),
+                rotation = name_rotation,
+                alignment = name_alignment,
+                padding = padding
+            )
+            final_text.paste(name_color, (30,0), last_name)
+
+        return final_text, name_color
+
+    def __metadata_image(self):
+
+        year = int(self.context)
+        if year in [2000,2001]:
+            metadata_image = Image.new('RGBA', (500, 700), 255)
+            helvetica_neue_lt_path = os.path.join('static', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
+
+            if self.is_pitcher:
+                # POSITION
+                font_position = ImageFont.truetype(helvetica_neue_lt_path, size=24)
+                position = list(self.positions_and_defense.keys())[0]
+                position_text = self.__text_image(text=position, size=(300, 100), font=font_position)
+                metadata_image.paste("#FFFFFF", (325,114), position_text)
+                # HAND | IP
+                font_hand_ip = ImageFont.truetype(helvetica_neue_lt_path, size=21)
+                hand_text = self.__text_image(text=self.hand, size=(300, 100), font=font_hand_ip)
+                metadata_image.paste("#FFFFFF", (364,140), hand_text)
+                ip_text = self.__text_image(text='IP {}'.format(str(self.ip)), size=(300, 100), font=font_hand_ip)
+                metadata_image.paste("#FFFFFF", (420,140), ip_text)
+
+            else:
+                # SPEED | HAND
+                font_speed_hand = ImageFont.truetype(helvetica_neue_lt_path, size=18)
+                speed_text = self.__text_image(text='SPEED {}'.format(self.speed_letter), size=(300, 100), font=font_speed_hand)
+                hand_text = self.__text_image(text=self.hand[-1], size=(100, 100), font=font_speed_hand)
+                metadata_image.paste("#FFFFFF", (323 if self.context == '2000' else 305,114), speed_text)
+                metadata_image.paste("#FFFFFF", (404,114), hand_text)
+                if self.context == '2001':
+                    # ADD # TO SPEED
+                    font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=14)
+                    font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=15)
+                    spd_letter_to_number = {
+                        'A': 20,
+                        'B': 15,
+                        'C': 10
+                    }
+                    speed_num_text = self.__text_image(
+                        text=str(spd_letter_to_number[self.speed_letter]),
+                        size=(100, 100),
+                        font=font_speed_number
+                    )
+                    parenthesis_left = self.__text_image(text='(   )', size=(100, 100), font=font_parenthesis)
+                    metadata_image.paste("#FFFFFF", (372,114), parenthesis_left)
+                    metadata_image.paste("#FFFFFF", (376,115), speed_num_text)
+                # POSITION(S)
+                font_position = ImageFont.truetype(helvetica_neue_lt_path, size=26)
+                ordered_by_len_position = sorted(self.positions_and_defense.items(), key=operator.itemgetter(0), reverse=True)
+                y_position = 135
+                for position, rating in ordered_by_len_position:
+                    speed_text = self.__text_image(text='{} +{}'.format(position,str(rating)), size=(200, 100), font=font_position)
+                    x_position = 361 if len(position) > 4 else 387
+                    x_position += 6 if position == 'C' and rating < 10 else 0 # CATCHER POSITIONING ADJUSTMENT
+                    metadata_image.paste("#FFFFFF", (x_position,y_position), speed_text)
+                    y_position += 28
+
+            # POINTS
+            text_size = 16 if self.points >= 1000 else 19
+            font_pts = ImageFont.truetype(helvetica_neue_lt_path, size=text_size)
+            pts_text = self.__text_image(text=str(self.points), size=(100, 100), font=font_pts, alignment = "right")
+            pts_y_pos = 190 if len(self.positions_and_defense) > 1 else 164
+            pts_x_pos = 323 if self.is_pitcher else 333
+            metadata_image.paste("#FFFFFF", (pts_x_pos,pts_y_pos), pts_text)
+
+        elif year == 2003:
+            helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+            helvetica_neue_cond_bold = ImageFont.truetype(helvetica_neue_cond_bold_path, size=45)
+
+            metadata_text = self.__text_image(
+                text = self.__player_metadata_summary_text(),
+                size = (255, 900),
+                font = helvetica_neue_cond_bold,
+                rotation = 0,
+                alignment = "right",
+                padding=0,
+                spacing=22
+            )
+            metadata_image = metadata_text.resize((85,300), Image.ANTIALIAS)
+
+        return metadata_image
+
+    def __chart_image(self):
+
+        helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+        helvetica_neue_cond_bold_alt = ImageFont.truetype(helvetica_neue_cond_bold_path, size=48)
+
+        # CREATE CHART RANGES TEXT
+        chart_string = ''
+        for category in self.__chart_categories():
+            range = self.chart_ranges['{} Range'.format(category)]
+            chart_string += '{}\n'.format(range)
+
+        spacing = 19 if self.context == '2003' else 22
+        chart_text = self.__text_image(
+            text = chart_string,
+            size = (255, 1200),
+            font = helvetica_neue_cond_bold_alt,
+            rotation = 0,
+            alignment = "right",
+            padding=0,
+            spacing=spacing
+        )
+        return chart_text.resize((85,400), Image.ANTIALIAS), "#414040"
+
+    def __card_set_image(self):
+        """Creates image with card number and year text
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for set text.
+        """
+        helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+        set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=45)
+
+        set_image = Image.new('RGBA', (500, 700), 255)
+        if self.context in ['2000','2001']:
+            set_text = self.__text_image(
+                text = '001/462',
+                size = (200, 100),
+                font = set_font,
+                alignment = "left"
+            )
+            set_text = set_text.resize((50,25), Image.ANTIALIAS)
+            set_image.paste("#FFFFFF", (50,672), set_text)
+
+        elif self.context == '2003':
+            # CARD YEAR
+            year_text = self.__text_image(
+                text = "'{}".format(str(self.year)[2:4]),
+                size = (150, 150),
+                font = set_font,
+                alignment = "left"
+            )
+            year_text = year_text.resize((40,40), Image.ANTIALIAS)
+            set_image.paste("#FFFFFF", (31,595), year_text)
+
+            # CARD NUMBER
+            number_text = self.__text_image(
+                text = '001',
+                size = (150, 150),
+                font = set_font,
+                alignment = "left"
+            )
+            number_text = number_text.resize((40,40), Image.ANTIALIAS)
+            set_image.paste("#000000", (56,595), number_text)
+
+        return set_image
 
     def __round_corners(self, image, radius):
         """Round corners of a given image to a certain radius.
