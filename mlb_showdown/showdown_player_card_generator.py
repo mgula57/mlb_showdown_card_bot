@@ -1117,13 +1117,20 @@ Showdown            Real
         """
         positions_string = ''
         position_num = 1
-        for position,fielding in self.positions_and_defense.items():
-            if self.is_pitcher:
-                positions_string += position
-            else:
-                is_last_element = position_num == len(self.positions_and_defense.keys())
-                positions_string += '{} +{}{}'.format(position,fielding,'' if is_last_element else '\n')
-            position_num += 1
+
+        if self.positions_and_defense == {}:
+            # THE PLAYER IS A DH
+            positions_string = '–'
+        else:
+            for position,fielding in self.positions_and_defense.items():
+                if self.is_pitcher:
+                    positions_string += position
+                elif position == 'DH':
+                    positions_string += '—'
+                else:
+                    is_last_element = position_num == len(self.positions_and_defense.keys())
+                    positions_string += '{} +{}{}'.format(position,fielding,'' if is_last_element else '\n')
+                position_num += 1
 
         ip_or_speed = 'Speed {} ({})'.format(self.speed_letter,self.speed) if not self.is_pitcher else '{} IP'.format(self.ip)
         final_text = """\
@@ -1137,6 +1144,7 @@ Showdown            Real
             line3=ip_or_speed if self.is_pitcher else positions_string,
             points=self.points
         )
+        final_text = final_text.upper() if self.context == '2002' else final_text
         return final_text
 
     def player_image(self):
@@ -1186,11 +1194,12 @@ Showdown            Real
         except:
             team_logo = Image.open(os.path.join('static', 'logos', 'mlb.png')).convert("RGBA")
             team_logo = team_logo.resize((90, 49), Image.ANTIALIAS)
+        team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
         player_image.paste(team_logo, sc.IMAGE_LOCATIONS['team_logo'][str(self.context)], team_logo)
 
         # METADATA
-        metadata_image = self.__metadata_image()
-        player_image.paste("#FFFFFF", sc.IMAGE_LOCATIONS['metadata'][str(self.context)], metadata_image)
+        metadata_image, color = self.__metadata_image()
+        player_image.paste(color, sc.IMAGE_LOCATIONS['metadata'][str(self.context)], metadata_image)
 
         # CHART
         chart_image, color = self.__chart_image()
@@ -1290,7 +1299,16 @@ Showdown            Real
                 template_image = Image.open(os.path.join('static', 'templates', positions_points_template))
                 player_template_image = Image.open(os.path.join('static', 'templates', template_image_name))
                 template_image.paste(player_template_image, (0,0), player_template_image)
-
+        elif year == '2002':
+            type_template = '{context}-{type}.png'.format(context = year, type = type)
+            template_image = Image.open(os.path.join('static', 'templates', type_template))
+            command_image_name = '{context}-{type}-{command}.png'.format(
+                context = year,
+                type = type,
+                command = str(self.chart['command'])
+            )
+            command_image = Image.open(os.path.join('static', 'templates', command_image_name))
+            template_image.paste(command_image, (0,0), command_image)
         elif year == '2003':
             template_image_name = '{context}-{type}-{command}.png'.format(
                 context = year,
@@ -1335,6 +1353,13 @@ Showdown            Real
             name_color = "#FDFBF4"
             padding = 0
             name_font_path = futura_black_path
+        elif self.context == '2002':
+            name_rotation = 90
+            name_alignment = "left"
+            name_size = 48
+            name_color = "#A09D9F"
+            padding = 5
+            name_font_path = helvetica_neue_lt_path
         elif self.context == '2003':
             name_rotation = 90
             name_alignment = "right"
@@ -1375,6 +1400,7 @@ Showdown            Real
     def __metadata_image(self):
 
         year = int(self.context)
+        color = "#FFFFFF"
         if year in [2000,2001]:
             metadata_image = Image.new('RGBA', (500, 700), 255)
             helvetica_neue_lt_path = os.path.join('static', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
@@ -1394,11 +1420,12 @@ Showdown            Real
 
             else:
                 # SPEED | HAND
+
                 font_speed_hand = ImageFont.truetype(helvetica_neue_lt_path, size=18)
                 speed_text = self.__text_image(text='SPEED {}'.format(self.speed_letter), size=(300, 100), font=font_speed_hand)
                 hand_text = self.__text_image(text=self.hand[-1], size=(100, 100), font=font_speed_hand)
-                metadata_image.paste("#FFFFFF", (323 if self.context == '2000' else 305,114), speed_text)
-                metadata_image.paste("#FFFFFF", (404,114), hand_text)
+                metadata_image.paste(color, (323 if self.context == '2000' else 305,114), speed_text)
+                metadata_image.paste(color, (404,114), hand_text)
                 if self.context == '2001':
                     # ADD # TO SPEED
                     font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=14)
@@ -1414,8 +1441,8 @@ Showdown            Real
                         font=font_speed_number
                     )
                     parenthesis_left = self.__text_image(text='(   )', size=(100, 100), font=font_parenthesis)
-                    metadata_image.paste("#FFFFFF", (372,114), parenthesis_left)
-                    metadata_image.paste("#FFFFFF", (376,115), speed_num_text)
+                    metadata_image.paste(color, (372,114), parenthesis_left)
+                    metadata_image.paste(color, (376,115), speed_num_text)
                 # POSITION(S)
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=26)
                 ordered_by_len_position = sorted(self.positions_and_defense.items(), key=operator.itemgetter(0), reverse=True)
@@ -1424,7 +1451,7 @@ Showdown            Real
                     speed_text = self.__text_image(text='{} +{}'.format(position,str(rating)), size=(200, 100), font=font_position)
                     x_position = 361 if len(position) > 4 else 387
                     x_position += 6 if position == 'C' and rating < 10 else 0 # CATCHER POSITIONING ADJUSTMENT
-                    metadata_image.paste("#FFFFFF", (x_position,y_position), speed_text)
+                    metadata_image.paste(color, (x_position,y_position), speed_text)
                     y_position += 28
 
             # POINTS
@@ -1433,29 +1460,35 @@ Showdown            Real
             pts_text = self.__text_image(text=str(self.points), size=(100, 100), font=font_pts, alignment = "right")
             pts_y_pos = 190 if len(self.positions_and_defense) > 1 else 164
             pts_x_pos = 323 if self.is_pitcher else 333
-            metadata_image.paste("#FFFFFF", (pts_x_pos,pts_y_pos), pts_text)
+            metadata_image.paste(color, (pts_x_pos,pts_y_pos), pts_text)
 
-        elif year == 2003:
-            helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
-            helvetica_neue_cond_bold = ImageFont.truetype(helvetica_neue_cond_bold_path, size=45)
+        elif year in [2002,2003]:
+            color = "#000000" if self.context == '2002' else "#FFFFFF"
+            if year == 2002:
+                helvetica_neue_lt_path = os.path.join('static', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
+                metadata_font = ImageFont.truetype(helvetica_neue_lt_path, size=40)
+            else:
+                helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+                metadata_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=45)
 
             metadata_text = self.__text_image(
                 text = self.__player_metadata_summary_text(),
                 size = (255, 900),
-                font = helvetica_neue_cond_bold,
+                font = metadata_font,
                 rotation = 0,
                 alignment = "right",
                 padding=0,
-                spacing=22
+                spacing= 22 if self.context == '2003' else 19
             )
             metadata_image = metadata_text.resize((85,300), Image.ANTIALIAS)
 
-        return metadata_image
+        return metadata_image, color
 
     def __chart_image(self):
 
         helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
-        helvetica_neue_cond_bold_alt = ImageFont.truetype(helvetica_neue_cond_bold_path, size=48)
+        chart_text_size = int(sc.TEXT_SIZES['chart'][self.context])
+        helvetica_neue_cond_bold_alt = ImageFont.truetype(helvetica_neue_cond_bold_path, size=chart_text_size)
 
         # CREATE CHART RANGES TEXT
         chart_string = ''
@@ -1463,7 +1496,7 @@ Showdown            Real
             range = self.chart_ranges['{} Range'.format(category)]
             chart_string += '{}\n'.format(range)
 
-        spacing = 19 if self.context == '2003' else 22
+        spacing = int(sc.TEXT_SIZES['chart_spacing'][self.context])
         chart_text = self.__text_image(
             text = chart_string,
             size = (255, 1200),
@@ -1473,7 +1506,8 @@ Showdown            Real
             padding=0,
             spacing=spacing
         )
-        return chart_text.resize((85,400), Image.ANTIALIAS), "#414040"
+        color = "#000000" if self.context == '2002' else "#414040"
+        return chart_text.resize((85,400), Image.ANTIALIAS), color
 
     def __card_set_image(self):
         """Creates image with card number and year text
@@ -1488,15 +1522,16 @@ Showdown            Real
         set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=45)
 
         set_image = Image.new('RGBA', (500, 700), 255)
-        if self.context in ['2000','2001']:
+        set_image_location = sc.IMAGE_LOCATIONS['set'][str(self.context)]
+        if self.context in ['2000','2001','2002']:
             set_text = self.__text_image(
-                text = '001/462',
+                text = '001 / 462' if self.context == '2002' else '001/462',
                 size = (200, 100),
                 font = set_font,
                 alignment = "left"
             )
             set_text = set_text.resize((50,25), Image.ANTIALIAS)
-            set_image.paste("#FFFFFF", (50,672), set_text)
+            set_image.paste("#FFFFFF", set_image_location, set_text)
 
         elif self.context == '2003':
             # CARD YEAR
@@ -1517,7 +1552,7 @@ Showdown            Real
                 alignment = "left"
             )
             number_text = number_text.resize((40,40), Image.ANTIALIAS)
-            set_image.paste("#000000", (56,595), number_text)
+            set_image.paste("#000000", set_image_location, number_text)
 
         return set_image
 
