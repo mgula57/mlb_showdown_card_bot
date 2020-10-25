@@ -64,7 +64,7 @@
               set: selectedValue,
               url: $('input[name="url"]').val(),
     				}, function(data) {
-              $("#card_image").attr('src',data.image_path);
+              $("#card_image").attr('src',data.image_path,'width',300,'height',420);
               $("#error").text(data.error);
               $('.loader').hide();
     				});
@@ -95,9 +95,9 @@
             <input type="radio" name = "set" value=2000> 2000</br>
             <input type="radio" name = "set" value=2001> 2001</br>
             <input type="radio" name = "set" value=2002> 2002</br>
-            <input type="radio" name = "set" value=2003 checked> 2003</br>
-            <input type="radio" name = "set" value=2004 disabled> 2004</br>
-            <input type="radio" name = "set" value=2005 disabled> 2005</br>
+            <input type="radio" name = "set" value=2003> 2003</br>
+            <input type="radio" name = "set" value=2004 checked> 2004</br>
+            <input type="radio" name = "set" value=2005> 2005</br>
         </div>
         <h4><b>Step 2: Select an Image (Optional)</b></h4>
         <h6 style="max-width: 300px; padding: 0px;"><i>** Choose an image where the player is centered. Ideal image size is 500x700</i></h6>
@@ -121,7 +121,7 @@
         <div class="loader" id="loader"></div>
       </form>
       <h4 id=error></h4>
-      <img id="card_image" src="static/templates/Blank.png" width=375 height=525 alt="card">
+      <img id="card_image" src="static/templates/Blank.png" width=300 height=420 alt="card">
       <br>
       <br>
     </div>
