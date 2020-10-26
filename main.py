@@ -1,5 +1,7 @@
 
 import argparse
+import os
+import pandas as pd
 # MY PACKAGES
 from mlb_showdown.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown.showdown_player_card_generator import ShowdownPlayerCardGenerator
@@ -20,14 +22,30 @@ parser.add_argument('-pt','--player_type', metavar='P',
                     help='Choose either Hitter or Pitcher to test',default='Hitter')
 args = parser.parse_args()
 
-def showdown_player_stats():
+def showdown_player_stats(is_from_cache=False):
 
-    scraper = BaseballReferenceScraper(name=args.name.title(),year=args.year)
-    statline = scraper.player_statline()
+    name = args.name.title()
+    year = args.year
+    
+    if is_from_cache:
+        real_player_stats_cache_path = os.path.join(os.path.dirname(__file__),'cache','player_cache.csv')
+        name_year_string = '{} - {}'.format(name,str(year))
+        print(name_year_string)
+        try:
+            real_player_stats_cache = pd.read_csv(real_player_stats_cache_path)
+        except FileNotFoundError:
+            print("No Local Cache File")
+        is_player_stats_in_cache = name_year_string in real_player_stats_cache.NameAndYear.values
+        real_player_stats = real_player_stats_cache[real_player_stats_cache.NameAndYear == name_year_string]
+        real_player_stats = real_player_stats.where(pd.notnull(real_player_stats), 0)
+        statline = real_player_stats.to_dict('records')[0]
+    else:
+        scraper = BaseballReferenceScraper(name=name,year=year)
+        statline = scraper.player_statline()
 
     showdown = ShowdownPlayerCardGenerator(
-        name=args.name,
-        year=args.year,
+        name=name,
+        year=year,
         stats=statline,
         context=args.context,
         offset=args.offset,
