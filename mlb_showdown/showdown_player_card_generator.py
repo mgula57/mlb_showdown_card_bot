@@ -1132,7 +1132,7 @@ Showdown            Real
                     positions_string += '—'
                 else:
                     is_last_element = position_num == len(self.positions_and_defense.keys())
-                    positions_separator = '   ' if is_horizontal else '\n'
+                    positions_separator = ' ' if is_horizontal else '\n'
                     positions_string += '{} +{}{}'.format(position,fielding,'' if is_last_element else positions_separator)
                 position_num += 1
 
@@ -1224,14 +1224,23 @@ Showdown            Real
             icon_positional_mapping = sc.ICON_LOCATIONS[self.context]
             for index, icon in enumerate(self.icons[0:4]):
                 icon_image = Image.open(os.path.join('static', 'templates', '{}-{}.png'.format(self.context,icon)))
-                player_image.paste(icon_image, icon_positional_mapping[index], icon_image)
+                position = icon_positional_mapping[index]
+                if int(self.context) >= 2004 and len(self.positions_and_defense.keys()) > 1:
+                    # SHIFT ICONS TO RIGHT
+                    offset = 55 if 'LF/RF' in self.positions_and_defense.keys() else 45
+                    position = (position[0] + offset, position[1])
+                player_image.paste(icon_image, position, icon_image)
 
         set_image = self.__card_set_image()
         player_image.paste(set_image, (0,0), set_image)
 
         # SAVE AND SHOW IMAGE
         self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
-        player_image.save(os.path.join('static', 'images', self.image_name))
+        if int(self.context) in [2002,2004,2005]:
+            # TEMPORARY UNTIL SOLVE HTML PNG ISSUES
+            player_image = player_image.convert('RGB')
+
+        player_image.save(os.path.join('static', 'images', self.image_name), quality=100)
         self.__clean_images_directory()
 
     def __clean_images_directory(self):
