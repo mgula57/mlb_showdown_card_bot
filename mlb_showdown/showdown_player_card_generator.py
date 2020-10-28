@@ -112,7 +112,7 @@ class ShowdownPlayerCardGenerator:
         final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played)
         # LIMIT TO ONLY 2 POSITIONS
         if len(final_positions_in_game.items()) > 2:
-            sorted_positions = sorted(final_position_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:2]
+            sorted_positions = sorted(final_positions_in_game.items(), key=operator.itemgetter(1), reverse=True)[0:2]
             final_positions_in_game = {}
             for position, value in sorted_positions:
                 final_positions_in_game[position] = value
@@ -236,7 +236,7 @@ class ShowdownPlayerCardGenerator:
         speed_raw = int(round(speed_percentile * max_speed_in_game))
         # CHANGE OUTLIERS
         speed = 8 if speed_raw < 8 else speed_raw
-        speed = 30 if speed_raw > 30 else speed_raw
+        speed = 30 if speed_raw > 30 else speed
 
         if speed < 12:
             letter = 'C'
@@ -1345,48 +1345,29 @@ Showdown            Real
         """
         year = str(self.context)
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
-        if year in ['2000','2001']:
-            template_image_name = '{context}-{type}-{command}.png'.format(
+        type_template = '{context}-{type}.png'.format(context = year, type = type)
+        template_image = Image.open(os.path.join('static', 'templates', type_template))
+        command_image_name = '{context}-{type}-{command}.png'.format(
+            context = year,
+            type = type,
+            command = str(self.chart['command'])
+        )
+        command_image = Image.open(os.path.join('static', 'templates', command_image_name))
+        template_image.paste(command_image, (0,0), command_image)
+
+        if year in ['2000','2001'] and not self.is_pitcher:
+            positions_list = list(self.positions_and_defense.keys())
+            is_multi_position = len(positions_list) > 1
+            is_large_position_container = 'LF/RF' in positions_list
+            positions_points_template = '{context}-{type}-{mp}-{sl}.png'.format(
                 context = year,
                 type = type,
-                command = str(self.chart['command'])
+                command = str(self.chart['command']),
+                mp = 'MULTI' if is_multi_position else 'SINGLE',
+                sl = 'LRG' if is_large_position_container else 'SML'
             )
-            if self.is_pitcher:
-                template_image = Image.open(os.path.join('static', 'templates', template_image_name))
-            else:
-                positions_list = list(self.positions_and_defense.keys())
-                is_multi_position = len(positions_list) > 1
-                is_large_position_container = 'LF/RF' in positions_list
-                positions_points_template = '{context}-{type}-{mp}-{sl}.png'.format(
-                    context = year,
-                    type = type,
-                    command = str(self.chart['command']),
-                    mp = 'MULTI' if is_multi_position else 'SINGLE',
-                    sl = 'LRG' if is_large_position_container else 'SML'
-                )
-                template_image = Image.open(os.path.join('static', 'templates', positions_points_template))
-                player_template_image = Image.open(os.path.join('static', 'templates', template_image_name))
-                template_image.paste(player_template_image, (0,0), player_template_image)
-        elif year in ['2002','2004','2005']:
-            type_template = '{context}-{type}.png'.format(context = year, type = type)
-            template_image = Image.open(os.path.join('static', 'templates', type_template))
-            command_image_name = '{context}-{type}-{command}.png'.format(
-                context = year,
-                type = type,
-                command = str(self.chart['command'])
-            )
-            command_image = Image.open(os.path.join('static', 'templates', command_image_name))
-            template_image.paste(command_image, (0,0), command_image)
-        elif year == '2003':
-            template_image_name = '{context}-{type}-{command}.png'.format(
-                context = year,
-                type = type,
-                command = str(self.chart['command'])
-            )
-            template_image = Image.open(os.path.join('static', 'templates', template_image_name))
-        else:
-            template_image_name = '2000-Pitcher.png'
-            template_image = Image.open(os.path.join('static', 'templates', template_image_name))
+            positions_points_image = Image.open(os.path.join('static', 'templates', positions_points_template))
+            template_image.paste(positions_points_image, (0,0), positions_points_image)
 
         return template_image
 
