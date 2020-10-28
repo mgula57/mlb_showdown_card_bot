@@ -34,11 +34,12 @@ def card_creator():
         )
         showdown.player_image()
         card_image_path = os.path.join('static', 'images', showdown.image_name)
-        return jsonify(image_path=card_image_path,error=error)
+        player_stats_data = showdown.player_data_for_html_table()
+        return jsonify(image_path=card_image_path,error=error,player_stats=player_stats_data)
 
     except:
         error = "Unable to create Showdown Card. Make sure the player name and year are correct."
-        return jsonify(image_path=None,error=error)
+        return jsonify(image_path=None,error=error,player_stats=None)
 
 if __name__ == '__main__':
     app.run()

@@ -1109,6 +1109,36 @@ Showdown            Real
         print(card_as_string)
         return card_as_string
 
+    def player_data_for_html_table(self):
+
+        final_player_data = []
+
+        # SLASH LINE
+        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
+        for key, cleaned_category in slash_categories:
+            in_game = f"{float(round(self.real_stats[key],3)):.3f}"
+            actual = f"{float(self.stats[key]):.3f}"
+            final_player_data.append([cleaned_category,actual,in_game])
+
+        # RESULT LINE
+        real_life_pa = int(self.stats['PA'])
+        real_life_pa_ratio = int(self.stats['PA']) / 650.0
+        final_player_data.append(['PA', str(real_life_pa), str(real_life_pa)])
+        result_categories = [
+            ('1b_per_650_pa', '1B'),
+            ('2b_per_650_pa', '2B'),
+            ('3b_per_650_pa', '3B'),
+            ('hr_per_650_pa', 'HR'),
+            ('bb_per_650_pa', 'BB'),
+            ('so_per_650_pa', 'SO')
+        ]
+        for key, cleaned_category in result_categories:
+            in_game = str(int(round(self.real_stats[key]) * real_life_pa_ratio))
+            actual = str(self.stats[cleaned_category])
+            final_player_data.append([cleaned_category,actual,in_game])
+
+        return final_player_data
+
     def __player_metadata_summary_text(self, is_horizontal=False):
         """Creates a multi line string with all player metadata for card output.
 
@@ -1225,9 +1255,16 @@ Showdown            Real
             for index, icon in enumerate(self.icons[0:4]):
                 icon_image = Image.open(os.path.join('static', 'templates', '{}-{}.png'.format(self.context,icon)))
                 position = icon_positional_mapping[index]
-                if int(self.context) >= 2004 and len(self.positions_and_defense.keys()) > 1:
-                    # SHIFT ICONS TO RIGHT
-                    offset = 55 if 'LF/RF' in self.positions_and_defense.keys() else 45
+                if int(self.context) >= 2004:
+                    positions_list = self.positions_and_defense.keys()
+                    offset = 0
+                    if len(positions_list) > 1:
+                        # SHIFT ICONS TO RIGHT
+                        offset = 55 if 'LF/RF' in positions_list else 45
+                    elif 'LF/RF' in positions_list:
+                        offset = 25
+                    elif 'CA' in positions_list:
+                        offset = 10
                     position = (position[0] + offset, position[1])
                 player_image.paste(icon_image, position, icon_image)
 
