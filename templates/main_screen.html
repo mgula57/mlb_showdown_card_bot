@@ -5,8 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="//netdna.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" media="screen">
     <style>
-      .container {
-        max-width: 1000px;
+      @media (min-width: 768px) {
+        .container {
+          display: flex;
+          padding-top: 10px;
+          padding-bottom: 10px;
+        }
+        .input_container {
+          padding-right: 50px;
+        }
+        .output_container {
+          width: auto;
+          border-left:2px solid #D6D6D6;
+          padding-left: 50px;
+          padding-top: 75px;
+        }
+      }
+      @media (max-width: 767px) {
+        .container {
+          flex-direction: column;
+        }
+        .input_container {
+          border-bottom:2px solid #D6D6D6;
+        }
+        .output_container {
+          width: auto;
+        }
       }
       .loader {
         border: 8px solid #f3f3f3; /* Light grey */
@@ -19,6 +43,7 @@
       }
       .form-group {
         padding-left: 15px;
+        padding-right: 15px;
       }
       @keyframes spin {
         0% { transform: rotate(0deg); }
@@ -31,6 +56,11 @@
       }
       img {
         border-radius: 12px;
+      }
+      td, th {
+        border: 1px solid #dddddd;
+        text-align: left;
+        padding: 8px;
       }
     </style>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
@@ -67,9 +97,29 @@
               set: selectedValue,
               url: $('input[name="url"]').val(),
     				}, function(data) {
-              $("#card_image").attr('src',data.image_path);
-              $("#error").text(data.error);
               $('.loader').hide();
+              $("#error").text(data.error);
+              if (data.error != 'Unable to create Showdown Card. Make sure the player name and year are correct.') {
+                $("#card_image").attr('src',data.image_path);
+                var player_stats_table = '<table id="stats_table"><tr><th> </th><th>Actual</th><th>Showdown</th></tr>';
+                console.log(data.player_stats)
+                $.each(data.player_stats, function(index, value){
+                  player_stats_table += '<tr>'
+                  $.each(value, function(index, value) {
+                    if (index == 0) {
+                      bold_start = '<b>';
+                      bold_end = '</b>';
+                    } else {
+                      bold_start = '';
+                      bold_end = '';
+                    }
+                    player_stats_table += '<td>'+bold_start+value+bold_end+'</td>';
+                  });
+                  player_stats_table += '</tr>';
+                });
+                player_stats_table += '</table>';
+                $("#stats_table").replaceWith(player_stats_table);
+              }
     				});
     				return false;
           }
@@ -79,8 +129,9 @@
   </head>
   <body>
     <div class="container">
-      <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" width=288 height=120>
-      <br>
+      <!-- INPUT  -->
+      <div class="input_container">
+      <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" width=300 height=105 style="padding-top:30px">
       <br>
       <form role="form" method='POST' action='/'>
         <h4><b>Step 1: Select a Player and Season</b></h4>
@@ -105,9 +156,12 @@
         <h4><b>Step 2: Select an Image (Optional)</b></h4>
         <h6 style="max-width: 300px; padding: 0px;"><i>** Choose an image where the player is centered. Ideal image size is 500x700</i></h6>
         <br>
-        <div class="form-group">
-          <label for="url" style="color:Gray;">Player Image Link</label>
+        <div class="form-group" style="color:Gray;">
+          <label for="url" >Paste Image URL</label>
           <input type="text" name="url" class="form-control" id="url" placeholder="(OPTIONAL) Paste Link" style="max-width: 300px; padding: 20px;" autofocus>
+          <!-- <h4>Or...</h4>
+          <label for="img_upload" style="color:Gray;">Upload Image</label>
+          <input type="file" name="img_upload" id="img_upload" accept="image/*" style="color:Gray;"> -->
         </div>
         <div style="padding-top:20px">
           <a href=# id=create_card>
@@ -118,15 +172,36 @@
           <button type="reset" class="btn btn-secondary" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''" style="margin: 20px; margin-left: 25px;">
             <span>Clear</span>
           </button>
+          <div class="loader" id="loader"></div>
+        </div>
         <br>
-        <hr>
-        <br>
-        <div class="loader" id="loader"></div>
+        <!-- <div class="loader" id="loader"></div> -->
       </form>
-      <h4 id=error></h4>
-      <img id="card_image" src="static/templates/Blank.png" width=300 height=420 alt="card">
+    </div>
+    <!-- OUTPUT  -->
+    <div class="output_container">
+      <h4 id=error style="color:red"></h4>
+      <h4><b>Output</b></h4>
+      <h5 style="color:Gray;"><b>Card</b></h5>
+      <img id="card_image" src="static/interface/BlankPlayer.png" width=300 height=420 alt="card">
       <br>
+      <h5 style="color:Gray;"><b>Stats</b></h5>
+      <table id="stats_table">
+        <tr>
+          <th> </th>
+          <th>Actual</th>
+          <th>Showdown</th>
+        </tr>
+        {% for stat in ['BA','OBP','SLG','PA','1B','2B','3B','HR','BB','SO'] -%}
+        <tr>
+          <td><b>{{ stat }}</b></td>
+          <td>?</td>
+          <td>?</td>
+        </tr>
+        {% endfor %}
+      </table>
       <br>
+    </div>
     </div>
     <script src="//code.jquery.com/jquery-2.2.1.min.js"></script>
     <script src="//netdna.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
