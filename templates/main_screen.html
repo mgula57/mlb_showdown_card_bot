@@ -62,6 +62,9 @@
         text-align: left;
         padding: 8px;
       }
+      #moreOptionsDiv {
+          display:none;
+      }
     </style>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
 		<script type=text/javascript>
@@ -78,11 +81,43 @@
           }
           return true;
       } 
+      function uploadImageFile() {
+          var image_data = $('#img_upload').prop('files')[0];
+          var form_data = new FormData();
+          form_data.append('image_file', image_data);
+          $.ajax({
+              url: '/upload_test',
+              cache: false,
+              contentType: false,
+              processData: false,
+              data: form_data,
+              method: 'POST',
+              success: function(php_script_response) {
+                  alert(php_script_response);
+              },
+              error: function(data) {
+                console.log("error");
+                console.log(data);
+              }
+          });
+      }
+      $(document).ready(function(){
+        $("#formInput").change(function() {
+            var moreOptionsDiv = document.getElementById("moreOptionsDiv");
+            selected_value = $("input[name='set']:checked").val();
+            if (["2003","2004","2005"].includes(selected_value)) {
+              moreOptionsDiv.style.display = "block"
+            } else {
+              moreOptionsDiv.style.display = "none"
+            }
+        });
+      });
 			$(function() {
 			  $('a#create_card').bind('click', function() {
           is_valid = validate()
           if (is_valid) {
             $('#loader').show();
+            uploadImageFile();
             const sets = document.querySelectorAll('input[name="set"]');
             let selectedValue;
             for (const set of sets) {
@@ -96,6 +131,7 @@
               year: $('input[name="year"]').val(),
               set: selectedValue,
               url: $('input[name="url"]').val(),
+              cc: $('#cc').is(':checked')
     				}, function(data) {
               $('.loader').hide();
               $("#error").text(data.error);
@@ -133,7 +169,7 @@
       <div class="input_container">
       <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" width=300 height=105 style="padding-top:30px">
       <br>
-      <form role="form" method='POST' action='/'>
+      <form id="formInput" role="form" method='POST' enctype="multipart/form-data">
         <h4><b>Step 1: Select a Player and Season</b></h4>
         <div class="form-group">
           <label for="name" style="color:Gray;">Player Name</label>
@@ -146,22 +182,27 @@
         <div class="form-group">
           <label for="set" style="color:Gray;">MLB Showdown Set</label>
             <br>
-            <input type="radio" name = "set" value=2000> 2000</br>
+            <input type="radio" name = "set" value=2000 checked> 2000</br>
             <input type="radio" name = "set" value=2001> 2001</br>
             <input type="radio" name = "set" value=2002> 2002</br>
             <input type="radio" name = "set" value=2003> 2003</br>
-            <input type="radio" name = "set" value=2004 checked> 2004</br>
+            <input type="radio" name = "set" value=2004> 2004</br>
             <input type="radio" name = "set" value=2005> 2005</br>
         </div>
+        <div class="form-group" id="moreOptionsDiv">
+          <h5 style="color:Gray;"><b>More Options</b></h5>
+            <input type="checkbox" id="cc" name="cc" value="Cooperstown" style="padding-left: 15px;">
+            <label for="cc" style="color:#8B4513;">Cooperstown Collection</label></br>
+        </div>
         <h4><b>Step 2: Select an Image (Optional)</b></h4>
-        <h6 style="max-width: 300px; padding: 0px;"><i>** Choose an image where the player is centered. Ideal image size is 500x700</i></h6>
+        <h6 style="color:Gray; max-width: 300px; padding: 0px;"><i>** Choose an image where the player is centered. Ideal image size is 500x700</i></h6>
         <br>
         <div class="form-group" style="color:Gray;">
           <label for="url" >Paste Image URL</label>
           <input type="text" name="url" class="form-control" id="url" placeholder="(OPTIONAL) Paste Link" style="max-width: 300px; padding: 20px;" autofocus>
-          <!-- <h4>Or...</h4>
+          <h4>Or...</h4>
           <label for="img_upload" style="color:Gray;">Upload Image</label>
-          <input type="file" name="img_upload" id="img_upload" accept="image/*" style="color:Gray;"> -->
+          <input type="file" name="img_upload" id="img_upload" accept="image/*" style="color:Gray;"/>
         </div>
         <div style="padding-top:20px">
           <a href=# id=create_card>

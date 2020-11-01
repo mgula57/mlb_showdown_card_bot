@@ -19,6 +19,8 @@ def card_creator():
         year = str(request.args.get('year'))
         set = str(request.args.get('set'))
         url = request.args.get('url')
+        is_cc = request.args.get('cc').lower() == 'true'
+        img = request.args.get('img_file')
 
         # SCRAPE PLAYER DATA
         scraper = BaseballReferenceScraper(name=name,year=year)
@@ -30,7 +32,8 @@ def card_creator():
             year=year,
             stats=statline,
             context=set,
-            player_image_url=None if url == '' else url
+            player_image_url=None if url == '' else url,
+            is_cooperstown=is_cc if is_cc else False
         )
         showdown.player_image()
         card_image_path = os.path.join('static', 'images', showdown.image_name)

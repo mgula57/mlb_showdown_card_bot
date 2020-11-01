@@ -9,7 +9,7 @@ from datetime import datetime
 import mlb_showdown.showdown_constants as sc
 from bs4 import BeautifulSoup
 from pprint import pprint
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
 import json
 from urllib.request import urlopen, Request
 
@@ -19,11 +19,13 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, offset=0, test_numbers=None, printOutput=False, player_image_url=None):
+    def __init__(self, name, year, stats, context, is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, test_numbers=None, printOutput=False):
         self.name = name
         self.year = year
         self.context = context
         self.stats = stats
+        self.is_cooperstown = is_cooperstown
+        self.is_super_season = is_super_season
         self.player_image_url = player_image_url
 
         self.test_numbers = test_numbers
@@ -1225,17 +1227,42 @@ Showdown            Real
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
-        player_image.paste(color, sc.IMAGE_LOCATIONS['player_name'][str(self.context)],  name_text)
+        name_paste_location = sc.IMAGE_LOCATIONS['player_name'][str(self.context)]
+        if self.context == '2001':
+            # ADD BLUR EFFECT FOR 2001 CARDS
+            name_text_blurred = name_text.filter(ImageFilter.BLUR)
+            player_image.paste(sc.COLOR_BLACK, (name_paste_location[0] + 2, name_paste_location[1] + 2), name_text_blurred)
+        player_image.paste(color, name_paste_location,  name_text)
 
         # ADD TEAM LOGO
-        try:
-            team_logo = Image.open(os.path.join('static', 'logos', '{}.png'.format(self.team))).convert("RGBA")
-            team_logo = team_logo.resize(sc.IMAGE_SIZES['team_logo'][str(self.context)], Image.ANTIALIAS)
-        except:
-            team_logo = Image.open(os.path.join('static', 'logos', 'mlb.png')).convert("RGBA")
-            team_logo = team_logo.resize((90, 49), Image.ANTIALIAS)
-        team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
-        player_image.paste(team_logo, sc.IMAGE_LOCATIONS['team_logo'][str(self.context)], team_logo)
+        team_logo, team_logo_coords = self.__team_logo()
+        player_image.paste(team_logo, team_logo_coords, team_logo)
+
+        # ADD YEAR IF COOPERSTOWN
+        if self.is_cooperstown and int(self.context) >= 2004:
+            year_font_path = os.path.join('static', 'fonts', 'BaskervilleBoldItalicBT.ttf')
+            year_font = ImageFont.truetype(year_font_path, size=29)
+            year_font_blurred = ImageFont.truetype(year_font_path, size=30)
+            year_abbrev = "’{}".format(self.year[2:4])
+            year_text = self.__text_image(
+                text = year_abbrev,
+                size = (40,40),
+                font = year_font,
+                alignment = "center",
+                fill = "#E6DABD",
+                has_border = True,
+                border_color = sc.COLOR_BLACK
+            )
+            year_text_blurred = self.__text_image(
+                text = "’{}".format(self.year[2:4]),
+                size = (40,40),
+                font = year_font_blurred,
+                alignment = "center",
+                fill = sc.COLOR_WHITE
+            )
+            year_coords = (team_logo_coords[0] - 37,team_logo_coords[1] + 65)
+            player_image.paste(sc.COLOR_BLACK,year_coords,year_text_blurred.filter(ImageFilter.BLUR))
+            player_image.paste(year_text, year_coords, year_text)
 
         # METADATA
         metadata_image, color = self.__metadata_image()
@@ -1309,6 +1336,7 @@ Showdown            Real
           has_border: Boolean flag to add border.
           border_color: Color of border.
           border_size: Pixel size of border thickness.
+          has_drop_shadow: Boolean for whether to add drop shadow to text.
         Returns:
           PIL image object with desired text and formatting.
         """
@@ -1334,6 +1362,35 @@ Showdown            Real
         rotated_text_layer = text_layer.rotate(rotation, expand=1)
         return rotated_text_layer
 
+    def __team_logo(self):
+        """Generates a new PIL image object with logo of player team.
+
+        Args:
+          None
+
+        Returns:
+          Tuple:
+            - PIL image object with team logo.
+            - Coordinates for pasting team logo.
+        """
+        logo_name = self.team
+        logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context)]
+        logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context)]
+        if self.is_cooperstown:
+            logo_name = 'CC'
+            if int(self.context) >= 2004:
+                logo_size = (115,115)
+                logo_paste_coordinates = (logo_paste_coordinates[0] - 15,logo_paste_coordinates[1] - 40)
+        try:
+            team_logo = Image.open(os.path.join('static', 'logos', '{}.png'.format(logo_name))).convert("RGBA")
+            team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
+        except:
+            team_logo = Image.open(os.path.join('static', 'logos', 'mlb.png')).convert("RGBA")
+            team_logo = team_logo.resize((90, 49), Image.ANTIALIAS)
+        team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
+
+        return team_logo, logo_paste_coordinates
+
     def __template_image(self):
         """Loads showdown frame template depending on player context.
 
@@ -1345,7 +1402,10 @@ Showdown            Real
         """
         year = str(self.context)
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
-        type_template = '{context}-{type}.png'.format(context = year, type = type)
+        cc_extension = '-CC' if self.is_cooperstown and int(self.context) >= 2004 else ''
+        ss_extension = '-SS' if self.is_super_season and int(self.context) >= 2004 else ''
+        type_template = '{context}-{type}{cc}{ss}.png'.format(context = year, type = type, cc = cc_extension, ss = ss_extension)
+
         template_image = Image.open(os.path.join('static', 'templates', type_template))
         command_image_name = '{context}-{type}-{command}.png'.format(
             context = year,
@@ -1356,6 +1416,7 @@ Showdown            Real
         template_image.paste(command_image, (0,0), command_image)
 
         if year in ['2000','2001'] and not self.is_pitcher:
+            # HANDLE MULTI POSITION TEMPLATES FOR 00/01
             positions_list = list(self.positions_and_defense.keys())
             is_multi_position = len(positions_list) > 1
             is_large_position_container = 'LF/RF' in positions_list
@@ -1574,7 +1635,6 @@ Showdown            Real
         helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
         chart_text_size = int(sc.TEXT_SIZES['chart'][self.context])
         helvetica_neue_cond_bold_alt = ImageFont.truetype(helvetica_neue_cond_bold_path, size=chart_text_size)
-        # 46
         # CREATE CHART RANGES TEXT
         chart_string = ''
         chart_text = Image.new('RGBA',(2100,240))
@@ -1589,7 +1649,8 @@ Showdown            Real
                     fill = sc.COLOR_WHITE,
                     alignment = "center",
                     has_border = True,
-                    border_color = sc.COLOR_BLACK
+                    border_color = sc.COLOR_BLACK,
+                    border_size = 3
                 )
                 chart_text.paste(range_text, (chart_text_x, 0), range_text)
                 chart_text_x += 177 if self.is_pitcher else 156
