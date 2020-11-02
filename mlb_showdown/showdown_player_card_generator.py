@@ -19,7 +19,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, test_numbers=None, printOutput=False):
+    def __init__(self, name, year, stats, context, is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, test_numbers=None, printOutput=False):
         self.name = name
         self.year = year
         self.context = context
@@ -27,6 +27,7 @@ class ShowdownPlayerCardGenerator:
         self.is_cooperstown = is_cooperstown
         self.is_super_season = is_super_season
         self.player_image_url = player_image_url
+        self.player_image_path = player_image_path
 
         self.test_numbers = test_numbers
         self.is_pitcher = True if stats['type'] == 'Pitcher' else False
@@ -1118,8 +1119,8 @@ Showdown            Real
         # SLASH LINE
         slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
         for key, cleaned_category in slash_categories:
-            in_game = f"{float(round(self.real_stats[key],3)):.3f}"
-            actual = f"{float(self.stats[key]):.3f}"
+            in_game = f"{float(round(self.real_stats[key],3)):.3f}".replace('0.','.')
+            actual = f"{float(self.stats[key]):.3f}".replace('0.','.')
             final_player_data.append([cleaned_category,actual,in_game])
 
         # RESULT LINE
@@ -1207,19 +1208,7 @@ Showdown            Real
         """
 
         # LOAD PLAYER IMAGE
-        default_image_path = os.path.join('static', 'templates', 'Default Background - {}.png'.format(self.context))
-        if self.player_image_url is None:
-            # image_url = self.__scrape_player_image_url(url=self.player_image_url)
-            player_image = Image.open(default_image_path)
-        else:
-            image_url = self.player_image_url
-            try:
-                response = requests.get(image_url)
-                player_image = Image.open(BytesIO(response.content))
-                player_image = self.__center_crop(player_image, (500,700))
-                player_image = self.__round_corners(player_image, 20)
-            except:
-                player_image = Image.open(default_image_path)
+        player_image = self.__background_image()
 
         # LOAD SHOWDOWN TEMPLATE
         showdown_template_frame_image = self.__template_image()
@@ -1307,6 +1296,38 @@ Showdown            Real
         player_image.save(os.path.join('static', 'images', self.image_name), quality=100)
         self.__clean_images_directory()
 
+    def __background_image(self):
+        """Generates a 500/700 player image mocking what a real MLB Showdown card
+           would look like for the player output. Final image is dumped to
+           static/image_output folder.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for the player background.
+        """
+
+        default_image_path = os.path.join('static', 'templates', 'Default Background - {}.png'.format(self.context))
+        if self.player_image_path:
+            # LOAD IMAGE FROM UPLOAD
+            image_path = os.path.join('media', self.player_image_path)
+            player_image = Image.open(image_path)
+        elif self.player_image_url:
+            # LOAD IMAGE FROM URL
+            image_url = self.player_image_url
+            try:
+                response = requests.get(image_url)
+                player_image = Image.open(BytesIO(response.content))
+            except:
+                player_image = Image.open(default_image_path)
+        else:
+            player_image = Image.open(default_image_path)
+        player_image = self.__center_crop(player_image, (500,700))
+        player_image = self.__round_corners(player_image, 20)
+
+        return player_image
+
     def __clean_images_directory(self):
         """Removes all images from output folder that are not the current card.
 
@@ -1319,6 +1340,9 @@ Showdown            Real
         for item in os.listdir(os.path.join('static', 'images')):
             if item != self.image_name and item != '.gitkeep':
                 os.remove(os.path.join('static', 'images', item))
+        for item in os.listdir(os.path.join('media')):
+            if item != '.gitkeep':
+                os.remove(os.path.join('media', item))
 
     def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=1):
         """Generates a new PIL image object with text.
@@ -1382,7 +1406,8 @@ Showdown            Real
                 logo_size = (115,115)
                 logo_paste_coordinates = (logo_paste_coordinates[0] - 15,logo_paste_coordinates[1] - 40)
         try:
-            team_logo = Image.open(os.path.join('static', 'logos', '{}.png'.format(logo_name))).convert("RGBA")
+            alternate_logo_ext = '-A' if int(self.context) >= 2004 else ''
+            team_logo = Image.open(os.path.join('static', 'logos', '{}{}.png'.format(logo_name,alternate_logo_ext))).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         except:
             team_logo = Image.open(os.path.join('static', 'logos', 'mlb.png')).convert("RGBA")

@@ -66,7 +66,7 @@
           display:none;
       }
     </style>
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
 		<script type=text/javascript>
       function validate() {
           var name = document.getElementById("name").value;
@@ -86,7 +86,7 @@
           var form_data = new FormData();
           form_data.append('image_file', image_data);
           $.ajax({
-              url: '/upload_test',
+              url: '/upload',
               cache: false,
               contentType: false,
               processData: false,
@@ -126,11 +126,17 @@
                     break;
                 }
             }
+            var files = $('#img_upload').prop('files');
+            var image_name = ""
+            if (files.length > 0) {
+              image_name = files[0].name;
+            }
     				$.getJSON('/card_creation', {
     				  name: $('input[name="name"]').val(),
               year: $('input[name="year"]').val(),
               set: selectedValue,
               url: $('input[name="url"]').val(),
+              img_name: image_name,
               cc: $('#cc').is(':checked')
     				}, function(data) {
               $('.loader').hide();
