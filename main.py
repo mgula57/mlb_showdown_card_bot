@@ -16,6 +16,8 @@ parser.add_argument('-c','--context', metavar='C',
                     help='The showdown year to output')
 parser.add_argument('-o','--offset', metavar='O',
                     help='Get alternate chart n away from most accurate',default=0)
+parser.add_argument('-cc','--is_cc', metavar='H',
+                    help='Optionally make the card Cooperstown Collection',default=False)
 parser.add_argument('-t','--test', metavar='T',
                     help='Get alternate chart n away from most accurate',default=False)
 parser.add_argument('-pt','--player_type', metavar='P',
@@ -26,11 +28,10 @@ def showdown_player_stats(is_from_cache=False):
 
     name = args.name.title()
     year = args.year
-    
+
     if is_from_cache:
         real_player_stats_cache_path = os.path.join(os.path.dirname(__file__),'cache','player_cache.csv')
         name_year_string = '{} - {}'.format(name,str(year))
-        print(name_year_string)
         try:
             real_player_stats_cache = pd.read_csv(real_player_stats_cache_path)
         except FileNotFoundError:
@@ -47,6 +48,7 @@ def showdown_player_stats(is_from_cache=False):
         name=name,
         year=year,
         stats=statline,
+        is_cooperstown=args.is_cc,
         context=args.context,
         offset=args.offset,
         printOutput=True
