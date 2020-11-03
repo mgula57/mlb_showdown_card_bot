@@ -20,6 +20,13 @@ def card_creator():
         set = str(request.args.get('set'))
         url = request.args.get('url')
         is_cc = request.args.get('cc').lower() == 'true'
+        is_ss = request.args.get('ss').lower() == 'true'
+        try:
+            offset = int(request.args.get('offset'))
+            offset = 4 if offset > 4 else offset
+            offset = 0 if offset < 0 else offset
+        except:
+            offset = 0
         img = request.args.get('img_name')
         # SCRAPE PLAYER DATA
         scraper = BaseballReferenceScraper(name=name,year=year)
@@ -33,7 +40,9 @@ def card_creator():
             context=set,
             player_image_path=None if img == '' else img,
             player_image_url=None if url == '' else url,
-            is_cooperstown=is_cc if is_cc else False
+            is_cooperstown=is_cc if is_cc else False,
+            is_super_season=is_ss if is_ss else False,
+            offset=offset
         )
         showdown.player_image()
         card_image_path = os.path.join('static', 'images', showdown.image_name)

@@ -73,11 +73,13 @@ class ShowdownPlayerCardGenerator:
         saves_raw = int(stats['SV']) if self.is_pitcher else 0
         sprint_speed_raw = stats['sprint_speed']
         stolen_bases_raw = int(stats['SB']) if not self.is_pitcher else 0
+        pa_to_650_ratio = int(stats['PA']) / 650.0
+        stolen_bases_per_650_pa = stolen_bases_raw / pa_to_650_ratio
 
         self.positions_and_defense = self.__positions_and_defense(defensive_stats_raw, games_played_raw, games_started_raw, saves_raw)
         self.hand = self.__handedness(hand_raw)
         self.ip = self.__innings_pitched(innings_pitched_raw, games_played_raw)
-        self.speed, self.speed_letter = self.__speed(sprint_speed_raw, stolen_bases_raw)
+        self.speed, self.speed_letter = self.__speed(sprint_speed_raw, stolen_bases_per_650_pa)
 
     def __positions_and_defense(self, defensive_stats, games_played, games_started, saves):
         """Get in game defensive positions and ratings
@@ -344,6 +346,8 @@ class ShowdownPlayerCardGenerator:
             # HR
             if int(self.stats['HR']) >= 40:
                 icons.append('HR')
+            if int(self.stats['SB']) >= 40:
+                icons.append('SB')
 
         return icons
 
@@ -531,8 +535,10 @@ class ShowdownPlayerCardGenerator:
         in_game_stats_for_400_pa = self.__chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20)
         weights = {
             'h_per_400_pa': 5.0,
-            'slugging_perc': 1.0,
-            'onbase_perc': 5.0
+            'slugging_perc': 5.0,
+            'onbase_perc': 5.0,
+            'hr_per_400_pa': 3.0,
+            'so_per_400_pa': 1.0 if self.is_pitcher else 0.1
         }
         accuracy, categorical_accuracy = self.accuracy_between_dicts(in_game_stats_for_400_pa, stats_for_400_pa, weights)
         return chart, accuracy, in_game_stats_for_400_pa
@@ -1383,7 +1389,7 @@ Showdown            Real
             draw.text((x, y-border_size), text, font=font, spacing=spacing, fill=border_color, align=alignment)
             draw.text((x, y+border_size), text, font=font, spacing=spacing, fill=border_color, align=alignment)
         draw.text((x, y), text, font=font, spacing=spacing, fill=fill, align=alignment)
-        rotated_text_layer = text_layer.rotate(rotation, expand=1)
+        rotated_text_layer = text_layer.rotate(rotation, expand=1, resample=Image.BICUBIC)
         return rotated_text_layer
 
     def __team_logo(self):
@@ -1412,7 +1418,12 @@ Showdown            Real
         except:
             team_logo = Image.open(os.path.join('static', 'logos', 'mlb.png')).convert("RGBA")
             team_logo = team_logo.resize((90, 49), Image.ANTIALIAS)
-        team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
+        team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and not self.is_cooperstown else team_logo
+
+        # OVERRIDE IF SUPER SEASON
+        if self.is_super_season:
+            team_logo = self.__super_season_image()
+            logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context)]
 
         return team_logo, logo_paste_coordinates
 
@@ -1749,6 +1760,110 @@ Showdown            Real
 
 
         return set_image
+
+    def __super_season_image(self):
+        """Creates image for optional super season attributes.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for super season logo + text.
+        """
+
+        is_04_05 = int(self.context) >= 2004
+
+        # BACKGROUND IMAGE LOGO
+        super_season_image = Image.open(os.path.join('static', 'templates', '{}-Super Season.png'.format(self.context)))
+
+        # FONTS
+        super_season_year_path = os.path.join('static', 'templates', 'URW Corporate W01 Normal.ttf')
+        super_season_accolade_path = os.path.join('static', 'templates', 'Zurich Bold Italic BT.ttf')
+        super_season_year_font = ImageFont.truetype(super_season_year_path, size=75 if is_04_05 else 75)
+        super_season_accolade_font = ImageFont.truetype(super_season_accolade_path, size=50)
+
+        # YEAR
+        year_string = '’{}'.format(str(self.year)[2:4]) if is_04_05 else str(self.year)
+        year_text = self.__text_image(
+            text = year_string,
+            size = (250,180) if is_04_05 else (375,200),
+            font = super_season_year_font,
+            alignment = "left",
+            rotation = 0 if is_04_05 else 7
+        )
+        year_text = year_text.resize((60,60), Image.ANTIALIAS)
+        year_paste_coords = (45,30) if is_04_05 else (8,94)
+        super_season_image.paste("#982319",year_paste_coords,year_text)
+
+        if int(self.context) > 2001:
+            # ACCOLADES
+            accolades_list = sorted(self.__super_season_accolades(),key=len,reverse=True)
+            x_position = 6 if is_04_05 else 3
+            y_position = 114 if is_04_05 else 108
+            accolade_rotation = 15 if is_04_05 else 13
+            accolade_spacing = 15 if is_04_05 else 24
+            for accolade in accolades_list:
+                accolade_text = self.__text_image(
+                    text = accolade,
+                    size = (600,160),
+                    font = super_season_accolade_font,
+                    alignment = "center",
+                    rotation = accolade_rotation
+                )
+                accolade_text = accolade_text.resize((125,50), Image.ANTIALIAS)
+                super_season_image.paste(sc.COLOR_BLACK, (x_position, y_position), accolade_text)
+                x_position += 2
+                y_position += accolade_spacing
+
+        # RESIZE
+        super_season_image = super_season_image.resize(sc.IMAGE_SIZES['super_season'][self.context], Image.ANTIALIAS)
+        return super_season_image
+
+    def __super_season_accolades(self):
+        """Generates array of 3 highlights for season.
+
+        Args:
+          None
+
+        Returns:
+          Array with 3 string elements showing accolades for season
+        """
+
+        # FIRST LOOK AT ICONS
+        accolades_list = []
+        for icon in self.icons:
+            icons_full_description = {
+                'V': 'MVP',
+                'S': 'SILVER SLUGGER',
+                'GG': 'GOLD GLOVE',
+                'CY': 'CY YOUNG',
+                'K': str(self.stats['SO']) + ' STRIKEOUTS',
+                'RY': 'ROOKIE OF THE YEAR',
+                'HR': str(self.stats['HR']) + ' HOMERS',
+                '20': '20 GAME WINNER'
+            }
+            if icon in icons_full_description.keys():
+                accolades_list.append(icons_full_description[icon])
+
+        if 'AS' in self.stats['award_summary']:
+            accolades_list.append('ALL-STAR')
+
+        # DEFAULT ACCOLADES
+        # HANDLES CASE OF NO AWARDS
+        if self.is_pitcher:
+            accolades_list.append(str(self.stats['earned_run_avg']) + ' ERA')
+            is_starter = 'STARTER' in self.positions_and_defense.keys()
+            if is_starter:
+                accolades_list.append(str(self.stats['W']) + ' WINS')
+            else:
+                accolades_list.append(str(self.stats['SV']) + ' SAVES')
+            accolades_list.append(str(self.stats['batting_avg']) + ' BA AGAINST')
+        else:
+            accolades_list.append(str(self.stats['batting_avg']) + ' BA')
+            accolades_list.append(str(self.stats['RBI']) + ' RBI')
+            accolades_list.append(str(self.stats['HR']) + ' HOMERS')
+
+        return accolades_list[0:3]
 
     def __round_corners(self, image, radius):
         """Round corners of a given image to a certain radius.

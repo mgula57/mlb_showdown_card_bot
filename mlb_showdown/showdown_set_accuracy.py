@@ -49,7 +49,7 @@ class ShowdownSetAccuracy:
             else:
                 # NEED TO SCRAPE FROM BASEBALL REFERENCE
                 print('Scraping - {} stats for {}'.format(wotc_player_card.Name, str(wotc_player_card.Year - 1)))
-                if wotc_player_card.name in ['Craig Wilson', 'John Vander Wal']:
+                if wotc_player_card.name in ['Craig Wilson', 'John Vander Wal', 'Ramon Martinez']:
                     continue
                 try:
                     scraper = BaseballReferenceScraper(wotc_player_card.Name,self.context-1)

@@ -18,8 +18,10 @@ parser.add_argument('-o','--offset', metavar='O',
                     help='Get alternate chart n away from most accurate',default=0)
 parser.add_argument('-cc','--is_cc', metavar='H',
                     help='Optionally make the card Cooperstown Collection',default=False)
+parser.add_argument('-ss','--is_ss', metavar='S',
+                    help='Optionally make the card Super Season',default=False)
 parser.add_argument('-t','--test', metavar='T',
-                    help='Get alternate chart n away from most accurate',default=False)
+                    help='Boolean flag for whether to run accuracy test against original set',default=False)
 parser.add_argument('-pt','--player_type', metavar='P',
                     help='Choose either Hitter or Pitcher to test',default='Hitter')
 args = parser.parse_args()
@@ -49,6 +51,7 @@ def showdown_player_stats(is_from_cache=False):
         year=year,
         stats=statline,
         is_cooperstown=args.is_cc,
+        is_super_season=args.is_ss,
         context=args.context,
         offset=args.offset,
         printOutput=True

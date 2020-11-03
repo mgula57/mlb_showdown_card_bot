@@ -63,7 +63,7 @@
         padding: 8px;
       }
       #moreOptionsDiv {
-          display:none;
+          display:block;
       }
     </style>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
@@ -101,17 +101,17 @@
               }
           });
       }
-      $(document).ready(function(){
-        $("#formInput").change(function() {
-            var moreOptionsDiv = document.getElementById("moreOptionsDiv");
-            selected_value = $("input[name='set']:checked").val();
-            if (["2003","2004","2005"].includes(selected_value)) {
-              moreOptionsDiv.style.display = "block"
-            } else {
-              moreOptionsDiv.style.display = "none"
-            }
-        });
-      });
+      // $(document).ready(function(){
+      //   $("#formInput").change(function() {
+      //       var moreOptionsDiv = document.getElementById("moreOptionsDiv");
+      //       selected_value = $("input[name='set']:checked").val();
+      //       if (["2003","2004","2005"].includes(selected_value)) {
+      //         moreOptionsDiv.style.display = "block"
+      //       } else {
+      //         moreOptionsDiv.style.display = "none"
+      //       }
+      //   });
+      // });
 			$(function() {
 			  $('a#create_card').bind('click', function() {
           is_valid = validate()
@@ -137,7 +137,9 @@
               set: selectedValue,
               url: $('input[name="url"]').val(),
               img_name: image_name,
-              cc: $('#cc').is(':checked')
+              cc: $('#cc').is(':checked'),
+              ss: $('#ss').is(':checked'),
+              offset: $('input[name="offset"]').val(),
     				}, function(data) {
               $('.loader').hide();
               $("#error").text(data.error);
@@ -199,6 +201,10 @@
           <h5 style="color:Gray;"><b>More Options</b></h5>
             <input type="checkbox" id="cc" name="cc" value="Cooperstown" style="padding-left: 15px;">
             <label for="cc" style="color:#8B4513;">Cooperstown Collection</label></br>
+            <input type="checkbox" id="ss" name="ss" value="Super Season" style="padding-left: 15px;">
+            <label for="ss" style="color:#982319;">Super Season</label></br>
+            <input type="number" id="offset" name="offset" value="0" min="0" max="4" style="padding-left: 15px;" onKeyDown="return false">
+            <label for="offset" style="color:#1f1e1e;">Stats Offset</label></br>
         </div>
         <h4><b>Step 2: Select an Image (Optional)</b></h4>
         <h6 style="color:Gray; max-width: 300px; padding: 0px;"><i>** Choose an image where the player is centered. Ideal image size is 500x700</i></h6>
