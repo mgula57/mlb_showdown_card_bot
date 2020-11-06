@@ -20,6 +20,9 @@ class ShowdownPlayerCardGenerator:
 # INIT
 
     def __init__(self, name, year, stats, context, is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, test_numbers=None, printOutput=False):
+        """Initializer for ShowdownPlayerCardGenerator Class"""
+
+        # ASSIGNED ATTRIBUTES
         self.name = name
         self.year = year
         self.context = context
@@ -28,26 +31,31 @@ class ShowdownPlayerCardGenerator:
         self.is_super_season = is_super_season
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
-
         self.test_numbers = test_numbers
+
+        # DERIVED ATTRIBUTES
         self.is_pitcher = True if stats['type'] == 'Pitcher' else False
         self.team = stats['team_ID']
 
-        self.__player_metadata(stats)
+        # METADATA IS SET IN ANOTHER METHOD
+        # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
+        self.__player_metadata(stats=stats)
 
-        stats_for_400_pa = self.__stats_per_n_pa(400, stats)
-        command_out_combos = self.__top_accurate_command_out_combos(float(stats['onbase_perc']), 5)
+        stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=stats)
+        command_out_combos = self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=5)
 
-        self.chart, chart_results_per_400_abs = self.__most_accurate_chart(command_out_combos, stats_for_400_pa, int(offset))
-        self.chart_ranges = self.__ranges_for_chart(self.chart, float(stats_for_400_pa['2b_per_400_pa']), float(stats_for_400_pa['hr_per_400_pa']))
-        self.real_stats = self.__stats_for_full_season(chart_results_per_400_abs)
-
-        self.icons = self.__icons(stats['award_summary'] if 'award_summary' in stats.keys() else '')
+        self.chart, chart_results_per_400_abs = self.__most_accurate_chart(command_out_combos=command_out_combos,
+                                                                           stats_per_400_pa=stats_for_400_pa,
+                                                                           offset=int(offset))
+        self.chart_ranges = self.__ranges_for_chart(chart=self.chart,
+                                                    dbl_per_400_pa=float(stats_for_400_pa['2b_per_400_pa']),
+                                                    hr_per_400_pa=float(stats_for_400_pa['hr_per_400_pa']))
+        self.real_stats = self.__stats_for_full_season(stats_per_400_pa=chart_results_per_400_abs)
 
         self.points = self.__point_value(chart=self.chart,
-                                        real_stats=self.real_stats,
-                                        positions_and_defense=self.positions_and_defense,
-                                        speed_or_ip=self.ip if self.is_pitcher else self.speed)
+                                         real_stats=self.real_stats,
+                                         positions_and_defense=self.positions_and_defense,
+                                         speed_or_ip=self.ip if self.is_pitcher else self.speed)
         if printOutput:
             self.print_player()
             self.player_image()
@@ -56,7 +64,7 @@ class ShowdownPlayerCardGenerator:
 # METADATA METHODS
 
     def __player_metadata(self, stats):
-        """Parse all metadata (positions, hand, speed, ...) and assign to self
+        """Parse all metadata (positions, hand, speed, ...) and assign to self.
 
         Args:
           stats: Dict of stats from Baseball Reference scraper
@@ -65,6 +73,7 @@ class ShowdownPlayerCardGenerator:
           None
         """
 
+        # RAW METADATA FROM BASEBALL REFERENCE
         defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k}
         hand_raw = stats['hand']
         innings_pitched_raw = float(stats['IP']) if self.is_pitcher else 0.0
@@ -73,16 +82,23 @@ class ShowdownPlayerCardGenerator:
         saves_raw = int(stats['SV']) if self.is_pitcher else 0
         sprint_speed_raw = stats['sprint_speed']
         stolen_bases_raw = int(stats['SB']) if not self.is_pitcher else 0
+
+        # DERIVED SB PER 650 PA (NORMAL SEASON)
         pa_to_650_ratio = int(stats['PA']) / 650.0
         stolen_bases_per_650_pa = stolen_bases_raw / pa_to_650_ratio
 
-        self.positions_and_defense = self.__positions_and_defense(defensive_stats_raw, games_played_raw, games_started_raw, saves_raw)
-        self.hand = self.__handedness(hand_raw)
-        self.ip = self.__innings_pitched(innings_pitched_raw, games_played_raw)
-        self.speed, self.speed_letter = self.__speed(sprint_speed_raw, stolen_bases_per_650_pa)
+        # CALL METHODS AND ASSIGN TO SELF
+        self.positions_and_defense = self.__positions_and_defense(defensive_stats=defensive_stats_raw,
+                                                                  games_played=games_played_raw,
+                                                                  games_started=games_started_raw,
+                                                                  saves=saves_raw)
+        self.hand = self.__handedness(hand=hand_raw)
+        self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw)
+        self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa)
+        self.icons = self.__icons(awards=stats['award_summary'] if 'award_summary' in stats.keys() else '')
 
     def __positions_and_defense(self, defensive_stats, games_played, games_started, saves):
-        """Get in game defensive positions and ratings
+        """Get in-game defensive positions and ratings
 
         Args:
           defensive_stats: Dict of games played and total_zone for each position.
@@ -94,33 +110,50 @@ class ShowdownPlayerCardGenerator:
           Dict with in game positions and defensive ratings
         """
 
-        num_positions = int(len(defensive_stats.keys()) / 3)
+        # THERE ARE ALWAYS 3 KEYS FOR EACH POSITION
+        num_positions = int(len(defensive_stats.keys()) / 3) 
+        
+        # INITIAL DICTS TO STORE POSITIONS AND DEFENSE
         positions_and_defense = {}
         positions_and_games_played = {}
 
+        # POPULATE POSITION DICTS
+        # PARSE POSITION NAME, GAMES, AND TZ RATING AND CONVERT TO IN-GAME
         for position_index in range(1, num_positions+1):
             position_raw = defensive_stats['Position{}'.format(position_index)]
             games_at_position = int(defensive_stats['gPosition{}'.format(position_index)])
-            position = self.__position_in_game(position_raw,num_positions,games_at_position,games_played,games_started,saves)
+            position = self.__position_name_in_game(position=position_raw,
+                                                    num_positions=num_positions,
+                                                    position_appearances=games_at_position,
+                                                    games_played=games_played,
+                                                    games_started=games_started,
+                                                    saves=saves)
             positions_and_games_played[position] = games_at_position
+            # IN-GAME RATING AT
             if position is not None:
                 if not self.is_pitcher:
                     try:
                         total_zone_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
                     except:
                         total_zone_rating = 0
-                    defense = self.__convert_tzr_to_in_game_defense(position,total_zone_rating)
+                    defense = self.__convert_tzr_to_in_game_defense(position=position,tzr=total_zone_rating)
                     positions_and_defense[position] = defense
                 else:
                     positions_and_defense[position] = 0
-
+        
+        # COMBINE ALIKE IN-GAME POSITIONS (LF/RF, OF, IF, ...)
         final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played)
-        # LIMIT TO ONLY 2 POSITIONS
+
+        # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
         if len(final_positions_in_game.items()) > 2:
-            sorted_positions = sorted(final_positions_in_game.items(), key=operator.itemgetter(1), reverse=True)[0:2]
-            final_positions_in_game = {}
-            for position, value in sorted_positions:
-                final_positions_in_game[position] = value
+            sorted_positions = sorted(final_position_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:2]
+            included_positions_list = [pos[0] for pos in sorted_positions]
+            filtered_final_positions_in_game = {}
+            for position, value in final_positions_in_game.items():
+                # ONLY ADD IF THE POSITION IS IN THE TOP 2 BY GAMES PLAYED.
+                if position in included_positions_list:
+                    filtered_final_positions_in_game[position] = value
+            final_positions_in_game = filtered_final_positions_in_game
 
         return final_positions_in_game
 
@@ -179,6 +212,66 @@ class ShowdownPlayerCardGenerator:
             del positions_and_games_played['OF']
 
         return positions_and_defense, positions_and_games_played
+
+    def __position_name_in_game(self, position, num_positions, position_appearances, games_played, games_started, saves):
+        """Cleans position name to conform to game standards.
+
+        Args:
+          position: Baseball Reference name for position.
+          num_positions: Number of positions listed for the player.
+          position_appearances: Total games played for the position.
+          games_played: Total games played for all positions.
+          games_started: Total starts for a Pitcher.
+          saves: Saves recorded for a Pitcher.
+
+        Returns:
+          In game position name.
+        """
+
+        if position == 'P':
+            # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
+            gsRatio = games_started / games_played
+            starter_threshold = 0.65
+            if gsRatio > starter_threshold:
+                return 'STARTER'
+            if saves > 10:
+                return 'CLOSER'
+            else:
+                return 'RELIEVER'
+        elif position_appearances < sc.NUMBER_OF_GAMES:
+            # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
+            return None
+        elif position == 'DH' and num_positions > 1:
+            # PLAYER MAY HAVE PLAYED AT DH, BUT HAS OTHER POSITIONS, SO DH WONT BE LISTED
+            return None
+        elif int(self.context) > 2001 and position == 'C':
+            # CHANGE CATCHER POSITION NAME DEPENDING ON CONTEXT YEAR
+            return 'CA'
+        else:
+            # RETURN BASEBALL REFERENCE STRING VALUE
+            return position
+
+    def __convert_tzr_to_in_game_defense(self, position, tzr):
+        """Converts Total Zone Rating (TZR) to in game defense at a position.
+           We use TZR to calculate defense because it is available for most eras.
+           More modern defensive metrics (like DRS) are not available for historical
+           seasons.
+
+        Args:
+          position: In game position name.
+          tzr: Total Zone Rating. 0 is average for a position.
+
+        Returns:
+          In game defensive rating.
+        """
+
+        max_defense_for_position = sc.POSITION_DEFENSE_RANGE[self.context][position]
+        tzr_range = sc.MAX_SABER_FIELDING - sc.MIN_SABER_FIELDING
+        percentile = (tzr-sc.MIN_SABER_FIELDING) / tzr_range
+        defense_raw = percentile * max_defense_for_position
+        defense = round(defense_raw) if defense_raw > 0 else 0
+
+        return defense
 
     def __handedness(self, hand):
         """Get hand of player. Format to how card will display hand.
@@ -251,64 +344,6 @@ class ShowdownPlayerCardGenerator:
             letter = 'A'
         return speed, letter
 
-    def __position_in_game(self, position, num_positions, position_appearances, games_played, games_started, saves):
-        """Cleans position name to conform to game standards.
-
-        Args:
-          position: Baseball Reference name for position.
-          num_positions: Number of positions listed for the player.
-          position_appearances: Total games played for the position.
-          games_played: Total games played for all positions.
-          games_started: Total starts for a Pitcher.
-          saves: Saves recorded for a Pitcher.
-
-        Returns:
-          In game position name.
-        """
-
-        if position == 'P':
-            # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
-            gsRatio = games_started / games_played
-            starter_threshold = 0.65
-            if gsRatio > starter_threshold:
-                return 'STARTER'
-            if saves > 10:
-                return 'CLOSER'
-            else:
-                return 'RELIEVER'
-        elif position_appearances < sc.NUMBER_OF_GAMES:
-            # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
-            return None
-        elif position == 'DH' and num_positions > 1:
-            # PLAYER MAY HAVE PLAYED AT DH, BUT HAS OTHER POSITIONS, SO DH WONT BE LISTED
-            return None
-        elif int(self.context) > 2001 and position == 'C':
-            # CHANGE CATCHER POSITION NAME DEPENDING ON CONTEXT YEAR
-            return 'CA'
-        else:
-            # RETURN BASEBALL REFERENCE STRING VALUE
-            return position
-
-    def __convert_tzr_to_in_game_defense(self, position, tzr):
-        """Converts Total Zone Rating (TZR) to in game defense at a position.
-           We use TZR to calculate defense because it is available for most eras.
-           More modern defensive metrics (like DRS)
-
-        Args:
-          position: In game position name.
-          tzr: Total Zone Rating. 0 is average for a position.
-
-        Returns:
-          In game defensive rating.
-        """
-
-        max_defense_for_position = sc.POSITION_DEFENSE_RANGE[self.context][position]
-        tzr_range = sc.MAX_SABER_FIELDING - sc.MIN_SABER_FIELDING
-        defense_raw = ( (tzr-sc.MIN_SABER_FIELDING) * max_defense_for_position ) / tzr_range
-        defense = round(defense_raw) if defense_raw > 0 else 0
-
-        return defense
-
     def __icons(self,awards):
         """Converts awards_summary and other metadata fields into in game icons.
 
@@ -317,9 +352,15 @@ class ShowdownPlayerCardGenerator:
 
         Returns:
           List of in game icons as strings.
+        
+        Todo:
+          Add R and RP icons
         """
 
-        awards_upper = '' if awards is None else str(awards).upper()
+        awards_string = '' if awards is None else str(awards).upper()
+        awards_list = awards_string.split(',')
+
+        # ICONS FROM BREF AWARDS FIELD
         awards_to_icon_map = {
             'SS': 'S',
             'GG': 'G',
@@ -327,8 +368,6 @@ class ShowdownPlayerCardGenerator:
             'CYA-1': 'CY',
             'ROY-1': 'RY'
         }
-        awards_list = awards_upper.split(',')
-
         icons = []
         for award, icon in awards_to_icon_map.items():
             if award in awards_list:
