@@ -1904,9 +1904,9 @@ class ShowdownPlayerCardGenerator:
         super_season_image = Image.open(os.path.join('static', 'templates', '{}-Super Season.png'.format(self.context)))
 
         # FONTS
-        super_season_year_path = os.path.join('static', 'templates', 'URW Corporate W01 Normal.ttf')
-        super_season_accolade_path = os.path.join('static', 'templates', 'Zurich Bold Italic BT.ttf')
-        super_season_year_font = ImageFont.truetype(super_season_year_path, size=75 if is_04_05 else 75)
+        super_season_year_path = os.path.join('static', 'fonts', 'URW Corporate W01 Normal.ttf')
+        super_season_accolade_path = os.path.join('static', 'fonts', 'Zurich Bold Italic BT.ttf')
+        super_season_year_font = ImageFont.truetype(super_season_year_path, size=75)
         super_season_accolade_font = ImageFont.truetype(super_season_accolade_path, size=50)
 
         # YEAR

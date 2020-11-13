@@ -55,8 +55,7 @@ def card_creator():
         error = ''
         return jsonify(image_path=card_image_path,error=error,player_stats=player_stats_data)
 
-    except Exception as err:
-        error = f"{err}"
+    except:
         return jsonify(image_path=None,error=error,player_stats=None)
 
 @app.route('/upload', methods=["POST","GET"])
