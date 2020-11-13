@@ -42,7 +42,7 @@ class ShowdownPlayerCardGenerator:
         self.__player_metadata(stats=stats)
 
         stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=stats)
-        command_out_combos = self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=5)
+        command_out_combos = self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=7)
 
         self.chart, chart_results_per_400_abs = self.__most_accurate_chart(command_out_combos=command_out_combos,
                                                                            stats_per_400_pa=stats_for_400_pa,
@@ -154,6 +154,10 @@ class ShowdownPlayerCardGenerator:
                 if position in included_positions_list:
                     filtered_final_positions_in_game[position] = value
             final_positions_in_game = filtered_final_positions_in_game
+
+        # ASSIGN DH IF POSITIONS DICT IS EMPTY
+        if final_positions_in_game == {}:
+            final_positions_in_game = {'DH': 0}
 
         return final_positions_in_game
 
@@ -404,13 +408,15 @@ class ShowdownPlayerCardGenerator:
           List of Top N most accurate command/out tuples.
         """
 
+        # OBP DICT FOR ALL COMMAND OUT COMBOS
         combos = self.__obp_for_command_out_combos()
+        
         combo_accuracies = {}
-
         for combo, predicted_obp in combos.items():
             accuracy = 1 - self.__pct_difference(obp, predicted_obp)
             combo_accuracies[combo] = accuracy
 
+        # LIMIT TO TOP N BY ACCURACY
         sorted_combo_accuracies = sorted(combo_accuracies.items(), key=operator.itemgetter(1), reverse=True)
         top_combo_accuracies = sorted_combo_accuracies[:num_results]
         top_command_out_tuples = [c[0] for c in top_combo_accuracies]
@@ -428,19 +434,19 @@ class ShowdownPlayerCardGenerator:
           Dict with tuples of command, outs and their corresponding obp.
         """
 
+        # STATIC COMBINATIONS LIST
         command_out_combos = sc.CONTROL_COMBOS[self.context] if self.is_pitcher else sc.OB_COMBOS[self.context]
+        
+        # CALCULATE ONBASE PCT FOR EACH COMBO
         combo_and_obps = {}
-
         for combo in command_out_combos:
             command = combo[0]
             outs = combo[1]
             command_out_matchup = self.__onbase_control_outs(command, outs)
-            predicted_obp = self.__pct_rate_for_result(
-                                onbase = command_out_matchup['onbase'],
-                                control = command_out_matchup['control'],
-                                num_results_hitter_chart = 20-command_out_matchup['hitterOuts'],
-                                num_results_pitcher_chart = 20-command_out_matchup['pitcherOuts']
-                            )
+            predicted_obp = self.__pct_rate_for_result(onbase = command_out_matchup['onbase'],
+                                                       control = command_out_matchup['control'],
+                                                       num_results_hitter_chart = 20-command_out_matchup['hitterOuts'],
+                                                       num_results_pitcher_chart = 20-command_out_matchup['pitcherOuts'])
             key = (command, outs)
             combo_and_obps[key] = predicted_obp
 
@@ -458,16 +464,16 @@ class ShowdownPlayerCardGenerator:
           Dict object with onbase, control, pitcher outs, hitter outs
         """
 
-        onbaseBaseline = sc.BASELINE_HITTER[self.context]['command'] if self.test_numbers is None else self.test_numbers[0]
-        hitterOutsBaseline = sc.BASELINE_HITTER[self.context]['outs'] if self.test_numbers is None else self.test_numbers[1]
-        controlBaseline = sc.BASELINE_PITCHER[self.context]['command'] if self.test_numbers is None else self.test_numbers[0]
-        pitcherOutsBaseline = sc.BASELINE_PITCHER[self.context]['outs'] if self.test_numbers is None else self.test_numbers[1]
+        onbase_baseline = sc.BASELINE_HITTER[self.context]['command'] if self.test_numbers is None else self.test_numbers[0]
+        hitter_outs_baseline = sc.BASELINE_HITTER[self.context]['outs'] if self.test_numbers is None else self.test_numbers[1]
+        control_baseline = sc.BASELINE_PITCHER[self.context]['command'] if self.test_numbers is None else self.test_numbers[0]
+        pitcher_outs_baseline = sc.BASELINE_PITCHER[self.context]['outs'] if self.test_numbers is None else self.test_numbers[1]
 
         return {
-            'onbase': playercommand if not self.is_pitcher else onbaseBaseline,
-            'hitterOuts': playerOuts if not self.is_pitcher else hitterOutsBaseline,
-            'control': playercommand if self.is_pitcher else controlBaseline,
-            'pitcherOuts': playerOuts if self.is_pitcher else pitcherOutsBaseline
+            'onbase': playercommand if not self.is_pitcher else onbase_baseline,
+            'hitterOuts': playerOuts if not self.is_pitcher else hitter_outs_baseline,
+            'control': playercommand if self.is_pitcher else control_baseline,
+            'pitcherOuts': playerOuts if self.is_pitcher else pitcher_outs_baseline
         }
 
 # ------------------------------------------------------------------------
@@ -713,7 +719,7 @@ class ShowdownPlayerCardGenerator:
         Returns:
           Tuple of 1b_additions, 2b results
         """
-        # TODO: MAKE THIS MORE ACCURATE + ROBUST
+        # TODO: MAKE THIS LESS STATIC
 
         # HR
         if hr_per_400_pa >= 13:
@@ -761,7 +767,10 @@ class ShowdownPlayerCardGenerator:
         Returns:
           Dict of stats weighted for n PA.
         """
+
+        # SUBTRACT SACRIFICES?
         pct_of_n_pa = (float(stats['PA']) - float(stats['SH'])) / plate_appearances
+        # POPULATE DICT WITH VALUES UNCHANGED BY SHIFT IN PA
         stats_for_n_pa = {
             'PA': plate_appearances,
             'pct_of_{}_pa'.format(plate_appearances): pct_of_n_pa,
@@ -769,11 +778,10 @@ class ShowdownPlayerCardGenerator:
             'onbase_perc': float(stats['onbase_perc']),
             'batting_avg': float(stats['batting_avg']),
             'IF/FB': float(stats['IF/FB']),
-            'GO/AO': float(stats['GO/AO']) if int(self.year) > 1940 else 1.0
+            'GO/AO': float(stats['GO/AO']) if int(self.year) > 1940 else 1.0 # DEFAULT TO 1.0 FOR UNAVAILABLE YEARS
         }
 
-        stats['1B'] = int(stats['H']) - int(stats['HR']) - int(stats['3B']) - int(stats['2B'])
-
+        # ADD RESULT OCCURANCES PER N PA        
         chart_result_categories = ['SO','BB','1B','2B','3B','HR','SB','H']
         for category in chart_result_categories:
             key = '{}_per_{}_pa'.format(category.lower(), plate_appearances)
@@ -789,8 +797,8 @@ class ShowdownPlayerCardGenerator:
           control: Pitcher's command number.
           num_results_hitter_chart: Number of results for the outcome located on hitter's chart.
           num_results_pitcher_chart: Number of results for the outcome located on pitcher's chart.
-          hitter_denom_adjust: Adjust denominator for hitter calcs
-          pitch_denom_adjust: Adjust denominator for pitcher calcs
+          hitter_denom_adjust: Adjust denominator for hitter calcs by subtraction.
+          pitch_denom_adjust: Adjust denominator for pitcher calcs by subtraction.
         Returns:
           Percent change a given result will occur.
         """
@@ -821,7 +829,8 @@ class ShowdownPlayerCardGenerator:
         Returns:
           Dict with stats per 400 Plate Appearances.
         """
-        # GET HITTER HITS FOR BATTING AVG CALCULATION
+
+        # MATCHUP VALUES
         command_out_matchup = self.__onbase_control_outs(chart['command'],chart['outs'])
         pitcher_chart = chart if self.is_pitcher else opponent_chart
         hitter_chart = chart if not self.is_pitcher else opponent_chart
@@ -829,19 +838,48 @@ class ShowdownPlayerCardGenerator:
                              + pitcher_chart['3b'] + pitcher_chart['hr']
         hits_hitter_chart = hitter_chart['1b'] + hitter_chart['1b+'] + hitter_chart['2b'] \
                             + hitter_chart['3b'] + hitter_chart['hr']
-
-        strikeouts_per_400_pa = self.__result_occurances_per_400_pa(chart['so'],opponent_chart['so'],
-                                                            my_advantages_per_20,opponent_advantages_per_20)
-        walks_per_400_pa = self.__result_occurances_per_400_pa(chart['bb'],opponent_chart['bb'],
-                                                       my_advantages_per_20,opponent_advantages_per_20)
-        singles_per_400_pa = self.__result_occurances_per_400_pa(chart['1b']+chart['1b+'],opponent_chart['1b'],
-                                                         my_advantages_per_20,opponent_advantages_per_20)
-        doubles_per_400_pa = self.__result_occurances_per_400_pa(chart['2b'],opponent_chart['2b'],
-                                                         my_advantages_per_20,opponent_advantages_per_20)
-        triples_per_400_pa = self.__result_occurances_per_400_pa(chart['3b'],opponent_chart['3b'],
-                                                         my_advantages_per_20,opponent_advantages_per_20)
-        home_runs_per_400_pa = self.__result_occurances_per_400_pa(chart['hr'],opponent_chart['hr'],
-                                                           my_advantages_per_20,opponent_advantages_per_20)
+        
+        strikeouts_per_400_pa = self.__result_occurances_per_400_pa(my_results=chart['so'],
+                                                                    opponent_results=opponent_chart['so'],
+                                                                    my_advantages_per_20=my_advantages_per_20,
+                                                                    opponent_advantages_per_20=opponent_advantages_per_20)
+        walks_per_400_pa = self.__result_occurances_per_400_pa(my_results=chart['bb'],
+                                                               opponent_results=opponent_chart['bb'],
+                                                               my_advantages_per_20=my_advantages_per_20,
+                                                               opponent_advantages_per_20=opponent_advantages_per_20)
+        singles_per_400_pa = self.__result_occurances_per_400_pa(my_results=chart['1b']+chart['1b+'],
+                                                                 opponent_results=opponent_chart['1b'],
+                                                                 my_advantages_per_20=my_advantages_per_20,
+                                                                 opponent_advantages_per_20=opponent_advantages_per_20)
+        doubles_per_400_pa = self.__result_occurances_per_400_pa(my_results=chart['2b'],
+                                                                 opponent_results=opponent_chart['2b'],
+                                                                 my_advantages_per_20=my_advantages_per_20,
+                                                                 opponent_advantages_per_20=opponent_advantages_per_20)
+        triples_per_400_pa = self.__result_occurances_per_400_pa(my_results=chart['3b'],
+                                                                 opponent_results=opponent_chart['3b'],
+                                                                 my_advantages_per_20=my_advantages_per_20,
+                                                                 opponent_advantages_per_20=opponent_advantages_per_20)
+        home_runs_per_400_pa = self.__result_occurances_per_400_pa(my_results=chart['hr'],
+                                                                   opponent_results=opponent_chart['hr'],
+                                                                   my_advantages_per_20=my_advantages_per_20,
+                                                                   opponent_advantages_per_20=opponent_advantages_per_20)
+        # SLASH LINE
+        batting_avg = self.__pct_rate_for_result(onbase=command_out_matchup['onbase'],
+                                                 control=command_out_matchup['control'],
+                                                 num_results_hitter_chart=hits_hitter_chart,
+                                                 num_results_pitcher_chart=hits_pitcher_chart,
+                                                 hitter_denom_adjust=hitter_chart['bb'],
+                                                 pitch_denom_adjust=pitcher_chart['bb'])                                                 
+        obp = self.__pct_rate_for_result(onbase=command_out_matchup['onbase'],
+                                         control=command_out_matchup['control'],
+                                         num_results_hitter_chart=20-command_out_matchup['hitterOuts'],
+                                         num_results_pitcher_chart=20-command_out_matchup['pitcherOuts'])
+        slugging_pct = self.__slugging_pct(ab=400-walks_per_400_pa, 
+                                          singles=singles_per_400_pa, 
+                                          doubles=doubles_per_400_pa,
+                                          triples=triples_per_400_pa, 
+                                          homers=home_runs_per_400_pa)
+        # GROUP ESTIMATIONS IN DICTIONARY
         results_per_400_pa = {
             'so_per_400_pa': strikeouts_per_400_pa,
             'bb_per_400_pa': walks_per_400_pa,
@@ -850,16 +888,9 @@ class ShowdownPlayerCardGenerator:
             '3b_per_400_pa': triples_per_400_pa,
             'hr_per_400_pa': home_runs_per_400_pa,
             'h_per_400_pa': singles_per_400_pa + doubles_per_400_pa + triples_per_400_pa + home_runs_per_400_pa,
-            'batting_avg': self.__pct_rate_for_result(command_out_matchup['onbase'],
-                                                      command_out_matchup['control'],
-                                                      hits_hitter_chart,
-                                                      hits_pitcher_chart,
-                                                      hitter_chart['bb'],
-                                                      pitcher_chart['bb']),
-            'onbase_perc': self.__pct_rate_for_result(command_out_matchup['onbase'],command_out_matchup['control'],
-                                              20-command_out_matchup['hitterOuts'],20-command_out_matchup['pitcherOuts']),
-            'slugging_perc': self.__slugging_pct(400-walks_per_400_pa, singles_per_400_pa, doubles_per_400_pa,
-                                         triples_per_400_pa, home_runs_per_400_pa),
+            'batting_avg': batting_avg,
+            'onbase_perc': obp,
+            'slugging_perc': slugging_pct,
         }
 
         return results_per_400_pa
@@ -914,7 +945,7 @@ class ShowdownPlayerCardGenerator:
           chart: Dict containing number of results per result category ({'1b': 5, 'hr': 3}).
           real_stats: Dict with real metrics (obp, ba, ...) for 650 PA (~ full season)
           positions_and_defense: Dict with all valid positions and their corresponding defensive rating.
-          speed: In game speed ability.
+          speed_or_ip: In game speed ability or innings pitched.
 
         Returns:
           Points that the player is worth.
@@ -929,17 +960,18 @@ class ShowdownPlayerCardGenerator:
         else:
             player_category = 'position_player'
 
+        # SLASH LINE VALUE
         obp_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['onbase'] \
-                     * self.stat_percentile(real_stats['onbase_perc'],
-                                            sc.ONBASE_PCT_RANGE[self.context],
+                     * self.stat_percentile(stat=real_stats['onbase_perc'],
+                                            min_max_dict=sc.ONBASE_PCT_RANGE[self.context],
                                             is_desc=self.is_pitcher)
         ba_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['average'] \
-                    * self.stat_percentile(real_stats['batting_avg'],
-                                           sc.BATTING_AVG_RANGE[self.context],
+                    * self.stat_percentile(stat=real_stats['batting_avg'],
+                                           min_max_dict=sc.BATTING_AVG_RANGE[self.context],
                                            is_desc=self.is_pitcher)
         slg_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['slugging'] \
-                     * self.stat_percentile(real_stats['slugging_perc'],
-                                            sc.SLG_RANGE[self.context],
+                     * self.stat_percentile(stat=real_stats['slugging_perc'],
+                                            min_max_dict=sc.SLG_RANGE[self.context],
                                             is_desc=self.is_pitcher)
 
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
@@ -949,8 +981,8 @@ class ShowdownPlayerCardGenerator:
         else:
             spd_ip_range = sc.SPEED_RANGE[self.context]
         spd_ip_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category][spd_ip_category] \
-                         * self.stat_percentile(speed_or_ip,
-                                                spd_ip_range,
+                         * self.stat_percentile(stat=speed_or_ip,
+                                                min_max_dict=spd_ip_range,
                                                 is_desc=False)
 
         points += (obp_points + ba_points + slg_points + spd_ip_points)
@@ -958,10 +990,11 @@ class ShowdownPlayerCardGenerator:
         if not self.is_pitcher:
             # ONLY HITTERS HAVE HR ADD TO POINTS
             hr_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['home_runs'] \
-                        * self.stat_percentile(real_stats['hr_per_650_pa'],
-                                               sc.HR_RANGE[self.context],
+                        * self.stat_percentile(stat=real_stats['hr_per_650_pa'],
+                                               min_max_dict=sc.HR_RANGE[self.context],
                                                is_desc=self.is_pitcher)
             points += hr_points
+            # AVERAGE POINT VALUE ACROSS POSITIONS
             defense_points = 0
             for position, fielding in positions_and_defense.items():
                 if position != 'DH':
@@ -971,7 +1004,10 @@ class ShowdownPlayerCardGenerator:
             points_per_position = defense_points / len(positions_and_defense.keys()) if len(positions_and_defense.keys()) > 0 else 1
             points += points_per_position
 
-        return int(round(points,-1))
+        # POINTS ARE ALWAYS ROUNDED TO TENTH
+        points_to_nearest_tenth = int(round(points,-1))
+
+        return points_to_nearest_tenth
 
     def stat_percentile(self, stat, min_max_dict, is_desc=False):
         """Get the percentile for a particular stat.
@@ -988,8 +1024,11 @@ class ShowdownPlayerCardGenerator:
         min = min_max_dict['min']
         max = min_max_dict['max']
         range = max - min
+
         stat_within_range = stat - min if stat - min > 0 else 0
         raw_percentile = stat_within_range / range
+
+        # REVERSE IF DESC
         percentile_adjusted = 1 - raw_percentile if is_desc else raw_percentile
 
         return percentile_adjusted
@@ -1009,9 +1048,12 @@ class ShowdownPlayerCardGenerator:
         Returns:
           Float with accuracy and Dict with accuracy per key.
         """
+
         denominator = len(dict1.keys())
         output = {}
         accuracies = 0
+
+        # CALCULATE CATEGORICAL ACCURACY
         for key, value1 in dict1.items():
             if key in dict2.keys():
                 value2 = dict2[key]
@@ -1117,28 +1159,29 @@ class ShowdownPlayerCardGenerator:
             real_stats_str = ' {}: {}'.format(cleaned_category,self.stats[cleaned_category])
             results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, real_stats_str)
 
-        card_as_string = """
-***********************************************
-{name} ({year}) ({team})
-{context} Base Set Card
-
-{positions}
-{hand}
-{ip_or_speed}
-{icons}
-{points} PT.
-
-{command_header}: {command}
-{chart}
-
-Statline
-
-Showdown            Real
-----------     ---------
-{slash_line}
-{results}
-***********************************************
-        """.format(
+        # NOT USING DOCSTRING FOR FORMATTING REASONS
+        card_as_string = (
+            '***********************************************\n' + 
+            '{name} ({year}) ({team})\n' +
+            '{context} Base Set Card\n' +
+            '\n' +
+            '{positions}\n' +
+            '{hand}\n' +
+            '{ip_or_speed}\n' +
+            '{icons}\n' +
+            '{points} PT.\n' +
+            '\n' +
+            '{command_header}: {command}\n' +
+            '{chart}\n' +
+            '\n' +
+            'Statline\n' +
+            '\n' +
+            'Showdown            Real\n' +
+            '----------     ---------\n' +
+            '{slash_line}\n' +
+            '{results}\n' +
+            '***********************************************'
+        ).format(
             name = self.name,
             year = self.year,
             team = self.team,
@@ -1158,6 +1201,16 @@ Showdown            Real
         return card_as_string
 
     def player_data_for_html_table(self):
+        """ Provides data needed to populate the statline shown on the 
+            showdownbot.com webpage.
+
+        Args:
+          None
+
+        Returns:
+          Multi-Dimensional list where each row is a list of a category, 
+          real stat, and in-game Showdown estimated stat.
+        """
 
         final_player_data = []
 
@@ -1168,10 +1221,13 @@ Showdown            Real
             actual = f"{float(self.stats[key]):.3f}".replace('0.','.')
             final_player_data.append([cleaned_category,actual,in_game])
 
-        # RESULT LINE
+        # PLATE APPEARANCES
         real_life_pa = int(self.stats['PA'])
         real_life_pa_ratio = int(self.stats['PA']) / 650.0
         final_player_data.append(['PA', str(real_life_pa), str(real_life_pa)])
+
+        # ADD EACH RESULT CATEGORY, REAL LIFE # RESULTS, AND PROJECTED IN-GAME # RESULTS
+        # EX: [['1B','75','80'],['2B','30','29']]
         result_categories = [
             ('1b_per_650_pa', '1B'),
             ('2b_per_650_pa', '2B'),
@@ -1240,10 +1296,13 @@ Showdown            Real
         final_text = final_text.upper() if self.context in ['2002','2004','2005'] else final_text
         return final_text
 
+# ------------------------------------------------------------------------
+# IMAGE CREATION METHODS
+
     def player_image(self):
         """Generates a 500/700 player image mocking what a real MLB Showdown card
            would look like for the player output. Final image is dumped to
-           static/image_output folder.
+           static/images folder.
 
         Args:
           None
@@ -1263,40 +1322,14 @@ Showdown            Real
         name_text, color = self.__player_name_text_image()
         name_paste_location = sc.IMAGE_LOCATIONS['player_name'][str(self.context)]
         if self.context == '2001':
-            # ADD BLUR EFFECT FOR 2001 CARDS
+            # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
             player_image.paste(sc.COLOR_BLACK, (name_paste_location[0] + 2, name_paste_location[1] + 2), name_text_blurred)
         player_image.paste(color, name_paste_location,  name_text)
 
         # ADD TEAM LOGO
-        team_logo, team_logo_coords = self.__team_logo()
+        team_logo, team_logo_coords = self.__team_logo_image()
         player_image.paste(team_logo, team_logo_coords, team_logo)
-
-        # ADD YEAR IF COOPERSTOWN
-        if self.is_cooperstown and int(self.context) >= 2004:
-            year_font_path = os.path.join('static', 'fonts', 'BaskervilleBoldItalicBT.ttf')
-            year_font = ImageFont.truetype(year_font_path, size=29)
-            year_font_blurred = ImageFont.truetype(year_font_path, size=30)
-            year_abbrev = "’{}".format(self.year[2:4])
-            year_text = self.__text_image(
-                text = year_abbrev,
-                size = (40,40),
-                font = year_font,
-                alignment = "center",
-                fill = "#E6DABD",
-                has_border = True,
-                border_color = sc.COLOR_BLACK
-            )
-            year_text_blurred = self.__text_image(
-                text = "’{}".format(self.year[2:4]),
-                size = (40,40),
-                font = year_font_blurred,
-                alignment = "center",
-                fill = sc.COLOR_WHITE
-            )
-            year_coords = (team_logo_coords[0] - 37,team_logo_coords[1] + 65)
-            player_image.paste(sc.COLOR_BLACK,year_coords,year_text_blurred.filter(ImageFilter.BLUR))
-            player_image.paste(year_text, year_coords, year_text)
 
         # METADATA
         metadata_image, color = self.__metadata_image()
@@ -1312,22 +1345,7 @@ Showdown            Real
 
         # ICONS
         if int(self.context) > 2002:
-            icon_positional_mapping = sc.ICON_LOCATIONS[self.context]
-            for index, icon in enumerate(self.icons[0:4]):
-                icon_image = Image.open(os.path.join('static', 'templates', '{}-{}.png'.format(self.context,icon)))
-                position = icon_positional_mapping[index]
-                if int(self.context) >= 2004:
-                    positions_list = self.positions_and_defense.keys()
-                    offset = 0
-                    if len(positions_list) > 1:
-                        # SHIFT ICONS TO RIGHT
-                        offset = 55 if 'LF/RF' in positions_list else 45
-                    elif 'LF/RF' in positions_list:
-                        offset = 25
-                    elif 'CA' in positions_list:
-                        offset = 10
-                    position = (position[0] + offset, position[1])
-                player_image.paste(icon_image, position, icon_image)
+            player_image = self.__add_icons_to_image(player_image)
 
         set_image = self.__card_set_image()
         player_image.paste(set_image, (0,0), set_image)
@@ -1335,16 +1353,15 @@ Showdown            Real
         # SAVE AND SHOW IMAGE
         self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
         if int(self.context) in [2002,2004,2005]:
-            # TEMPORARY UNTIL SOLVE HTML PNG ISSUES
+            # TODO: SOLVE HTML PNG ISSUES
             player_image = player_image.convert('RGB')
 
         player_image.save(os.path.join('static', 'images', self.image_name), quality=100)
         self.__clean_images_directory()
 
     def __background_image(self):
-        """Generates a 500/700 player image mocking what a real MLB Showdown card
-           would look like for the player output. Final image is dumped to
-           static/image_output folder.
+        """Loads background image for card. Either loads from upload, url, or default
+           background.
 
         Args:
           None
@@ -1367,27 +1384,13 @@ Showdown            Real
             except:
                 player_image = Image.open(default_image_path)
         else:
+            # DEFAULT BACKGROUND
             player_image = Image.open(default_image_path)
+
         player_image = self.__center_crop(player_image, (500,700))
         player_image = self.__round_corners(player_image, 20)
 
         return player_image
-
-    def __clean_images_directory(self):
-        """Removes all images from output folder that are not the current card.
-
-        Args:
-          None
-
-        Returns:
-          None
-        """
-        for item in os.listdir(os.path.join('static', 'images')):
-            if item != self.image_name and item != '.gitkeep':
-                os.remove(os.path.join('static', 'images', item))
-        for item in os.listdir(os.path.join('media')):
-            if item != '.gitkeep':
-                os.remove(os.path.join('media', item))
 
     def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=1):
         """Generates a new PIL image object with text.
@@ -1405,7 +1408,6 @@ Showdown            Real
           has_border: Boolean flag to add border.
           border_color: Color of border.
           border_size: Pixel size of border thickness.
-          has_drop_shadow: Boolean for whether to add drop shadow to text.
         Returns:
           PIL image object with desired text and formatting.
         """
@@ -1431,7 +1433,7 @@ Showdown            Real
         rotated_text_layer = text_layer.rotate(rotation, expand=1, resample=Image.BICUBIC)
         return rotated_text_layer
 
-    def __team_logo(self):
+    def __team_logo_image(self):
         """Generates a new PIL image object with logo of player team.
 
         Args:
@@ -1442,19 +1444,25 @@ Showdown            Real
             - PIL image object with team logo.
             - Coordinates for pasting team logo.
         """
+
+        # SETUP IMAGE METADATA
         logo_name = self.team
         logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context)]
         logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context)]
+
         if self.is_cooperstown:
+            # OVERRIDE TEAM NAME AND PASTE COORDINATES WITH CC
             logo_name = 'CC'
             if int(self.context) >= 2004:
-                logo_size = (115,115)
-                logo_paste_coordinates = (logo_paste_coordinates[0] - 15,logo_paste_coordinates[1] - 40)
+                logo_size = (110,110)
+                logo_paste_coordinates = (logo_paste_coordinates[0] - 60,logo_paste_coordinates[1] - 40)
         try:
+            # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
             alternate_logo_ext = '-A' if int(self.context) >= 2004 else ''
             team_logo = Image.open(os.path.join('static', 'logos', '{}{}.png'.format(logo_name,alternate_logo_ext))).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         except:
+            # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
             team_logo = Image.open(os.path.join('static', 'logos', 'mlb.png')).convert("RGBA")
             team_logo = team_logo.resize((90, 49), Image.ANTIALIAS)
         team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and not self.is_cooperstown else team_logo
@@ -1463,6 +1471,35 @@ Showdown            Real
         if self.is_super_season:
             team_logo = self.__super_season_image()
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context)]
+
+        # ADD YEAR TEXT IF COOPERSTOWN
+        if self.is_cooperstown and int(self.context) >= 2004:
+            cooperstown_logo = Image.new('RGBA', (logo_size[0] + 100, logo_size[1]))
+            cooperstown_logo.paste(team_logo,(50,0),team_logo)
+            year_font_path = os.path.join('static', 'fonts', 'BaskervilleBoldItalicBT.ttf')
+            year_font = ImageFont.truetype(year_font_path, size=29)
+            year_font_blurred = ImageFont.truetype(year_font_path, size=30)
+            year_abbrev = "’{}".format(self.year[2:4])
+            year_text = self.__text_image(
+                text = year_abbrev,
+                size = (60,60),
+                font = year_font,
+                alignment = "center",
+                fill = "#E6DABD",
+                has_border = True,
+                border_color = sc.COLOR_BLACK
+            )
+            year_text_blurred = self.__text_image(
+                text = "’{}".format(self.year[2:4]),
+                size = (60,60),
+                font = year_font_blurred,
+                alignment = "center",
+                fill = sc.COLOR_WHITE
+            )
+            year_coords = (0,65)
+            cooperstown_logo.paste(sc.COLOR_BLACK,year_coords,year_text_blurred.filter(ImageFilter.BLUR))
+            cooperstown_logo.paste(year_text, year_coords, year_text)
+            team_logo = cooperstown_logo
 
         return team_logo, logo_paste_coordinates
 
@@ -1475,13 +1512,17 @@ Showdown            Real
         Returns:
           PIL image object for Player's template background.
         """
+
         year = str(self.context)
+
+        # GET TEMPLATE FOR PLAYER TYPE (HITTER OR PITCHER)
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
         cc_extension = '-CC' if self.is_cooperstown and int(self.context) >= 2004 else ''
         ss_extension = '-SS' if self.is_super_season and int(self.context) >= 2004 else ''
         type_template = '{context}-{type}{cc}{ss}.png'.format(context = year, type = type, cc = cc_extension, ss = ss_extension)
-
         template_image = Image.open(os.path.join('static', 'templates', type_template))
+
+        # GET IMAGE WITH PLAYER COMMAND
         command_image_name = '{context}-{type}-{command}.png'.format(
             context = year,
             type = type,
@@ -1490,8 +1531,8 @@ Showdown            Real
         command_image = Image.open(os.path.join('static', 'templates', command_image_name))
         template_image.paste(command_image, (0,0), command_image)
 
+        # HANDLE MULTI POSITION TEMPLATES FOR 00/01 POSITION PLAYERS
         if year in ['2000','2001'] and not self.is_pitcher:
-            # HANDLE MULTI POSITION TEMPLATES FOR 00/01
             positions_list = list(self.positions_and_defense.keys())
             is_multi_position = len(positions_list) > 1
             is_large_position_container = 'LF/RF' in positions_list
@@ -1518,17 +1559,21 @@ Showdown            Real
             - PIL image object for Player's name.
             - Hex Color of text as a String
         """
+
+        # PARSE NAME STRING
         first, last = self.name.upper().split(" ", 1)
         name = self.name.upper() if self.context != '2001' else first
 
         futura_black_path = os.path.join('static', 'fonts', 'Futura Black.ttf')
         helvetica_neue_lt_path = os.path.join('static', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
 
+        # DEFAULT NAME ATTRIBUTES
         name_font_path = helvetica_neue_lt_path
         has_border = False
         border_color = None
         fill_color = 255
 
+        # DEFINE ATTRIBUTES BASED ON CONTEXT
         if self.context == '2000':
             name_rotation = 90
             name_alignment = "center"
@@ -1554,7 +1599,6 @@ Showdown            Real
             name_size = 32
             name_color = sc.COLOR_WHITE
             padding = 20
-            name_font_path = helvetica_neue_lt_path
         elif self.context in ['2004','2005']:
             name_rotation = 0
             name_alignment = "left"
@@ -1567,6 +1611,7 @@ Showdown            Real
 
         name_font = ImageFont.truetype(name_font_path, size=name_size)
 
+        # CREATE TEXT IMAGE
         final_text = self.__text_image(
             text = name,
             size = sc.IMAGE_SIZES['player_name'][self.context],
@@ -1579,10 +1624,13 @@ Showdown            Real
             border_color = border_color
         )
 
+        # ADJUSTMENTS
         if self.context == '2000':
+            # STRETCH OUT NAME
             text_stretched = final_text.resize((100,1700), Image.ANTIALIAS)
             final_text = text_stretched.crop((0,515,100,1185))
         elif self.context == '2001':
+            # ADD LAST NAME
             last_name = self.__text_image(
                 text = last,
                 size = sc.IMAGE_SIZES['player_name'][self.context],
@@ -1600,13 +1648,30 @@ Showdown            Real
         return final_text, name_color
 
     def __metadata_image(self):
+        """Creates PIL image for player metadata. Different across sets.
+           TODO: Should probably split this function up.
+
+        Args:
+          None
+
+        Returns:
+          Tuple
+            - PIL image object for Player metadata.
+            - Hex Color of text as a String.
+        """
 
         year = int(self.context)
+
+        # COLOR WILL BE RETURNED
         color = sc.COLOR_WHITE
+
         if year in [2000,2001]:
+            # 2000 & 2001
+
             metadata_image = Image.new('RGBA', (500, 700), 255)
             helvetica_neue_lt_path = os.path.join('static', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
 
+            # PITCHER AND HITTER SPECIFIC METADATA
             if self.is_pitcher:
                 # POSITION
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=24)
@@ -1619,7 +1684,6 @@ Showdown            Real
                 metadata_image.paste(sc.COLOR_WHITE, (364,140), hand_text)
                 ip_text = self.__text_image(text='IP {}'.format(str(self.ip)), size=(300, 100), font=font_hand_ip)
                 metadata_image.paste(sc.COLOR_WHITE, (420,140), ip_text)
-
             else:
                 # SPEED | HAND
                 font_speed_hand = ImageFont.truetype(helvetica_neue_lt_path, size=18)
@@ -1631,11 +1695,7 @@ Showdown            Real
                     # ADD # TO SPEED
                     font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=14)
                     font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=15)
-                    spd_letter_to_number = {
-                        'A': 20,
-                        'B': 15,
-                        'C': 10
-                    }
+                    spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
                     speed_num_text = self.__text_image(
                         text=str(spd_letter_to_number[self.speed_letter]),
                         size=(100, 100),
@@ -1649,12 +1709,12 @@ Showdown            Real
                 ordered_by_len_position = sorted(self.positions_and_defense.items(), key=operator.itemgetter(0), reverse=True)
                 y_position = 135
                 for position, rating in ordered_by_len_position:
-                    speed_text = self.__text_image(text='{} +{}'.format(position,str(rating)), size=(200, 100), font=font_position)
+                    position_rating_text = '   —' if position == 'DH' else '{} +{}'.format(position,str(rating))
+                    position_rating_image = self.__text_image(text=position_rating_text, size=(200, 100), font=font_position)
                     x_position = 361 if len(position) > 4 else 387
                     x_position += 6 if position in ['C','CA'] and rating < 10 else 0 # CATCHER POSITIONING ADJUSTMENT
-                    metadata_image.paste(color, (x_position,y_position), speed_text)
+                    metadata_image.paste(color, (x_position,y_position), position_rating_image)
                     y_position += 28
-
             # POINTS
             text_size = 16 if self.points >= 1000 else 19
             font_pts = ImageFont.truetype(helvetica_neue_lt_path, size=text_size)
@@ -1664,6 +1724,8 @@ Showdown            Real
             metadata_image.paste(color, (pts_x_pos,pts_y_pos), pts_text)
 
         elif year in [2002,2003]:
+            # 2002 & 2003 
+
             color = sc.COLOR_BLACK if self.context == '2002' else sc.COLOR_WHITE
             if year == 2002:
                 helvetica_neue_lt_path = os.path.join('static', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
@@ -1683,6 +1745,8 @@ Showdown            Real
             )
             metadata_image = metadata_text.resize((85,300), Image.ANTIALIAS)
         elif year in [2004,2005]:
+            # 2004 & 2005
+            
             metadata_font_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
             metadata_font = ImageFont.truetype(metadata_font_path, size=48)
             metadata_text_string = self.__player_metadata_summary_text(is_horizontal=True)
@@ -1706,17 +1770,35 @@ Showdown            Real
         return metadata_image, color
 
     def __chart_image(self):
+        """Creates PIL image for player chart. Different across sets.
+           Vertical for 2000-2004. 
+           Horizontal for 2004/2005
 
+        Args:
+          None
+
+        Returns:
+          Tuple
+            - PIL image object for Player metadata.
+            - Hex Color of text as a String.
+        """
+
+        is_04_05 = self.context in ['2004','2005']
+
+        # FONT 
         helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
         chart_text_size = int(sc.TEXT_SIZES['chart'][self.context])
         helvetica_neue_cond_bold_alt = ImageFont.truetype(helvetica_neue_cond_bold_path, size=chart_text_size)
+        
         # CREATE CHART RANGES TEXT
         chart_string = ''
-        chart_text = Image.new('RGBA',(2100,240))
+        # NEED IF 04/05
+        chart_text = Image.new('RGBA',(2100,240)) 
         chart_text_x = 50 if self.is_pitcher else 47
         for category in self.__chart_categories():
             range = self.chart_ranges['{} Range'.format(category)]
-            if self.context in ['2004','2005']:
+            # 2004/2005 CHART IS HORIZONTAL. PASTE TEXT ONTO IMAGE INSTEAD OF STRING OBJECT.
+            if is_04_05:
                 range_text = self.__text_image(
                     text = range,
                     size = (150,150),
@@ -1731,8 +1813,13 @@ Showdown            Real
                 chart_text_x += 177 if self.is_pitcher else 156
             else:
                 chart_string += '{}\n'.format(range)
-
-        if int(self.context) < 2004:
+        
+        # CREATE FINAL CHART IMAGE
+        if is_04_05:
+            # COLOR IS TEXT ITSELF
+            chart_text = chart_text.resize((700,80), Image.ANTIALIAS)
+            color = chart_text
+        else:
             spacing = int(sc.TEXT_SIZES['chart_spacing'][self.context])
             chart_text = self.__text_image(
                 text = chart_string,
@@ -1745,27 +1832,28 @@ Showdown            Real
             )
             color = sc.COLOR_BLACK if self.context == '2002' else "#414040"
             chart_text = chart_text.resize((85,400), Image.ANTIALIAS)
-        else:
-            # COLOR IS TEXT ITSELF
-            chart_text = chart_text.resize((700,80), Image.ANTIALIAS)
-            color = chart_text
+
         return chart_text, color
 
     def __card_set_image(self):
-        """Creates image with card number and year text
-
+        """Creates image with card number and year text. Always defaults to card No 1.
+           Uses YEAR and not CONTEXT as the set year.
         Args:
           None
 
         Returns:
           PIL image object for set text.
         """
+
+        # FONT FOR SET
         helvetica_neue_cond_bold_path = os.path.join('static', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
         set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=45)
 
         set_image = Image.new('RGBA', (500, 700), 255)
         set_image_location = sc.IMAGE_LOCATIONS['set'][str(self.context)]
-        if self.context in ['2000','2001','2002']:
+
+        if int(self.context) <= 2002:
+            # SET AND NUMBER IN SAME STRING
             set_text = self.__text_image(
                 text = '001 / 462' if self.context == '2002' else '001/462',
                 size = (200, 100),
@@ -1774,8 +1862,8 @@ Showdown            Real
             )
             set_text = set_text.resize((50,25), Image.ANTIALIAS)
             set_image.paste(sc.COLOR_WHITE, set_image_location, set_text)
-
-        elif self.context in ['2003','2004','2005']:
+        else:
+            # DIFFERENT STYLES BETWEEN NUMBER AND SET
             # CARD YEAR
             year_text = self.__text_image(
                 text = "'{}".format(str(self.year)[2:4]),
@@ -1797,11 +1885,11 @@ Showdown            Real
             number_color = sc.COLOR_BLACK if self.context == '2003' else sc.COLOR_WHITE
             set_image.paste(number_color, sc.IMAGE_LOCATIONS['number'][str(self.context)], number_text)
 
-
         return set_image
 
     def __super_season_image(self):
-        """Creates image for optional super season attributes.
+        """Creates image for optional super season attributes. Add accolades for 
+           cards in set > 2001.
 
         Args:
           None
@@ -1904,6 +1992,39 @@ Showdown            Real
 
         return accolades_list[0:3]
 
+    def __add_icons_to_image(self, player_image):
+        """Add icon images (if player has icons) to existing player_image object.
+           Only for >= 2003 sets.
+
+        Args:
+          player_image: Current PIL image object for Showdown card.
+
+        Returns:
+          Updated PIL Image with icons for player.
+        """
+
+        icon_positional_mapping = sc.ICON_LOCATIONS[self.context]
+        # ITERATE THROUGH AND PASTE ICONS
+        for index, icon in enumerate(self.icons[0:4]):
+            icon_image = Image.open(os.path.join('static', 'templates', '{}-{}.png'.format(self.context,icon)))
+            position = icon_positional_mapping[index]
+            # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
+            # EX: 'LF/RF' IS LONGER STRING THAN '3B'
+            if int(self.context) >= 2004:
+                positions_list = self.positions_and_defense.keys()
+                offset = 0
+                if len(positions_list) > 1:
+                    # SHIFT ICONS TO RIGHT
+                    offset = 55 if 'LF/RF' in positions_list else 45
+                elif 'LF/RF' in positions_list:
+                    offset = 25
+                elif 'CA' in positions_list:
+                    offset = 10
+                position = (position[0] + offset, position[1])
+            player_image.paste(icon_image, position, icon_image)
+        
+        return player_image
+
     def __round_corners(self, image, radius):
         """Round corners of a given image to a certain radius.
 
@@ -1926,10 +2047,12 @@ Showdown            Real
         alpha.paste (circle.crop ((radius, 0, radius * 2, radius)), (w-radius, 0))
         alpha.paste (circle.crop ((radius, radius, radius * 2, radius * 2)), (w-radius, h-radius))
         image.putalpha (alpha)
+
         return image
 
     def __center_crop(self, image, crop_size):
-        """Uses image size to crop in the middle for given crop size
+        """Uses image size to crop in the middle for given crop size. 
+           Used to automatically center player image background.
 
         Args:
           image: PIL image object to edit.
@@ -1939,6 +2062,7 @@ Showdown            Real
           Cropped PIL image object.
         """
 
+        # IMAGE AND CROP WIDTH/HEIGHT
         width, height = image.size
         crop_width, crop_height = crop_size
 
@@ -1961,7 +2085,9 @@ Showdown            Real
 
     def __scrape_player_image_url(self,url=None):
         """ Scrape google images for guess on picture to use for
-        player background.
+            player background.
+            ** NOTE: NOT USED IN CURRENT BUILD. KEEPING FOR POTENTIAL
+            FUTURE USE.
 
         Args:
             None
@@ -1969,6 +2095,7 @@ Showdown            Real
         Returns:
           String url of first player image on google search.
         """
+
         query = '{name}+{year}+{type}'.format(
             name = self.name.replace(' ', '+'),
             year = str(self.year),
@@ -1982,3 +2109,50 @@ Showdown            Real
         first_image_attributes = first_image.find('a', {'class': "iusc"})
         first_image_url = json.loads(first_image_attributes.get("m"))['murl']
         return first_image_url
+
+    def __clean_images_directory(self):
+        """Removes all images from output folder that are not the current card. Leaves 
+           photos that are less than 5 mins old to prevent errors from simultaneous uploads.
+
+        Args:
+          None
+
+        Returns:
+          None
+        """
+        
+        # FINAL IMAGES
+        for item in os.listdir(os.path.join('static', 'images')):
+            if item != self.image_name and item != '.gitkeep':
+                item_path = os.path.join('static', 'images', item)
+                is_file_stale = self.__is_file_over_5_mins_old(item_path)
+                if is_file_stale:
+                    # DELETE IF UPLOADED/MODIFIED OVER 5 MINS AGO
+                    os.remove(item_path)
+
+        # UPLOADED IMAGES
+        for item in os.listdir(os.path.join('media')):
+            if item != '.gitkeep':
+                # CHECK TO SEE IF ITEM WAS MODIFIED MORE THAN 5 MINS AGO.
+                item_path = os.path.join('media', item)
+                is_file_stale = self.__is_file_over_5_mins_old(item_path)
+                if is_file_stale:
+                    # DELETE IF UPLOADED/MODIFIED OVER 5 MINS AGO
+                    os.remove(item_path)
+
+    def __is_file_over_5_mins_old(self, path):
+        """Checks modified date of file to see if it is older than 5 mins. 
+           Used for cleaning output directory and image uploads.
+
+        Args:
+          path: String path to file in os.
+
+        Returns:
+            True if file in path is older than 5 mins, false if not.
+        """ 
+
+        datetime_current = datetime.now()
+        datetime_uploaded = datetime.fromtimestamp(os.path.getmtime(path))
+        file_age_mins = (datetime_current - datetime_uploaded).total_seconds() / 60.0
+
+        return file_age_mins >= 5.0

@@ -129,6 +129,8 @@ class BaseballReferenceScraper:
         stats_dict.update(advanced_stats)
         # SPEED
         stats_dict['sprint_speed'] = self.sprint_speed(self.name, self.year)
+        # DERIVE 1B 
+        stats_dict['1B'] = int(stats_dict['H']) - int(stats_dict['HR']) - int(stats_dict['3B']) - int(stats_dict['2B'])
 
         return stats_dict
 
@@ -281,8 +283,10 @@ class BaseballReferenceScraper:
         if type == 'Pitcher':
             batting_against_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': 'pitching_batting.{}'.format(self.year)})
             advanced_stats.update(self.__parse_batting_against(batting_against_table))
+
         # STANDARD STATS
         advanced_stats.update(self.__parse_standard_stats(type, standard_table))
+
         # RATIO STATS
         ratio_table_key = '{}_ratio.{}'.format(table_prefix,self.year)
         ratio_table = soup_for_advanced_stats.find('tr', attrs = {'class':'full','id': ratio_table_key})

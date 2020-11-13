@@ -79,7 +79,7 @@ class ShowdownSetAccuracy:
 
         return sum_of_card_accuracy, num_perfect_match, categories_summarized
 
-    def __parse_player_card_categories_for_accuracy(self,wotc_player_card, is_pitcher):
+    def __parse_player_card_categories_for_accuracy(self,wotc_player_card,is_pitcher):
         """Creates dictionary of WOTC card output for only the categories used to calculate
         card accuracy.
 
