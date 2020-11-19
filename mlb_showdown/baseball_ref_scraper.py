@@ -50,8 +50,15 @@ class BaseballReferenceScraper:
 
         last_initial = self.__name_last_initial(name)
         search_results = soup_search_name_and_year.find_all("a", href=re.compile("https://www.baseball-reference.com/players/{}/".format(last_initial)))
+        
+        # GOOGLE WILL BLOCK REQUESTS IF IT DETECTS THE BOT.
+        if len(soup_search_name_and_year.find_all(text="Why did this happen?")) > 0:
+            raise RuntimeError('Google has an overload of requests coming from your IP Address. Wait a few minutes and try again.')
+
+        # NO BASEBALL REFERENCE RESULTS FOR THAT NAME AND YEAR
         if search_results == []:
             raise AttributeError('Cannot Find BRef Page for {} in {}'.format(self.name,self.year))
+          
 
         top_result_url = search_results[0]["href"]
         player_b_ref_id = top_result_url.split('.shtml')[0].split('/')[-1]

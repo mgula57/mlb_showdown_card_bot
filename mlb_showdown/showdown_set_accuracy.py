@@ -5,18 +5,20 @@ import os
 from pathlib import Path
 from mlb_showdown.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown.showdown_player_card_generator import ShowdownPlayerCardGenerator
+import mlb_showdown.showdown_constants as sc
 
 class ShowdownSetAccuracy:
 
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, context, real_player_stats_cache, wotc_card_outputs, command_control_combo=None, is_only_command_outs_accuracy=False):
+    def __init__(self, context, real_player_stats_cache, wotc_card_outputs, command_control_combo=None, is_only_command_outs_accuracy=False, ignore_volatile_categories=False):
         self.context = context
         self.real_player_stats_cache = real_player_stats_cache
         self.wotc_card_outputs = wotc_card_outputs
         self.command_control_combo = command_control_combo
         self.is_only_command_outs_accuracy = is_only_command_outs_accuracy
+        self.ignore_volatile_categories = ignore_volatile_categories
 
 # ------------------------------------------------------------------------
 # MEASURE ACCURACY METHODS
@@ -35,6 +37,7 @@ class ShowdownSetAccuracy:
         sum_of_card_accuracy = 0
         num_perfect_match = 0
         category_accuracies = []
+        players_excluded_from_testing = sc.EXCLUDED_PLAYERS_FOR_TESTING[str(self.context)]
 
         for index, wotc_player_card in self.wotc_card_outputs.iterrows():
 
@@ -49,21 +52,21 @@ class ShowdownSetAccuracy:
             else:
                 # NEED TO SCRAPE FROM BASEBALL REFERENCE
                 print('Scraping - {} stats for {}'.format(wotc_player_card.Name, str(wotc_player_card.Year - 1)))
-                if wotc_player_card.name in ['Craig Wilson', 'John Vander Wal', 'Ramon Martinez']:
+                if wotc_player_card.name in players_excluded_from_testing:
                     continue
                 try:
                     scraper = BaseballReferenceScraper(wotc_player_card.Name,self.context-1)
                     real_player_stats = scraper.player_statline()
                     real_player_stats['NameAndYear'] = name_year_string
                     self.real_player_stats_cache = self.real_player_stats_cache.append(pd.DataFrame.from_records([real_player_stats]), sort=False)
-                    sleep(2) # DO NOT WANT TO MAKE TOO MANY QUICK REQUESTS TO BASEBALL REFERENCE
+                    sleep(10) # DO NOT WANT TO MAKE TOO MANY QUICK REQUESTS TO BASEBALL REFERENCE
                 except:
                     continue
 
             my_player_card = ShowdownPlayerCardGenerator(wotc_player_card.Name,str(self.context-1),real_player_stats,str(self.context),test_numbers=self.command_control_combo)
-            wotc_player_card_dict = self.__parse_player_card_categories_for_accuracy(wotc_player_card, my_player_card.is_pitcher)
+            wotc_player_card_dict = self.__parse_player_card_categories_for_accuracy(wotc_player_card=wotc_player_card, is_pitcher=my_player_card.is_pitcher)
 
-            accuracy, categorical_accuracy = my_player_card.accuracy_against_wotc(wotc_player_card_dict)
+            accuracy, categorical_accuracy = my_player_card.accuracy_against_wotc(wotc_card_dict=wotc_player_card_dict)
             sum_of_card_accuracy += accuracy
             num_perfect_match += 1 if accuracy == 1 else 0
             category_accuracies.append(categorical_accuracy)
@@ -102,6 +105,7 @@ class ShowdownSetAccuracy:
                 'gb': int(wotc_player_card['GB']),
                 'hr': int(wotc_player_card['HR']) if int(wotc_player_card['HR']) < 21 else 0,
                 'so': int(wotc_player_card['SO']),
+                # 'points': int(wotc_player_card['PTS']),
             })
             if is_pitcher:
                 wotc_player_card_dict.update({'pu': int(wotc_player_card['PU'])})
@@ -110,4 +114,11 @@ class ShowdownSetAccuracy:
                     '1b+': int(wotc_player_card['1B+']),
                     '3b': int(wotc_player_card['3B']) if int(wotc_player_card['3B']) < 21 else 0,
                 })
+        
+        # REMOVE EXCLUDED CATEGORIES
+        if self.ignore_volatile_categories:
+            type_specific_category = 'pu' if is_pitcher else '1b+'
+            excluded_categories = [type_specific_category, 'so', 'gb', 'fb']
+            for category in excluded_categories:
+                del wotc_player_card_dict[category]
         return wotc_player_card_dict

@@ -44,13 +44,13 @@ class ShowdownPlayerCardGenerator:
         stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=stats)
         command_out_combos = self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=7)
 
-        self.chart, chart_results_per_400_abs = self.__most_accurate_chart(command_out_combos=command_out_combos,
+        self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,
                                                                            stats_per_400_pa=stats_for_400_pa,
                                                                            offset=int(offset))
         self.chart_ranges = self.__ranges_for_chart(chart=self.chart,
                                                     dbl_per_400_pa=float(stats_for_400_pa['2b_per_400_pa']),
                                                     hr_per_400_pa=float(stats_for_400_pa['hr_per_400_pa']))
-        self.real_stats = self.__stats_for_full_season(stats_per_400_pa=chart_results_per_400_abs)
+        self.real_stats = self.__stats_for_full_season(stats_per_400_pa=chart_results_per_400_pa)
 
         self.points = self.__point_value(chart=self.chart,
                                          real_stats=self.real_stats,
@@ -232,7 +232,7 @@ class ShowdownPlayerCardGenerator:
           In game position name.
         """
 
-        if position == 'P':
+        if position == 'P' and self.is_pitcher:
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
             starter_threshold = 0.65
@@ -585,7 +585,7 @@ class ShowdownPlayerCardGenerator:
             'hr_per_400_pa': 3.0,
             'so_per_400_pa': 1.0 if self.is_pitcher else 0.1
         }
-        accuracy, categorical_accuracy = self.accuracy_between_dicts(in_game_stats_for_400_pa, stats_for_400_pa, weights)
+        accuracy, categorical_accuracy = self.accuracy_between_dicts(dict1=in_game_stats_for_400_pa, dict2=stats_for_400_pa, weights=weights)
         return chart, accuracy, in_game_stats_for_400_pa
 
     def __out_results(self, gb_pct, popup_pct, out_slots_remaining):
@@ -863,22 +863,25 @@ class ShowdownPlayerCardGenerator:
                                                                    opponent_results=opponent_chart['hr'],
                                                                    my_advantages_per_20=my_advantages_per_20,
                                                                    opponent_advantages_per_20=opponent_advantages_per_20)
+        hits_per_400_pa = round(singles_per_400_pa) \
+                            + round(doubles_per_400_pa) \
+                            + round(triples_per_400_pa) \
+                            + round(home_runs_per_400_pa)       
         # SLASH LINE
-        batting_avg = self.__pct_rate_for_result(onbase=command_out_matchup['onbase'],
-                                                 control=command_out_matchup['control'],
-                                                 num_results_hitter_chart=hits_hitter_chart,
-                                                 num_results_pitcher_chart=hits_pitcher_chart,
-                                                 hitter_denom_adjust=hitter_chart['bb'],
-                                                 pitch_denom_adjust=pitcher_chart['bb'])                                                 
-        obp = self.__pct_rate_for_result(onbase=command_out_matchup['onbase'],
-                                         control=command_out_matchup['control'],
-                                         num_results_hitter_chart=20-command_out_matchup['hitterOuts'],
-                                         num_results_pitcher_chart=20-command_out_matchup['pitcherOuts'])
+
+        # BA
+        batting_avg = hits_per_400_pa / (400.0 - walks_per_400_pa)
+        
+        # OBP
+        onbase_results_per_400_pa = round(walks_per_400_pa) + hits_per_400_pa
+        obp = onbase_results_per_400_pa / 400.0
+        
+        # SLG
         slugging_pct = self.__slugging_pct(ab=400-walks_per_400_pa, 
-                                          singles=singles_per_400_pa, 
-                                          doubles=doubles_per_400_pa,
-                                          triples=triples_per_400_pa, 
-                                          homers=home_runs_per_400_pa)
+                                           singles=singles_per_400_pa, 
+                                           doubles=doubles_per_400_pa,
+                                           triples=triples_per_400_pa, 
+                                           homers=home_runs_per_400_pa)
         # GROUP ESTIMATIONS IN DICTIONARY
         results_per_400_pa = {
             'so_per_400_pa': strikeouts_per_400_pa,
@@ -887,7 +890,7 @@ class ShowdownPlayerCardGenerator:
             '2b_per_400_pa': doubles_per_400_pa,
             '3b_per_400_pa': triples_per_400_pa,
             'hr_per_400_pa': home_runs_per_400_pa,
-            'h_per_400_pa': singles_per_400_pa + doubles_per_400_pa + triples_per_400_pa + home_runs_per_400_pa,
+            'h_per_400_pa': hits_per_400_pa,
             'batting_avg': batting_avg,
             'onbase_perc': obp,
             'slugging_perc': slugging_pct,
@@ -961,17 +964,18 @@ class ShowdownPlayerCardGenerator:
             player_category = 'position_player'
 
         # SLASH LINE VALUE
+        player_type = 'pitcher' if self.is_pitcher else 'hitter'
         obp_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['onbase'] \
                      * self.stat_percentile(stat=real_stats['onbase_perc'],
-                                            min_max_dict=sc.ONBASE_PCT_RANGE[self.context],
+                                            min_max_dict=sc.ONBASE_PCT_RANGE[self.context][player_type],
                                             is_desc=self.is_pitcher)
         ba_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['average'] \
                     * self.stat_percentile(stat=real_stats['batting_avg'],
-                                           min_max_dict=sc.BATTING_AVG_RANGE[self.context],
+                                           min_max_dict=sc.BATTING_AVG_RANGE[self.context][player_type],
                                            is_desc=self.is_pitcher)
         slg_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['slugging'] \
                      * self.stat_percentile(stat=real_stats['slugging_perc'],
-                                            min_max_dict=sc.SLG_RANGE[self.context],
+                                            min_max_dict=sc.SLG_RANGE[self.context][player_type],
                                             is_desc=self.is_pitcher)
 
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
@@ -984,7 +988,6 @@ class ShowdownPlayerCardGenerator:
                          * self.stat_percentile(stat=speed_or_ip,
                                                 min_max_dict=spd_ip_range,
                                                 is_desc=False)
-
         points += (obp_points + ba_points + slg_points + spd_ip_points)
 
         if not self.is_pitcher:
@@ -1085,16 +1088,17 @@ class ShowdownPlayerCardGenerator:
 
         Args:
           wotc_card_dict: Dictionary with stats per category from wizards output.
+          ignore_volatile_categories: If True, ignore individual out result categories and single+
 
         Returns:
           Float with overall accuracy and Dict with accuracy per stat category.
         """
+
         chart_w_combined_command_outs = self.chart
-        # del chart_w_combined_command_outs['command']
-        # del chart_w_combined_command_outs['outs']
         chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart['command'],self.chart['outs'])
-        return self.accuracy_between_dicts(wotc_card_dict,
-                                           chart_w_combined_command_outs,
+        # chart_w_combined_command_outs['points'] = self.points
+        return self.accuracy_between_dicts(dict1=wotc_card_dict,
+                                           dict2=chart_w_combined_command_outs,
                                            weights={},
                                            all_or_nothing=['command-outs'])
 
