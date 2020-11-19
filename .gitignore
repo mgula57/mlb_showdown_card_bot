@@ -2,10 +2,8 @@
 showdown
 venv
 
-# PLAYER CACHE
-cache
-
 # PYCACHE
 __pycache__/
 
 static/images
+cache/

@@ -1,256 +1,115 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>MLB Showdown Card Bot</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="//netdna.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" media="screen">
-    <style>
-      @media (min-width: 768px) {
-        .container {
-          display: flex;
-          padding-top: 10px;
-          padding-bottom: 10px;
-        }
-        .input_container {
-          padding-right: 50px;
-        }
-        .output_container {
-          width: auto;
-          border-left:2px solid #D6D6D6;
-          padding-left: 50px;
-          padding-top: 75px;
-        }
-      }
-      @media (max-width: 767px) {
-        .container {
-          flex-direction: column;
-        }
-        .input_container {
-          border-bottom:2px solid #D6D6D6;
-        }
-        .output_container {
-          width: auto;
-        }
-      }
-      .loader {
-        border: 8px solid #f3f3f3; /* Light grey */
-        border-top: 8px solid #3498db; /* Blue */
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        animation: spin 2s linear infinite;
-        display: none;
-      }
-      .form-group {
-        padding-left: 15px;
-        padding-right: 15px;
-      }
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-      h1, h2, h3, h4, h5, h6 {
-        font-weight:500;
-        padding-top: 10px;
-        padding-bottom: 10px;
-      }
-      img {
-        border-radius: 12px;
-      }
-      td, th {
-        border: 1px solid #dddddd;
-        text-align: left;
-        padding: 8px;
-      }
-      #moreOptionsDiv {
-          display:none;
-      }
-    </style>
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-		<script type=text/javascript>
-      function validate() {
-          var name = document.getElementById("name").value;
-          var year = document.getElementById("year").value;
-          if (name == null || name == "") {
-              alert("Please enter a name.");
-              return false;
-          }
-          if (year == null || year == "") {
-              alert("Please enter a year.");
-              return false;
-          }
-          return true;
-      } 
-      function uploadImageFile() {
-          var image_data = $('#img_upload').prop('files')[0];
-          var form_data = new FormData();
-          form_data.append('image_file', image_data);
-          $.ajax({
-              url: '/upload',
-              cache: false,
-              contentType: false,
-              processData: false,
-              data: form_data,
-              method: 'POST',
-              success: function(php_script_response) {
-                  alert(php_script_response);
-              },
-              error: function(data) {
-                console.log("error");
-                console.log(data);
-              }
-          });
-      }
-      $(document).ready(function(){
-        $("#formInput").change(function() {
-            var moreOptionsDiv = document.getElementById("moreOptionsDiv");
-            selected_value = $("input[name='set']:checked").val();
-            if (["2003","2004","2005"].includes(selected_value)) {
-              moreOptionsDiv.style.display = "block"
-            } else {
-              moreOptionsDiv.style.display = "none"
-            }
-        });
-      });
-			$(function() {
-			  $('a#create_card').bind('click', function() {
-          is_valid = validate()
-          if (is_valid) {
-            $('#loader').show();
-            uploadImageFile();
-            const sets = document.querySelectorAll('input[name="set"]');
-            let selectedValue;
-            for (const set of sets) {
-                if (set.checked) {
-                    selectedValue = set.value;
-                    break;
-                }
-            }
-            var files = $('#img_upload').prop('files');
-            var image_name = ""
-            if (files.length > 0) {
-              image_name = files[0].name;
-            }
-    				$.getJSON('/card_creation', {
-    				  name: $('input[name="name"]').val(),
-              year: $('input[name="year"]').val(),
-              set: selectedValue,
-              url: $('input[name="url"]').val(),
-              img_name: image_name,
-              cc: $('#cc').is(':checked')
-    				}, function(data) {
-              $('.loader').hide();
-              $("#error").text(data.error);
-              if (data.error != 'Unable to create Showdown Card. Make sure the player name and year are correct.') {
-                $("#card_image").attr('src',data.image_path);
-                var player_stats_table = '<table id="stats_table"><tr><th> </th><th>Actual</th><th>Showdown</th></tr>';
-                console.log(data.player_stats)
-                $.each(data.player_stats, function(index, value){
-                  player_stats_table += '<tr>'
-                  $.each(value, function(index, value) {
-                    if (index == 0) {
-                      bold_start = '<b>';
-                      bold_end = '</b>';
-                    } else {
-                      bold_start = '';
-                      bold_end = '';
-                    }
-                    player_stats_table += '<td>'+bold_start+value+bold_end+'</td>';
-                  });
-                  player_stats_table += '</tr>';
-                });
-                player_stats_table += '</table>';
-                $("#stats_table").replaceWith(player_stats_table);
-              }
-    				});
-    				return false;
-          }
-			  });
-			});
-		</script>
-  </head>
-  <body>
-    <div class="container">
-      <!-- INPUT  -->
-      <div class="input_container">
-      <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" width=300 height=105 style="padding-top:30px">
-      <br>
-      <form id="formInput" role="form" method='POST' enctype="multipart/form-data">
-        <h4><b>Step 1: Select a Player and Season</b></h4>
-        <div class="form-group">
-          <label for="name" style="color:Gray;">Player Name</label>
-          <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" style="max-width: 300px; padding: 20px;" autofocus required>
-        </div>
-        <div class="form-group">
-          <label for="year" style="color:Gray;">Year</label>
-          <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" style="max-width: 300px; padding: 20px;" autofocus required>
-        </div>
-        <div class="form-group">
-          <label for="set" style="color:Gray;">MLB Showdown Set</label>
+   <head>
+      <title>MLB Showdown Card Bot</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link href="//netdna.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" media="screen">
+      <link rel="stylesheet" href="/static/front_end/style.css">
+      <link rel="apple-touch-icon" href="/static/interface/ShowdownLogoSquare.png">
+   </head>
+   <body>
+      <div id="overlay">
+         <div class="loader" id="loader"></div>
+      </div>
+      <div class="container">
+         <!-- INPUT  -->
+         <div class="input_container">
+            <!-- SHOWDOWN LOGO  -->
+            <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" width=300 height=105 style="padding-top:30px">
             <br>
-            <input type="radio" name = "set" value=2000 checked> 2000</br>
-            <input type="radio" name = "set" value=2001> 2001</br>
-            <input type="radio" name = "set" value=2002> 2002</br>
-            <input type="radio" name = "set" value=2003> 2003</br>
-            <input type="radio" name = "set" value=2004> 2004</br>
-            <input type="radio" name = "set" value=2005> 2005</br>
-        </div>
-        <div class="form-group" id="moreOptionsDiv">
-          <h5 style="color:Gray;"><b>More Options</b></h5>
-            <input type="checkbox" id="cc" name="cc" value="Cooperstown" style="padding-left: 15px;">
-            <label for="cc" style="color:#8B4513;">Cooperstown Collection</label></br>
-        </div>
-        <h4><b>Step 2: Select an Image (Optional)</b></h4>
-        <h6 style="color:Gray; max-width: 300px; padding: 0px;"><i>** Choose an image where the player is centered. Ideal image size is 500x700</i></h6>
-        <br>
-        <div class="form-group" style="color:Gray;">
-          <label for="url" >Paste Image URL</label>
-          <input type="text" name="url" class="form-control" id="url" placeholder="(OPTIONAL) Paste Link" style="max-width: 300px; padding: 20px;" autofocus>
-          <h4>Or...</h4>
-          <label for="img_upload" style="color:Gray;">Upload Image</label>
-          <input type="file" name="img_upload" id="img_upload" accept="image/*" style="color:Gray;"/>
-        </div>
-        <div style="padding-top:20px">
-          <a href=# id=create_card>
-            <button type="submit" class="btn btn-default">
-              <span>Submit</span>
-            </button>
-          </a>
-          <button type="reset" class="btn btn-secondary" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''" style="margin: 20px; margin-left: 25px;">
-            <span>Clear</span>
-          </button>
-          <div class="loader" id="loader"></div>
-        </div>
-        <br>
-        <!-- <div class="loader" id="loader"></div> -->
-      </form>
-    </div>
-    <!-- OUTPUT  -->
-    <div class="output_container">
-      <h4 id=error style="color:red"></h4>
-      <h4><b>Output</b></h4>
-      <h5 style="color:Gray;"><b>Card</b></h5>
-      <img id="card_image" src="static/interface/BlankPlayer.png" width=300 height=420 alt="card">
-      <br>
-      <h5 style="color:Gray;"><b>Stats</b></h5>
-      <table id="stats_table">
-        <tr>
-          <th> </th>
-          <th>Actual</th>
-          <th>Showdown</th>
-        </tr>
-        {% for stat in ['BA','OBP','SLG','PA','1B','2B','3B','HR','BB','SO'] -%}
-        <tr>
-          <td><b>{{ stat }}</b></td>
-          <td>?</td>
-          <td>?</td>
-        </tr>
-        {% endfor %}
-      </table>
-      <br>
-    </div>
-    </div>
-    <script src="//code.jquery.com/jquery-2.2.1.min.js"></script>
-    <script src="//netdna.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
-  </body>
+            <form id="formInput" role="form" method='POST' enctype="multipart/form-data">
+               <!-- PLAYER AND SEASON  -->
+               <h4><b>Step 1: Select a Player and Season</b></h4>
+               <!-- NAME  -->
+               <div class="form-group">
+                  <label for="name" style="color:Gray;">Player Name</label>
+                  <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" style="max-width: 300px; padding: 20px;" autofocus required>
+               </div>
+               <!-- YEAR  -->
+               <div class="form-group">
+                  <label for="year" style="color:Gray;">Year</label>
+                  <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" style="max-width: 300px; padding: 20px;" required>
+               </div>
+               <!-- SETS  -->
+               <div class="form-group">
+                  <label for="set" style="color:Gray;">MLB Showdown Set</label>
+                  <br>
+                  <input type="radio" name = "set" value=2000 checked> 2000</br>
+                  <input type="radio" name = "set" value=2001> 2001</br>
+                  <input type="radio" name = "set" value=2002> 2002</br>
+                  <input type="radio" name = "set" value=2003> 2003</br>
+                  <input type="radio" name = "set" value=2004> 2004</br>
+                  <input type="radio" name = "set" value=2005> 2005</br>
+               </div>
+               <!-- MORE OPTIONS  -->
+               <div class="form-group" id="moreOptionsDiv">
+                  <h5 style="color:Gray; padding-top:0px; padding-bottom:0px;"><b>More Options</b></h5>
+                  <input type="checkbox" id="cc" name="cc" value="Cooperstown" style="padding-left: 15px;">
+                  <label for="cc" style="color:#8B4513;">Cooperstown Collection</label></br>
+                  <input type="checkbox" id="ss" name="ss" value="Super Season" style="padding-left: 15px;">
+                  <label for="ss" style="color:#982319;">Super Season</label></br>
+                  <input type="number" id="offset" name="offset" value="0" min="0" max="4" style="padding-left: 15px;">
+                  <label for="offset" style="color:#1f1e1e;">Stats Offset</label></br>
+               </div>
+               <!-- IMAGES  -->
+               <h4><b>Step 2: Select an Image (Optional)</b></h4>
+               <h6 style="color:Gray; max-width: 300px; padding: 0px;"><i>** Choose an image where the player is centered. Ideal image size is 500x700</i></h6>
+               <br>
+               <div class="form-group" style="color:Gray;">
+                  <!-- IMAGE URL  -->
+                  <label for="url" >Paste Image URL</label>
+                  <input type="text" name="url" class="form-control" id="url" placeholder="(OPTIONAL) Paste Link" style="max-width: 300px; padding: 20px;">
+                  <h5><i>Or...</i></h5>
+                  <!-- IMAGE UPLOAD  -->
+                  <label for="img_upload" style="color:Gray;">Upload Image</label>
+                  <input type="file" name="img_upload" id="img_upload" accept="image/*" style="color:Gray;"/>
+               </div>
+               <!-- BUTTONS  -->
+               <div style="padding-top:20px">
+                   <!-- CREATE CARD BUTTON  -->
+                  <a href=# id=create_card>
+                  <button type="submit" class="btn btn-default">
+                  <span>Submit</span>
+                  </button>
+                  </a>
+                  <!-- RESET BUTTON  -->
+                  <button type="reset" class="btn btn-secondary" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''" style="margin: 20px; margin-left: 25px;">
+                  <span>Clear</span>
+                  </button>
+               </div>
+               <br>
+            </form>
+         </div>
+         <!-- OUTPUT  -->
+         <div class="output_container">
+            <!-- ERROR MESSAGE  -->
+            <h4 id=error style="color:red"></h4>
+            <h4><b>Output</b></h4>
+            <!-- CARD OUTPUT  -->
+            <h5 style="color:Gray;"><b>Card</b></h5>
+            <img id="card_image" src="static/interface/BlankPlayer.png" width=300 height=420 alt="card">
+            <br>
+            <!-- STATS TABLE  -->
+            <h5 style="color:Gray;"><b>Stats</b></h5>
+            <table id="stats_table">
+               <tr>
+                  <th> </th>
+                  <th>Actual</th>
+                  <th>Showdown</th>
+               </tr>
+               {% for stat in ['BA','OBP','SLG','PA','1B','2B','3B','HR','BB','SO'] -%}
+               <tr>
+                  <td><b>{{ stat }}</b></td>
+                  <td>?</td>
+                  <td>?</td>
+               </tr>
+               {% endfor %}
+            </table>
+            <br>
+         </div>
+      </div>
+      <script src="//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+      <script src="//netdna.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+      <script src="/static/front_end/script.js" charset="utf-8"></script>
+   </body>
 </html>

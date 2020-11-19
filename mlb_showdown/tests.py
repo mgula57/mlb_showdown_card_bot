@@ -9,7 +9,7 @@ from pathlib import Path
 from mlb_showdown.showdown_set_accuracy import ShowdownSetAccuracy
 import mlb_showdown.showdown_constants as sc
 
-def analyze(context,type,is_testing_current_baseline=False):
+def analyze(context,type,is_testing_current_baseline=False, ignore_volatile_categories=False):
 
     real_player_stats_cache_path = os.path.join(Path(os.path.dirname(__file__)).parent,'cache','player_cache.csv')
     in_game_player_cards_path = os.path.join(Path(os.path.dirname(__file__)).parent,'data','mlb_showdown_player_card_data.xlsx')
@@ -43,7 +43,12 @@ def analyze(context,type,is_testing_current_baseline=False):
     for combo in combinations:
 
         print('---{}/{}---'.format(current_index, num_combos), end='\r')
-        set_accuracy = ShowdownSetAccuracy(context, real_player_stats_cache, wotc_player_cards, combo, is_only_command_outs_accuracy=False)
+        set_accuracy = ShowdownSetAccuracy(context=context, 
+                                           real_player_stats_cache=real_player_stats_cache, 
+                                           wotc_card_outputs=wotc_player_cards, 
+                                           command_control_combo=combo, 
+                                           is_only_command_outs_accuracy=False,
+                                           ignore_volatile_categories=ignore_volatile_categories)
         pctsAdded, numPerfect, categoryData = set_accuracy.calc_set_accuracy()
         key = '{}-{}'.format(round(combo[0],1),round(combo[1],1))
         pcts[key] = pctsAdded / totalPlayersInSet

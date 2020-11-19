@@ -50,8 +50,15 @@ class BaseballReferenceScraper:
 
         last_initial = self.__name_last_initial(name)
         search_results = soup_search_name_and_year.find_all("a", href=re.compile("https://www.baseball-reference.com/players/{}/".format(last_initial)))
+        
+        # GOOGLE WILL BLOCK REQUESTS IF IT DETECTS THE BOT.
+        if len(soup_search_name_and_year.find_all(text="Why did this happen?")) > 0:
+            raise RuntimeError('Google has an overload of requests coming from your IP Address. Wait a few minutes and try again.')
+
+        # NO BASEBALL REFERENCE RESULTS FOR THAT NAME AND YEAR
         if search_results == []:
             raise AttributeError('Cannot Find BRef Page for {} in {}'.format(self.name,self.year))
+          
 
         top_result_url = search_results[0]["href"]
         player_b_ref_id = top_result_url.split('.shtml')[0].split('/')[-1]
@@ -129,6 +136,8 @@ class BaseballReferenceScraper:
         stats_dict.update(advanced_stats)
         # SPEED
         stats_dict['sprint_speed'] = self.sprint_speed(self.name, self.year)
+        # DERIVE 1B 
+        stats_dict['1B'] = int(stats_dict['H']) - int(stats_dict['HR']) - int(stats_dict['3B']) - int(stats_dict['2B'])
 
         return stats_dict
 
@@ -281,8 +290,10 @@ class BaseballReferenceScraper:
         if type == 'Pitcher':
             batting_against_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': 'pitching_batting.{}'.format(self.year)})
             advanced_stats.update(self.__parse_batting_against(batting_against_table))
+
         # STANDARD STATS
         advanced_stats.update(self.__parse_standard_stats(type, standard_table))
+
         # RATIO STATS
         ratio_table_key = '{}_ratio.{}'.format(table_prefix,self.year)
         ratio_table = soup_for_advanced_stats.find('tr', attrs = {'class':'full','id': ratio_table_key})
