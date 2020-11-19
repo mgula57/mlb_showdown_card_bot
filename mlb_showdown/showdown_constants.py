@@ -1,18 +1,34 @@
 
+# -------------------------------------------
+# SHOWDOWN_CONSTANTS.PY
+#   - ONE FILE TO STORE ALL WEIGHTS / STATIC VALUES
+#     NEEDED TO GENERATE PLAYER CARDS
+# -------------------------------------------
+
+"""
+SPEED AND FIELDING
+  - MIN AND MAX USED IN PERCENTILE CALCULATIONS
+  - ** STOLEN BASES MINIMUM IS NEGATIVE JUST TO BALANCE OUT PERCENTILE RANGE
+"""
 MAX_SPRINT_SPEED = 31
 MIN_SPRINT_SPEED = 23
 MAX_STOLEN_BASES = 28
 MIN_STOLEN_BASES = -25
 MAX_SABER_FIELDING = 18
 MIN_SABER_FIELDING = -18
-NUMBER_OF_GAMES = 10
+NUMBER_OF_GAMES = 10 # MINIMUM REQUIRED GAMES PLAYED AT A POSITION TO QUALIFY
 
+"""
+BASELINE PITCHER VALUES
+NOTE: INDIVIDUAL RESULT CATEGORIES MAY NOT ADD UP TO 20 OR TOTAL OUTS.
+      THIS IS BECAUSE NOT DOING SO HELPS ACCURACY AGAINST THE ORIGINAL SETS.
+"""
 BASELINE_PITCHER = {
     '2000': {
-        'command': 3.5,
-        'outs': 15.5,
+        'command': 3.0,
+        'outs': 15.2,
         'pu': 2.32,
-        'so': 4.1,
+        'so': 3.9,
         'gb': 5.1,
         'fb': 3.9,
         'bb': 1.24,
@@ -22,8 +38,8 @@ BASELINE_PITCHER = {
         'hr': 0.085
     },
     '2001': {
-        'command': 3.35,
-        'outs': 15.97,
+        'command': 3.1,
+        'outs': 16.1,
         'pu': 2.69,
         'so': 4.30,
         'gb': 5.56,
@@ -35,63 +51,68 @@ BASELINE_PITCHER = {
         'hr': 0.1
     },
     '2002': {
-        'command': 3.22,
-        'outs': 17.11,
+        'command': 3.7,
+        'outs': 15.7,
         'pu': 3.10,
         'so': 4.93,
         'gb': 5.64,
         'fb': 3.44,
         'bb': 0.89,
-        '1b': 1.50,
-        '2b': 0.45,
-        '3b': 0.00,
-        'hr': 0.06
+        '1b': 1.40,
+        '2b': 0.5,
+        '3b': 0.01,
+        'hr': 0.3
     },
     '2003': {
-        'command': 4.1,
-        'outs': 16.06,
+        'command': 4.2,
+        'outs': 16.3,
         'pu': 2.1,
         'so': 4.33,
         'gb': 6.47,
         'fb': 3.19,
-        'bb': 1.19,
+        'bb': 1.00,
         '1b': 1.93,
         '2b': 0.57,
-        '3b': 0.00,
-        'hr': 0.32
+        '3b': 0.025,
+        'hr': 0.25
     },
     '2004': {
-        'command': 3.61,
-        'outs': 16.24,
+        'command': 3.9,
+        'outs': 16.9,
         'pu': 2.09,
-        'so': 4.63,
+        'so': 4.25,
         'gb': 6.29,
-        'fb': 3.22,
-        'bb': 1.12,
-        '1b': 2.17,
+        'fb': 4.0,
+        'bb': 0.9,
+        '1b': 2.1,
         '2b': 0.66,
-        '3b': 0.00,
-        'hr': 0.02
+        '3b': 0.025,
+        'hr': 0.2
     },
     '2005': {
-        'command': 3.2,
-        'outs': 16.08,
+        'command': 4.0,
+        'outs': 16.5,
         'pu': 2.01,
         'so': 4.31,
         'gb': 6.42,
-        'fb': 3.35,
-        'bb': 1.14,
+        'fb': 3.45,
+        'bb': 1.0,
         '1b': 2.11,
-        '2b': 0.77,
+        '2b': 0.65,
         '3b': 0.00,
-        'hr': 0.00
+        'hr': 0.15
     }
 }
 
+"""
+BASELINE HITTER VALUES
+NOTE: INDIVIDUAL RESULT CATEGORIES MAY NOT ADD UP TO 20 OR TOTAL OUTS.
+      THIS IS BECAUSE NOT DOING SO HELPS ACCURACY AGAINST THE ORIGINAL SETS.
+"""
 BASELINE_HITTER = {
     '2000': {
-        'command': 7.7,
-        'outs': 3.5,
+        'command': 8.1,
+        'outs': 3.7,
         'pu': 0,
         'so': 1.15,
         'gb': 1.77,
@@ -104,8 +125,8 @@ BASELINE_HITTER = {
         'hr': 1.98
     },
     '2001': {
-        'command': 7.91,
-        'outs': 4.04,
+        'command': 7.7,
+        'outs': 3.4,
         'pu': 0,
         'so': 1.31,
         'gb': 1.62,
@@ -118,32 +139,32 @@ BASELINE_HITTER = {
         'hr': 2.15
     },
     '2002': {
-        'command': 10.33,
-        'outs': 6.44,
+        'command': 9.8,
+        'outs': 6.2,
         'pu': 0,
         'so': 2.09,
         'gb': 2.53,
         'fb': 1.82,
-        'bb': 3.67,
-        '1b': 5.7,
-        '1b+': 0.48,
+        'bb': 3.3,
+        '1b': 6.0,
+        '1b+': 0.2,
         '2b': 1.94,
         '3b': 0.24,
         'hr': 1.52
     },
     '2003': {
-        'command': 9.50,
-        'outs': 6.0,
+        'command': 9.1,
+        'outs': 6.5,
         'pu': 0,
         'so': 1.44,
         'gb': 2.6,
         'fb': 2.13,
-        'bb': 3.55,
-        '1b': 6.41,
-        '1b+': 0.48,
-        '2b': 2.02,
+        'bb': 2.9,
+        '1b': 6.57,
+        '1b+': 0.28,
+        '2b': 1.69,
         '3b': 0.17,
-        'hr': 1.22
+        'hr': 1.4
     },
     '2004': {
         'command': 10.47,
@@ -175,6 +196,10 @@ BASELINE_HITTER = {
     }
 }
 
+"""
+COMMAND COMBINATIONS
+  - ONBASE/CONTROL AND OUT COMBINATIONS ALLOWED IN EACH SET
+"""
 OB_COMBOS = {
     '2000':[
         [4,5],
@@ -222,7 +247,7 @@ OB_COMBOS = {
         [16,3],[16,4],[16,5],[16,6]
     ],
     '2004':[
-        [9,4],[9,5],[9,6],[9,7],[9,8],[9,9],
+        [9,5],[9,6],[9,7],[9,8],[9,9],
         [10,5],[10,6],[10,7],[10,8],
         [11,5],[11,6],[11,7],[11,8],
         [12,5],[12,6],[12,7],
@@ -242,7 +267,6 @@ OB_COMBOS = {
         [16,3],[16,6]
     ]
 }
-
 CONTROL_COMBOS = {
     '2000':[
         [0,17],[0,18],
@@ -295,6 +319,10 @@ CONTROL_COMBOS = {
     ]
 }
 
+"""
+POINT WEIGHTS
+  - POINT VALUE GIVEN TO A PLAYER IN THE 100TH PERCENTILE FOR A CATEGORY
+"""
 POINT_CATEGORY_WEIGHTS = {
     '2000': {
         'position_player': {
@@ -442,6 +470,11 @@ POINT_CATEGORY_WEIGHTS = {
     }
 }
 
+"""
+DEFENSIVE MAXIMUM
+  - MAX VALUE POSSIBLE FOR IN-GAME DEFENSE AT EACH POSITION.
+  - GIVEN TO PLAYER IN 100TH PERCENTILE IN THAT POSITION FOR TZR.
+"""
 POSITION_DEFENSE_RANGE = {
     '2000': {
         'C': 12.0,
@@ -523,87 +556,197 @@ POSITION_DEFENSE_RANGE = {
     }
 }
 
+"""
+POINT CATEGORY RANGES
+  - MIN AND MAX VALUES FOR EACH CATEGORY USED TO PRODUCE POINT VALUE.
+  - USED TO CALCULATE A PLAYER'S PERCENTILE IN THAT CATEGORY.
+"""
 ONBASE_PCT_RANGE = {
     '2000': {
-        'min': 0.250,
-        'max': 0.450
+        'pitcher': {
+            'min': 0.240,
+            'max': 0.400
+        },
+        'hitter': {
+            'min': 0.250,
+            'max': 0.450
+        }
     },
     '2001': {
-        'min': 0.250,
-        'max': 0.450
+        'pitcher': {
+            'min': 0.240,
+            'max': 0.400
+        },
+        'hitter': {
+            'min': 0.250,
+            'max': 0.450
+        }
     },
     '2002': {
-        'min': 0.250,
-        'max': 0.450
+        'pitcher': {
+            'min': 0.240,
+            'max': 0.400
+        },
+        'hitter': {
+            'min': 0.250,
+            'max': 0.450
+        }
     },
     '2003': {
-        'min': 0.250,
-        'max': 0.450
+        'pitcher': {
+            'min': 0.240,
+            'max': 0.400
+        },
+        'hitter': {
+            'min': 0.250,
+            'max': 0.450
+        }
     },
     '2004': {
-        'min': 0.250,
-        'max': 0.450
+        'pitcher': {
+            'min': 0.240,
+            'max': 0.400
+        },
+        'hitter': {
+            'min': 0.250,
+            'max': 0.450
+        }
     },
     '2005': {
-        'min': 0.250,
-        'max': 0.450
+        'pitcher': {
+            'min': 0.240,
+            'max': 0.400
+        },
+        'hitter': {
+            'min': 0.250,
+            'max': 0.450
+        }
     }
 }
-
 BATTING_AVG_RANGE = {
     '2000': {
-        'min': 0.225,
-        'max': 0.330
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'hitter': {
+            'min': 0.225,
+            'max': 0.330
+        }
     },
     '2001': {
-        'min': 0.225,
-        'max': 0.330
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'hitter': {
+            'min': 0.225,
+            'max': 0.330
+        }
     },
     '2002': {
-        'min': 0.225,
-        'max': 0.330
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'hitter': {
+            'min': 0.225,
+            'max': 0.330
+        }
     },
     '2003': {
-        'min': 0.225,
-        'max': 0.330
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'hitter': {
+            'min': 0.225,
+            'max': 0.330
+        }
     },
     '2004': {
-        'min': 0.225,
-        'max': 0.330
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'hitter': {
+            'min': 0.225,
+            'max': 0.330
+        }
     },
     '2005': {
-        'min': 0.225,
-        'max': 0.330
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'hitter': {
+            'min': 0.225,
+            'max': 0.330
+        }
     }
 }
-
 SLG_RANGE = {
     '2000': {
-        'min': 0.350,
-        'max': 0.550
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.500
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
     },
     '2001': {
-        'min': 0.350,
-        'max': 0.550
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.500
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
     },
     '2002': {
-        'min': 0.350,
-        'max': 0.550
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.500
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
     },
     '2003': {
-        'min': 0.350,
-        'max': 0.550
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.500
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
     },
     '2004': {
-        'min': 0.350,
-        'max': 0.550
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.500
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
     },
     '2005': {
-        'min': 0.350,
-        'max': 0.550
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.500
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
     }
 }
-
 SPEED_RANGE = {
     '2000': {
         'min': 10,
@@ -630,7 +773,6 @@ SPEED_RANGE = {
         'max': 20
     },
 }
-
 IP_RANGE = {
     'starting_pitcher': {
         'min': 5,
@@ -641,7 +783,6 @@ IP_RANGE = {
         'max': 2
     }
 }
-
 HR_RANGE = {
     '2000': {
         'min': 10,
@@ -669,6 +810,42 @@ HR_RANGE = {
     }
 }
 
+"""
+PLAYER EXCLUDED WHEN TESTING SET ACCURACY. MOSTLY DUE TO NOT HAVING 
+STATS FOR PREVIOUS SEASON.
+"""
+EXCLUDED_PLAYERS_FOR_TESTING = {
+    '2000': [
+        'Brian L. Hunter',
+        'Craig Wilson',
+        'Chan Ho Park',
+    ],
+    '2001': [
+        'Mark L. Johnson',
+        'Alex S. Gonzalez',
+        'Brian Anderson',
+        'Jose Santiago',
+        'Chan Ho Park',
+    ],
+    '2002': [
+        'Chan Ho Park',
+        'Alex S. Gonzalez',
+    ],
+    '2003': [
+
+    ],
+    '2004': [
+
+    ],
+    '2005': [
+
+    ],
+}
+
+"""
+TEST RANGES
+  - RANGES TO USE WHEN DISCOVERING PLAYER BASELINES.
+"""
 TEST_COMMAND_RANGE_HITTER = {
     '2000': {
         'min': 7.5,
@@ -695,7 +872,6 @@ TEST_COMMAND_RANGE_HITTER = {
         'max': 10.3
     }
 }
-
 TEST_OUT_RANGE_HITTER = {
     '2000': {
         'min': 3.4,
@@ -722,7 +898,6 @@ TEST_OUT_RANGE_HITTER = {
         'max': 7.1
     }
 }
-
 TEST_COMMAND_RANGE_PITCHER = {
     '2000': {
         'min': 3.0,
@@ -741,15 +916,14 @@ TEST_COMMAND_RANGE_PITCHER = {
         'max': 4.2
     },
     '2004': {
-        'min': 3.0,
-        'max': 4.2
+        'min': 3.7,
+        'max': 4.4
     },
     '2005': {
-        'min': 3.0,
+        'min': 3.7,
         'max': 4.2
     }
 }
-
 TEST_OUT_RANGE_PITCHER = {
     '2000': {
         'min': 15.0,
@@ -765,25 +939,28 @@ TEST_OUT_RANGE_PITCHER = {
     },
     '2003': {
         'min': 15.2,
-        'max': 16.6
+        'max': 16.4
     },
     '2004': {
-        'min': 15.2,
-        'max': 16.6
+        'min': 15.9,
+        'max': 17.1
     },
     '2005': {
-        'min': 15.2,
+        'min': 15.9,
         'max': 16.6
     }
 }
 
-# ------------------------------------------------------------------------------
+# -------------------------------------------
 # CARD IMAGE
+# -------------------------------------------
 
+""" COLOR HEX VALUES """
 COLOR_WHITE = "#FFFFFF"
 COLOR_BLACK = "#000000"
 COLOR_RED = "#963219"
 
+""" COORDINATES FOR IMAGE COMPONENTS """
 IMAGE_LOCATIONS = {
     'team_logo': {
         '2000': (400,362),
@@ -806,7 +983,7 @@ IMAGE_LOCATIONS = {
         '2000h': (327,444),
         '2001p': (327,450),
         '2001h': (327,444),
-        '2002': (317,535),
+        '2002': (316,535),
         '2003': (327,511),
         '2004': (0,593),
         '2005': (0,593),
@@ -831,15 +1008,25 @@ IMAGE_LOCATIONS = {
         '2003': (56,595),
         '2004': (407,637),
         '2005': (407,637),
+    },
+    'super_season': {
+        '2000': (400,345),
+        '2001': (26,528),
+        '2002': (15,371),
+        '2003': (347,262),
+        '2004': (357,388),
+        '2005': (357,388),
     }
 }
 
+""" LIST OF ICON IMAGE COORDINATES FOR EACH ICON INDEX """
 ICON_LOCATIONS = {
     '2003': [(335,635), (335,610), (310,635), (310,610)],
     '2004': [(350,565), (375,565), (400,565), (425,565)],
     '2005': [(350,565), (375,565), (400,565), (425,565)],
 }
 
+""" WIDTH AND HEIGHT TUPLES FOR EACH IMAGE COMPONENT """
 IMAGE_SIZES = {
     'team_logo': {
         '2000': (75,75),
@@ -856,9 +1043,18 @@ IMAGE_SIZES = {
         '2003': (1100, 100),
         '2004': (300, 100),
         '2005': (300, 100),
+    },
+    'super_season': {
+        '2000': (91,140),
+        '2001': (91,140),
+        '2002': (156,240),
+        '2003': (130,200),
+        '2004': (113,174),
+        '2005': (113,174),
     }
 }
 
+""" WIDTH AND HEIGHT TUPLES FOR EACH TEXT IMAGE COMPONENT """
 TEXT_SIZES = {
     'chart': {
         '2000': 48,

@@ -15,17 +15,27 @@ def card_creator():
     showdown = None
     try:
         # PARSE INPUTS
+        error = 'Input Error. Please Try Again'
         name = request.args.get('name').title()
         year = str(request.args.get('year'))
         set = str(request.args.get('set'))
         url = request.args.get('url')
         is_cc = request.args.get('cc').lower() == 'true'
+        is_ss = request.args.get('ss').lower() == 'true'
+        try:
+            offset = int(request.args.get('offset'))
+            offset = 4 if offset > 4 else offset
+            offset = 0 if offset < 0 else offset
+        except:
+            offset = 0
         img = request.args.get('img_name')
         # SCRAPE PLAYER DATA
+        error = 'Error loading player data. Make sure the player name and year are correct'
         scraper = BaseballReferenceScraper(name=name,year=year)
         statline = scraper.player_statline()
 
         # CREATE CARD
+        error = "Error - Unable to create Showdown Card data."
         showdown = ShowdownPlayerCardGenerator(
             name=name,
             year=year,
@@ -33,15 +43,19 @@ def card_creator():
             context=set,
             player_image_path=None if img == '' else img,
             player_image_url=None if url == '' else url,
-            is_cooperstown=is_cc if is_cc else False
+            is_cooperstown=is_cc if is_cc else False,
+            is_super_season=is_ss if is_ss else False,
+            offset=offset
         )
+        error = "Error - Unable to create Showdown Card Image."
         showdown.player_image()
         card_image_path = os.path.join('static', 'images', showdown.image_name)
         player_stats_data = showdown.player_data_for_html_table()
+
+        error = ''
         return jsonify(image_path=card_image_path,error=error,player_stats=player_stats_data)
 
     except:
-        error = "Unable to create Showdown Card. Make sure the player name and year are correct."
         return jsonify(image_path=None,error=error,player_stats=None)
 
 @app.route('/upload', methods=["POST","GET"])
