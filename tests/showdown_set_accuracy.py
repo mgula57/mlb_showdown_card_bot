@@ -3,9 +3,9 @@ import pandas as pd
 from time import sleep
 import os
 from pathlib import Path
-from mlb_showdown.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown.showdown_player_card_generator import ShowdownPlayerCardGenerator
-import mlb_showdown.showdown_constants as sc
+from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
+from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
+import mlb_showdown_bot.showdown_constants as sc
 
 class ShowdownSetAccuracy:
 
@@ -77,7 +77,7 @@ class ShowdownSetAccuracy:
             categories_summarized[category] = round(sum(player[category] for player in category_accuracies) / len(category_accuracies),4)
 
         # STORE NEWLY CACHED PLAYERS IF ANY
-        cache_destination_path = os.path.join(Path(os.path.dirname(__file__)).parent,'cache','player_cache.csv')
+        cache_destination_path = os.path.join(Path(os.path.dirname(__file__)),'cache','player_cache.csv')
         self.real_player_stats_cache.to_csv(cache_destination_path, index= False)
 
         return sum_of_card_accuracy, num_perfect_match, categories_summarized

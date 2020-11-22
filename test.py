@@ -1,5 +1,5 @@
 import argparse
-from mlb_showdown.tests import analyze
+from tests.tests import analyze_baseline_weights
 
 parser = argparse.ArgumentParser(description="Test accuracy of Showdown Bot set compared to original WOC set")
 parser.add_argument('-c','--context', help='The showdown set meta to use (2000-2005)', default='2000')
@@ -10,7 +10,7 @@ args = parser.parse_args()
 
 if __name__ == "__main__":
     # TEST SET ACCURACY
-    analyze(context=int(args.context), 
-            type=args.type, 
-            is_testing_current_baseline=args.is_current_baseline,
-            ignore_volatile_categories=args.exclude_volatile)
+    analyze_baseline_weights(context=int(args.context), 
+                             type=args.type, 
+                             is_testing_current_baseline=args.is_current_baseline,
+                             ignore_volatile_categories=args.exclude_volatile)

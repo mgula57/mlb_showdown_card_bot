@@ -6,14 +6,26 @@ from pprint import pprint
 import operator
 import os
 from pathlib import Path
-from mlb_showdown.showdown_set_accuracy import ShowdownSetAccuracy
-import mlb_showdown.showdown_constants as sc
+from .showdown_set_accuracy import ShowdownSetAccuracy
+import mlb_showdown_bot.showdown_constants as sc
 
-def analyze(context,type,is_testing_current_baseline=False, ignore_volatile_categories=False):
+def analyze_baseline_weights(context,type,is_testing_current_baseline=False,ignore_volatile_categories=False):
+    """Calculate accuracy of the output produced given a set of baseline weights compared to 
+       original Wizards set.
 
-    real_player_stats_cache_path = os.path.join(Path(os.path.dirname(__file__)).parent,'cache','player_cache.csv')
-    in_game_player_cards_path = os.path.join(Path(os.path.dirname(__file__)).parent,'data','mlb_showdown_player_card_data.xlsx')
-    wotc_player_cards = pd.read_excel(in_game_player_cards_path,index=False)
+    Args:
+        context: The showdown set meta to use (2000-2005).
+        type: Player Type (Pitcher or Hitter).
+        is_testing_current_baseline: Boolean flag for either testing the current set of weights or testing various sets of weights.
+        ignore_volatile_categories: If true, ignores the more volitile categories when testing (EX: SO, 1B+, FB, ...)
+
+    Returns:
+        None
+    """
+    
+    real_player_stats_cache_path = os.path.join(Path(os.path.dirname(__file__)),'cache','player_cache.csv')
+    in_game_player_cards_path = os.path.join(Path(os.path.dirname(__file__)),'data','mlb_showdown_player_card_data.xlsx')
+    wotc_player_cards = pd.read_excel(in_game_player_cards_path)
     try:
         real_player_stats_cache = pd.read_csv(real_player_stats_cache_path)
     except FileNotFoundError:

@@ -1,13 +1,14 @@
 from flask import Flask, render_template, request, jsonify, Response
-from mlb_showdown.showdown_player_card_generator import ShowdownPlayerCardGenerator
-from mlb_showdown.baseball_ref_scraper import BaseballReferenceScraper
+from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
+from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 import os
+import sys
 
 app = Flask(__name__)
 
 @app.route('/')
 def card_submition():
-    return render_template('main_screen.html')
+    return render_template('index.html')
 
 @app.route('/card_creation')
 def card_creator():
@@ -45,11 +46,12 @@ def card_creator():
             player_image_url=None if url == '' else url,
             is_cooperstown=is_cc if is_cc else False,
             is_super_season=is_ss if is_ss else False,
-            offset=offset
+            offset=offset,
+            is_running_in_flask=True
         )
         error = "Error - Unable to create Showdown Card Image."
         showdown.player_image()
-        card_image_path = os.path.join('static', 'images', showdown.image_name)
+        card_image_path = os.path.join('static', 'output', showdown.image_name)
         player_stats_data = showdown.player_data_for_html_table()
 
         error = ''
@@ -63,7 +65,7 @@ def upload():
     try:
         image = request.files.get('image_file')
         name = image.filename
-        image.save(os.path.join('media', image.filename))
+        image.save(os.path.join('mlb_showdown_bot', 'uploads', image.filename))
     except:
         name = ''
 

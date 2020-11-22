@@ -90,17 +90,17 @@ BASELINE_PITCHER = {
         'hr': 0.2
     },
     '2005': {
-        'command': 4.0,
-        'outs': 16.5,
+        'command': 4.2,
+        'outs': 16.6,
         'pu': 2.01,
         'so': 4.31,
         'gb': 6.42,
         'fb': 3.45,
         'bb': 1.0,
-        '1b': 2.11,
+        '1b': 2.05,
         '2b': 0.65,
-        '3b': 0.00,
-        'hr': 0.15
+        '3b': 0.02,
+        'hr': 0.21
     }
 }
 
@@ -838,7 +838,10 @@ EXCLUDED_PLAYERS_FOR_TESTING = {
 
     ],
     '2005': [
-
+        'Wily MoPena',
+        'Tim Spooneybarger',
+        'Runelvys Hernandez',
+        'Chan HoPark',
     ],
 }
 
@@ -920,8 +923,8 @@ TEST_COMMAND_RANGE_PITCHER = {
         'max': 4.4
     },
     '2005': {
-        'min': 3.7,
-        'max': 4.2
+        'min': 3.8,
+        'max': 4.3
     }
 }
 TEST_OUT_RANGE_PITCHER = {
@@ -947,7 +950,7 @@ TEST_OUT_RANGE_PITCHER = {
     },
     '2005': {
         'min': 15.9,
-        'max': 16.6
+        'max': 17.1
     }
 }
 
