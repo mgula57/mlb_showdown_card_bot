@@ -10,4 +10,9 @@ urllib3>=1.26.2
 xlrd>=1.2.0
 
 # FRONT END 
-Flask>=1.1.1
+Flask==1.1.1
+Jinja2==2.11.2
+Werkzeug==1.0.1
+certifi==2019.11.28
+chardet==3.0.4
+gunicorn==20.0.4
