@@ -24,6 +24,7 @@ class CardLog(db.Model):
     img_url = db.Column(db.String(2048))
     img_name = db.Column(db.String(512))
     error = db.Column(db.String(256))
+    created_on = db.Column(db.DateTime, server_default=db.func.now())
 
     def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error):
         """ DEFAULT INIT FOR DB OBJECT """
