@@ -1399,7 +1399,7 @@ class ShowdownPlayerCardGenerator:
         if int(self.context) in [2002,2004,2005]:
             # TODO: SOLVE HTML PNG ISSUES
             player_image = player_image.convert('RGB')
-        player_image.save(os.path.join('mlb_showdown_bot', 'output', self.image_name), quality=100)
+        player_image.save(os.path.join(os.path.dirname(__file__), 'output', self.image_name), quality=100)
         if self.is_running_in_flask:
             player_image.save(os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name), quality=100)
 
@@ -1420,10 +1420,10 @@ class ShowdownPlayerCardGenerator:
         Returns:
           PIL image object for the player background.
         """
-        default_image_path = os.path.join('mlb_showdown_bot', 'templates', 'Default Background - {}.png'.format(self.context))
+        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Default Background - {}.png'.format(self.context))
         if self.player_image_path:
             # LOAD IMAGE FROM UPLOAD
-            image_path = os.path.join('mlb_showdown_bot', 'uploads', self.player_image_path)
+            image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.player_image_path)
             try:
                 player_image = Image.open(image_path)
             except:
@@ -1514,11 +1514,11 @@ class ShowdownPlayerCardGenerator:
         try:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
             alternate_logo_ext = '-A' if int(self.context) >= 2004 else ''
-            team_logo = Image.open(os.path.join('mlb_showdown_bot', 'team_logos', '{}{}.png'.format(logo_name,alternate_logo_ext))).convert("RGBA")
+            team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', '{}{}.png'.format(logo_name,alternate_logo_ext))).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         except:
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
-            team_logo = Image.open(os.path.join('mlb_showdown_bot', 'team_logos', 'mlb.png')).convert("RGBA")
+            team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', 'mlb.png')).convert("RGBA")
             team_logo = team_logo.resize((90, 49), Image.ANTIALIAS)
         team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and not self.is_cooperstown else team_logo
 
@@ -1531,7 +1531,7 @@ class ShowdownPlayerCardGenerator:
         if self.is_cooperstown and int(self.context) >= 2004:
             cooperstown_logo = Image.new('RGBA', (logo_size[0] + 100, logo_size[1]))
             cooperstown_logo.paste(team_logo,(50,0),team_logo)
-            year_font_path = os.path.join('mlb_showdown_bot', 'fonts', 'BaskervilleBoldItalicBT.ttf')
+            year_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'BaskervilleBoldItalicBT.ttf')
             year_font = ImageFont.truetype(year_font_path, size=29)
             year_font_blurred = ImageFont.truetype(year_font_path, size=30)
             year_abbrev = "’{}".format(self.year[2:4])
@@ -1575,7 +1575,7 @@ class ShowdownPlayerCardGenerator:
         cc_extension = '-CC' if self.is_cooperstown and int(self.context) >= 2004 else ''
         ss_extension = '-SS' if self.is_super_season and int(self.context) >= 2004 else ''
         type_template = '{context}-{type}{cc}{ss}.png'.format(context = year, type = type, cc = cc_extension, ss = ss_extension)
-        template_image = Image.open(os.path.join('mlb_showdown_bot', 'templates', type_template))
+        template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
         command_image_name = '{context}-{type}-{command}.png'.format(
@@ -1583,7 +1583,7 @@ class ShowdownPlayerCardGenerator:
             type = type,
             command = str(self.chart['command'])
         )
-        command_image = Image.open(os.path.join('mlb_showdown_bot', 'templates', command_image_name))
+        command_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', command_image_name))
         template_image.paste(command_image, (0,0), command_image)
 
         # HANDLE MULTI POSITION TEMPLATES FOR 00/01 POSITION PLAYERS
@@ -1598,7 +1598,7 @@ class ShowdownPlayerCardGenerator:
                 mp = 'MULTI' if is_multi_position else 'SINGLE',
                 sl = 'LRG' if is_large_position_container else 'SML'
             )
-            positions_points_image = Image.open(os.path.join('mlb_showdown_bot', 'templates', positions_points_template))
+            positions_points_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', positions_points_template))
             template_image.paste(positions_points_image, (0,0), positions_points_image)
 
         return template_image
@@ -1619,8 +1619,8 @@ class ShowdownPlayerCardGenerator:
         first, last = self.name.upper().split(" ", 1)
         name = self.name.upper() if self.context != '2001' else first
 
-        futura_black_path = os.path.join('mlb_showdown_bot', 'fonts', 'Futura Black.ttf')
-        helvetica_neue_lt_path = os.path.join('mlb_showdown_bot', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
+        futura_black_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Futura Black.ttf')
+        helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
 
         # DEFAULT NAME ATTRIBUTES
         name_font_path = helvetica_neue_lt_path
@@ -1724,7 +1724,7 @@ class ShowdownPlayerCardGenerator:
             # 2000 & 2001
 
             metadata_image = Image.new('RGBA', (500, 700), 255)
-            helvetica_neue_lt_path = os.path.join('mlb_showdown_bot', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
+            helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
 
             # PITCHER AND HITTER SPECIFIC METADATA
             if self.is_pitcher:
@@ -1783,10 +1783,10 @@ class ShowdownPlayerCardGenerator:
 
             color = sc.COLOR_BLACK if self.context == '2002' else sc.COLOR_WHITE
             if year == 2002:
-                helvetica_neue_lt_path = os.path.join('mlb_showdown_bot', 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
+                helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
                 metadata_font = ImageFont.truetype(helvetica_neue_lt_path, size=40)
             else:
-                helvetica_neue_cond_bold_path = os.path.join('mlb_showdown_bot', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+                helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
                 metadata_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=45)
 
             metadata_text = self.__text_image(
@@ -1802,7 +1802,7 @@ class ShowdownPlayerCardGenerator:
         elif year in [2004,2005]:
             # 2004 & 2005
             
-            metadata_font_path = os.path.join('mlb_showdown_bot', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+            metadata_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
             metadata_font = ImageFont.truetype(metadata_font_path, size=48)
             metadata_text_string = self.__player_metadata_summary_text(is_horizontal=True)
             metadata_text = self.__text_image(
@@ -1841,7 +1841,7 @@ class ShowdownPlayerCardGenerator:
         is_04_05 = self.context in ['2004','2005']
 
         # FONT 
-        helvetica_neue_cond_bold_path = os.path.join('mlb_showdown_bot', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+        helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
         chart_text_size = int(sc.TEXT_SIZES['chart'][self.context])
         helvetica_neue_cond_bold_alt = ImageFont.truetype(helvetica_neue_cond_bold_path, size=chart_text_size)
         
@@ -1901,7 +1901,7 @@ class ShowdownPlayerCardGenerator:
         """
 
         # FONT FOR SET
-        helvetica_neue_cond_bold_path = os.path.join('mlb_showdown_bot', 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+        helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
         set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=45)
 
         set_image = Image.new('RGBA', (500, 700), 255)
@@ -1956,11 +1956,11 @@ class ShowdownPlayerCardGenerator:
         is_04_05 = int(self.context) >= 2004
 
         # BACKGROUND IMAGE LOGO
-        super_season_image = Image.open(os.path.join('mlb_showdown_bot', 'templates', '{}-Super Season.png'.format(self.context)))
+        super_season_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', '{}-Super Season.png'.format(self.context)))
 
         # FONTS
-        super_season_year_path = os.path.join('mlb_showdown_bot', 'fonts', 'URW Corporate W01 Normal.ttf')
-        super_season_accolade_path = os.path.join('mlb_showdown_bot', 'fonts', 'Zurich Bold Italic BT.ttf')
+        super_season_year_path = os.path.join(os.path.dirname(__file__), 'fonts', 'URW Corporate W01 Normal.ttf')
+        super_season_accolade_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Zurich Bold Italic BT.ttf')
         super_season_year_font = ImageFont.truetype(super_season_year_path, size=75)
         super_season_accolade_font = ImageFont.truetype(super_season_accolade_path, size=50)
 
@@ -2061,7 +2061,7 @@ class ShowdownPlayerCardGenerator:
         icon_positional_mapping = sc.ICON_LOCATIONS[self.context]
         # ITERATE THROUGH AND PASTE ICONS
         for index, icon in enumerate(self.icons[0:4]):
-            icon_image = Image.open(os.path.join('mlb_showdown_bot', 'templates', '{}-{}.png'.format(self.context,icon)))
+            icon_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', '{}-{}.png'.format(self.context,icon)))
             position = icon_positional_mapping[index]
             # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
             # EX: 'LF/RF' IS LONGER STRING THAN '3B'
@@ -2177,7 +2177,7 @@ class ShowdownPlayerCardGenerator:
         """
         
         # FINAL IMAGES
-        output_folder_paths = [os.path.join('mlb_showdown_bot', 'output')]
+        output_folder_paths = [os.path.join(os.path.dirname(__file__), 'output')]
         flask_output_path = os.path.join('static', 'output')
         if os.path.isdir(flask_output_path):
             output_folder_paths.append(flask_output_path)
@@ -2192,10 +2192,10 @@ class ShowdownPlayerCardGenerator:
                         os.remove(item_path)
 
         # UPLOADED IMAGES (PACKAGE)
-        for item in os.listdir(os.path.join('mlb_showdown_bot', 'uploads')):
+        for item in os.listdir(os.path.join(os.path.dirname(__file__), 'uploads')):
             if item != '.gitkeep':
                 # CHECK TO SEE IF ITEM WAS MODIFIED MORE THAN 5 MINS AGO.
-                item_path = os.path.join('mlb_showdown_bot', 'uploads', item)
+                item_path = os.path.join(os.path.dirname(__file__), 'uploads', item)
                 is_file_stale = self.__is_file_over_5_mins_old(item_path)
                 if is_file_stale:
                     # DELETE IF UPLOADED/MODIFIED OVER 5 MINS AGO

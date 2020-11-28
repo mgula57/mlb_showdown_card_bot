@@ -2,8 +2,14 @@ import argparse
 import os
 import pandas as pd
 # MY PACKAGES
-from baseball_ref_scraper import BaseballReferenceScraper
-from showdown_player_card_generator import ShowdownPlayerCardGenerator
+try:
+    # ASSUME THIS IS A SUBMODULE IN A PACKAGE
+    from .baseball_ref_scraper import BaseballReferenceScraper
+    from .showdown_player_card_generator import ShowdownPlayerCardGenerator
+except ImportError:
+    # USE LOCAL IMPORT 
+    from baseball_ref_scraper import BaseballReferenceScraper
+    from showdown_player_card_generator import ShowdownPlayerCardGenerator
 
 parser = argparse.ArgumentParser(description="Generate a player's MLB Showdown stats in a given year")
 parser.add_argument('-n','--name', help='The first and last name of the player',required=True)
