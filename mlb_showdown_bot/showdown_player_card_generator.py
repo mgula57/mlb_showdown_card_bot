@@ -369,6 +369,10 @@ class ShowdownPlayerCardGenerator:
           Add R and RP icons
         """
 
+        # ICONS ONLY APPLY TO 2003+
+        if int(self.context) < 2003:
+            return []
+
         awards_string = '' if awards is None else str(awards).upper()
         awards_list = awards_string.split(',')
 
@@ -383,7 +387,8 @@ class ShowdownPlayerCardGenerator:
         icons = []
         for award, icon in awards_to_icon_map.items():
             if award in awards_list:
-                icons.append(icon)
+                if not (self.is_pitcher and award in ['SS', 'GG']):
+                    icons.append(icon)
 
         # DATA DRIVEN ICONS
         if self.is_pitcher:
@@ -601,7 +606,7 @@ class ShowdownPlayerCardGenerator:
             'hr_per_400_pa': 3.0,
             'so_per_400_pa': 1.0 if self.is_pitcher else 0.1
         }
-        accuracy, categorical_accuracy = self.accuracy_between_dicts(dict1=in_game_stats_for_400_pa, dict2=stats_for_400_pa, weights=weights)
+        accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(dict1=in_game_stats_for_400_pa, dict2=stats_for_400_pa, weights=weights)
         return chart, accuracy, in_game_stats_for_400_pa
 
     def __out_results(self, gb_pct, popup_pct, out_slots_remaining):
@@ -983,16 +988,19 @@ class ShowdownPlayerCardGenerator:
         obp_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['onbase'] \
                      * self.stat_percentile(stat=real_stats['onbase_perc'],
                                             min_max_dict=sc.ONBASE_PCT_RANGE[self.context][player_type],
-                                            is_desc=self.is_pitcher)
+                                            is_desc=self.is_pitcher,
+                                            allow_negative=True)
         ba_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['average'] \
                     * self.stat_percentile(stat=real_stats['batting_avg'],
                                            min_max_dict=sc.BATTING_AVG_RANGE[self.context][player_type],
-                                           is_desc=self.is_pitcher)
+                                           is_desc=self.is_pitcher,
+                                           allow_negative=True)
         slg_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['slugging'] \
                      * self.stat_percentile(stat=real_stats['slugging_perc'],
                                             min_max_dict=sc.SLG_RANGE[self.context][player_type],
-                                            is_desc=self.is_pitcher)
-
+                                            is_desc=self.is_pitcher,
+                                            allow_negative=True)
+        
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
         spd_ip_category = 'ip' if self.is_pitcher else 'speed'
         if self.is_pitcher:
@@ -1002,7 +1010,8 @@ class ShowdownPlayerCardGenerator:
         spd_ip_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category][spd_ip_category] \
                          * self.stat_percentile(stat=speed_or_ip,
                                                 min_max_dict=spd_ip_range,
-                                                is_desc=False)
+                                                is_desc=False,
+                                                allow_negative=True)
         points += (obp_points + ba_points + slg_points + spd_ip_points)
 
         if not self.is_pitcher:
@@ -1025,16 +1034,19 @@ class ShowdownPlayerCardGenerator:
         # POINTS ARE ALWAYS ROUNDED TO TENTH
         points_to_nearest_tenth = int(round(points,-1))
 
-        return points_to_nearest_tenth
+        # POINTS CANNOT BE < 10
+        points_final = 10 if points_to_nearest_tenth < 10 else points_to_nearest_tenth
 
-    def stat_percentile(self, stat, min_max_dict, is_desc=False):
+        return points_final
+
+    def stat_percentile(self, stat, min_max_dict, is_desc=False, allow_negative=False):
         """Get the percentile for a particular stat.
 
         Args:
           stat: Value to get percentile of.
           min_max_dict: Dict with 'min' and 'max' range values for the stat
           is_desc: Boolean for whether the lowest value should be treated as positive.
-
+          allow_negative: Boolean flag for whether to allow percentile to be < 0
         Returns:
           Percent of points to give for given category.
         """
@@ -1042,8 +1054,11 @@ class ShowdownPlayerCardGenerator:
         min = min_max_dict['min']
         max = min_max_dict['max']
         range = max - min
+        stat_within_range = stat - min
+        
+        if not allow_negative and stat_within_range < 0:
+            stat_within_range = 0
 
-        stat_within_range = stat - min if stat - min > 0 else 0
         raw_percentile = stat_within_range / range
 
         # REVERSE IF DESC
@@ -1068,7 +1083,8 @@ class ShowdownPlayerCardGenerator:
         """
 
         denominator = len(dict1.keys())
-        output = {}
+        categorical_accuracy_dict = {}
+        categorical_above_below_dict = {}
         accuracies = 0
 
         # CALCULATE CATEGORICAL ACCURACY
@@ -1080,7 +1096,12 @@ class ShowdownPlayerCardGenerator:
                 else:
                     pct_difference = self.__pct_difference(value1, value2)
                     accuracy_for_key = 1 - pct_difference
-                output[key] = accuracy_for_key
+
+                # CATEGORICAL ACCURACY
+                categorical_accuracy_dict[key] = accuracy_for_key
+                categorical_above_below_dict[key] = {'above': 1 if value1 > value2 else 0,
+                                                     'below': 1 if value1 < value2 else 0}
+
                 # APPLY WEIGHTS
                 weight = float(weights[key]) if key in weights.keys() else 1
                 denominator += float(weights[key]) - 1 if key in weights.keys() else 0
@@ -1088,7 +1109,7 @@ class ShowdownPlayerCardGenerator:
 
         overall_accuracy = accuracies / denominator
 
-        return overall_accuracy, output
+        return overall_accuracy, categorical_accuracy_dict, categorical_above_below_dict
 
     def __pct_difference(self, num1, num2):
         """ CALCULATE % DIFFERENCE BETWEEN 2 NUMBERS"""
@@ -1098,20 +1119,24 @@ class ShowdownPlayerCardGenerator:
         else:
             return abs(num1 - num2) / ( (num1 + num2) / 2 )
 
-    def accuracy_against_wotc(self, wotc_card_dict):
+    def accuracy_against_wotc(self, wotc_card_dict, is_pts_only=False):
         """Compare My card output against official WOTC card.
 
         Args:
           wotc_card_dict: Dictionary with stats per category from wizards output.
           ignore_volatile_categories: If True, ignore individual out result categories and single+
+          is_pts_only: Boolean flag to enabled testing for only point value.
 
         Returns:
           Float with overall accuracy and Dict with accuracy per stat category.
         """
 
         chart_w_combined_command_outs = self.chart
-        chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart['command'],self.chart['outs'])
-        # chart_w_combined_command_outs['points'] = self.points
+        if is_pts_only:
+            chart_w_combined_command_outs['points'] = self.points
+        else:
+            chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart['command'],self.chart['outs'])
+        
         return self.accuracy_between_dicts(dict1=wotc_card_dict,
                                            dict2=chart_w_combined_command_outs,
                                            weights={},
@@ -1154,17 +1179,17 @@ class ShowdownPlayerCardGenerator:
             chart_string += '{}: {}\n'.format(category.upper(), range)
 
         # SLASH LINE
-        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
+        slash_categories = [('batting_avg', ' BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
         slash_as_string = ''
         for key, cleaned_category in slash_categories:
-            showdown_stat_str = '{}: {}'.format(cleaned_category,round(self.real_stats[key],3))
-            real_stat_str = '{}: {}'.format(cleaned_category,self.stats[key])
+            showdown_stat_str = '{}: {}'.format(cleaned_category,str(round(self.real_stats[key],3)).replace('0.','.'))
+            real_stat_str = '{}: {}'.format(cleaned_category,str(self.stats[key]).replace('0.','.'))
             slash_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str,real_stat_str)
 
         # RESULT LINE
         real_life_pa = int(self.stats['PA'])
         real_life_pa_ratio = int(self.stats['PA']) / 650.0
-        results_as_string = '{:<12}{:>12}\n'.format(' PA: {}'.format(real_life_pa),' PA: {}'.format(real_life_pa))
+        results_as_string = '{:<12}{:>12}\n'.format(' PA: {}'.format(real_life_pa),' PA: {:>4}'.format(real_life_pa))
         result_categories = [
             ('1b_per_650_pa', '1B'),
             ('2b_per_650_pa', '2B'),
@@ -1174,8 +1199,8 @@ class ShowdownPlayerCardGenerator:
             ('so_per_650_pa', 'SO')
         ]
         for key, cleaned_category in result_categories:
-            showdown_stat_str = ' {}: {}'.format(cleaned_category,str(int(round(self.real_stats[key]) * real_life_pa_ratio)).replace('0.',''))
-            real_stats_str = ' {}: {}'.format(cleaned_category,self.stats[cleaned_category])
+            showdown_stat_str = ' {}: {}'.format(cleaned_category,int(round(self.real_stats[key]) * real_life_pa_ratio))
+            real_stats_str = ' {}: {:>4}'.format(cleaned_category,self.stats[cleaned_category])
             results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, real_stats_str)
 
         # NOT USING DOCSTRING FOR FORMATTING REASONS
@@ -1374,7 +1399,7 @@ class ShowdownPlayerCardGenerator:
         if int(self.context) in [2002,2004,2005]:
             # TODO: SOLVE HTML PNG ISSUES
             player_image = player_image.convert('RGB')
-        player_image.save(os.path.join('static', 'output', self.image_name), quality=100)
+        player_image.save(os.path.join('mlb_showdown_bot', 'output', self.image_name), quality=100)
         if self.is_running_in_flask:
             player_image.save(os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name), quality=100)
 
@@ -2152,15 +2177,21 @@ class ShowdownPlayerCardGenerator:
         """
         
         # FINAL IMAGES
-        for item in os.listdir(os.path.join('mlb_showdown_bot', 'output')):
-            if item != self.image_name and item != '.gitkeep':
-                item_path = os.path.join('mlb_showdown_bot', 'output', item)
-                is_file_stale = self.__is_file_over_5_mins_old(item_path)
-                if is_file_stale:
-                    # DELETE IF UPLOADED/MODIFIED OVER 5 MINS AGO
-                    os.remove(item_path)
+        output_folder_paths = [os.path.join('mlb_showdown_bot', 'output')]
+        flask_output_path = os.path.join('static', 'output')
+        if os.path.isdir(flask_output_path):
+            output_folder_paths.append(flask_output_path)
+        
+        for folder_path in output_folder_paths:
+            for item in os.listdir(folder_path):
+                if item != self.image_name and item != '.gitkeep':
+                    item_path = os.path.join(folder_path, item)
+                    is_file_stale = self.__is_file_over_5_mins_old(item_path)
+                    if is_file_stale:
+                        # DELETE IF UPLOADED/MODIFIED OVER 5 MINS AGO
+                        os.remove(item_path)
 
-        # UPLOADED IMAGES
+        # UPLOADED IMAGES (PACKAGE)
         for item in os.listdir(os.path.join('mlb_showdown_bot', 'uploads')):
             if item != '.gitkeep':
                 # CHECK TO SEE IF ITEM WAS MODIFIED MORE THAN 5 MINS AGO.

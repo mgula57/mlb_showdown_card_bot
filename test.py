@@ -6,6 +6,7 @@ parser.add_argument('-c','--context', help='The showdown set meta to use (2000-2
 parser.add_argument('-t','--type', help='Choose either Hitter or Pitcher to test',default='Hitter')
 parser.add_argument('-cb','--is_current_baseline', action='store_true', help='Set to True to test for accuracy of current baseline weights, otherwise iterates through all possible weights')
 parser.add_argument('-ex','--exclude_volatile', action='store_true', help='Set to True to leave out categories such as out results and 1b+ from tests')
+parser.add_argument('-pts','--only_pts', action='store_true', help='Set to True to only test for point value.')
 args = parser.parse_args()
 
 if __name__ == "__main__":
@@ -13,4 +14,5 @@ if __name__ == "__main__":
     analyze_baseline_weights(context=int(args.context), 
                              type=args.type, 
                              is_testing_current_baseline=args.is_current_baseline,
-                             ignore_volatile_categories=args.exclude_volatile)
+                             ignore_volatile_categories=args.exclude_volatile,
+                             is_pts_only=args.only_pts)

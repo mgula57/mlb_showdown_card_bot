@@ -9,7 +9,7 @@ from pathlib import Path
 from .showdown_set_accuracy import ShowdownSetAccuracy
 import mlb_showdown_bot.showdown_constants as sc
 
-def analyze_baseline_weights(context,type,is_testing_current_baseline=False,ignore_volatile_categories=False):
+def analyze_baseline_weights(context,type,is_testing_current_baseline=False,ignore_volatile_categories=False, is_pts_only=False):
     """Calculate accuracy of the output produced given a set of baseline weights compared to 
        original Wizards set.
 
@@ -31,7 +31,7 @@ def analyze_baseline_weights(context,type,is_testing_current_baseline=False,igno
     except FileNotFoundError:
         real_player_stats_cache = pd.DataFrame(columns=['NameAndYear'])
     wotc_player_cards = wotc_player_cards[(wotc_player_cards.Year == context) & (wotc_player_cards.Set == 'BS') & (wotc_player_cards.Type == type)]
-    totalPlayersInSet = len(wotc_player_cards)
+    num_players_in_set = len(wotc_player_cards)
 
     # TEST EITHER CURRENT BASELINE, OR TEST MULTIPLE BASELINE COMBINATIONS
     if is_testing_current_baseline:
@@ -52,6 +52,7 @@ def analyze_baseline_weights(context,type,is_testing_current_baseline=False,igno
     pcts = {}
     perfect = {}
     categories = {}
+    categories_above_below = {}
     for combo in combinations:
 
         print('---{}/{}---'.format(current_index, num_combos), end='\r')
@@ -60,19 +61,23 @@ def analyze_baseline_weights(context,type,is_testing_current_baseline=False,igno
                                            wotc_card_outputs=wotc_player_cards, 
                                            command_control_combo=combo, 
                                            is_only_command_outs_accuracy=False,
-                                           ignore_volatile_categories=ignore_volatile_categories)
-        pctsAdded, numPerfect, categoryData = set_accuracy.calc_set_accuracy()
+                                           ignore_volatile_categories=ignore_volatile_categories,
+                                           is_pts_only=is_pts_only)
+        pcts_added, num_perfect, category_data, category_above_below = set_accuracy.calc_set_accuracy()
         key = '{}-{}'.format(round(combo[0],1),round(combo[1],1))
-        pcts[key] = pctsAdded / totalPlayersInSet
-        perfect[key] = numPerfect / totalPlayersInSet
-        categories[key] = categoryData
+        pcts[key] = pcts_added / num_players_in_set
+        perfect[key] = num_perfect / num_players_in_set
+        categories[key] = category_data
+        categories_above_below[key] = category_above_below
         current_index += 1
 
-    sortedAccuracy = sorted(pcts.items(), key=operator.itemgetter(1), reverse=True)
-    sortedPerfect = sorted(perfect.items(), key=operator.itemgetter(1),reverse=True)
-    print('Accuracy:')
-    pprint(sortedAccuracy[:5])
-    print('Perfect:')
-    pprint(sortedPerfect[:5])
-    print('Category Breakdown:')
+    sorted_accuracy = sorted(pcts.items(), key=operator.itemgetter(1), reverse=True)
+    sorted_perfect = sorted(perfect.items(), key=operator.itemgetter(1),reverse=True)
+    print('-------------------- Accuracy --------------------')
+    pprint(sorted_accuracy[:5])
+    print('-------------------- Perfect --------------------')
+    pprint(sorted_perfect[:5])
+    print('-------------------- Category Breakdown --------------------')
     pprint(categories)
+    print('-------------------- Category Above/Below --------------------')
+    pprint(categories_above_below)
