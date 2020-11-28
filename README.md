@@ -62,7 +62,7 @@ python main.py -n "Mike Trout" -c 2004 -y 2020
 
 ### Player Identification
 
-At minimum, the bot takes a player's NAME and SEASON as inputs. The first step is identifying which player the user is trying to create a card for. Because there has been around 20,000 unique players in the history of the MLB, there are cases of multiple players sharing the same name (ex: Frank Thomas _(1951-1966)_ and Frank Thomas _(1990-2008)_).
+At minimum, the bot takes a player's NAME and SEASON as inputs. The first step is identifying which player the user is trying to create a card for. Because there have been around 20,000 unique players in the history of the MLB, there are cases of multiple players sharing the same name (ex: Frank Thomas _(1951-1966)_ and Frank Thomas _(1990-2008)_).
 
 To solve for this, the bot first searches the phrase **"baseball reference {name} {year}"**. (Ex: "baseball reference frank thomas 1994"). Using Google's indexing algorithm, the bot chooses the first search result and derives the player's unique baseball reference id from it. 
 
@@ -142,16 +142,16 @@ The number of results (out of 20 slots) assigned to each category are calculated
 
 **Important caveats:** 
 
-* Stats are normalized to 400 Plate Appearances to mirror the 400 possible showdown rolls combinations (_20 (Pitch) * 20 (Swing)_).
+* Stats are normalized to 400 Plate Appearances to mirror the 400 possible showdown roll combinations (_20 (Pitch) * 20 (Swing)_).
 * FB, GB, PU are limited to OUT constraints. They use a different formula involving **Ground/Air Out Ratio** and **Infield FB Pct**.
-* 1B+ is determined by diving stolen bases per 400 PA by 10 (Should be changed to be more dynamic in the future).
+* 1B+ is determined by dividing stolen bases per 400 PA by 10 (Should be changed to be more dynamic in the future).
 * 1B is filled with the slots remaining after all other categories are populated.
 
 ### Selecting Most Accurate Chart
 
 Now that a chart has been generated for each **Command/Out** combination, the bot has all the required datapoints needed to determine accuracy. 
 
-The player's **Command** and chart values are used to estimate the player's _in-game_ statline for 400 Plate Appearances. That statline is then compared to the player's _real life_ statline per 400 Plate Appearances. Some stat categories are given more weight than others (ex: _Batting Avg_ accuracy is weighted more heavily than _2B_ accuracy). _These 2 statlines are displayed in both website and CLI outputs._
+The player's **Command** and chart values are used to estimate the player's _in-game_ statline for 400 Plate Appearances. That statline is then compared to the player's _real life_ statline per 400 Plate Appearances. Some stat categories are given more weight than others (ex: _Batting Avg_ accuracy is weighted more heavily than _2B_ accuracy). _Both real and in-game statlines are displayed in website and CLI outputs._
 
 **The chart with the highest aggregate accuracy is chosen as the final chart returned by the bot.**
 
@@ -175,9 +175,9 @@ Ex: David Wright 2007 (+4 TZR)
 
 #### _Pitchers_
 Pitchers fall under the following categories
-1. STARTER - >65% of pitcher's appearances were starts
-2. RELIEVER - <=65 % of pitcher's appearances were in relief
-3. CLOSER - pitcher had at least 10 saves
+1. STARTER: >65% of pitcher's appearances were starts
+2. RELIEVER: <=65 % of pitcher's appearances were in relief
+3. CLOSER: pitcher had at least 10 saves
 
 ### **Speed**
 

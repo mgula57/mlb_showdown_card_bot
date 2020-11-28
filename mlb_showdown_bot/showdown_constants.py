@@ -90,16 +90,16 @@ BASELINE_PITCHER = {
         'hr': 0.2
     },
     '2005': {
-        'command': 4.0,
-        'outs': 16.5,
+        'command': 4.2,
+        'outs': 16.6,
         'pu': 2.01,
         'so': 4.31,
         'gb': 6.42,
         'fb': 3.45,
         'bb': 1.0,
-        '1b': 2.11,
+        '1b': 2.05,
         '2b': 0.65,
-        '3b': 0.00,
+        '3b': 0.02,
         'hr': 0.15
     }
 }
@@ -167,33 +167,33 @@ BASELINE_HITTER = {
         'hr': 1.4
     },
     '2004': {
-        'command': 10.47,
-        'outs': 6.11,
+        'command': 9.8,
+        'outs': 6.0,
         'pu': 0,
         'so': 1.46,
         'gb': 2.54,
         'fb': 2.11,
-        'bb': 3.65,
-        '1b': 6.28,
-        '1b+': 0.42,
-        '2b': 2.07,
+        'bb': 3.0,
+        '1b': 6.59,
+        '1b+': 0.12,
+        '2b': 1.65,
         '3b': 0.17,
-        'hr': 1.29
+        'hr': 1.4
     },
     '2005': {
-        'command': 10.21,
-        'outs': 6.09,
+        'command': 9.85,
+        'outs': 6.4,
         'pu': 0,
-        'so': 1.44,
-        'gb': 2.51,
-        'fb': 2.14,
-        'bb': 3.67,
-        '1b': 6.33,
-        '1b+': 0.45,
-        '2b': 2.04,
-        '3b': 0.11,
-        'hr': 1.31
-    }
+        'so': 1.66,
+        'gb': 2.54,
+        'fb': 2.11,
+        'bb': 3.1,
+        '1b': 5.9,
+        '1b+': 0.12,
+        '2b': 1.3,
+        '3b': 0.17,
+        'hr': 1.4
+    },
 }
 
 """
@@ -328,48 +328,44 @@ POINT_CATEGORY_WEIGHTS = {
         'position_player': {
             'defense': 80,
             'speed': 70,
-            'onbase': 250,
-            'average': 150,
-            'slugging': 100,
+            'onbase': 270,
+            'average': 160,
+            'slugging': 110,
             'home_runs': 50
         },
         'starting_pitcher': {
-            'ip': 70,
-            'onbase': 380,
-            'average': 100,
-            'strikeouts': 40,
-            'slugging': 110
+            'ip': 90,
+            'onbase': 410,
+            'average': 150,
+            'slugging': 160
         },
         'relief_pitcher': {
-            'ip': 70,
-            'onbase': 180,
-            'average': 60,
-            'strikeouts': 10,
-            'slugging': 65
+            'ip': 50,
+            'onbase': 140,
+            'average': 50,
+            'slugging': 55
         }
     },
     '2001': {
         'position_player': {
-            'defense': 80,
-            'speed': 70,
-            'onbase': 250,
-            'average': 150,
-            'slugging': 100,
-            'home_runs': 50
+            'defense': 70,
+            'speed': 60,
+            'onbase': 220,
+            'average': 120,
+            'slugging': 80,
+            'home_runs': 40
         },
         'starting_pitcher': {
-            'ip': 70,
-            'onbase': 380,
-            'average': 100,
-            'strikeouts': 40,
-            'slugging': 110
+            'ip': 100,
+            'onbase': 410,
+            'average': 150,
+            'slugging': 160
         },
         'relief_pitcher': {
-            'ip': 70,
-            'onbase': 180,
+            'ip': 60,
+            'onbase': 160,
             'average': 60,
-            'strikeouts': 10,
-            'slugging': 65
+            'slugging': 70
         }
     },
     '2002': {
@@ -377,44 +373,41 @@ POINT_CATEGORY_WEIGHTS = {
             'defense': 80,
             'speed': 70,
             'onbase': 250,
-            'average': 150,
-            'slugging': 100,
-            'home_runs': 50
+            'average': 130,
+            'slugging': 110,
+            'home_runs': 40
         },
         'starting_pitcher': {
             'ip': 70,
-            'onbase': 380,
-            'average': 100,
-            'strikeouts': 40,
-            'slugging': 110
+            'onbase': 400,
+            'average': 110,
+            'slugging': 120
         },
         'relief_pitcher': {
-            'ip': 70,
-            'onbase': 180,
-            'average': 60,
-            'strikeouts': 10,
-            'slugging': 65
+            'ip': 40,
+            'onbase': 100,
+            'average': 50,
+            'slugging': 55
         }
     },
     '2003': {
         'position_player': {
-            'defense': 80,
-            'speed': 70,
-            'onbase': 250,
-            'average': 150,
+            'defense': 70,
+            'speed': 60,
+            'onbase': 230,
+            'average': 120,
             'slugging': 100,
             'home_runs': 50
         },
         'starting_pitcher': {
-            'ip': 70,
-            'onbase': 380,
+            'ip': 60,
+            'onbase': 360,
             'average': 100,
-            'strikeouts': 40,
             'slugging': 110
         },
         'relief_pitcher': {
-            'ip': 70,
-            'onbase': 180,
+            'ip': 60,
+            'onbase': 130,
             'average': 60,
             'strikeouts': 10,
             'slugging': 65
@@ -422,51 +415,301 @@ POINT_CATEGORY_WEIGHTS = {
     },
     '2004': {
         'position_player': {
-            'defense': 80,
-            'speed': 70,
-            'onbase': 250,
-            'average': 150,
-            'slugging': 100,
-            'home_runs': 50
+            'defense': 70,
+            'speed': 60,
+            'onbase': 180,
+            'average': 100,
+            'slugging': 90,
+            'home_runs': 45
         },
         'starting_pitcher': {
-            'ip': 70,
-            'onbase': 380,
-            'average': 100,
-            'strikeouts': 40,
-            'slugging': 110
+            'ip': 60,
+            'onbase': 300,
+            'average': 125,
+            'slugging': 125
         },
         'relief_pitcher': {
-            'ip': 70,
-            'onbase': 180,
-            'average': 60,
-            'strikeouts': 10,
-            'slugging': 65
+            'ip': 50,
+            'onbase': 110,
+            'average': 55,
+            'slugging': 60
         }
     },
     '2005': {
         'position_player': {
-            'defense': 80,
-            'speed': 70,
-            'onbase': 250,
-            'average': 150,
+            'defense': 70,
+            'speed': 60,
+            'onbase': 200,
+            'average': 110,
             'slugging': 100,
-            'home_runs': 50
+            'home_runs': 45
         },
         'starting_pitcher': {
-            'ip': 70,
-            'onbase': 380,
+            'ip': 60,
+            'onbase': 330,
             'average': 100,
-            'strikeouts': 40,
             'slugging': 110
         },
         'relief_pitcher': {
-            'ip': 70,
-            'onbase': 180,
+            'ip': 60,
+            'onbase': 125,
             'average': 60,
-            'strikeouts': 10,
             'slugging': 65
         }
+    }
+}
+
+"""
+POINT CATEGORY RANGES
+  - MIN AND MAX VALUES FOR EACH CATEGORY USED TO PRODUCE POINT VALUE.
+  - USED TO CALCULATE A PLAYER'S PERCENTILE IN THAT CATEGORY.
+"""
+ONBASE_PCT_RANGE = {
+    '2000': {
+        'pitcher': {
+            'min': 0.250,
+            'max': 0.400
+        },
+        'hitter': {
+            'min': 0.250,
+            'max': 0.450
+        }
+    },
+    '2001': {
+        'pitcher': {
+            'min': 0.240,
+            'max': 0.400
+        },
+        'hitter': {
+            'min': 0.250,
+            'max': 0.450
+        }
+    },
+    '2002': {
+        'pitcher': {
+            'min': 0.270,
+            'max': 0.360
+        },
+        'hitter': {
+            'min': 0.250,
+            'max': 0.450
+        }
+    },
+    '2003': {
+        'pitcher': {
+            'min': 0.240,
+            'max': 0.400
+        },
+        'hitter': {
+            'min': 0.270,
+            'max': 0.425
+        }
+    },
+    '2004': {
+        'pitcher': {
+            'min': 0.240,
+            'max': 0.380
+        },
+        'hitter': {
+            'min': 0.280,
+            'max': 0.410
+        }
+    },
+    '2005': {
+        'pitcher': {
+            'min': 0.240,
+            'max': 0.380
+        },
+        'hitter': {
+            'min': 0.280,
+            'max': 0.410
+        }
+    }
+}
+BATTING_AVG_RANGE = {
+    '2000': {
+        'pitcher': {
+            'min': 0.225,
+            'max': 0.300
+        },
+        'hitter': {
+            'min': 0.225,
+            'max': 0.330
+        }
+    },
+    '2001': {
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'hitter': {
+            'min': 0.225,
+            'max': 0.330
+        }
+    },
+    '2002': {
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'hitter': {
+            'min': 0.225,
+            'max': 0.330
+        }
+    },
+    '2003': {
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'hitter': {
+            'min': 0.245,
+            'max': 0.320
+        }
+    },
+    '2004': {
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.280
+        },
+        'hitter': {
+            'min': 0.245,
+            'max': 0.315
+        }
+    },
+    '2005': {
+        'pitcher': {
+            'min': 0.210,
+            'max': 0.280
+        },
+        'hitter': {
+            'min': 0.245,
+            'max': 0.330
+        }
+    }
+}
+SLG_RANGE = {
+    '2000': {
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.500
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
+    },
+    '2001': {
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.500
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
+    },
+    '2002': {
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.500
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
+    },
+    '2003': {
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.500
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
+    },
+    '2004': {
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.480
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
+    },
+    '2005': {
+        'pitcher': {
+            'min': 0.330,
+            'max': 0.480
+        },
+        'hitter': {
+            'min': 0.350,
+            'max': 0.550
+        }
+    }
+}
+SPEED_RANGE = {
+    '2000': {
+        'min': 10,
+        'max': 20
+    },
+    '2001': {
+        'min': 10,
+        'max': 20
+    },
+    '2002': {
+        'min': 10,
+        'max': 20
+    },
+    '2003': {
+        'min': 10,
+        'max': 20
+    },
+    '2004': {
+        'min': 10,
+        'max': 20
+    },
+    '2005': {
+        'min': 10,
+        'max': 20
+    },
+}
+IP_RANGE = {
+    'starting_pitcher': {
+        'min': 5,
+        'max': 8
+    },
+    'relief_pitcher': {
+        'min': 1,
+        'max': 2
+    }
+}
+HR_RANGE = {
+    '2000': {
+        'min': 10,
+        'max': 35
+    },
+    '2001': {
+        'min': 10,
+        'max': 35
+    },
+    '2002': {
+        'min': 10,
+        'max': 35
+    },
+    '2003': {
+        'min': 10,
+        'max': 35
+    },
+    '2004': {
+        'min': 10,
+        'max': 35
+    },
+    '2005': {
+        'min': 10,
+        'max': 35
     }
 }
 
@@ -557,260 +800,6 @@ POSITION_DEFENSE_RANGE = {
 }
 
 """
-POINT CATEGORY RANGES
-  - MIN AND MAX VALUES FOR EACH CATEGORY USED TO PRODUCE POINT VALUE.
-  - USED TO CALCULATE A PLAYER'S PERCENTILE IN THAT CATEGORY.
-"""
-ONBASE_PCT_RANGE = {
-    '2000': {
-        'pitcher': {
-            'min': 0.240,
-            'max': 0.400
-        },
-        'hitter': {
-            'min': 0.250,
-            'max': 0.450
-        }
-    },
-    '2001': {
-        'pitcher': {
-            'min': 0.240,
-            'max': 0.400
-        },
-        'hitter': {
-            'min': 0.250,
-            'max': 0.450
-        }
-    },
-    '2002': {
-        'pitcher': {
-            'min': 0.240,
-            'max': 0.400
-        },
-        'hitter': {
-            'min': 0.250,
-            'max': 0.450
-        }
-    },
-    '2003': {
-        'pitcher': {
-            'min': 0.240,
-            'max': 0.400
-        },
-        'hitter': {
-            'min': 0.250,
-            'max': 0.450
-        }
-    },
-    '2004': {
-        'pitcher': {
-            'min': 0.240,
-            'max': 0.400
-        },
-        'hitter': {
-            'min': 0.250,
-            'max': 0.450
-        }
-    },
-    '2005': {
-        'pitcher': {
-            'min': 0.240,
-            'max': 0.400
-        },
-        'hitter': {
-            'min': 0.250,
-            'max': 0.450
-        }
-    }
-}
-BATTING_AVG_RANGE = {
-    '2000': {
-        'pitcher': {
-            'min': 0.210,
-            'max': 0.290
-        },
-        'hitter': {
-            'min': 0.225,
-            'max': 0.330
-        }
-    },
-    '2001': {
-        'pitcher': {
-            'min': 0.210,
-            'max': 0.290
-        },
-        'hitter': {
-            'min': 0.225,
-            'max': 0.330
-        }
-    },
-    '2002': {
-        'pitcher': {
-            'min': 0.210,
-            'max': 0.290
-        },
-        'hitter': {
-            'min': 0.225,
-            'max': 0.330
-        }
-    },
-    '2003': {
-        'pitcher': {
-            'min': 0.210,
-            'max': 0.290
-        },
-        'hitter': {
-            'min': 0.225,
-            'max': 0.330
-        }
-    },
-    '2004': {
-        'pitcher': {
-            'min': 0.210,
-            'max': 0.290
-        },
-        'hitter': {
-            'min': 0.225,
-            'max': 0.330
-        }
-    },
-    '2005': {
-        'pitcher': {
-            'min': 0.210,
-            'max': 0.290
-        },
-        'hitter': {
-            'min': 0.225,
-            'max': 0.330
-        }
-    }
-}
-SLG_RANGE = {
-    '2000': {
-        'pitcher': {
-            'min': 0.330,
-            'max': 0.500
-        },
-        'hitter': {
-            'min': 0.350,
-            'max': 0.550
-        }
-    },
-    '2001': {
-        'pitcher': {
-            'min': 0.330,
-            'max': 0.500
-        },
-        'hitter': {
-            'min': 0.350,
-            'max': 0.550
-        }
-    },
-    '2002': {
-        'pitcher': {
-            'min': 0.330,
-            'max': 0.500
-        },
-        'hitter': {
-            'min': 0.350,
-            'max': 0.550
-        }
-    },
-    '2003': {
-        'pitcher': {
-            'min': 0.330,
-            'max': 0.500
-        },
-        'hitter': {
-            'min': 0.350,
-            'max': 0.550
-        }
-    },
-    '2004': {
-        'pitcher': {
-            'min': 0.330,
-            'max': 0.500
-        },
-        'hitter': {
-            'min': 0.350,
-            'max': 0.550
-        }
-    },
-    '2005': {
-        'pitcher': {
-            'min': 0.330,
-            'max': 0.500
-        },
-        'hitter': {
-            'min': 0.350,
-            'max': 0.550
-        }
-    }
-}
-SPEED_RANGE = {
-    '2000': {
-        'min': 10,
-        'max': 20
-    },
-    '2001': {
-        'min': 10,
-        'max': 20
-    },
-    '2002': {
-        'min': 10,
-        'max': 20
-    },
-    '2003': {
-        'min': 10,
-        'max': 20
-    },
-    '2004': {
-        'min': 10,
-        'max': 20
-    },
-    '2005': {
-        'min': 10,
-        'max': 20
-    },
-}
-IP_RANGE = {
-    'starting_pitcher': {
-        'min': 5,
-        'max': 8
-    },
-    'relief_pitcher': {
-        'min': 1,
-        'max': 2
-    }
-}
-HR_RANGE = {
-    '2000': {
-        'min': 10,
-        'max': 35
-    },
-    '2001': {
-        'min': 10,
-        'max': 35
-    },
-    '2002': {
-        'min': 10,
-        'max': 35
-    },
-    '2003': {
-        'min': 10,
-        'max': 35
-    },
-    '2004': {
-        'min': 10,
-        'max': 35
-    },
-    '2005': {
-        'min': 10,
-        'max': 35
-    }
-}
-
-"""
 PLAYER EXCLUDED WHEN TESTING SET ACCURACY. MOSTLY DUE TO NOT HAVING 
 STATS FOR PREVIOUS SEASON.
 """
@@ -838,7 +827,10 @@ EXCLUDED_PLAYERS_FOR_TESTING = {
 
     ],
     '2005': [
-
+        'Wily MoPena',
+        'Tim Spooneybarger',
+        'Runelvys Hernandez',
+        'Chan HoPark',
     ],
 }
 
@@ -920,8 +912,8 @@ TEST_COMMAND_RANGE_PITCHER = {
         'max': 4.4
     },
     '2005': {
-        'min': 3.7,
-        'max': 4.2
+        'min': 3.8,
+        'max': 4.3
     }
 }
 TEST_OUT_RANGE_PITCHER = {
@@ -947,7 +939,7 @@ TEST_OUT_RANGE_PITCHER = {
     },
     '2005': {
         'min': 15.9,
-        'max': 16.6
+        'max': 17.1
     }
 }
 
