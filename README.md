@@ -1,7 +1,7 @@
 ![Image](./static/interface/ShowdownLogo.png)
 # Showdown Bot
 
-[Showdown Bot](https://showdownbot.com) is the most simple way of creating custom MLB Showdown cards. Simply enter a player's **name**, **season**, and **image**. The Showdown Bot takes care of the rest. 
+[Showdown Bot](https://showdownbot.com) is the simplest way of creating custom MLB Showdown cards. Simply enter a player's **name**, **season**, and **image**. The Showdown Bot takes care of the rest. 
 
 ![](./static/interface/Example.gif)
 
@@ -12,7 +12,6 @@
 * [Getting Started](#getting-started)
     * [Prerequisites](#prerequisites)
     * [Installation](#installation)
-    * [Running Locally](#running-locally)
 * [How it Works](#how-it-works)
     * [Player Identification](#player-identification)
     * [Gather Player Data](#gather-player-data)
@@ -33,26 +32,45 @@
 * [Python3](https://www.python.org/downloads/)
 
 * (Optional) [pyenv](https://github.com/pyenv/pyenv) or [virtualenv](https://virtualenv.pypa.io/en/latest/)
+
 ### Installation
 
-1. Clone the repo
+MLB Showdown Bot is available on PyPi
+
 ```sh
-git clone https://github.com/mgula57/mlb_showdown_card_bot.git
-```
-2. Install dependencies
-```sh
-pip install -r requirements.txt
+pip install mlb-showdown-bot
 ```
 
-### Running Locally
+MLB Showdown Bot can be run directly from the CLI
 
-#### Run Web App
 ```sh
-python app.py
+showdownbot --name "Mike Piazza" --year 1997 --context 2001
 ```
-#### Run through CLI
-```sh 
-python main.py -n "Mike Trout" -c 2004 -y 2020 
+
+Example Python use:
+
+```python
+from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
+from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
+
+name = 'Mike Piazza'
+year = '1997'
+
+# GET PLAYER DATA
+scraper = BaseballReferenceScraper(name=name,year=year)
+statline = scraper.player_statline()
+
+# CREATE SHOWDOWN CARD 
+showdown = ShowdownPlayerCardGenerator(
+    name=name,
+    year=year,
+    stats=statline,
+    context='2001',
+    print_to_cli=True
+)
+
+# CREATE SHOWDOWN CARD IMAGE
+showdown.player_image(show=True)
 ```
 
 ----
@@ -62,7 +80,7 @@ python main.py -n "Mike Trout" -c 2004 -y 2020
 
 ### Player Identification
 
-At minimum, the bot takes a player's NAME and SEASON as inputs. The first step is identifying which player the user is trying to create a card for. Because there has been around 20,000 unique players in the history of the MLB, there are cases of multiple players sharing the same name (ex: Frank Thomas _(1951-1966)_ and Frank Thomas _(1990-2008)_).
+At minimum, the bot takes a player's NAME and SEASON as inputs. The first step is identifying which player the user is trying to create a card for. Because there have been around 20,000 unique players in the history of the MLB, there are cases of multiple players sharing the same name (ex: Frank Thomas _(1951-1966)_ and Frank Thomas _(1990-2008)_).
 
 To solve for this, the bot first searches the phrase **"baseball reference {name} {year}"**. (Ex: "baseball reference frank thomas 1994"). Using Google's indexing algorithm, the bot chooses the first search result and derives the player's unique baseball reference id from it. 
 
@@ -115,7 +133,7 @@ Each of these steps work by a using baseline opponent to project in-game outcome
         '2b': 0.73,
         '3b': 0.00,
         'hr': 0.1
-    },
+    }
 
 These baseline opponents are vital to determining the final output of the player card. Adjusting these values will change which chart the bot decides is the most accurate. Because the actual baselines used to create the original sets are unknown, these are estimations based on set averages and testing. The goal is to find the baseline weights that most closely resemble the original sets from 2000-2005.
 
@@ -142,16 +160,16 @@ The number of results (out of 20 slots) assigned to each category are calculated
 
 **Important caveats:** 
 
-* Stats are normalized to 400 Plate Appearances to mirror the 400 possible showdown rolls combinations (_20 (Pitch) * 20 (Swing)_).
+* Stats are normalized to 400 Plate Appearances to mirror the 400 possible showdown roll combinations (_20 (Pitch Roll) * 20 (Swing Roll)_).
 * FB, GB, PU are limited to OUT constraints. They use a different formula involving **Ground/Air Out Ratio** and **Infield FB Pct**.
-* 1B+ is determined by diving stolen bases per 400 PA by 10 (Should be changed to be more dynamic in the future).
+* 1B+ is determined by dividing stolen bases per 400 PA by 10 _(Should be changed to be more dynamic in the future)_.
 * 1B is filled with the slots remaining after all other categories are populated.
 
 ### Selecting Most Accurate Chart
 
 Now that a chart has been generated for each **Command/Out** combination, the bot has all the required datapoints needed to determine accuracy. 
 
-The player's **Command** and chart values are used to estimate the player's _in-game_ statline for 400 Plate Appearances. That statline is then compared to the player's _real life_ statline per 400 Plate Appearances. Some stat categories are given more weight than others (ex: _Batting Avg_ accuracy is weighted more heavily than _2B_ accuracy). _These 2 statlines are displayed in both website and CLI outputs._
+The player's **Command** and chart values are used to estimate the player's _in-game_ statline for 400 Plate Appearances. That statline is then compared to the player's _real life_ statline per 400 Plate Appearances. Some stat categories are given more weight than others (ex: _Batting Avg_ accuracy is weighted more heavily than _2B_ accuracy). _Both real and in-game statlines are displayed in website and CLI outputs._
 
 **The chart with the highest aggregate accuracy is chosen as the final chart returned by the bot.**
 
@@ -175,9 +193,9 @@ Ex: David Wright 2007 (+4 TZR)
 
 #### _Pitchers_
 Pitchers fall under the following categories
-1. STARTER - >65% of pitcher's appearances were starts
-2. RELIEVER - <=65 % of pitcher's appearances were in relief
-3. CLOSER - pitcher had at least 10 saves
+1. STARTER: >65% of pitcher's appearances were starts
+2. RELIEVER: <=65 % of pitcher's appearances were in relief
+3. CLOSER: pitcher had at least 10 saves
 
 ### **Speed**
 
@@ -229,7 +247,6 @@ _Pitchers_
 * Onbase Pct Against
 * Batting Avg Against
 * Slugging Pct Against
-* Strikeouts
 * Innings Pitched
 
 A player's point value in each category is calculated by multiplying the WEIGHT given to the category by the PERCENTILE the player placed in. 
@@ -251,5 +268,7 @@ This calculation is performed for each category. The categorical point values ar
 ## Contact the Dev
 
 You can reach out to the developer of MLB Showdown Bot through email mlbshowdownbot@gmail.com
+
+Follow MLB Showdown Bot Twitter for updates and daily card posts!
 
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/mlbshowdownbot.svg?style=social&label=Follow%20%40mlbshowdownbot)](https://twitter.com/mlbshowdownbot)
