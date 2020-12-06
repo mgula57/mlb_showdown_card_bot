@@ -294,6 +294,12 @@ class BaseballReferenceScraper:
         # STANDARD STATS
         advanced_stats.update(self.__parse_standard_stats(type, standard_table))
 
+        # IF A PLAYER PLAYED FOR MULTIPLE TEAMS IN ONE SEASON, SELECT THE LAST TEAM THEY PLAYED FOR.
+        team_id_key = 'team_ID'
+        if team_id_key in advanced_stats.keys():
+            if advanced_stats[team_id_key] == 'TOT':
+                advanced_stats[team_id_key] = self.__parse_team_after_trade(advanced_stats_soup=soup_for_advanced_stats)
+
         # RATIO STATS
         ratio_table_key = '{}_ratio.{}'.format(table_prefix,self.year)
         ratio_table = soup_for_advanced_stats.find('tr', attrs = {'class':'full','id': ratio_table_key})
@@ -378,6 +384,34 @@ class BaseballReferenceScraper:
             'GO/AO': gb_ao_ratio,
             'IF/FB': pu_ratio
         }
+
+    def __parse_team_after_trade(self, advanced_stats_soup):
+        """Parse the last team a player playe dfor in the given season.
+
+        Args:
+          advanced_stats_soup: BeautifulSoup object for advanced stats table.
+
+        Returns:
+          Team Id for last team the player played on in self.year
+        """
+
+        partial_objects_list = advanced_stats_soup.find_all('tr',attrs={'class':'partial_table'})
+        teams_list = []
+        # ITERATE THROUGH PARTIAL SEASONS
+        try:
+            for partial_object in partial_objects_list:
+                # SAVE TEAMS ONLY FOR self.year SEASON
+                object_for_this_season = partial_object.find('th',attrs={'data-stat':'year_ID', 'csk': re.compile(str(self.year))})
+                if object_for_this_season:
+                    # PARSE TEAM ID 
+                    team_id = partial_object.find('td', attrs={'data-stat':'team_ID'}).get_text()
+                    if team_id not in teams_list and team_id != '':
+                        # ADD TO TEAMS LIST
+                        teams_list.append(team_id)
+            last_team = teams_list[-1]
+            return last_team
+        except:
+            return 'TOT'
 
 # ------------------------------------------------------------------------
 # HELPER METHODS
