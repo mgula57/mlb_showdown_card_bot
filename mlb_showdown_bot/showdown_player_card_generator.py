@@ -24,7 +24,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, test_numbers=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, set_number='001', test_numbers=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -36,6 +36,7 @@ class ShowdownPlayerCardGenerator:
         self.is_super_season = is_super_season
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
+        self.set_number = set_number
         self.test_numbers = test_numbers
         self.is_running_in_flask = is_running_in_flask
 
@@ -346,7 +347,7 @@ class ShowdownPlayerCardGenerator:
         speed_raw = int(round(speed_percentile * max_speed_in_game))
         # CHANGE OUTLIERS
         speed = 8 if speed_raw < 8 else speed_raw
-        speed = 30 if speed_raw > 30 else speed
+        speed = 27 if speed_raw > 27 else speed
 
         if speed < 12:
             letter = 'C'
@@ -566,8 +567,15 @@ class ShowdownPlayerCardGenerator:
                     # CALCULATE NUM OF RESULTS
                     chart_results = (results_per_400_pa - (opponent_advantages_per_20*opponent_chart[key])) / my_advantages_per_20
                 chart_results = outs if key == 'so' and chart_results > outs else chart_results
+                chart_results = chart_results if chart_results > 0 else 0
                 # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
-                rounded_results = round(chart_results) if chart_results > 0 else 0
+                if self.is_pitcher and key == 'hr':
+                    # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
+                    # CHANGE TO ROUNDING FROM > .85 INSTEAD OF 0.5
+                    chart_results_decimal = chart_results % 1
+                    rounded_results = round(chart_results) if chart_results_decimal > 0.80 else math.floor(chart_results)
+                else:
+                    rounded_results = round(chart_results)
                 # # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
                 # rounded_results = 13 if key == 'bb' and rounded_results > 13 else rounded_results
                 chart[key] = rounded_results
@@ -1910,10 +1918,10 @@ class ShowdownPlayerCardGenerator:
         if int(self.context) <= 2002:
             # SET AND NUMBER IN SAME STRING
             set_text = self.__text_image(
-                text = '001 / 462' if self.context == '2002' else '001/462',
+                text = self.set_number,
                 size = (200, 100),
                 font = set_font,
-                alignment = "left"
+                alignment = "center"
             )
             set_text = set_text.resize((50,25), Image.ANTIALIAS)
             set_image.paste(sc.COLOR_WHITE, set_image_location, set_text)
@@ -1931,10 +1939,10 @@ class ShowdownPlayerCardGenerator:
 
             # CARD NUMBER
             number_text = self.__text_image(
-                text = '001',
+                text = self.set_number,
                 size = (150, 150),
                 font = set_font,
-                alignment = "left"
+                alignment = "center"
             )
             number_text = number_text.resize((40,40), Image.ANTIALIAS)
             number_color = sc.COLOR_BLACK if self.context == '2003' else sc.COLOR_WHITE
@@ -2020,7 +2028,7 @@ class ShowdownPlayerCardGenerator:
                 'GG': 'GOLD GLOVE',
                 'CY': 'CY YOUNG',
                 'K': str(self.stats['SO']) + ' STRIKEOUTS',
-                'RY': 'ROOKIE OF THE YEAR',
+                'RY': 'ROY',
                 'HR': str(self.stats['HR']) + ' HOMERS',
                 '20': '20 GAME WINNER'
             }
