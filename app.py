@@ -72,6 +72,7 @@ def card_creator():
     is_super_season = None
     img_url = None
     img_name = None
+    set_num = None
 
     try:
         # PARSE INPUTS
@@ -89,6 +90,8 @@ def card_creator():
         except:
             offset = 0
         img = request.args.get('img_name')
+        set_num = str(request.args.get('set_num'))
+
         # SCRAPE PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
         scraper = BaseballReferenceScraper(name=name,year=year)
@@ -97,6 +100,8 @@ def card_creator():
         is_super_season = is_ss if is_ss else False
         img_url = None if url == '' else url
         img_name = None if img == '' else img
+        set_number = '001' if set_num == '' else set_num
+
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
         showdown = ShowdownPlayerCardGenerator(
@@ -109,6 +114,7 @@ def card_creator():
             is_cooperstown=is_cooperstown,
             is_super_season=is_super_season,
             offset=offset,
+            set_number=set_number,
             is_running_in_flask=True
         )
         error = "Error - Unable to create Showdown Card Image."

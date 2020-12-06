@@ -65,6 +65,7 @@ if (files.length > 0) {
     img_name: image_name,
     cc: $('#cc').is(':checked'),
     ss: $('#ss').is(':checked'),
+    set_num: $('input[name="setnum"]').val(),
     offset: $('input[name="offset"]').val(),
         }, function(data) {
     $('#overlay').hide();
