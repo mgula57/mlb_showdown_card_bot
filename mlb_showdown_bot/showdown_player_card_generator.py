@@ -569,11 +569,11 @@ class ShowdownPlayerCardGenerator:
                 chart_results = outs if key == 'so' and chart_results > outs else chart_results
                 chart_results = chart_results if chart_results > 0 else 0
                 # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
-                if self.is_pitcher and key == 'hr':
+                if self.is_pitcher and key == 'hr' and chart_results < 1.0:
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
                     # CHANGE TO ROUNDING FROM > .85 INSTEAD OF 0.5
                     chart_results_decimal = chart_results % 1
-                    rounded_results = round(chart_results) if chart_results_decimal > 0.80 else math.floor(chart_results)
+                    rounded_results = round(chart_results) if chart_results_decimal > 0.95 else math.floor(chart_results)
                 else:
                     rounded_results = round(chart_results)
                 # # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
@@ -581,6 +581,8 @@ class ShowdownPlayerCardGenerator:
                 chart[key] = rounded_results
         
         # FILL "OUT" CATEGORIES (PU, GB, FB)
+        # MAKE SURE 'SO' DON'T FILL UP MORE THAN 5 SLOTS IF HITTER. THIS MAY CAUSE SOME STATISTICAL ANOMILIES IN MODERN YEARS.
+        chart['so'] = 5 if not self.is_pitcher and chart['so'] > 5 else chart['so']
         out_slots_remaining = outs - float(chart['so'])
         chart['pu'], chart['gb'], chart['fb'] = self.__out_results(
                                                     stats_for_400_pa['GO/AO'],
@@ -611,7 +613,7 @@ class ShowdownPlayerCardGenerator:
             'h_per_400_pa': 5.0,
             'slugging_perc': 5.0,
             'onbase_perc': 5.0,
-            'hr_per_400_pa': 3.0,
+            'hr_per_400_pa': 1.0 if self.is_pitcher else 3.0,
             'so_per_400_pa': 1.0 if self.is_pitcher else 0.1
         }
         accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(dict1=in_game_stats_for_400_pa, dict2=stats_for_400_pa, weights=weights)
