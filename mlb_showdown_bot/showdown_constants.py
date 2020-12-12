@@ -12,7 +12,7 @@ SPEED AND FIELDING
 """
 MAX_SPRINT_SPEED = 31
 MIN_SPRINT_SPEED = 23
-MAX_STOLEN_BASES = 28
+MAX_STOLEN_BASES = 26
 MIN_STOLEN_BASES = -25
 MAX_SABER_FIELDING = 18
 MIN_SABER_FIELDING = -18
@@ -1059,7 +1059,7 @@ TEXT_SIZES = {
     'chart_spacing': {
         '2000': 68,
         '2001': 68,
-        '2002': 50,
+        '2002': 52,
         '2003': 59,
         '2004': 75,
         '2005': 75
