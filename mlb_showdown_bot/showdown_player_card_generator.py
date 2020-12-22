@@ -28,7 +28,8 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.name = name
+        is_name_a_bref_id = any(char.isdigit() for char in name)
+        self.name = stats['name'] if is_name_a_bref_id else name
         self.year = year
         self.context = context
         self.stats = stats
@@ -576,8 +577,8 @@ class ShowdownPlayerCardGenerator:
                     rounded_results = round(chart_results) if chart_results_decimal > 0.95 else math.floor(chart_results)
                 else:
                     rounded_results = round(chart_results)
-                # # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
-                # rounded_results = 13 if key == 'bb' and rounded_results > 13 else rounded_results
+                # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
+                rounded_results = 12 if key == 'bb' and rounded_results > 13 else rounded_results
                 chart[key] = rounded_results
         
         # FILL "OUT" CATEGORIES (PU, GB, FB)
