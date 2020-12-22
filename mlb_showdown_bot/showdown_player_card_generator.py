@@ -28,7 +28,8 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.name = name
+        is_name_a_bref_id = any(char.isdigit() for char in name)
+        self.name = stats['name'] if is_name_a_bref_id else name
         self.year = year
         self.context = context
         self.stats = stats
@@ -154,12 +155,13 @@ class ShowdownPlayerCardGenerator:
         final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played)
 
         # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
-        if len(final_positions_in_game.items()) > 2:
-            sorted_positions = sorted(final_position_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:2]
+        position_limit = 2
+        if len(final_positions_in_game.items()) > position_limit:
+            sorted_positions = sorted(final_position_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:position_limit]
             included_positions_list = [pos[0] for pos in sorted_positions]
             filtered_final_positions_in_game = {}
             for position, value in final_positions_in_game.items():
-                # ONLY ADD IF THE POSITION IS IN THE TOP 2 BY GAMES PLAYED.
+                # ONLY ADD IF THE POSITION IS IN THE TOP N BY GAMES PLAYED.
                 if position in included_positions_list:
                     filtered_final_positions_in_game[position] = value
             final_positions_in_game = filtered_final_positions_in_game
@@ -220,7 +222,7 @@ class ShowdownPlayerCardGenerator:
                 del positions_and_games_played['LF/RF']
                 del positions_and_games_played['CF']
         # IF JUST OF
-        elif 'OF' in positions_set:
+        elif 'OF' in positions_set and ('LF/RF' in positions_set or 'CF' in positions_set):
             del positions_and_defense['OF']
             del positions_and_games_played['OF']
 
@@ -283,6 +285,14 @@ class ShowdownPlayerCardGenerator:
         percentile = (tzr-sc.MIN_SABER_FIELDING) / tzr_range
         defense_raw = percentile * max_defense_for_position
         defense = round(defense_raw) if defense_raw > 0 else 0
+        # ADD IN STATIC METRICS FOR 1B
+        if position.upper() == '1B':
+            if tzr > 15:
+                defense = 2
+            elif tzr > 0:
+                defense = 1
+            else:
+                defense = 0
 
         return defense
 
@@ -576,8 +586,8 @@ class ShowdownPlayerCardGenerator:
                     rounded_results = round(chart_results) if chart_results_decimal > 0.95 else math.floor(chart_results)
                 else:
                     rounded_results = round(chart_results)
-                # # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
-                # rounded_results = 13 if key == 'bb' and rounded_results > 13 else rounded_results
+                # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
+                rounded_results = 12 if key == 'bb' and rounded_results > 13 else rounded_results
                 chart[key] = rounded_results
         
         # FILL "OUT" CATEGORIES (PU, GB, FB)
