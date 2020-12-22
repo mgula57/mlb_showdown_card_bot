@@ -17,7 +17,8 @@ class BaseballReferenceScraper:
 
         self.name = name
         self.year = year
-        self.baseball_ref_id = self.search_google_for_b_ref_id(name, year)
+        self.is_name_a_bref_id = any(char.isdigit() for char in name)
+        self.baseball_ref_id = name.lower() if self.is_name_a_bref_id else self.search_google_for_b_ref_id(name, year)
         self.first_initial = self.baseball_ref_id[:1]
 
 # ------------------------------------------------------------------------
@@ -131,6 +132,7 @@ class BaseballReferenceScraper:
         type = self.type(positional_fielding)
         stats_dict['type'] = type
         stats_dict['hand'] = self.hand(soup_for_homepage_stats, type)
+        stats_dict['name'] = self.player_name(soup_for_homepage_stats)
         # HITTING / HITTING AGAINST
         advanced_stats = self.advanced_stats(type)
         stats_dict.update(advanced_stats)
@@ -196,6 +198,28 @@ class BaseballReferenceScraper:
             if strong_tag.text == hand_tag:
                 hand = strong_tag.next_sibling.replace('•','').rstrip()
                 return hand
+
+    def player_name(self, soup_for_homepage_stats):
+        """Parse player name from baseball reference
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats from homepage.
+
+        Raises:
+          ValueError: No player name found.
+
+        Returns:
+          'Right', 'Left', or 'Both' string.
+        """
+
+        metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
+
+        if metadata is None:
+            raise ValueError('No player name found')
+        # FIND THE ITEMPROP TAG
+        name_object = metadata.find('h1', attrs = {'itemprop': 'name'})
+        name_string = name_object.find('span').get_text()
+        return name_string
 
     def type(self, positional_fielding):
         """Guess Player Type (Pitcher or Hitter) based on games played at each position.
