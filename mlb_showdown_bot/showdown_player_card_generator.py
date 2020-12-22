@@ -221,7 +221,7 @@ class ShowdownPlayerCardGenerator:
                 del positions_and_games_played['LF/RF']
                 del positions_and_games_played['CF']
         # IF JUST OF
-        elif 'OF' in positions_set:
+        elif 'OF' in positions_set and ('LF/RF' in positions_set or 'CF' in positions_set):
             del positions_and_defense['OF']
             del positions_and_games_played['OF']
 
@@ -284,6 +284,14 @@ class ShowdownPlayerCardGenerator:
         percentile = (tzr-sc.MIN_SABER_FIELDING) / tzr_range
         defense_raw = percentile * max_defense_for_position
         defense = round(defense_raw) if defense_raw > 0 else 0
+        # ADD IN STATIC METRICS FOR 1B
+        if position.upper() == '1B':
+            if tzr > 15:
+                defense = 2
+            elif tzr > 0:
+                defense = 1
+            else:
+                defense = 0
 
         return defense
 
