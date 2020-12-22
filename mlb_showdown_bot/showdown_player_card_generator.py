@@ -155,12 +155,13 @@ class ShowdownPlayerCardGenerator:
         final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played)
 
         # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
-        if len(final_positions_in_game.items()) > 2:
-            sorted_positions = sorted(final_position_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:2]
+        position_limit = 2
+        if len(final_positions_in_game.items()) > position_limit:
+            sorted_positions = sorted(final_position_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:position_limit]
             included_positions_list = [pos[0] for pos in sorted_positions]
             filtered_final_positions_in_game = {}
             for position, value in final_positions_in_game.items():
-                # ONLY ADD IF THE POSITION IS IN THE TOP 2 BY GAMES PLAYED.
+                # ONLY ADD IF THE POSITION IS IN THE TOP N BY GAMES PLAYED.
                 if position in included_positions_list:
                     filtered_final_positions_in_game[position] = value
             final_positions_in_game = filtered_final_positions_in_game
