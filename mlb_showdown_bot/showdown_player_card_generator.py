@@ -1040,6 +1040,7 @@ class ShowdownPlayerCardGenerator:
                         * self.stat_percentile(stat=real_stats['hr_per_650_pa'],
                                                min_max_dict=sc.HR_RANGE[self.context],
                                                is_desc=self.is_pitcher)
+            self.hr_points = round(hr_points)
             points += hr_points
             # AVERAGE POINT VALUE ACROSS POSITIONS
             defense_points = 0
@@ -1049,7 +1050,14 @@ class ShowdownPlayerCardGenerator:
                     positionPts = percentile * sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['defense']
                     defense_points += positionPts
             points_per_position = defense_points / len(positions_and_defense.keys()) if len(positions_and_defense.keys()) > 0 else 1
+            self.points_per_position = round(points_per_position)
             points += points_per_position
+
+        # STORE INDIVIDUAL PT CATEGORIES
+        self.obp_points = round(obp_points)
+        self.ba_points = round(ba_points)
+        self.slg_points = round(slg_points)
+        self.spd_ip_points = round(spd_ip_points)
 
         # POINTS ARE ALWAYS ROUNDED TO TENTH
         points_to_nearest_tenth = int(round(points,-1))
@@ -1223,6 +1231,16 @@ class ShowdownPlayerCardGenerator:
             real_stats_str = ' {}: {:>4}'.format(cleaned_category,self.stats[cleaned_category])
             results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, real_stats_str)
 
+        # DISPLAY INDIVIDUAL PT CATEGORIES
+        pt_category_string = 'OBP:{obp}  BA:{ba}  SLG:{slg}  SPD/IP:{spd_ip}'.format(
+            obp = self.obp_points,
+            ba = self.ba_points,
+            slg = self.slg_points,
+            spd_ip = self.spd_ip_points
+        )
+        if not self.is_pitcher:
+            pt_category_string += '  HR:{hr}  DEF:{defense}'.format(hr=self.hr_points,defense=self.points_per_position)
+
         # NOT USING DOCSTRING FOR FORMATTING REASONS
         card_as_string = (
             '***********************************************\n' + 
@@ -1234,6 +1252,7 @@ class ShowdownPlayerCardGenerator:
             '{ip_or_speed}\n' +
             '{icons}\n' +
             '{points} PT.\n' +
+            '{pts_per_category}\n' +
             '\n' +
             '{command_header}: {command}\n' +
             '{chart}\n' +
@@ -1255,6 +1274,7 @@ class ShowdownPlayerCardGenerator:
             ip_or_speed = ip_or_speed,
             icons = icon_string,
             points = str(self.points),
+            pts_per_category = pt_category_string,
             command_header = 'CONTROL' if self.is_pitcher else 'ONBASE',
             command=self.chart['command'],
             chart = chart_string,

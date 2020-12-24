@@ -335,9 +335,9 @@ POINT_CATEGORY_WEIGHTS = {
         },
         'starting_pitcher': {
             'ip': 90,
-            'onbase': 410,
-            'average': 150,
-            'slugging': 160
+            'onbase': 350,
+            'average': 140,
+            'slugging': 140
         },
         'relief_pitcher': {
             'ip': 50,
@@ -356,10 +356,10 @@ POINT_CATEGORY_WEIGHTS = {
             'home_runs': 40
         },
         'starting_pitcher': {
-            'ip': 100,
-            'onbase': 410,
-            'average': 150,
-            'slugging': 160
+            'ip': 90,
+            'onbase': 350,
+            'average': 130,
+            'slugging': 130
         },
         'relief_pitcher': {
             'ip': 60,
@@ -468,7 +468,7 @@ ONBASE_PCT_RANGE = {
     '2000': {
         'pitcher': {
             'min': 0.250,
-            'max': 0.400
+            'max': 0.410
         },
         'hitter': {
             'min': 0.250,
@@ -477,8 +477,8 @@ ONBASE_PCT_RANGE = {
     },
     '2001': {
         'pitcher': {
-            'min': 0.240,
-            'max': 0.400
+            'min': 0.260,
+            'max': 0.410
         },
         'hitter': {
             'min': 0.250,
@@ -529,7 +529,7 @@ ONBASE_PCT_RANGE = {
 BATTING_AVG_RANGE = {
     '2000': {
         'pitcher': {
-            'min': 0.225,
+            'min': 0.210,
             'max': 0.300
         },
         'hitter': {
