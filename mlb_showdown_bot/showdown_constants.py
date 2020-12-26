@@ -335,9 +335,9 @@ POINT_CATEGORY_WEIGHTS = {
         },
         'starting_pitcher': {
             'ip': 90,
-            'onbase': 410,
-            'average': 150,
-            'slugging': 160
+            'onbase': 350,
+            'average': 140,
+            'slugging': 140
         },
         'relief_pitcher': {
             'ip': 50,
@@ -356,10 +356,10 @@ POINT_CATEGORY_WEIGHTS = {
             'home_runs': 40
         },
         'starting_pitcher': {
-            'ip': 100,
-            'onbase': 410,
-            'average': 150,
-            'slugging': 160
+            'ip': 90,
+            'onbase': 350,
+            'average': 130,
+            'slugging': 130
         },
         'relief_pitcher': {
             'ip': 60,
@@ -468,7 +468,7 @@ ONBASE_PCT_RANGE = {
     '2000': {
         'pitcher': {
             'min': 0.250,
-            'max': 0.400
+            'max': 0.410
         },
         'hitter': {
             'min': 0.250,
@@ -477,8 +477,8 @@ ONBASE_PCT_RANGE = {
     },
     '2001': {
         'pitcher': {
-            'min': 0.240,
-            'max': 0.400
+            'min': 0.260,
+            'max': 0.410
         },
         'hitter': {
             'min': 0.250,
@@ -529,7 +529,7 @@ ONBASE_PCT_RANGE = {
 BATTING_AVG_RANGE = {
     '2000': {
         'pitcher': {
-            'min': 0.225,
+            'min': 0.210,
             'max': 0.300
         },
         'hitter': {
@@ -971,12 +971,12 @@ IMAGE_LOCATIONS = {
         '2005': (276,1605),
     },
     'chart': {
-        '2000p': (981,1350),
-        '2000h': (981,1332),
-        '2001p': (981,1350),
-        '2001h': (981,1332),
-        '2002': (948,1605),
-        '2003': (981,1533),
+        '2000p': (981,1335),
+        '2000h': (981,1317),
+        '2001p': (981,1335),
+        '2001h': (981,1317),
+        '2002': (948,1593),
+        '2003': (981,1518),
         '2004': (0,1779),
         '2005': (0,1779),
     },
@@ -1049,18 +1049,18 @@ IMAGE_SIZES = {
 """ WIDTH AND HEIGHT TUPLES FOR EACH TEXT IMAGE COMPONENT """
 TEXT_SIZES = {
     'chart': {
-        '2000': 144,
-        '2001': 144,
+        '2000': 148,
+        '2001': 148,
         '2002': 117,
-        '2003': 144,
+        '2003': 145,
         '2004': 144,
         '2005': 144
     },
     'chart_spacing': {
-        '2000': 68,
-        '2001': 68,
-        '2002': 52,
-        '2003': 59,
+        '2000': 31,
+        '2001': 31,
+        '2002': 25,
+        '2003': 26,
         '2004': 75,
         '2005': 75
     },

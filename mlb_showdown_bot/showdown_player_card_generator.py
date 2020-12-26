@@ -29,7 +29,8 @@ class ShowdownPlayerCardGenerator:
 
         # ASSIGNED ATTRIBUTES
         is_name_a_bref_id = any(char.isdigit() for char in name)
-        self.name = stats['name'] if is_name_a_bref_id else name
+        has_special_chars = '(' in name
+        self.name = stats['name'] if is_name_a_bref_id or has_special_chars else name
         self.year = year
         self.context = context
         self.stats = stats
@@ -131,25 +132,29 @@ class ShowdownPlayerCardGenerator:
         # PARSE POSITION NAME, GAMES, AND TZ RATING AND CONVERT TO IN-GAME
         for position_index in range(1, num_positions+1):
             position_raw = defensive_stats['Position{}'.format(position_index)]
-            games_at_position = int(defensive_stats['gPosition{}'.format(position_index)])
-            position = self.__position_name_in_game(position=position_raw,
-                                                    num_positions=num_positions,
-                                                    position_appearances=games_at_position,
-                                                    games_played=games_played,
-                                                    games_started=games_started,
-                                                    saves=saves)
-            positions_and_games_played[position] = games_at_position
-            # IN-GAME RATING AT
-            if position is not None:
-                if not self.is_pitcher:
-                    try:
-                        total_zone_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
-                    except:
-                        total_zone_rating = 0
-                    defense = self.__convert_tzr_to_in_game_defense(position=position,tzr=total_zone_rating)
-                    positions_and_defense[position] = defense
-                else:
-                    positions_and_defense[position] = 0
+            # CHECK IF POSITION MATCHES PLAYER TYPE
+            is_valid_position = self.is_pitcher == ('P' == position_raw)
+            if is_valid_position:
+                games_at_position = int(defensive_stats['gPosition{}'.format(position_index)])
+                position = self.__position_name_in_game(position=position_raw,
+                                                        num_positions=num_positions,
+                                                        position_appearances=games_at_position,
+                                                        games_played=games_played,
+                                                        games_started=games_started,
+                                                        saves=saves)
+                positions_and_games_played[position] = games_at_position
+                # IN-GAME RATING AT
+                if position is not None:
+                    if not self.is_pitcher:
+                        try:
+                            total_zone_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
+                            defense = self.__convert_tzr_to_in_game_defense(position=position,tzr=total_zone_rating)
+                        except:
+                            total_zone_rating = 0
+                            defense = 0
+                        positions_and_defense[position] = defense
+                    else:
+                        positions_and_defense[position] = 0
         
         # COMBINE ALIKE IN-GAME POSITIONS (LF/RF, OF, IF, ...)
         final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played)
@@ -646,7 +651,9 @@ class ShowdownPlayerCardGenerator:
             # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
             gb_outs = round((out_slots_remaining / (gb_pct + 1)) * gb_pct)
             air_outs = out_slots_remaining - gb_outs
-            pu_outs = 0.0 if not self.is_pitcher else round(air_outs*popup_pct)
+            # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
+            pu_multiplier = 1.3
+            pu_outs = 0.0 if not self.is_pitcher else math.ceil(air_outs*popup_pct*pu_multiplier)
             fb_outs = air_outs-pu_outs
         else:
             fb_outs = 0.0
@@ -1040,6 +1047,7 @@ class ShowdownPlayerCardGenerator:
                         * self.stat_percentile(stat=real_stats['hr_per_650_pa'],
                                                min_max_dict=sc.HR_RANGE[self.context],
                                                is_desc=self.is_pitcher)
+            self.hr_points = round(hr_points)
             points += hr_points
             # AVERAGE POINT VALUE ACROSS POSITIONS
             defense_points = 0
@@ -1049,7 +1057,14 @@ class ShowdownPlayerCardGenerator:
                     positionPts = percentile * sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['defense']
                     defense_points += positionPts
             points_per_position = defense_points / len(positions_and_defense.keys()) if len(positions_and_defense.keys()) > 0 else 1
+            self.points_per_position = round(points_per_position)
             points += points_per_position
+
+        # STORE INDIVIDUAL PT CATEGORIES
+        self.obp_points = round(obp_points)
+        self.ba_points = round(ba_points)
+        self.slg_points = round(slg_points)
+        self.spd_ip_points = round(spd_ip_points)
 
         # POINTS ARE ALWAYS ROUNDED TO TENTH
         points_to_nearest_tenth = int(round(points,-1))
@@ -1223,6 +1238,16 @@ class ShowdownPlayerCardGenerator:
             real_stats_str = ' {}: {:>4}'.format(cleaned_category,self.stats[cleaned_category])
             results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, real_stats_str)
 
+        # DISPLAY INDIVIDUAL PT CATEGORIES
+        pt_category_string = 'OBP:{obp}  BA:{ba}  SLG:{slg}  SPD/IP:{spd_ip}'.format(
+            obp = self.obp_points,
+            ba = self.ba_points,
+            slg = self.slg_points,
+            spd_ip = self.spd_ip_points
+        )
+        if not self.is_pitcher:
+            pt_category_string += '  HR:{hr}  DEF:{defense}'.format(hr=self.hr_points,defense=self.points_per_position)
+
         # NOT USING DOCSTRING FOR FORMATTING REASONS
         card_as_string = (
             '***********************************************\n' + 
@@ -1234,6 +1259,7 @@ class ShowdownPlayerCardGenerator:
             '{ip_or_speed}\n' +
             '{icons}\n' +
             '{points} PT.\n' +
+            '{pts_per_category}\n' +
             '\n' +
             '{command_header}: {command}\n' +
             '{chart}\n' +
@@ -1255,6 +1281,7 @@ class ShowdownPlayerCardGenerator:
             ip_or_speed = ip_or_speed,
             icons = icon_string,
             points = str(self.points),
+            pts_per_category = pt_category_string,
             command_header = 'CONTROL' if self.is_pitcher else 'ONBASE',
             command=self.chart['command'],
             chart = chart_string,
@@ -1861,9 +1888,10 @@ class ShowdownPlayerCardGenerator:
         is_04_05 = self.context in ['2004','2005']
 
         # FONT 
-        helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+        chart_font_file_name = 'Helvetica Neue 77 Bold Condensed.ttf' if is_04_05 else 'HelveticaNeueCondensedMedium.ttf'
+        chart_font_path = os.path.join(os.path.dirname(__file__), 'fonts', chart_font_file_name)
         chart_text_size = int(sc.TEXT_SIZES['chart'][self.context])
-        helvetica_neue_cond_bold_alt = ImageFont.truetype(helvetica_neue_cond_bold_path, size=chart_text_size)
+        chart_font = ImageFont.truetype(chart_font_path, size=chart_text_size)
         
         # CREATE CHART RANGES TEXT
         chart_string = ''
@@ -1877,7 +1905,7 @@ class ShowdownPlayerCardGenerator:
                 range_text = self.__text_image(
                     text = range,
                     size = (450,450),
-                    font = helvetica_neue_cond_bold_alt,
+                    font = chart_font,
                     fill = sc.COLOR_WHITE,
                     alignment = "center",
                     has_border = True,
@@ -1899,13 +1927,13 @@ class ShowdownPlayerCardGenerator:
             chart_text = self.__text_image(
                 text = chart_string,
                 size = (765, 3600),
-                font = helvetica_neue_cond_bold_alt,
+                font = chart_font,
                 rotation = 0,
                 alignment = "right",
                 padding=0,
                 spacing=spacing
             )
-            color = sc.COLOR_BLACK if self.context == '2002' else "#414040"
+            color = sc.COLOR_BLACK
             chart_text = chart_text.resize((255,1200), Image.ANTIALIAS)
 
         return chart_text, color
