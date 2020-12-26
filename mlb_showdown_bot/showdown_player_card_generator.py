@@ -646,7 +646,9 @@ class ShowdownPlayerCardGenerator:
             # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
             gb_outs = round((out_slots_remaining / (gb_pct + 1)) * gb_pct)
             air_outs = out_slots_remaining - gb_outs
-            pu_outs = 0.0 if not self.is_pitcher else round(air_outs*popup_pct)
+            # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
+            pu_multiplier = 1.3
+            pu_outs = 0.0 if not self.is_pitcher else math.ceil(air_outs*popup_pct*pu_multiplier)
             fb_outs = air_outs-pu_outs
         else:
             fb_outs = 0.0
@@ -1881,9 +1883,10 @@ class ShowdownPlayerCardGenerator:
         is_04_05 = self.context in ['2004','2005']
 
         # FONT 
-        helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+        chart_font_file_name = 'Helvetica Neue 77 Bold Condensed.ttf' if is_04_05 else 'HelveticaNeueCondensedMedium.ttf'
+        chart_font_path = os.path.join(os.path.dirname(__file__), 'fonts', chart_font_file_name)
         chart_text_size = int(sc.TEXT_SIZES['chart'][self.context])
-        helvetica_neue_cond_bold_alt = ImageFont.truetype(helvetica_neue_cond_bold_path, size=chart_text_size)
+        chart_font = ImageFont.truetype(chart_font_path, size=chart_text_size)
         
         # CREATE CHART RANGES TEXT
         chart_string = ''
@@ -1897,7 +1900,7 @@ class ShowdownPlayerCardGenerator:
                 range_text = self.__text_image(
                     text = range,
                     size = (450,450),
-                    font = helvetica_neue_cond_bold_alt,
+                    font = chart_font,
                     fill = sc.COLOR_WHITE,
                     alignment = "center",
                     has_border = True,
@@ -1919,13 +1922,13 @@ class ShowdownPlayerCardGenerator:
             chart_text = self.__text_image(
                 text = chart_string,
                 size = (765, 3600),
-                font = helvetica_neue_cond_bold_alt,
+                font = chart_font,
                 rotation = 0,
                 alignment = "right",
                 padding=0,
                 spacing=spacing
             )
-            color = sc.COLOR_BLACK if self.context == '2002' else "#414040"
+            color = sc.COLOR_BLACK
             chart_text = chart_text.resize((255,1200), Image.ANTIALIAS)
 
         return chart_text, color
