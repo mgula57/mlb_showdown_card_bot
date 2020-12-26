@@ -412,7 +412,7 @@ class BaseballReferenceScraper:
                 pu_ratio_raw = ratio_table.find('td',attrs={'class':'right','data-stat': 'infield_fb_perc'}).get_text()
                 pu_ratio = int(pu_ratio_raw.replace('%','')) / 100.0
             else:
-                pu_ratio = 0.5
+                pu_ratio = 0.25
 
         return {
             'GO/AO': gb_ao_ratio,
