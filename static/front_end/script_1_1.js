@@ -38,6 +38,9 @@ function uploadImageFile() {
         }
     });
 }
+$(function () {
+    $('[data-toggle="tooltip"]').tooltip()
+})
 $(function() {
     $('a#create_card').bind('click', function() {
 is_valid = validate_form()

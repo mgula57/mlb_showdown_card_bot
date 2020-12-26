@@ -17,6 +17,7 @@ class BaseballReferenceScraper:
 
         self.name = name
         self.year = year
+        # CHECK FOR BASEBALL REFERENCE ID
         self.is_name_a_bref_id = any(char.isdigit() for char in name)
         self.baseball_ref_id = name.lower() if self.is_name_a_bref_id else self.search_google_for_b_ref_id(name, year)
         self.first_initial = self.baseball_ref_id[:1]
@@ -245,9 +246,18 @@ class BaseballReferenceScraper:
                 games_as_pitcher += games
             else:
                 games_as_hitter += games
+
+        # CHECK FOR TYPE OVERRIDE
+        is_pitcher_override = '(PITCHER)' in self.name.upper() and games_as_pitcher > 0
+        is_hitter_override = '(HITTER)' in self.name.upper() and games_as_hitter > 0
+
         # COMPARE GAMES PLAYED IN BOTH TYPES
         if games_as_hitter + games_as_pitcher == 0:
             raise AttributeError('This Player Played 0 Games in {}. Check Player Name and Year'.format(self.year))
+        elif is_pitcher_override:
+            return "Pitcher"
+        elif is_hitter_override:
+            return "Hitter"
         elif games_as_pitcher < games_as_hitter:
             return "Hitter"
         else:

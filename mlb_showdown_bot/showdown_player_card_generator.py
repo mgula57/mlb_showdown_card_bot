@@ -29,7 +29,8 @@ class ShowdownPlayerCardGenerator:
 
         # ASSIGNED ATTRIBUTES
         is_name_a_bref_id = any(char.isdigit() for char in name)
-        self.name = stats['name'] if is_name_a_bref_id else name
+        has_special_chars = '(' in name
+        self.name = stats['name'] if is_name_a_bref_id or has_special_chars else name
         self.year = year
         self.context = context
         self.stats = stats
@@ -131,25 +132,29 @@ class ShowdownPlayerCardGenerator:
         # PARSE POSITION NAME, GAMES, AND TZ RATING AND CONVERT TO IN-GAME
         for position_index in range(1, num_positions+1):
             position_raw = defensive_stats['Position{}'.format(position_index)]
-            games_at_position = int(defensive_stats['gPosition{}'.format(position_index)])
-            position = self.__position_name_in_game(position=position_raw,
-                                                    num_positions=num_positions,
-                                                    position_appearances=games_at_position,
-                                                    games_played=games_played,
-                                                    games_started=games_started,
-                                                    saves=saves)
-            positions_and_games_played[position] = games_at_position
-            # IN-GAME RATING AT
-            if position is not None:
-                if not self.is_pitcher:
-                    try:
-                        total_zone_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
-                    except:
-                        total_zone_rating = 0
-                    defense = self.__convert_tzr_to_in_game_defense(position=position,tzr=total_zone_rating)
-                    positions_and_defense[position] = defense
-                else:
-                    positions_and_defense[position] = 0
+            # CHECK IF POSITION MATCHES PLAYER TYPE
+            is_valid_position = self.is_pitcher == ('P' == position_raw)
+            if is_valid_position:
+                games_at_position = int(defensive_stats['gPosition{}'.format(position_index)])
+                position = self.__position_name_in_game(position=position_raw,
+                                                        num_positions=num_positions,
+                                                        position_appearances=games_at_position,
+                                                        games_played=games_played,
+                                                        games_started=games_started,
+                                                        saves=saves)
+                positions_and_games_played[position] = games_at_position
+                # IN-GAME RATING AT
+                if position is not None:
+                    if not self.is_pitcher:
+                        try:
+                            total_zone_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
+                            defense = self.__convert_tzr_to_in_game_defense(position=position,tzr=total_zone_rating)
+                        except:
+                            total_zone_rating = 0
+                            defense = 0
+                        positions_and_defense[position] = defense
+                    else:
+                        positions_and_defense[position] = 0
         
         # COMBINE ALIKE IN-GAME POSITIONS (LF/RF, OF, IF, ...)
         final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played)
