@@ -289,7 +289,8 @@ class BaseballReferenceScraper:
 
         for player_dict in speed_list_all_players:
             # FIND PLAYER IN LIST
-            is_player_match = self.name.split(' ')[0] in player_dict['name_display_last_first'] \
+            first_name_cleaned = self.name.split(' ')[0].replace(".", "")
+            is_player_match = first_name_cleaned in player_dict['name_display_last_first'] \
                               and self.name.split(' ')[1] in player_dict['name_display_last_first']
             if is_player_match:
                 speed = float(player_dict['r_sprint_speed_top50percent_pretty'])
