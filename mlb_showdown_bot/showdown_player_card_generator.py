@@ -1411,7 +1411,8 @@ class ShowdownPlayerCardGenerator:
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
-        name_paste_location = sc.IMAGE_LOCATIONS['player_name'][str(self.context)]
+        location_key = 'player_name_small' if len(self.name) > 18 else 'player_name'
+        name_paste_location = sc.IMAGE_LOCATIONS[location_key][str(self.context)]
         if self.context == '2001':
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
@@ -1665,6 +1666,7 @@ class ShowdownPlayerCardGenerator:
         # PARSE NAME STRING
         first, last = self.name.upper().split(" ", 1)
         name = self.name.upper() if self.context != '2001' else first
+        is_name_over_char_limit = len(name) > 18
 
         futura_black_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Futura Black.ttf')
         helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
@@ -1679,7 +1681,7 @@ class ShowdownPlayerCardGenerator:
         if self.context == '2000':
             name_rotation = 90
             name_alignment = "center"
-            name_size = 135
+            name_size = 110 if is_name_over_char_limit else 135
             name_color = "#FDFBF4"
             padding = 0
         elif self.context == '2001':
@@ -1692,19 +1694,19 @@ class ShowdownPlayerCardGenerator:
         elif self.context == '2002':
             name_rotation = 90
             name_alignment = "left"
-            name_size = 144
+            name_size = 115 if is_name_over_char_limit else 144
             name_color = "#A09D9F"
             padding = 15
         elif self.context == '2003':
             name_rotation = 90
             name_alignment = "right"
-            name_size = 96
+            name_size = 90 if is_name_over_char_limit else 96
             name_color = sc.COLOR_WHITE
             padding = 60
         elif self.context in ['2004','2005']:
             name_rotation = 0
             name_alignment = "left"
-            name_size = 90
+            name_size = 80 if is_name_over_char_limit else 96
             name_color = sc.COLOR_WHITE
             padding = 3
             fill_color = sc.COLOR_WHITE
