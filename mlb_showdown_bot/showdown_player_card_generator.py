@@ -58,6 +58,7 @@ class ShowdownPlayerCardGenerator:
                                                                            offset=int(offset))
         self.chart_ranges = self.__ranges_for_chart(chart=self.chart,
                                                     dbl_per_400_pa=float(stats_for_400_pa['2b_per_400_pa']),
+                                                    trpl_per_400_pa=float(stats_for_400_pa['3b_per_400_pa']),
                                                     hr_per_400_pa=float(stats_for_400_pa['hr_per_400_pa']))
         self.real_stats = self.__stats_for_full_season(stats_per_400_pa=chart_results_per_400_pa)
 
@@ -706,17 +707,19 @@ class ShowdownPlayerCardGenerator:
 
         return categories
 
-    def __ranges_for_chart(self, chart, dbl_per_400_pa, hr_per_400_pa):
+    def __ranges_for_chart(self, chart, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa):
         """Converts chart integers to Range Strings ({1B: 3} -> {'1B': '11-13'})
 
         Args:
-          remaining_slots: Remaining slots out of 20.
-          sb: Stolen bases per 400 PA
+          chart: Dict with # of slots per chart result category
+          dbl_per_400_pa: Number of 2B results every 400 PA
+          trpl_per_400_pa: Number of 3B results every 400 PA
+          hr_per_400_pa: Number of HR results every 400 PA
 
         Returns:
-          Tuple of 1B, 1B+ result ints.
+          Dict of ranges for each result category.
         """
-
+        
         categories = self.__chart_categories()
         current_chart_index = 1
         chart_ranges = {}
@@ -753,6 +756,10 @@ class ShowdownPlayerCardGenerator:
                 current_chart_index = range_end + 1
 
             chart_ranges['{} Range'.format(category)] = range
+
+        # FILL IN ABOVE 20 RESULTS IF APPLICABLE
+        if self.context in ['2002','2003','2004','2005'] and int(chart['hr']) < 1:
+            chart_ranges = self.__hitter_chart_above_20(chart, chart_ranges, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa)
 
         return chart_ranges
 
@@ -800,6 +807,101 @@ class ShowdownPlayerCardGenerator:
         num_of_results_2b = hr_start_final - dbl_start
 
         return add_to_1b, num_of_results_2b
+
+    def __hitter_chart_above_20(self, chart, chart_ranges, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa):
+        """If a hitter has remaining result categories above 20, populate them.
+        Only for sets > 2001.
+
+        Args:
+            chart: Dict with # of slots per chart result category
+            chart_ranges: Dict with visual representation of range per result category
+            dbl_per_400_pa: Number of 2B results every 400 PA
+            trpl_per_400_pa: Number of 3B results every 400 PA
+            hr_per_400_pa: Number of HR results every 400 PA
+
+        Returns:
+            Dict of ranges for each result category.
+        """
+        # VALIDATE THAT CHART HAS VALUES ABOVE 20
+        if int(chart['hr']) > 0:
+            return chart_ranges
+
+        # STATIC THRESHOLDS FOR END HR #
+        # THIS COULD BE MORE PROBABILITY BASED, BUT SEEMS LIKE ORIGINAL SETS USED STATIC METHODOLOGY
+        # NOTE: 2002 HAS MORE EXTREME RANGES
+        is_2002 = self.context == '2002'
+        threshold_adjustment = 0 if is_2002 else -3
+        if hr_per_400_pa < 1.0:
+            hr_end = 27
+        elif hr_per_400_pa < 2.5 and is_2002: # RESTRICT TO 2002
+            hr_end = 26
+        elif hr_per_400_pa < 3.75 and is_2002: # RESTRICT TO 2002
+            hr_end = 25
+        elif hr_per_400_pa < 4.75 + threshold_adjustment:
+            hr_end = 24
+        elif hr_per_400_pa < 6.25 + threshold_adjustment:
+            hr_end = 23
+        elif hr_per_400_pa < 7.5 + threshold_adjustment:
+            hr_end = 22
+        else:
+            hr_end = 21
+        chart_ranges['hr Range'] = '{}+'.format(hr_end)
+
+        # SPLIT REMAINING OVER 20 SPACES BETWEEN 1B, 2B, AND 3B
+        remaining_slots = hr_end - 21
+        is_remaining_slots = remaining_slots > 0
+        is_last_under_20_result_3b = int(chart['3b']) > 0
+        is_last_under_20_result_2b = not is_last_under_20_result_3b and int(chart['2b'] > 0)
+        
+        if is_remaining_slots:
+            # FILL WITH 3B
+            if is_last_under_20_result_3b:
+                current_range_start = chart_ranges['3b Range'][0:2]
+                new_range_end = hr_end - 1
+                range_updated = '{}–{}'.format(current_range_start,new_range_end)
+                chart_ranges['3b Range'] = range_updated
+            # FILL WITH 2B (AND POSSIBLY 3B)
+            elif is_last_under_20_result_2b:
+                new_range_end = hr_end - 1
+                if trpl_per_400_pa >= 3.5:
+                    # GIVE TRIPLE 21-HR
+                    triple_range = '21' if remaining_slots == 1 else '21-{}'.format(new_range_end)
+                    chart_ranges['3b Range'] = triple_range
+                else:
+                    # GIVE 2B-HR
+                    current_range_start = chart_ranges['2b Range'][0:2]
+                    range_updated = '{}–{}'.format(current_range_start,new_range_end)
+                    chart_ranges['2b Range'] = range_updated
+            # FILL WITH 1B (AND POSSIBLY 2B AND 3B)
+            else:
+                new_range_end = hr_end - 1
+                if trpl_per_400_pa + dbl_per_400_pa == 0:
+                    # FILL WITH 1B
+                    category_1b = '1b+ Range' if chart['1b+'] > 0 else '1b Range'
+                    current_range_start = chart_ranges[category_1b][0:2]
+                    # CHECK FOR IF SOMEHOW PLAYER HAS 0 1B TOO
+                    if current_range_start == '—':
+                        current_range_start = '21'
+                    range_updated = '{}–{}'.format(current_range_start,new_range_end)
+                    chart_ranges['1b Range'] = range_updated
+                else:
+                    # SPLIT BETWEEN 2B AND 3B
+                    dbl_pct = dbl_per_400_pa / (trpl_per_400_pa + dbl_per_400_pa)
+                    dbl_slots = int(round((remaining_slots * dbl_pct)))
+                    trpl_slots = remaining_slots - dbl_slots
+
+                    # FILL 2B
+                    dbl_range = '21' if dbl_slots == 1 else '21-{}'.format(20 + dbl_slots)
+                    dbl_range = '—' if dbl_slots == 0 else dbl_range
+                    chart_ranges['2b Range'] = dbl_range
+
+                    # FILL 3B
+                    trpl_start = 21 + dbl_slots
+                    trpl_range = str(trpl_start) if trpl_slots == 1 else '{}-{}'.format(trpl_start, trpl_start + trpl_slots - 1)
+                    trpl_range = '—' if trpl_slots == 0 else trpl_range
+                    chart_ranges['3b Range'] = trpl_range
+        return chart_ranges
+
 
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
@@ -1443,10 +1545,14 @@ class ShowdownPlayerCardGenerator:
         player_image.paste(set_image, (0,0), set_image)
 
         # SAVE AND SHOW IMAGE
+        # CROP TO 63mmx88mm
+        player_image = self.__center_crop(player_image,(1488,2079))
+        player_image = self.__round_corners(player_image, 60)
         self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
         if int(self.context) in [2002,2004,2005]:
             # TODO: SOLVE HTML PNG ISSUES
             player_image = player_image.convert('RGB')
+
         player_image.save(os.path.join(os.path.dirname(__file__), 'output', self.image_name), dpi=(300, 300), quality=100)
         if self.is_running_in_flask:
             player_image.save(os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name), dpi=(300, 300), quality=100)
@@ -1491,7 +1597,6 @@ class ShowdownPlayerCardGenerator:
             player_image = Image.open(default_image_path)
 
         player_image = self.__center_crop(player_image, (1500,2100))
-        player_image = self.__round_corners(player_image, 60)
 
         return player_image
 
