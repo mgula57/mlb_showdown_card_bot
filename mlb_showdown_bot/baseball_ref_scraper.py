@@ -156,20 +156,34 @@ class BaseballReferenceScraper:
 
         fielding_metrics_by_position = soup_for_homepage_stats.find_all('tr', attrs = {'id': '{}:standard_fielding'.format(self.year)})
 
+        # POSITIONAL TZR
         all_positions = {}
         for index, position_info in enumerate(fielding_metrics_by_position, 1):
             # PARSE POSITION ATTRIBUTES
             position_name = position_info.find('td', attrs={'class':'left','data-stat':'pos'}).get_text()
             games_played = position_info.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
+            # TOTAL ZONE (1953-2003)
             total_zone_object = position_info.find('td',attrs={'class':'right','data-stat':'tz_runs_total'})
             total_zone_rating = total_zone_object.get_text() if total_zone_object != None else 0
+            total_zone_rating = 0 if total_zone_rating == '' else total_zone_rating
+            # DRS (2003+)
+            drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total'})
+            drs_rating = drs_object.get_text() if drs_object != None else 0
+            drs_rating = 0 if drs_rating == '' else drs_rating
             # UPDATE POSITION DICTIONARY
             position_dict = {
                 'Position{}'.format(index): position_name,
                 'gPosition{}'.format(index): games_played if games_played != '' else 0,
-                'tzPosition{}'.format(index): total_zone_rating
+                'tzPosition{}'.format(index): total_zone_rating,
+                'drsPosition{}'.format(index): drs_rating
             }
             all_positions.update(position_dict)
+
+        # GET DEFENSIVE WAR IN CASE OF LACK OF TZR AVAILABILITY FOR SEASONS < 1952
+        player_value = soup_for_homepage_stats.find('tr', attrs = {'id': 'batting_value.{}'.format(self.year)})
+        dwar_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR_def'})
+        dwar_rating = dwar_object.get_text() if dwar_object != None else 0
+        all_positions.update({'dWAR': dwar_rating})
 
         return all_positions
 
@@ -237,7 +251,7 @@ class BaseballReferenceScraper:
 
         games_as_pitcher = 0
         games_as_hitter = 0
-        positions = int(len(positional_fielding) / 3)
+        positions = int((len(positional_fielding)-1) / 4)
         # SPLIT GAMES BETWEEN TYPES
         for position_index in range(1, positions + 1):
             games = int(positional_fielding['gPosition{}'.format(position_index)])

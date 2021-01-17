@@ -86,7 +86,7 @@ class ShowdownPlayerCardGenerator:
         """
 
         # RAW METADATA FROM BASEBALL REFERENCE
-        defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k}
+        defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k}
         hand_raw = stats['hand']
         innings_pitched_raw = float(stats['IP']) if self.is_pitcher else 0.0
         games_played_raw = int(stats['G'])
@@ -122,8 +122,8 @@ class ShowdownPlayerCardGenerator:
           Dict with in game positions and defensive ratings
         """
 
-        # THERE ARE ALWAYS 3 KEYS FOR EACH POSITION
-        num_positions = int(len(defensive_stats.keys()) / 3) 
+        # THERE ARE ALWAYS 4 KEYS FOR EACH POSITION
+        num_positions = int((len(defensive_stats.keys())-1) / 4) 
         
         # INITIAL DICTS TO STORE POSITIONS AND DEFENSE
         positions_and_defense = {}
@@ -148,12 +148,26 @@ class ShowdownPlayerCardGenerator:
                 if position is not None:
                     if not self.is_pitcher:
                         try:
-                            total_zone_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
-                            defense = self.__convert_tzr_to_in_game_defense(position=position,tzr=total_zone_rating)
+                            year_int = int(self.year)
+                            if year_int >= 2003:
+                                # USE DEFENSIVE RUNS SAVED AFTER 2003. IT'S USED IN dWAR CALCULATIONS ON BASEBALL REFERENCE
+                                metric = 'drs'
+                                defensive_rating = int(defensive_stats['drsPosition{}'.format(position_index)])
+                            elif year_int > 1952:
+                                # USE TZR
+                                metric = 'tzr'
+                                defensive_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
+                            else:
+                                # IF BEFORE 1952 USE dWAR
+                                # FLAW WITH THIS METHODOLOGY IS ITS AVG ACROSS POSITIONS, PLUS DOES NOT ACCOUNT FOR POSITION ADJUST
+                                # TODO: MAKE THIS MORE ROBUST IN THE FUTURE
+                                metric = 'dWAR'
+                                defensive_rating = float(defensive_stats['dWAR'])
+                            in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric)
                         except:
                             total_zone_rating = 0
-                            defense = 0
-                        positions_and_defense[position] = defense
+                            in_game_defense = 0
+                        positions_and_defense[position] = in_game_defense
                     else:
                         positions_and_defense[position] = 0
         
@@ -272,30 +286,34 @@ class ShowdownPlayerCardGenerator:
             # RETURN BASEBALL REFERENCE STRING VALUE
             return position
 
-    def __convert_tzr_to_in_game_defense(self, position, tzr):
-        """Converts Total Zone Rating (TZR) to in game defense at a position.
-           We use TZR to calculate defense because it is available for most eras.
+    def __convert_to_in_game_defense(self, position, rating, metric):
+        """Converts the best available fielding metric to in game defense at a position.
+           Uses DRS for 2003+, TZR for 1953-2002, dWAR for <1953.
            More modern defensive metrics (like DRS) are not available for historical
            seasons.
 
         Args:
           position: In game position name.
-          tzr: Total Zone Rating. 0 is average for a position.
+          rating: Total Zone Rating or dWAR. 0 is average for a position.
+          metric: String name of metric used for calculations (drs,tzr,dWAR)
 
         Returns:
           In game defensive rating.
         """
+        MIN_SABER_FIELDING = sc.MIN_SABER_FIELDING[metric]
+        MAX_SABER_FIELDING = sc.MAX_SABER_FIELDING[metric]
 
         max_defense_for_position = sc.POSITION_DEFENSE_RANGE[self.context][position]
-        tzr_range = sc.MAX_SABER_FIELDING - sc.MIN_SABER_FIELDING
-        percentile = (tzr-sc.MIN_SABER_FIELDING) / tzr_range
+        defensive_range = MAX_SABER_FIELDING - MIN_SABER_FIELDING
+        percentile = (rating-MIN_SABER_FIELDING) / defensive_range
         defense_raw = percentile * max_defense_for_position
         defense = round(defense_raw) if defense_raw > 0 else 0
+
         # ADD IN STATIC METRICS FOR 1B
         if position.upper() == '1B':
-            if tzr > 15:
+            if rating > sc.FIRST_BASE_PLUS_2_CUTOFF[metric]:
                 defense = 2
-            elif tzr > 0:
+            elif rating > sc.FIRST_BASE_PLUS_1_CUTOFF[metric]:
                 defense = 1
             else:
                 defense = 0
