@@ -58,6 +58,7 @@ class ShowdownPlayerCardGenerator:
                                                                            offset=int(offset))
         self.chart_ranges = self.__ranges_for_chart(chart=self.chart,
                                                     dbl_per_400_pa=float(stats_for_400_pa['2b_per_400_pa']),
+                                                    trpl_per_400_pa=float(stats_for_400_pa['3b_per_400_pa']),
                                                     hr_per_400_pa=float(stats_for_400_pa['hr_per_400_pa']))
         self.real_stats = self.__stats_for_full_season(stats_per_400_pa=chart_results_per_400_pa)
 
@@ -85,7 +86,7 @@ class ShowdownPlayerCardGenerator:
         """
 
         # RAW METADATA FROM BASEBALL REFERENCE
-        defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k}
+        defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k}
         hand_raw = stats['hand']
         innings_pitched_raw = float(stats['IP']) if self.is_pitcher else 0.0
         games_played_raw = int(stats['G'])
@@ -121,8 +122,8 @@ class ShowdownPlayerCardGenerator:
           Dict with in game positions and defensive ratings
         """
 
-        # THERE ARE ALWAYS 3 KEYS FOR EACH POSITION
-        num_positions = int(len(defensive_stats.keys()) / 3) 
+        # THERE ARE ALWAYS 4 KEYS FOR EACH POSITION
+        num_positions = int((len(defensive_stats.keys())-1) / 4) 
         
         # INITIAL DICTS TO STORE POSITIONS AND DEFENSE
         positions_and_defense = {}
@@ -147,12 +148,26 @@ class ShowdownPlayerCardGenerator:
                 if position is not None:
                     if not self.is_pitcher:
                         try:
-                            total_zone_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
-                            defense = self.__convert_tzr_to_in_game_defense(position=position,tzr=total_zone_rating)
+                            year_int = int(self.year)
+                            if year_int >= 2003:
+                                # USE DEFENSIVE RUNS SAVED AFTER 2003. IT'S USED IN dWAR CALCULATIONS ON BASEBALL REFERENCE
+                                metric = 'drs'
+                                defensive_rating = int(defensive_stats['drsPosition{}'.format(position_index)])
+                            elif year_int > 1952:
+                                # USE TZR
+                                metric = 'tzr'
+                                defensive_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
+                            else:
+                                # IF BEFORE 1952 USE dWAR
+                                # FLAW WITH THIS METHODOLOGY IS ITS AVG ACROSS POSITIONS, PLUS DOES NOT ACCOUNT FOR POSITION ADJUST
+                                # TODO: MAKE THIS MORE ROBUST IN THE FUTURE
+                                metric = 'dWAR'
+                                defensive_rating = float(defensive_stats['dWAR'])
+                            in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric)
                         except:
                             total_zone_rating = 0
-                            defense = 0
-                        positions_and_defense[position] = defense
+                            in_game_defense = 0
+                        positions_and_defense[position] = in_game_defense
                     else:
                         positions_and_defense[position] = 0
         
@@ -271,30 +286,34 @@ class ShowdownPlayerCardGenerator:
             # RETURN BASEBALL REFERENCE STRING VALUE
             return position
 
-    def __convert_tzr_to_in_game_defense(self, position, tzr):
-        """Converts Total Zone Rating (TZR) to in game defense at a position.
-           We use TZR to calculate defense because it is available for most eras.
+    def __convert_to_in_game_defense(self, position, rating, metric):
+        """Converts the best available fielding metric to in game defense at a position.
+           Uses DRS for 2003+, TZR for 1953-2002, dWAR for <1953.
            More modern defensive metrics (like DRS) are not available for historical
            seasons.
 
         Args:
           position: In game position name.
-          tzr: Total Zone Rating. 0 is average for a position.
+          rating: Total Zone Rating or dWAR. 0 is average for a position.
+          metric: String name of metric used for calculations (drs,tzr,dWAR)
 
         Returns:
           In game defensive rating.
         """
+        MIN_SABER_FIELDING = sc.MIN_SABER_FIELDING[metric]
+        MAX_SABER_FIELDING = sc.MAX_SABER_FIELDING[metric]
 
         max_defense_for_position = sc.POSITION_DEFENSE_RANGE[self.context][position]
-        tzr_range = sc.MAX_SABER_FIELDING - sc.MIN_SABER_FIELDING
-        percentile = (tzr-sc.MIN_SABER_FIELDING) / tzr_range
+        defensive_range = MAX_SABER_FIELDING - MIN_SABER_FIELDING
+        percentile = (rating-MIN_SABER_FIELDING) / defensive_range
         defense_raw = percentile * max_defense_for_position
         defense = round(defense_raw) if defense_raw > 0 else 0
+
         # ADD IN STATIC METRICS FOR 1B
         if position.upper() == '1B':
-            if tzr > 15:
+            if rating > sc.FIRST_BASE_PLUS_2_CUTOFF[metric]:
                 defense = 2
-            elif tzr > 0:
+            elif rating > sc.FIRST_BASE_PLUS_1_CUTOFF[metric]:
                 defense = 1
             else:
                 defense = 0
@@ -370,6 +389,12 @@ class ShowdownPlayerCardGenerator:
             letter = 'B'
         else:
             letter = 'A'
+        
+        # IF 2000 OR 2001, SPEED VALUES CAN ONLY BE 10,15,20
+        if self.context in ['2000','2001']:
+            spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
+            speed = spd_letter_to_number[letter]
+
         return speed, letter
 
     def __icons(self,awards):
@@ -706,17 +731,19 @@ class ShowdownPlayerCardGenerator:
 
         return categories
 
-    def __ranges_for_chart(self, chart, dbl_per_400_pa, hr_per_400_pa):
+    def __ranges_for_chart(self, chart, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa):
         """Converts chart integers to Range Strings ({1B: 3} -> {'1B': '11-13'})
 
         Args:
-          remaining_slots: Remaining slots out of 20.
-          sb: Stolen bases per 400 PA
+          chart: Dict with # of slots per chart result category
+          dbl_per_400_pa: Number of 2B results every 400 PA
+          trpl_per_400_pa: Number of 3B results every 400 PA
+          hr_per_400_pa: Number of HR results every 400 PA
 
         Returns:
-          Tuple of 1B, 1B+ result ints.
+          Dict of ranges for each result category.
         """
-
+        
         categories = self.__chart_categories()
         current_chart_index = 1
         chart_ranges = {}
@@ -753,6 +780,10 @@ class ShowdownPlayerCardGenerator:
                 current_chart_index = range_end + 1
 
             chart_ranges['{} Range'.format(category)] = range
+
+        # FILL IN ABOVE 20 RESULTS IF APPLICABLE
+        if self.context in ['2002','2003','2004','2005'] and int(chart['hr']) < 1:
+            chart_ranges = self.__hitter_chart_above_20(chart, chart_ranges, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa)
 
         return chart_ranges
 
@@ -800,6 +831,101 @@ class ShowdownPlayerCardGenerator:
         num_of_results_2b = hr_start_final - dbl_start
 
         return add_to_1b, num_of_results_2b
+
+    def __hitter_chart_above_20(self, chart, chart_ranges, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa):
+        """If a hitter has remaining result categories above 20, populate them.
+        Only for sets > 2001.
+
+        Args:
+            chart: Dict with # of slots per chart result category
+            chart_ranges: Dict with visual representation of range per result category
+            dbl_per_400_pa: Number of 2B results every 400 PA
+            trpl_per_400_pa: Number of 3B results every 400 PA
+            hr_per_400_pa: Number of HR results every 400 PA
+
+        Returns:
+            Dict of ranges for each result category.
+        """
+        # VALIDATE THAT CHART HAS VALUES ABOVE 20
+        if int(chart['hr']) > 0:
+            return chart_ranges
+
+        # STATIC THRESHOLDS FOR END HR #
+        # THIS COULD BE MORE PROBABILITY BASED, BUT SEEMS LIKE ORIGINAL SETS USED STATIC METHODOLOGY
+        # NOTE: 2002 HAS MORE EXTREME RANGES
+        is_2002 = self.context == '2002'
+        threshold_adjustment = 0 if is_2002 else -3
+        if hr_per_400_pa < 1.0:
+            hr_end = 27
+        elif hr_per_400_pa < 2.5 and is_2002: # RESTRICT TO 2002
+            hr_end = 26
+        elif hr_per_400_pa < 3.75 and is_2002: # RESTRICT TO 2002
+            hr_end = 25
+        elif hr_per_400_pa < 4.75 + threshold_adjustment:
+            hr_end = 24
+        elif hr_per_400_pa < 6.25 + threshold_adjustment:
+            hr_end = 23
+        elif hr_per_400_pa < 7.5 + threshold_adjustment:
+            hr_end = 22
+        else:
+            hr_end = 21
+        chart_ranges['hr Range'] = '{}+'.format(hr_end)
+
+        # SPLIT REMAINING OVER 20 SPACES BETWEEN 1B, 2B, AND 3B
+        remaining_slots = hr_end - 21
+        is_remaining_slots = remaining_slots > 0
+        is_last_under_20_result_3b = int(chart['3b']) > 0
+        is_last_under_20_result_2b = not is_last_under_20_result_3b and int(chart['2b'] > 0)
+        
+        if is_remaining_slots:
+            # FILL WITH 3B
+            if is_last_under_20_result_3b:
+                current_range_start = chart_ranges['3b Range'][0:2]
+                new_range_end = hr_end - 1
+                range_updated = '{}–{}'.format(current_range_start,new_range_end)
+                chart_ranges['3b Range'] = range_updated
+            # FILL WITH 2B (AND POSSIBLY 3B)
+            elif is_last_under_20_result_2b:
+                new_range_end = hr_end - 1
+                if trpl_per_400_pa >= 3.5:
+                    # GIVE TRIPLE 21-HR
+                    triple_range = '21' if remaining_slots == 1 else '21-{}'.format(new_range_end)
+                    chart_ranges['3b Range'] = triple_range
+                else:
+                    # GIVE 2B-HR
+                    current_range_start = chart_ranges['2b Range'][0:2]
+                    range_updated = '{}–{}'.format(current_range_start,new_range_end)
+                    chart_ranges['2b Range'] = range_updated
+            # FILL WITH 1B (AND POSSIBLY 2B AND 3B)
+            else:
+                new_range_end = hr_end - 1
+                if trpl_per_400_pa + dbl_per_400_pa == 0:
+                    # FILL WITH 1B
+                    category_1b = '1b+ Range' if chart['1b+'] > 0 else '1b Range'
+                    current_range_start = chart_ranges[category_1b][0:2]
+                    # CHECK FOR IF SOMEHOW PLAYER HAS 0 1B TOO
+                    if current_range_start == '—':
+                        current_range_start = '21'
+                    range_updated = '{}–{}'.format(current_range_start,new_range_end)
+                    chart_ranges['1b Range'] = range_updated
+                else:
+                    # SPLIT BETWEEN 2B AND 3B
+                    dbl_pct = dbl_per_400_pa / (trpl_per_400_pa + dbl_per_400_pa)
+                    dbl_slots = int(round((remaining_slots * dbl_pct)))
+                    trpl_slots = remaining_slots - dbl_slots
+
+                    # FILL 2B
+                    dbl_range = '21' if dbl_slots == 1 else '21-{}'.format(20 + dbl_slots)
+                    dbl_range = '—' if dbl_slots == 0 else dbl_range
+                    chart_ranges['2b Range'] = dbl_range
+
+                    # FILL 3B
+                    trpl_start = 21 + dbl_slots
+                    trpl_range = str(trpl_start) if trpl_slots == 1 else '{}-{}'.format(trpl_start, trpl_start + trpl_slots - 1)
+                    trpl_range = '—' if trpl_slots == 0 else trpl_range
+                    chart_ranges['3b Range'] = trpl_range
+        return chart_ranges
+
 
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
@@ -1411,7 +1537,8 @@ class ShowdownPlayerCardGenerator:
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
-        name_paste_location = sc.IMAGE_LOCATIONS['player_name'][str(self.context)]
+        location_key = 'player_name_small' if len(self.name) > 18 else 'player_name'
+        name_paste_location = sc.IMAGE_LOCATIONS[location_key][str(self.context)]
         if self.context == '2001':
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
@@ -1442,10 +1569,14 @@ class ShowdownPlayerCardGenerator:
         player_image.paste(set_image, (0,0), set_image)
 
         # SAVE AND SHOW IMAGE
+        # CROP TO 63mmx88mm
+        player_image = self.__center_crop(player_image,(1488,2079))
+        player_image = self.__round_corners(player_image, 60)
         self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
         if int(self.context) in [2002,2004,2005]:
             # TODO: SOLVE HTML PNG ISSUES
             player_image = player_image.convert('RGB')
+
         player_image.save(os.path.join(os.path.dirname(__file__), 'output', self.image_name), dpi=(300, 300), quality=100)
         if self.is_running_in_flask:
             player_image.save(os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name), dpi=(300, 300), quality=100)
@@ -1490,7 +1621,6 @@ class ShowdownPlayerCardGenerator:
             player_image = Image.open(default_image_path)
 
         player_image = self.__center_crop(player_image, (1500,2100))
-        player_image = self.__round_corners(player_image, 60)
 
         return player_image
 
@@ -1665,6 +1795,7 @@ class ShowdownPlayerCardGenerator:
         # PARSE NAME STRING
         first, last = self.name.upper().split(" ", 1)
         name = self.name.upper() if self.context != '2001' else first
+        is_name_over_char_limit = len(name) > 18
 
         futura_black_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Futura Black.ttf')
         helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
@@ -1679,7 +1810,7 @@ class ShowdownPlayerCardGenerator:
         if self.context == '2000':
             name_rotation = 90
             name_alignment = "center"
-            name_size = 135
+            name_size = 110 if is_name_over_char_limit else 135
             name_color = "#FDFBF4"
             padding = 0
         elif self.context == '2001':
@@ -1692,19 +1823,19 @@ class ShowdownPlayerCardGenerator:
         elif self.context == '2002':
             name_rotation = 90
             name_alignment = "left"
-            name_size = 144
+            name_size = 115 if is_name_over_char_limit else 144
             name_color = "#A09D9F"
             padding = 15
         elif self.context == '2003':
             name_rotation = 90
             name_alignment = "right"
-            name_size = 96
+            name_size = 90 if is_name_over_char_limit else 96
             name_color = sc.COLOR_WHITE
             padding = 60
         elif self.context in ['2004','2005']:
             name_rotation = 0
             name_alignment = "left"
-            name_size = 90
+            name_size = 80 if is_name_over_char_limit else 96
             name_color = sc.COLOR_WHITE
             padding = 3
             fill_color = sc.COLOR_WHITE
@@ -1797,9 +1928,8 @@ class ShowdownPlayerCardGenerator:
                     # ADD # TO SPEED
                     font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
                     font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)
-                    spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
                     speed_num_text = self.__text_image(
-                        text=str(spd_letter_to_number[self.speed_letter]),
+                        text=str(self.speed),
                         size=(300, 300),
                         font=font_speed_number
                     )
