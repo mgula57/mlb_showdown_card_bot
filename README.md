@@ -180,15 +180,21 @@ To display one of the other chart outputs, add the optional **offset** argument.
 #### _Hitters_
 Each player can have a maximum of **2 positions**. For a position to qualify, the player has to make at least **10 appearances** at that position in the given season. The positions are then limited to the top 2 by number of appearances. 
 
-In-game defensive ratings are calculated based on Total Zone Rating (tzr). TZR is a fielding metric used to compare one player's defensive impact at a position to the average (0 TZR). So a +10 TZR is an above average rating, while a -7 TZR is below average.
+In-game defensive ratings are calculated based on either Total Zone Rating (tzr), Defensive Runs Saved (drs), or Defensive Wins Above Replacement (dWAR). The bot will choose which metric to use depending on the year:
 
-The player's in-game rating is calculated with a TZR percentile, using a minimum of -18 to a maximum of +18. The player's in-game rating is calculated based on that percentile multiplied by the highest rating for each position (Ex: **3B: +4**, **SS: +5**, **LF/RF: +2**).
+- 1870-1953: dWAR
+- 1953-2002: TZR
+- 2003-Pres: DRS
 
-Ex: David Wright 2007 (+4 TZR)
+All these metrics work by comparing a certain player to the average replacement at that position (0). For example a +10 TZR is an above average rating, while a -7 TZR is below average.
+
+The player's in-game rating is calculated with a percentile within a range. The player's in-game rating is calculated based on that percentile multiplied by the highest rating for each position (Ex: **3B: +4**, **SS: +5**, **LF/RF: +2**).
+
+Ex: David Wright 2007 (+12 DRS)
 * 3B Rating = Percentile * 3B In-Game Max  
-* 3B Rating = 0.61 * 4
-* 3B Rating = 2.44
-* 3B Rating = +2
+* 3B Rating = 0.8 * 4
+* 3B Rating = 3.2
+* 3B Rating = +3
 
 
 #### _Pitchers_
