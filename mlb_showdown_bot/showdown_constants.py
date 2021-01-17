@@ -348,9 +348,9 @@ POINT_CATEGORY_WEIGHTS = {
         'position_player': {
             'defense': 80,
             'speed': 70,
-            'onbase': 270,
+            'onbase': 250,
             'average': 160,
-            'slugging': 110,
+            'slugging': 90,
             'home_runs': 50
         },
         'starting_pitcher': {
@@ -360,8 +360,8 @@ POINT_CATEGORY_WEIGHTS = {
             'slugging': 140
         },
         'relief_pitcher': {
-            'ip': 50,
-            'onbase': 140,
+            'ip': 40,
+            'onbase': 80,
             'average': 50,
             'slugging': 55
         }
@@ -371,9 +371,9 @@ POINT_CATEGORY_WEIGHTS = {
             'defense': 70,
             'speed': 60,
             'onbase': 220,
-            'average': 120,
-            'slugging': 80,
-            'home_runs': 40
+            'average': 110,
+            'slugging': 70,
+            'home_runs': 45
         },
         'starting_pitcher': {
             'ip': 90,
@@ -382,10 +382,10 @@ POINT_CATEGORY_WEIGHTS = {
             'slugging': 130
         },
         'relief_pitcher': {
-            'ip': 60,
-            'onbase': 160,
-            'average': 60,
-            'slugging': 70
+            'ip': 40,
+            'onbase': 80,
+            'average': 50,
+            'slugging': 55
         }
     },
     '2002': {
@@ -440,7 +440,7 @@ POINT_CATEGORY_WEIGHTS = {
             'onbase': 180,
             'average': 100,
             'slugging': 90,
-            'home_runs': 45
+            'home_runs': 60
         },
         'starting_pitcher': {
             'ip': 60,
@@ -462,7 +462,7 @@ POINT_CATEGORY_WEIGHTS = {
             'onbase': 200,
             'average': 110,
             'slugging': 100,
-            'home_runs': 45
+            'home_runs': 70
         },
         'starting_pitcher': {
             'ip': 60,

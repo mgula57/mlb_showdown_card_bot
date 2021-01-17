@@ -389,6 +389,12 @@ class ShowdownPlayerCardGenerator:
             letter = 'B'
         else:
             letter = 'A'
+        
+        # IF 2000 OR 2001, SPEED VALUES CAN ONLY BE 10,15,20
+        if self.context in ['2000','2001']:
+            spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
+            speed = spd_letter_to_number[letter]
+
         return speed, letter
 
     def __icons(self,awards):
@@ -1922,9 +1928,8 @@ class ShowdownPlayerCardGenerator:
                     # ADD # TO SPEED
                     font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
                     font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)
-                    spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
                     speed_num_text = self.__text_image(
-                        text=str(spd_letter_to_number[self.speed_letter]),
+                        text=str(self.speed),
                         size=(300, 300),
                         font=font_speed_number
                     )

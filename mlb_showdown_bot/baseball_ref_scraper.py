@@ -180,10 +180,13 @@ class BaseballReferenceScraper:
             all_positions.update(position_dict)
 
         # GET DEFENSIVE WAR IN CASE OF LACK OF TZR AVAILABILITY FOR SEASONS < 1952
-        player_value = soup_for_homepage_stats.find('tr', attrs = {'id': 'batting_value.{}'.format(self.year)})
-        dwar_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR_def'})
-        dwar_rating = dwar_object.get_text() if dwar_object != None else 0
-        all_positions.update({'dWAR': dwar_rating})
+        try:
+            player_value = soup_for_homepage_stats.find('tr', attrs = {'id': 'batting_value.{}'.format(self.year)})
+            dwar_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR_def'})
+            dwar_rating = dwar_object.get_text() if dwar_object != None else 0
+            all_positions.update({'dWAR': dwar_rating})
+        except:
+            all_positions.update({'dWAR': 0})
 
         return all_positions
 
