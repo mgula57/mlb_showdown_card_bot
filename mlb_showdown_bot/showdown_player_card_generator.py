@@ -782,7 +782,7 @@ class ShowdownPlayerCardGenerator:
             chart_ranges['{} Range'.format(category)] = range
 
         # FILL IN ABOVE 20 RESULTS IF APPLICABLE
-        if self.context in ['2002','2003','2004','2005'] and int(chart['hr']) < 1:
+        if self.context in ['2002','2003','2004','2005'] and int(chart['hr']) < 1 and not self.is_pitcher:
             chart_ranges = self.__hitter_chart_above_20(chart, chart_ranges, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa)
 
         return chart_ranges
