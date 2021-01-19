@@ -1938,7 +1938,7 @@ class ShowdownPlayerCardGenerator:
                     metadata_image.paste(color, (1128,345), speed_num_text)
                 # POSITION(S)
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)
-                ordered_by_len_position = sorted(self.positions_and_defense.items(), key=operator.itemgetter(0), reverse=True)
+                ordered_by_len_position = sorted(self.positions_and_defense.items(), key=operator.itemgetter(0), reverse=False)
                 y_position = 407
                 for position, rating in ordered_by_len_position:
                     position_rating_text = '   —' if position == 'DH' else '{} +{}'.format(position,str(rating))
