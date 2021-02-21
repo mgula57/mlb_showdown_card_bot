@@ -24,7 +24,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, set_number='001', test_numbers=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, set_number='001', test_numbers=None, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -40,6 +40,7 @@ class ShowdownPlayerCardGenerator:
         self.player_image_path = player_image_path
         self.set_number = set_number
         self.test_numbers = test_numbers
+        self.command_out_override = command_out_override
         self.is_running_in_flask = is_running_in_flask
 
         # DERIVED ATTRIBUTES
@@ -51,7 +52,12 @@ class ShowdownPlayerCardGenerator:
         self.__player_metadata(stats=stats)
 
         stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=stats)
-        command_out_combos = self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=7)
+
+        if command_out_override is None:
+            command_out_combos = self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=7)
+        else:
+            # OVERRIDE WILL MANUALLY CHOOSE COMMAND OUTS COMBO (USED FOR TESTING)
+            command_out_combos = [command_out_override]
 
         self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,
                                                                            stats_per_400_pa=stats_for_400_pa,
@@ -416,7 +422,6 @@ class ShowdownPlayerCardGenerator:
 
         awards_string = '' if awards is None else str(awards).upper()
         awards_list = awards_string.split(',')
-
         # ICONS FROM BREF AWARDS FIELD
         awards_to_icon_map = {
             'SS': 'S',
@@ -437,14 +442,18 @@ class ShowdownPlayerCardGenerator:
             if int(self.stats['W']) >= 20:
                 icons.append('20')
             # K
-            if int(self.stats['SO']) >= 215:
+            if int(self.stats['SO']) >= 215 or ( self.year == '2020' and int(self.stats['SO']) >= 96 ):
                 icons.append('K')
         else:
             # HR
-            if int(self.stats['HR']) >= 40:
+            if int(self.stats['HR']) >= 40 or ( self.year == '2020' and int(self.stats['HR']) >= 17 ):
                 icons.append('HR')
-            if int(self.stats['SB']) >= 40:
+            if int(self.stats['SB']) >= 40 or ( self.year == '2020' and int(self.stats['SB']) >= 15 ):
                 icons.append('SB')
+
+        # ROOKIE ICON 
+        if self.stats['is_rookie'] == True:
+            icons.append('R')
 
         return icons
 
@@ -467,7 +476,7 @@ class ShowdownPlayerCardGenerator:
         
         combo_accuracies = {}
         for combo, predicted_obp in combos.items():
-            accuracy = 1 - self.__pct_difference(obp, predicted_obp)
+            accuracy = self.__relative_pct_accuracy(actual=obp, measurement=predicted_obp)
             combo_accuracies[combo] = accuracy
 
         # LIMIT TO TOP N BY ACCURACY
@@ -622,7 +631,8 @@ class ShowdownPlayerCardGenerator:
         
         # FILL "OUT" CATEGORIES (PU, GB, FB)
         # MAKE SURE 'SO' DON'T FILL UP MORE THAN 5 SLOTS IF HITTER. THIS MAY CAUSE SOME STATISTICAL ANOMILIES IN MODERN YEARS.
-        chart['so'] = 5 if not self.is_pitcher and chart['so'] > 5 else chart['so']
+        max_hitter_so = sc.MAX_HITTER_SO_RESULTS[self.context]
+        chart['so'] = max_hitter_so if not self.is_pitcher and chart['so'] > max_hitter_so else chart['so']
         out_slots_remaining = outs - float(chart['so'])
         chart['pu'], chart['gb'], chart['fb'] = self.__out_results(
                                                     stats_for_400_pa['GO/AO'],
@@ -652,11 +662,13 @@ class ShowdownPlayerCardGenerator:
         weights = {
             'h_per_400_pa': 5.0,
             'slugging_perc': 5.0,
-            'onbase_perc': 5.0,
+            'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0 if self.is_pitcher else 3.0,
             'so_per_400_pa': 1.0 if self.is_pitcher else 0.1
         }
-        accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(dict1=in_game_stats_for_400_pa, dict2=stats_for_400_pa, weights=weights)
+        accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(actuals_dict=stats_for_400_pa, 
+                                                                                  measurements_dict=in_game_stats_for_400_pa, 
+                                                                                  weights=weights)
         return chart, accuracy, in_game_stats_for_400_pa
 
     def __out_results(self, gb_pct, popup_pct, out_slots_remaining):
@@ -677,7 +689,7 @@ class ShowdownPlayerCardGenerator:
             gb_outs = round((out_slots_remaining / (gb_pct + 1)) * gb_pct)
             air_outs = out_slots_remaining - gb_outs
             # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
-            pu_multiplier = 1.3
+            pu_multiplier = sc.PU_MULTIPLIER[self.context]
             pu_outs = 0.0 if not self.is_pitcher else math.ceil(air_outs*popup_pct*pu_multiplier)
             fb_outs = air_outs-pu_outs
         else:
@@ -1192,6 +1204,19 @@ class ShowdownPlayerCardGenerator:
         self.slg_points = round(slg_points)
         self.spd_ip_points = round(spd_ip_points)
 
+        # APPLY ANY ADDITIONAL PT ADJUSTMENTS FOR DIFFERENT SETS
+        if self.context == '2000':
+            # RUBBER BAND POINTS OVER 200 FOR RELIEVERS/CLOSERS
+            is_bullpen = 'RELIEVER' in positions_and_defense.keys() or 'CLOSER' in positions_and_defense.keys()
+            if is_bullpen and points >= 250:
+                # APPLY THE CALCULATION LOG(PTS) * 100 TO GET FINAL POINTS
+                points = math.log(points,10) * 100
+                # QA TO MAKE SURE PTS ARE CAPPED AT 300
+                points = 300 if points > 300 else points
+            elif 'STARTER' in positions_and_defense.keys():
+                if points >= 600: 
+                    points = points * 0.90
+        
         # POINTS ARE ALWAYS ROUNDED TO TENTH
         points_to_nearest_tenth = int(round(points,-1))
 
@@ -1230,12 +1255,12 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # GENERIC METHODS
 
-    def accuracy_between_dicts(self, dict1, dict2, weights={}, all_or_nothing=[]):
+    def accuracy_between_dicts(self, actuals_dict, measurements_dict, weights={}, all_or_nothing=[]):
         """Compare two dictionaries of numbers to get overall difference
 
         Args:
-          dict1: First Dictionary. Use this dict to get keys to compare.
-          dict2: Second Dictionary.
+          actuals_dict: First Dictionary. Use this dict to get keys to compare.
+          measurements_dict: Second Dictionary.
           weights: X times to count certain category (ex: 3x for command)
           all_or_nothing: List of category names to compare as a boolean 1 or 0 instead
                           of pct difference.
@@ -1243,25 +1268,25 @@ class ShowdownPlayerCardGenerator:
           Float with accuracy and Dict with accuracy per key.
         """
 
-        denominator = len(dict1.keys())
+        denominator = len(actuals_dict.keys())
         categorical_accuracy_dict = {}
         categorical_above_below_dict = {}
         accuracies = 0
 
         # CALCULATE CATEGORICAL ACCURACY
-        for key, value1 in dict1.items():
-            if key in dict2.keys():
-                value2 = dict2[key]
+        for key, value1 in actuals_dict.items():
+            if key in measurements_dict.keys():
+                value2 = measurements_dict[key]
                 if key in all_or_nothing:
                     accuracy_for_key = 1 if value1 == value2 else 0
                 else:
-                    pct_difference = self.__pct_difference(value1, value2)
-                    accuracy_for_key = 1 - pct_difference
-
+                    accuracy_for_key = self.__relative_pct_accuracy(actual=value1, measurement=value2)
+                        
                 # CATEGORICAL ACCURACY
                 categorical_accuracy_dict[key] = accuracy_for_key
-                categorical_above_below_dict[key] = {'above': 1 if value1 > value2 else 0,
-                                                     'below': 1 if value1 < value2 else 0}
+                categorical_above_below_dict[key] = {'above_wotc': 1 if value1 < value2 else 0,
+                                                     'below_wotc': 1 if value1 > value2 else 0,
+                                                     'matches_wotc': 1 if value1 == value2 else 0}
 
                 # APPLY WEIGHTS
                 weight = float(weights[key]) if key in weights.keys() else 1
@@ -1272,13 +1297,20 @@ class ShowdownPlayerCardGenerator:
 
         return overall_accuracy, categorical_accuracy_dict, categorical_above_below_dict
 
-    def __pct_difference(self, num1, num2):
-        """ CALCULATE % DIFFERENCE BETWEEN 2 NUMBERS"""
-        if num1+num2 == 0:
-            # PCT DIFF IS AUTOMATICALLY 0
-            return 0
-        else:
-            return abs(num1 - num2) / ( (num1 + num2) / 2 )
+    def __relative_pct_accuracy(self, actual, measurement):
+        """ CALCULATE ACCURACY BETWEEN 2 NUMBERS"""
+
+        denominator = actual
+
+        # ACCURACY IS 100% IF BOTH ARE EQUAL (IF STATEMENT TO AVOID 0'S)
+        if actual == measurement:
+            return 1
+
+        # CAN'T DIVIDE BY 0, SO USE OTHER VALUE AS BENCHMARK
+        if actual == 0:
+            denominator = measurement
+            
+        return (actual - abs(actual - measurement) ) / denominator
 
     def accuracy_against_wotc(self, wotc_card_dict, is_pts_only=False):
         """Compare My card output against official WOTC card.
@@ -1293,13 +1325,12 @@ class ShowdownPlayerCardGenerator:
         """
 
         chart_w_combined_command_outs = self.chart
+        chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart['command'],self.chart['outs'])
         if is_pts_only:
             chart_w_combined_command_outs['points'] = self.points
-        else:
-            chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart['command'],self.chart['outs'])
         
-        return self.accuracy_between_dicts(dict1=wotc_card_dict,
-                                           dict2=chart_w_combined_command_outs,
+        return self.accuracy_between_dicts(actuals_dict=wotc_card_dict,
+                                           measurements_dict=chart_w_combined_command_outs,
                                            weights={},
                                            all_or_nothing=['command-outs'])
 
@@ -1909,8 +1940,8 @@ class ShowdownPlayerCardGenerator:
                 # POSITION
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=72)
                 position = list(self.positions_and_defense.keys())[0]
-                position_text = self.__text_image(text=position, size=(900, 300), font=font_position)
-                metadata_image.paste(sc.COLOR_WHITE, (975,342), position_text)
+                position_text = self.__text_image(text=position, size=(900, 300), font=font_position, alignment='center')
+                metadata_image.paste(sc.COLOR_WHITE, (660,342), position_text)
                 # HAND | IP
                 font_hand_ip = ImageFont.truetype(helvetica_neue_lt_path, size=63)
                 hand_text = self.__text_image(text=self.hand, size=(900, 300), font=font_hand_ip)

@@ -167,7 +167,8 @@ class BaseballReferenceScraper:
             total_zone_rating = total_zone_object.get_text() if total_zone_object != None else 0
             total_zone_rating = 0 if total_zone_rating == '' else total_zone_rating
             # DRS (2003+)
-            drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total'})
+            drs_metric_name = 'bis_runs_total_per_season' if str(self.year) == '2020' else 'bis_runs_total'
+            drs_object = position_info.find('td',attrs={'class':'right','data-stat':drs_metric_name})
             drs_rating = drs_object.get_text() if drs_object != None else 0
             drs_rating = 0 if drs_rating == '' else drs_rating
             # UPDATE POSITION DICTIONARY
@@ -337,7 +338,10 @@ class BaseballReferenceScraper:
         standard_table_key = '{}_standard.{}'.format(table_prefix, self.year)
         standard_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': standard_table_key})
 
-        advanced_stats = {}
+        is_rookie_season = self.__is_rookie_season(table_prefix=table_prefix, advanced_stats_soup=soup_for_advanced_stats)
+        
+        advanced_stats = {'is_rookie': is_rookie_season}
+
         # BATTING AGAINST (PITCHERS ONLY)
         if type == 'Pitcher':
             batting_against_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': 'pitching_batting.{}'.format(self.year)})
@@ -464,6 +468,25 @@ class BaseballReferenceScraper:
             return last_team
         except:
             return 'TOT'
+
+    def __is_rookie_season(self, table_prefix, advanced_stats_soup):
+        """Checks to see if the selected season is the player's rookie season
+
+        Args:
+          table_prefix: String for whether player is batter or pitcher
+          advanced_stats_soup: BeautifulSoup object for advanced stats table.
+
+        Returns:
+          TRUE or FALSE bool
+        """
+        try:
+            full_element_prefix = '{}_standard.'.format(table_prefix)
+            all_seasons_list = advanced_stats_soup.find_all('tr',attrs={'class':'full','id': re.compile(full_element_prefix)})
+            first_season = all_seasons_list[0].find('th',attrs={'class':'left','data-stat': 'year_ID'} )
+            year_of_first_season = str(first_season["csk"])
+            return year_of_first_season == str(self.year)
+        except:
+            return False
 
 # ------------------------------------------------------------------------
 # HELPER METHODS

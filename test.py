@@ -7,6 +7,9 @@ parser.add_argument('-t','--type', help='Choose either Hitter or Pitcher to test
 parser.add_argument('-cb','--is_current_baseline', action='store_true', help='Set to True to test for accuracy of current baseline weights, otherwise iterates through all possible weights')
 parser.add_argument('-ex','--exclude_volatile', action='store_true', help='Set to True to leave out categories such as out results and 1b+ from tests')
 parser.add_argument('-pts','--only_pts', action='store_true', help='Set to True to only test for point value.')
+parser.add_argument('-p','--positions', help='Choose to filter by certain positions', default='', type=str)
+parser.add_argument('-uw','--use_wotc', action='store_true', help='Use WOTC Command/Out combos')
+
 args = parser.parse_args()
 
 if __name__ == "__main__":
@@ -15,4 +18,6 @@ if __name__ == "__main__":
                              type=args.type, 
                              is_testing_current_baseline=args.is_current_baseline,
                              ignore_volatile_categories=args.exclude_volatile,
-                             is_pts_only=args.only_pts)
+                             is_pts_only=args.only_pts,
+                             position_filters=[str(item) for item in args.positions.split(',')],
+                             use_wotc_command_outs=args.use_wotc)
