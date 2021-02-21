@@ -100,7 +100,7 @@ def card_creator():
         is_super_season = is_ss if is_ss else False
         img_url = None if url == '' else url
         img_name = None if img == '' else img
-        set_number = '001' if set_num == '' else set_num
+        set_number = year if set_num == '' else set_num
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
