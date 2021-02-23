@@ -1721,8 +1721,9 @@ class ShowdownPlayerCardGenerator:
                 logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 120)
         try:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
+            historical_alternate_ext = self.__team_logo_historical_alternate_extension()
             alternate_logo_ext = '-A' if int(self.context) >= 2004 else ''
-            team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', '{}{}.png'.format(logo_name,alternate_logo_ext))).convert("RGBA")
+            team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', '{}{}{}.png'.format(logo_name,alternate_logo_ext,historical_alternate_ext))).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         except:
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
@@ -1765,6 +1766,30 @@ class ShowdownPlayerCardGenerator:
             team_logo = cooperstown_logo
 
         return team_logo, logo_paste_coordinates
+
+    def __team_logo_historical_alternate_extension(self):
+        """Check to see if there is an alternate team logo to use for the given team + year 
+
+        Args:
+          None
+
+        Returns:
+          Index of alternate logo for team. If none exists, fn will return empty string
+        """
+
+        logo_historical_alternates = sc.TEAM_LOGO_ALTERNATES
+        
+        # CHECK TO SEE IF THERE ARE ANY ALTERNATE LOGOS FOR TEAM 
+        if self.team not in logo_historical_alternates.keys():
+            return ''
+
+        # CHECK IF PLAYER FITS IN ANY ALTERNATE RANGE
+        for index, range in logo_historical_alternates[self.team].items():
+            if int(self.year) in range:
+                return '-{}'.format(index)
+        
+        # NO ALTERNATES FOUND, RETURN NONE
+        return ''
 
     def __template_image(self):
         """Loads showdown frame template depending on player context.

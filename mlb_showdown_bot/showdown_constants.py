@@ -1080,3 +1080,139 @@ TEXT_SIZES = {
         '2005': 75
     },
 }
+
+""" ALTERNATE TEAM LOGO RANGES. NOTE: END YEAR SHOULD BE YEAR OF NEW LOGO """
+
+TEAM_LOGO_ALTERNATES = {
+    'ANA': {
+        '1': list(range(2002, 2005)),
+    },
+    'ARI': {
+        '1': list(range(1998,2007))
+    },
+    'ATL': {
+        '1': list(range(1966,1972)),
+        '2': list(range(1972,1981)),
+        '3': list(range(1981,1987)),
+    },
+    'BAL': {
+        '1': list(range(1954,1966)),
+        '2': list(range(1966,1992)),
+        '3': list(range(1992,1995)),
+        '4': list(range(1995,2009)),
+        '5': list(range(2009,2019)),
+    },
+    'BOS': {
+        '1': list(range(1908,1924)),
+        '2': list(range(1924,1961)),
+        '3': list(range(1961,1976)),
+    },
+    'CHC': {
+        '1': list(range(1903,1946)),
+        '2': list(range(1946,1957)),
+        '3': list(range(1957,1979)),
+        '4': list(range(1979,1997)),
+    },
+    'CHW': {
+        '1': list(range(1901,1939)),
+        '2': list(range(1939,1960)),
+        '3': list(range(1960,1976)),
+        '4': list(range(1976,1991)),
+    },
+    'CIN': {
+        '1': list(range(1890,1953)),
+        '2': list(range(1953,1968)),
+        '3': list(range(1968,1993)),
+        '4': list(range(1993,1999)),
+    },
+    'CLE': {
+        '1': list(range(1915,1921)),
+        '2': list(range(1921,1946)),
+        '3': list(range(1946,1973)),
+        '4': list(range(1973,1979)),
+        '5': list(range(1979,2013)),
+    },
+    'DET': {
+        '1': list(range(1901,1957)),
+        '2': list(range(1957,1994)),
+        '3': list(range(1994,2005)),
+    },
+    'HOU': {
+        '1': list(range(1965,1994)),
+        '2': list(range(1957,1994)),
+        '3': list(range(1994,2005)),
+    },
+    'KCR': {
+        '1': list(range(1969,1986)),
+        '2': list(range(1986,1993)),
+        '3': list(range(1993,2002)),
+    },
+    'MIA': {
+        '1': list(range(2012,2019)),
+    },
+    'MIL': {
+        '1': list(range(1970,1978)),
+        '2': list(range(1978,1994)),
+        '3': list(range(1994,2000)),
+        '4': list(range(2000,2018)),
+    },
+    'MIN': {
+        '1': list(range(1961,1987)),
+        '2': list(range(1987,2009)),
+    },
+    'NYM': {
+        '1': list(range(1962,1993)),
+    },
+    'NYY': {
+        '1': list(range(1900,1950)),
+    },
+    'OAK': {
+        '1': list(range(1970,1992)),
+        '2': list(range(1992,2019)),
+    },
+    'PHI': {
+        '1': list(range(1900,1950)),
+        '2': list(range(1950,1970)),
+        '3': list(range(1970,1992)),
+        '4': list(range(1992,2019)),
+    },
+    'PIT': {
+        '1': list(range(1900,1948)),
+        '2': list(range(1948,1970)),
+        '3': list(range(1970,2009)),
+    },
+    'SDP': {
+        '1': list(range(1969,1985)),
+        '2': list(range(1985,1992)),
+        '3': list(range(1992,2004)),
+        '4': list(range(2004,2012)),
+    },
+    'SEA': {
+        '1': list(range(1977,1981)),
+        '2': list(range(1981,1987)),
+        '3': list(range(1987,1993)),
+    },
+    'SFG': {
+        '1': list(range(1968,1983)),
+        '2': list(range(1983,1994)),
+        '3': list(range(1994,2000)),
+    },
+    'STL': {
+        '1': list(range(1900,1927)),
+        '2': list(range(1927,1965)),
+        '3': list(range(1965,1998)),
+    },
+    'TEX': {
+        '1': list(range(1972,1982)),
+        '2': list(range(1982,1994)),
+        '3': list(range(1994,2003)),
+    },
+    'TOR': {
+        '1': list(range(1977,1997)),
+        '2': list(range(1997,2003)),
+        '3': list(range(2003,2012)),
+    },
+    'WSN': {
+        '1': list(range(2005,2011)),
+    },
+}
