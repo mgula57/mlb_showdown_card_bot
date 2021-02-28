@@ -9,6 +9,8 @@ parser.add_argument('-ex','--exclude_volatile', action='store_true', help='Set t
 parser.add_argument('-pts','--only_pts', action='store_true', help='Set to True to only test for point value.')
 parser.add_argument('-p','--positions', help='Choose to filter by certain positions', default='', type=str)
 parser.add_argument('-uw','--use_wotc', action='store_true', help='Use WOTC Command/Out combos')
+parser.add_argument('-co','--command_outs', help='Filter to only certain Command-Outs combinations. Enter like "10-5,..."', default='', type=str)
+
 
 args = parser.parse_args()
 
@@ -20,4 +22,5 @@ if __name__ == "__main__":
                              ignore_volatile_categories=args.exclude_volatile,
                              is_pts_only=args.only_pts,
                              position_filters=[str(item) for item in args.positions.split(',')],
-                             use_wotc_command_outs=args.use_wotc)
+                             use_wotc_command_outs=args.use_wotc,
+                             command_out_combos=[str(item) for item in args.command_outs.split(',')])

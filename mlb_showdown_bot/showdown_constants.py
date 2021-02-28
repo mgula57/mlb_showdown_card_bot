@@ -335,22 +335,22 @@ POINT_CATEGORY_WEIGHTS = {
         'position_player': {
             'defense': 80,
             'speed': 70,
-            'onbase': 250,
-            'average': 160,
-            'slugging': 90,
-            'home_runs': 50
+            'onbase': 220,
+            'average': 90,
+            'slugging': 130,
+            'home_runs': 60
         },
         'starting_pitcher': {
-            'ip': 90,
-            'onbase': 370,
-            'average': 140,
-            'slugging': 140
+            'ip': 105,
+            'onbase': 380,
+            'average': 70,
+            'slugging': 280
         },
         'relief_pitcher': {
-            'ip': 40,
-            'onbase': 80,
-            'average': 50,
-            'slugging': 55
+            'ip': 0, # IP IS ADJUSTED ELSEWHERE
+            'onbase': 100,
+            'average': 30,
+            'slugging': 85
         }
     },
     '2001': {
@@ -467,6 +467,112 @@ POINT_CATEGORY_WEIGHTS = {
 }
 
 """
+DEFENSIVE POINT MULTIPLIERS
+  - MULTIPLY POINT TOTALS FOR GIVEN POSITION BY A SCALER
+  - WILL SCALE SOME POSITIONS UP IN VALUE, AND OTHERS DOWN IN VALUE
+"""
+
+POINTS_POSITIONAL_MULTIPLIER = {
+    '2000': {
+        'C': 1.0,
+        '1B': 1.1,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 0.95,
+        'LF': 0.98,
+        'CF': 1.0,
+        'RF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+        'DH': 1.0,
+        'STARTER': 1.0,
+        'RELIEVER': 1.0,
+        'CLOSER': 1.15,
+    },
+    '2001': {
+        'C': 1.0,
+        '1B': 1.1,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 0.95,
+        'LF': 1.0,
+        'CF': 1.0,
+        'RF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+        'DH': 1.0,
+        'STARTER': 1.0,
+        'RELIEVER': 1.0,
+        'CLOSER': 1.0,
+    },
+    '2002': {
+        'CA': 1.0,
+        '1B': 1.1,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 0.95,
+        'LF': 1.0,
+        'CF': 1.0,
+        'RF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+        'DH': 1.0,
+        'STARTER': 1.0,
+        'RELIEVER': 1.0,
+        'CLOSER': 1.0,
+    },
+    '2003': {
+        'CA': 1.0,
+        '1B': 1.1,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 0.95,
+        'LF': 1.0,
+        'CF': 1.0,
+        'RF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+        'DH': 1.0,
+        'STARTER': 1.0,
+        'RELIEVER': 1.0,
+        'CLOSER': 1.0,
+    },
+    '2004': {
+        'CA': 1.0,
+        '1B': 1.1,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 0.95,
+        'LF': 1.0,
+        'CF': 1.0,
+        'RF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+        'DH': 1.0,
+        'STARTER': 1.0,
+        'RELIEVER': 1.0,
+        'CLOSER': 1.0,
+    },
+    '2005': {
+        'CA': 1.0,
+        '1B': 1.1,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 0.95,
+        'LF': 1.0,
+        'CF': 1.0,
+        'RF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+        'DH': 1.0,
+        'STARTER': 1.0,
+        'RELIEVER': 1.0,
+        'CLOSER': 1.0,
+    }
+}
+
+
+"""
 POINT CATEGORY RANGES
   - MIN AND MAX VALUES FOR EACH CATEGORY USED TO PRODUCE POINT VALUE.
   - USED TO CALCULATE A PLAYER'S PERCENTILE IN THAT CATEGORY.
@@ -475,7 +581,7 @@ ONBASE_PCT_RANGE = {
     '2000': {
         'pitcher': {
             'min': 0.250,
-            'max': 0.410
+            'max': 0.390
         },
         'hitter': {
             'min': 0.250,
@@ -537,7 +643,7 @@ BATTING_AVG_RANGE = {
     '2000': {
         'pitcher': {
             'min': 0.210,
-            'max': 0.340
+            'max': 0.300
         },
         'hitter': {
             'min': 0.225,
@@ -598,7 +704,7 @@ BATTING_AVG_RANGE = {
 SLG_RANGE = {
     '2000': {
         'pitcher': {
-            'min': 0.330,
+            'min': 0.350,
             'max': 0.500
         },
         'hitter': {

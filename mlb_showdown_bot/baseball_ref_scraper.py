@@ -378,6 +378,11 @@ class BaseballReferenceScraper:
 
         for category in standard_table:
             stat_category = category['data-stat']
+            # SAVE THIS INFO FOR RP ICON
+            if stat_category == 'SV':
+                # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD TEXT
+                is_league_leader = '<strong>' in str(category)
+                standard_stats_dict['is_sv_leader'] = is_league_leader
             stat = category.get_text()
             if type == 'Pitcher':
                 pitching_categories = ['earned_run_avg','GS','W','SV','IP','award_summary']
