@@ -683,7 +683,7 @@ class ShowdownPlayerCardGenerator:
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20)
         weights = {
-            'h_per_400_pa': 5.0,
+            'h_per_400_pa': 3.0,
             'slugging_perc': 5.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0 if self.is_pitcher else 3.0,
@@ -1179,24 +1179,24 @@ class ShowdownPlayerCardGenerator:
         pts_position_multiplier = pts_position_multiplier / number_of_positions
 
         # SLASH LINE VALUE
-        player_type = 'pitcher' if self.is_pitcher else 'hitter'
+        allow_negatives = sc.POINTS_ALLOW_NEGATIVE[self.context][player_category]
         self.obp_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['onbase'] \
                           * self.stat_percentile(stat=real_stats['onbase_perc'],
-                                                 min_max_dict=sc.ONBASE_PCT_RANGE[self.context][player_type],
+                                                 min_max_dict=sc.ONBASE_PCT_RANGE[self.context][player_category],
                                                  is_desc=self.is_pitcher,
-                                                 allow_negative=False) \
+                                                 allow_negative=allow_negatives) \
                           * pts_position_multiplier
         self.ba_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['average'] \
                          * self.stat_percentile(stat=real_stats['batting_avg'],
-                                                min_max_dict=sc.BATTING_AVG_RANGE[self.context][player_type],
+                                                min_max_dict=sc.BATTING_AVG_RANGE[self.context][player_category],
                                                 is_desc=self.is_pitcher,
-                                                allow_negative=False) \
+                                                allow_negative=allow_negatives) \
                          * pts_position_multiplier
         self.slg_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['slugging'] \
                           * self.stat_percentile(stat=real_stats['slugging_perc'],
-                                                 min_max_dict=sc.SLG_RANGE[self.context][player_type],
+                                                 min_max_dict=sc.SLG_RANGE[self.context][player_category],
                                                  is_desc=self.is_pitcher,
-                                                 allow_negative=False) \
+                                                 allow_negative=allow_negatives) \
                           * pts_position_multiplier
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
         spd_ip_category = 'ip' if self.is_pitcher else 'speed'
@@ -1208,14 +1208,15 @@ class ShowdownPlayerCardGenerator:
                              * self.stat_percentile(stat=speed_or_ip,
                                                     min_max_dict=spd_ip_range,
                                                     is_desc=False,
-                                                    allow_negative=False) \
+                                                    allow_negative=allow_negatives) \
                              * pts_position_multiplier
         if not self.is_pitcher:
             # ONLY HITTERS HAVE HR ADD TO POINTS
             self.hr_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['home_runs'] \
                              * self.stat_percentile(stat=real_stats['hr_per_650_pa'],
                                                     min_max_dict=sc.HR_RANGE[self.context],
-                                                    is_desc=self.is_pitcher) \
+                                                    is_desc=self.is_pitcher,
+                                                    allow_negative=allow_negatives) \
                              * pts_position_multiplier
             # AVERAGE POINT VALUE ACROSS POSITIONS
             defense_points = 0
@@ -1234,36 +1235,13 @@ class ShowdownPlayerCardGenerator:
 
         # --- APPLY ANY ADDITIONAL PT ADJUSTMENTS FOR DIFFERENT SETS ---
 
-        # NORMALIZE SCORE ACROSS MEDIAN
-        lower_limit = 10
-        is_relief_pitcher = not is_starting_pitcher and self.is_pitcher
-        reliever_normalizer = 2.0 if is_relief_pitcher else 1.0
-        median = 310 / reliever_normalizer
-        upper_limit = 800 / reliever_normalizer
-
-        # CENTER SLIGHTLY TOWARDS MEDIAN
-        is_points_below_median = points < median
-        points_cutoff = 120 if is_relief_pitcher else 500
-        if points >= points_cutoff:
-            min_max = {
-                'min': lower_limit if is_points_below_median else median,
-                'max': median if is_points_below_median else upper_limit
-            }
-            percentile = self.stat_percentile(
-                stat = points if points < upper_limit else upper_limit,
-                min_max_dict = min_max,
-                is_desc = not is_points_below_median
-            )
-            upper_multiplier = 1.0
-            lower_multiplier = 0.95 if is_points_below_median else 0.85
-            multiplier = percentile * (upper_multiplier - lower_multiplier) + lower_multiplier
-            if is_points_below_median:
-                multiplier = 1/ multiplier
-            points = points * multiplier
+        # SOME SETS PULL CARDS SLIGHTLY TOWARDS THE MEDIAN
+        if sc.POINTS_NORMALIZE_TOWARDS_MEDIAN[self.context][player_category]:
+            points = self.__normalize_points_towards_median(points)
 
         # ADJUST POINTS FOR RELIEVERS WITH 2X IP
-        if is_relief_pitcher:
-            points *= (self.ip * (0.95 if self.ip > 1 else 1.0))
+        if not is_starting_pitcher and self.is_pitcher:
+            points *= (self.ip * (sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context] if self.ip > 1 else 1.0))
         
         # POINTS ARE ALWAYS ROUNDED TO TENTH
         points_to_nearest_tenth = int(round(points,-1))
@@ -1297,9 +1275,53 @@ class ShowdownPlayerCardGenerator:
 
         # REVERSE IF DESC
         percentile_adjusted = 1 - raw_percentile if is_desc else raw_percentile
+        
+        if not allow_negative and percentile_adjusted < 0:
+            percentile_adjusted = 0
 
         return percentile_adjusted
 
+    def __normalize_points_towards_median(self, points):
+        """Normalize points for subset on players towards the mean.
+
+        Args:
+          points: Current Points attributed to player
+
+        Returns:
+          Updated PTS total for player after normalization.
+        """
+        
+        # NORMALIZE SCORE ACROSS MEDIAN
+        lower_limit = 10
+        is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
+        is_relief_pitcher = not is_starting_pitcher and self.is_pitcher
+        reliever_normalizer = 2.0 if is_relief_pitcher else 1.0
+        median = 310 / reliever_normalizer
+        
+        upper_limit = 800 / reliever_normalizer
+
+        # CENTER SLIGHTLY TOWARDS MEDIAN
+        is_points_below_median = points < median
+        points_cutoff = 120 if is_relief_pitcher else 500
+        if points >= points_cutoff:
+            min_max = {
+                'min': lower_limit if is_points_below_median else median,
+                'max': median if is_points_below_median else upper_limit
+            }
+            percentile = self.stat_percentile(
+                stat = points if points < upper_limit else upper_limit,
+                min_max_dict = min_max,
+                is_desc = not is_points_below_median
+            )
+            upper_multiplier = 1.0
+            alter_for_04_05 = -0.12 if self.context in ('2004','2005') else 0
+            lower_multiplier = 0.95 if is_points_below_median else 0.85 + alter_for_04_05
+            multiplier = percentile * (upper_multiplier - lower_multiplier) + lower_multiplier
+            if is_points_below_median:
+                multiplier = 1 / multiplier
+            return points * multiplier
+        else:
+            return points
 # ------------------------------------------------------------------------
 # GENERIC METHODS
 
@@ -1446,10 +1468,10 @@ class ShowdownPlayerCardGenerator:
 
         # DISPLAY INDIVIDUAL PT CATEGORIES
         pt_category_string = 'OBP:{obp}  BA:{ba}  SLG:{slg}  SPD/IP:{spd_ip}'.format(
-            obp = self.obp_points,
-            ba = self.ba_points,
-            slg = self.slg_points,
-            spd_ip = self.spd_ip_points
+            obp = round(self.obp_points,2),
+            ba = round(self.ba_points,2),
+            slg = round(self.slg_points,2),
+            spd_ip = round(self.spd_ip_points,2)
         )
         if not self.is_pitcher:
             pt_category_string += '  HR:{hr}  DEF:{defense}'.format(hr=self.hr_points,defense=self.defense_points)

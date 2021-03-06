@@ -292,7 +292,7 @@ class ShowdownSetAccuracy:
         chart_results_per_400_pa = my_player_card.chart_to_results_per_400_pa(my_player_card.chart, my_advantages_per_20, opponent_chart, opponent_advantages_per_20)
         my_player_card.real_stats = my_player_card.stats_for_full_season(stats_per_400_pa=chart_results_per_400_pa)
         rep = {"SP": "STARTER", "RP": "RELIEVER", "CL": "CLOSER"}
-        position_1 = str(wotc_player_card.Position1)
+        position_1 = str(wotc_player_card.Position1)            
         if position_1 in rep.keys():
             position_1 = rep[position_1]
         defense = {position_1: wotc_player_card.Fielding1}
@@ -300,11 +300,22 @@ class ShowdownSetAccuracy:
             defense[str(wotc_player_card.Position2)] = wotc_player_card.Fielding2
         if wotc_player_card.Position3 is not None and not str(wotc_player_card.Position3) == 'nan':
             defense[str(wotc_player_card.Position3)] = wotc_player_card.Fielding3
+        if int(self.context) > 2001 and 'C' in defense.keys():
+            defense['CA'] = defense['C']
+            del defense['C']
 
         my_player_card.positions_and_defense = defense
         my_player_card.ip = int(wotc_player_card.IP)
         my_player_card.icons = []
         my_player_card.chart_ranges = my_player_card.ranges_for_chart(my_player_card.chart, 5.0, 5.0, 5.0)
+        my_player_card.speed = wotc_player_card.Speed
+        if wotc_player_card.Speed < 12:
+            letter = 'C'
+        elif wotc_player_card.Speed < 18:
+            letter = 'B'
+        else:
+            letter = 'A'
+        my_player_card.speed_letter = letter
         my_player_card.points = my_player_card.point_value(chart=my_player_card.chart,
                                                             real_stats=my_player_card.real_stats,
                                                             positions_and_defense=defense,

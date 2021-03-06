@@ -355,113 +355,112 @@ POINT_CATEGORY_WEIGHTS = {
     },
     '2001': {
         'position_player': {
-            'defense': 70,
-            'speed': 60,
-            'onbase': 220,
-            'average': 110,
-            'slugging': 70,
+            'defense': 60,
+            'speed': 50,
+            'onbase': 150,
+            'average': 50,
+            'slugging': 190,
             'home_runs': 45
         },
         'starting_pitcher': {
-            'ip': 90,
-            'onbase': 350,
-            'average': 130,
-            'slugging': 130
+            'ip': 110,
+            'onbase': 395,
+            'average': 85,
+            'slugging': 290
         },
         'relief_pitcher': {
-            'ip': 40,
-            'onbase': 80,
-            'average': 50,
-            'slugging': 55
+            'ip': 0, # IP IS ADJUSTED ELSEWHERE
+            'onbase': 120,
+            'average': 25,
+            'slugging': 125
         }
     },
     '2002': {
         'position_player': {
-            'defense': 80,
-            'speed': 70,
-            'onbase': 250,
-            'average': 130,
-            'slugging': 110,
-            'home_runs': 40
+            'defense': 70,
+            'speed': 60,
+            'onbase': 140,
+            'average': 50,
+            'slugging': 160,
+            'home_runs': 45
         },
         'starting_pitcher': {
-            'ip': 70,
-            'onbase': 400,
-            'average': 110,
-            'slugging': 120
+            'ip': 80,
+            'onbase': 330,
+            'average': 75,
+            'slugging': 200
         },
         'relief_pitcher': {
-            'ip': 40,
-            'onbase': 100,
-            'average': 50,
-            'slugging': 55
+            'ip': 0, # IP IS ADJUSTED ELSEWHERE
+            'onbase': 75,
+            'average': 20,
+            'slugging': 80
         }
     },
     '2003': {
         'position_player': {
-            'defense': 70,
+            'defense': 60,
             'speed': 60,
-            'onbase': 230,
-            'average': 120,
-            'slugging': 100,
-            'home_runs': 50
+            'onbase': 240,
+            'average': 60,
+            'slugging': 130,
+            'home_runs': 55
         },
         'starting_pitcher': {
-            'ip': 60,
-            'onbase': 360,
-            'average': 100,
-            'slugging': 110
+            'ip': 55,
+            'onbase': 380,
+            'average': 70,
+            'slugging': 180
         },
         'relief_pitcher': {
-            'ip': 60,
+            'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 120,
-            'average': 60,
-            'strikeouts': 10,
-            'slugging': 65
+            'average': 30,
+            'slugging': 110
         }
     },
     '2004': {
         'position_player': {
-            'defense': 70,
-            'speed': 60,
-            'onbase': 180,
-            'average': 100,
-            'slugging': 90,
-            'home_runs': 60
+            'defense': 65,
+            'speed': 55,
+            'onbase': 160,
+            'average': 70,
+            'slugging': 150,
+            'home_runs': 55
         },
         'starting_pitcher': {
-            'ip': 60,
-            'onbase': 300,
-            'average': 125,
-            'slugging': 125
+            'ip': 65,
+            'onbase': 285,
+            'average': 70,
+            'slugging': 240
         },
         'relief_pitcher': {
-            'ip': 50,
-            'onbase': 110,
-            'average': 55,
-            'slugging': 60
+            'ip': 0, # IP IS ADJUSTED ELSEWHERE
+            'onbase': 105,
+            'average': 40,
+            'slugging': 110
         }
     },
     '2005': {
         'position_player': {
-            'defense': 70,
-            'speed': 60,
-            'onbase': 200,
-            'average': 110,
-            'slugging': 100,
-            'home_runs': 70
+            'defense': 65,
+            'speed': 55,
+            'onbase': 140,
+            'average': 70,
+            'slugging': 130,
+            'home_runs': 50
         },
         'starting_pitcher': {
-            'ip': 60,
-            'onbase': 330,
-            'average': 100,
-            'slugging': 110
+            'ip': 70,
+            'onbase': 230,
+            'average': 70,
+            'slugging': 235
         },
         'relief_pitcher': {
-            'ip': 60,
-            'onbase': 125,
-            'average': 60,
-            'slugging': 65
+            'ip': 0, # IP IS ADJUSTED ELSEWHERE
+            'onbase': 105,
+            'average': 40,
+            'slugging': 105
         }
     }
 }
@@ -471,7 +470,6 @@ DEFENSIVE POINT MULTIPLIERS
   - MULTIPLY POINT TOTALS FOR GIVEN POSITION BY A SCALER
   - WILL SCALE SOME POSITIONS UP IN VALUE, AND OTHERS DOWN IN VALUE
 """
-
 POINTS_POSITIONAL_MULTIPLIER = {
     '2000': {
         'C': 1.0,
@@ -490,11 +488,11 @@ POINTS_POSITIONAL_MULTIPLIER = {
         'CLOSER': 1.15,
     },
     '2001': {
-        'C': 1.0,
-        '1B': 1.1,
-        '2B': 1.0,
-        '3B': 1.0,
-        'SS': 0.95,
+        'C': 1.03,
+        '1B': 1.0,
+        '2B': 1.1,
+        '3B': 0.95,
+        'SS': 1.05,
         'LF': 1.0,
         'CF': 1.0,
         'RF': 1.0,
@@ -503,14 +501,14 @@ POINTS_POSITIONAL_MULTIPLIER = {
         'DH': 1.0,
         'STARTER': 1.0,
         'RELIEVER': 1.0,
-        'CLOSER': 1.0,
+        'CLOSER': 1.1,
     },
     '2002': {
         'CA': 1.0,
-        '1B': 1.1,
+        '1B': 1.0,
         '2B': 1.0,
         '3B': 1.0,
-        'SS': 0.95,
+        'SS': 1.0,
         'LF': 1.0,
         'CF': 1.0,
         'RF': 1.0,
@@ -518,15 +516,15 @@ POINTS_POSITIONAL_MULTIPLIER = {
         'LF/RF': 1.0,
         'DH': 1.0,
         'STARTER': 1.0,
-        'RELIEVER': 1.0,
-        'CLOSER': 1.0,
+        'RELIEVER': 0.97,
+        'CLOSER': 1.25,
     },
     '2003': {
-        'CA': 1.0,
-        '1B': 1.1,
-        '2B': 1.0,
-        '3B': 1.0,
-        'SS': 0.95,
+        'CA': 1.05,
+        '1B': 1.0,
+        '2B': 1.1,
+        '3B': 1.07,
+        'SS': 1.18,
         'LF': 1.0,
         'CF': 1.0,
         'RF': 1.0,
@@ -534,41 +532,131 @@ POINTS_POSITIONAL_MULTIPLIER = {
         'LF/RF': 1.0,
         'DH': 1.0,
         'STARTER': 1.0,
-        'RELIEVER': 1.0,
-        'CLOSER': 1.0,
+        'RELIEVER': 1.08,
+        'CLOSER': 0.88,
     },
     '2004': {
         'CA': 1.0,
-        '1B': 1.1,
+        '1B': 1.0,
         '2B': 1.0,
-        '3B': 1.0,
-        'SS': 0.95,
+        '3B': 1.12,
+        'SS': 1.05,
         'LF': 1.0,
         'CF': 1.0,
         'RF': 1.0,
         'OF': 1.0,
+        'IF': 1.0,
         'LF/RF': 1.0,
         'DH': 1.0,
         'STARTER': 1.0,
-        'RELIEVER': 1.0,
-        'CLOSER': 1.0,
+        'RELIEVER': 1.00,
+        'CLOSER': 0.93,
     },
     '2005': {
         'CA': 1.0,
-        '1B': 1.1,
+        '1B': 1.0,
         '2B': 1.0,
         '3B': 1.0,
-        'SS': 0.95,
+        'SS': 1.0,
         'LF': 1.0,
         'CF': 1.0,
         'RF': 1.0,
         'OF': 1.0,
+        'IF': 1.0,
         'LF/RF': 1.0,
         'DH': 1.0,
         'STARTER': 1.0,
-        'RELIEVER': 1.0,
+        'RELIEVER': 0.96,
         'CLOSER': 1.0,
     }
+}
+
+
+"""
+POINTS_ALLOW_NEGATIVE
+  - BOOLEAN FOR WHETHER THE SET PENALIZES BAD CATEGORIES BY GIVING NEGATIVE POINTS
+"""
+POINTS_ALLOW_NEGATIVE = {
+    '2000': {
+        'position_player': False,
+        'starting_pitcher': False,
+        'relief_pitcher': False,
+    },
+    '2001': {
+        'position_player': True,
+        'starting_pitcher': False,
+        'relief_pitcher': False,
+    },
+    '2002': {
+        'position_player': True,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
+    '2003': {
+        'position_player': True,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
+    '2004': {
+        'position_player': True,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
+    '2005': {
+        'position_player': True,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
+}
+
+"""
+POINTS_NORMALIZE_TOWARDS_MEDIAN
+  - BOOLEAN FOR WHETHER THE SET NORMALIZES UPPER TEAR CARDS TOWARDS THE MEDIAN
+"""
+POINTS_NORMALIZE_TOWARDS_MEDIAN = {
+    '2000': {
+        'position_player': True,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
+    '2001': {
+        'position_player': True,
+        'starting_pitcher': True,
+        'relief_pitcher': False,
+    },
+    '2002': {
+        'position_player': False,
+        'starting_pitcher': False,
+        'relief_pitcher': False,
+    },
+    '2003': {
+        'position_player': False,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
+    '2004': {
+        'position_player': False,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
+    '2005': {
+        'position_player': False,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
+}
+
+"""
+POINTS_RELIEVER_IP_MULTIPLIER
+  - WHAT PERCENT OF POINTS TO GIVE FOR 2ND INNING OF RELIEF
+"""
+POINTS_RELIEVER_IP_MULTIPLIER = {
+    '2000': 0.95,
+    '2001': 0.825,
+    '2002': 0.60,
+    '2003': 0.55,
+    '2004': 0.67,
+    '2005': 0.625,
 }
 
 
@@ -579,123 +667,171 @@ POINT CATEGORY RANGES
 """
 ONBASE_PCT_RANGE = {
     '2000': {
-        'pitcher': {
+        'starting_pitcher': {
             'min': 0.250,
             'max': 0.390
         },
-        'hitter': {
+        'relief_pitcher': {
+            'min': 0.250,
+            'max': 0.390
+        },
+        'position_player': {
             'min': 0.250,
             'max': 0.450
         }
     },
     '2001': {
-        'pitcher': {
-            'min': 0.260,
-            'max': 0.410
-        },
-        'hitter': {
+        'starting_pitcher': {
             'min': 0.250,
+            'max': 0.370
+        },
+        'relief_pitcher': {
+            'min': 0.250,
+            'max': 0.370
+        },
+        'position_player': {
+            'min': 0.280,
             'max': 0.450
         }
     },
     '2002': {
-        'pitcher': {
-            'min': 0.270,
+        'starting_pitcher': {
+            'min': 0.250,
             'max': 0.360
         },
-        'hitter': {
+        'relief_pitcher': {
+            'min': 0.250,
+            'max': 0.360
+        },
+        'position_player': {
             'min': 0.250,
             'max': 0.450
         }
     },
     '2003': {
-        'pitcher': {
+        'starting_pitcher': {
+            'min': 0.250,
+            'max': 0.390
+        },
+        'relief_pitcher': {
             'min': 0.240,
             'max': 0.400
         },
-        'hitter': {
+        'position_player': {
             'min': 0.270,
             'max': 0.425
         }
     },
     '2004': {
-        'pitcher': {
-            'min': 0.240,
-            'max': 0.380
+        'starting_pitcher': {
+            'min': 0.223,
+            'max': 0.370
         },
-        'hitter': {
-            'min': 0.280,
-            'max': 0.410
+        'relief_pitcher': {
+            'min': 0.240,
+            'max': 0.390
+        },
+        'position_player': {
+            'min': 0.300,
+            'max': 0.415
         }
     },
     '2005': {
-        'pitcher': {
-            'min': 0.240,
-            'max': 0.380
+        'starting_pitcher': {
+            'min': 0.223,
+            'max': 0.370
         },
-        'hitter': {
-            'min': 0.280,
+        'relief_pitcher': {
+            'min': 0.240,
+            'max': 0.390
+        },
+        'position_player': {
+            'min': 0.310,
             'max': 0.410
         }
     }
 }
 BATTING_AVG_RANGE = {
     '2000': {
-        'pitcher': {
+        'starting_pitcher': {
             'min': 0.210,
             'max': 0.300
         },
-        'hitter': {
+        'relief_pitcher': {
+            'min': 0.210,
+            'max': 0.300
+        },
+        'position_player': {
             'min': 0.225,
             'max': 0.330
         }
     },
     '2001': {
-        'pitcher': {
+        'starting_pitcher': {
             'min': 0.210,
-            'max': 0.290
+            'max': 0.300
         },
-        'hitter': {
+        'relief_pitcher': {
+            'min': 0.210,
+            'max': 0.300
+        },
+        'position_player': {
             'min': 0.225,
             'max': 0.330
         }
     },
     '2002': {
-        'pitcher': {
+        'starting_pitcher': {
             'min': 0.210,
             'max': 0.290
         },
-        'hitter': {
+        'relief_pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'position_player': {
             'min': 0.225,
             'max': 0.330
         }
     },
     '2003': {
-        'pitcher': {
+        'starting_pitcher': {
             'min': 0.210,
             'max': 0.290
         },
-        'hitter': {
+        'relief_pitcher': {
+            'min': 0.210,
+            'max': 0.290
+        },
+        'position_player': {
             'min': 0.245,
             'max': 0.320
         }
     },
     '2004': {
-        'pitcher': {
+        'starting_pitcher': {
             'min': 0.210,
             'max': 0.280
         },
-        'hitter': {
+        'relief_pitcher': {
+            'min': 0.210,
+            'max': 0.280
+        },
+        'position_player': {
             'min': 0.245,
             'max': 0.315
         }
     },
     '2005': {
-        'pitcher': {
+        'starting_pitcher': {
             'min': 0.210,
             'max': 0.280
         },
-        'hitter': {
+        'relief_pitcher': {
+            'min': 0.210,
+            'max': 0.280
+        },
+        'position_player': {
             'min': 0.245,
             'max': 0.330
         }
@@ -703,63 +839,87 @@ BATTING_AVG_RANGE = {
 }
 SLG_RANGE = {
     '2000': {
-        'pitcher': {
+        'starting_pitcher': {
             'min': 0.350,
             'max': 0.500
         },
-        'hitter': {
+        'relief_pitcher': {
+            'min': 0.350,
+            'max': 0.500
+        },
+        'position_player': {
             'min': 0.350,
             'max': 0.550
         }
     },
     '2001': {
-        'pitcher': {
-            'min': 0.330,
+        'starting_pitcher': {
+            'min': 0.345,
             'max': 0.500
         },
-        'hitter': {
+        'relief_pitcher': {
+            'min': 0.345,
+            'max': 0.500
+        },
+        'position_player': {
             'min': 0.350,
-            'max': 0.550
+            'max': 0.545
         }
     },
     '2002': {
-        'pitcher': {
-            'min': 0.330,
+        'starting_pitcher': {
+            'min': 0.340,
             'max': 0.500
         },
-        'hitter': {
-            'min': 0.350,
-            'max': 0.550
+        'relief_pitcher': {
+            'min': 0.330,
+            'max': 0.445
+        },
+        'position_player': {
+            'min': 0.360,
+            'max': 0.54
         }
     },
     '2003': {
-        'pitcher': {
+        'starting_pitcher': {
+            'min': 0.350,
+            'max': 0.470
+        },
+        'relief_pitcher': {
             'min': 0.330,
             'max': 0.500
         },
-        'hitter': {
+        'position_player': {
             'min': 0.350,
             'max': 0.550
         }
     },
     '2004': {
-        'pitcher': {
-            'min': 0.330,
-            'max': 0.480
+        'starting_pitcher': {
+            'min': 0.340,
+            'max': 0.470
         },
-        'hitter': {
-            'min': 0.350,
+        'relief_pitcher': {
+            'min': 0.330,
+            'max': 0.475
+        },
+        'position_player': {
+            'min': 0.360,
             'max': 0.550
         }
     },
     '2005': {
-        'pitcher': {
+        'starting_pitcher': {
+            'min': 0.335,
+            'max': 0.475
+        },
+        'relief_pitcher': {
             'min': 0.330,
             'max': 0.480
         },
-        'hitter': {
-            'min': 0.350,
-            'max': 0.550
+        'position_player': {
+            'min': 0.360,
+            'max': 0.545
         }
     }
 }
@@ -846,7 +1006,7 @@ POSITION_DEFENSE_RANGE = {
         'DH': 0
     },
     '2001': {
-        'C': 12.0,
+        'C': 11.0,
         '1B': 1.0,
         '2B': 5.0,
         '3B': 4.0,
@@ -894,6 +1054,7 @@ POSITION_DEFENSE_RANGE = {
         'CF': 3.0,
         'RF': 2.0,
         'OF': 2.0,
+        'IF': 1.0,
         'LF/RF': 2.0,
         'DH': 0
     },
@@ -907,6 +1068,7 @@ POSITION_DEFENSE_RANGE = {
         'CF': 3.0,
         'RF': 2.0,
         'OF': 2.0,
+        'IF': 1.0,
         'LF/RF': 2.0,
         'DH': 0
     }
