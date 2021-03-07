@@ -457,8 +457,10 @@ class ShowdownPlayerCardGenerator:
                 icons.append('SB')
 
         # ROOKIE ICON 
-        if self.stats['is_rookie'] == True:
-            icons.append('R')
+        rookie_key = 'is_rookie'
+        if rookie_key in self.stats.keys():
+            if self.stats[rookie_key] == True:
+                icons.append('R')
 
         return icons
 
@@ -679,12 +681,12 @@ class ShowdownPlayerCardGenerator:
         
         # FILL 1B AND 1B+
         stolen_bases = int(stats_for_400_pa['sb_per_400_pa'])
-        chart['1b'], chart['1b+'] = self.__single_and_single_plus_results(remaining_slots_qa,stolen_bases)
+        chart['1b'], chart['1b+'] = self.__single_and_single_plus_results(remaining_slots_qa,stolen_bases,command)
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20)
         weights = {
             'h_per_400_pa': 3.0,
-            'slugging_perc': 5.0,
+            'slugging_perc': 5.0 if self.is_pitcher else 4.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0 if self.is_pitcher else 3.0,
             'so_per_400_pa': 1.0 if self.is_pitcher else 0.1
@@ -722,12 +724,13 @@ class ShowdownPlayerCardGenerator:
 
         return pu_outs, gb_outs, fb_outs
 
-    def __single_and_single_plus_results(self, remaining_slots, sb):
+    def __single_and_single_plus_results(self, remaining_slots, sb, command):
         """Fill 1B and 1B+ categories on chart.
 
         Args:
           remaining_slots: Remaining slots out of 20.
           sb: Stolen bases per 400 PA
+          command: Player's Onbase number
 
         Returns:
           Tuple of 1B, 1B+ result ints.
@@ -737,8 +740,18 @@ class ShowdownPlayerCardGenerator:
         if self.is_pitcher:
             return remaining_slots, 0
 
-        # Divide stolen bases per 400 PA by 10
-        single_plus_results_raw = math.trunc(sb / 10)
+        # Divide stolen bases per 400 PA by a scaler based on Onbase #
+        is_context_old_sets = int(self.context) < 2002
+        min_onbase = 4 if is_context_old_sets else 7
+        max_onbase = 12 if is_context_old_sets else 16
+        ob_min_max_dict = {'min': min_onbase, 'max': max_onbase}
+        min_denominator = sc.HITTER_SINGLE_PLUS_DENOMINATOR_RANGE[self.context]['min']
+        max_denominator = sc.HITTER_SINGLE_PLUS_DENOMINATOR_RANGE[self.context]['max']
+        onbase_pctile = self.stat_percentile(stat=command, min_max_dict=ob_min_max_dict)
+        single_plus_denominator = min_denominator + ( (max_denominator-min_denominator) * onbase_pctile )
+        single_plus_results_raw = math.trunc(sb / single_plus_denominator)
+
+        # MAKE SURE 1B+ IS NOT OVER REMAINING SLOTS
         single_plus_results = single_plus_results_raw if single_plus_results_raw <= remaining_slots else remaining_slots
         single_results = remaining_slots - single_plus_results
 
@@ -1322,6 +1335,7 @@ class ShowdownPlayerCardGenerator:
             return points * multiplier
         else:
             return points
+
 # ------------------------------------------------------------------------
 # GENERIC METHODS
 
@@ -1351,7 +1365,7 @@ class ShowdownPlayerCardGenerator:
                     accuracy_for_key = 1 if value1 == value2 else 0
                 else:
                     accuracy_for_key = self.__relative_pct_accuracy(actual=value1, measurement=value2)
-                        
+
                 # CATEGORICAL ACCURACY
                 categorical_accuracy_dict[key] = accuracy_for_key
                 categorical_above_below_dict[key] = {'above_wotc': 1 if value1 < value2 else 0,

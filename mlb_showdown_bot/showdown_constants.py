@@ -327,18 +327,50 @@ MAX_HITTER_SO_RESULTS = {
 }
 
 """
+HITTER SINGLE PLUS DENOMINATOR RANGE
+  - DEFINES RANGE FOR 1B+ SCALER (SB-400PA / DENOMINATOR). 
+    MIN IS APPLIED TO LOWEST OB, MAX IS APPLIED TO HIGHEST OB
+"""
+HITTER_SINGLE_PLUS_DENOMINATOR_RANGE = {
+    '2000': {
+        'min': 3.2,
+        'max': 9.6
+    },
+    '2001': {
+        'min': 3.2,
+        'max': 9.6
+    },
+    '2002': {
+        'min': 7.0,
+        'max': 11.0
+    },
+    '2003': {
+        'min': 6.0,
+        'max': 10.5
+    },
+    '2004': {
+        'min': 5.5,
+        'max': 10.5
+    },
+    '2005': {
+        'min': 5.5,
+        'max': 9.75
+    },
+}
+
+"""
 POINT WEIGHTS
   - POINT VALUE GIVEN TO A PLAYER IN THE 100TH PERCENTILE FOR A CATEGORY
 """
 POINT_CATEGORY_WEIGHTS = {
     '2000': {
         'position_player': {
-            'defense': 80,
-            'speed': 70,
-            'onbase': 220,
-            'average': 90,
-            'slugging': 130,
-            'home_runs': 60
+            'defense': 75,
+            'speed': 75,
+            'onbase': 210,
+            'average': 80,
+            'slugging': 165,
+            'home_runs': 55
         },
         'starting_pitcher': {
             'ip': 105,
@@ -489,7 +521,7 @@ POINTS_POSITIONAL_MULTIPLIER = {
     },
     '2001': {
         'C': 1.03,
-        '1B': 1.0,
+        '1B': 1.01,
         '2B': 1.1,
         '3B': 0.95,
         'SS': 1.05,
@@ -498,7 +530,7 @@ POINTS_POSITIONAL_MULTIPLIER = {
         'RF': 1.0,
         'OF': 1.0,
         'LF/RF': 1.0,
-        'DH': 1.0,
+        'DH': 0.96,
         'STARTER': 1.0,
         'RELIEVER': 1.0,
         'CLOSER': 1.1,
@@ -615,12 +647,12 @@ POINTS_NORMALIZE_TOWARDS_MEDIAN
 """
 POINTS_NORMALIZE_TOWARDS_MEDIAN = {
     '2000': {
-        'position_player': True,
+        'position_player': False,
         'starting_pitcher': True,
         'relief_pitcher': True,
     },
     '2001': {
-        'position_player': True,
+        'position_player': False,
         'starting_pitcher': True,
         'relief_pitcher': False,
     },
@@ -676,7 +708,7 @@ ONBASE_PCT_RANGE = {
             'max': 0.390
         },
         'position_player': {
-            'min': 0.250,
+            'min': 0.260,
             'max': 0.450
         }
     },
@@ -690,7 +722,7 @@ ONBASE_PCT_RANGE = {
             'max': 0.370
         },
         'position_player': {
-            'min': 0.280,
+            'min': 0.290,
             'max': 0.450
         }
     },

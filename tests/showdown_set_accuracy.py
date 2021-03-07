@@ -87,34 +87,35 @@ class ShowdownSetAccuracy:
             # IF CALCULATING POINTS, WE WANT TO USE ORIGINAL SET STATS
             if self.is_pts_only:
                 my_player_card = self.__convert_wotc_to_showdown_player_object(wotc_player_card, my_player_card)
-
+                print(my_player_card.points - wotc_player_card.PTS, wotc_player_card.Name,('Me', my_player_card.points),('WOTC', wotc_player_card.PTS)) 
+                # my_player_card.print_player()
             wotc_player_card_dict = self.__parse_player_card_categories_for_accuracy(wotc_player_card=wotc_player_card, is_pitcher=my_player_card.is_pitcher)
             command_outs_str = '{}-{}'.format(my_player_card.chart['command'],my_player_card.chart['outs'])
 
             # ---- APPEND TO ACCURACY TRACKING OBJECTS ----
             if self.command_out_combos != [''] and command_outs_str not in self.command_out_combos:
                 continue
-            print(my_player_card.points - wotc_player_card.PTS, wotc_player_card.Name,('Me', my_player_card.points),('WOTC', wotc_player_card.PTS)) 
-            # my_player_card.print_player()
+            
             accuracy, categorical_accuracy, categorical_above_below = my_player_card.accuracy_against_wotc(wotc_card_dict=wotc_player_card_dict, is_pts_only=self.is_pts_only)
             sum_of_card_accuracy += accuracy
 
             # ADD TO COMMAND OUT CATEGORY
-            if command_outs_str in command_out_accuracies.keys():
-                command_out_accuracies[command_outs_str].append(categorical_accuracy['points'])
-                category_above_below_for_command_outs[command_outs_str].append(categorical_above_below)
-            else:
-                command_out_accuracies[command_outs_str] = [categorical_accuracy['points']]
-                category_above_below_for_command_outs[command_outs_str] = [categorical_above_below]
-
-            # ADD TO POSITIONS
-            for position in my_player_card.positions_and_defense.keys():
-                if position in positional_accuracies.keys():
-                    positional_accuracies[position].append(categorical_accuracy['points'])
-                    positional_above_below[position].append(categorical_above_below)
+            if self.is_pts_only:
+                if command_outs_str in command_out_accuracies.keys():
+                    command_out_accuracies[command_outs_str].append(categorical_accuracy['points'])
+                    category_above_below_for_command_outs[command_outs_str].append(categorical_above_below)
                 else:
-                    positional_accuracies[position] = [categorical_accuracy['points']]
-                    positional_above_below[position] = [categorical_above_below]
+                    command_out_accuracies[command_outs_str] = [categorical_accuracy['points']]
+                    category_above_below_for_command_outs[command_outs_str] = [categorical_above_below]
+
+                # ADD TO POSITIONS
+                for position in my_player_card.positions_and_defense.keys():
+                    if position in positional_accuracies.keys():
+                        positional_accuracies[position].append(categorical_accuracy['points'])
+                        positional_above_below[position].append(categorical_above_below)
+                    else:
+                        positional_accuracies[position] = [categorical_accuracy['points']]
+                        positional_above_below[position] = [categorical_above_below]
 
             # CARD IS PERFECT
             is_perfect = accuracy == 1
@@ -247,6 +248,7 @@ class ShowdownSetAccuracy:
                 wotc_player_card_dict.update({'pu': int(wotc_player_card['PU'])})
             else:
                 wotc_player_card_dict.update({
+                    # '1b+': int(wotc_player_card['1B+']),
                     '3b': int(wotc_player_card['3B']) if int(wotc_player_card['3B']) < 21 else 0,
                 })
         
