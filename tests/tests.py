@@ -9,7 +9,7 @@ from pathlib import Path
 from .showdown_set_accuracy import ShowdownSetAccuracy
 import mlb_showdown_bot.showdown_constants as sc
 
-def analyze_baseline_weights(context,type,is_testing_current_baseline=False,ignore_volatile_categories=False, is_pts_only=False):
+def analyze_baseline_weights(context,type,is_testing_current_baseline=False,ignore_volatile_categories=False, is_pts_only=False, position_filters=[], use_wotc_command_outs=False, command_out_combos=[]):
     """Calculate accuracy of the output produced given a set of baseline weights compared to 
        original Wizards set.
 
@@ -18,6 +18,10 @@ def analyze_baseline_weights(context,type,is_testing_current_baseline=False,igno
         type: Player Type (Pitcher or Hitter).
         is_testing_current_baseline: Boolean flag for either testing the current set of weights or testing various sets of weights.
         ignore_volatile_categories: If true, ignores the more volitile categories when testing (EX: SO, 1B+, FB, ...)
+        is_pts_only: Test only for accuracy of PTS
+        position_filters: List of positions to filter down to
+        use_wotc_command_outs: Boolean field to insert WOTC command/outs
+        command_out_combos: Filter to test only certain Command/Out combinations
 
     Returns:
         None
@@ -25,12 +29,16 @@ def analyze_baseline_weights(context,type,is_testing_current_baseline=False,igno
     
     real_player_stats_cache_path = os.path.join(Path(os.path.dirname(__file__)),'cache','player_cache.csv')
     in_game_player_cards_path = os.path.join(Path(os.path.dirname(__file__)),'data','mlb_showdown_player_card_data.xlsx')
-    wotc_player_cards = pd.read_excel(in_game_player_cards_path)
+    wotc_player_cards = pd.read_excel(in_game_player_cards_path, engine='openpyxl')
     try:
         real_player_stats_cache = pd.read_csv(real_player_stats_cache_path)
     except FileNotFoundError:
         real_player_stats_cache = pd.DataFrame(columns=['NameAndYear'])
+
     wotc_player_cards = wotc_player_cards[(wotc_player_cards.Year == context) & (wotc_player_cards.Set == 'BS') & (wotc_player_cards.Type == type)]
+    
+    if position_filters != ['']:
+        wotc_player_cards = wotc_player_cards[wotc_player_cards.Position1.isin(position_filters)]
     num_players_in_set = len(wotc_player_cards)
 
     # TEST EITHER CURRENT BASELINE, OR TEST MULTIPLE BASELINE COMBINATIONS
@@ -51,8 +59,16 @@ def analyze_baseline_weights(context,type,is_testing_current_baseline=False,igno
     current_index = 1
     pcts = {}
     perfect = {}
+    perfect_players = {}
+    command_match_players = {}
     categories = {}
+    categories_for_matches = {}
     categories_above_below = {}
+    categories_above_below_for_matches = {}
+    command_out_accuracies = {}
+    command_out_above_below_for_all = {}
+    positional_accuracies = {}
+    positional_accuracies_above_below_for_all = {}
     for combo in combinations:
 
         print('---{}/{}---'.format(current_index, num_combos), end='\r')
@@ -62,22 +78,44 @@ def analyze_baseline_weights(context,type,is_testing_current_baseline=False,igno
                                            command_control_combo=combo, 
                                            is_only_command_outs_accuracy=False,
                                            ignore_volatile_categories=ignore_volatile_categories,
-                                           is_pts_only=is_pts_only)
-        pcts_added, num_perfect, category_data, category_above_below = set_accuracy.calc_set_accuracy()
+                                           is_pts_only=is_pts_only,
+                                           use_wotc_command_outs=use_wotc_command_outs,
+                                           command_out_combos=command_out_combos)
+        pcts_added, num_perfect, category_data, category_data_for_matches, category_above_below, category_above_below_for_matches, perfect_list, match_list, command_out_accuracy, command_out_categories_above_below, position_accuracy, position_above_below = set_accuracy.calc_set_accuracy()
         key = '{}-{}'.format(round(combo[0],1),round(combo[1],1))
         pcts[key] = pcts_added / num_players_in_set
         perfect[key] = num_perfect / num_players_in_set
         categories[key] = category_data
+        categories_for_matches[key] = category_data_for_matches
         categories_above_below[key] = category_above_below
+        categories_above_below_for_matches[key] = category_above_below_for_matches
+        perfect_players[key] = perfect_list
+        command_match_players[key] = match_list
+        command_out_accuracies[key] = command_out_accuracy
+        command_out_above_below_for_all[key] = command_out_categories_above_below
+        positional_accuracies[key] = position_accuracy
+        positional_accuracies_above_below_for_all[key] = position_above_below
         current_index += 1
 
     sorted_accuracy = sorted(pcts.items(), key=operator.itemgetter(1), reverse=True)
     sorted_perfect = sorted(perfect.items(), key=operator.itemgetter(1),reverse=True)
+    sorted_categories = sorted(categories.items(), key = lambda x: x[1]['command-outs'],reverse=True)
     print('-------------------- Accuracy --------------------')
     pprint(sorted_accuracy[:5])
     print('-------------------- Perfect --------------------')
     pprint(sorted_perfect[:5])
+    # print(perfect_players)
     print('-------------------- Category Breakdown --------------------')
-    pprint(categories)
+    pprint(sorted_categories[:5])
+    print('-------------------- Category (MATCHES) Breakdown --------------------')
+    pprint(categories_for_matches)
+    pprint(categories_above_below_for_matches)
+    # print(command_match_players)
     print('-------------------- Category Above/Below --------------------')
     pprint(categories_above_below)
+    print('-------------------- Command/Out Accuracies --------------------')
+    pprint(command_out_accuracies)
+    pprint(command_out_above_below_for_all)
+    print('-------------------- Positional Accuracies --------------------')
+    pprint(positional_accuracies)
+    pprint(positional_accuracies_above_below_for_all)

@@ -229,13 +229,13 @@ _** Some of these thresholds are slightly different than the original game._
 * **GG**: Won Gold Glove Award.
 * **V**: Won AL or NL Most Valuable Player Award.
 * **CY**: Won AL or NL CY Young Award.
+* **R**: Selected season was player's first year in MLB.
 * **RY**: Won AL or NL Rookie of the Year Award.
 * **20**: Won 20 or more games as a Pitcher.
 * **K**: Struck out at least 215 batters.
 * **HR**: Hit at least 40 Home Runs.
 * **SB**: Stole at least 40 bases.
-
-_** TODO: ADD RP and R Icons_
+* **RP**: Led AL or NL in Saves.
 
 ### **Points**
 
@@ -269,6 +269,12 @@ Points (OBP) = WEIGHT * PERCENTILE
 ##### _Note: Pitchers have some categories (ex: BAA) where is percentile is reversed (1-percentile)_
 
 This calculation is performed for each category. The categorical point values are summed into the player's final total point value. 
+
+There are additional weights/logic applied across the different sets to try to match to the original WOTC sets. 
+Including:
+
+- **Allow Negatives**: If True, allows a player to be penalized in the negative for a bad category. For example if a player is under the threshold defined for OBP, they will receive negative PTS for OBP. If False, player gets +0 PTS for that category if below threshold.
+- **Normalize Towards Median**: If True, a player over a certain value will get overall points reduced in order to keep a "Bell Curve" of point distribution. Scaler increases as point value above set value increases.
 
 ----
 ## Contact the Dev
