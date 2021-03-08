@@ -412,9 +412,6 @@ class ShowdownPlayerCardGenerator:
 
         Returns:
           List of in game icons as strings.
-        
-        Todo:
-          Add R and RP icons
         """
 
         # ICONS ONLY APPLY TO 2003+
@@ -463,6 +460,25 @@ class ShowdownPlayerCardGenerator:
                 icons.append('R')
 
         return icons
+
+    def player_type(self):
+        """Gets full player type (position_player, starting_pitcher, relief_pitcher).
+           Used for applying weights
+
+        Args:
+          None
+
+        Returns:
+          String for full player type ('position_player', 'tarting_pitcher', 'relief_pitcher').
+        """
+        # PARSE PLAYER TYPE
+        if self.is_pitcher:
+            is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
+            player_category = 'starting_pitcher' if is_starting_pitcher else 'relief_pitcher'
+        else:
+            player_category = 'position_player'
+        
+        return player_category
 
 # ------------------------------------------------------------------------
 # COMMAND / OUTS METHODS
@@ -684,13 +700,7 @@ class ShowdownPlayerCardGenerator:
         chart['1b'], chart['1b+'] = self.__single_and_single_plus_results(remaining_slots_qa,stolen_bases,command)
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20)
-        weights = {
-            'h_per_400_pa': 3.0,
-            'slugging_perc': 5.0 if self.is_pitcher else 4.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0 if self.is_pitcher else 3.0,
-            'so_per_400_pa': 1.0 if self.is_pitcher else 0.1
-        }
+        weights = sc.CHART_CATEGORY_WEIGHTS[self.context][self.player_type()]
         accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(actuals_dict=stats_for_400_pa, 
                                                                                   measurements_dict=in_game_stats_for_400_pa, 
                                                                                   weights=weights)
@@ -1176,14 +1186,9 @@ class ShowdownPlayerCardGenerator:
         """
 
         points = 0
-
-        # PARSE PLAYER TYPE
-        is_starting_pitcher = 'STARTER' in positions_and_defense.keys()
-        if self.is_pitcher:
-            player_category = 'starting_pitcher' if is_starting_pitcher else 'relief_pitcher'
-        else:
-            player_category = 'position_player'
         
+        player_category = self.player_type()
+
         # PARSE POSITION MULTIPLIER
         pts_position_multiplier = 0.0
         number_of_positions = len(self.positions_and_defense.keys())
@@ -1214,7 +1219,7 @@ class ShowdownPlayerCardGenerator:
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
         spd_ip_category = 'ip' if self.is_pitcher else 'speed'
         if self.is_pitcher:
-            spd_ip_range = sc.IP_RANGE['starting_pitcher' if is_starting_pitcher else 'relief_pitcher']
+            spd_ip_range = sc.IP_RANGE[player_category]
         else:
             spd_ip_range = sc.SPEED_RANGE[self.context]
         self.spd_ip_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category][spd_ip_category] \
@@ -1253,7 +1258,7 @@ class ShowdownPlayerCardGenerator:
             points = self.__normalize_points_towards_median(points)
 
         # ADJUST POINTS FOR RELIEVERS WITH 2X IP
-        if not is_starting_pitcher and self.is_pitcher:
+        if player_category == 'relief_pitcher':
             points *= (self.ip * (sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context] if self.ip > 1 else 1.0))
         
         # POINTS ARE ALWAYS ROUNDED TO TENTH
@@ -1281,7 +1286,7 @@ class ShowdownPlayerCardGenerator:
         range = max - min
         stat_within_range = stat - min
         
-        if not allow_negative and stat_within_range < 0:
+        if not allow_negative and stat_within_range < 0 and not is_desc:
             stat_within_range = 0
 
         raw_percentile = stat_within_range / range
@@ -1295,7 +1300,7 @@ class ShowdownPlayerCardGenerator:
         return percentile_adjusted
 
     def __normalize_points_towards_median(self, points):
-        """Normalize points for subset on players towards the mean.
+        """Normalize points for subset on players towards the median.
 
         Args:
           points: Current Points attributed to player
@@ -1306,32 +1311,38 @@ class ShowdownPlayerCardGenerator:
         
         # NORMALIZE SCORE ACROSS MEDIAN
         lower_limit = 10
-        is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
-        is_relief_pitcher = not is_starting_pitcher and self.is_pitcher
+        is_starting_pitcher = self.player_type() == 'starting_pitcher'
+        is_relief_pitcher = self.player_type() == 'relief_pitcher'
         reliever_normalizer = 2.0 if is_relief_pitcher else 1.0
         median = 310 / reliever_normalizer
-        
-        upper_limit = 800 / reliever_normalizer
+        upper_limit = 800 if int(self.context) < 2002 else 800
+        upper_limit = upper_limit / reliever_normalizer
 
         # CENTER SLIGHTLY TOWARDS MEDIAN
-        is_points_below_median = points < median
         points_cutoff = 120 if is_relief_pitcher else 500
         if points >= points_cutoff:
             min_max = {
-                'min': lower_limit if is_points_below_median else median,
-                'max': median if is_points_below_median else upper_limit
+                'min': median,
+                'max': upper_limit
             }
             percentile = self.stat_percentile(
                 stat = points if points < upper_limit else upper_limit,
                 min_max_dict = min_max,
-                is_desc = not is_points_below_median
+                is_desc = True
             )
             upper_multiplier = 1.0
-            alter_for_04_05 = -0.12 if self.context in ('2004','2005') else 0
-            lower_multiplier = 0.95 if is_points_below_median else 0.85 + alter_for_04_05
+            lower_multiplier = sc.POINTS_NORMALIZER_MULTIPLIER[self.context][self.player_type()]
             multiplier = percentile * (upper_multiplier - lower_multiplier) + lower_multiplier
-            if is_points_below_median:
-                multiplier = 1 / multiplier
+
+            # APPLY THIS TO ALL CATEGORIES
+            self.obp_points = self.obp_points * multiplier
+            self.ba_points = self.ba_points * multiplier
+            self.slg_points = self.slg_points * multiplier
+            self.spd_ip_points = self.spd_ip_points * multiplier
+            if not self.is_pitcher:
+                self.hr_points = self.hr_points * multiplier
+                self.defense_points = self.defense_points * multiplier
+            
             return points * multiplier
         else:
             return points

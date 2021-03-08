@@ -359,6 +359,151 @@ HITTER_SINGLE_PLUS_DENOMINATOR_RANGE = {
 }
 
 """
+CHART CATEGORY WEIGHTS
+  - VALUE GIVEN TO EACH CATEGORY APPLIED TO DECISION MAKING FOR WHICH CHART IS MOST ACCURATE
+"""
+CHART_CATEGORY_WEIGHTS = {
+    '2000': {
+        'position_player': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 5.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 3.0,
+            'so_per_400_pa': 0.0
+        },
+        'starting_pitcher': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 5.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        },
+        'relief_pitcher': {
+            'h_per_400_pa': 3.0,
+            'slugging_perc': 4.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        }
+    },
+    '2001': {
+        'position_player': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 5.0,
+            'onbase_perc': 8.0,
+            'hr_per_400_pa': 3.0,
+            'so_per_400_pa': 0.0
+        },
+        'starting_pitcher': {
+            'h_per_400_pa': 3.0,
+            'slugging_perc': 6.0,
+            'onbase_perc': 8.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        },
+        'relief_pitcher': {
+            'h_per_400_pa': 3.0,
+            'slugging_perc': 6.0,
+            'onbase_perc': 8.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        }
+    },
+    '2002': {
+        'position_player': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 6.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 3.0,
+            'so_per_400_pa': 0.0
+        },
+        'starting_pitcher': {
+            'h_per_400_pa': 3.0,
+            'slugging_perc': 5.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        },
+        'relief_pitcher': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 6.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        }
+    },
+    '2003': {
+        'position_player': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 5.0,
+            'onbase_perc': 8.0,
+            'hr_per_400_pa': 3.0,
+            'so_per_400_pa': 0.0
+        },
+        'starting_pitcher': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 6.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        },
+        'relief_pitcher': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 5.0,
+            'onbase_perc': 6.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        }
+    },
+    '2004': {
+        'position_player': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 6.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 3.0,
+            'so_per_400_pa': 0.0
+        },
+        'starting_pitcher': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 7.0,
+            'onbase_perc': 9.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        },
+        'relief_pitcher': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 5.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        }
+    },
+    '2005': {
+        'position_player': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 5.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 3.0,
+            'so_per_400_pa': 0.0
+        },
+        'starting_pitcher': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 5.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        },
+        'relief_pitcher': {
+            'h_per_400_pa': 5.0,
+            'slugging_perc': 5.0,
+            'onbase_perc': 7.0,
+            'hr_per_400_pa': 1.0,
+            'so_per_400_pa': 1.0,
+        }
+    },
+}
+
+"""
 POINT WEIGHTS
   - POINT VALUE GIVEN TO A PLAYER IN THE 100TH PERCENTILE FOR A CATEGORY
 """
@@ -373,14 +518,14 @@ POINT_CATEGORY_WEIGHTS = {
             'home_runs': 55
         },
         'starting_pitcher': {
-            'ip': 105,
-            'onbase': 380,
+            'ip': 120,
+            'onbase': 360,
             'average': 70,
-            'slugging': 280
+            'slugging': 300
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 100,
+            'onbase': 105,
             'average': 30,
             'slugging': 85
         }
@@ -391,18 +536,18 @@ POINT_CATEGORY_WEIGHTS = {
             'speed': 50,
             'onbase': 150,
             'average': 50,
-            'slugging': 190,
+            'slugging': 195,
             'home_runs': 45
         },
         'starting_pitcher': {
-            'ip': 110,
-            'onbase': 395,
-            'average': 85,
-            'slugging': 290
+            'ip': 115,
+            'onbase': 290,
+            'average': 70,
+            'slugging': 360
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 120,
+            'onbase': 110,
             'average': 25,
             'slugging': 125
         }
@@ -418,9 +563,9 @@ POINT_CATEGORY_WEIGHTS = {
         },
         'starting_pitcher': {
             'ip': 80,
-            'onbase': 330,
+            'onbase': 280,
             'average': 75,
-            'slugging': 200
+            'slugging': 250
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
@@ -433,16 +578,16 @@ POINT_CATEGORY_WEIGHTS = {
         'position_player': {
             'defense': 60,
             'speed': 60,
-            'onbase': 240,
+            'onbase': 200,
             'average': 60,
-            'slugging': 130,
+            'slugging': 170,
             'home_runs': 55
         },
         'starting_pitcher': {
-            'ip': 55,
-            'onbase': 380,
-            'average': 70,
-            'slugging': 180
+            'ip': 65,
+            'onbase': 270,
+            'average': 60,
+            'slugging': 270
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
@@ -464,7 +609,7 @@ POINT_CATEGORY_WEIGHTS = {
             'ip': 65,
             'onbase': 285,
             'average': 70,
-            'slugging': 240
+            'slugging': 260
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
@@ -517,7 +662,7 @@ POINTS_POSITIONAL_MULTIPLIER = {
         'DH': 1.0,
         'STARTER': 1.0,
         'RELIEVER': 1.0,
-        'CLOSER': 1.15,
+        'CLOSER': 1.1,
     },
     '2001': {
         'C': 1.03,
@@ -549,7 +694,7 @@ POINTS_POSITIONAL_MULTIPLIER = {
         'DH': 1.0,
         'STARTER': 1.0,
         'RELIEVER': 0.97,
-        'CLOSER': 1.25,
+        'CLOSER': 1.2,
     },
     '2003': {
         'CA': 1.05,
@@ -561,7 +706,7 @@ POINTS_POSITIONAL_MULTIPLIER = {
         'CF': 1.0,
         'RF': 1.0,
         'OF': 1.0,
-        'LF/RF': 1.0,
+        'LF/RF': 0.98,
         'DH': 1.0,
         'STARTER': 1.0,
         'RELIEVER': 1.08,
@@ -581,8 +726,8 @@ POINTS_POSITIONAL_MULTIPLIER = {
         'LF/RF': 1.0,
         'DH': 1.0,
         'STARTER': 1.0,
-        'RELIEVER': 1.00,
-        'CLOSER': 0.93,
+        'RELIEVER': 1.0,
+        'CLOSER': 1.0,
     },
     '2005': {
         'CA': 1.0,
@@ -599,7 +744,7 @@ POINTS_POSITIONAL_MULTIPLIER = {
         'DH': 1.0,
         'STARTER': 1.0,
         'RELIEVER': 0.96,
-        'CLOSER': 1.0,
+        'CLOSER': 0.98,
     }
 }
 
@@ -654,11 +799,11 @@ POINTS_NORMALIZE_TOWARDS_MEDIAN = {
     '2001': {
         'position_player': False,
         'starting_pitcher': True,
-        'relief_pitcher': False,
+        'relief_pitcher': True,
     },
     '2002': {
         'position_player': False,
-        'starting_pitcher': False,
+        'starting_pitcher': True,
         'relief_pitcher': False,
     },
     '2003': {
@@ -675,6 +820,43 @@ POINTS_NORMALIZE_TOWARDS_MEDIAN = {
         'position_player': False,
         'starting_pitcher': True,
         'relief_pitcher': True,
+    },
+}
+
+"""
+POINTS NORMALIZER MULTIPLIER
+  - WHAT PCT TO MULTIPLY BY POINT VALUE FOR HIGHEST TIER PLAYERS (AT 800/400 PTS)
+"""
+POINTS_NORMALIZER_MULTIPLIER = {
+    '2000': {
+        'position_player': 0.70,
+        'starting_pitcher': 0.70,
+        'relief_pitcher': 0.60,
+    },
+    '2001': {
+        'position_player': 0.65,
+        'starting_pitcher': 0.70,
+        'relief_pitcher': 0.85,
+    },
+    '2002': {
+        'position_player': 0.85,
+        'starting_pitcher': 0.85,
+        'relief_pitcher': 0.85,
+    },
+    '2003': {
+        'position_player': 0.85,
+        'starting_pitcher': 0.77,
+        'relief_pitcher': 0.82,
+    },
+    '2004': {
+        'position_player': 0.65,
+        'starting_pitcher': 0.70,
+        'relief_pitcher': 0.65,
+    },
+    '2005': {
+        'position_player': 0.65,
+        'starting_pitcher': 0.75,
+        'relief_pitcher': 0.75,
     },
 }
 
@@ -704,8 +886,8 @@ ONBASE_PCT_RANGE = {
             'max': 0.390
         },
         'relief_pitcher': {
-            'min': 0.250,
-            'max': 0.390
+            'min': 0.240,
+            'max': 0.400
         },
         'position_player': {
             'min': 0.260,
@@ -714,8 +896,8 @@ ONBASE_PCT_RANGE = {
     },
     '2001': {
         'starting_pitcher': {
-            'min': 0.250,
-            'max': 0.370
+            'min': 0.240,
+            'max': 0.390
         },
         'relief_pitcher': {
             'min': 0.250,
@@ -736,7 +918,7 @@ ONBASE_PCT_RANGE = {
             'max': 0.360
         },
         'position_player': {
-            'min': 0.250,
+            'min': 0.260,
             'max': 0.450
         }
     },
@@ -761,7 +943,7 @@ ONBASE_PCT_RANGE = {
         },
         'relief_pitcher': {
             'min': 0.240,
-            'max': 0.390
+            'max': 0.400
         },
         'position_player': {
             'min': 0.300,
@@ -876,8 +1058,8 @@ SLG_RANGE = {
             'max': 0.500
         },
         'relief_pitcher': {
-            'min': 0.350,
-            'max': 0.500
+            'min': 0.330,
+            'max': 0.530
         },
         'position_player': {
             'min': 0.350,
@@ -886,8 +1068,8 @@ SLG_RANGE = {
     },
     '2001': {
         'starting_pitcher': {
-            'min': 0.345,
-            'max': 0.500
+            'min': 0.340,
+            'max': 0.525
         },
         'relief_pitcher': {
             'min': 0.345,
@@ -901,7 +1083,7 @@ SLG_RANGE = {
     '2002': {
         'starting_pitcher': {
             'min': 0.340,
-            'max': 0.500
+            'max': 0.490
         },
         'relief_pitcher': {
             'min': 0.330,
@@ -909,7 +1091,7 @@ SLG_RANGE = {
         },
         'position_player': {
             'min': 0.360,
-            'max': 0.54
+            'max': 0.540
         }
     },
     '2003': {

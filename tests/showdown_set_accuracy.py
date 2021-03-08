@@ -87,14 +87,16 @@ class ShowdownSetAccuracy:
             # IF CALCULATING POINTS, WE WANT TO USE ORIGINAL SET STATS
             if self.is_pts_only:
                 my_player_card = self.__convert_wotc_to_showdown_player_object(wotc_player_card, my_player_card)
-                print(my_player_card.points - wotc_player_card.PTS, wotc_player_card.Name,('Me', my_player_card.points),('WOTC', wotc_player_card.PTS)) 
-                # my_player_card.print_player()
             wotc_player_card_dict = self.__parse_player_card_categories_for_accuracy(wotc_player_card=wotc_player_card, is_pitcher=my_player_card.is_pitcher)
             command_outs_str = '{}-{}'.format(my_player_card.chart['command'],my_player_card.chart['outs'])
 
             # ---- APPEND TO ACCURACY TRACKING OBJECTS ----
             if self.command_out_combos != [''] and command_outs_str not in self.command_out_combos:
                 continue
+            else:
+                if self.is_pts_only:
+                    print(my_player_card.points - wotc_player_card.PTS, wotc_player_card.Name,('Me', my_player_card.points),('WOTC', wotc_player_card.PTS)) 
+                    # my_player_card.print_player()
             
             accuracy, categorical_accuracy, categorical_above_below = my_player_card.accuracy_against_wotc(wotc_card_dict=wotc_player_card_dict, is_pts_only=self.is_pts_only)
             sum_of_card_accuracy += accuracy
