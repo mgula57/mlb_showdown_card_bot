@@ -1875,6 +1875,10 @@ class ShowdownPlayerCardGenerator:
 
         logo_historical_alternates = sc.TEAM_LOGO_ALTERNATES
         
+        # DONT APPLY IF COOPERSTOWN OR SUPER SEASON
+        if self.is_cooperstown or self.is_super_season:
+            return ''
+
         # CHECK TO SEE IF THERE ARE ANY ALTERNATE LOGOS FOR TEAM 
         if self.team not in logo_historical_alternates.keys():
             return ''
