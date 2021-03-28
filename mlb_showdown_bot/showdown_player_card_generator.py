@@ -668,6 +668,8 @@ class ShowdownPlayerCardGenerator:
                     rounded_results = round(chart_results)
                 # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
                 rounded_results = 12 if key == 'bb' and rounded_results > 13 else rounded_results
+                # MAX HR RESULTS AT 10
+                rounded_results = 10 if key == 'hr' and rounded_results > 10 else rounded_results
                 chart[key] = rounded_results
         
         # FILL "OUT" CATEGORIES (PU, GB, FB)
@@ -726,6 +728,7 @@ class ShowdownPlayerCardGenerator:
             # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
             pu_multiplier = sc.PU_MULTIPLIER[self.context]
             pu_outs = 0.0 if not self.is_pitcher else math.ceil(air_outs*popup_pct*pu_multiplier)
+            pu_outs = air_outs if pu_outs > air_outs else pu_outs
             fb_outs = air_outs-pu_outs
         else:
             fb_outs = 0.0
