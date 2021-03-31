@@ -273,7 +273,7 @@ class ShowdownPlayerCardGenerator:
         if position == 'P' and self.is_pitcher:
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
-            starter_threshold = 0.65
+            starter_threshold = 0.40
             if gsRatio > starter_threshold:
                 return 'STARTER'
             if saves > 10:
