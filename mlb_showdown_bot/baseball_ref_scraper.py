@@ -7,6 +7,7 @@ import json
 import string
 from bs4 import BeautifulSoup
 from pprint import pprint
+import unidecode
 
 class BaseballReferenceScraper:
 
@@ -307,9 +308,11 @@ class BaseballReferenceScraper:
 
         for player_dict in speed_list_all_players:
             # FIND PLAYER IN LIST
-            first_name_cleaned = self.name.split(' ')[0].replace(".", "")
-            is_player_match = first_name_cleaned in player_dict['name_display_last_first'] \
-                              and self.name.split(' ')[1] in player_dict['name_display_last_first']
+            first_name_cleaned = unidecode.unidecode(self.name.split(' ')[0].replace(".", ""))
+            last_name = unidecode.unidecode(self.name.split(' ')[1])
+            full_name_baseball_savant = unidecode.unidecode(player_dict['name_display_last_first'])
+            is_player_match = first_name_cleaned in full_name_baseball_savant \
+                              and last_name in full_name_baseball_savant
             if is_player_match:
                 speed = float(player_dict['r_sprint_speed_top50percent_pretty'])
                 return speed
