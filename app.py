@@ -2,13 +2,17 @@ from flask import Flask, render_template, request, jsonify, Response
 from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 import os
+import re
 import sys
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
 # SETUP DB
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+uri = os.environ.get('DATABASE_URL')
+if uri.startswith("postgres://"):
+    uri = uri.replace("postgres://", "postgresql://", 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -52,7 +56,9 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
         )
         db.session.add(card_log)
         db.session.commit()
-    except:
+    except Exception as error:
+        print('ERROR LOGGING TO DATABASE')
+        print(error)
         return None
 
 
