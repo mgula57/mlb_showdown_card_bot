@@ -53,6 +53,7 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
         db.session.add(card_log)
         db.session.commit()
     except:
+        print('ERROR LOGGING TO DATABASE')
         return None
 
 
