@@ -1004,6 +1004,13 @@ class ShowdownPlayerCardGenerator:
 
         # SUBTRACT SACRIFICES?
         pct_of_n_pa = (float(stats['PA']) - float(stats['SH'])) / plate_appearances
+        # GO/AO
+        try:
+            go_ao = float(stats['GO/AO'])
+        except:
+            # DEFAULT TO 1.0 FOR UNAVAILABLE YEARS
+            go_ao = 1.0
+        
         # POPULATE DICT WITH VALUES UNCHANGED BY SHIFT IN PA
         stats_for_n_pa = {
             'PA': plate_appearances,
@@ -1012,7 +1019,7 @@ class ShowdownPlayerCardGenerator:
             'onbase_perc': float(stats['onbase_perc']),
             'batting_avg': float(stats['batting_avg']),
             'IF/FB': float(stats['IF/FB']),
-            'GO/AO': float(stats['GO/AO']) if int(self.year) > 1940 else 1.0 # DEFAULT TO 1.0 FOR UNAVAILABLE YEARS
+            'GO/AO': go_ao
         }
 
         # ADD RESULT OCCURANCES PER N PA        
