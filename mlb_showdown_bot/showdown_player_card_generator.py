@@ -256,8 +256,9 @@ class ShowdownPlayerCardGenerator:
         # IS CF AND 2000/2001
         # 2000/2001 SETS ALWAYS INCLUDED LF/RF FOR CF PLAYERS
         if 'CF' in positions_set and len(positions_and_defense) == 1 and self.context in ['2000','2001']:
-            positions_and_defense['LF/RF'] = round(positions_and_defense['CF']/2)
-        
+            if 'CF' in positions_and_defense.keys():
+                positions_and_defense['LF/RF'] = round(positions_and_defense['CF']/2)
+
         return positions_and_defense, positions_and_games_played
 
     def __position_name_in_game(self, position, num_positions, position_appearances, games_played, games_started, saves):
