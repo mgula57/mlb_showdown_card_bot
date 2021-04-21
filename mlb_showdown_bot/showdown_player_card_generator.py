@@ -14,9 +14,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
 from urllib.request import urlopen, Request
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
-    from . import showdown_constants as sc 
+    from . import showdown_constants as sc
 except ImportError:
-    # USE LOCAL IMPORT 
+    # USE LOCAL IMPORT
     import showdown_constants as sc
 
 class ShowdownPlayerCardGenerator:
@@ -75,7 +75,7 @@ class ShowdownPlayerCardGenerator:
                                             speed_or_ip=self.ip if self.is_pitcher else self.speed)
             if print_to_cli:
                 self.print_player()
-            
+
             if show_player_card_image:
                 self.player_image(show=True)
 
@@ -130,8 +130,8 @@ class ShowdownPlayerCardGenerator:
         """
 
         # THERE ARE ALWAYS 4 KEYS FOR EACH POSITION
-        num_positions = int((len(defensive_stats.keys())-1) / 4) 
-        
+        num_positions = int((len(defensive_stats.keys())-1) / 4)
+
         # INITIAL DICTS TO STORE POSITIONS AND DEFENSE
         positions_and_defense = {}
         positions_and_games_played = {}
@@ -177,7 +177,7 @@ class ShowdownPlayerCardGenerator:
                         positions_and_defense[position] = in_game_defense
                     else:
                         positions_and_defense[position] = 0
-        
+
         # COMBINE ALIKE IN-GAME POSITIONS (LF/RF, OF, IF, ...)
         final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played)
 
@@ -252,7 +252,12 @@ class ShowdownPlayerCardGenerator:
         elif 'OF' in positions_set and ('LF/RF' in positions_set or 'CF' in positions_set):
             del positions_and_defense['OF']
             del positions_and_games_played['OF']
-
+        
+        # IS CF AND 2000/2001
+        # 2000/2001 SETS ALWAYS INCLUDED LF/RF FOR CF PLAYERS
+        if 'CF' in positions_set and len(positions_and_defense) == 1 and self.context in ['2000','2001']:
+            positions_and_defense['LF/RF'] = round(positions_and_defense['CF']/2)
+        
         return positions_and_defense, positions_and_games_played
 
     def __position_name_in_game(self, position, num_positions, position_appearances, games_played, games_started, saves):
@@ -396,7 +401,7 @@ class ShowdownPlayerCardGenerator:
             letter = 'B'
         else:
             letter = 'A'
-        
+
         # IF 2000 OR 2001, SPEED VALUES CAN ONLY BE 10,15,20
         if self.context in ['2000','2001']:
             spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
@@ -453,7 +458,7 @@ class ShowdownPlayerCardGenerator:
             if int(self.stats['SB']) >= 40 or ( self.year == '2020' and int(self.stats['SB']) >= 15 ):
                 icons.append('SB')
 
-        # ROOKIE ICON 
+        # ROOKIE ICON
         rookie_key = 'is_rookie'
         if rookie_key in self.stats.keys():
             if self.stats[rookie_key] == True:
@@ -477,7 +482,7 @@ class ShowdownPlayerCardGenerator:
             player_category = 'starting_pitcher' if is_starting_pitcher else 'relief_pitcher'
         else:
             player_category = 'position_player'
-        
+
         return player_category
 
 # ------------------------------------------------------------------------
@@ -496,7 +501,7 @@ class ShowdownPlayerCardGenerator:
 
         # OBP DICT FOR ALL COMMAND OUT COMBOS
         combos = self.__obp_for_command_out_combos()
-        
+
         combo_accuracies = {}
         for combo, predicted_obp in combos.items():
             accuracy = self.__relative_pct_accuracy(actual=obp, measurement=predicted_obp)
@@ -522,7 +527,7 @@ class ShowdownPlayerCardGenerator:
 
         # STATIC COMBINATIONS LIST
         command_out_combos = sc.CONTROL_COMBOS[self.context] if self.is_pitcher else sc.OB_COMBOS[self.context]
-        
+
         # CALCULATE ONBASE PCT FOR EACH COMBO
         combo_and_obps = {}
         for combo in command_out_combos:
@@ -561,7 +566,7 @@ class ShowdownPlayerCardGenerator:
             'control': playercommand if self.is_pitcher else control_baseline,
             'pitcherOuts': playerOuts if self.is_pitcher else pitcher_outs_baseline
         }
-    
+
     def opponent_stats_for_calcs(self, command):
         """Convert __onbase_control_outs info to be specific to self.
            Used to derive:
@@ -586,7 +591,7 @@ class ShowdownPlayerCardGenerator:
             my_advantages_per_20 = 20 - opponent_advantages_per_20
 
         return opponent_chart, my_advantages_per_20, opponent_advantages_per_20
-        
+
 # ------------------------------------------------------------------------
 # CHART METHODS
 
@@ -673,7 +678,7 @@ class ShowdownPlayerCardGenerator:
                 # MAX HR RESULTS AT 10
                 rounded_results = 10 if key == 'hr' and rounded_results > 10 else rounded_results
                 chart[key] = rounded_results
-        
+
         # FILL "OUT" CATEGORIES (PU, GB, FB)
         # MAKE SURE 'SO' DON'T FILL UP MORE THAN 5 SLOTS IF HITTER. THIS MAY CAUSE SOME STATISTICAL ANOMILIES IN MODERN YEARS.
         max_hitter_so = sc.MAX_HITTER_SO_RESULTS[self.context]
@@ -690,7 +695,7 @@ class ShowdownPlayerCardGenerator:
             # IGNORE NON RESULT KEYS (EXCEPT 1B, WHICH WE WANT TO FILL OURSELVES)
             if category not in ['command','outs','sb','1b']:
                 remaining_slots -= int(results)
-        
+
         # QA BARRY BONDS EFFECT (HUGE WALK)
         if remaining_slots < 0:
             walk_results = chart['bb']
@@ -698,15 +703,15 @@ class ShowdownPlayerCardGenerator:
                 chart['bb'] = walk_results - abs(remaining_slots)
                 remaining_slots += abs(remaining_slots)
         remaining_slots_qa = 0 if remaining_slots < 0 else remaining_slots
-        
+
         # FILL 1B AND 1B+
         stolen_bases = int(stats_for_400_pa['sb_per_400_pa'])
         chart['1b'], chart['1b+'] = self.__single_and_single_plus_results(remaining_slots_qa,stolen_bases,command)
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20)
         weights = sc.CHART_CATEGORY_WEIGHTS[self.context][self.player_type()]
-        accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(actuals_dict=stats_for_400_pa, 
-                                                                                  measurements_dict=in_game_stats_for_400_pa, 
+        accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(actuals_dict=stats_for_400_pa,
+                                                                                  measurements_dict=in_game_stats_for_400_pa,
                                                                                   weights=weights)
         return chart, accuracy, in_game_stats_for_400_pa
 
@@ -806,7 +811,7 @@ class ShowdownPlayerCardGenerator:
         Returns:
           Dict of ranges for each result category.
         """
-        
+
         categories = self.__chart_categories()
         current_chart_index = 1
         chart_ranges = {}
@@ -939,7 +944,7 @@ class ShowdownPlayerCardGenerator:
         is_remaining_slots = remaining_slots > 0
         is_last_under_20_result_3b = int(chart['3b']) > 0
         is_last_under_20_result_2b = not is_last_under_20_result_3b and int(chart['2b'] > 0)
-        
+
         if is_remaining_slots:
             # FILL WITH 3B
             if is_last_under_20_result_3b:
@@ -1012,7 +1017,7 @@ class ShowdownPlayerCardGenerator:
         except:
             # DEFAULT TO 1.0 FOR UNAVAILABLE YEARS
             go_ao = 1.0
-        
+
         # POPULATE DICT WITH VALUES UNCHANGED BY SHIFT IN PA
         stats_for_n_pa = {
             'PA': plate_appearances,
@@ -1024,7 +1029,7 @@ class ShowdownPlayerCardGenerator:
             'GO/AO': go_ao
         }
 
-        # ADD RESULT OCCURANCES PER N PA        
+        # ADD RESULT OCCURANCES PER N PA
         chart_result_categories = ['SO','BB','1B','2B','3B','HR','SB','H']
         for category in chart_result_categories:
             key = '{}_per_{}_pa'.format(category.lower(), plate_appearances)
@@ -1081,7 +1086,7 @@ class ShowdownPlayerCardGenerator:
                              + pitcher_chart['3b'] + pitcher_chart['hr']
         hits_hitter_chart = hitter_chart['1b'] + hitter_chart['1b+'] + hitter_chart['2b'] \
                             + hitter_chart['3b'] + hitter_chart['hr']
-        
+
         strikeouts_per_400_pa = self.__result_occurances_per_400_pa(my_results=chart['so'],
                                                                     opponent_results=opponent_chart['so'],
                                                                     my_advantages_per_20=my_advantages_per_20,
@@ -1109,21 +1114,21 @@ class ShowdownPlayerCardGenerator:
         hits_per_400_pa = round(singles_per_400_pa) \
                             + round(doubles_per_400_pa) \
                             + round(triples_per_400_pa) \
-                            + round(home_runs_per_400_pa)       
+                            + round(home_runs_per_400_pa)
         # SLASH LINE
 
         # BA
         batting_avg = hits_per_400_pa / (400.0 - walks_per_400_pa)
-        
+
         # OBP
         onbase_results_per_400_pa = round(walks_per_400_pa) + hits_per_400_pa
         obp = onbase_results_per_400_pa / 400.0
-        
+
         # SLG
-        slugging_pct = self.__slugging_pct(ab=400-walks_per_400_pa, 
-                                           singles=singles_per_400_pa, 
+        slugging_pct = self.__slugging_pct(ab=400-walks_per_400_pa,
+                                           singles=singles_per_400_pa,
                                            doubles=doubles_per_400_pa,
-                                           triples=triples_per_400_pa, 
+                                           triples=triples_per_400_pa,
                                            homers=home_runs_per_400_pa)
         # GROUP ESTIMATIONS IN DICTIONARY
         results_per_400_pa = {
@@ -1198,7 +1203,7 @@ class ShowdownPlayerCardGenerator:
         """
 
         points = 0
-        
+
         player_category = self.player_type()
 
         # PARSE POSITION MULTIPLIER
@@ -1272,7 +1277,7 @@ class ShowdownPlayerCardGenerator:
         # ADJUST POINTS FOR RELIEVERS WITH 2X IP
         if player_category == 'relief_pitcher':
             points *= (self.ip * (sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context] if self.ip > 1 else 1.0))
-        
+
         # POINTS ARE ALWAYS ROUNDED TO TENTH
         points_to_nearest_tenth = int(round(points,-1))
 
@@ -1297,7 +1302,7 @@ class ShowdownPlayerCardGenerator:
         max = min_max_dict['max']
         range = max - min
         stat_within_range = stat - min
-        
+
         if not allow_negative and stat_within_range < 0 and not is_desc:
             stat_within_range = 0
 
@@ -1305,7 +1310,7 @@ class ShowdownPlayerCardGenerator:
 
         # REVERSE IF DESC
         percentile_adjusted = 1 - raw_percentile if is_desc else raw_percentile
-        
+
         if not allow_negative and percentile_adjusted < 0:
             percentile_adjusted = 0
 
@@ -1320,7 +1325,7 @@ class ShowdownPlayerCardGenerator:
         Returns:
           Updated PTS total for player after normalization.
         """
-        
+
         # NORMALIZE SCORE ACROSS MEDIAN
         lower_limit = 10
         is_starting_pitcher = self.player_type() == 'starting_pitcher'
@@ -1354,7 +1359,7 @@ class ShowdownPlayerCardGenerator:
             if not self.is_pitcher:
                 self.hr_points = self.hr_points * multiplier
                 self.defense_points = self.defense_points * multiplier
-            
+
             return points * multiplier
         else:
             return points
@@ -1417,7 +1422,7 @@ class ShowdownPlayerCardGenerator:
         # CAN'T DIVIDE BY 0, SO USE OTHER VALUE AS BENCHMARK
         if actual == 0:
             denominator = measurement
-            
+
         return (actual - abs(actual - measurement) ) / denominator
 
     def accuracy_against_wotc(self, wotc_card_dict, is_pts_only=False):
@@ -1436,7 +1441,7 @@ class ShowdownPlayerCardGenerator:
         chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart['command'],self.chart['outs'])
         if is_pts_only:
             chart_w_combined_command_outs['points'] = self.points
-        
+
         return self.accuracy_between_dicts(actuals_dict=wotc_card_dict,
                                            measurements_dict=chart_w_combined_command_outs,
                                            weights={},
@@ -1515,7 +1520,7 @@ class ShowdownPlayerCardGenerator:
 
         # NOT USING DOCSTRING FOR FORMATTING REASONS
         card_as_string = (
-            '***********************************************\n' + 
+            '***********************************************\n' +
             '{name} ({year}) ({team})\n' +
             '{context} Base Set Card\n' +
             '\n' +
@@ -1557,14 +1562,14 @@ class ShowdownPlayerCardGenerator:
         return card_as_string
 
     def player_data_for_html_table(self):
-        """ Provides data needed to populate the statline shown on the 
+        """ Provides data needed to populate the statline shown on the
             showdownbot.com webpage.
 
         Args:
           None
 
         Returns:
-          Multi-Dimensional list where each row is a list of a category, 
+          Multi-Dimensional list where each row is a list of a category,
           real stat, and in-game Showdown estimated stat.
         """
 
@@ -1661,7 +1666,7 @@ class ShowdownPlayerCardGenerator:
            mlb_showdown_bot/output folder.
 
         Args:
-          show: Boolean flag for whether to open the final image after creation. 
+          show: Boolean flag for whether to open the final image after creation.
 
         Returns:
           None
@@ -1763,7 +1768,7 @@ class ShowdownPlayerCardGenerator:
 
         return player_image
 
-    def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=3):
+    def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=3,overlay_image_path=None):
         """Generates a new PIL image object with text.
 
         Args:
@@ -1779,6 +1784,7 @@ class ShowdownPlayerCardGenerator:
           has_border: Boolean flag to add border.
           border_color: Color of border.
           border_size: Pixel size of border thickness.
+          overlay_image_path: Path of overlay image.
         Returns:
           PIL image object with desired text and formatting.
         """
@@ -1802,7 +1808,22 @@ class ShowdownPlayerCardGenerator:
             draw.text((x, y+border_size), text, font=font, spacing=spacing, fill=border_color, align=alignment)
         draw.text((x, y), text, font=font, spacing=spacing, fill=fill, align=alignment)
         rotated_text_layer = text_layer.rotate(rotation, expand=1, resample=Image.BICUBIC)
-        return rotated_text_layer
+
+        # OPTIONAL IMAGE OVERLAY
+        if overlay_image_path is not None:
+            # CREATE BACKGROUND/TRANSPARENCY
+            texture_background = Image.open(overlay_image_path).convert('RGBA')
+            transparent_overlay_image = Image.new('RGBA', texture_background.size, color=(0,0,0,0))
+            # ADD TEXT MASK
+            mask_img = Image.new('L', texture_background.size, color=255)
+            mask_img_draw = ImageDraw.Draw(mask_img)
+            mask_img_draw.text((x, y), text, fill=0, font=font, spacing=spacing, align=alignment)
+            # CREATE FINAL IMAGE
+            combined_image = Image.composite(transparent_overlay_image, texture_background, mask_img)
+            combined_image_rotated = combined_image.rotate(rotation, expand=1, resample=Image.BICUBIC)
+            return combined_image_rotated
+        else:
+            return rotated_text_layer
 
     def __team_logo_image(self):
         """Generates a new PIL image object with logo of player team.
@@ -1876,7 +1897,7 @@ class ShowdownPlayerCardGenerator:
         return team_logo, logo_paste_coordinates
 
     def __team_logo_historical_alternate_extension(self):
-        """Check to see if there is an alternate team logo to use for the given team + year 
+        """Check to see if there is an alternate team logo to use for the given team + year
 
         Args:
           None
@@ -1886,12 +1907,12 @@ class ShowdownPlayerCardGenerator:
         """
 
         logo_historical_alternates = sc.TEAM_LOGO_ALTERNATES
-        
+
         # DONT APPLY IF COOPERSTOWN OR SUPER SEASON
         if self.is_cooperstown or self.is_super_season:
             return ''
 
-        # CHECK TO SEE IF THERE ARE ANY ALTERNATE LOGOS FOR TEAM 
+        # CHECK TO SEE IF THERE ARE ANY ALTERNATE LOGOS FOR TEAM
         if self.team not in logo_historical_alternates.keys():
             return ''
 
@@ -1899,7 +1920,7 @@ class ShowdownPlayerCardGenerator:
         for index, range in logo_historical_alternates[self.team].items():
             if int(self.year) in range:
                 return '-{}'.format(index)
-        
+
         # NO ALTERNATES FOUND, RETURN NONE
         return ''
 
@@ -1973,21 +1994,24 @@ class ShowdownPlayerCardGenerator:
         has_border = False
         border_color = None
         fill_color = 255
+        overlay_image_path = None
 
         # DEFINE ATTRIBUTES BASED ON CONTEXT
         if self.context == '2000':
             name_rotation = 90
             name_alignment = "center"
             name_size = 110 if is_name_over_char_limit else 135
-            name_color = "#FDFBF4"
+            name_color = "#D2D2D2"
             padding = 0
+            overlay_image_path = os.path.join(os.path.dirname(__file__), 'templates', '2000-Name-Text-Background.png')
         elif self.context == '2001':
             name_rotation = 90
             name_alignment = "left"
             name_size = 96
-            name_color = "#FDFBF4"
+            name_color = "#D2D2D2"
             padding = 0
             name_font_path = futura_black_path
+            overlay_image_path = os.path.join(os.path.dirname(__file__), 'templates', '2001-Name-Text-Background.png')
         elif self.context == '2002':
             name_rotation = 90
             name_alignment = "left"
@@ -2006,7 +2030,6 @@ class ShowdownPlayerCardGenerator:
             name_size = 80 if is_name_over_char_limit else 96
             name_color = sc.COLOR_WHITE
             padding = 3
-            fill_color = sc.COLOR_WHITE
             has_border = True
             border_color = sc.COLOR_RED
 
@@ -2017,12 +2040,13 @@ class ShowdownPlayerCardGenerator:
             text = name,
             size = sc.IMAGE_SIZES['player_name'][self.context],
             font = name_font,
-            fill = fill_color,
+            fill = name_color,
             rotation = name_rotation,
             alignment = name_alignment,
             padding = padding,
             has_border = has_border,
-            border_color = border_color
+            border_color = border_color,
+            overlay_image_path = overlay_image_path
         )
 
         # ADJUSTMENTS
@@ -2030,6 +2054,7 @@ class ShowdownPlayerCardGenerator:
             # STRETCH OUT NAME
             text_stretched = final_text.resize((300,5100), Image.ANTIALIAS)
             final_text = text_stretched.crop((0,1545,300,3555))
+            name_color = final_text
         elif self.context == '2001':
             # ADD LAST NAME
             last_name = self.__text_image(
@@ -2038,9 +2063,12 @@ class ShowdownPlayerCardGenerator:
                 font = ImageFont.truetype(name_font_path, size=135),
                 rotation = name_rotation,
                 alignment = name_alignment,
-                padding = padding
+                padding = padding,
+                fill = name_color,
+                overlay_image_path = overlay_image_path
             )
-            final_text.paste(name_color, (90,0), last_name)
+            final_text.paste(last_name, (90,0), last_name)
+            name_color = final_text
         elif self.context in ['2004','2005']:
             # DONT ASSIGN A COLOR TO TEXT AS 04/05 HAS MULTIPLE COLORS.
             # ASSIGN THE TEXT ITSELF AS THE COLOR OBJECT
@@ -2124,7 +2152,7 @@ class ShowdownPlayerCardGenerator:
             metadata_image.paste(color, (pts_x_pos,pts_y_pos), pts_text)
 
         elif year in [2002,2003]:
-            # 2002 & 2003 
+            # 2002 & 2003
 
             color = sc.COLOR_BLACK if self.context == '2002' else sc.COLOR_WHITE
             if year == 2002:
@@ -2146,7 +2174,7 @@ class ShowdownPlayerCardGenerator:
             metadata_image = metadata_text.resize((255,900), Image.ANTIALIAS)
         elif year in [2004,2005]:
             # 2004 & 2005
-            
+
             metadata_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
             metadata_font = ImageFont.truetype(metadata_font_path, size=144)
             metadata_text_string = self.__player_metadata_summary_text(is_horizontal=True)
@@ -2171,7 +2199,7 @@ class ShowdownPlayerCardGenerator:
 
     def __chart_image(self):
         """Creates PIL image for player chart. Different across sets.
-           Vertical for 2000-2004. 
+           Vertical for 2000-2004.
            Horizontal for 2004/2005
 
         Args:
@@ -2185,16 +2213,16 @@ class ShowdownPlayerCardGenerator:
 
         is_04_05 = self.context in ['2004','2005']
 
-        # FONT 
+        # FONT
         chart_font_file_name = 'Helvetica Neue 77 Bold Condensed.ttf' if is_04_05 else 'HelveticaNeueCondensedMedium.ttf'
         chart_font_path = os.path.join(os.path.dirname(__file__), 'fonts', chart_font_file_name)
         chart_text_size = int(sc.TEXT_SIZES['chart'][self.context])
         chart_font = ImageFont.truetype(chart_font_path, size=chart_text_size)
-        
+
         # CREATE CHART RANGES TEXT
         chart_string = ''
         # NEED IF 04/05
-        chart_text = Image.new('RGBA',(6300,720)) 
+        chart_text = Image.new('RGBA',(6300,720))
         chart_text_x = 150 if self.is_pitcher else 141
         for category in self.__chart_categories():
             range = self.chart_ranges['{} Range'.format(category)]
@@ -2214,7 +2242,7 @@ class ShowdownPlayerCardGenerator:
                 chart_text_x += 531 if self.is_pitcher else 468
             else:
                 chart_string += '{}\n'.format(range)
-        
+
         # CREATE FINAL CHART IMAGE
         if is_04_05:
             # COLOR IS TEXT ITSELF
@@ -2289,7 +2317,7 @@ class ShowdownPlayerCardGenerator:
         return set_image
 
     def __super_season_image(self):
-        """Creates image for optional super season attributes. Add accolades for 
+        """Creates image for optional super season attributes. Add accolades for
            cards in set > 2001.
 
         Args:
@@ -2423,7 +2451,7 @@ class ShowdownPlayerCardGenerator:
                     offset = 30
                 position = (position[0] + offset, position[1])
             player_image.paste(icon_image, position, icon_image)
-        
+
         return player_image
 
     def __round_corners(self, image, radius):
@@ -2452,7 +2480,7 @@ class ShowdownPlayerCardGenerator:
         return image
 
     def __center_crop(self, image, crop_size):
-        """Uses image size to crop in the middle for given crop size. 
+        """Uses image size to crop in the middle for given crop size.
            Used to automatically center player image background.
 
         Args:
@@ -2512,7 +2540,7 @@ class ShowdownPlayerCardGenerator:
         return first_image_url
 
     def __clean_images_directory(self):
-        """Removes all images from output folder that are not the current card. Leaves 
+        """Removes all images from output folder that are not the current card. Leaves
            photos that are less than 5 mins old to prevent errors from simultaneous uploads.
 
         Args:
@@ -2521,13 +2549,13 @@ class ShowdownPlayerCardGenerator:
         Returns:
           None
         """
-        
+
         # FINAL IMAGES
         output_folder_paths = [os.path.join(os.path.dirname(__file__), 'output')]
         flask_output_path = os.path.join('static', 'output')
         if os.path.isdir(flask_output_path):
             output_folder_paths.append(flask_output_path)
-        
+
         for folder_path in output_folder_paths:
             for item in os.listdir(folder_path):
                 if item != self.image_name and item != '.gitkeep':
@@ -2548,7 +2576,7 @@ class ShowdownPlayerCardGenerator:
                     os.remove(item_path)
 
     def __is_file_over_5_mins_old(self, path):
-        """Checks modified date of file to see if it is older than 5 mins. 
+        """Checks modified date of file to see if it is older than 5 mins.
            Used for cleaning output directory and image uploads.
 
         Args:
@@ -2556,7 +2584,7 @@ class ShowdownPlayerCardGenerator:
 
         Returns:
             True if file in path is older than 5 mins, false if not.
-        """ 
+        """
 
         datetime_current = datetime.now()
         datetime_uploaded = datetime.fromtimestamp(os.path.getmtime(path))
