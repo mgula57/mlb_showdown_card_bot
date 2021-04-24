@@ -22,6 +22,7 @@ parser.add_argument('-num','--set_num',help='Assign card a set number',default='
 parser.add_argument('-show','--show_image', action='store_true', help='Optionally open the final Player Card Image upon completion')
 parser.add_argument('-cc','--is_cc', action='store_true', help='Optionally make the card Cooperstown Collection')
 parser.add_argument('-ss','--is_ss', action='store_true', help='Optionally make the card Super Season')
+parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default='', type=str)
 args = parser.parse_args()
 
 def main():
@@ -33,6 +34,8 @@ def main():
     scraper = BaseballReferenceScraper(name=name,year=year)
     statline = scraper.player_statline()
 
+    command_out_override = None if args.co_override == '' else tuple([int(x) for x in args.co_override.split('-')])
+    
     showdown = ShowdownPlayerCardGenerator(
         name=name,
         year=year,
@@ -45,7 +48,8 @@ def main():
         player_image_path=args.image_path,
         print_to_cli=True,
         show_player_card_image=args.show_image,
-        set_number=str(args.set_num)
+        set_number=str(args.set_num),
+        command_out_override=command_out_override,
     )
 
 if __name__ == "__main__":

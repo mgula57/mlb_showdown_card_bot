@@ -367,7 +367,7 @@ CHART_CATEGORY_WEIGHTS = {
         'position_player': {
             'h_per_400_pa': 5.0,
             'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
+            'onbase_perc': 8.0,
             'hr_per_400_pa': 3.0,
             'so_per_400_pa': 0.0
         },
@@ -1446,7 +1446,7 @@ IMAGE_LOCATIONS = {
     'team_logo': {
         '2000': (1200,1086),
         '2001': (78,1584),
-        '2002': (24,1380),
+        '2002': (80,1380),
         '2003': (1179,1074),
         '2004': (1161,1440),
         '2005': (1161,1440),
