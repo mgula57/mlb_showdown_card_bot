@@ -367,7 +367,7 @@ CHART_CATEGORY_WEIGHTS = {
         'position_player': {
             'h_per_400_pa': 5.0,
             'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
+            'onbase_perc': 8.0,
             'hr_per_400_pa': 3.0,
             'so_per_400_pa': 0.0
         },

@@ -139,7 +139,7 @@ class BaseballReferenceScraper:
         advanced_stats = self.advanced_stats(type)
         stats_dict.update(advanced_stats)
         # SPEED
-        stats_dict['sprint_speed'] = self.sprint_speed(self.name, self.year)
+        stats_dict['sprint_speed'] = self.sprint_speed(name=self.name, year=self.year, type=type)
         # DERIVE 1B 
         stats_dict['1B'] = int(stats_dict['H']) - int(stats_dict['HR']) - int(stats_dict['3B']) - int(stats_dict['2B'])
 
@@ -268,7 +268,7 @@ class BaseballReferenceScraper:
 
         # CHECK FOR TYPE OVERRIDE
         is_pitcher_override = '(PITCHER)' in self.name.upper() and games_as_pitcher > 0
-        is_hitter_override = '(HITTER)' in self.name.upper() and games_as_hitter > 0
+        is_hitter_override = '(HITTER)' in self.name.upper()
 
         # COMPARE GAMES PLAYED IN BOTH TYPES
         if games_as_hitter + games_as_pitcher == 0:
@@ -282,12 +282,13 @@ class BaseballReferenceScraper:
         else:
             return "Pitcher"
 
-    def sprint_speed(self, name, year):
+    def sprint_speed(self, name, year, type):
         """Sprint Speed for player from Baseball Savant (Only applicable to 2015+).
 
         Args:
           name: Full name of Player
           year: Year for Player stats
+          type: String for player type (Pitcher or Hitter)
 
         Raises:
           AttributeError: This Player Played 0 Games. Check Player Name and Year.
@@ -317,7 +318,8 @@ class BaseballReferenceScraper:
                 speed = float(player_dict['r_sprint_speed_top50percent_pretty'])
                 return speed
         # IF NOT FOUND, RETURN LEAGUE AVG
-        return 27
+        default_speed = 26.25
+        return default_speed
 
     def advanced_stats(self, type):
         """Parse advanced stats page from baseball reference.
