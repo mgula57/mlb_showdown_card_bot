@@ -831,7 +831,11 @@ class ShowdownPlayerCardGenerator:
                 elif category == '2b':
                     category_results += num_of_results_2b
                     range_end = current_chart_index + category_results - 1
-
+            
+            # HANDLE ERRORS WITH SMALL SAMPLE SIZE 2000/2001 FOR SMALL ONBASE
+            if not is_post_2001 and range_end > 20:
+                range_end = 20
+                
             if category.upper() == 'HR' and is_post_2001:
                 # ADD PLUS AFTER HR
                 range = '{}+'.format(str(current_chart_index))
