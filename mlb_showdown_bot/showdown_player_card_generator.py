@@ -7,7 +7,7 @@ import json
 
 from pathlib import Path
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, date
 from bs4 import BeautifulSoup
 from pprint import pprint
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
@@ -30,6 +30,7 @@ class ShowdownPlayerCardGenerator:
         # ASSIGNED ATTRIBUTES
         is_name_a_bref_id = any(char.isdigit() for char in name)
         has_special_chars = '(' in name
+        self.version = "2.2"
         self.name = stats['name'] if is_name_a_bref_id or has_special_chars else name
         self.year = year
         self.context = context
@@ -1710,6 +1711,9 @@ class ShowdownPlayerCardGenerator:
             chart_cords = sc.IMAGE_LOCATIONS['chart'][str(self.context)]
         player_image.paste(color, chart_cords, chart_image)
 
+        version_image = self.__version_image()
+        player_image.paste("#b5b4b4", sc.IMAGE_LOCATIONS['version'][str(self.context)], version_image)
+        
         # ICONS
         if int(self.context) > 2002:
             player_image = self.__add_icons_to_image(player_image)
@@ -1768,6 +1772,16 @@ class ShowdownPlayerCardGenerator:
         else:
             # DEFAULT BACKGROUND
             player_image = Image.open(default_image_path)
+            # ADD PLAYER SILHOUETTE
+            try:
+                type_string = 'P' if self.is_pitcher else 'H'
+                hand_prefix = self.hand[0 if self.is_pitcher else -1]
+                hand_string = 'L' if hand_prefix == 'S' else hand_prefix
+                silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context}-SIL-{hand_string}H{type_string}.png')
+                silhouetee_image = Image.open(silhouetee_image_path)
+                player_image.paste(silhouetee_image,(0,0),silhouetee_image)
+            except:
+                print("Error loading player silhouetee")
 
         player_image = self.__center_crop(player_image, (1500,2100))
 
@@ -2320,6 +2334,27 @@ class ShowdownPlayerCardGenerator:
             set_image.paste(number_color, sc.IMAGE_LOCATIONS['number'][str(self.context)], number_text)
 
         return set_image
+
+    def __version_image(self):
+        """Adds version number licensing text.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for version number
+        """
+        helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueCondensedBold.ttf')
+        text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=50 if self.context not in ['2004','2005'] else 35)
+        # DATE NUMBER
+        version_text = self.__text_image(
+            text = f"v{self.version}",
+            size = (450, 450),
+            font = text_font,
+            alignment = "left"
+        )
+        version_text = version_text.resize((150,150), Image.ANTIALIAS)
+        return version_text
 
     def __super_season_image(self):
         """Creates image for optional super season attributes. Add accolades for
