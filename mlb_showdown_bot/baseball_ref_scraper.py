@@ -7,6 +7,7 @@ import json
 import string
 from bs4 import BeautifulSoup
 from pprint import pprint
+from datetime import datetime
 import unidecode
 
 class BaseballReferenceScraper:
@@ -163,15 +164,26 @@ class BaseballReferenceScraper:
             # PARSE POSITION ATTRIBUTES
             position_name = position_info.find('td', attrs={'class':'left','data-stat':'pos'}).get_text()
             games_played = position_info.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
+
             # TOTAL ZONE (1953-2003)
             total_zone_object = position_info.find('td',attrs={'class':'right','data-stat':'tz_runs_total'})
             total_zone_rating = total_zone_object.get_text() if total_zone_object != None else 0
             total_zone_rating = 0 if total_zone_rating == '' else total_zone_rating
+            
             # DRS (2003+)
-            drs_metric_name = 'bis_runs_total_per_season' if str(self.year) == '2020' else 'bis_runs_total'
-            drs_object = position_info.find('td',attrs={'class':'right','data-stat':drs_metric_name})
+            drs_metric_name = 'bis_runs_total'
+            drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total'})
             drs_rating = drs_object.get_text() if drs_object != None else 0
             drs_rating = 0 if drs_rating == '' else drs_rating
+            # ACCOUNT FOR SHORTENED OR ONGOING SEASONS
+            today = datetime.today()
+            card_year_end_date = datetime(int(self.year), 10, 15)
+            is_shortened_year = str(self.year) == '2020' or today < card_year_end_date
+            if is_shortened_year and int(drs_rating) > 0:
+                drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total_per_season'})
+                drs_rating = drs_object.get_text() if drs_object != None else 0
+                drs_rating = 0 if drs_rating == '' else int(drs_rating)
+
             # UPDATE POSITION DICTIONARY
             position_dict = {
                 'Position{}'.format(index): position_name,
