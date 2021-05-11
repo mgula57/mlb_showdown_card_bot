@@ -1652,6 +1652,8 @@ TEAM_LOGO_ALTERNATES = {
     },
     'NYM': {
         '1': list(range(1962,1993)),
+        '2': list(range(1993,1998)),
+        '3': list(range(1998,2011)),
     },
     'NYY': {
         '1': list(range(1900,1950)),
