@@ -133,14 +133,15 @@ class BaseballReferenceScraper:
 
         # HAND / TYPE
         type = self.type(positional_fielding)
+        name = self.player_name(soup_for_homepage_stats)
         stats_dict['type'] = type
         stats_dict['hand'] = self.hand(soup_for_homepage_stats, type)
-        stats_dict['name'] = self.player_name(soup_for_homepage_stats)
+        stats_dict['name'] = name
         # HITTING / HITTING AGAINST
         advanced_stats = self.advanced_stats(type)
         stats_dict.update(advanced_stats)
         # SPEED
-        stats_dict['sprint_speed'] = self.sprint_speed(name=self.name, year=self.year, type=type)
+        stats_dict['sprint_speed'] = self.sprint_speed(name=name, year=self.year, type=type)
         # DERIVE 1B 
         stats_dict['1B'] = int(stats_dict['H']) - int(stats_dict['HR']) - int(stats_dict['3B']) - int(stats_dict['2B'])
 
@@ -321,8 +322,8 @@ class BaseballReferenceScraper:
 
         for player_dict in speed_list_all_players:
             # FIND PLAYER IN LIST
-            first_name_cleaned = unidecode.unidecode(self.name.split(' ')[0].replace(".", ""))
-            last_name = unidecode.unidecode(self.name.split(' ')[1])
+            first_name_cleaned = unidecode.unidecode(name.split(' ')[0].replace(".", ""))
+            last_name = unidecode.unidecode(name.split(' ')[1])
             full_name_baseball_savant = unidecode.unidecode(player_dict['name_display_last_first'])
             is_player_match = first_name_cleaned in full_name_baseball_savant \
                               and last_name in full_name_baseball_savant
