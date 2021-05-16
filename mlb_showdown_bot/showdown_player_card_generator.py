@@ -24,7 +24,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -34,6 +34,7 @@ class ShowdownPlayerCardGenerator:
         self.name = stats['name'] if is_name_a_bref_id or has_special_chars else name
         self.year = year
         self.context = context
+        self.expansion = expansion
         self.stats = stats
         self.is_cooperstown = is_cooperstown
         self.is_super_season = is_super_season
@@ -1528,7 +1529,7 @@ class ShowdownPlayerCardGenerator:
         card_as_string = (
             '***********************************************\n' +
             '{name} ({year}) ({team})\n' +
-            '{context} Base Set Card\n' +
+            '{context} {expansion} Card\n' +
             '\n' +
             '{positions}\n' +
             '{hand}\n' +
@@ -1552,6 +1553,7 @@ class ShowdownPlayerCardGenerator:
             year = self.year,
             team = self.team,
             context = self.context,
+            expansion = self.expansion,
             positions = positions_string,
             hand = self.hand,
             ip_or_speed = ip_or_speed,
@@ -1711,6 +1713,7 @@ class ShowdownPlayerCardGenerator:
             chart_cords = sc.IMAGE_LOCATIONS['chart'][str(self.context)]
         player_image.paste(color, chart_cords, chart_image)
 
+        # BOT VERSION
         version_image = self.__version_image()
         player_image.paste("#b5b4b4", sc.IMAGE_LOCATIONS['version'][str(self.context)], version_image)
         
@@ -1718,8 +1721,17 @@ class ShowdownPlayerCardGenerator:
         if int(self.context) > 2002:
             player_image = self.__add_icons_to_image(player_image)
 
+        # SET
         set_image = self.__card_set_image()
         player_image.paste(set_image, (0,0), set_image)
+
+        # EXPANSION
+        if self.expansion != 'BS':
+            expansion_image = self.__expansion_image()
+            expansion_location = sc.IMAGE_LOCATIONS['expansion'][str(self.context)]
+            if self.context == '2002' and self.expansion == 'TD':
+                expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
+            player_image.paste(expansion_image, expansion_location, expansion_image)
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm
@@ -2334,6 +2346,19 @@ class ShowdownPlayerCardGenerator:
             set_image.paste(number_color, sc.IMAGE_LOCATIONS['number'][str(self.context)], number_text)
 
         return set_image
+
+    def __expansion_image(self):
+        """Creates image for card expansion (ex: Trade Deadline, Pennant Run)
+        
+        Args:
+          None
+
+        Returns:
+          PIL image object for card expansion logo.
+        """ 
+
+        expansion_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context}-{self.expansion}.png'))
+        return expansion_image
 
     def __version_image(self):
         """Adds version number licensing text.

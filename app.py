@@ -3,6 +3,7 @@ from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGe
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 import os
 import re
+import json
 import sys
 from flask_sqlalchemy import SQLAlchemy
 
@@ -80,6 +81,7 @@ def card_creator():
     img_url = None
     img_name = None
     set_num = None
+    expansion = None
 
     try:
         # PARSE INPUTS
@@ -98,6 +100,7 @@ def card_creator():
             offset = 0
         img = request.args.get('img_name')
         set_num = str(request.args.get('set_num'))
+        expansion_raw = str(request.args.get('expansion'))
 
         # SCRAPE PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
@@ -108,6 +111,7 @@ def card_creator():
         img_url = None if url == '' else url
         img_name = None if img == '' else img
         set_number = year if set_num == '' else set_num
+        expansion = "BS" if expansion_raw == '' else expansion_raw
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
@@ -116,6 +120,7 @@ def card_creator():
             year=year,
             stats=statline,
             context=set,
+            expansion=expansion,
             player_image_path=img_name,
             player_image_url=img_url,
             is_cooperstown=is_cooperstown,
@@ -165,4 +170,4 @@ def upload():
         name = ''
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=False)
