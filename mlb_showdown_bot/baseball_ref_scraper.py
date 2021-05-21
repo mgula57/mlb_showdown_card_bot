@@ -16,9 +16,26 @@ class BaseballReferenceScraper:
 # INIT
 
     def __init__(self, name, year):
+        if year.upper() == 'CAREER':
+            year = 'CAREER'
+        elif '-' in year:
+            # RANGE OF YEARS
+            years = year.split('-')
+            year_start = int(years[0].strip())
+            year_end = int(years[1].strip())
+            year = list(range(year_start,year_end+1))
+        elif '+' in year:
+            years = year.split('+')
+            year = [int(x.strip()) for x in years]
 
         self.name = name
-        self.year = year
+        if isinstance(year, list):
+            is_multi_value_list = len(year) > 1
+            self.is_multi_year = is_multi_value_list
+            self.years = year
+        else:
+            self.is_multi_year = False
+            self.years = [year]
         # CHECK FOR BASEBALL REFERENCE ID
         self.is_name_a_bref_id = any(char.isdigit() for char in name)
         self.baseball_ref_id = name.lower() if self.is_name_a_bref_id else self.search_google_for_b_ref_id(name, year)
@@ -61,7 +78,7 @@ class BaseballReferenceScraper:
 
         # NO BASEBALL REFERENCE RESULTS FOR THAT NAME AND YEAR
         if search_results == []:
-            raise AttributeError('Cannot Find BRef Page for {} in {}'.format(self.name,self.year))
+            raise AttributeError('Cannot Find BRef Page for {} in {}'.format(name,year))
           
 
         top_result_url = search_results[0]["href"]
@@ -126,79 +143,127 @@ class BaseballReferenceScraper:
         url_for_homepage_stats = 'https://www.baseball-reference.com/players/{}/{}.shtml'.format(self.first_initial,self.baseball_ref_id)
         soup_for_homepage_stats = self.__soup_for_url(url_for_homepage_stats, is_baseball_ref_page=True)
 
-        stats_dict = {}
-        # DEFENSE
-        positional_fielding = self.positional_fielding(soup_for_homepage_stats)
-        stats_dict.update(positional_fielding)
+        master_stats_dict = {}
+        is_full_career = self.years == ['CAREER']
+        for year in self.years:
+            # DEFENSE
+            stats_dict = {}
+            positional_fielding = self.positional_fielding(soup_for_homepage_stats=soup_for_homepage_stats,year=year)
+            stats_dict.update(positional_fielding)
 
-        # HAND / TYPE
-        type = self.type(positional_fielding)
-        name = self.player_name(soup_for_homepage_stats)
-        stats_dict['type'] = type
-        stats_dict['hand'] = self.hand(soup_for_homepage_stats, type)
-        stats_dict['name'] = name
-        # HITTING / HITTING AGAINST
-        advanced_stats = self.advanced_stats(type)
-        stats_dict.update(advanced_stats)
-        # SPEED
-        stats_dict['sprint_speed'] = self.sprint_speed(name=name, year=self.year, type=type)
-        # DERIVE 1B 
-        stats_dict['1B'] = int(stats_dict['H']) - int(stats_dict['HR']) - int(stats_dict['3B']) - int(stats_dict['2B'])
+            # HAND / TYPE
+            type = self.type(positional_fielding,year=year)
+            name = self.player_name(soup_for_homepage_stats)
+            years_played = self.__years_played_list(type=type, homepage_soup=soup_for_homepage_stats)
+            stats_dict['type'] = type
+            stats_dict['hand'] = self.hand(soup_for_homepage_stats, type)
+            stats_dict['name'] = name
+            stats_dict['years_played'] = years_played
+            # HITTING / HITTING AGAINST
+            advanced_stats = self.advanced_stats(type,year=year)
+            stats_dict.update(advanced_stats)
+            # SPEED
+            if is_full_career:
+                stats_dict['team_ID'] = 'MLB'
+                sprint_speed_list = []
+                for year in years_played:
+                    sprint_speed = self.sprint_speed(name=name, year=year, type=type)
+                    if sprint_speed:
+                        sprint_speed_list.append(sprint_speed)
+                if len(sprint_speed_list) > 0:
+                    stats_dict['sprint_speed'] = sum(sprint_speed_list) / len(sprint_speed_list)
+                else:
+                    stats_dict['sprint_speed'] = None
+            else:
+                stats_dict['sprint_speed'] = self.sprint_speed(name=name, year=year, type=type)
+            
+            # DERIVE 1B 
+            stats_dict['1B'] = int(stats_dict['H']) - int(stats_dict['HR']) - int(stats_dict['3B']) - int(stats_dict['2B'])
+            master_stats_dict[year] = stats_dict
+        
+        if self.is_multi_year:
+            # COMBINE INDIVIDUAL YEAR DATA
+            stats_dict.update(self.__combine_multi_year_dict(master_stats_dict))
+            return stats_dict
+        else:
+            return stats_dict
 
-        return stats_dict
-
-    def positional_fielding(self, soup_for_homepage_stats):
+    def positional_fielding(self, soup_for_homepage_stats, year):
         """Parse standard fielding metrics (tzr, games_played).
 
         Args:
           soup_for_homepage_stats: BeautifulSoup object with all stats on homepage.
+          year: Year for Player stats
 
         Returns:
           Dict with name, tzr, and games played per position.
         """
-
-        fielding_metrics_by_position = soup_for_homepage_stats.find_all('tr', attrs = {'id': '{}:standard_fielding'.format(self.year)})
+        is_full_career = year == 'CAREER'
+        if is_full_career:
+            fielding_table = soup_for_homepage_stats.find('div', attrs = {'id': 'div_standard_fielding'})
+            fielding_table_footer = fielding_table.find('tfoot')
+            fielding_metrics_by_position = fielding_table_footer.find_all('tr')
+        else:
+            fielding_metrics_by_position = soup_for_homepage_stats.find_all('tr', attrs = {'id': '{}:standard_fielding'.format(year)})
 
         # POSITIONAL TZR
         all_positions = {}
         for index, position_info in enumerate(fielding_metrics_by_position, 1):
             # PARSE POSITION ATTRIBUTES
-            position_name = position_info.find('td', attrs={'class':'left','data-stat':'pos'}).get_text()
-            games_played = position_info.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
+            is_position_found = position_info.find('td', attrs={'data-stat':'pos'})
+            if is_position_found:
+                position_name = position_info.find('td', attrs={'data-stat':'pos'}).get_text()
+                games_played = position_info.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
+                    
+                if position_name != 'TOT':
+                    # DRS (2003+)
+                    drs_metric_name = 'bis_runs_total'
+                    drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total'})
+                    drs_rating = drs_object.get_text() if drs_object != None else 0
+                    drs_rating = 0 if drs_rating == '' else drs_rating
+                    
+                    # ACCOUNT FOR SHORTENED OR ONGOING SEASONS
+                    if is_full_career:
+                        use_stat_per_yr = True
+                    else:
+                        today = datetime.today()
+                        card_year_end_date = datetime(int(year), 10, 15)
+                        is_year_end_date_before_today = today < card_year_end_date
+                        use_stat_per_yr = (str(year) == '2020' or is_year_end_date_before_today) and int(drs_rating) > 0
+                    
+                    if use_stat_per_yr:
+                        drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total_per_season'})
+                        drs_rating = drs_object.get_text() if drs_object != None else 0
+                        drs_rating = 0 if drs_rating == '' else int(drs_rating)
 
-            # TOTAL ZONE (1953-2003)
-            total_zone_object = position_info.find('td',attrs={'class':'right','data-stat':'tz_runs_total'})
-            total_zone_rating = total_zone_object.get_text() if total_zone_object != None else 0
-            total_zone_rating = 0 if total_zone_rating == '' else total_zone_rating
-            
-            # DRS (2003+)
-            drs_metric_name = 'bis_runs_total'
-            drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total'})
-            drs_rating = drs_object.get_text() if drs_object != None else 0
-            drs_rating = 0 if drs_rating == '' else drs_rating
-            # ACCOUNT FOR SHORTENED OR ONGOING SEASONS
-            today = datetime.today()
-            card_year_end_date = datetime(int(self.year), 10, 15)
-            is_shortened_year = str(self.year) == '2020' or today < card_year_end_date
-            if is_shortened_year and int(drs_rating) > 0:
-                drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total_per_season'})
-                drs_rating = drs_object.get_text() if drs_object != None else 0
-                drs_rating = 0 if drs_rating == '' else int(drs_rating)
+                    # TOTAL ZONE (1953-2003)
+                    suffix = '_per_season' if use_stat_per_yr else ''
+                    total_zone_object = position_info.find('td',attrs={'class':'right','data-stat':f'tz_runs_total{suffix}'})
+                    total_zone_rating = total_zone_object.get_text() if total_zone_object != None else 0
+                    total_zone_rating = 0 if total_zone_rating == '' else total_zone_rating
 
-            # UPDATE POSITION DICTIONARY
-            position_dict = {
-                'Position{}'.format(index): position_name,
-                'gPosition{}'.format(index): games_played if games_played != '' else 0,
-                'tzPosition{}'.format(index): total_zone_rating,
-                'drsPosition{}'.format(index): drs_rating
-            }
-            all_positions.update(position_dict)
+                    # UPDATE POSITION DICTIONARY
+                    position_dict = {
+                        'Position{}'.format(index): position_name,
+                        'gPosition{}'.format(index): games_played if games_played != '' else 0,
+                        'tzPosition{}'.format(index): total_zone_rating,
+                        'drsPosition{}'.format(index): drs_rating
+                    }
+                    all_positions.update(position_dict)
 
         # GET DEFENSIVE WAR IN CASE OF LACK OF TZR AVAILABILITY FOR SEASONS < 1952
         try:
-            player_value = soup_for_homepage_stats.find('tr', attrs = {'id': 'batting_value.{}'.format(self.year)})
-            dwar_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR_def'})
-            dwar_rating = dwar_object.get_text() if dwar_object != None else 0
+            if is_full_career:
+                summarized_header = self.__get_career_totals_row(div_id='div_batting_value',soup_object=soup_for_homepage_stats)
+                num_seasons = float(summarized_header.find('th').get_text().split(" ")[0])
+                dwar_object = summarized_header.find('td',attrs={'data-stat':'WAR_def'})
+                dwar_rating = float(dwar_object.get_text()) if dwar_object != None else 0
+                # USE AVG FOR CAREER
+                dwar_rating = dwar_rating / num_seasons 
+            else:
+                player_value = soup_for_homepage_stats.find('tr', attrs = {'id': 'batting_value.{}'.format(year)})
+                dwar_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR_def'})
+                dwar_rating = dwar_object.get_text() if dwar_object != None else 0
             all_positions.update({'dWAR': dwar_rating})
         except:
             all_positions.update({'dWAR': 0})
@@ -254,11 +319,12 @@ class BaseballReferenceScraper:
         name_string = name_object.find('span').get_text()
         return name_string
 
-    def type(self, positional_fielding):
+    def type(self, positional_fielding, year):
         """Guess Player Type (Pitcher or Hitter) based on games played at each position.
 
         Args:
           positional_fielding: Dict with positions, games_played, and tzr
+          year: Year for Player stats
 
         Raises:
           AttributeError: This Player Played 0 Games. Check Player Name and Year.
@@ -285,7 +351,7 @@ class BaseballReferenceScraper:
 
         # COMPARE GAMES PLAYED IN BOTH TYPES
         if games_as_hitter + games_as_pitcher == 0:
-            raise AttributeError('This Player Played 0 Games in {}. Check Player Name and Year'.format(self.year))
+            raise AttributeError('This Player Played 0 Games in {}. Check Player Name and Year'.format(year))
         elif is_pitcher_override:
             return "Pitcher"
         elif is_hitter_override:
@@ -334,17 +400,20 @@ class BaseballReferenceScraper:
         default_speed = 26.25
         return default_speed
 
-    def advanced_stats(self, type):
+    def advanced_stats(self, type, year):
         """Parse advanced stats page from baseball reference.
 
         Standard and ratio stats. For Pitchers, uses batting against table.
 
         Args:
           type: Player is Pitcher or Hitter.
+          year: Year for Player stats
 
         Returns:
           Dict with standard and ratio statistics.
         """
+
+        is_full_career = year == 'CAREER'
 
         # SCRAPE ADVANCED STATS PAGE
         page_suffix = '-bat' if type == 'Hitter' else '-pitch'
@@ -353,31 +422,53 @@ class BaseballReferenceScraper:
 
         table_prefix = 'batting' if type == 'Hitter' else 'pitching'
 
-        standard_table_key = '{}_standard.{}'.format(table_prefix, self.year)
-        standard_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': standard_table_key})
+        if is_full_career:
+            standard_table = self.__get_career_totals_row(div_id=f'all_{table_prefix}_standard',soup_object=soup_for_advanced_stats)
+            
+        else:
+            standard_table_key = '{}_standard.{}'.format(table_prefix, year)
+            standard_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': standard_table_key})
 
-        is_rookie_season = self.__is_rookie_season(table_prefix=table_prefix, advanced_stats_soup=soup_for_advanced_stats)
-        
-        advanced_stats = {'is_rookie': is_rookie_season}
+        advanced_stats = {}
 
         # BATTING AGAINST (PITCHERS ONLY)
         if type == 'Pitcher':
-            batting_against_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': 'pitching_batting.{}'.format(self.year)})
+            if is_full_career:
+                batting_against_table = self.__get_career_totals_row(div_id='div_pitching_batting',soup_object=soup_for_advanced_stats)
+            else:
+                batting_against_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': 'pitching_batting.{}'.format(year)})
             advanced_stats.update(self.__parse_batting_against(batting_against_table))
-
+        
         # STANDARD STATS
         advanced_stats.update(self.__parse_standard_stats(type, standard_table))
+
+        # PARSE AWARDS IF FULL CAREER
+        if is_full_career:
+            all_year_standard_stats = soup_for_advanced_stats.find_all('tr',attrs={'class':'full','id': re.compile(f"{table_prefix}_standard.")})
+            awards_total = ""
+            for year in all_year_standard_stats:
+                stats_dict = self.__parse_standard_stats(type, year)
+                if 'is_sv_leader' in stats_dict:
+                    advanced_stats['is_sv_leader'] = stats_dict['is_sv_leader']
+                year_award_summary = stats_dict['award_summary']
+                if len(year_award_summary) > 0:
+                    awards_total = f'{awards_total},{year_award_summary}'
+            advanced_stats['award_summary'] = awards_total
 
         # IF A PLAYER PLAYED FOR MULTIPLE TEAMS IN ONE SEASON, SELECT THE LAST TEAM THEY PLAYED FOR.
         team_id_key = 'team_ID'
         if team_id_key in advanced_stats.keys():
             if advanced_stats[team_id_key] == 'TOT':
-                advanced_stats[team_id_key] = self.__parse_team_after_trade(advanced_stats_soup=soup_for_advanced_stats)
+                advanced_stats[team_id_key] = self.__parse_team_after_trade(advanced_stats_soup=soup_for_advanced_stats,year=year)
 
         # RATIO STATS
-        ratio_table_key = '{}_ratio.{}'.format(table_prefix,self.year)
-        ratio_table = soup_for_advanced_stats.find('tr', attrs = {'class':'full','id': ratio_table_key})
-        advanced_stats.update(self.__parse_ratio_stats(ratio_table))
+        if is_full_career:
+            ratio_table_key = f'div_{table_prefix}_ratio'
+            ratio_table = self.__get_career_totals_row(div_id=ratio_table_key,soup_object=soup_for_advanced_stats)
+        else:
+            ratio_table_key = f'{table_prefix}_ratio.{year}'
+            ratio_table = soup_for_advanced_stats.find('tr', attrs = {'class':'full','id': ratio_table_key})
+        advanced_stats.update(self.__parse_ratio_stats(ratio_table,year=year))
 
         return advanced_stats
 
@@ -436,11 +527,12 @@ class BaseballReferenceScraper:
 
         return batting_against_dict
 
-    def __parse_ratio_stats(self, ratio_table):
+    def __parse_ratio_stats(self, ratio_table, year):
         """Parse out ratios (GB/AO, PU)
 
         Args:
           ratio_table: BeautifulSoup table object with ratios.
+          year: Year for Player stats
 
         Returns:
           Dict with ratio statistics.
@@ -452,26 +544,29 @@ class BaseballReferenceScraper:
             pu_ratio = 0.5
         else:
             gb_ao_ratio = ratio_table.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
-            if int(self.year) > 1988:
+            pu_ratio_raw = ratio_table.find('td',attrs={'class':'right','data-stat': 'infield_fb_perc'})
+            if pu_ratio_raw:
                 # PU RATIO DATA AVAILABLE AFTER 1988
-                pu_ratio_raw = ratio_table.find('td',attrs={'class':'right','data-stat': 'infield_fb_perc'}).get_text()
-                pu_ratio = int(pu_ratio_raw.replace('%','')) / 100.0
+                pu_ratio_text = pu_ratio_raw.get_text()
+                pu_ratio_text_cleaned = '20' if pu_ratio_text == '' else pu_ratio_text
+                pu_ratio = int(pu_ratio_text_cleaned.replace('%','')) / 100.0
             else:
-                pu_ratio = 0.25
+                pu_ratio = 0.20
 
         return {
             'GO/AO': gb_ao_ratio,
             'IF/FB': pu_ratio
         }
 
-    def __parse_team_after_trade(self, advanced_stats_soup):
+    def __parse_team_after_trade(self, advanced_stats_soup, year):
         """Parse the last team a player playe dfor in the given season.
 
         Args:
           advanced_stats_soup: BeautifulSoup object for advanced stats table.
+          year: Year for Player stats
 
         Returns:
-          Team Id for last team the player played on in self.year
+          Team Id for last team the player played on in year
         """
 
         partial_objects_list = advanced_stats_soup.find_all('tr',attrs={'class':'partial_table'})
@@ -479,8 +574,8 @@ class BaseballReferenceScraper:
         # ITERATE THROUGH PARTIAL SEASONS
         try:
             for partial_object in partial_objects_list:
-                # SAVE TEAMS ONLY FOR self.year SEASON
-                object_for_this_season = partial_object.find('th',attrs={'data-stat':'year_ID', 'csk': re.compile(str(self.year))})
+                # SAVE TEAMS ONLY FOR year SEASON
+                object_for_this_season = partial_object.find('th',attrs={'data-stat':'year_ID', 'csk': re.compile(str(year))})
                 if object_for_this_season:
                     # PARSE TEAM ID 
                     team_id = partial_object.find('td', attrs={'data-stat':'team_ID'}).get_text()
@@ -492,25 +587,97 @@ class BaseballReferenceScraper:
         except:
             return 'TOT'
 
-    def __is_rookie_season(self, table_prefix, advanced_stats_soup):
-        """Checks to see if the selected season is the player's rookie season
+    def __career_year_range(self, table_prefix, advanced_stats_soup):
+        """Parse the player's first and last seasons in the MLB
 
         Args:
           table_prefix: String for whether player is batter or pitcher
           advanced_stats_soup: BeautifulSoup object for advanced stats table.
 
         Returns:
-          TRUE or FALSE bool
+          Tuple of start and end years of career (ex: 2001, 2009)
         """
         try:
             full_element_prefix = '{}_standard.'.format(table_prefix)
             all_seasons_list = advanced_stats_soup.find_all('tr',attrs={'class':'full','id': re.compile(full_element_prefix)})
             first_season = all_seasons_list[0].find('th',attrs={'class':'left','data-stat': 'year_ID'} )
+            last_season = all_seasons_list[-1].find('th',attrs={'class':'left','data-stat': 'year_ID'} )
             year_of_first_season = str(first_season["csk"])
-            return year_of_first_season == str(self.year)
+            year_of_last_season = str(last_season["csk"])
+            return year_of_first_season, year_of_last_season
         except:
-            return False
+            return 2300, 2300
 
+    def __combine_multi_year_dict(self, yearly_stats_dict):
+        """Combine multiple years into one master final dataset
+
+        Args:
+          yearly_stats_dict: Dict of dicts per year.
+
+        Returns:
+          Flattened dictionary with combined stats
+        """
+        additive_keys = ['1B','2B','3B','AB','BB','CS','G','GIDP',
+                         'H','HBP','HR','IBB','PA','R','RBI','SB','SF','SH',
+                         'SO','TB','IP','SV','GS']
+        avg_keys = ['GO/AO','IF/FB','sprint_speed']
+        unique_list_keys = ['Position1','Position2','Position3','team_ID']
+        final_dict = {}
+        # FLATTEN MULTI YEAR STATS
+        for year, year_dict in yearly_stats_dict.items():
+            for category, value in year_dict.items():
+                if category in additive_keys:
+                    try:
+                        new_value = int(value)
+                    except:
+                        new_value = float(value)
+                    if category in list(final_dict.keys()):
+                        final_dict[category] = final_dict[category] + new_value
+                    else:
+                        final_dict[category] = new_value
+        # CALCULATE RATES
+        obp = float(final_dict['H'] + final_dict['BB'] + final_dict['HBP']) / float(final_dict['AB'] + final_dict['BB'] + final_dict['HBP'] + final_dict['SF'])
+        slg = float(final_dict['TB']) / float(final_dict['AB'])
+        rates = {
+            'batting_avg': round(float(final_dict['H']) / float(final_dict['AB']),3),
+            'onbase_perc': round(obp,3),
+            'slugging_perc': round(slg,3),
+            'onbase_plus_slugging': round(obp + slg,3),
+        }
+        final_dict.update(rates)
+        return final_dict
+
+    def __get_career_totals_row(self, div_id, soup_object):
+        """Grab first row of career totals data from any table
+
+        Args:
+          div_id: ID attribute of the div object
+          soup_object: Beautiful Soup object to extract from
+
+        Returns:
+          Beautiful Soup object for career totals
+        """
+        
+        div = soup_object.find('div', attrs = {'id': div_id})
+        footer = div.find('tfoot')
+        row = footer.find_all('tr')[0]
+        return row
+
+    def __years_played_list(self, type, homepage_soup):
+        """Parse the standard batting/pitching table to get a list of the years
+           a player played in.
+
+        Args:
+          homepage_soup: Beautiful Soup object for the player's homepage on bRef
+
+        Returns:
+          List of years as strings
+        """
+        table_prefix = 'batting' if type == 'Hitter' else 'pitching'
+        standard_table = homepage_soup.find('div', attrs = {'id': f'all_{table_prefix}_standard'})
+        year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard.')})
+        years_parsed = [year['id'].split('.')[-1] for year in year_soup_objects_list]
+        return years_parsed
 # ------------------------------------------------------------------------
 # HELPER METHODS
 

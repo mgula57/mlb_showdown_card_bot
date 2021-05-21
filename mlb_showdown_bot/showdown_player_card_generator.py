@@ -32,7 +32,7 @@ class ShowdownPlayerCardGenerator:
         has_special_chars = '(' in name
         self.version = "2.3"
         self.name = stats['name']
-        self.year = year
+        self.year = str(year).upper()
         self.context = context
         self.expansion = expansion
         self.stats = stats
@@ -156,25 +156,19 @@ class ShowdownPlayerCardGenerator:
                 # IN-GAME RATING AT
                 if position is not None:
                     if not self.is_pitcher:
-                        try:
-                            year_int = int(self.year)
-                            if year_int >= 2003:
-                                # USE DEFENSIVE RUNS SAVED AFTER 2003. IT'S USED IN dWAR CALCULATIONS ON BASEBALL REFERENCE
+                        try:                                
+                            drs = int(defensive_stats['drsPosition{}'.format(position_index)])
+                            tzr = int(defensive_stats['tzPosition{}'.format(position_index)])
+                            dWar = float(defensive_stats['dWAR'])
+                            if drs:
                                 metric = 'drs'
-                                defensive_rating = int(defensive_stats['drsPosition{}'.format(position_index)])
-                            elif year_int > 1952:
-                                # USE TZR
+                            elif tzr: 
                                 metric = 'tzr'
-                                defensive_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
                             else:
-                                # IF BEFORE 1952 USE dWAR
-                                # FLAW WITH THIS METHODOLOGY IS ITS AVG ACROSS POSITIONS, PLUS DOES NOT ACCOUNT FOR POSITION ADJUST
-                                # TODO: MAKE THIS MORE ROBUST IN THE FUTURE
-                                metric = 'dWAR'
-                                defensive_rating = float(defensive_stats['dWAR'])
+                                metric = 'dWar'
+                            defensive_rating = drs or tzr or dWar
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric)
                         except:
-                            total_zone_rating = 0
                             in_game_defense = 0
                         positions_and_defense[position] = in_game_defense
                     else:
@@ -219,8 +213,13 @@ class ShowdownPlayerCardGenerator:
         if 'LF' in positions_set or 'RF' in positions_set:
             # IF BOTH LF AND RF
             if set(['LF','RF']).issubset(positions_set):
-                lf_rf_rating = round((positions_and_defense['LF'] + positions_and_defense['RF']) / 2)
-                lf_rf_games = positions_and_games_played['LF'] + positions_and_games_played['RF']
+                pprint(positions_and_defense)
+                pprint(positions_and_games_played)
+                lf_games = positions_and_games_played['LF']
+                rf_games = positions_and_games_played['RF']
+                lf_rf_games = lf_games + rf_games
+                # WEIGHTED AVG
+                lf_rf_rating = round(( (positions_and_defense['LF']*lf_games) + (positions_and_defense['RF']*rf_games) ) / lf_rf_games)
                 del positions_and_defense['LF']
                 del positions_and_defense['RF']
                 del positions_and_games_played['LF']
