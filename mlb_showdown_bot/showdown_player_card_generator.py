@@ -33,6 +33,7 @@ class ShowdownPlayerCardGenerator:
         self.version = "2.3"
         self.name = stats['name']
         self.year = str(year).upper()
+        self.is_full_career = self.year == "CAREER"
         self.context = context
         self.expansion = expansion
         self.stats = stats
@@ -213,8 +214,6 @@ class ShowdownPlayerCardGenerator:
         if 'LF' in positions_set or 'RF' in positions_set:
             # IF BOTH LF AND RF
             if set(['LF','RF']).issubset(positions_set):
-                pprint(positions_and_defense)
-                pprint(positions_and_games_played)
                 lf_games = positions_and_games_played['LF']
                 rf_games = positions_and_games_played['RF']
                 lf_rf_games = lf_games + rf_games
@@ -380,8 +379,12 @@ class ShowdownPlayerCardGenerator:
         if self.is_pitcher:
             # PITCHER DEFAULTS TO 10
             return 10, 'C'
+        
+        # IF FULL CAREER CARD, ONLY USE SPRINT SPEED IF PLAYER HAS OVER 35% of CAREER POST 2015
+        pct_career_post_2015 = sum([1 if int(year) > 2015 else 0 for year in self.stats['years_played']]) / len(self.stats['years_played'])
+        is_disqualied_career_speed = self.is_full_career and pct_career_post_2015 < 0.35
 
-        if sprint_speed is None or math.isnan(sprint_speed) or sprint_speed == '':
+        if sprint_speed is None or math.isnan(sprint_speed) or sprint_speed == '' or sprint_speed == 0 or is_disqualied_career_speed:
             # NO SPRINT SPEED AVAILABLE
             sb_range = sc.MAX_STOLEN_BASES - sc.MIN_STOLEN_BASES
             speed_percentile = (stolen_bases-sc.MIN_STOLEN_BASES) / sb_range
@@ -443,22 +446,23 @@ class ShowdownPlayerCardGenerator:
 
         # DATA DRIVEN ICONS
         if self.is_pitcher:
-            # 20
-            if int(self.stats['W']) >= 20:
-                icons.append('20')
-            # K
-            if int(self.stats['SO']) >= 215 or ( self.year == '2020' and int(self.stats['SO']) >= 96 ):
-                icons.append('K')
+            # 20, K
+            for stat, icon in {"W": "20", "SO": "K"}.items():
+                key = f"is_above_{stat.lower()}_threshold"
+                if key in self.stats.keys():
+                    if self.stats[key] == True:
+                        icons.append(icon)
             # RP
             if 'is_sv_leader' in self.stats.keys():
                 if self.stats['is_sv_leader'] == True:
                     icons.append('RP')
         else:
-            # HR
-            if int(self.stats['HR']) >= 40 or ( self.year == '2020' and int(self.stats['HR']) >= 17 ):
-                icons.append('HR')
-            if int(self.stats['SB']) >= 40 or ( self.year == '2020' and int(self.stats['SB']) >= 15 ):
-                icons.append('SB')
+            # HR, SB
+            for stat in ['HR', 'SB']:
+                key = f"is_above_{stat.lower()}_threshold"
+                if key in self.stats.keys():
+                    if self.stats[key] == True:
+                        icons.append(stat)
 
         # ROOKIE ICON
         rookie_key = 'is_rookie'

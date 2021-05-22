@@ -5,6 +5,8 @@ import re
 import ast
 import json
 import string
+import statistics
+import operator
 from bs4 import BeautifulSoup
 from pprint import pprint
 from datetime import datetime
@@ -159,9 +161,15 @@ class BaseballReferenceScraper:
             stats_dict['hand'] = self.hand(soup_for_homepage_stats, type)
             stats_dict['name'] = name
             stats_dict['years_played'] = years_played
+            
             # HITTING / HITTING AGAINST
             advanced_stats = self.advanced_stats(type,year=year)
             stats_dict.update(advanced_stats)
+
+            # ICON THRESHOLDS
+            icon_threshold_bools = self.__add_icon_threshold_bools(year=year, stats_dict=stats_dict)
+            stats_dict.update(icon_threshold_bools)
+
             # SPEED
             if is_full_career:
                 stats_dict['team_ID'] = 'MLB'
@@ -378,7 +386,7 @@ class BaseballReferenceScraper:
 
         # DATA ONLY AVAILABLE 2015+
         if int(year) < 2015:
-            return None
+            return 0
 
         sprint_speed_url = 'https://baseballsavant.mlb.com/sprint_speed_leaderboard?year={}&position=&team=&min=0'.format(year)
         speed_data_html = self.html_for_url(sprint_speed_url)
@@ -492,7 +500,10 @@ class BaseballReferenceScraper:
                 # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD TEXT
                 is_league_leader = '<strong>' in str(category)
                 standard_stats_dict['is_sv_leader'] = is_league_leader
+            
             stat = category.get_text()
+            stat = self.__convert_to_numeric(stat)
+
             if type == 'Pitcher':
                 pitching_categories = ['earned_run_avg','GS','W','SV','IP','award_summary']
                 if stat_category in pitching_categories:
@@ -523,6 +534,7 @@ class BaseballReferenceScraper:
         for category in batting_against_table:
             stat_category = category['data-stat']
             stat = category.get_text()
+            stat = self.__convert_to_numeric(stat)
             batting_against_dict[stat_category]= stat
 
         return batting_against_dict
@@ -543,7 +555,11 @@ class BaseballReferenceScraper:
             gb_ao_ratio = 1.0
             pu_ratio = 0.5
         else:
-            gb_ao_ratio = ratio_table.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
+            gb_ao_ratio_raw = ratio_table.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
+            try:
+                gb_ao_ratio = float(gb_ao_ratio_raw)
+            except:
+                gb_ao_ratio = 1.0
             pu_ratio_raw = ratio_table.find('td',attrs={'class':'right','data-stat': 'infield_fb_perc'})
             if pu_ratio_raw:
                 # PU RATIO DATA AVAILABLE AFTER 1988
@@ -587,6 +603,37 @@ class BaseballReferenceScraper:
         except:
             return 'TOT'
 
+    def __add_icon_threshold_bools(self, year, stats_dict):
+        """Add 4 boolean flags for whether the player qualifies for Icons for a given stat
+
+        Args:
+          year: String representation for year of stats
+          stats_dict: Real life stats in a dict (ex: H, BB, HR, etc)
+
+        Returns:
+          Dictionary for threshold booleans
+        """
+
+        # ICON STATS
+        icon_threshold_bools = {}
+        stat_icon_mapping = {
+            'HR': 17 if year == '2020' else 40,
+            'SO': 96 if year == '2020' else 215,
+            'SB': 15 if year == '2020' else 40,
+            'W': 20,
+        }
+        for stat, threshold in stat_icon_mapping.items():
+            bool_key_name = f"is_above_{stat.lower()}_threshold"
+            if stat in stats_dict.keys():
+                if int(stats_dict[stat]) >= threshold:
+                    icon_threshold_bools[bool_key_name] = True
+                else:
+                    icon_threshold_bools[bool_key_name] = False
+            else:
+                icon_threshold_bools[bool_key_name] = False
+
+        return icon_threshold_bools
+
     def __career_year_range(self, table_prefix, advanced_stats_soup):
         """Parse the player's first and last seasons in the MLB
 
@@ -617,35 +664,117 @@ class BaseballReferenceScraper:
         Returns:
           Flattened dictionary with combined stats
         """
-        additive_keys = ['1B','2B','3B','AB','BB','CS','G','GIDP',
-                         'H','HBP','HR','IBB','PA','R','RBI','SB','SF','SH',
-                         'SO','TB','IP','SV','GS']
-        avg_keys = ['GO/AO','IF/FB','sprint_speed']
-        unique_list_keys = ['Position1','Position2','Position3','team_ID']
-        final_dict = {}
-        # FLATTEN MULTI YEAR STATS
-        for year, year_dict in yearly_stats_dict.items():
-            for category, value in year_dict.items():
-                if category in additive_keys:
-                    try:
-                        new_value = int(value)
-                    except:
-                        new_value = float(value)
-                    if category in list(final_dict.keys()):
-                        final_dict[category] = final_dict[category] + new_value
-                    else:
-                        final_dict[category] = new_value
-        # CALCULATE RATES
-        obp = float(final_dict['H'] + final_dict['BB'] + final_dict['HBP']) / float(final_dict['AB'] + final_dict['BB'] + final_dict['HBP'] + final_dict['SF'])
-        slg = float(final_dict['TB']) / float(final_dict['AB'])
-        rates = {
-            'batting_avg': round(float(final_dict['H']) / float(final_dict['AB']),3),
-            'onbase_perc': round(obp,3),
-            'slugging_perc': round(slg,3),
-            'onbase_plus_slugging': round(obp + slg,3),
+        column_aggs = {
+            '1B': 'sum',
+            '2B': 'sum',
+            '3B': 'sum',
+            'AB': 'sum',
+            'BB': 'sum',
+            'CS': 'sum',
+            'G': 'sum',
+            'GIDP': 'sum',
+            'H': 'sum',
+            'HBP': 'sum',
+            'HR': 'sum',
+            'IBB': 'sum',
+            'PA': 'sum',
+            'R': 'sum',
+            'RBI': 'sum',
+            'SB': 'sum',
+            'SF': 'sum',
+            'SH': 'sum',
+            'SO': 'sum',
+            'TB': 'sum',
+            'IP': 'sum',
+            'SV': 'sum',
+            'GS': 'sum',
+            'GO/AO': 'mean',
+            'IF/FB': 'mean',
+            'sprint_speed': 'mean',
+            'is_above_hr_threshold': 'max',
+            'is_above_so_threshold': 'max',
+            'is_above_sb_threshold': 'max',
+            'is_above_w_threshold': 'max',
         }
-        final_dict.update(rates)
-        return final_dict
+
+        # FLATTEN MULTI YEAR STATS
+        yearPd = pd.DataFrame.from_dict(yearly_stats_dict, orient='index')
+        columns_to_remove = list(set(column_aggs.keys()) - set(yearPd.columns))
+        [column_aggs.pop(key) for key in columns_to_remove]
+        avg_year = yearPd.groupby(by='name',as_index=False).agg(column_aggs)
+
+        # CALCULATE RATES
+        avg_year["batting_avg"] = round(avg_year['H'] / float(avg_year['AB']),3)
+        avg_year["onbase_perc"] = round((avg_year['H'] + avg_year['BB'] + avg_year['HBP']) / float(avg_year['AB'] + avg_year['BB'] + avg_year['HBP'] + avg_year['SF']),3)
+        avg_year["slugging_perc"] = round(avg_year['TB'] / avg_year['AB'],3)
+        avg_year["onbase_plus_slugging"] = round(avg_year["onbase_perc"] + avg_year["slugging_perc"],3)
+
+        avg_year_dict = avg_year.iloc[0].to_dict()
+
+        # AGGREGATE DEFENSIVE METRICS
+        avg_year_dict.update(self.__combine_multi_year_positions(yearly_stats_dict))
+
+        return avg_year_dict
+
+    def __combine_multi_year_positions(self, yearly_stats_dict):
+        """Combine multiple year defensive positions and metrics
+        into one master final dataset.
+
+        Args:
+          yearly_stats_dict: Dict of dicts per year.
+
+        Returns:
+          Flattened dictionary with combined stats
+        """
+
+        # OBJECT TO UPDATE
+        defensive_fields_dict = {}
+        positions_and_defense = {}
+        positions_and_games_played = {}
+        dWar_list = []
+
+        # PARSE BY POSITION
+        for year, stats in yearly_stats_dict.items():
+            defensive_stats = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k}
+            num_positions = int((len(defensive_stats.keys())-1) / 4)
+            dWar_list.append(float(defensive_stats['dWAR']))
+            for position_index in range(1, num_positions+1):
+                position = defensive_stats['Position{}'.format(position_index)]
+                # CHECK IF POSITION MATCHES PLAYER TYPE
+                games_at_position = int(defensive_stats['gPosition{}'.format(position_index)])
+                if position in positions_and_games_played.keys():
+                    games_at_position += positions_and_games_played[position]
+                positions_and_games_played[position] = games_at_position
+                # IN-GAME RATING AT
+                if position:
+                    try:                                
+                        year_defense_metrics = {
+                            'drs': int(defensive_stats['drsPosition{}'.format(position_index)]),
+                            'tzr': int(defensive_stats['tzPosition{}'.format(position_index)]),
+                        }
+                    except:
+                        year_defense_metrics = {'drs': 0, 'tzr': 0}
+                    if position in positions_and_defense.keys():
+                        for key in ['drs', 'tzr']:
+                            current_stat_list = positions_and_defense[position][key]
+                            current_stat_list.append(year_defense_metrics[key])
+                            positions_and_defense[position][key] = current_stat_list
+                    else:
+                        positions_and_defense[position] = { k:[v] for (k,v) in year_defense_metrics.items() }
+        
+        # RE-INDEX POSITIONAL STATS
+        positions_and_games_played_sorted_tuple = sorted(positions_and_games_played.items(), key=operator.itemgetter(1), reverse=True)
+        for index, (position, games_played) in enumerate(positions_and_games_played_sorted_tuple, 1):
+            position_dict = {
+                f"Position{index}": position,
+                f"gPosition{index}": games_played,
+                "dWar": statistics.median(dWar_list),
+                f"drsPosition{index}": statistics.median(positions_and_defense[position]['drs']),
+                f"tzPosition{index}": statistics.median(positions_and_defense[position]['tzr']),
+            }
+            defensive_fields_dict.update(position_dict)
+
+        return defensive_fields_dict
 
     def __get_career_totals_row(self, div_id, soup_object):
         """Grab first row of career totals data from any table
@@ -678,6 +807,7 @@ class BaseballReferenceScraper:
         year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard.')})
         years_parsed = [year['id'].split('.')[-1] for year in year_soup_objects_list]
         return years_parsed
+
 # ------------------------------------------------------------------------
 # HELPER METHODS
 
@@ -704,3 +834,21 @@ class BaseballReferenceScraper:
 
         last_initial = name_no_suffix.split(' ')[1][:1]
         return last_initial
+
+    def __convert_to_numeric(self, string_value):
+        """Will convert a string to either int or float if able, otherwise return as string
+
+        Args:
+          string_value: String for attribute
+
+        Returns:
+          Converted attribute
+        """
+        # CONVERT TYPE IF INT OR FLOAT
+        if string_value.isdigit():
+            return int(string_value)
+        elif string_value.replace('.','',1).isdigit() and string_value.count('.') < 2:
+            return float(string_value)
+        else:
+            # RETURN ORIGINAL STRING
+            return string_value
