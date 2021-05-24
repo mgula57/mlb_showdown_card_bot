@@ -167,12 +167,12 @@ class BaseballReferenceScraper:
             stats_dict.update(advanced_stats)
 
             # ICON THRESHOLDS
-            icon_threshold_bools = self.__add_icon_threshold_bools(year=year, stats_dict=stats_dict)
+            icon_threshold_bools = self.__add_icon_threshold_bools(type=type, year=year, stats_dict=stats_dict, homepage_soup=soup_for_homepage_stats)
             stats_dict.update(icon_threshold_bools)
 
             # SPEED
             if is_full_career:
-                stats_dict['team_ID'] = 'MLB'
+                stats_dict['team_ID'] = self.__team_multi_year(type, soup_for_homepage_stats)
                 sprint_speed_list = []
                 for year in years_played:
                     sprint_speed = self.sprint_speed(name=name, year=year, type=type)
@@ -192,6 +192,7 @@ class BaseballReferenceScraper:
         if self.is_multi_year:
             # COMBINE INDIVIDUAL YEAR DATA
             stats_dict.update(self.__combine_multi_year_dict(master_stats_dict))
+            stats_dict['team_ID'] = self.__team_multi_year(type, soup_for_homepage_stats, years_filter_list=self.years)
             return stats_dict
         else:
             return stats_dict
@@ -603,19 +604,26 @@ class BaseballReferenceScraper:
         except:
             return 'TOT'
 
-    def __add_icon_threshold_bools(self, year, stats_dict):
+    def __add_icon_threshold_bools(self, type, year, stats_dict, homepage_soup):
         """Add 4 boolean flags for whether the player qualifies for Icons for a given stat
 
         Args:
+          type: Player is Pitcher or Hitter.
           year: String representation for year of stats
           stats_dict: Real life stats in a dict (ex: H, BB, HR, etc)
+          homepage_soup: Beautiful Soup object for the player's homepage on bRef
 
         Returns:
           Dictionary for threshold booleans
         """
 
         # ICON STATS
-        icon_threshold_bools = {}
+        icon_threshold_bools = {
+            'is_above_hr_threshold': False,
+            'is_above_so_threshold': False,
+            'is_above_sb_threshold': False,
+            'is_above_w_threshold': False,
+        }
         stat_icon_mapping = {
             'HR': 17 if year == '2020' else 40,
             'SO': 96 if year == '2020' else 215,
@@ -624,14 +632,18 @@ class BaseballReferenceScraper:
         }
         for stat, threshold in stat_icon_mapping.items():
             bool_key_name = f"is_above_{stat.lower()}_threshold"
-            if stat in stats_dict.keys():
-                if int(stats_dict[stat]) >= threshold:
-                    icon_threshold_bools[bool_key_name] = True
-                else:
-                    icon_threshold_bools[bool_key_name] = False
+            
+            if year == 'CAREER':
+                list_of_values_for_stat = self.__get_stat_list_from_standard_table(type, homepage_soup, stat_key=stat)
+                if list_of_values_for_stat:
+                    max_for_stat = max(list_of_values_for_stat)
+                    is_qualified_for_icon = int(max_for_stat) >= threshold
+                    icon_threshold_bools[bool_key_name] = is_qualified_for_icon
             else:
-                icon_threshold_bools[bool_key_name] = False
-
+                if stat in stats_dict.keys():
+                    is_qualified_for_icon = int(stats_dict[stat]) >= threshold
+                    icon_threshold_bools[bool_key_name] = is_qualified_for_icon
+        
         return icon_threshold_bools
 
     def __career_year_range(self, table_prefix, advanced_stats_soup):
@@ -695,6 +707,8 @@ class BaseballReferenceScraper:
             'is_above_so_threshold': 'max',
             'is_above_sb_threshold': 'max',
             'is_above_w_threshold': 'max',
+            'is_sv_leader': 'max',
+            'award_summary': ','.join,
         }
 
         # FLATTEN MULTI YEAR STATS
@@ -807,6 +821,61 @@ class BaseballReferenceScraper:
         year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard.')})
         years_parsed = [year['id'].split('.')[-1] for year in year_soup_objects_list]
         return years_parsed
+
+    def __team_multi_year(self, type, homepage_soup, years_filter_list=[]):
+        """Parse the standard batting/pitching table to get a list of the years
+           a player played in.
+
+        Args:
+          type: Player is Pitcher or Hitter.
+          homepage_soup: Beautiful Soup object for the player's homepage on bRef
+          years_filter_list: Optional list of years to include
+
+        Returns:
+          List of years as strings
+        """
+        table_prefix = 'batting' if type == 'Hitter' else 'pitching'
+        standard_table = homepage_soup.find('div', attrs = {'id': f'all_{table_prefix}_standard'})
+        year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard.')})
+        teams_and_games_played = {}
+        for year_object in year_soup_objects_list:
+            year = int(year_object.find('th',attrs={'data-stat': 'year_ID'}).get_text())
+            if len(years_filter_list) < 1 or (year in years_filter_list):
+                team = year_object.find('td',attrs={'data-stat': 'team_ID'}).get_text()
+                games = int(year_object.find('td',attrs={'data-stat': 'G'}).get_text())
+                if team != 'TOT':
+                    if team in teams_and_games_played.keys():
+                        games += teams_and_games_played[team]
+                    teams_and_games_played[team] = games
+        team_w_most_games = sorted(teams_and_games_played.items(), key=operator.itemgetter(1), reverse=True)[0][0]
+        return team_w_most_games
+
+    def __get_stat_list_from_standard_table(self, type, homepage_soup, stat_key):
+        """Parse the standard batting/pitching table to get a list of values for a given stat.
+
+        Args:
+          type: Player is Pitcher or Hitter.
+          homepage_soup: Beautiful Soup object for the player's homepage on bRef
+          years_filter_list: Optional list of years to include
+
+        Returns:
+          List of years as strings
+        """
+        table_prefix = 'batting' if type == 'Hitter' else 'pitching'
+        standard_table = homepage_soup.find('div', attrs = {'id': f'all_{table_prefix}_standard'})
+        year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard.')})
+        stat_list = []
+        for year_object in year_soup_objects_list:
+            stat_object = year_object.find('td',attrs={'data-stat': stat_key})
+            if stat_object:
+                stat = stat_object.get_text()
+                stat = self.__convert_to_numeric(stat)
+                stat_list.append(stat)
+        
+        if len(stat_list) < 1:
+            return None
+
+        return stat_list
 
 # ------------------------------------------------------------------------
 # HELPER METHODS
