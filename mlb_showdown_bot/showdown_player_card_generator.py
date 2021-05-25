@@ -2334,7 +2334,8 @@ class ShowdownPlayerCardGenerator:
 
         # FONT FOR SET
         helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
-        set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=135)
+        font_size = 100 if self.is_multi_year and self.context == '2003' else 135
+        set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size)
 
         set_image = Image.new('RGBA', (1500, 2100), 255)
         set_image_location = sc.IMAGE_LOCATIONS['set'][str(self.context)]
@@ -2352,8 +2353,9 @@ class ShowdownPlayerCardGenerator:
         else:
             # DIFFERENT STYLES BETWEEN NUMBER AND SET
             # CARD YEAR
+            year_suffix = "" if self.is_full_career else f"'{str(self.year)[2:4]}"
             year_text = self.__text_image(
-                text = "'{}".format(str(self.year)[2:4]),
+                text = year_suffix,
                 size = (450, 450),
                 font = set_font,
                 alignment = "left"
