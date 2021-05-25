@@ -4,6 +4,7 @@ import requests
 import operator
 import os
 import json
+import statistics
 
 from pathlib import Path
 from io import BytesIO
@@ -34,6 +35,7 @@ class ShowdownPlayerCardGenerator:
         self.name = stats['name']
         self.year = str(year).upper()
         self.is_full_career = self.year == "CAREER"
+        self.is_multi_year = len(self.year) > 4
         self.context = context
         self.expansion = expansion
         self.stats = stats
@@ -1956,8 +1958,25 @@ class ShowdownPlayerCardGenerator:
             return ''
 
         # CHECK IF PLAYER FITS IN ANY ALTERNATE RANGE
-        for index, range in logo_historical_alternates[self.team].items():
-            if int(self.year) in range:
+        if self.is_multi_year:
+            if self.is_full_career:
+                # USE MEDIAN YEAR OF YEARS PLAYED
+                years_played_ints = [int(year) for year in self.stats['years_played']]
+            elif '-' in self.year:
+                # RANGE OF YEARS
+                years = self.year.split('-')
+                year_start = int(years[0].strip())
+                year_end = int(years[1].strip())
+                years_played_ints = list(range(year_start,year_end+1))
+            elif '+' in self.year:
+                years = self.year.split('+')
+                years_played_ints = [int(x.strip()) for x in years]
+            year_for_team_logo = int(round(statistics.median(years_played_ints)))
+
+        else:
+            year_for_team_logo = int(self.year)
+        for index, year_range in logo_historical_alternates[self.team].items():
+            if year_for_team_logo in year_range:
                 return '-{}'.format(index)
 
         # NO ALTERNATES FOUND, RETURN NONE
