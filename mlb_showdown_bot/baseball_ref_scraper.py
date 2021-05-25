@@ -155,6 +155,10 @@ class BaseballReferenceScraper:
 
             # HAND / TYPE
             type = self.type(positional_fielding,year=year)
+            # COVER THE CASE OF NOT HAVING DATA FOR A PARTICULAR YEAR (EX: JOHN SMOLTZ 2000)
+            if not type:
+                continue
+
             name = self.player_name(soup_for_homepage_stats)
             years_played = self.__years_played_list(type=type, homepage_soup=soup_for_homepage_stats)
             stats_dict['type'] = type
@@ -359,8 +363,12 @@ class BaseballReferenceScraper:
         is_hitter_override = '(HITTER)' in self.name.upper()
 
         # COMPARE GAMES PLAYED IN BOTH TYPES
-        if games_as_hitter + games_as_pitcher == 0:
-            raise AttributeError('This Player Played 0 Games in {}. Check Player Name and Year'.format(year))
+        total_games = games_as_hitter + games_as_pitcher
+        if total_games == 0:
+            if self.is_multi_year:
+                return None
+            else:
+                raise AttributeError('This Player Played 0 Games in {}. Check Player Name and Year'.format(year))
         elif is_pitcher_override:
             return "Pitcher"
         elif is_hitter_override:
