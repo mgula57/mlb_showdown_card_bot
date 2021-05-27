@@ -547,9 +547,9 @@ POINT_CATEGORY_WEIGHTS = {
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 110,
+            'onbase': 145,
             'average': 25,
-            'slugging': 125
+            'slugging': 120
         }
     },
     '2002': {
@@ -836,7 +836,7 @@ POINTS_NORMALIZER_MULTIPLIER = {
     '2001': {
         'position_player': 0.65,
         'starting_pitcher': 0.70,
-        'relief_pitcher': 0.85,
+        'relief_pitcher': 0.72,
     },
     '2002': {
         'position_player': 0.85,

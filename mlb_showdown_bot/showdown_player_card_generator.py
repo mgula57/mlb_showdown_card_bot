@@ -32,7 +32,7 @@ class ShowdownPlayerCardGenerator:
         is_name_a_bref_id = any(char.isdigit() for char in name)
         has_special_chars = '(' in name
         self.version = "2.3"
-        self.name = stats['name']
+        self.name = stats['name'] if 'name' in stats.keys() else name
         self.year = str(year).upper()
         self.is_full_career = self.year == "CAREER"
         self.is_multi_year = len(self.year) > 4
