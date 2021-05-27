@@ -4,6 +4,7 @@ import requests
 import operator
 import os
 import json
+import statistics
 
 from pathlib import Path
 from io import BytesIO
@@ -24,16 +25,19 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
         is_name_a_bref_id = any(char.isdigit() for char in name)
         has_special_chars = '(' in name
-        self.version = "2.2"
-        self.name = stats['name'] if is_name_a_bref_id or has_special_chars else name
-        self.year = year
+        self.version = "2.3"
+        self.name = stats['name'] if 'name' in stats.keys() else name
+        self.year = str(year).upper()
+        self.is_full_career = self.year == "CAREER"
+        self.is_multi_year = len(self.year) > 4
         self.context = context
+        self.expansion = expansion
         self.stats = stats
         self.is_cooperstown = is_cooperstown
         self.is_super_season = is_super_season
@@ -155,25 +159,19 @@ class ShowdownPlayerCardGenerator:
                 # IN-GAME RATING AT
                 if position is not None:
                     if not self.is_pitcher:
-                        try:
-                            year_int = int(self.year)
-                            if year_int >= 2003:
-                                # USE DEFENSIVE RUNS SAVED AFTER 2003. IT'S USED IN dWAR CALCULATIONS ON BASEBALL REFERENCE
+                        try:                                
+                            drs = int(defensive_stats['drsPosition{}'.format(position_index)])
+                            tzr = int(defensive_stats['tzPosition{}'.format(position_index)])
+                            dWar = float(defensive_stats['dWAR'])
+                            if drs:
                                 metric = 'drs'
-                                defensive_rating = int(defensive_stats['drsPosition{}'.format(position_index)])
-                            elif year_int > 1952:
-                                # USE TZR
+                            elif tzr: 
                                 metric = 'tzr'
-                                defensive_rating = int(defensive_stats['tzPosition{}'.format(position_index)])
                             else:
-                                # IF BEFORE 1952 USE dWAR
-                                # FLAW WITH THIS METHODOLOGY IS ITS AVG ACROSS POSITIONS, PLUS DOES NOT ACCOUNT FOR POSITION ADJUST
-                                # TODO: MAKE THIS MORE ROBUST IN THE FUTURE
-                                metric = 'dWAR'
-                                defensive_rating = float(defensive_stats['dWAR'])
+                                metric = 'dWar'
+                            defensive_rating = drs or tzr or dWar
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric)
                         except:
-                            total_zone_rating = 0
                             in_game_defense = 0
                         positions_and_defense[position] = in_game_defense
                     else:
@@ -218,8 +216,11 @@ class ShowdownPlayerCardGenerator:
         if 'LF' in positions_set or 'RF' in positions_set:
             # IF BOTH LF AND RF
             if set(['LF','RF']).issubset(positions_set):
-                lf_rf_rating = round((positions_and_defense['LF'] + positions_and_defense['RF']) / 2)
-                lf_rf_games = positions_and_games_played['LF'] + positions_and_games_played['RF']
+                lf_games = positions_and_games_played['LF']
+                rf_games = positions_and_games_played['RF']
+                lf_rf_games = lf_games + rf_games
+                # WEIGHTED AVG
+                lf_rf_rating = round(( (positions_and_defense['LF']*lf_games) + (positions_and_defense['RF']*rf_games) ) / lf_rf_games)
                 del positions_and_defense['LF']
                 del positions_and_defense['RF']
                 del positions_and_games_played['LF']
@@ -380,8 +381,12 @@ class ShowdownPlayerCardGenerator:
         if self.is_pitcher:
             # PITCHER DEFAULTS TO 10
             return 10, 'C'
+        
+        # IF FULL CAREER CARD, ONLY USE SPRINT SPEED IF PLAYER HAS OVER 35% of CAREER POST 2015
+        pct_career_post_2015 = sum([1 if int(year) > 2015 else 0 for year in self.stats['years_played']]) / len(self.stats['years_played'])
+        is_disqualied_career_speed = self.is_full_career and pct_career_post_2015 < 0.35
 
-        if sprint_speed is None or math.isnan(sprint_speed) or sprint_speed == '':
+        if sprint_speed is None or math.isnan(sprint_speed) or sprint_speed == '' or sprint_speed == 0 or is_disqualied_career_speed:
             # NO SPRINT SPEED AVAILABLE
             sb_range = sc.MAX_STOLEN_BASES - sc.MIN_STOLEN_BASES
             speed_percentile = (stolen_bases-sc.MIN_STOLEN_BASES) / sb_range
@@ -443,22 +448,23 @@ class ShowdownPlayerCardGenerator:
 
         # DATA DRIVEN ICONS
         if self.is_pitcher:
-            # 20
-            if int(self.stats['W']) >= 20:
-                icons.append('20')
-            # K
-            if int(self.stats['SO']) >= 215 or ( self.year == '2020' and int(self.stats['SO']) >= 96 ):
-                icons.append('K')
+            # 20, K
+            for stat, icon in {"W": "20", "SO": "K"}.items():
+                key = f"is_above_{stat.lower()}_threshold"
+                if key in self.stats.keys():
+                    if self.stats[key] == True:
+                        icons.append(icon)
             # RP
             if 'is_sv_leader' in self.stats.keys():
                 if self.stats['is_sv_leader'] == True:
                     icons.append('RP')
         else:
-            # HR
-            if int(self.stats['HR']) >= 40 or ( self.year == '2020' and int(self.stats['HR']) >= 17 ):
-                icons.append('HR')
-            if int(self.stats['SB']) >= 40 or ( self.year == '2020' and int(self.stats['SB']) >= 15 ):
-                icons.append('SB')
+            # HR, SB
+            for stat in ['HR', 'SB']:
+                key = f"is_above_{stat.lower()}_threshold"
+                if key in self.stats.keys():
+                    if self.stats[key] == True:
+                        icons.append(stat)
 
         # ROOKIE ICON
         rookie_key = 'is_rookie'
@@ -715,6 +721,11 @@ class ShowdownPlayerCardGenerator:
         accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(actuals_dict=stats_for_400_pa,
                                                                                   measurements_dict=in_game_stats_for_400_pa,
                                                                                   weights=weights)
+        
+        # QA: CHANGE ACCURACY TO 0 IF CHART DOESN'T ADD UP TO 20
+        is_over_20 = sum([v for k, v in chart.items() if k not in ['command','outs', 'sb'] ]) > 20
+        accuracy = 0.0 if is_over_20 else accuracy
+
         return chart, accuracy, in_game_stats_for_400_pa
 
     def __out_results(self, gb_pct, popup_pct, out_slots_remaining):
@@ -1528,7 +1539,7 @@ class ShowdownPlayerCardGenerator:
         card_as_string = (
             '***********************************************\n' +
             '{name} ({year}) ({team})\n' +
-            '{context} Base Set Card\n' +
+            '{context} {expansion} Card\n' +
             '\n' +
             '{positions}\n' +
             '{hand}\n' +
@@ -1552,6 +1563,7 @@ class ShowdownPlayerCardGenerator:
             year = self.year,
             team = self.team,
             context = self.context,
+            expansion = self.expansion,
             positions = positions_string,
             hand = self.hand,
             ip_or_speed = ip_or_speed,
@@ -1711,6 +1723,7 @@ class ShowdownPlayerCardGenerator:
             chart_cords = sc.IMAGE_LOCATIONS['chart'][str(self.context)]
         player_image.paste(color, chart_cords, chart_image)
 
+        # BOT VERSION
         version_image = self.__version_image()
         player_image.paste("#b5b4b4", sc.IMAGE_LOCATIONS['version'][str(self.context)], version_image)
         
@@ -1718,8 +1731,17 @@ class ShowdownPlayerCardGenerator:
         if int(self.context) > 2002:
             player_image = self.__add_icons_to_image(player_image)
 
+        # SET
         set_image = self.__card_set_image()
         player_image.paste(set_image, (0,0), set_image)
+
+        # EXPANSION
+        if self.expansion != 'BS':
+            expansion_image = self.__expansion_image()
+            expansion_location = sc.IMAGE_LOCATIONS['expansion'][str(self.context)]
+            if self.context == '2002' and self.expansion == 'TD':
+                expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
+            player_image.paste(expansion_image, expansion_location, expansion_image)
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm
@@ -1936,8 +1958,25 @@ class ShowdownPlayerCardGenerator:
             return ''
 
         # CHECK IF PLAYER FITS IN ANY ALTERNATE RANGE
-        for index, range in logo_historical_alternates[self.team].items():
-            if int(self.year) in range:
+        if self.is_multi_year:
+            if self.is_full_career:
+                # USE MEDIAN YEAR OF YEARS PLAYED
+                years_played_ints = [int(year) for year in self.stats['years_played']]
+            elif '-' in self.year:
+                # RANGE OF YEARS
+                years = self.year.split('-')
+                year_start = int(years[0].strip())
+                year_end = int(years[1].strip())
+                years_played_ints = list(range(year_start,year_end+1))
+            elif '+' in self.year:
+                years = self.year.split('+')
+                years_played_ints = [int(x.strip()) for x in years]
+            year_for_team_logo = int(round(statistics.median(years_played_ints)))
+
+        else:
+            year_for_team_logo = int(self.year)
+        for index, year_range in logo_historical_alternates[self.team].items():
+            if year_for_team_logo in year_range:
                 return '-{}'.format(index)
 
         # NO ALTERNATES FOUND, RETURN NONE
@@ -2295,7 +2334,8 @@ class ShowdownPlayerCardGenerator:
 
         # FONT FOR SET
         helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
-        set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=135)
+        font_size = 100 if self.is_multi_year and self.context == '2003' else 135
+        set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size)
 
         set_image = Image.new('RGBA', (1500, 2100), 255)
         set_image_location = sc.IMAGE_LOCATIONS['set'][str(self.context)]
@@ -2313,8 +2353,9 @@ class ShowdownPlayerCardGenerator:
         else:
             # DIFFERENT STYLES BETWEEN NUMBER AND SET
             # CARD YEAR
+            year_suffix = "" if self.is_full_career else f"'{str(self.year)[2:4]}"
             year_text = self.__text_image(
-                text = "'{}".format(str(self.year)[2:4]),
+                text = year_suffix,
                 size = (450, 450),
                 font = set_font,
                 alignment = "left"
@@ -2334,6 +2375,19 @@ class ShowdownPlayerCardGenerator:
             set_image.paste(number_color, sc.IMAGE_LOCATIONS['number'][str(self.context)], number_text)
 
         return set_image
+
+    def __expansion_image(self):
+        """Creates image for card expansion (ex: Trade Deadline, Pennant Run)
+        
+        Args:
+          None
+
+        Returns:
+          PIL image object for card expansion logo.
+        """ 
+
+        expansion_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context}-{self.expansion}.png'))
+        return expansion_image
 
     def __version_image(self):
         """Adds version number licensing text.

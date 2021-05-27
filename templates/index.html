@@ -40,6 +40,7 @@
                <!-- YEAR  -->
                <div class="form-group">
                   <label for="year" style="color:Gray;">Year</label>
+                  <img for="year" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Looking to use multiple years? You can enter a range of years using '-' (ex: 2012-2020) or collection of years using '+' (ex: 2012+2015+2019). Alternatively you can use a player's entire career by entering CAREER" >
                   <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" style="max-width: 300px; padding: 20px;" required>
                </div>
                <!-- SETS  -->
@@ -64,6 +65,12 @@
                   <input type="number" id="offset" name="offset" value="0" min="0" max="4" style="padding-left: 15px;"></br>
                   <label for="setnum" style="color:Gray;">Set Number</label>
                   <input type="text" id="setnum" name="setnum" placeholder="" style="padding-left: 15px; width: 100px;"></br>
+                  <label style="color:Gray;" for="expansion">Expansion </label>
+                  <select id="expansionSelection" name="expansionSelection">
+                     <option value="BS" selected="selected">Base Set</option>
+                     <option value="TD">Trading Deadline</option>
+                     <option value="PR">Pennant Run</option>
+                  </select>
                </div>
                <!-- IMAGES  -->
                <h4><b>Step 2: Select an Image (Optional)</b></h4>
@@ -124,6 +131,6 @@
       </div>
       <script src="//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
       <script src="//netdna.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
-      <script src="/static/front_end/script_1_1.js" charset="utf-8"></script>
+      <script src="/static/front_end/script_2_3.js" charset="utf-8"></script>
    </body>
 </html>

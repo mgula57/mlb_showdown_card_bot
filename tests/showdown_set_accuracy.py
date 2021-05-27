@@ -144,14 +144,15 @@ class ShowdownSetAccuracy:
         all_command_out_categories_above_below_summarized = {}
         for command_out, category_above_below_list in category_above_below_for_command_outs.items():
             categories_above_below_summarized = {}
-            for category in category_above_below_list[0].keys():
-                if category == 'points':
-                    category_dict = {}
-                    for above_or_below in ['above_wotc', 'below_wotc', 'matches_wotc', 'difference_wotc']:
-                        denominator = float(len(category_above_below_list)) if above_or_below == 'difference_wotc' else 1.0
-                        category_dict[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list) / denominator
-                    categories_above_below_summarized[category] = category_dict
-            all_command_out_categories_above_below_summarized[command_out] = categories_above_below_summarized
+            if len(category_above_below_list) > 0:
+                for category in category_above_below_list[0].keys():
+                    if category == 'points':
+                        category_dict = {}
+                        for above_or_below in ['above_wotc', 'below_wotc', 'matches_wotc', 'difference_wotc']:
+                            denominator = float(len(category_above_below_list)) if above_or_below == 'difference_wotc' else 1.0
+                            category_dict[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list) / denominator
+                        categories_above_below_summarized[category] = category_dict
+                all_command_out_categories_above_below_summarized[command_out] = categories_above_below_summarized
         
         # CALC POSITIONAL ACROSS PLAYERS
         positional_accuracy_summarized = {}
@@ -162,19 +163,21 @@ class ShowdownSetAccuracy:
         all_positions_above_below_summarized = {}
         for position, category_above_below_list in positional_above_below.items():
             categories_above_below_summarized = {}
-            for category in category_above_below_list[0].keys():
-                if category == 'points':
-                    category_dict = {}
-                    for above_or_below in ['above_wotc', 'below_wotc', 'matches_wotc', 'difference_wotc']:
-                        denominator = float(len(category_above_below_list)) if above_or_below == 'difference_wotc' else 1.0
-                        category_dict[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list) / denominator
-                    categories_above_below_summarized[category] = category_dict
-            all_positions_above_below_summarized[position] = categories_above_below_summarized
+            if len(category_above_below_list) > 0:
+                for category in category_above_below_list[0].keys():
+                    if category == 'points':
+                        category_dict = {}
+                        for above_or_below in ['above_wotc', 'below_wotc', 'matches_wotc', 'difference_wotc']:
+                            denominator = float(len(category_above_below_list)) if above_or_below == 'difference_wotc' else 1.0
+                            category_dict[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list) / denominator
+                        categories_above_below_summarized[category] = category_dict
+                all_positions_above_below_summarized[position] = categories_above_below_summarized
         
         # CALC CATEGORICAL ACCURACY ACROSS PLAYERS
         categories_summarized = {}
-        for category in category_accuracies[0].keys():
-            categories_summarized[category] = round(sum(player[category] for player in category_accuracies) / len(category_accuracies),4)
+        if len(category_accuracies) > 0:
+            for category in category_accuracies[0].keys():
+                categories_summarized[category] = round(sum(player[category] for player in category_accuracies) / len(category_accuracies),4)
 
         # CALC CATEGORICAL ACCURACY ACROSS PLAYERS (ONLY FOR COMMAND-OUT MATCHES)
         is_command_match = len(category_accuracies_for_command_matches) > 0
@@ -186,16 +189,17 @@ class ShowdownSetAccuracy:
         # CALC CATEGORICAL ACCURACY ACROSS PLAYERS
         categories_above_below_summarized = {}
         categories_above_below_summarized_for_matches = {}
-        for category in category_above_below_list[0].keys():
-            category_dict = {}
-            category_dict_for_matches = {}
-            for above_or_below in ['above_wotc', 'below_wotc', 'matches_wotc', 'difference_wotc']:
-                denominator = float(len(category_above_below_list)) if above_or_below == 'difference_wotc' else 1.0
-                denominator_matches = float(len(category_above_below_list_for_matches)) if above_or_below == 'difference_wotc' else 1.0
-                category_dict[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list) / denominator
-                category_dict_for_matches[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list_for_matches) / denominator_matches
-            categories_above_below_summarized[category] = category_dict
-            categories_above_below_summarized_for_matches[category] = category_dict_for_matches
+        if len(category_above_below_list) > 0:
+            for category in category_above_below_list[0].keys():
+                category_dict = {}
+                category_dict_for_matches = {}
+                for above_or_below in ['above_wotc', 'below_wotc', 'matches_wotc', 'difference_wotc']:
+                    denominator = float(len(category_above_below_list)) if above_or_below == 'difference_wotc' else 1.0
+                    denominator_matches = float(len(category_above_below_list_for_matches)) if above_or_below == 'difference_wotc' else 1.0
+                    category_dict[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list) / denominator
+                    category_dict_for_matches[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list_for_matches) / denominator_matches
+                categories_above_below_summarized[category] = category_dict
+                categories_above_below_summarized_for_matches[category] = category_dict_for_matches
         
         # STORE NEWLY CACHED PLAYERS IF ANY
         cache_destination_path = os.path.join(Path(os.path.dirname(__file__)),'cache','player_cache.csv')
