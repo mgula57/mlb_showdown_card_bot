@@ -36,6 +36,19 @@ class ShowdownPlayerCardGenerator:
         self.year = str(year).upper()
         self.is_full_career = self.year == "CAREER"
         self.is_multi_year = len(self.year) > 4
+        if year.upper() == 'CAREER':
+            self.year_list = [int(year) for year in stats['years_played']]
+        elif '-' in year:
+            # RANGE OF YEARS
+            years = year.split('-')
+            year_start = int(years[0].strip())
+            year_end = int(years[1].strip())
+            self.year_list = list(range(year_start,year_end+1))
+        elif '+' in year:
+            years = year.split('+')
+            self.year_list = [int(x.strip()) for x in years]
+        else:
+            self.year_list = [int(year)]
         self.context = context
         self.expansion = expansion
         self.stats = stats
@@ -367,7 +380,7 @@ class ShowdownPlayerCardGenerator:
 
     def __speed(self, sprint_speed, stolen_bases):
         """In game speed for a position player. Will use pure sprint speed
-           if year is > 2015, otherwise uses stolen bases. Pitcher defaults to 10.
+           if year is >= 2015, otherwise uses stolen bases. Pitcher defaults to 10.
 
         Args:
           sprint_speed: Average sprint speed according to baseballsavant.com.
@@ -381,10 +394,10 @@ class ShowdownPlayerCardGenerator:
         if self.is_pitcher:
             # PITCHER DEFAULTS TO 10
             return 10, 'C'
-        
+
         # IF FULL CAREER CARD, ONLY USE SPRINT SPEED IF PLAYER HAS OVER 35% of CAREER POST 2015
-        pct_career_post_2015 = sum([1 if int(year) > 2015 else 0 for year in self.stats['years_played']]) / len(self.stats['years_played'])
-        is_disqualied_career_speed = self.is_full_career and pct_career_post_2015 < 0.35
+        pct_career_post_2015 = sum([1 if year >= 2015 else 0 for year in self.year_list]) / len(self.year_list)
+        is_disqualied_career_speed = self.is_multi_year and pct_career_post_2015 < 0.35
 
         if sprint_speed is None or math.isnan(sprint_speed) or sprint_speed == '' or sprint_speed == 0 or is_disqualied_career_speed:
             # NO SPRINT SPEED AVAILABLE
@@ -2353,7 +2366,7 @@ class ShowdownPlayerCardGenerator:
         else:
             # DIFFERENT STYLES BETWEEN NUMBER AND SET
             # CARD YEAR
-            year_suffix = "" if self.is_full_career else f"'{str(self.year)[2:4]}"
+            year_suffix = "" if self.is_multi_year and int(self.context) > 2003 else f"'{str(self.year)[2:4]}"
             year_text = self.__text_image(
                 text = year_suffix,
                 size = (450, 450),
@@ -2366,11 +2379,11 @@ class ShowdownPlayerCardGenerator:
             # CARD NUMBER
             number_text = self.__text_image(
                 text = self.set_number,
-                size = (450, 450),
+                size = (600, 480),
                 font = set_font,
                 alignment = "center"
             )
-            number_text = number_text.resize((120,120), Image.ANTIALIAS)
+            number_text = number_text.resize((150,120), Image.ANTIALIAS)
             number_color = sc.COLOR_BLACK if self.context == '2003' else sc.COLOR_WHITE
             set_image.paste(number_color, sc.IMAGE_LOCATIONS['number'][str(self.context)], number_text)
 
