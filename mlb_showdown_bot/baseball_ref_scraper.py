@@ -174,7 +174,7 @@ class BaseballReferenceScraper:
             icon_threshold_bools = self.__add_icon_threshold_bools(type=type, year=year, stats_dict=stats_dict, homepage_soup=soup_for_homepage_stats)
             stats_dict.update(icon_threshold_bools)
 
-            # SPEED
+            # FULL CAREER
             if is_full_career:
                 stats_dict['team_ID'] = self.__team_multi_year(type, soup_for_homepage_stats)
                 sprint_speed_list = []
@@ -395,7 +395,7 @@ class BaseballReferenceScraper:
 
         # DATA ONLY AVAILABLE 2015+
         if int(year) < 2015:
-            return 0
+            return None
 
         sprint_speed_url = 'https://baseballsavant.mlb.com/sprint_speed_leaderboard?year={}&position=&team=&min=0'.format(year)
         speed_data_html = self.html_for_url(sprint_speed_url)
@@ -722,6 +722,8 @@ class BaseballReferenceScraper:
         # FLATTEN MULTI YEAR STATS
         yearPd = pd.DataFrame.from_dict(yearly_stats_dict, orient='index')
         columns_to_remove = list(set(column_aggs.keys()) - set(yearPd.columns))
+        if max(self.years) < 2015:
+            columns_to_remove.append('sprint_speed')
         [column_aggs.pop(key) for key in columns_to_remove]
         avg_year = yearPd.groupby(by='name',as_index=False).agg(column_aggs)
 
