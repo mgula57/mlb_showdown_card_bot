@@ -509,8 +509,10 @@ class BaseballReferenceScraper:
                 # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD TEXT
                 is_league_leader = '<strong>' in str(category)
                 standard_stats_dict['is_sv_leader'] = is_league_leader
-            
+             
             stat = category.get_text()
+            if stat_category in ['SF','IBB','CS'] and stat == '':
+                stat = '0'
             stat = self.__convert_to_numeric(stat)
 
             if type == 'Pitcher':
