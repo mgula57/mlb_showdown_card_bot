@@ -181,7 +181,7 @@ class ShowdownPlayerCardGenerator:
                             elif tzr: 
                                 metric = 'tzr'
                             else:
-                                metric = 'dWar'
+                                metric = 'dWAR'
                             defensive_rating = drs or tzr or dWar
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric)
                         except:
@@ -1926,7 +1926,7 @@ class ShowdownPlayerCardGenerator:
             year_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'BaskervilleBoldItalicBT.ttf')
             year_font = ImageFont.truetype(year_font_path, size=87)
             year_font_blurred = ImageFont.truetype(year_font_path, size=90)
-            year_abbrev = "’{}".format(self.year[2:4])
+            year_abbrev = f"’{self.year[2:4]}" if not self.is_multi_year else " "
             year_text = self.__text_image(
                 text = year_abbrev,
                 size = (180,180),
@@ -1937,7 +1937,7 @@ class ShowdownPlayerCardGenerator:
                 border_color = sc.COLOR_BLACK
             )
             year_text_blurred = self.__text_image(
-                text = "’{}".format(self.year[2:4]),
+                text = year_abbrev,
                 size = (180,180),
                 font = year_font_blurred,
                 alignment = "center",
@@ -2446,7 +2446,16 @@ class ShowdownPlayerCardGenerator:
         super_season_accolade_font = ImageFont.truetype(super_season_accolade_path, size=150)
 
         # YEAR
-        year_string = '’{}'.format(str(self.year)[2:4]) if is_04_05 else str(self.year)
+        if self.is_multi_year:
+            if self.is_full_career:
+                year_string = 'CAREER'
+                font_size = 110
+            else:
+                year_string = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
+                font_size = 130
+            super_season_year_font = ImageFont.truetype(super_season_year_path, size=font_size)
+        else:
+            year_string = '’{}'.format(str(self.year)[2:4]) if is_04_05 else str(self.year)
         year_text = self.__text_image(
             text = year_string,
             size = (750,540) if is_04_05 else (1125,600),
@@ -2456,6 +2465,8 @@ class ShowdownPlayerCardGenerator:
         )
         year_text = year_text.resize((180,180), Image.ANTIALIAS)
         year_paste_coords = (135,90) if is_04_05 else (24,282)
+        if self.is_multi_year and is_04_05:
+            year_paste_coords = (126,110)
         super_season_image.paste("#982319",year_paste_coords,year_text)
 
         if int(self.context) > 2001:
