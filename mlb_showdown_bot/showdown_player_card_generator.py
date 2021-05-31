@@ -2447,12 +2447,13 @@ class ShowdownPlayerCardGenerator:
 
         # YEAR
         if self.is_multi_year:
+            font_scaling = 0 if is_04_05 else 40
             if self.is_full_career:
                 year_string = 'CAREER'
-                font_size = 110
+                font_size = 110 + font_scaling
             else:
                 year_string = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
-                font_size = 130
+                font_size = 130 + font_scaling
             super_season_year_font = ImageFont.truetype(super_season_year_path, size=font_size)
         else:
             year_string = '’{}'.format(str(self.year)[2:4]) if is_04_05 else str(self.year)
@@ -2465,8 +2466,8 @@ class ShowdownPlayerCardGenerator:
         )
         year_text = year_text.resize((180,180), Image.ANTIALIAS)
         year_paste_coords = (135,90) if is_04_05 else (24,282)
-        if self.is_multi_year and is_04_05:
-            year_paste_coords = (126,110)
+        if self.is_multi_year:
+            year_paste_coords = (126,110) if is_04_05 else (26,290)
         super_season_image.paste("#982319",year_paste_coords,year_text)
 
         if int(self.context) > 2001:
