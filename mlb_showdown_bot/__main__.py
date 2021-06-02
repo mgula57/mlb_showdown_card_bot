@@ -23,6 +23,7 @@ parser.add_argument('-show','--show_image', action='store_true', help='Optionall
 parser.add_argument('-cc','--is_cc', action='store_true', help='Optionally make the card Cooperstown Collection')
 parser.add_argument('-ss','--is_ss', action='store_true', help='Optionally make the card Super Season')
 parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default='', type=str)
+parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='BS')
 args = parser.parse_args()
 
 def main():
@@ -43,6 +44,7 @@ def main():
         is_cooperstown=args.is_cc,
         is_super_season=args.is_ss,
         context=args.context,
+        expansion=args.expansion,
         offset=args.offset,
         player_image_url=args.image_url,
         player_image_path=args.image_path,
