@@ -457,7 +457,8 @@ class BaseballReferenceScraper:
             advanced_stats.update(self.__parse_batting_against(batting_against_table))
         
         # STANDARD STATS
-        advanced_stats.update(self.__parse_standard_stats(type, standard_table))
+        standard_stats_dict = self.__parse_standard_stats(type, standard_table, included_g_for_pitcher=is_full_career)
+        advanced_stats.update(standard_stats_dict)
 
         # PARSE AWARDS IF FULL CAREER
         if is_full_career:
@@ -489,12 +490,13 @@ class BaseballReferenceScraper:
 
         return advanced_stats
 
-    def __parse_standard_stats(self, type, standard_table):
+    def __parse_standard_stats(self, type, standard_table, included_g_for_pitcher=False):
         """Parse standard batting table.
 
         Args:
           type: Player is Pitcher or Hitter.
           standard_table: BeautifulSoup table object with season hitting stats.
+          included_g_for_pitcher: Boolean for whether to parse 'G' for pitchers.
 
         Returns:
           Dict with standard hitting statistics.
@@ -517,6 +519,8 @@ class BaseballReferenceScraper:
 
             if type == 'Pitcher':
                 pitching_categories = ['earned_run_avg','GS','W','SV','IP','award_summary']
+                if included_g_for_pitcher:
+                    pitching_categories.append('G')
                 if stat_category in pitching_categories:
                     standard_stats_dict[stat_category] = stat
             else:
