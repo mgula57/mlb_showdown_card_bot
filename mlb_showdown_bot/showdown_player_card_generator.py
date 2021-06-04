@@ -25,7 +25,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, offset=0, player_image_url=None, player_image_path=None, set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, offset=0, player_image_url=None, player_image_path=None, set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -54,6 +54,7 @@ class ShowdownPlayerCardGenerator:
         self.stats = stats
         self.is_cooperstown = is_cooperstown
         self.is_super_season = is_super_season
+        self.is_all_star_game = is_all_star_game
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
         self.set_number = set_number
@@ -1896,10 +1897,10 @@ class ShowdownPlayerCardGenerator:
         logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context)]
         logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context)]
 
-        if self.is_cooperstown:
-            # OVERRIDE TEAM NAME AND PASTE COORDINATES WITH CC
-            logo_name = 'CC'
-            if int(self.context) >= 2004:
+        if self.is_cooperstown or self.is_all_star_game:
+            # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
+            logo_name = 'CC' if self.is_cooperstown else 'ASG'
+            if int(self.context) >= 2004 and self.is_cooperstown:
                 logo_size = (330,330)
                 logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 120)
         try:
@@ -1920,7 +1921,7 @@ class ShowdownPlayerCardGenerator:
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context)]
 
         # ADD YEAR TEXT IF COOPERSTOWN
-        if self.is_cooperstown and int(self.context) >= 2004:
+        if self.is_cooperstown and int(self.context) >= 2004 and not self.is_all_star_game:
             cooperstown_logo = Image.new('RGBA', (logo_size[0] + 300, logo_size[1]))
             cooperstown_logo.paste(team_logo,(150,0),team_logo)
             year_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'BaskervilleBoldItalicBT.ttf')
@@ -1963,7 +1964,7 @@ class ShowdownPlayerCardGenerator:
         logo_historical_alternates = sc.TEAM_LOGO_ALTERNATES
 
         # DONT APPLY IF COOPERSTOWN OR SUPER SEASON
-        if self.is_cooperstown or self.is_super_season:
+        if self.is_cooperstown or self.is_super_season or self.is_all_star_game:
             return ''
 
         # CHECK TO SEE IF THERE ARE ANY ALTERNATE LOGOS FOR TEAM

@@ -23,27 +23,29 @@ class CardLog(db.Model):
 
     _id = db.Column("id", db.Integer, primary_key=True)
     name = db.Column(db.String(64))
-    year = db.Column(db.String(4))
+    year = db.Column(db.Text)
     set = db.Column(db.String(8))
     is_cooperstown = db.Column(db.Boolean)
     is_super_season = db.Column(db.Boolean)
+    is_all_star_game = db.Column(db.Boolean)
     img_url = db.Column(db.String(2048))
     img_name = db.Column(db.String(512))
     error = db.Column(db.String(256))
     created_on = db.Column(db.DateTime, server_default=db.func.now())
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, is_all_star_game, img_url, img_name, error):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
         self.set = set
         self.is_cooperstown = is_cooperstown
         self.is_super_season = is_super_season
+        self.is_all_star_game = is_all_star_game
         self.img_url = img_url
         self.img_name = img_name
         self.error = error
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error):
+def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, is_all_star_game, img_url, img_name, error):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -52,6 +54,7 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             set=set,
             is_cooperstown=is_cooperstown,
             is_super_season=is_super_season,
+            is_all_star_game=is_all_star_game,
             img_url=img_url,
             img_name=img_name,
             error=error
@@ -78,6 +81,7 @@ def card_creator():
     set = None
     is_cooperstown = None
     is_super_season = None
+    is_all_star_game = None
     img_url = None
     img_name = None
     set_num = None
@@ -92,6 +96,7 @@ def card_creator():
         url = request.args.get('url')
         is_cc = request.args.get('cc').lower() == 'true'
         is_ss = request.args.get('ss').lower() == 'true'
+        is_asg = request.args.get('asg').lower() == 'true'
         try:
             offset = int(request.args.get('offset'))
             offset = 4 if offset > 4 else offset
@@ -108,6 +113,7 @@ def card_creator():
         statline = scraper.player_statline()
         is_cooperstown = is_cc if is_cc else False
         is_super_season = is_ss if is_ss else False
+        is_all_star_game = is_asg if is_asg else False
         img_url = None if url == '' else url
         img_name = None if img == '' else img
         set_number = year if set_num == '' else set_num
@@ -125,6 +131,7 @@ def card_creator():
             player_image_url=img_url,
             is_cooperstown=is_cooperstown,
             is_super_season=is_super_season,
+            is_all_star_game=is_all_star_game,
             offset=offset,
             set_number=set_number,
             is_running_in_flask=True
@@ -141,6 +148,7 @@ def card_creator():
             set=set,
             is_cooperstown=is_cooperstown,
             is_super_season=is_super_season,
+            is_all_star_game=is_all_star_game,
             img_url=img_url,
             img_name=img_name,
             error=error
@@ -154,6 +162,7 @@ def card_creator():
             set=set,
             is_cooperstown=is_cooperstown,
             is_super_season=is_super_season,
+            is_all_star_game=is_all_star_game,
             img_url=img_url,
             img_name=img_name,
             error=error
