@@ -365,21 +365,21 @@ CHART CATEGORY WEIGHTS
 CHART_CATEGORY_WEIGHTS = {
     '2000': {
         'position_player': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 3.0,
             'slugging_perc': 5.0,
             'onbase_perc': 8.0,
             'hr_per_400_pa': 3.0,
             'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 2.0,
             'slugging_perc': 5.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0,
             'so_per_400_pa': 1.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 3.0,
+            'batting_avg': 2.0,
             'slugging_perc': 4.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0,
@@ -388,21 +388,21 @@ CHART_CATEGORY_WEIGHTS = {
     },
     '2001': {
         'position_player': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 3.0,
             'slugging_perc': 5.0,
             'onbase_perc': 8.0,
             'hr_per_400_pa': 3.0,
             'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
-            'h_per_400_pa': 3.0,
+            'batting_avg': 2.0,
             'slugging_perc': 6.0,
             'onbase_perc': 8.0,
             'hr_per_400_pa': 1.0,
             'so_per_400_pa': 1.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 3.0,
+            'batting_avg': 2.0,
             'slugging_perc': 6.0,
             'onbase_perc': 8.0,
             'hr_per_400_pa': 1.0,
@@ -411,21 +411,21 @@ CHART_CATEGORY_WEIGHTS = {
     },
     '2002': {
         'position_player': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 3.0,
             'slugging_perc': 6.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 3.0,
             'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
-            'h_per_400_pa': 3.0,
+            'batting_avg': 3.0,
             'slugging_perc': 5.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0,
             'so_per_400_pa': 1.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 3.0,
             'slugging_perc': 6.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0,
@@ -434,21 +434,21 @@ CHART_CATEGORY_WEIGHTS = {
     },
     '2003': {
         'position_player': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 3.0,
             'slugging_perc': 5.0,
             'onbase_perc': 8.0,
             'hr_per_400_pa': 3.0,
             'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 2.0,
             'slugging_perc': 6.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0,
             'so_per_400_pa': 1.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 2.0,
             'slugging_perc': 5.0,
             'onbase_perc': 6.0,
             'hr_per_400_pa': 1.0,
@@ -457,21 +457,21 @@ CHART_CATEGORY_WEIGHTS = {
     },
     '2004': {
         'position_player': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 3.0,
             'slugging_perc': 6.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 3.0,
             'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 2.0,
             'slugging_perc': 7.0,
             'onbase_perc': 9.0,
             'hr_per_400_pa': 1.0,
             'so_per_400_pa': 1.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 2.0,
             'slugging_perc': 5.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0,
@@ -480,21 +480,21 @@ CHART_CATEGORY_WEIGHTS = {
     },
     '2005': {
         'position_player': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 3.0,
             'slugging_perc': 5.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 3.0,
             'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 2.0,
             'slugging_perc': 5.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0,
             'so_per_400_pa': 1.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 5.0,
+            'batting_avg': 2.0,
             'slugging_perc': 5.0,
             'onbase_perc': 7.0,
             'hr_per_400_pa': 1.0,
@@ -1715,4 +1715,18 @@ TEAM_LOGO_ALTERNATES = {
     'WSN': {
         '1': list(range(2005,2011)),
     },
+}
+
+G_DRIVE_PLAYER_IMAGE_FOLDERS = {
+    '2000': '1msa4ybpyeBlOvfZsQjxALyFIkk7xXRl0',
+    '2001': '1pTVFRZN6kuFERBEJTHcy_vvTFxJ4dOgb',
+    '2002': '13LfhEZPk_1-evHJtE2Hw3nQP8J8C2vNh',
+    '2003': '1ah265n2T3At68xAEbNXqdGnN4eW--BDd',
+    '2004': '1IoHDnN4BI34Mu6PtREs8clbnkiwdaUcv',
+    '2005': '1IoHDnN4BI34Mu6PtREs8clbnkiwdaUcv',
+}
+
+G_DRIVE_TEAM_BACKGROUND_FOLDERS = {
+    '2000': '1hkYNDSC1tLef-L_dE9WNi3GN5LGmLdk2',
+    '2001': '1PNLMIwjTFdv-FG2u5cpq6A2j25LzUF8B',
 }

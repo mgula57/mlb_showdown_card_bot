@@ -5,6 +5,8 @@ import operator
 import os
 import json
 import statistics
+from apiclient.discovery import build
+from oauth2client.service_account import ServiceAccountCredentials
 
 from pathlib import Path
 from io import BytesIO
@@ -33,6 +35,7 @@ class ShowdownPlayerCardGenerator:
         has_special_chars = '(' in name
         self.version = "2.3"
         self.name = stats['name'] if 'name' in stats.keys() else name
+        self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.year = str(year).upper()
         self.is_full_career = self.year == "CAREER"
         self.is_multi_year = len(self.year) > 4
@@ -1806,22 +1809,69 @@ class ShowdownPlayerCardGenerator:
                 print("Error Loading Image from URL. Using default background...")
                 player_image = Image.open(default_image_path)
         else:
-            # DEFAULT BACKGROUND
-            player_image = Image.open(default_image_path)
-            # ADD PLAYER SILHOUETTE
-            try:
-                type_string = 'P' if self.is_pitcher else 'H'
-                hand_prefix = self.hand[0 if self.is_pitcher else -1]
-                hand_string = 'L' if hand_prefix == 'S' else hand_prefix
-                silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context}-SIL-{hand_string}H{type_string}.png')
-                silhouetee_image = Image.open(silhouetee_image_path)
-                player_image.paste(silhouetee_image,(0,0),silhouetee_image)
-            except:
-                print("Error loading player silhouetee")
+            player_image = self.__default_background_image()
 
         player_image = self.__center_crop(player_image, (1500,2100))
 
         return player_image
+
+    def __default_background_image(self):
+        """Attempts to query google drive for a player image, if 
+        it does not exist use siloutte background.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for the player background.
+        """
+        
+        # GET TEAM BACKGROUND (00/01)
+        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Default Background - {}.png'.format(self.context))
+        if self.context in ['2000', '2001']:
+            team_background_url = self.__query_google_drive_for_image_url(
+                                    folder_id = sc.G_DRIVE_TEAM_BACKGROUND_FOLDERS[self.context],
+                                    substring_search = self.team
+                                )
+            if team_background_url:
+                response = requests.get(team_background_url)
+                background_image = Image.open(BytesIO(response.content))
+            else:
+                background_image = Image.open(default_image_path)
+        else:
+            # DEFAULT TEAM BACKGROUND
+            background_image = Image.open(default_image_path)
+        
+        # -- GET PLAYER IMAGE --
+        # SEARCH FOR PLAYER IMAGE
+        additional_substring_filters = [self.year]
+        if self.is_super_season:
+            additional_substring_filters.append('(SS)')
+        elif self.is_cooperstown:
+            additional_substring_filters.append('(CC)')
+        elif self.is_all_star_game:
+            additional_substring_filters.append('(ASG)')
+
+        player_image_url = self.__query_google_drive_for_image_url(
+                                folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[self.context],
+                                substring_search = self.bref_id,
+                                additional_substring_search_list = additional_substring_filters,
+                            )
+        if player_image_url:
+            # USE PLAYER IMAGE FROM GOOGLE
+            response = requests.get(player_image_url)
+            player_image = Image.open(BytesIO(response.content)).convert("RGBA")
+        else:
+            # ADD PLAYER SILHOUETTE
+            type_string = 'P' if self.is_pitcher else 'H'
+            hand_prefix = self.hand[0 if self.is_pitcher else -1]
+            hand_string = 'L' if hand_prefix == 'S' else hand_prefix
+            silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context}-SIL-{hand_string}H{type_string}.png')
+            player_image = Image.open(silhouetee_image_path)
+        
+        background_image.paste(player_image,(0,0),player_image)
+
+        return background_image
 
     def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=3,overlay_image_path=None):
         """Generates a new PIL image object with text.
@@ -2711,3 +2761,65 @@ class ShowdownPlayerCardGenerator:
         file_age_mins = (datetime_current - datetime_uploaded).total_seconds() / 60.0
 
         return file_age_mins >= 5.0
+
+# ------------------------------------------------------------------------
+# GOOGLE DRIVE
+
+    def __query_google_drive_for_image_url(self, folder_id, substring_search, additional_substring_search_list=[]):
+        """Attempts to query google drive for a player image, if 
+        it does not exist use siloutte background.
+
+        Args:
+          folder_id: Unique ID for folder in drive (found in URL)
+          substring_search: string used to filter results 
+          additional_substring_search_list: List of strings to filter down results in case of multiple results.
+        Returns:
+          List of dicts with file metadata
+        """
+        
+        # GAIN ACCESS TO GOOGLE DRIVE
+        SCOPES = ['https://www.googleapis.com/auth/drive']
+        GOOGLE_CREDENTIALS_STR = os.getenv('GOOGLE_CREDENTIALS')
+        if not GOOGLE_CREDENTIALS_STR:
+            # IF NO CREDS, RETURN NONE
+            return None
+        # CREDS FILE FOUND, PROCEED
+        GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, SCOPES)
+
+        # BUILD THE SERVICE OBJECT.
+        service = build('drive', 'v3', credentials=creds)
+
+        # GET LIST OF FILE METADATA FROM CORRECT FOLDER
+        query = f"parents = '{folder_id}'"
+        files = service.files()
+        response = files.list(q=query).execute()
+        files_metadata = response.get('files')
+
+        # LOOK FOR SUBSTRING IN FILE NAMES
+        player_matched_image_files = []
+        for img_file in files_metadata:
+            file_name_key = 'name'
+            if file_name_key in img_file.keys():
+                # LOOK FOR SUBSTRING MATCH
+                if substring_search in img_file[file_name_key]:
+                    player_matched_image_files.append(img_file)
+
+        # IF MULTIPLE IMAGES, LOOK INTO ADDITIONAL QUERY
+        num_files = len(player_matched_image_files)
+        if num_files == 0:
+            return None
+        elif num_files > 1:
+            query_result = None
+            for img_metadata in player_matched_image_files:
+                is_all_substrings_match = all(val in img_metadata['name'] for val in additional_substring_search_list)
+                if is_all_substrings_match:
+                    query_result = img_metadata['id']
+            file_id = query_result if query_result else player_matched_image_files[0]['id']
+        else:
+            file_id = player_matched_image_files[0]['id']
+        
+        # GET WEB CONTENT URL
+        img_url = files.get(fileId=file_id, fields="webContentLink").execute()['webContentLink']
+        
+        return img_url
