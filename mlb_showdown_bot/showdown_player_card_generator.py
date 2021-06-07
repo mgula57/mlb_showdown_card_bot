@@ -2583,9 +2583,9 @@ class ShowdownPlayerCardGenerator:
                 accolades_list.append(str(self.stats['W']) + ' WINS')
             else:
                 accolades_list.append(str(self.stats['SV']) + ' SAVES')
-            accolades_list.append(str(self.stats['batting_avg']) + ' BA AGAINST')
+            accolades_list.append(str(self.stats['batting_avg']).replace('0.','.') + ' BA AGAINST')
         else:
-            accolades_list.append(str(self.stats['batting_avg']) + ' BA')
+            accolades_list.append(str(self.stats['batting_avg']).replace('0.','.') + ' BA')
             accolades_list.append(str(self.stats['RBI']) + ' RBI')
             accolades_list.append(str(self.stats['HR']) + ' HOMERS')
 
