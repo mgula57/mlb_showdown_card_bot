@@ -31,6 +31,7 @@ setup(
         'beautifulsoup4>=4.9.3',
         'bs4>=0.0.1',
         'google>=3.0.0',
+        'google-api-python-client>=2.7.0',
         'lxml>=4.6.1',
         'numpy>=1.19.4',
         'oauth2client>=4.1.3',
