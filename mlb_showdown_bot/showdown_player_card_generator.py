@@ -1967,14 +1967,14 @@ class ShowdownPlayerCardGenerator:
 
         if self.is_cooperstown or self.is_all_star_game:
             # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
-            logo_name = 'CC' if self.is_cooperstown else 'ASG'
+            logo_name = 'CC' if self.is_cooperstown else f'ASG-{self.year}'
             if int(self.context) >= 2004 and self.is_cooperstown:
                 logo_size = (330,330)
                 logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 120)
         try:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
             historical_alternate_ext = self.__team_logo_historical_alternate_extension()
-            alternate_logo_ext = '-A' if int(self.context) >= 2004 else ''
+            alternate_logo_ext = '-A' if int(self.context) >= 2004 and not self.is_all_star_game else ''
             team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', '{}{}{}.png'.format(logo_name,alternate_logo_ext,historical_alternate_ext))).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         except:
