@@ -1718,7 +1718,7 @@ class ShowdownPlayerCardGenerator:
         name_text, color = self.__player_name_text_image()
         location_key = 'player_name_small' if len(self.name) > 18 else 'player_name'
         name_paste_location = sc.IMAGE_LOCATIONS[location_key][str(self.context)]
-        if self.context == '2001':
+        if self.context in ['2000', '2001']:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
             player_image.paste(sc.COLOR_BLACK, (name_paste_location[0] + 6, name_paste_location[1] + 6), name_text_blurred)
@@ -1789,8 +1789,10 @@ class ShowdownPlayerCardGenerator:
 
         Returns:
           PIL image object for the player background.
+          Boolean for whether a background player image was applied
         """
         default_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Default Background - {}.png'.format(self.context))
+        is_default_image = False
         if self.player_image_path:
             # LOAD IMAGE FROM UPLOAD
             image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.player_image_path)
@@ -1810,8 +1812,14 @@ class ShowdownPlayerCardGenerator:
                 player_image = Image.open(default_image_path)
         else:
             player_image = self.__default_background_image()
+            is_default_image = True
 
         player_image = self.__center_crop(player_image, (1500,2100))
+
+        # IF 2000 CARD AND A DEFAULT WAS NOT USED, ADD NAME CONTAINER IN FRONT OF IMAGE
+        if self.context == '2000' and not is_default_image:
+            name_container = self.__2000_player_name_container_image()
+            background_image.paste(name_container,(0,0),name_container)
 
         return player_image
 
@@ -1847,6 +1855,11 @@ class ShowdownPlayerCardGenerator:
             # DEFAULT TEAM BACKGROUND
             background_image = Image.open(default_image_path)
         
+        # IF 2000, PASTE NAME CONTAINER BEFORE PLAYER CUTOUT
+        if self.context == '2000':
+            name_container = self.__2000_player_name_container_image()
+            background_image.paste(name_container,(0,0),name_container)
+
         # -- GET PLAYER IMAGE --
         # SEARCH FOR PLAYER IMAGE
         additional_substring_filters = [self.year]
@@ -2095,6 +2108,17 @@ class ShowdownPlayerCardGenerator:
             template_image.paste(positions_points_image, (0,0), positions_points_image)
 
         return template_image
+
+    def __2000_player_name_container_image(self):
+        """Gets template asset image for 2000 name container.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for 2000 name background/container
+        """
+        return Image.open(os.path.join(os.path.dirname(__file__), 'templates', "2000-Name.png"))
 
     def __player_name_text_image(self):
         """Creates Player name to match showdown context.
