@@ -2,6 +2,7 @@
 apiclient>=1.0.4
 beautifulsoup4>=4.8.2
 bs4>=0.0.1
+google>=3.0.0
 lxml>=4.5.0
 numpy>=1.19.0
 oauth2client>=4.1.3
