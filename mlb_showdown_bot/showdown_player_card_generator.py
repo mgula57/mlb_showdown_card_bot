@@ -1829,9 +1829,14 @@ class ShowdownPlayerCardGenerator:
         # GET TEAM BACKGROUND (00/01)
         default_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Default Background - {}.png'.format(self.context))
         if self.context in ['2000', '2001']:
+            team_extension_substring_list = []
+            team_extension = self.__team_logo_historical_alternate_extension()
+            if len(team_extension) > 0:
+                team_extension_substring_list.append(team_extension)
             team_background_url = self.__query_google_drive_for_image_url(
                                     folder_id = sc.G_DRIVE_TEAM_BACKGROUND_FOLDERS[self.context],
-                                    substring_search = self.team
+                                    substring_search = self.team,
+                                    additional_substring_search_list = team_extension_substring_list
                                 )
             if team_background_url:
                 response = requests.get(team_background_url)
@@ -2811,6 +2816,7 @@ class ShowdownPlayerCardGenerator:
             return None
         elif num_files > 1:
             query_result = None
+            player_matched_image_files = sorted(player_matched_image_files, key = lambda i: len(i['name']), reverse=True)
             for img_metadata in player_matched_image_files:
                 is_all_substrings_match = all(val in img_metadata['name'] for val in additional_substring_search_list)
                 if is_all_substrings_match:
