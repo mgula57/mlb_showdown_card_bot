@@ -254,17 +254,21 @@ class ShowdownSetAccuracy:
                 wotc_player_card_dict.update({'pu': int(wotc_player_card['PU'])})
             else:
                 wotc_player_card_dict.update({
-                    # '1b+': int(wotc_player_card['1B+']),
+                    '1b+': int(wotc_player_card['1B+']),
                     '3b': int(wotc_player_card['3B']) if int(wotc_player_card['3B']) < 21 else 0,
+                    'spd': int(wotc_player_card['Speed']),
                 })
         
         # REMOVE EXCLUDED CATEGORIES
         if self.ignore_volatile_categories:
-            excluded_categories = ['so', 'gb', 'fb']
-            if is_pitcher:
-                excluded_categories.append('pu')
+            if not is_pitcher:
+                wotc_player_card_dict['1b'] = wotc_player_card_dict['1b'] + wotc_player_card_dict['1b+']
+            excluded_categories = ['so', 'gb', 'fb', '1b+', 'pu']
+            
+                
             for category in excluded_categories:
-                del wotc_player_card_dict[category]
+                if category in wotc_player_card_dict.keys():
+                    del wotc_player_card_dict[category]
         return wotc_player_card_dict
 
     def __convert_wotc_to_showdown_player_object(self,wotc_player_card,my_player_card):

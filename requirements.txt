@@ -23,3 +23,6 @@ chardet==3.0.4
 gunicorn==20.0.4
 Flask-SQLAlchemy==2.4.4
 psycopg2==2.8.6
+
+# TESTS
+openpyxl>=3.0.7
