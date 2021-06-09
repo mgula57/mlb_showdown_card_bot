@@ -14,6 +14,14 @@ MAX_SPRINT_SPEED = 31
 MIN_SPRINT_SPEED = 23
 MAX_STOLEN_BASES = 26
 MIN_STOLEN_BASES = -25
+SB_MULTIPLIER = {
+    '2000': 1.21,
+    '2001': 1.22,
+    '2002': 1.2,
+    '2003': 0.95,
+    '2004': 0.97,
+    '2005': 1.0,
+}
 MIN_SABER_FIELDING = {
     'drs': -20,
     'tzr': -18,
@@ -67,11 +75,11 @@ BASELINE_PITCHER = {
         'command': 3.0,
         'outs': 16.0,
         'so': 4.1,
-        'bb': 1.14,
-        '1b': 1.97,
-        '2b': 0.67,
-        '3b': 0.03,
-        'hr': 0.1
+        'bb': 1.125,
+        '1b': 2.0,
+        '2b': 0.62,
+        '3b': 0.00,
+        'hr': 0.11
     },
     '2002': {
         'command': 3.5,
@@ -388,10 +396,10 @@ CHART_CATEGORY_WEIGHTS = {
     },
     '2001': {
         'position_player': {
-            'batting_avg': 3.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 8.0,
-            'hr_per_400_pa': 3.0,
+            'batting_avg': 0.0,
+            'slugging_perc': 0.0,
+            'onbase_perc': 1.0,
+            'hr_per_400_pa': 0.0,
             'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
@@ -1386,7 +1394,7 @@ TEST_COMMAND_RANGE_PITCHER = {
     },
     '2001': {
         'min': 3.0,
-        'max': 4.0
+        'max': 3.7
     },
     '2002': {
         'min': 3.0,
@@ -1411,7 +1419,7 @@ TEST_OUT_RANGE_PITCHER = {
         'max': 16.2
     },
     '2001': {
-        'min': 15.0,
+        'min': 15.5,
         'max': 16.2
     },
     '2002': {

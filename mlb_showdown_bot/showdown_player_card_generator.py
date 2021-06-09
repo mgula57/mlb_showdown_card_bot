@@ -406,7 +406,7 @@ class ShowdownPlayerCardGenerator:
         if sprint_speed is None or math.isnan(sprint_speed) or sprint_speed == '' or sprint_speed == 0 or is_disqualied_career_speed:
             # NO SPRINT SPEED AVAILABLE
             sb_range = sc.MAX_STOLEN_BASES - sc.MIN_STOLEN_BASES
-            speed_percentile = (stolen_bases-sc.MIN_STOLEN_BASES) / sb_range
+            speed_percentile = sc.SB_MULTIPLIER[self.context] * (stolen_bases-sc.MIN_STOLEN_BASES) / sb_range
             max_speed_in_game = 18.0
         else:
             # SPRINT SPEED IS AVAILABLE
@@ -559,10 +559,7 @@ class ShowdownPlayerCardGenerator:
             command = combo[0]
             outs = combo[1]
             command_out_matchup = self.__onbase_control_outs(command, outs)
-            predicted_obp = self.__pct_rate_for_result(onbase = command_out_matchup['onbase'],
-                                                       control = command_out_matchup['control'],
-                                                       num_results_hitter_chart = 20-command_out_matchup['hitterOuts'],
-                                                       num_results_pitcher_chart = 20-command_out_matchup['pitcherOuts'])
+            predicted_obp = self.__obp_for_command_outs(command_out_matchup)
             key = (command, outs)
             combo_and_obps[key] = predicted_obp
 
@@ -617,6 +614,21 @@ class ShowdownPlayerCardGenerator:
 
         return opponent_chart, my_advantages_per_20, opponent_advantages_per_20
 
+    def __obp_for_command_outs(self, command_out_matchup):
+        """Calc OBP for command out matchup
+
+        Args:
+          command_out_matchup: Dictionary of onbase, control, outs from hitter and pitcher
+
+        Returns:
+          Tuple with opponent_chart, my_advantages_per_20, opponent_advantages_per_20
+        """
+        return self.__pct_rate_for_result(
+            onbase = command_out_matchup['onbase'],
+            control = command_out_matchup['control'],
+            num_results_hitter_chart = 20-command_out_matchup['hitterOuts'],
+            num_results_pitcher_chart = 20-command_out_matchup['pitcherOuts']
+        )
 # ------------------------------------------------------------------------
 # CHART METHODS
 
@@ -694,7 +706,7 @@ class ShowdownPlayerCardGenerator:
                     # CHANGE TO ROUNDING FROM > .85 INSTEAD OF 0.5
                     chart_results_decimal = chart_results % 1
                     rounded_results = round(chart_results) if chart_results_decimal > 0.95 else math.floor(chart_results)
-                else:
+                else:                    
                     rounded_results = round(chart_results)
                 # PITCHERS SHOULD ALWAYS GET 0 FOR 3B
                 rounded_results = 0 if self.is_pitcher and key == '3b' else rounded_results
@@ -737,7 +749,8 @@ class ShowdownPlayerCardGenerator:
         weights = sc.CHART_CATEGORY_WEIGHTS[self.context][self.player_type()]
         accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(actuals_dict=stats_for_400_pa,
                                                                                   measurements_dict=in_game_stats_for_400_pa,
-                                                                                  weights=weights)
+                                                                                  weights=weights,
+                                                                                  only_use_weight_keys=True)
         
         # QA: CHANGE ACCURACY TO 0 IF CHART DOESN'T ADD UP TO 20
         is_over_20 = sum([v for k, v in chart.items() if k not in ['command','outs', 'sb'] ]) > 20
@@ -1157,7 +1170,7 @@ class ShowdownPlayerCardGenerator:
         # OBP
         onbase_results_per_400_pa = round(walks_per_400_pa) + hits_per_400_pa
         obp = onbase_results_per_400_pa / 400.0
-
+        obp = self.__obp_for_command_outs(command_out_matchup)
         # SLG
         slugging_pct = self.__slugging_pct(ab=400-walks_per_400_pa,
                                            singles=singles_per_400_pa,
@@ -1401,7 +1414,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # GENERIC METHODS
 
-    def accuracy_between_dicts(self, actuals_dict, measurements_dict, weights={}, all_or_nothing=[]):
+    def accuracy_between_dicts(self, actuals_dict, measurements_dict, weights={}, all_or_nothing=[], only_use_weight_keys=False):
         """Compare two dictionaries of numbers to get overall difference
 
         Args:
@@ -1410,30 +1423,48 @@ class ShowdownPlayerCardGenerator:
           weights: X times to count certain category (ex: 3x for command)
           all_or_nothing: List of category names to compare as a boolean 1 or 0 instead
                           of pct difference.
+          only_use_weight_keys: Bool for whether to only count an accuracy there is a weight associated
         Returns:
           Float with accuracy and Dict with accuracy per key. Also returns categorical accuracy and differences.
         """
 
-        denominator = len(actuals_dict.keys())
+        denominator = len((weights if only_use_weight_keys else actuals_dict).keys())
         categorical_accuracy_dict = {}
         categorical_above_below_dict = {}
         accuracies = 0
 
         # CALCULATE CATEGORICAL ACCURACY
         for key, value1 in actuals_dict.items():
-            if key in measurements_dict.keys():
+            evaluate_key = key in measurements_dict.keys()
+            evaluate_key = key in weights.keys() if only_use_weight_keys else evaluate_key
+            if evaluate_key:
                 value2 = measurements_dict[key]
+
+                if key == 'command-outs':
+                    # VALUE 1
+                    co_split = value1.split('-')
+                    command = int(co_split[0])
+                    outs = int(co_split[1])
+                    command_out_matchup = self.__onbase_control_outs(command, outs)
+                    value1 = self.__obp_for_command_outs(command_out_matchup)
+                    # VALUE 2
+                    co_split = value2.split('-')
+                    command = int(co_split[0])
+                    outs = int(co_split[1])
+                    command_out_matchup = self.__onbase_control_outs(command, outs)
+                    value2 = self.__obp_for_command_outs(command_out_matchup)
+                
                 if key in all_or_nothing:
                     accuracy_for_key = 1 if value1 == value2 else 0
                 else:
                     accuracy_for_key = self.__relative_pct_accuracy(actual=value1, measurement=value2)
-
+                
                 # CATEGORICAL ACCURACY
                 categorical_accuracy_dict[key] = accuracy_for_key
                 categorical_above_below_dict[key] = {'above_wotc': 1 if value1 < value2 else 0,
                                                      'below_wotc': 1 if value1 > value2 else 0,
                                                      'matches_wotc': 1 if value1 == value2 else 0,
-                                                     'difference_wotc': abs(value2 - value1) if key != 'command-outs' else 0}
+                                                     'difference_wotc': abs(value2 - value1)}
 
                 # APPLY WEIGHTS
                 weight = float(weights[key]) if key in weights.keys() else 1
@@ -1473,6 +1504,12 @@ class ShowdownPlayerCardGenerator:
 
         chart_w_combined_command_outs = self.chart
         chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart['command'],self.chart['outs'])
+        chart_w_combined_command_outs['spd'] = self.speed
+        
+        # COMBINE 1B and 1B+ IF NON-VOLATILE CATEGORIES
+        if not self.is_pitcher and '1b+' not in wotc_card_dict.keys():
+            chart_w_combined_command_outs['1b'] = chart_w_combined_command_outs['1b'] + chart_w_combined_command_outs['1b+']
+            
         if is_pts_only:
             chart_w_combined_command_outs['points'] = self.points
 
