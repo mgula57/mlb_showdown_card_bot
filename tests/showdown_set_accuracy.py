@@ -197,7 +197,7 @@ class ShowdownSetAccuracy:
                     denominator = float(len(category_above_below_list)) if above_or_below == 'difference_wotc' else 1.0
                     denominator_matches = float(len(category_above_below_list_for_matches)) if above_or_below == 'difference_wotc' else 1.0
                     category_dict[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list) / denominator
-                    category_dict_for_matches[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list_for_matches) / denominator_matches
+                    category_dict_for_matches[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list_for_matches) / denominator_matches if denominator_matches != 0 else 1
                 categories_above_below_summarized[category] = category_dict
                 categories_above_below_summarized_for_matches[category] = category_dict_for_matches
         

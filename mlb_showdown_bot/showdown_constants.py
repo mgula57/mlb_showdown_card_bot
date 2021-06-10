@@ -22,6 +22,27 @@ SB_MULTIPLIER = {
     '2004': 0.97,
     '2005': 1.0,
 }
+# THIS GB MULTIPLIER IS A MORE SIMPLE MODE OF ADJUSTMENT.
+# REPLACE HAVING DEFAULT GB AND FB FOR OPPONENT CHART
+GB_MULTIPLIER = {
+    'hitter': {
+        '2000': 1.00,
+        '2001': 1.11,
+        '2002': 1.0,
+        '2003': 1.0,
+        '2004': 1.0,
+        '2005': 1.0,
+    },
+    'pitcher': {
+        '2000': 1.0,
+        '2001': 1.0,
+        '2002': 1.0,
+        '2003': 1.0,
+        '2004': 1.0,
+        '2005': 1.0,
+    },
+}
+
 MIN_SABER_FIELDING = {
     'drs': -20,
     'tzr': -18,
@@ -62,14 +83,14 @@ NOTE: INDIVIDUAL RESULT CATEGORIES MAY NOT ADD UP TO 20 OR TOTAL OUTS.
 """
 BASELINE_PITCHER = {
     '2000': {
-        'command': 3.2,
-        'outs': 15.1,
+        'command': 3.0,
+        'outs': 15.75,
         'so': 4.5,
-        'bb': 1.2,
+        'bb': 1.175,
         '1b': 1.95,
-        '2b': 0.68,
-        '3b': 0.03,
-        'hr': 0.095
+        '2b': 0.67,
+        '3b': 0.00,
+        'hr': 0.08
     },
     '2001': {
         'command': 3.0,
@@ -373,10 +394,10 @@ CHART CATEGORY WEIGHTS
 CHART_CATEGORY_WEIGHTS = {
     '2000': {
         'position_player': {
-            'batting_avg': 3.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 8.0,
-            'hr_per_400_pa': 3.0,
+            'batting_avg': 0.0,
+            'slugging_perc': 0.0,
+            'onbase_perc': 1.0,
+            'hr_per_400_pa': 0.0,
             'so_per_400_pa': 0.0
         },
         'starting_pitcher': {

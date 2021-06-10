@@ -772,8 +772,12 @@ class ShowdownPlayerCardGenerator:
 
 
         if out_slots_remaining > 0:
+            # MULTIPLIERS SERVE TO CORRECT TOWARDS WOTC
+            # REPLACE HAVING DEFAULT FOR OPPONENT CHART
+            type = 'pitcher' if self.is_pitcher else 'hitter'
+            gb_multi = sc.GB_MULTIPLIER[type][self.context]
             # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
-            gb_outs = round((out_slots_remaining / (gb_pct + 1)) * gb_pct)
+            gb_outs = round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multi)
             air_outs = out_slots_remaining - gb_outs
             # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
             pu_multiplier = sc.PU_MULTIPLIER[self.context]
