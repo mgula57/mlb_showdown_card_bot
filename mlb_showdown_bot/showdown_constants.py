@@ -22,26 +22,6 @@ SB_MULTIPLIER = {
     '2004': 0.97,
     '2005': 1.0,
 }
-# THIS GB MULTIPLIER IS A MORE SIMPLE MODE OF ADJUSTMENT.
-# REPLACE HAVING DEFAULT GB AND FB FOR OPPONENT CHART
-GB_MULTIPLIER = {
-    'hitter': {
-        '2000': 1.00,
-        '2001': 1.11,
-        '2002': 1.0,
-        '2003': 1.0,
-        '2004': 1.0,
-        '2005': 1.0,
-    },
-    'pitcher': {
-        '2000': 0.85,
-        '2001': 0.93,
-        '2002': 1.0,
-        '2003': 1.0,
-        '2004': 1.0,
-        '2005': 1.0,
-    },
-}
 
 MIN_SABER_FIELDING = {
     'drs': -20,
@@ -71,10 +51,30 @@ NUMBER_OF_GAMES = 7
 PU_MULTIPLIER = {
     '2000': 2.25,
     '2001': 2.5,
-    '2002': 2.7,
+    '2002': 2.8,
     '2003': 2.0,
     '2004': 2.05,
     '2005': 2.25,
+}
+# THIS GB MULTIPLIER IS A MORE SIMPLE MODE OF ADJUSTMENT.
+# REPLACE HAVING DEFAULT GB AND FB FOR OPPONENT CHART
+GB_MULTIPLIER = {
+    'hitter': {
+        '2000': 1.00,
+        '2001': 1.11,
+        '2002': 1.15,
+        '2003': 1.0,
+        '2004': 1.0,
+        '2005': 1.0,
+    },
+    'pitcher': {
+        '2000': 0.85,
+        '2001': 0.93,
+        '2002': 0.91,
+        '2003': 1.0,
+        '2004': 1.0,
+        '2005': 1.0,
+    },
 }
 """
 BASELINE PITCHER VALUES
@@ -103,14 +103,14 @@ BASELINE_PITCHER = {
         'hr': 0.11
     },
     '2002': {
-        'command': 3.5,
-        'outs': 15.9,
+        'command': 3.3,
+        'outs': 16.7,
         'so': 4.20,
-        'bb': 0.80,
+        'bb': 0.75,
         '1b': 1.40,
         '2b': 0.51,
         '3b': 0.01,
-        'hr': 0.3
+        'hr': 0.13
     },
     '2003': {
         'command': 4.2,
@@ -440,25 +440,25 @@ CHART_CATEGORY_WEIGHTS = {
     },
     '2002': {
         'position_player': {
-            'batting_avg': 3.0,
-            'slugging_perc': 6.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 3.0,
-            'so_per_400_pa': 0.0
+            'batting_avg': 0.0,
+            'slugging_perc': 0.0,
+            'onbase_perc': 1.0,
+            'hr_per_400_pa': 0.0,
+            'so_per_400_pa': 0.0,
         },
         'starting_pitcher': {
-            'batting_avg': 3.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'batting_avg': 0.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
+            'hr_per_400_pa': 0.0,
+            'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
-            'batting_avg': 3.0,
-            'slugging_perc': 6.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'batting_avg': 0.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
+            'hr_per_400_pa': 0.0,
+            'so_per_400_pa': 0.0,
         }
     },
     '2003': {

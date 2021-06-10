@@ -420,7 +420,8 @@ class ShowdownPlayerCardGenerator:
         speed = 8 if speed_raw < 8 else speed_raw
         speed = 27 if speed_raw > 27 else speed
 
-        if speed < 12:
+        c_speeed_cutoff = 13 if self.context == '2002' else 12
+        if speed < c_speeed_cutoff:
             letter = 'C'
         elif speed < 18:
             letter = 'B'
