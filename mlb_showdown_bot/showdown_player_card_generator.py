@@ -379,6 +379,7 @@ class ShowdownPlayerCardGenerator:
         """
 
         ip = round(innings_pitched / games)
+        ip = 1 if ip < 1 else ip
 
         return ip
 

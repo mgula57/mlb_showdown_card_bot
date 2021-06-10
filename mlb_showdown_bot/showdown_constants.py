@@ -34,7 +34,7 @@ GB_MULTIPLIER = {
         '2005': 1.0,
     },
     'pitcher': {
-        '2000': 1.0,
+        '2000': 0.85,
         '2001': 1.0,
         '2002': 1.0,
         '2003': 1.0,
@@ -69,7 +69,7 @@ NUMBER_OF_GAMES = 7
 
 # MULTIPLIER TO MATCH PU WITH ORIGINAL SETS
 PU_MULTIPLIER = {
-    '2000': 1.75,
+    '2000': 2.25,
     '2001': 2.25,
     '2002': 2.7,
     '2003': 2.0,
@@ -151,14 +151,14 @@ NOTE: INDIVIDUAL RESULT CATEGORIES MAY NOT ADD UP TO 20 OR TOTAL OUTS.
 """
 BASELINE_HITTER = {
     '2000': {
-        'command': 7.8,
-        'outs': 3.4,
-        'so': 0.15,
-        'bb': 4.65,
-        '1b': 6.60,
+        'command': 7.7,
+        'outs': 3.7,
+        'so': 0.2,
+        'bb': 4.60,
+        '1b': 6.65,
         '1b+': 0.41,
         '2b': 1.94,
-        '3b': 0.34,
+        '3b': 0.30,
         'hr': 1.98
     },
     '2001': {
@@ -401,18 +401,18 @@ CHART_CATEGORY_WEIGHTS = {
             'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
-            'batting_avg': 2.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'batting_avg': 0.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
+            'hr_per_400_pa': 0.0,
+            'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
-            'batting_avg': 2.0,
-            'slugging_perc': 4.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'batting_avg': 0.0,
+            'slugging_perc': 0.0,
+            'onbase_perc': 1.0,
+            'hr_per_400_pa': 0.0,
+            'so_per_400_pa': 0.0,
         }
     },
     '2001': {
