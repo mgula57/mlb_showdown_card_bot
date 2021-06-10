@@ -35,7 +35,7 @@ GB_MULTIPLIER = {
     },
     'pitcher': {
         '2000': 0.85,
-        '2001': 1.0,
+        '2001': 0.93,
         '2002': 1.0,
         '2003': 1.0,
         '2004': 1.0,
@@ -70,7 +70,7 @@ NUMBER_OF_GAMES = 7
 # MULTIPLIER TO MATCH PU WITH ORIGINAL SETS
 PU_MULTIPLIER = {
     '2000': 2.25,
-    '2001': 2.25,
+    '2001': 2.5,
     '2002': 2.7,
     '2003': 2.0,
     '2004': 2.05,
@@ -163,14 +163,14 @@ BASELINE_HITTER = {
     },
     '2001': {
         'command': 7.8,
-        'outs': 3.4,
+        'outs': 3.9,
         'so': 1.31,
-        'bb': 4.23,
-        '1b': 6.67,
+        'bb': 4.20,
+        '1b': 6.7,
         '1b+': 0.63,
-        '2b': 1.88,
-        '3b': 0.39,
-        'hr': 2.15
+        '2b': 1.95,
+        '3b': 0.2,
+        'hr': 2.0
     },
     '2002': {
         'command': 9.4,
@@ -409,8 +409,8 @@ CHART_CATEGORY_WEIGHTS = {
         },
         'relief_pitcher': {
             'batting_avg': 0.0,
-            'slugging_perc': 0.0,
-            'onbase_perc': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
             'hr_per_400_pa': 0.0,
             'so_per_400_pa': 0.0,
         }
@@ -424,18 +424,18 @@ CHART_CATEGORY_WEIGHTS = {
             'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
-            'batting_avg': 2.0,
-            'slugging_perc': 6.0,
-            'onbase_perc': 8.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'batting_avg': 0.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
+            'hr_per_400_pa': 0.0,
+            'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
-            'batting_avg': 2.0,
-            'slugging_perc': 6.0,
-            'onbase_perc': 8.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'batting_avg': 0.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
+            'hr_per_400_pa': 0.0,
+            'so_per_400_pa': 0.0,
         }
     },
     '2002': {
