@@ -54,7 +54,7 @@ PU_MULTIPLIER = {
     '2002': 2.8,
     '2003': 2.2,
     '2004': 2.05,
-    '2005': 2.25,
+    '2005': 2.4,
 }
 # THIS GB MULTIPLIER IS A MORE SIMPLE MODE OF ADJUSTMENT.
 # REPLACE HAVING DEFAULT GB AND FB FOR OPPONENT CHART
@@ -72,8 +72,8 @@ GB_MULTIPLIER = {
         '2001': 0.93,
         '2002': 0.91,
         '2003': 1.05,
-        '2004': 1.0,
-        '2005': 1.0,
+        '2004': 1.05,
+        '2005': 1.05,
     },
 }
 """
@@ -195,10 +195,10 @@ BASELINE_HITTER = {
         'hr': 1.75
     },
     '2004': {
-        'command': 8.5,
-        'outs': 7.0,
+        'command': 8.7,
+        'outs': 7.4,
         'so': 2.3,
-        'bb': 2.65,
+        'bb': 2.45,
         '1b': 6.59,
         '1b+': 0.12,
         '2b': 1.25,
@@ -206,8 +206,8 @@ BASELINE_HITTER = {
         'hr': 1.6
     },
     '2005': {
-        'command': 9.1,
-        'outs': 7.0,
+        'command': 8.8,
+        'outs': 7.4,
         'so': 2.4,
         'bb': 2.9,
         '1b': 6.0,
@@ -325,19 +325,19 @@ CONTROL_COMBOS = {
         [6,16],[6,17],[6,18]
     ],
     '2004':[
-        [1,13],[1,14],[1,15],[1,16],[1,17],
-        [2,14],[2,15],[2,16],[2,17],
+        [1,13],[1,14],[1,15],[1,16],
+        [2,14],[2,15],[2,16],
         [3,15],[3,16],[3,17],
-        [4,13],[4,14],[4,15],[4,16],[4,17],
+        [4,14],[4,16],[4,17],
         [5,12],[5,15],[5,16],[5,17],[5,18],[5,19],
         [6,15],[6,16],[6,17],[6,18]
     ],
     '2005':[
         [1,14],[1,15],[1,16],
-        [2,15],[2,16],[2,17],
+        [2,15],[2,16],
         [3,15],[3,16],[3,17],
-        [4,15],[4,16],[4,17],
-        [5,15],[5,16],[5,17],[5,18],[5,19],
+        [4,16],[4,17],
+        [5,16],[5,17],[5,18],[5,19],
         [6,15],[6,16],[6,17],[6,18]
     ]
 }
@@ -494,14 +494,14 @@ CHART_CATEGORY_WEIGHTS = {
         },
         'starting_pitcher': {
             'batting_avg': 0.0,
-            'slugging_perc': 0.0,
+            'slugging_perc': 1.0,
             'onbase_perc': 3.0,
             'hr_per_400_pa': 0.0,
             'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
             'batting_avg': 0.0,
-            'slugging_perc': 0.0,
+            'slugging_perc': 1.0,
             'onbase_perc': 3.0,
             'hr_per_400_pa': 0.0,
             'so_per_400_pa': 0.0,
@@ -516,18 +516,18 @@ CHART_CATEGORY_WEIGHTS = {
             'so_per_400_pa': 0.0,
         },
         'starting_pitcher': {
-            'batting_avg': 2.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'batting_avg': 0.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 3.0,
+            'hr_per_400_pa': 0.0,
+            'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
-            'batting_avg': 2.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'batting_avg': 0.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 3.0,
+            'hr_per_400_pa': 0.0,
+            'so_per_400_pa': 0.0,
         }
     },
 }
@@ -1374,12 +1374,12 @@ TEST_COMMAND_RANGE_HITTER = {
         'max': 9.1
     },
     '2004': {
-        'min': 9.0,
-        'max': 10.5
+        'min': 8.4,
+        'max': 9.5
     },
     '2005': {
-        'min': 9.0,
-        'max': 10.3
+        'min': 8.4,
+        'max': 9.5
     }
 }
 TEST_OUT_RANGE_HITTER = {
@@ -1401,11 +1401,11 @@ TEST_OUT_RANGE_HITTER = {
     },
     '2004': {
         'min': 6.0,
-        'max': 7.1
+        'max': 7.5
     },
     '2005': {
         'min': 5.9,
-        'max': 7.1
+        'max': 7.5
     }
 }
 TEST_COMMAND_RANGE_PITCHER = {
