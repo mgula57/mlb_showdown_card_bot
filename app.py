@@ -27,13 +27,16 @@ class CardLog(db.Model):
     set = db.Column(db.String(8))
     is_cooperstown = db.Column(db.Boolean)
     is_super_season = db.Column(db.Boolean)
-    is_all_star_game = db.Column(db.Boolean)
     img_url = db.Column(db.String(2048))
     img_name = db.Column(db.String(512))
     error = db.Column(db.String(256))
     created_on = db.Column(db.DateTime, server_default=db.func.now())
+    is_all_star_game = db.Column(db.Boolean)
+    expansion = db.Column(db.Text)
+    stats_offset = db.Column(db.Integer)
+    set_num = db.Column(db.Text)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, is_all_star_game, img_url, img_name, error):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -44,8 +47,12 @@ class CardLog(db.Model):
         self.img_url = img_url
         self.img_name = img_name
         self.error = error
+        self.is_all_star_game = is_all_star_game
+        self.expansion = expansion
+        self.stats_offset = stats_offset
+        self.set_num = set_num
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, is_all_star_game, img_url, img_name, error):
+def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -54,10 +61,13 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             set=set,
             is_cooperstown=is_cooperstown,
             is_super_season=is_super_season,
-            is_all_star_game=is_all_star_game,
             img_url=img_url,
             img_name=img_name,
-            error=error
+            error=error,
+            is_all_star_game=is_all_star_game,
+            expansion=expansion,
+            stats_offset=stats_offset,
+            set_num=set_num
         )
         db.session.add(card_log)
         db.session.commit()
@@ -86,6 +96,7 @@ def card_creator():
     img_name = None
     set_num = None
     expansion = None
+    offset = None
 
     try:
         # PARSE INPUTS
@@ -148,10 +159,13 @@ def card_creator():
             set=set,
             is_cooperstown=is_cooperstown,
             is_super_season=is_super_season,
-            is_all_star_game=is_all_star_game,
             img_url=img_url,
             img_name=img_name,
-            error=error
+            error=error,
+            is_all_star_game=is_all_star_game,
+            expansion=expansion,
+            stats_offset=offset,
+            set_num=set_num
         )
         return jsonify(image_path=card_image_path,error=error,player_stats=player_stats_data)
 
@@ -162,10 +176,13 @@ def card_creator():
             set=set,
             is_cooperstown=is_cooperstown,
             is_super_season=is_super_season,
-            is_all_star_game=is_all_star_game,
             img_url=img_url,
             img_name=img_name,
-            error=error
+            error=error,
+            is_all_star_game=is_all_star_game,
+            expansion=expansion,
+            stats_offset=offset,
+            set_num=set_num
         )
         return jsonify(image_path=None,error=error,player_stats=None)
 
