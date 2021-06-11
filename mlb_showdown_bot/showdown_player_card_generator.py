@@ -631,6 +631,7 @@ class ShowdownPlayerCardGenerator:
             num_results_hitter_chart = 20-command_out_matchup['hitterOuts'],
             num_results_pitcher_chart = 20-command_out_matchup['pitcherOuts']
         )
+
 # ------------------------------------------------------------------------
 # CHART METHODS
 
@@ -1046,7 +1047,6 @@ class ShowdownPlayerCardGenerator:
                     trpl_range = '—' if trpl_slots == 0 else trpl_range
                     chart_ranges['3b Range'] = trpl_range
         return chart_ranges
-
 
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
