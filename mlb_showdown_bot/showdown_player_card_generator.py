@@ -77,7 +77,7 @@ class ShowdownPlayerCardGenerator:
             stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=stats)
 
             if command_out_override is None:
-                command_out_combos = self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=7)
+                command_out_combos = self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=5)
             else:
                 # OVERRIDE WILL MANUALLY CHOOSE COMMAND OUTS COMBO (USED FOR TESTING)
                 command_out_combos = [command_out_override]
