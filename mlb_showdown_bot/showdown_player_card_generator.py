@@ -1881,14 +1881,22 @@ class ShowdownPlayerCardGenerator:
         # GET TEAM BACKGROUND (00/01)
         default_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Default Background - {}.png'.format(self.context))
         if self.context in ['2000', '2001']:
-            team_extension_substring_list = []
-            team_extension = self.__team_logo_historical_alternate_extension()
-            if len(team_extension) > 0:
-                team_extension_substring_list.append(team_extension)
+            if self.is_cooperstown:
+                bg_main_search = 'CC.png'
+                additional_search_list = []
+            elif self.is_all_star_game and not self.is_multi_year:
+                bg_main_search = f"ASG-{self.year}"
+                additional_search_list = []
+            else:
+                bg_main_search = self.team
+                additional_search_list = []
+                team_extension = self.__team_logo_historical_alternate_extension()
+                if len(team_extension) > 0:
+                    additional_search_list.append(team_extension)
             team_background_url = self.__query_google_drive_for_image_url(
                                     folder_id = sc.G_DRIVE_TEAM_BACKGROUND_FOLDERS[self.context],
-                                    substring_search = self.team,
-                                    additional_substring_search_list = team_extension_substring_list
+                                    substring_search = bg_main_search,
+                                    additional_substring_search_list = additional_search_list
                                 )
             if team_background_url:
                 response = requests.get(team_background_url)
