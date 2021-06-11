@@ -69,7 +69,7 @@ class ShowdownSetAccuracy:
                     continue
                 try:
                     print('Scraping - {} stats for {}'.format(wotc_player_card.Name, str(wotc_player_card.Year - 1)))
-                    scraper = BaseballReferenceScraper(wotc_player_card.Name,self.context-1)
+                    scraper = BaseballReferenceScraper(wotc_player_card.Name,str(self.context-1))
                     real_player_stats = scraper.player_statline()
                     real_player_stats['NameAndYear'] = name_year_string
                     self.real_player_stats_cache = self.real_player_stats_cache.append(pd.DataFrame.from_records([real_player_stats]), sort=False)

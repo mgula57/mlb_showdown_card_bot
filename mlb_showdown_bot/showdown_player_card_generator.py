@@ -1063,7 +1063,8 @@ class ShowdownPlayerCardGenerator:
         """
 
         # SUBTRACT SACRIFICES?
-        pct_of_n_pa = (float(stats['PA']) - float(stats['SH'])) / plate_appearances
+        sh = float(stats['SH'] if stats['SH'] != '' else 0)
+        pct_of_n_pa = (float(stats['PA']) - sh) / plate_appearances
         # GO/AO
         try:
             go_ao = float(stats['GO/AO'])
