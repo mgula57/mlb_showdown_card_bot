@@ -591,22 +591,22 @@ POINT_CATEGORY_WEIGHTS = {
     '2005': {
         'position_player': {
             'defense': 65,
-            'speed': 55,
+            'speed': 60,
             'onbase': 140,
             'average': 70,
-            'slugging': 130,
+            'slugging': 140,
             'home_runs': 50
         },
         'starting_pitcher': {
-            'ip': 70,
-            'onbase': 230,
-            'average': 70,
-            'slugging': 235
+            'ip': 75,
+            'onbase': 305,
+            'average': 60,
+            'slugging': 180
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 105,
-            'average': 40,
+            'average': 20,
             'slugging': 105
         }
     }
@@ -781,7 +781,16 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '2-18': 0.80,
     },
     '2005': {
-        
+        '9-5': 1.15,
+        '9-6': 1.1,
+        '9-7': 0.95,
+
+        '3-15': 1.25,
+        '3-16': 1.05,
+        '3-17': 0.8,
+        '3-18': 0.9,
+        '4-17': 0.8,
+        '6-17': 1.03,
     }
 }
 
@@ -893,7 +902,7 @@ POINTS_NORMALIZER_MULTIPLIER = {
     '2005': {
         'position_player': 0.65,
         'starting_pitcher': 0.75,
-        'relief_pitcher': 0.75,
+        'relief_pitcher': 0.70,
     },
 }
 
