@@ -39,6 +39,10 @@ class ShowdownPlayerCardGenerator:
         self.year = str(year).upper()
         self.is_full_career = self.year == "CAREER"
         self.is_multi_year = len(self.year) > 4
+        self.type_override = ''
+        for type_str in ['(Pitcher)','(Hitter)']:
+            if type_str in name:
+                self.type_override = type_str
         if year.upper() == 'CAREER':
             self.year_list = [int(year) for year in stats['years_played']]
         elif '-' in year:
@@ -1942,6 +1946,8 @@ class ShowdownPlayerCardGenerator:
             additional_substring_filters.append('(CC)')
         elif self.is_all_star_game:
             additional_substring_filters.append('(ASG)')
+        if len(self.type_override) > 0:
+            additional_substring_filters.append(self.type_override)
 
         player_image_url = self.__query_google_drive_for_image_url(
                                 folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[self.context],
