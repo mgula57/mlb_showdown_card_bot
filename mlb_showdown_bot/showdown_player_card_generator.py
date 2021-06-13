@@ -276,7 +276,16 @@ class ShowdownPlayerCardGenerator:
         # 2000/2001 SETS ALWAYS INCLUDED LF/RF FOR CF PLAYERS
         if 'CF' in positions_set and len(positions_and_defense) == 1 and self.context in ['2000','2001']:
             if 'CF' in positions_and_defense.keys():
-                positions_and_defense['LF/RF'] = round(positions_and_defense['CF']/2)
+                cf_defense = positions_and_defense['CF']
+                lf_rf_defense = round(positions_and_defense['CF'] / 2)
+                if lf_rf_defense == cf_defense:
+                    positions_and_games_played['OF'] = positions_and_games_played['CF']
+                    positions_and_defense['OF'] = cf_defense
+                    del positions_and_defense['CF']
+                    del positions_and_games_played['CF']
+                else:
+                    positions_and_defense['LF/RF'] = lf_rf_defense
+                    positions_and_games_played['LF/RF'] = positions_and_games_played['CF']
 
         return positions_and_defense, positions_and_games_played
 
@@ -1319,8 +1328,15 @@ class ShowdownPlayerCardGenerator:
         apply_closer_bonus = 'CLOSER' in self.positions_and_defense.keys() and self.context == '2000'
         self.points_bonus = 25 if apply_closer_bonus else 0
 
+        # ICONS (03+)
+        icon_pts = 0
+        if self.context in ['2003','2004','2005'] and len(self.icons) > 0:
+            for icon in self.icons:
+                icon_pts += sc.POINTS_ICONS[self.context][icon]
+        self.icon_points = icon_pts
+
         # COMBINE POINT VALUES
-        points = self.obp_points + self.ba_points + self.slg_points + self.spd_ip_points + self.points_bonus
+        points = self.obp_points + self.ba_points + self.slg_points + self.spd_ip_points + self.points_bonus + self.icon_points
         if not self.is_pitcher:
             points += self.hr_points + self.defense_points
 
@@ -1407,16 +1423,15 @@ class ShowdownPlayerCardGenerator:
             lower_multiplier = sc.POINTS_NORMALIZER_MULTIPLIER[self.context][self.player_type()]
             multiplier = percentile * (upper_multiplier - lower_multiplier) + lower_multiplier
 
-            # APPLY THIS TO ALL CATEGORIES
+            # APPLY THIS TO OFFENSIVE STATS
             self.obp_points = self.obp_points * multiplier
             self.ba_points = self.ba_points * multiplier
             self.slg_points = self.slg_points * multiplier
-            self.spd_ip_points = self.spd_ip_points * multiplier
+
             if not self.is_pitcher:
                 self.hr_points = self.hr_points * multiplier
-                self.defense_points = self.defense_points * multiplier
 
-            return points * multiplier
+            return self.obp_points + self.ba_points + self.slg_points + self.spd_ip_points + self.points_bonus + self.icon_points
         else:
             return points
 
@@ -1596,7 +1611,9 @@ class ShowdownPlayerCardGenerator:
             spd_ip = round(self.spd_ip_points,2)
         )
         if self.points_bonus > 0:
-            pt_category_string += f"  BONUS: {self.points_bonus}"
+            pt_category_string += f"  BONUS:{self.points_bonus}"
+        if self.icon_points != 0:
+            pt_category_string += f"  ICONS:{self.icon_points}"
         if not self.is_pitcher:
             pt_category_string += '  HR:{hr}  DEF:{defense}'.format(hr=self.hr_points,defense=self.defense_points)
 

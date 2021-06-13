@@ -547,11 +547,11 @@ POINT_CATEGORY_WEIGHTS = {
     '2003': {
         'position_player': {
             'defense': 60,
-            'speed': 60,
-            'onbase': 200,
-            'average': 60,
-            'slugging': 170,
-            'home_runs': 55
+            'speed': 55,
+            'onbase': 160,
+            'average': 50,
+            'slugging': 160,
+            'home_runs': 60
         },
         'starting_pitcher': {
             'ip': 65,
@@ -652,10 +652,10 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
-        'SS': 1.0,
+        'SS': 1.25,
         'CF': 1.0,
         'OF': 1.0,
-        'LF/RF': 1.0,
+        'LF/RF': 0.75,
     },
     '2004': {
         'CA': 1.0,
@@ -677,6 +677,51 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'OF': 1.0,
         'LF/RF': 1.0,
     }
+}
+
+"""
+ICON POINTS
+"""
+POINTS_ICONS = {
+    '2003': {
+        'G': 10,
+        'S': 10,
+        'V': 15,
+        'HR': 15,
+        'SB': 10,
+        'RY': 10,
+        'R': 0,
+        'RP': 10,
+        'K': 10,
+        '20': 10,
+        'CY': 15,
+    },
+    '2004': {
+        'G': 0,
+        'S': 0,
+        'V': 0,
+        'HR': 0,
+        'SB': 0,
+        'RY': 0,
+        'R': 0,
+        'RP': 0,
+        'K': 0,
+        '20': 0,
+        'CY': 0,
+    },
+    '2005': {
+        'G': 0,
+        'S': 0,
+        'V': 0,
+        'HR': 0,
+        'SB': 0,
+        'RY': 0,
+        'R': 0,
+        'RP': 0,
+        'K': 0,
+        '20': 0,
+        'CY': 0,
+    },
 }
 
 """
@@ -719,7 +764,7 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '3-16': 1.25,
     },
     '2003': {
-        
+        '10-5': 1.12,
     },
     '2004': {
         

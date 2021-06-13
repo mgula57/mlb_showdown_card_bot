@@ -318,7 +318,9 @@ class ShowdownSetAccuracy:
 
         my_player_card.positions_and_defense = defense
         my_player_card.ip = int(wotc_player_card.IP)
-        my_player_card.icons = []
+        icons = [wotc_player_card.Icon1, wotc_player_card.Icon2, wotc_player_card.Icon3, wotc_player_card.Icon4]
+        icons = [x for x in icons if str(x) != 'nan']
+        my_player_card.icons = icons
         my_player_card.chart_ranges = my_player_card.ranges_for_chart(my_player_card.chart, 5.0, 5.0, 5.0)
         my_player_card.speed = wotc_player_card.Speed
         if wotc_player_card.Speed < 12:
