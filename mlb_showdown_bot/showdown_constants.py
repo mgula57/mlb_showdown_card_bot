@@ -394,140 +394,81 @@ CHART CATEGORY WEIGHTS
 CHART_CATEGORY_WEIGHTS = {
     '2000': {
         'position_player': {
-            'batting_avg': 0.0,
-            'slugging_perc': 0.0,
             'onbase_perc': 1.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 2.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 2.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         }
     },
     '2001': {
         'position_player': {
-            'batting_avg': 0.0,
-            'slugging_perc': 0.0,
             'onbase_perc': 1.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0
         },
         'starting_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 2.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 2.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         }
     },
     '2002': {
         'position_player': {
-            'batting_avg': 0.0,
-            'slugging_perc': 0.0,
             'onbase_perc': 1.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         },
         'starting_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 2.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 2.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         }
     },
     '2003': {
         'position_player': {
-            'batting_avg': 0.0,
-            'slugging_perc': 0.0,
             'onbase_perc': 1.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         },
         'starting_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 3.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 3.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         }
     },
     '2004': {
         'position_player': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 4.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         },
         'starting_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 3.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 3.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         }
     },
     '2005': {
         'position_player': {
-            'batting_avg': 0.0,
-            'slugging_perc': 0.0,
             'onbase_perc': 1.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         },
         'starting_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 3.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         },
         'relief_pitcher': {
-            'batting_avg': 0.0,
             'slugging_perc': 1.0,
             'onbase_perc': 3.0,
-            'hr_per_400_pa': 0.0,
-            'so_per_400_pa': 0.0,
         }
     },
 }
@@ -541,22 +482,22 @@ POINT_CATEGORY_WEIGHTS = {
         'position_player': {
             'defense': 75,
             'speed': 75,
-            'onbase': 210,
-            'average': 80,
+            'onbase': 200,
+            'average': 40,
             'slugging': 165,
-            'home_runs': 55
+            'home_runs': 35
         },
         'starting_pitcher': {
-            'ip': 120,
-            'onbase': 360,
-            'average': 70,
-            'slugging': 300
+            'ip': 105,
+            'onbase': 368,
+            'average': 60,
+            'slugging': 290
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 105,
-            'average': 30,
-            'slugging': 85
+            'onbase': 110,
+            'average': 20,
+            'slugging': 90
         }
     },
     '2001': {
@@ -673,107 +614,101 @@ POINT_CATEGORY_WEIGHTS = {
 
 """
 DEFENSIVE POINT MULTIPLIERS
-  - MULTIPLY POINT TOTALS FOR GIVEN POSITION BY A SCALER
-  - WILL SCALE SOME POSITIONS UP IN VALUE, AND OTHERS DOWN IN VALUE
+  - MULTIPLY DEFENSIVE POINT TOTALS FOR GIVEN POSITION BY A SCALER
 """
-POINTS_POSITIONAL_MULTIPLIER = {
+POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
     '2000': {
         'C': 1.0,
-        '1B': 1.1,
+        '1B': 0.25,
         '2B': 1.0,
         '3B': 1.0,
-        'SS': 0.95,
-        'LF': 0.98,
+        'SS': 0.80, # SURPRISING, BUT ACCORDING TO WOTC TESTS ITS RIGHT
         'CF': 1.0,
-        'RF': 1.0,
-        'OF': 1.0,
-        'LF/RF': 1.0,
-        'DH': 1.0,
-        'STARTER': 1.0,
-        'RELIEVER': 1.0,
-        'CLOSER': 1.1,
+        'OF': 0.89,
+        'LF/RF': 0.75,
     },
     '2001': {
-        'C': 1.03,
-        '1B': 1.01,
-        '2B': 1.1,
-        '3B': 0.95,
-        'SS': 1.05,
-        'LF': 1.0,
+        'C': 1.0,
+        '1B': 0.5,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 1.0,
         'CF': 1.0,
-        'RF': 1.0,
         'OF': 1.0,
         'LF/RF': 1.0,
-        'DH': 0.96,
-        'STARTER': 1.0,
-        'RELIEVER': 1.0,
-        'CLOSER': 1.1,
     },
     '2002': {
-        'CA': 1.0,
-        '1B': 1.0,
+        'C': 1.0,
+        '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
         'SS': 1.0,
-        'LF': 1.0,
         'CF': 1.0,
-        'RF': 1.0,
         'OF': 1.0,
         'LF/RF': 1.0,
-        'DH': 1.0,
-        'STARTER': 1.0,
-        'RELIEVER': 0.97,
-        'CLOSER': 1.2,
     },
     '2003': {
-        'CA': 1.05,
-        '1B': 1.0,
-        '2B': 1.1,
-        '3B': 1.07,
-        'SS': 1.18,
-        'LF': 1.0,
-        'CF': 1.0,
-        'RF': 1.0,
-        'OF': 1.0,
-        'LF/RF': 0.98,
-        'DH': 1.0,
-        'STARTER': 1.0,
-        'RELIEVER': 1.08,
-        'CLOSER': 0.88,
-    },
-    '2004': {
-        'CA': 1.0,
-        '1B': 1.0,
-        '2B': 1.0,
-        '3B': 1.12,
-        'SS': 1.05,
-        'LF': 1.0,
-        'CF': 1.0,
-        'RF': 1.0,
-        'OF': 1.0,
-        'IF': 1.0,
-        'LF/RF': 1.0,
-        'DH': 1.0,
-        'STARTER': 1.0,
-        'RELIEVER': 1.0,
-        'CLOSER': 1.0,
-    },
-    '2005': {
-        'CA': 1.0,
-        '1B': 1.0,
+        'C': 1.0,
+        '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
         'SS': 1.0,
-        'LF': 1.0,
         'CF': 1.0,
-        'RF': 1.0,
         'OF': 1.0,
-        'IF': 1.0,
         'LF/RF': 1.0,
-        'DH': 1.0,
-        'STARTER': 1.0,
-        'RELIEVER': 0.96,
-        'CLOSER': 0.98,
+    },
+    '2004': {
+        'C': 1.0,
+        '1B': 0.5,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 1.0,
+        'CF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+    },
+    '2005': {
+        'C': 1.0,
+        '1B': 0.5,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 1.0,
+        'CF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+    }
+}
+
+"""
+COMMAND OUT POINT MULTIPLIERS
+  - MULTIPLY POINT TOTALS FOR GIVEN ONBASE/CONTROL - OUTS COMBINATION BY A SCALER
+"""
+POINTS_COMMAND_OUT_MULTIPLIER = {
+    '2000': {
+        '10-5': 1.15,
+        '10-4': 1.08,
+        '10-2': 0.95,
+        '9-5': 1.08,
+        '8-5': 1.06,
+        '8-3': 0.90,
+        '7-3': 0.90,
+
+        '4-15': 1.06
+    },
+    '2001': {
+        
+    },
+    '2002': {
+        
+    },
+    '2003': {
+        
+    },
+    '2004': {
+        
+    },
+    '2005': {
+        
     }
 }
 
@@ -859,8 +794,8 @@ POINTS NORMALIZER MULTIPLIER
 POINTS_NORMALIZER_MULTIPLIER = {
     '2000': {
         'position_player': 0.70,
-        'starting_pitcher': 0.70,
-        'relief_pitcher': 0.60,
+        'starting_pitcher': 0.75,
+        'relief_pitcher': 0.55,
     },
     '2001': {
         'position_player': 0.65,
@@ -894,7 +829,7 @@ POINTS_RELIEVER_IP_MULTIPLIER
   - WHAT PERCENT OF POINTS TO GIVE FOR 2ND INNING OF RELIEF
 """
 POINTS_RELIEVER_IP_MULTIPLIER = {
-    '2000': 0.95,
+    '2000': 1.0,
     '2001': 0.825,
     '2002': 0.60,
     '2003': 0.55,
@@ -919,8 +854,8 @@ ONBASE_PCT_RANGE = {
             'max': 0.400
         },
         'position_player': {
-            'min': 0.260,
-            'max': 0.450
+            'min': 0.270,
+            'max': 0.430
         }
     },
     '2001': {
