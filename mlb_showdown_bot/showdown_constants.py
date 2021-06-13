@@ -525,11 +525,11 @@ POINT_CATEGORY_WEIGHTS = {
     '2002': {
         'position_player': {
             'defense': 70,
-            'speed': 60,
-            'onbase': 140,
-            'average': 50,
+            'speed': 65,
+            'onbase': 170,
+            'average': 40,
             'slugging': 160,
-            'home_runs': 45
+            'home_runs': 40
         },
         'starting_pitcher': {
             'ip': 80,
@@ -638,17 +638,17 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'LF/RF': 0.65,
     },
     '2002': {
-        'C': 1.0,
+        'CA': 1.0,
         '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
-        'SS': 1.0,
+        'SS': 1.1,
         'CF': 1.0,
         'OF': 1.0,
-        'LF/RF': 1.0,
+        'LF/RF': 0.75,
     },
     '2003': {
-        'C': 1.0,
+        'CA': 1.0,
         '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
@@ -658,7 +658,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'LF/RF': 1.0,
     },
     '2004': {
-        'C': 1.0,
+        'CA': 1.0,
         '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
@@ -668,7 +668,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'LF/RF': 1.0,
     },
     '2005': {
-        'C': 1.0,
+        'CA': 1.0,
         '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
@@ -712,10 +712,9 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '5-14': 1.25,
         '6-14': 1.05,
         '6-15': 1.05,
-        
     },
     '2002': {
-        
+        '10-7': 0.85,
     },
     '2003': {
         
@@ -745,7 +744,7 @@ POINTS_ALLOW_NEGATIVE = {
         'relief_pitcher': False,
     },
     '2002': {
-        'position_player': True,
+        'position_player': False,
         'starting_pitcher': True,
         'relief_pitcher': True,
     },
@@ -1070,8 +1069,8 @@ SLG_RANGE = {
             'max': 0.445
         },
         'position_player': {
-            'min': 0.360,
-            'max': 0.540
+            'min': 0.350,
+            'max': 0.550
         }
     },
     '2003': {
