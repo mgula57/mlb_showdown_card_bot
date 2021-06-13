@@ -1332,7 +1332,7 @@ class ShowdownPlayerCardGenerator:
         icon_pts = 0
         if self.context in ['2003','2004','2005'] and len(self.icons) > 0:
             for icon in self.icons:
-                icon_pts += sc.POINTS_ICONS[self.context][icon]
+                icon_pts += sc.POINTS_ICONS[self.context][str(icon)]
         self.icon_points = icon_pts
 
         # COMBINE POINT VALUES

@@ -554,15 +554,15 @@ POINT_CATEGORY_WEIGHTS = {
             'home_runs': 60
         },
         'starting_pitcher': {
-            'ip': 65,
-            'onbase': 270,
+            'ip': 70,
+            'onbase': 280,
             'average': 60,
             'slugging': 270
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 120,
-            'average': 30,
+            'onbase': 135,
+            'average': 20,
             'slugging': 110
         }
     },
@@ -765,6 +765,10 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
     },
     '2003': {
         '10-5': 1.12,
+
+        '4-16': 0.94,
+        '3-15': 1.3,
+        '2-16': 1.25
     },
     '2004': {
         
@@ -871,8 +875,8 @@ POINTS_NORMALIZER_MULTIPLIER = {
     },
     '2003': {
         'position_player': 0.85,
-        'starting_pitcher': 0.77,
-        'relief_pitcher': 0.82,
+        'starting_pitcher': 0.72,
+        'relief_pitcher': 0.70,
     },
     '2004': {
         'position_player': 0.65,
