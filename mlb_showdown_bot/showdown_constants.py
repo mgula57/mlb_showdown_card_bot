@@ -502,18 +502,18 @@ POINT_CATEGORY_WEIGHTS = {
     },
     '2001': {
         'position_player': {
-            'defense': 60,
-            'speed': 50,
-            'onbase': 150,
+            'defense': 65,
+            'speed': 60,
+            'onbase': 190,
             'average': 50,
-            'slugging': 195,
+            'slugging': 165,
             'home_runs': 45
         },
         'starting_pitcher': {
             'ip': 115,
-            'onbase': 290,
-            'average': 70,
-            'slugging': 360
+            'onbase': 470,
+            'average': 35,
+            'slugging': 255
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
@@ -628,14 +628,14 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'LF/RF': 0.75,
     },
     '2001': {
-        'C': 1.0,
+        'C': 1.3,
         '1B': 0.5,
-        '2B': 1.0,
+        '2B': 1.3,
         '3B': 1.0,
-        'SS': 1.0,
-        'CF': 1.0,
+        'SS': 1.3,
+        'CF': 1.1,
         'OF': 1.0,
-        'LF/RF': 1.0,
+        'LF/RF': 0.65,
     },
     '2002': {
         'C': 1.0,
@@ -696,6 +696,22 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '4-15': 1.06
     },
     '2001': {
+        '10-4': 1.05,
+        '10-2': 0.96,
+        '9-5': 1.05,
+        '9-3': 0.925,
+        '8-4': 0.925,
+        '8-3': 0.90,
+        '7-4': 0.90,
+        '7-3': 0.90,
+
+        '2-17': 0.92,
+        '3-17': 0.9,
+        '4-14': 1.15,
+        '4-15': 1.15,
+        '5-14': 1.25,
+        '6-14': 1.05,
+        '6-15': 1.05,
         
     },
     '2002': {
@@ -861,7 +877,7 @@ ONBASE_PCT_RANGE = {
     '2001': {
         'starting_pitcher': {
             'min': 0.240,
-            'max': 0.390
+            'max': 0.400
         },
         'relief_pitcher': {
             'min': 0.250,
@@ -1033,7 +1049,7 @@ SLG_RANGE = {
     '2001': {
         'starting_pitcher': {
             'min': 0.340,
-            'max': 0.525
+            'max': 0.500
         },
         'relief_pitcher': {
             'min': 0.345,

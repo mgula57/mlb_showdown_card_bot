@@ -1568,7 +1568,7 @@ class ShowdownPlayerCardGenerator:
         slash_as_string = ''
         for key, cleaned_category in slash_categories:
             showdown_stat_str = '{}: {}'.format(cleaned_category,str(round(self.real_stats[key],3)).replace('0.','.'))
-            real_stat_str = '{}: {}'.format(cleaned_category,str(self.stats[key]).replace('0.','.'))
+            real_stat_str = '{}: {}'.format(cleaned_category,str(round(self.stats[key],3)).replace('0.','.'))
             slash_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str,real_stat_str)
 
         # RESULT LINE
