@@ -569,11 +569,11 @@ POINT_CATEGORY_WEIGHTS = {
     '2004': {
         'position_player': {
             'defense': 65,
-            'speed': 55,
-            'onbase': 160,
-            'average': 70,
+            'speed': 60,
+            'onbase': 155,
+            'average': 60,
             'slugging': 150,
-            'home_runs': 55
+            'home_runs': 45
         },
         'starting_pitcher': {
             'ip': 70,
@@ -666,6 +666,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'CF': 1.0,
         'OF': 1.0,
         'LF/RF': 1.0,
+        'IF': 1.0,
     },
     '2005': {
         'CA': 1.0,
@@ -676,6 +677,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'CF': 1.0,
         'OF': 1.0,
         'LF/RF': 1.0,
+        'IF': 1.0,
     }
 }
 
@@ -771,6 +773,9 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '2-16': 1.25
     },
     '2004': {
+        '9-6': 0.85,
+        '9-7': 0.85,
+
         '6-16': 1.15,
         '3-17': 0.90,
         '2-18': 0.80,
