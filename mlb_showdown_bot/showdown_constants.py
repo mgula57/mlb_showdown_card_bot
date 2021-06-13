@@ -576,16 +576,16 @@ POINT_CATEGORY_WEIGHTS = {
             'home_runs': 55
         },
         'starting_pitcher': {
-            'ip': 65,
-            'onbase': 285,
-            'average': 70,
-            'slugging': 260
+            'ip': 70,
+            'onbase': 295,
+            'average': 50,
+            'slugging': 150
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 105,
-            'average': 40,
-            'slugging': 110
+            'average': 20,
+            'slugging': 105
         }
     },
     '2005': {
@@ -697,30 +697,30 @@ POINTS_ICONS = {
         'CY': 15,
     },
     '2004': {
-        'G': 0,
-        'S': 0,
-        'V': 0,
-        'HR': 0,
-        'SB': 0,
-        'RY': 0,
+        'G': 10,
+        'S': 10,
+        'V': 15,
+        'HR': 15,
+        'SB': 10,
+        'RY': 10,
         'R': 0,
-        'RP': 0,
-        'K': 0,
-        '20': 0,
-        'CY': 0,
+        'RP': 10,
+        'K': 10,
+        '20': 10,
+        'CY': 15,
     },
     '2005': {
-        'G': 0,
-        'S': 0,
-        'V': 0,
-        'HR': 0,
-        'SB': 0,
-        'RY': 0,
+        'G': 10,
+        'S': 10,
+        'V': 15,
+        'HR': 15,
+        'SB': 10,
+        'RY': 10,
         'R': 0,
-        'RP': 0,
-        'K': 0,
-        '20': 0,
-        'CY': 0,
+        'RP': 10,
+        'K': 10,
+        '20': 10,
+        'CY': 15,
     },
 }
 
@@ -771,7 +771,9 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '2-16': 1.25
     },
     '2004': {
-        
+        '6-16': 1.15,
+        '3-17': 0.90,
+        '2-18': 0.80,
     },
     '2005': {
         
@@ -880,7 +882,7 @@ POINTS_NORMALIZER_MULTIPLIER = {
     },
     '2004': {
         'position_player': 0.65,
-        'starting_pitcher': 0.70,
+        'starting_pitcher': 0.75,
         'relief_pitcher': 0.65,
     },
     '2005': {
@@ -968,7 +970,7 @@ ONBASE_PCT_RANGE = {
     },
     '2004': {
         'starting_pitcher': {
-            'min': 0.223,
+            'min': 0.250,
             'max': 0.370
         },
         'relief_pitcher': {
