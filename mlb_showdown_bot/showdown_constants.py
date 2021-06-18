@@ -740,7 +740,9 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '8-3': 0.90,
         '7-3': 0.90,
 
-        '4-15': 1.06
+        '4-15': 1.06,
+        '4-17': 0.925,
+        '3-18': 0.95,
     },
     '2001': {
         '10-4': 1.05,
@@ -911,8 +913,8 @@ POINTS_RELIEVER_IP_MULTIPLIER
   - WHAT PERCENT OF POINTS TO GIVE FOR 2ND INNING OF RELIEF
 """
 POINTS_RELIEVER_IP_MULTIPLIER = {
-    '2000': 1.0,
-    '2001': 0.825,
+    '2000': 0.95,
+    '2001': 0.80,
     '2002': 0.60,
     '2003': 0.55,
     '2004': 0.67,
