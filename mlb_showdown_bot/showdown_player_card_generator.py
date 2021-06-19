@@ -1302,13 +1302,17 @@ class ShowdownPlayerCardGenerator:
         spd_ip_category = 'ip' if self.is_pitcher else 'speed'
         if self.is_pitcher:
             spd_ip_range = sc.IP_RANGE[player_category]
+            allow_negatives_speed_ip = True
         else:
             spd_ip_range = sc.SPEED_RANGE[self.context]
-        self.spd_ip_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category][spd_ip_category] \
+            allow_negatives_speed_ip = allow_negatives
+        ip_under_5_negative_multiplier = 1.5 if player_category == 'starting_pitcher' and speed_or_ip < 5 else 1.0
+        spd_ip_weight = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category][spd_ip_category] * ip_under_5_negative_multiplier
+        self.spd_ip_points = spd_ip_weight \
                              * self.stat_percentile(stat=speed_or_ip,
                                                     min_max_dict=spd_ip_range,
                                                     is_desc=False,
-                                                    allow_negative=allow_negatives)
+                                                    allow_negative=allow_negatives_speed_ip)
         if not self.is_pitcher:
             # ONLY HITTERS HAVE HR ADD TO POINTS
             self.hr_points = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['home_runs'] \
