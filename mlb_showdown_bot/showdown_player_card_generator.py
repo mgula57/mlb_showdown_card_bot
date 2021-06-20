@@ -133,12 +133,12 @@ class ShowdownPlayerCardGenerator:
         stolen_bases_per_650_pa = stolen_bases_raw / pa_to_650_ratio
 
         # CALL METHODS AND ASSIGN TO SELF
+        self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw)
         self.positions_and_defense = self.__positions_and_defense(defensive_stats=defensive_stats_raw,
                                                                   games_played=games_played_raw,
                                                                   games_started=games_started_raw,
                                                                   saves=saves_raw)
         self.hand = self.__handedness(hand=hand_raw)
-        self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw)
         self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa)
         self.icons = self.__icons(awards=stats['award_summary'] if 'award_summary' in stats.keys() else '')
 
@@ -312,7 +312,7 @@ class ShowdownPlayerCardGenerator:
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
             starter_threshold = 0.40
-            if gsRatio > starter_threshold:
+            if gsRatio > starter_threshold or self.ip > 4:
                 return 'STARTER'
             if saves > 10:
                 return 'CLOSER'
@@ -1892,7 +1892,7 @@ class ShowdownPlayerCardGenerator:
         # IF 2000 CARD AND A DEFAULT WAS NOT USED, ADD NAME CONTAINER IN FRONT OF IMAGE
         if self.context == '2000' and not is_default_image:
             name_container = self.__2000_player_name_container_image()
-            background_image.paste(name_container,(0,0),name_container)
+            player_image.paste(name_container,(0,0),name_container)
 
         return player_image
 
