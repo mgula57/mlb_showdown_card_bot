@@ -14,6 +14,15 @@ MAX_SPRINT_SPEED = 31
 MIN_SPRINT_SPEED = 23
 MAX_STOLEN_BASES = 26
 MIN_STOLEN_BASES = -25
+SB_MULTIPLIER = {
+    '2000': 1.21,
+    '2001': 1.22,
+    '2002': 1.2,
+    '2003': 0.95,
+    '2004': 0.98,
+    '2005': 1.0,
+}
+
 MIN_SABER_FIELDING = {
     'drs': -20,
     'tzr': -18,
@@ -40,12 +49,32 @@ NUMBER_OF_GAMES = 7
 
 # MULTIPLIER TO MATCH PU WITH ORIGINAL SETS
 PU_MULTIPLIER = {
-    '2000': 1.75,
-    '2001': 2.25,
-    '2002': 2.7,
-    '2003': 2.0,
+    '2000': 2.25,
+    '2001': 2.5,
+    '2002': 2.8,
+    '2003': 2.2,
     '2004': 2.05,
-    '2005': 2.25,
+    '2005': 2.4,
+}
+# THIS GB MULTIPLIER IS A MORE SIMPLE MODE OF ADJUSTMENT.
+# REPLACE HAVING DEFAULT GB AND FB FOR OPPONENT CHART
+GB_MULTIPLIER = {
+    'hitter': {
+        '2000': 1.00,
+        '2001': 1.11,
+        '2002': 1.15,
+        '2003': 1.12,
+        '2004': 1.1,
+        '2005': 1.1,
+    },
+    'pitcher': {
+        '2000': 0.85,
+        '2001': 0.93,
+        '2002': 0.91,
+        '2003': 1.05,
+        '2004': 1.05,
+        '2005': 1.05,
+    },
 }
 """
 BASELINE PITCHER VALUES
@@ -54,62 +83,62 @@ NOTE: INDIVIDUAL RESULT CATEGORIES MAY NOT ADD UP TO 20 OR TOTAL OUTS.
 """
 BASELINE_PITCHER = {
     '2000': {
-        'command': 3.2,
-        'outs': 15.1,
+        'command': 3.0,
+        'outs': 15.75,
         'so': 4.5,
-        'bb': 1.2,
+        'bb': 1.175,
         '1b': 1.95,
-        '2b': 0.68,
-        '3b': 0.03,
-        'hr': 0.095
+        '2b': 0.67,
+        '3b': 0.00,
+        'hr': 0.08
     },
     '2001': {
         'command': 3.0,
         'outs': 16.0,
         'so': 4.1,
-        'bb': 1.14,
-        '1b': 1.97,
-        '2b': 0.67,
-        '3b': 0.03,
-        'hr': 0.1
+        'bb': 1.125,
+        '1b': 2.0,
+        '2b': 0.62,
+        '3b': 0.00,
+        'hr': 0.11
     },
     '2002': {
-        'command': 3.5,
-        'outs': 15.9,
+        'command': 3.3,
+        'outs': 16.7,
         'so': 4.20,
-        'bb': 0.80,
+        'bb': 0.75,
         '1b': 1.40,
         '2b': 0.51,
         '3b': 0.01,
-        'hr': 0.3
+        'hr': 0.13
     },
     '2003': {
-        'command': 4.2,
-        'outs': 15.4,
-        'so': 3.75,
-        'bb': 1.00,
+        'command': 3.9,
+        'outs': 16.3,
+        'so': 3.65,
+        'bb': 0.95,
         '1b': 1.93,
-        '2b': 0.57,
-        '3b': 0.055,
-        'hr': 0.25
+        '2b': 0.54,
+        '3b': 0.13,
+        'hr': 0.28
     },
     '2004': {
-        'command': 4.1,
-        'outs': 16.9,
-        'so': 3.75,
-        'bb': 0.9,
+        'command': 3.85,
+        'outs': 16.35,
+        'so': 4.0,
+        'bb': 0.87,
         '1b': 2.1,
         '2b': 0.48,
         '3b': 0.09,
-        'hr': 0.25
+        'hr': 0.3
     },
     '2005': {
         'command': 3.9,
-        'outs': 16.9,
-        'so': 3.85,
-        'bb': 0.95,
+        'outs': 16.2,
+        'so': 3.87,
+        'bb': 0.93,
         '1b': 2.05,
-        '2b': 0.55,
+        '2b': 0.50,
         '3b': 0.09,
         'hr': 0.33
     }
@@ -122,26 +151,26 @@ NOTE: INDIVIDUAL RESULT CATEGORIES MAY NOT ADD UP TO 20 OR TOTAL OUTS.
 """
 BASELINE_HITTER = {
     '2000': {
-        'command': 7.8,
-        'outs': 3.4,
-        'so': 0.15,
-        'bb': 4.65,
-        '1b': 6.60,
+        'command': 7.7,
+        'outs': 3.7,
+        'so': 0.2,
+        'bb': 4.60,
+        '1b': 6.65,
         '1b+': 0.41,
         '2b': 1.94,
-        '3b': 0.34,
+        '3b': 0.30,
         'hr': 1.98
     },
     '2001': {
         'command': 7.8,
-        'outs': 3.4,
+        'outs': 3.9,
         'so': 1.31,
-        'bb': 4.23,
-        '1b': 6.67,
+        'bb': 4.20,
+        '1b': 6.7,
         '1b+': 0.63,
-        '2b': 1.88,
-        '3b': 0.39,
-        'hr': 2.15
+        '2b': 1.95,
+        '3b': 0.2,
+        'hr': 2.0
     },
     '2002': {
         'command': 9.4,
@@ -155,21 +184,21 @@ BASELINE_HITTER = {
         'hr': 1.52
     },
     '2003': {
-        'command': 9.0,
-        'outs': 7.0,
-        'so': 1.44,
-        'bb': 2.9,
+        'command': 8.6,
+        'outs': 7.2,
+        'so': 2.1,
+        'bb': 3.0,
         '1b': 6.57,
         '1b+': 0.28,
-        '2b': 1.69,
-        '3b': 0.17,
-        'hr': 1.4
+        '2b': 1.55,
+        '3b': 0.32,
+        'hr': 1.75
     },
     '2004': {
-        'command': 9.1,
-        'outs': 6.6,
+        'command': 8.7,
+        'outs': 7.4,
         'so': 2.3,
-        'bb': 2.65,
+        'bb': 2.45,
         '1b': 6.59,
         '1b+': 0.12,
         '2b': 1.25,
@@ -177,8 +206,8 @@ BASELINE_HITTER = {
         'hr': 1.6
     },
     '2005': {
-        'command': 9.1,
-        'outs': 7.0,
+        'command': 8.8,
+        'outs': 7.4,
         'so': 2.4,
         'bb': 2.9,
         '1b': 6.0,
@@ -237,13 +266,13 @@ OB_COMBOS = {
         [12,5],[12,6],[12,7],
         [13,5],[13,6],[13,7],
         [14,0],[14,2],[14,3],[14,5],[14,6],[14,7],
-        [15,0],[15,1],[15,2],[15,6],
+        [15,6],
         [16,3],[16,4],[16,5],[16,6]
     ],
     '2004':[
         [9,5],[9,6],[9,7],[9,8],[9,9],
-        [10,5],[10,6],[10,7],[10,8],
-        [11,5],[11,6],[11,7],[11,8],
+        [10,5],[10,6],[10,7],
+        [11,5],[11,6],[11,7],
         [12,5],[12,6],[12,7],
         [13,5],[13,6],[13,7],
         [14,5],[14,6],[14,7],
@@ -253,7 +282,7 @@ OB_COMBOS = {
     '2005':[
         [9,5],[9,6],[9,7],[9,8],[9,9],[9,10],[9,11],
         [10,5],[10,6],[10,7],
-        [11,4],[11,5],[11,6],[11,7],
+        [11,5],[11,6],[11,7],
         [12,5],[12,6],[12,7],
         [13,5],[13,6],[13,7],
         [14,5],[14,6],
@@ -288,27 +317,27 @@ CONTROL_COMBOS = {
         [6,16],[6,17],[6,18]
     ],
     '2003':[
-        [1,14],[1,15],[1,16],[1,17],
-        [2,14],[2,15],[2,16],[2,17],
-        [3,14],[3,15],[3,16],[3,17],
+        [1,15],[1,16],
+        [2,14],[2,15],[2,16],
+        [3,14],[3,15],[3,16],
         [4,14],[4,15],[4,16],[4,17],
         [5,15],[5,16],[5,17],[5,18],
         [6,16],[6,17],[6,18]
     ],
     '2004':[
-        [1,13],[1,14],[1,15],[1,16],[1,17],[1,18],
-        [2,14],[2,15],[2,16],[2,17],
+        [1,13],[1,14],[1,15],[1,16],
+        [2,14],[2,15],[2,16],
         [3,15],[3,16],[3,17],
-        [4,13],[4,14],[4,15],[4,16],[4,17],
+        [4,14],[4,16],[4,17],
         [5,12],[5,15],[5,16],[5,17],[5,18],[5,19],
         [6,15],[6,16],[6,17],[6,18]
     ],
     '2005':[
         [1,14],[1,15],[1,16],
-        [2,15],[2,16],[2,17],
+        [2,15],[2,16],
         [3,15],[3,16],[3,17],
-        [4,15],[4,16],[4,17],
-        [5,15],[5,16],[5,17],[5,18],[5,19],
+        [4,16],[4,17],
+        [5,16],[5,17],[5,18],[5,19],
         [6,15],[6,16],[6,17],[6,18]
     ]
 }
@@ -365,140 +394,81 @@ CHART CATEGORY WEIGHTS
 CHART_CATEGORY_WEIGHTS = {
     '2000': {
         'position_player': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 8.0,
-            'hr_per_400_pa': 3.0,
-            'so_per_400_pa': 0.0
+            'onbase_perc': 1.0,
         },
         'starting_pitcher': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 3.0,
-            'slugging_perc': 4.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
         }
     },
     '2001': {
         'position_player': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 8.0,
-            'hr_per_400_pa': 3.0,
-            'so_per_400_pa': 0.0
+            'onbase_perc': 1.0,
         },
         'starting_pitcher': {
-            'h_per_400_pa': 3.0,
-            'slugging_perc': 6.0,
-            'onbase_perc': 8.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 3.0,
-            'slugging_perc': 6.0,
-            'onbase_perc': 8.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
         }
     },
     '2002': {
         'position_player': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 6.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 3.0,
-            'so_per_400_pa': 0.0
+            'onbase_perc': 1.0,
         },
         'starting_pitcher': {
-            'h_per_400_pa': 3.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 6.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
         }
     },
     '2003': {
         'position_player': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 8.0,
-            'hr_per_400_pa': 3.0,
-            'so_per_400_pa': 0.0
+            'onbase_perc': 1.0,
         },
         'starting_pitcher': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 6.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 3.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 6.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 3.0,
         }
     },
     '2004': {
         'position_player': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 6.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 3.0,
-            'so_per_400_pa': 0.0
+            'slugging_perc': 1.0,
+            'onbase_perc': 4.0,
         },
         'starting_pitcher': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 7.0,
-            'onbase_perc': 9.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 3.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 3.0,
         }
     },
     '2005': {
         'position_player': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 3.0,
-            'so_per_400_pa': 0.0
+            'onbase_perc': 1.0,
         },
         'starting_pitcher': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 3.0,
         },
         'relief_pitcher': {
-            'h_per_400_pa': 5.0,
-            'slugging_perc': 5.0,
-            'onbase_perc': 7.0,
-            'hr_per_400_pa': 1.0,
-            'so_per_400_pa': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 3.0,
         }
     },
 }
@@ -512,38 +482,38 @@ POINT_CATEGORY_WEIGHTS = {
         'position_player': {
             'defense': 75,
             'speed': 75,
-            'onbase': 210,
-            'average': 80,
+            'onbase': 200,
+            'average': 40,
             'slugging': 165,
-            'home_runs': 55
+            'home_runs': 35
         },
         'starting_pitcher': {
-            'ip': 120,
-            'onbase': 360,
-            'average': 70,
-            'slugging': 300
+            'ip': 105,
+            'onbase': 368,
+            'average': 60,
+            'slugging': 290
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 105,
-            'average': 30,
-            'slugging': 85
+            'onbase': 110,
+            'average': 20,
+            'slugging': 90
         }
     },
     '2001': {
         'position_player': {
-            'defense': 60,
-            'speed': 50,
-            'onbase': 150,
+            'defense': 65,
+            'speed': 60,
+            'onbase': 190,
             'average': 50,
-            'slugging': 195,
+            'slugging': 165,
             'home_runs': 45
         },
         'starting_pitcher': {
             'ip': 115,
-            'onbase': 290,
-            'average': 70,
-            'slugging': 360
+            'onbase': 470,
+            'average': 35,
+            'slugging': 255
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
@@ -555,88 +525,88 @@ POINT_CATEGORY_WEIGHTS = {
     '2002': {
         'position_player': {
             'defense': 70,
-            'speed': 60,
-            'onbase': 140,
-            'average': 50,
+            'speed': 65,
+            'onbase': 170,
+            'average': 40,
             'slugging': 160,
-            'home_runs': 45
+            'home_runs': 40
         },
         'starting_pitcher': {
-            'ip': 80,
-            'onbase': 280,
-            'average': 75,
-            'slugging': 250
+            'ip': 100,
+            'onbase': 330,
+            'average': 45,
+            'slugging': 280
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 75,
+            'onbase': 100,
             'average': 20,
-            'slugging': 80
+            'slugging': 85
         }
     },
     '2003': {
         'position_player': {
             'defense': 60,
-            'speed': 60,
-            'onbase': 200,
-            'average': 60,
-            'slugging': 170,
-            'home_runs': 55
+            'speed': 55,
+            'onbase': 160,
+            'average': 50,
+            'slugging': 160,
+            'home_runs': 60
         },
         'starting_pitcher': {
-            'ip': 65,
-            'onbase': 270,
+            'ip': 70,
+            'onbase': 280,
             'average': 60,
             'slugging': 270
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 120,
-            'average': 30,
+            'onbase': 135,
+            'average': 20,
             'slugging': 110
         }
     },
     '2004': {
         'position_player': {
             'defense': 65,
-            'speed': 55,
-            'onbase': 160,
-            'average': 70,
+            'speed': 60,
+            'onbase': 155,
+            'average': 60,
             'slugging': 150,
-            'home_runs': 55
+            'home_runs': 45
         },
         'starting_pitcher': {
-            'ip': 65,
-            'onbase': 285,
-            'average': 70,
-            'slugging': 260
+            'ip': 70,
+            'onbase': 295,
+            'average': 50,
+            'slugging': 150
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 105,
-            'average': 40,
-            'slugging': 110
+            'average': 20,
+            'slugging': 105
         }
     },
     '2005': {
         'position_player': {
             'defense': 65,
-            'speed': 55,
+            'speed': 60,
             'onbase': 140,
             'average': 70,
-            'slugging': 130,
+            'slugging': 140,
             'home_runs': 50
         },
         'starting_pitcher': {
-            'ip': 70,
-            'onbase': 230,
-            'average': 70,
-            'slugging': 235
+            'ip': 75,
+            'onbase': 305,
+            'average': 60,
+            'slugging': 180
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 105,
-            'average': 40,
+            'average': 20,
             'slugging': 105
         }
     }
@@ -644,107 +614,185 @@ POINT_CATEGORY_WEIGHTS = {
 
 """
 DEFENSIVE POINT MULTIPLIERS
-  - MULTIPLY POINT TOTALS FOR GIVEN POSITION BY A SCALER
-  - WILL SCALE SOME POSITIONS UP IN VALUE, AND OTHERS DOWN IN VALUE
+  - MULTIPLY DEFENSIVE POINT TOTALS FOR GIVEN POSITION BY A SCALER
 """
-POINTS_POSITIONAL_MULTIPLIER = {
+POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
     '2000': {
         'C': 1.0,
-        '1B': 1.1,
+        '1B': 0.25,
         '2B': 1.0,
         '3B': 1.0,
-        'SS': 0.95,
-        'LF': 0.98,
+        'SS': 0.80, # SURPRISING, BUT ACCORDING TO WOTC TESTS ITS RIGHT
         'CF': 1.0,
-        'RF': 1.0,
-        'OF': 1.0,
-        'LF/RF': 1.0,
-        'DH': 1.0,
-        'STARTER': 1.0,
-        'RELIEVER': 1.0,
-        'CLOSER': 1.1,
+        'OF': 0.89,
+        'LF/RF': 0.75,
     },
     '2001': {
-        'C': 1.03,
-        '1B': 1.01,
-        '2B': 1.1,
-        '3B': 0.95,
-        'SS': 1.05,
-        'LF': 1.0,
-        'CF': 1.0,
-        'RF': 1.0,
+        'C': 1.3,
+        '1B': 0.5,
+        '2B': 1.3,
+        '3B': 1.0,
+        'SS': 1.3,
+        'CF': 1.1,
         'OF': 1.0,
-        'LF/RF': 1.0,
-        'DH': 0.96,
-        'STARTER': 1.0,
-        'RELIEVER': 1.0,
-        'CLOSER': 1.1,
+        'LF/RF': 0.65,
     },
     '2002': {
         'CA': 1.0,
-        '1B': 1.0,
+        '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
-        'SS': 1.0,
-        'LF': 1.0,
+        'SS': 1.1,
         'CF': 1.0,
-        'RF': 1.0,
         'OF': 1.0,
-        'LF/RF': 1.0,
-        'DH': 1.0,
-        'STARTER': 1.0,
-        'RELIEVER': 0.97,
-        'CLOSER': 1.2,
+        'LF/RF': 0.75,
     },
     '2003': {
-        'CA': 1.05,
-        '1B': 1.0,
-        '2B': 1.1,
-        '3B': 1.07,
-        'SS': 1.18,
-        'LF': 1.0,
+        'CA': 1.0,
+        '1B': 0.5,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 1.25,
         'CF': 1.0,
-        'RF': 1.0,
         'OF': 1.0,
-        'LF/RF': 0.98,
-        'DH': 1.0,
-        'STARTER': 1.0,
-        'RELIEVER': 1.08,
-        'CLOSER': 0.88,
+        'LF/RF': 0.75,
     },
     '2004': {
         'CA': 1.0,
-        '1B': 1.0,
-        '2B': 1.0,
-        '3B': 1.12,
-        'SS': 1.05,
-        'LF': 1.0,
-        'CF': 1.0,
-        'RF': 1.0,
-        'OF': 1.0,
-        'IF': 1.0,
-        'LF/RF': 1.0,
-        'DH': 1.0,
-        'STARTER': 1.0,
-        'RELIEVER': 1.0,
-        'CLOSER': 1.0,
-    },
-    '2005': {
-        'CA': 1.0,
-        '1B': 1.0,
+        '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
         'SS': 1.0,
-        'LF': 1.0,
         'CF': 1.0,
-        'RF': 1.0,
         'OF': 1.0,
-        'IF': 1.0,
         'LF/RF': 1.0,
-        'DH': 1.0,
-        'STARTER': 1.0,
-        'RELIEVER': 0.96,
-        'CLOSER': 0.98,
+        'IF': 1.0,
+    },
+    '2005': {
+        'CA': 1.0,
+        '1B': 0.5,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 1.0,
+        'CF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+        'IF': 1.0,
+    }
+}
+
+"""
+ICON POINTS
+"""
+POINTS_ICONS = {
+    '2003': {
+        'G': 10,
+        'S': 10,
+        'V': 15,
+        'HR': 15,
+        'SB': 10,
+        'RY': 10,
+        'R': 0,
+        'RP': 10,
+        'K': 10,
+        '20': 10,
+        'CY': 15,
+    },
+    '2004': {
+        'G': 10,
+        'S': 10,
+        'V': 15,
+        'HR': 15,
+        'SB': 10,
+        'RY': 10,
+        'R': 0,
+        'RP': 10,
+        'K': 10,
+        '20': 10,
+        'CY': 15,
+    },
+    '2005': {
+        'G': 10,
+        'S': 10,
+        'V': 15,
+        'HR': 15,
+        'SB': 10,
+        'RY': 10,
+        'R': 0,
+        'RP': 10,
+        'K': 10,
+        '20': 10,
+        'CY': 15,
+    },
+}
+
+"""
+COMMAND OUT POINT MULTIPLIERS
+  - MULTIPLY POINT TOTALS FOR GIVEN ONBASE/CONTROL - OUTS COMBINATION BY A SCALER
+"""
+POINTS_COMMAND_OUT_MULTIPLIER = {
+    '2000': {
+        '10-5': 1.15,
+        '10-4': 1.08,
+        '10-2': 0.95,
+        '9-5': 1.08,
+        '8-5': 1.06,
+        '8-3': 0.90,
+        '7-3': 0.90,
+
+        '4-15': 1.06,
+        '4-17': 0.925,
+        '3-18': 0.95,
+    },
+    '2001': {
+        '10-4': 1.05,
+        '10-2': 0.96,
+        '9-5': 1.05,
+        '9-3': 0.925,
+        '8-4': 0.925,
+        '8-3': 0.90,
+        '7-4': 0.90,
+        '7-3': 0.90,
+
+        '2-17': 0.92,
+        '3-17': 0.9,
+        '4-14': 1.15,
+        '4-15': 1.15,
+        '5-14': 1.25,
+        '6-14': 1.05,
+        '6-15': 1.05,
+    },
+    '2002': {
+        '10-7': 0.85,
+
+        '3-16': 1.25,
+    },
+    '2003': {
+        '10-5': 1.12,
+
+        '4-16': 0.94,
+        '3-15': 1.3,
+        '2-16': 1.25
+    },
+    '2004': {
+        '9-6': 0.85,
+        '9-7': 0.85,
+
+        '6-16': 1.15,
+        '3-17': 0.90,
+        '2-18': 0.80,
+    },
+    '2005': {
+        '9-5': 1.15,
+        '9-6': 1.1,
+        '9-7': 0.95,
+
+        '3-15': 1.25,
+        '3-16': 1.05,
+        '3-17': 0.8,
+        '3-18': 0.9,
+        '4-17': 0.8,
+        '6-17': 1.03,
     }
 }
 
@@ -765,8 +813,8 @@ POINTS_ALLOW_NEGATIVE = {
         'relief_pitcher': False,
     },
     '2002': {
-        'position_player': True,
-        'starting_pitcher': True,
+        'position_player': False,
+        'starting_pitcher': False,
         'relief_pitcher': True,
     },
     '2003': {
@@ -830,8 +878,8 @@ POINTS NORMALIZER MULTIPLIER
 POINTS_NORMALIZER_MULTIPLIER = {
     '2000': {
         'position_player': 0.70,
-        'starting_pitcher': 0.70,
-        'relief_pitcher': 0.60,
+        'starting_pitcher': 0.75,
+        'relief_pitcher': 0.55,
     },
     '2001': {
         'position_player': 0.65,
@@ -845,18 +893,18 @@ POINTS_NORMALIZER_MULTIPLIER = {
     },
     '2003': {
         'position_player': 0.85,
-        'starting_pitcher': 0.77,
-        'relief_pitcher': 0.82,
+        'starting_pitcher': 0.72,
+        'relief_pitcher': 0.70,
     },
     '2004': {
         'position_player': 0.65,
-        'starting_pitcher': 0.70,
+        'starting_pitcher': 0.75,
         'relief_pitcher': 0.65,
     },
     '2005': {
         'position_player': 0.65,
         'starting_pitcher': 0.75,
-        'relief_pitcher': 0.75,
+        'relief_pitcher': 0.70,
     },
 }
 
@@ -866,7 +914,7 @@ POINTS_RELIEVER_IP_MULTIPLIER
 """
 POINTS_RELIEVER_IP_MULTIPLIER = {
     '2000': 0.95,
-    '2001': 0.825,
+    '2001': 0.80,
     '2002': 0.60,
     '2003': 0.55,
     '2004': 0.67,
@@ -890,14 +938,14 @@ ONBASE_PCT_RANGE = {
             'max': 0.400
         },
         'position_player': {
-            'min': 0.260,
-            'max': 0.450
+            'min': 0.270,
+            'max': 0.430
         }
     },
     '2001': {
         'starting_pitcher': {
             'min': 0.240,
-            'max': 0.390
+            'max': 0.400
         },
         'relief_pitcher': {
             'min': 0.250,
@@ -938,7 +986,7 @@ ONBASE_PCT_RANGE = {
     },
     '2004': {
         'starting_pitcher': {
-            'min': 0.223,
+            'min': 0.250,
             'max': 0.370
         },
         'relief_pitcher': {
@@ -1069,7 +1117,7 @@ SLG_RANGE = {
     '2001': {
         'starting_pitcher': {
             'min': 0.340,
-            'max': 0.525
+            'max': 0.500
         },
         'relief_pitcher': {
             'min': 0.345,
@@ -1090,8 +1138,8 @@ SLG_RANGE = {
             'max': 0.445
         },
         'position_player': {
-            'min': 0.360,
-            'max': 0.540
+            'min': 0.350,
+            'max': 0.550
         }
     },
     '2003': {
@@ -1341,16 +1389,16 @@ TEST_COMMAND_RANGE_HITTER = {
         'max': 10.3
     },
     '2003': {
-        'min': 9.0,
-        'max': 10.3
+        'min': 8.0,
+        'max': 9.1
     },
     '2004': {
-        'min': 9.0,
-        'max': 10.5
+        'min': 8.4,
+        'max': 9.5
     },
     '2005': {
-        'min': 9.0,
-        'max': 10.3
+        'min': 8.4,
+        'max': 9.5
     }
 }
 TEST_OUT_RANGE_HITTER = {
@@ -1368,15 +1416,15 @@ TEST_OUT_RANGE_HITTER = {
     },
     '2003': {
         'min': 5.9,
-        'max': 7.1
+        'max': 7.5
     },
     '2004': {
         'min': 6.0,
-        'max': 7.1
+        'max': 7.5
     },
     '2005': {
         'min': 5.9,
-        'max': 7.1
+        'max': 7.5
     }
 }
 TEST_COMMAND_RANGE_PITCHER = {
@@ -1386,7 +1434,7 @@ TEST_COMMAND_RANGE_PITCHER = {
     },
     '2001': {
         'min': 3.0,
-        'max': 4.0
+        'max': 3.7
     },
     '2002': {
         'min': 3.0,
@@ -1394,7 +1442,7 @@ TEST_COMMAND_RANGE_PITCHER = {
     },
     '2003': {
         'min': 3.0,
-        'max': 4.2
+        'max': 4.5
     },
     '2004': {
         'min': 3.7,
@@ -1411,7 +1459,7 @@ TEST_OUT_RANGE_PITCHER = {
         'max': 16.2
     },
     '2001': {
-        'min': 15.0,
+        'min': 15.5,
         'max': 16.2
     },
     '2002': {
@@ -1423,8 +1471,8 @@ TEST_OUT_RANGE_PITCHER = {
         'max': 16.4
     },
     '2004': {
-        'min': 15.9,
-        'max': 17.1
+        'min': 15.0,
+        'max': 17.5
     },
     '2005': {
         'min': 15.9,
@@ -1715,4 +1763,18 @@ TEAM_LOGO_ALTERNATES = {
     'WSN': {
         '1': list(range(2005,2011)),
     },
+}
+
+G_DRIVE_PLAYER_IMAGE_FOLDERS = {
+    '2000': '1InLYODKI0Fn9ddOLCv8mYPW-tiD29nPN',
+    '2001': '1UmKhu_Mluj8Ijki1ruue54tqsqb40Ous',
+    '2002': '1aBsjMq5YbcQz4zMZzpA_hKGbSO-nPc_K',
+    '2003': '1HZwxyQ2WeZD132UyqfhZ9dXsvv1ab3W2',
+    '2004': '1fKrf4wyA9SC7h8_8JhGNdHVhx8Orix5k',
+    '2005': '1fKrf4wyA9SC7h8_8JhGNdHVhx8Orix5k',
+}
+
+G_DRIVE_TEAM_BACKGROUND_FOLDERS = {
+    '2000': '1PCLjUznKwkfIzcCiHz79J9z6b-jgE0w9',
+    '2001': '1JxgfhicVJDNK1PJEiw4zFWa5nqlnx_p5',
 }

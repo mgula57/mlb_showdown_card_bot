@@ -22,6 +22,7 @@ parser.add_argument('-num','--set_num',help='Assign card a set number',default='
 parser.add_argument('-show','--show_image', action='store_true', help='Optionally open the final Player Card Image upon completion')
 parser.add_argument('-cc','--is_cc', action='store_true', help='Optionally make the card Cooperstown Collection')
 parser.add_argument('-ss','--is_ss', action='store_true', help='Optionally make the card Super Season')
+parser.add_argument('-asg','--is_asg', action='store_true', help='Optionally make the card All Star Game')
 parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default='', type=str)
 parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='BS')
 args = parser.parse_args()
@@ -43,6 +44,7 @@ def main():
         stats=statline,
         is_cooperstown=args.is_cc,
         is_super_season=args.is_ss,
+        is_all_star_game=args.is_asg,
         context=args.context,
         expansion=args.expansion,
         offset=args.offset,

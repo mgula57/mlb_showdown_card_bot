@@ -1,8 +1,12 @@
 # MLB SHOWDOWN BOT
+apiclient>=1.0.4
 beautifulsoup4>=4.8.2
 bs4>=0.0.1
+google>=3.0.0
+google-api-python-client>=2.7.0
 lxml>=4.5.0
 numpy>=1.19.0
+oauth2client>=4.1.3
 pandas>=1.1.0
 Pillow>=7.2.0
 requests>=2.23.0
@@ -19,3 +23,6 @@ chardet==3.0.4
 gunicorn==20.0.4
 Flask-SQLAlchemy==2.4.4
 psycopg2==2.8.6
+
+# TESTS
+openpyxl>=3.0.7

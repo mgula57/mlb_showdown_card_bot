@@ -77,6 +77,7 @@ $(function () {
                 img_name: image_name,
                 cc: $('#cc').is(':checked'),
                 ss: $('#ss').is(':checked'),
+                asg: $('#asg').is(':checked'),
                 set_num: $('input[name="setnum"]').val(),
                 offset: $('input[name="offset"]').val(),
                 expansion: $("#expansionSelection :selected").val(),
