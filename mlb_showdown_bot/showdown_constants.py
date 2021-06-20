@@ -1766,15 +1766,15 @@ TEAM_LOGO_ALTERNATES = {
 }
 
 G_DRIVE_PLAYER_IMAGE_FOLDERS = {
-    '2000': '1msa4ybpyeBlOvfZsQjxALyFIkk7xXRl0',
-    '2001': '1pTVFRZN6kuFERBEJTHcy_vvTFxJ4dOgb',
-    '2002': '13LfhEZPk_1-evHJtE2Hw3nQP8J8C2vNh',
-    '2003': '1ah265n2T3At68xAEbNXqdGnN4eW--BDd',
-    '2004': '1IoHDnN4BI34Mu6PtREs8clbnkiwdaUcv',
-    '2005': '1IoHDnN4BI34Mu6PtREs8clbnkiwdaUcv',
+    '2000': '1InLYODKI0Fn9ddOLCv8mYPW-tiD29nPN',
+    '2001': '1UmKhu_Mluj8Ijki1ruue54tqsqb40Ous',
+    '2002': '1aBsjMq5YbcQz4zMZzpA_hKGbSO-nPc_K',
+    '2003': '1HZwxyQ2WeZD132UyqfhZ9dXsvv1ab3W2',
+    '2004': '1fKrf4wyA9SC7h8_8JhGNdHVhx8Orix5k',
+    '2005': '1fKrf4wyA9SC7h8_8JhGNdHVhx8Orix5k',
 }
 
 G_DRIVE_TEAM_BACKGROUND_FOLDERS = {
-    '2000': '1hkYNDSC1tLef-L_dE9WNi3GN5LGmLdk2',
-    '2001': '1PNLMIwjTFdv-FG2u5cpq6A2j25LzUF8B',
+    '2000': '1PCLjUznKwkfIzcCiHz79J9z6b-jgE0w9',
+    '2001': '1JxgfhicVJDNK1PJEiw4zFWa5nqlnx_p5',
 }
