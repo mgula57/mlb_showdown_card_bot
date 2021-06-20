@@ -106,7 +106,7 @@ def analyze_baseline_weights(context,type,is_testing_current_baseline=False,igno
     pprint(sorted_perfect[:5])
     # print(perfect_players)
     print('-------------------- Category Breakdown --------------------')
-    pprint(sorted_categories[:5])
+    pprint(sorted_categories[:7])
     print('-------------------- Category (MATCHES) Breakdown --------------------')
     pprint(categories_for_matches)
     pprint(categories_above_below_for_matches)

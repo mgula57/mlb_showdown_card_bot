@@ -69,7 +69,7 @@ class ShowdownSetAccuracy:
                     continue
                 try:
                     print('Scraping - {} stats for {}'.format(wotc_player_card.Name, str(wotc_player_card.Year - 1)))
-                    scraper = BaseballReferenceScraper(wotc_player_card.Name,self.context-1)
+                    scraper = BaseballReferenceScraper(wotc_player_card.Name,str(self.context-1))
                     real_player_stats = scraper.player_statline()
                     real_player_stats['NameAndYear'] = name_year_string
                     self.real_player_stats_cache = self.real_player_stats_cache.append(pd.DataFrame.from_records([real_player_stats]), sort=False)
@@ -197,7 +197,7 @@ class ShowdownSetAccuracy:
                     denominator = float(len(category_above_below_list)) if above_or_below == 'difference_wotc' else 1.0
                     denominator_matches = float(len(category_above_below_list_for_matches)) if above_or_below == 'difference_wotc' else 1.0
                     category_dict[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list) / denominator
-                    category_dict_for_matches[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list_for_matches) / denominator_matches
+                    category_dict_for_matches[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list_for_matches) / denominator_matches if denominator_matches != 0 else 1
                 categories_above_below_summarized[category] = category_dict
                 categories_above_below_summarized_for_matches[category] = category_dict_for_matches
         
@@ -254,17 +254,21 @@ class ShowdownSetAccuracy:
                 wotc_player_card_dict.update({'pu': int(wotc_player_card['PU'])})
             else:
                 wotc_player_card_dict.update({
-                    # '1b+': int(wotc_player_card['1B+']),
+                    '1b+': int(wotc_player_card['1B+']),
                     '3b': int(wotc_player_card['3B']) if int(wotc_player_card['3B']) < 21 else 0,
+                    'spd': int(wotc_player_card['Speed']),
                 })
         
         # REMOVE EXCLUDED CATEGORIES
         if self.ignore_volatile_categories:
-            excluded_categories = ['so', 'gb', 'fb']
-            if is_pitcher:
-                excluded_categories.append('pu')
+            if not is_pitcher:
+                wotc_player_card_dict['1b'] = wotc_player_card_dict['1b'] + wotc_player_card_dict['1b+']
+            excluded_categories = ['so', 'gb', 'fb', '1b+', 'pu']
+            
+                
             for category in excluded_categories:
-                del wotc_player_card_dict[category]
+                if category in wotc_player_card_dict.keys():
+                    del wotc_player_card_dict[category]
         return wotc_player_card_dict
 
     def __convert_wotc_to_showdown_player_object(self,wotc_player_card,my_player_card):
@@ -314,7 +318,9 @@ class ShowdownSetAccuracy:
 
         my_player_card.positions_and_defense = defense
         my_player_card.ip = int(wotc_player_card.IP)
-        my_player_card.icons = []
+        icons = [wotc_player_card.Icon1, wotc_player_card.Icon2, wotc_player_card.Icon3, wotc_player_card.Icon4]
+        icons = [x for x in icons if str(x) != 'nan']
+        my_player_card.icons = icons
         my_player_card.chart_ranges = my_player_card.ranges_for_chart(my_player_card.chart, 5.0, 5.0, 5.0)
         my_player_card.speed = wotc_player_card.Speed
         if wotc_player_card.Speed < 12:
