@@ -1892,7 +1892,7 @@ class ShowdownPlayerCardGenerator:
         # IF 2000 CARD AND A DEFAULT WAS NOT USED, ADD NAME CONTAINER IN FRONT OF IMAGE
         if self.context == '2000' and not is_default_image:
             name_container = self.__2000_player_name_container_image()
-            background_image.paste(name_container,(0,0),name_container)
+            player_image.paste(name_container,(0,0),name_container)
 
         return player_image
 
