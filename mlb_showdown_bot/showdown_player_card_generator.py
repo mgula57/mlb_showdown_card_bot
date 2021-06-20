@@ -2905,7 +2905,7 @@ class ShowdownPlayerCardGenerator:
         # GET LIST OF FILE METADATA FROM CORRECT FOLDER
         query = f"parents = '{folder_id}'"
         files = service.files()
-        response = files.list(q=query).execute()
+        response = files.list(q=query,pageSize=1000).execute()
         files_metadata = response.get('files')
 
         # LOOK FOR SUBSTRING IN FILE NAMES
