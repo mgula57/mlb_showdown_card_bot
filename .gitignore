@@ -6,10 +6,12 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+env*
 pythonenv*
 
 # Distribution / packaging
 .Python
+.vscode
 build/
 develop-eggs/
 dist/
