@@ -3,6 +3,8 @@ import pandas as pd
 import requests
 import re
 import ast
+import os
+from pathlib import Path
 import json
 import string
 import statistics
@@ -40,11 +42,44 @@ class BaseballReferenceScraper:
             self.years = [year]
         # CHECK FOR BASEBALL REFERENCE ID
         self.is_name_a_bref_id = any(char.isdigit() for char in name)
-        self.baseball_ref_id = name.lower() if self.is_name_a_bref_id else self.search_google_for_b_ref_id(name, year)
+        if self.is_name_a_bref_id:
+            self.baseball_ref_id = name.lower()
+        else:
+            # CHECK DEFAULT CSV
+            default_bref_id = self.__check_for_default_bref_id(name)
+            if default_bref_id:
+                self.baseball_ref_id = default_bref_id
+            else:
+                # SEARCH GOOGLE
+                self.baseball_ref_id = self.search_google_for_b_ref_id(name, year)
+
         self.first_initial = self.baseball_ref_id[:1]
 
 # ------------------------------------------------------------------------
 # SCRAPE WEBSITES
+
+    def __check_for_default_bref_id(self, name):
+        """Check for player name string in default csv with names and bref ids
+
+        Purpose is to see if bot can avoid needing to scrape Google.
+
+        Args:
+          name: Full name of Player
+
+        Returns:
+          BrefId (If found), otherwise None
+        """ 
+        name_cleaned = name.replace("'", "").replace(".", "").lower().strip()
+        player_id_filepath = os.path.join(Path(os.path.dirname(__file__)),'player_ids.csv')
+        player_ids_pd = pd.read_csv(player_id_filepath)
+        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['name'] == name_cleaned]
+        results_count = len(player_ids_pd_filtered)
+
+        if results_count == 1:
+            bref_id = player_ids_pd_filtered['brefid'].max()
+            return bref_id if len(bref_id) > 0 else None
+        else:
+            return None
 
     def search_google_for_b_ref_id(self, name, year):
         """Convert name to a baseball reference Player ID.
