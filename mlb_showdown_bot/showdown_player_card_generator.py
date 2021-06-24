@@ -1884,8 +1884,13 @@ class ShowdownPlayerCardGenerator:
                 print("Error Loading Image from URL. Using default background...")
                 player_image = Image.open(default_image_path)
         else:
-            player_image = self.__default_background_image()
             is_default_image = True
+            try:
+                player_image = self.__default_background_image()
+            except:
+                print("Error Loading Default Image from Drive. Using default background...")
+                player_image = Image.open(default_image_path)
+            
 
         player_image = self.__center_crop(player_image, (1500,2100))
 
