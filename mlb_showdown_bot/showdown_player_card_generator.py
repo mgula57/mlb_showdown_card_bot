@@ -27,13 +27,13 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, offset=0, player_image_url=None, player_image_path=None, set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
         is_name_a_bref_id = any(char.isdigit() for char in name)
         has_special_chars = '(' in name
-        self.version = "2.4"
+        self.version = "2.4.2"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.year = str(year).upper()
@@ -64,6 +64,7 @@ class ShowdownPlayerCardGenerator:
         self.is_all_star_game = is_all_star_game
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
+        self.card_img_output_folder_path = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
         self.set_number = set_number
         self.test_numbers = test_numbers
         self.command_out_override = command_out_override
@@ -102,8 +103,8 @@ class ShowdownPlayerCardGenerator:
             if print_to_cli:
                 self.print_player()
 
-            if show_player_card_image:
-                self.player_image(show=True)
+            if show_player_card_image or len(card_img_output_folder_path) > 0:
+                self.player_image(show=True if show_player_card_image else False)
 
 # ------------------------------------------------------------------------
 # METADATA METHODS
@@ -1842,7 +1843,7 @@ class ShowdownPlayerCardGenerator:
             # TODO: SOLVE HTML PNG ISSUES
             player_image = player_image.convert('RGB')
 
-        player_image.save(os.path.join(os.path.dirname(__file__), 'output', self.image_name), dpi=(300, 300), quality=100)
+        player_image.save(os.path.join(self.card_img_output_folder_path, self.image_name), dpi=(300, 300), quality=100)
         if self.is_running_in_flask:
             player_image.save(os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name), dpi=(300, 300), quality=100)
 
@@ -1915,27 +1916,17 @@ class ShowdownPlayerCardGenerator:
         # GET TEAM BACKGROUND (00/01)
         default_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Default Background - {}.png'.format(self.context))
         if self.context in ['2000', '2001']:
+            # TEAM BACKGROUNDS
             if self.is_cooperstown:
-                bg_main_search = 'CC.png'
-                additional_search_list = []
+                background_image_name = 'CC.png'
             elif self.is_all_star_game and not self.is_multi_year:
-                bg_main_search = f"ASG-{self.year}"
-                additional_search_list = []
+                background_image_name = f"ASG-{self.year}"
             else:
-                bg_main_search = self.team
-                additional_search_list = []
-                team_extension = self.__team_logo_historical_alternate_extension()
-                if len(team_extension) > 0:
-                    additional_search_list.append(team_extension)
-            team_background_url = self.__query_google_drive_for_image_url(
-                                    folder_id = sc.G_DRIVE_TEAM_BACKGROUND_FOLDERS[self.context],
-                                    substring_search = bg_main_search,
-                                    additional_substring_search_list = additional_search_list
-                                )
-            if team_background_url:
-                response = requests.get(team_background_url)
-                background_image = Image.open(BytesIO(response.content))
-            else:
+                background_image_name = f"{self.team}{self.__team_logo_historical_alternate_extension()}"
+            team_image_path = os.path.join(os.path.dirname(__file__), 'team_backgrounds', self.context, f"{background_image_name}.png")
+            try:
+                background_image = Image.open(team_image_path)
+            except:
                 background_image = Image.open(default_image_path)
         else:
             # DEFAULT TEAM BACKGROUND
