@@ -18,6 +18,7 @@ parser.add_argument('-c','--context',help='The showdown set meta to use (2000-20
 parser.add_argument('-o','--offset',help='Get alternate chart n away from most accurate',default=0)
 parser.add_argument('-url','--image_url',help='URL link to Player background image',default=None)
 parser.add_argument('-path','--image_path',help='Path to Player background image on local machine',default=None)
+parser.add_argument('-o_path','--image_output_path',help='Path to folder for card image output',default='')
 parser.add_argument('-num','--set_num',help='Assign card a set number',default='001')
 parser.add_argument('-show','--show_image', action='store_true', help='Optionally open the final Player Card Image upon completion')
 parser.add_argument('-cc','--is_cc', action='store_true', help='Optionally make the card Cooperstown Collection')
@@ -50,6 +51,7 @@ def main():
         offset=args.offset,
         player_image_url=args.image_url,
         player_image_path=args.image_path,
+        card_img_output_folder_path=args.image_output_path,
         print_to_cli=True,
         show_player_card_image=args.show_image,
         set_number=str(args.set_num),
