@@ -192,7 +192,7 @@ class ShowdownPlayerCardGenerator:
                             else:
                                 metric = 'dWAR'
                             defensive_rating = drs or tzr or dWar
-                            in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric)
+                            in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
                         except:
                             in_game_defense = 0
                         positions_and_defense[position] = in_game_defense
@@ -332,7 +332,7 @@ class ShowdownPlayerCardGenerator:
             # RETURN BASEBALL REFERENCE STRING VALUE
             return position
 
-    def __convert_to_in_game_defense(self, position, rating, metric):
+    def __convert_to_in_game_defense(self, position, rating, metric, games):
         """Converts the best available fielding metric to in game defense at a position.
            Uses DRS for 2003+, TZR for 1953-2002, dWAR for <1953.
            More modern defensive metrics (like DRS) are not available for historical
@@ -342,6 +342,7 @@ class ShowdownPlayerCardGenerator:
           position: In game position name.
           rating: Total Zone Rating or dWAR. 0 is average for a position.
           metric: String name of metric used for calculations (drs,tzr,dWAR)
+          games: Games played at position.
 
         Returns:
           In game defensive rating.
@@ -363,6 +364,9 @@ class ShowdownPlayerCardGenerator:
                 defense = 1
             else:
                 defense = 0
+        
+        # CAP DEFENSE IF GAMES PLAYED AT POSITION IS LESS THAN 80
+        defense = int(max_defense_for_position) if games < 100 and defense > max_defense_for_position else defense
 
         return defense
 
