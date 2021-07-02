@@ -31,7 +31,7 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "2.4.3"
+        self.version = "2.4.4"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.year = str(year).upper()
@@ -1874,8 +1874,9 @@ class ShowdownPlayerCardGenerator:
             image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.player_image_path)
             try:
                 player_image = self.__default_background_image(search_for_image=False)
-                player_image_actual = Image.open(image_path)
-                player_image.paste(player_image_actual,(0,0),player_image_actual)
+                player_image_actual = Image.open(image_path).convert('RGBA')
+                player_image_actual_cropped = self.__center_crop(player_image_actual, (1500,2100))
+                player_image.paste(player_image_actual_cropped,(0,0),player_image_actual_cropped)
             except:
                 print("Error Loading Image from Path. Using default background...")
                 player_image = Image.open(default_image_path)
