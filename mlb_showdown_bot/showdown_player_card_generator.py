@@ -31,8 +31,6 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        is_name_a_bref_id = any(char.isdigit() for char in name)
-        has_special_chars = '(' in name
         self.version = "2.4.3"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
@@ -1875,7 +1873,9 @@ class ShowdownPlayerCardGenerator:
             # LOAD IMAGE FROM UPLOAD
             image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.player_image_path)
             try:
-                player_image = Image.open(image_path)
+                player_image = self.__default_background_image(search_for_image=False)
+                player_image_actual = Image.open(image_path)
+                player_image.paste(player_image_actual,(0,0),player_image_actual)
             except:
                 print("Error Loading Image from Path. Using default background...")
                 player_image = Image.open(default_image_path)
@@ -1906,12 +1906,12 @@ class ShowdownPlayerCardGenerator:
 
         return player_image
 
-    def __default_background_image(self):
+    def __default_background_image(self, search_for_image=True):
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
         Args:
-          None
+          search_for_image: Boolean for whether to search google drive for image.
 
         Returns:
           PIL image object for the player background.
@@ -1941,36 +1941,37 @@ class ShowdownPlayerCardGenerator:
             name_container = self.__2000_player_name_container_image()
             background_image.paste(name_container,(0,0),name_container)
 
-        # -- GET PLAYER IMAGE --
-        # SEARCH FOR PLAYER IMAGE
-        additional_substring_filters = [self.year]
-        if self.is_super_season:
-            additional_substring_filters.append('(SS)')
-        elif self.is_cooperstown:
-            additional_substring_filters.append('(CC)')
-        elif self.is_all_star_game:
-            additional_substring_filters.append('(ASG)')
-        if len(self.type_override) > 0:
-            additional_substring_filters.append(self.type_override)
+        if search_for_image:
+            # -- GET PLAYER IMAGE --
+            # SEARCH FOR PLAYER IMAGE
+            additional_substring_filters = [self.year]
+            if self.is_super_season:
+                additional_substring_filters.append('(SS)')
+            elif self.is_cooperstown:
+                additional_substring_filters.append('(CC)')
+            elif self.is_all_star_game:
+                additional_substring_filters.append('(ASG)')
+            if len(self.type_override) > 0:
+                additional_substring_filters.append(self.type_override)
 
-        player_image_url = self.__query_google_drive_for_image_url(
-                                folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[self.context],
-                                substring_search = self.bref_id,
-                                additional_substring_search_list = additional_substring_filters,
-                            )
-        if player_image_url:
-            # USE PLAYER IMAGE FROM GOOGLE
-            response = requests.get(player_image_url)
-            player_image = Image.open(BytesIO(response.content)).convert("RGBA")
-        else:
-            # ADD PLAYER SILHOUETTE
-            type_string = 'P' if self.is_pitcher else 'H'
-            hand_prefix = self.hand[0 if self.is_pitcher else -1]
-            hand_string = 'L' if hand_prefix == 'S' else hand_prefix
-            silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context}-SIL-{hand_string}H{type_string}.png')
-            player_image = Image.open(silhouetee_image_path)
-        
-        background_image.paste(player_image,(0,0),player_image)
+            player_image_url = self.__query_google_drive_for_image_url(
+                                    folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[self.context],
+                                    substring_search = self.bref_id,
+                                    additional_substring_search_list = additional_substring_filters,
+                                )
+            if player_image_url:
+                # USE PLAYER IMAGE FROM GOOGLE
+                response = requests.get(player_image_url)
+                player_image = Image.open(BytesIO(response.content)).convert("RGBA")
+            else:
+                # ADD PLAYER SILHOUETTE
+                type_string = 'P' if self.is_pitcher else 'H'
+                hand_prefix = self.hand[0 if self.is_pitcher else -1]
+                hand_string = 'L' if hand_prefix == 'S' else hand_prefix
+                silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context}-SIL-{hand_string}H{type_string}.png')
+                player_image = Image.open(silhouetee_image_path)
+            
+            background_image.paste(player_image,(0,0),player_image)
 
         return background_image
 
@@ -2875,7 +2876,7 @@ class ShowdownPlayerCardGenerator:
         return file_age_mins >= 5.0
 
 # ------------------------------------------------------------------------
-# GOOGLE DRIVE
+# IMAGE QUERIES
 
     def __query_google_drive_for_image_url(self, folder_id, substring_search, additional_substring_search_list=[]):
         """Attempts to query google drive for a player image, if 
