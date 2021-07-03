@@ -685,7 +685,8 @@ class BaseballReferenceScraper:
             if year == 'CAREER':
                 list_of_values_for_stat = self.__get_stat_list_from_standard_table(type, homepage_soup, stat_key=stat)
                 if list_of_values_for_stat:
-                    max_for_stat = max(list_of_values_for_stat)
+                    list_cleaned = [0 if str(x) == '' else x for x in list_of_values_for_stat]
+                    max_for_stat = max(list_cleaned)
                     is_qualified_for_icon = int(max_for_stat) >= threshold
                     icon_threshold_bools[bool_key_name] = is_qualified_for_icon
             else:
