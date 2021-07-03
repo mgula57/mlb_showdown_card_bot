@@ -1693,8 +1693,8 @@ TEAM_LOGO_ALTERNATES = {
     },
     'HOU': {
         '1': list(range(1965,1994)),
-        '2': list(range(1957,1994)),
-        '3': list(range(1994,2005)),
+        '2': list(range(1994,2000)),
+        '3': list(range(2000,2013)),
     },
     'KCR': {
         '1': list(range(1969,1986)),
