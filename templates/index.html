@@ -36,14 +36,14 @@
                      
                      <!-- NAME  -->
                      <div class="form-group" style="padding-bottom: 10px; padding-top: 15px;">
-                        <label for="name" style="color:Gray;">Player Name</label>
+                        <label for="name" style="color:Gray;"><b>Player Name</b></label>
                         <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Bot not finding your card? Try inputting the baseball reference id (ex: troutmi01). For 2-way players, try adding (Hitter) or (Pitcher) to the name (ex: Shohei Ohtani (Pitcher))" >
                         <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" autofocus required>
                      </div>
                      
                      <!-- YEAR  -->
                      <div class="form-group" style="padding-bottom: 10px;">
-                        <label for="year" style="color:Gray;">Year</label>
+                        <label for="year" style="color:Gray;"><b>Year</b></label>
                         <img for="year" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Looking to use multiple years? You can enter a range of years using '-' (ex: 2012-2020) or collection of years using '+' (ex: 2012+2015+2019). Alternatively you can use a player's entire career by entering CAREER" >
                         <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" required>
                      </div>
@@ -52,7 +52,7 @@
                      <div class="form-group">
                         <div class="row">
                            <div class="col-md-6">
-                              <label for="setSelection" style="color:Gray;">Set</label>
+                              <label for="setSelection" style="color:Gray;"><b>Set</b></label>
                               <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                  {% for year in [2000,2001,2002,2003,2004,2005] %}
                                     <option value={{ year }} {% if year == 2000 %} selected="selected" {% endif %}>{{ year }}</option>
@@ -60,7 +60,7 @@
                               </select>
                            </div>
                            <div class="col-md-6">
-                              <label style="color:Gray;" for="expansionSelection">Expansion </label>
+                              <label style="color:Gray;" for="expansionSelection"> <b>Expansion</b> </label>
                               <select id="expansionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                  <option value="BS" selected="selected">Base Set</option>
                                  <option value="TD">Trading Deadline</option>
@@ -74,7 +74,7 @@
                      <div class="form-group">
                         <div class="row">
                            <div class="col-md-6">
-                              <label style="color:Gray;" for="editionSelection">Edition </label>
+                              <label style="color:Gray;" for="editionSelection"> <b>Edition</b></label>
                               <select id="editionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                  <option value="None" selected="selected">None</option>
                                  <option value="Cooperstown Collection">Cooperstown Collection</option>
@@ -82,8 +82,8 @@
                                  <option value="Super Season">Super Season</option>
                               </select>
                            </div>
-                           <div class="col-md-6">
-                              <label for="setnum" style="color:Gray;">Set Number</label>
+                           <div class="col-md-6" style="padding-bottom: 10px;">
+                              <label for="setnum" style="color:Gray;"><b>Set Number</b></label>
                               <input type="text" name="setnum" class="form-control" id="setnum" placeholder="">
                            </div>
                         </div>   
@@ -91,7 +91,7 @@
                      
                      <!-- STATS VERSION  -->
                      <div class="form-group">
-                        <label for="offset" style="color:Gray;">Stats Version</label>
+                        <label for="offset" style="color:Gray;"><b>Stats Version</b></label>
                         <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
                         <br>
                         <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
@@ -163,7 +163,7 @@
                            <img id="card_image" src="static/interface/BlankPlayer.png" alt="card" class="img-fluid">
                         </div>
 
-                        <div class="col-md-6" style="padding: 20px;">
+                        <div class="col-md-6" style="padding: 20px; padding-bottom: 60px;">
                            
                            <h4 id=na style="color:blue"></h4>
                            <h4><b>Breakdown</b></h4>
