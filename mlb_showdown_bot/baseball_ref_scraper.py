@@ -158,9 +158,6 @@ class BaseballReferenceScraper:
 
         html = requests.get(url)
 
-        if html.status_code == 502:
-        	raise URLError('502 Bad Gateway')
-
         return html.text
 
 # ------------------------------------------------------------------------

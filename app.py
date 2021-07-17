@@ -2,9 +2,6 @@ from flask import Flask, render_template, request, jsonify, Response
 from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 import os
-import re
-import json
-import sys
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -150,7 +147,10 @@ def card_creator():
         error = "Error - Unable to create Showdown Card Image."
         showdown.player_image()
         card_image_path = os.path.join('static', 'output', showdown.image_name)
+        player_command = "Control" if showdown.is_pitcher else "Onbase"
         player_stats_data = showdown.player_data_for_html_table()
+        player_points_data = showdown.points_data_for_html_table()
+        player_accuracy_data = showdown.accuracy_data_for_html_table()
 
         error = ''
         log_card_submission_to_db(
@@ -167,7 +167,14 @@ def card_creator():
             stats_offset=offset,
             set_num=set_num
         )
-        return jsonify(image_path=card_image_path,error=error,player_stats=player_stats_data)
+        return jsonify(
+            image_path=card_image_path,
+            error=error,
+            player_command=player_command,
+            player_stats=player_stats_data, 
+            player_points=player_points_data,
+            player_accuracy=player_accuracy_data,
+        )
 
     except:
         log_card_submission_to_db(
@@ -184,14 +191,21 @@ def card_creator():
             stats_offset=offset,
             set_num=set_num
         )
-        return jsonify(image_path=None,error=error,player_stats=None)
+        return jsonify(
+            image_path=None,
+            error=error,
+            player_command=None,
+            player_stats=None,
+            player_points=None,
+            player_accuracy=None,
+        )
 
 @app.route('/upload', methods=["POST","GET"])
 def upload():
     try:
         image = request.files.get('image_file')
         name = image.filename
-        image.save(os.path.join('mlb_showdown_bot', 'uploads', image.filename))
+        image.save(os.path.join('mlb_showdown_bot', 'uploads', name))
     except:
         name = ''
 

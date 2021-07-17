@@ -1,3 +1,4 @@
+from posixpath import join
 import pandas as pd
 import math
 import requests
@@ -553,6 +554,7 @@ class ShowdownPlayerCardGenerator:
         # LIMIT TO TOP N BY ACCURACY
         sorted_combo_accuracies = sorted(combo_accuracies.items(), key=operator.itemgetter(1), reverse=True)
         top_combo_accuracies = sorted_combo_accuracies[:num_results]
+        self.top_command_out_combinations = top_combo_accuracies
         top_command_out_tuples = [c[0] for c in top_combo_accuracies]
 
         return top_command_out_tuples
@@ -1356,10 +1358,16 @@ class ShowdownPlayerCardGenerator:
         # SOME SETS PULL CARDS SLIGHTLY TOWARDS THE MEDIAN
         if sc.POINTS_NORMALIZE_TOWARDS_MEDIAN[self.context][player_category]:
             points = self.__normalize_points_towards_median(points)
+        else:
+            self.points_normalizer = 1.0
 
         # ADJUST POINTS FOR RELIEVERS WITH 2X IP
         if player_category == 'relief_pitcher':
-            points *= (self.ip * (sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context] if self.ip > 1 else 1.0))
+            is_multi_inning = self.ip > 1
+            multi_inning_points_multiplier = self.ip * (sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context] if is_multi_inning else 1.0)
+            if is_multi_inning:
+                self.multi_inning_points_multiplier = multi_inning_points_multiplier
+            points *= multi_inning_points_multiplier
 
         # POINTS ARE ALWAYS ROUNDED TO TENTH
         points_to_nearest_tenth = int(round(points,-1))
@@ -1442,6 +1450,7 @@ class ShowdownPlayerCardGenerator:
             if not self.is_pitcher:
                 self.hr_points = self.hr_points * multiplier
 
+            self.points_normalizer = multiplier
             return self.obp_points + self.ba_points + self.slg_points + self.spd_ip_points + self.points_bonus + self.icon_points
         else:
             return points
@@ -1715,6 +1724,73 @@ class ShowdownPlayerCardGenerator:
 
         return final_player_data
 
+    def points_data_for_html_table(self):
+        """Provides data needed to populate the points breakdown shown on the
+           showdownbot.com webpage.
+
+        Args:
+          None
+
+        Returns:
+          Multi-Dimensional list where each row is a list of a pts category, stat and value.
+        """
+        
+        if self.player_type() == 'relief_pitcher' and self.ip > 1:
+            spd_or_ip = ['IP', str(self.ip), f"{self.multi_inning_points_multiplier}x"]
+        else:
+            spd_or_ip = [
+                'IP' if self.is_pitcher else 'SPD', 
+                str(self.ip if self.is_pitcher else self.speed),
+                str(round(self.spd_ip_points))
+            ]
+        pts_data = [
+            ['BA', str(round(self.real_stats['batting_avg'],3)).replace("0.","."), str(round(self.ba_points))],
+            ['OBP', str(round(self.real_stats['onbase_perc'],3)).replace("0.","."), str(round(self.obp_points))],
+            ['SLG', str(round(self.real_stats['slugging_perc'],3)).replace("0.","."), str(round(self.slg_points))],
+            spd_or_ip,
+
+        ]
+
+        if not self.is_pitcher:
+            pts_data.append(['HR', str(round(self.real_stats['hr_per_650_pa'])), str(round(self.hr_points))])
+            pts_data.append([
+                'DEFENSE', 
+                self.__position_and_defense_as_string(is_horizontal=True),
+                str(round(self.defense_points))
+            ])
+
+        if self.points_bonus > 0:
+            pts_data.append(['BONUS', 'N/A', str(round(self.points_bonus))])
+        if self.icon_points > 0:
+            pts_data.append(['ICONS', ','.join(self.icons), str(round(self.icon_points))])
+        if self.points_normalizer < 1.0:
+            pts_data.append(['NORMALIZER', 'N/A', str(round(self.points_normalizer,2))])
+        
+        
+        pts_data.append(['TOTAL', '', self.points])
+
+        return pts_data
+
+    def accuracy_data_for_html_table(self):
+        """Provides data needed to populate the accuracy breakdown shown on the
+           showdownbot.com webpage.
+
+        Args:
+          None
+
+        Returns:
+          Multi-Dimensional list where each row is a list of a offset and accuracy value.
+        """
+        accuracy_data = []
+        for index, co_accuracy_tuple in enumerate(self.top_command_out_combinations):
+            command_out_tuple = co_accuracy_tuple[0]
+            command = command_out_tuple[0]
+            outs = command_out_tuple[1]
+            accuracy = co_accuracy_tuple[1]
+            accuracy_data.append([str(index + 1), f"{command}", f"{outs}", f"{round(100 * accuracy, 2)}%"])
+
+        return accuracy_data
+
     def __player_metadata_summary_text(self, is_horizontal=False):
         """Creates a multi line string with all player metadata for card output.
 
@@ -1724,23 +1800,7 @@ class ShowdownPlayerCardGenerator:
         Returns:
           String of output text for player info + stats
         """
-        positions_string = ''
-        position_num = 1
-
-        if self.positions_and_defense == {}:
-            # THE PLAYER IS A DH
-            positions_string = '–'
-        else:
-            for position,fielding in self.positions_and_defense.items():
-                if self.is_pitcher:
-                    positions_string += position
-                elif position == 'DH':
-                    positions_string += '—'
-                else:
-                    is_last_element = position_num == len(self.positions_and_defense.keys())
-                    positions_separator = ' ' if is_horizontal else '\n'
-                    positions_string += '{} +{}{}'.format(position,fielding,'' if is_last_element else positions_separator)
-                position_num += 1
+        positions_string = self.__position_and_defense_as_string(is_horizontal=is_horizontal)
 
         ip = '{} IP'.format(self.ip) if int(self.context) < 2004 else 'IP {}'.format(self.ip)
         speed = 'Speed {} ({})'.format(self.speed_letter,self.speed)
@@ -1767,6 +1827,35 @@ class ShowdownPlayerCardGenerator:
             )
         final_text = final_text.upper() if self.context in ['2002','2004','2005'] else final_text
         return final_text
+
+    def __position_and_defense_as_string(self, is_horizontal=False):
+        """Creates a single line string with positions and defense.
+
+        Args:
+          is_horizontal: Optional boolean for horizontally formatted text (04/05)
+
+        Returns:
+          String of output text for player's defensive stats
+        """
+        positions_string = ''
+        position_num = 1
+
+        if self.positions_and_defense == {}:
+            # THE PLAYER IS A DH
+            positions_string = '–'
+        else:
+            for position,fielding in self.positions_and_defense.items():
+                if self.is_pitcher:
+                    positions_string += position
+                elif position == 'DH':
+                    positions_string += '—'
+                else:
+                    is_last_element = position_num == len(self.positions_and_defense.keys())
+                    positions_separator = ' ' if is_horizontal else '\n'
+                    positions_string += '{} +{}{}'.format(position,fielding,'' if is_last_element else positions_separator)
+                position_num += 1
+        
+        return positions_string
 
 # ------------------------------------------------------------------------
 # IMAGE CREATION METHODS
@@ -1955,11 +2044,15 @@ class ShowdownPlayerCardGenerator:
             if len(self.type_override) > 0:
                 additional_substring_filters.append(self.type_override)
 
-            player_image_url = self.__query_google_drive_for_image_url(
-                                    folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[self.context],
-                                    substring_search = self.bref_id,
-                                    additional_substring_search_list = additional_substring_filters,
-                                )
+            try:
+                player_image_url = self.__query_google_drive_for_image_url(
+                                        folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[self.context],
+                                        substring_search = self.bref_id,
+                                        additional_substring_search_list = additional_substring_filters,
+                                    )
+            except:
+                player_image_url = None
+
             if player_image_url:
                 # USE PLAYER IMAGE FROM GOOGLE
                 response = requests.get(player_image_url)
@@ -2795,33 +2888,6 @@ class ShowdownPlayerCardGenerator:
 
         # CROP THE CENTER OF THE IMAGE
         return image.crop((left, top, right, bottom))
-
-    def __scrape_player_image_url(self,url=None):
-        """ Scrape google images for guess on picture to use for
-            player background.
-            ** NOTE: NOT USED IN CURRENT BUILD. KEEPING FOR POTENTIAL
-            FUTURE USE.
-
-        Args:
-            None
-
-        Returns:
-          String url of first player image on google search.
-        """
-
-        query = '{name}+{year}+{type}'.format(
-            name = self.name.replace(' ', '+'),
-            year = str(self.year),
-            type = 'pitching' if self.is_pitcher else 'batting'
-        )
-        url = 'https://www.bing.com/images/search?q=' + query + '&qft=+filterui:photo-photo+filterui:imagesize-large&form=IRFLTR&first=1&scenario=ImageHoverTitle'
-        header = {'User-Agent':"Chrome/84.0.4147.135"}
-        html = urlopen(Request(url, headers=header))
-        soup = BeautifulSoup(html, 'html.parser')
-        first_image = soup.find('li',{ 'data-idx': "1" })
-        first_image_attributes = first_image.find('a', {'class': "iusc"})
-        first_image_url = json.loads(first_image_attributes.get("m"))['murl']
-        return first_image_url
 
     def __clean_images_directory(self):
         """Removes all images from output folder that are not the current card. Leaves
