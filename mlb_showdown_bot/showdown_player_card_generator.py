@@ -2012,7 +2012,7 @@ class ShowdownPlayerCardGenerator:
         if self.context in ['2000', '2001']:
             # TEAM BACKGROUNDS
             if self.is_cooperstown:
-                background_image_name = 'CC.png'
+                background_image_name = 'CC'
             elif self.is_all_star_game and not self.is_multi_year:
                 background_image_name = f"ASG-{self.year}"
             else:
