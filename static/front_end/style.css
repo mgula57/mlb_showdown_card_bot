@@ -1,7 +1,9 @@
 
 .input_container {
     border-radius: 20px;
-    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.15);
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    margin-top: 15px;
+    margin-bottom: 15px;
 }
 
 .loader {
