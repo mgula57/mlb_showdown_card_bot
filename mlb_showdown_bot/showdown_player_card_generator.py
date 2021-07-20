@@ -1453,6 +1453,7 @@ class ShowdownPlayerCardGenerator:
             self.points_normalizer = multiplier
             return self.obp_points + self.ba_points + self.slg_points + self.spd_ip_points + self.points_bonus + self.icon_points
         else:
+            self.points_normalizer = 1.0
             return points
 
 # ------------------------------------------------------------------------
