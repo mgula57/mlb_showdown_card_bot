@@ -1772,7 +1772,7 @@ class ShowdownPlayerCardGenerator:
         ]
 
         if not self.is_pitcher:
-            pts_data.append(['HR', str(round(self.real_stats['hr_per_650_pa'])), str(round(self.hr_points))])
+            pts_data.append(['HR (650 PA)', str(round(self.real_stats['hr_per_650_pa'])), str(round(self.hr_points))])
             pts_data.append([
                 'DEFENSE', 
                 self.__position_and_defense_as_string(is_horizontal=True),
