@@ -309,12 +309,12 @@ class BaseballReferenceScraper:
                 dwar_object = summarized_header.find('td',attrs={'data-stat':'WAR_def'})
                 dwar_rating = float(dwar_object.get_text()) if dwar_object != None else 0
                 # USE AVG FOR CAREER
-                dwar_rating = dwar_rating / num_seasons 
+                dwar_rating = round(dwar_rating / num_seasons,2)
             else:
                 player_value = soup_for_homepage_stats.find('tr', attrs = {'id': 'batting_value.{}'.format(year)})
                 dwar_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR_def'})
                 dwar_rating = dwar_object.get_text() if dwar_object != None else 0
-            all_positions.update({'dWAR': round(dwar_rating,2)})
+            all_positions.update({'dWAR': dwar_rating})
         except:
             all_positions.update({'dWAR': 0})
 
