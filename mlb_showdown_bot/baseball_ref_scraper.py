@@ -297,6 +297,7 @@ class BaseballReferenceScraper:
                     all_positions.update(position_dict)
 
         # GET DEFENSIVE WAR IN CASE OF LACK OF TZR AVAILABILITY FOR SEASONS < 1952
+        # UPDATE: SCRAPE TOTAL WAR AS WELL
         try:
             if is_full_career:
                 summarized_header = self.__get_career_totals_row(div_id='div_batting_value',soup_object=soup_for_homepage_stats)
@@ -305,13 +306,19 @@ class BaseballReferenceScraper:
                 dwar_rating = float(dwar_object.get_text()) if dwar_object != None else 0
                 # USE AVG FOR CAREER
                 dwar_rating = dwar_rating / num_seasons 
+                # TOTAL WAR
+                war_object = summarized_header.find('td',attrs={'data-stat':'WAR'})
+                war_rating = float(war_object.get_text()) if war_object != None else 0
             else:
                 player_value = soup_for_homepage_stats.find('tr', attrs = {'id': 'batting_value.{}'.format(year)})
                 dwar_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR_def'})
                 dwar_rating = dwar_object.get_text() if dwar_object != None else 0
-            all_positions.update({'dWAR': dwar_rating})
+                # TOTAL WAR
+                war_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR'})
+                war_rating = war_object.get_text() if war_object != None else 0
+            all_positions.update({'dWAR': dwar_rating, 'bWAR': war_rating})
         except:
-            all_positions.update({'dWAR': 0})
+            all_positions.update({'dWAR': 0, 'bWAR': 0})
 
         return all_positions
 
