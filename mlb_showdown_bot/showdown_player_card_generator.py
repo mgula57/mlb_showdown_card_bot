@@ -1741,6 +1741,22 @@ class ShowdownPlayerCardGenerator:
             in_game = str(int(round(self.real_stats[key]) * real_life_pa_ratio))
             actual = str(self.stats[cleaned_category])
             final_player_data.append([cleaned_category,actual,in_game])
+        
+        # NON COMPARABLE STATS
+        category_list = ['earned_run_avg', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
+        for category in category_list:
+            if category in self.stats.keys():
+                stat = str(self.stats[category])
+                short_name_map = {
+                    'onbase_plus_slugging_plus': 'OPS+',
+                    'bWAR': 'bWAR',
+                    'dWAR': 'dWAR',
+                    'SB': 'SB',
+                    'earned_run_avg': 'ERA',
+                }
+                short_category_name = short_name_map[category]
+                final_player_data.append([short_category_name,stat,'N/A'])
+
 
         return final_player_data
 
