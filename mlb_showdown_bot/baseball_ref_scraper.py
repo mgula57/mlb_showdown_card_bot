@@ -187,6 +187,10 @@ class BaseballReferenceScraper:
 
             # HAND / TYPE
             type = self.type(positional_fielding,year=year)
+
+            # WAR
+            stats_dict.update({'bWAR': self.__bWar(soup_for_homepage_stats, year, type)})
+
             # COVER THE CASE OF NOT HAVING DATA FOR A PARTICULAR YEAR (EX: JOHN SMOLTZ 2000)
             if not type:
                 continue
@@ -306,21 +310,45 @@ class BaseballReferenceScraper:
                 dwar_rating = float(dwar_object.get_text()) if dwar_object != None else 0
                 # USE AVG FOR CAREER
                 dwar_rating = dwar_rating / num_seasons 
-                # TOTAL WAR
-                war_object = summarized_header.find('td',attrs={'data-stat':'WAR'})
-                war_rating = float(war_object.get_text()) if war_object != None else 0
             else:
                 player_value = soup_for_homepage_stats.find('tr', attrs = {'id': 'batting_value.{}'.format(year)})
                 dwar_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR_def'})
                 dwar_rating = dwar_object.get_text() if dwar_object != None else 0
-                # TOTAL WAR
-                war_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR'})
-                war_rating = war_object.get_text() if war_object != None else 0
-            all_positions.update({'dWAR': dwar_rating, 'bWAR': war_rating})
+            all_positions.update({'dWAR': round(dwar_rating,2)})
         except:
-            all_positions.update({'dWAR': 0, 'bWAR': 0})
+            all_positions.update({'dWAR': 0})
 
         return all_positions
+
+    def __bWar(self, soup_for_homepage_stats, year, type):
+        """Parse bWAR (baseball reference WAR)
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats on homepage.
+          year: Year for Player stats
+          type: Pitcher or Hitter
+
+        Returns:
+          Float bWAR value
+        """
+        is_full_career = year == 'CAREER'
+        is_pitcher = type == 'Pitcher'
+        type_string = 'pitching' if is_pitcher else 'batting'
+        war_type_suffix = '_pitch' if is_pitcher else ''
+        try:
+            if is_full_career:
+                summarized_header = self.__get_career_totals_row(div_id=f"div_{type_string}_value",soup_object=soup_for_homepage_stats)
+                # TOTAL WAR
+                war_object = summarized_header.find('td',attrs={'data-stat':f"WAR{war_type_suffix}"})
+                war_rating = float(war_object.get_text()) if war_object != None else 0
+            else:
+                player_value = soup_for_homepage_stats.find('tr', attrs = {'id': f"{type_string}_value.{year}"})
+                # TOTAL WAR
+                war_object = player_value.find('td',attrs={'class':'right','data-stat':f"WAR{war_type_suffix}"})
+                war_rating = war_object.get_text() if war_object != None else 0
+            return war_rating
+        except:
+            return 0.0
 
     def hand(self, soup_for_homepage_stats, type):
         """Parse hand of player.
