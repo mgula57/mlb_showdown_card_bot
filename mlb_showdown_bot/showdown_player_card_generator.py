@@ -554,7 +554,6 @@ class ShowdownPlayerCardGenerator:
         # LIMIT TO TOP N BY ACCURACY
         sorted_combo_accuracies = sorted(combo_accuracies.items(), key=operator.itemgetter(1), reverse=True)
         top_combo_accuracies = sorted_combo_accuracies[:num_results]
-        self.top_command_out_combinations = top_combo_accuracies
         top_command_out_tuples = [c[0] for c in top_combo_accuracies]
 
         return top_command_out_tuples
@@ -681,6 +680,7 @@ class ShowdownPlayerCardGenerator:
 
         chart_and_accuracies.sort(key=operator.itemgetter(2),reverse=True)
         best_chart = chart_and_accuracies[offset][1]
+        self.top_command_out_combinations = [(ca[0],ca[2]) for ca in chart_and_accuracies]
         real_stats_for_best_chart = chart_and_accuracies[offset][3]
 
         return best_chart, real_stats_for_best_chart
