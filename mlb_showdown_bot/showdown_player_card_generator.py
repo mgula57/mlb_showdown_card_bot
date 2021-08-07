@@ -318,7 +318,7 @@ class ShowdownPlayerCardGenerator:
                 return 'CLOSER'
             else:
                 return 'RELIEVER'
-        elif position_appearances < sc.NUMBER_OF_GAMES:
+        elif position_appearances < sc.NUMBER_OF_GAMES or (self.is_multi_year and ( (position_appearances / games_played) < 0.25 )):
             # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
             return None
         elif position == 'DH' and num_positions > 1:
