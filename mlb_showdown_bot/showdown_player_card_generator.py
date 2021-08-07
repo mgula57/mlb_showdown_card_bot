@@ -1369,6 +1369,23 @@ class ShowdownPlayerCardGenerator:
             if is_multi_inning:
                 self.multi_inning_points_multiplier = multi_inning_points_multiplier
             points *= multi_inning_points_multiplier
+        
+        if self.is_pitcher:
+            # PITCHERS GET PTS FOR OUT DISTRIBUTION IN SOME SETS
+            pct_gb = self.chart['gb'] / self.chart['outs']
+            if 'out_distribution' in sc.POINT_CATEGORY_WEIGHTS[self.context][player_category].keys():
+                pt_weight_gb = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['out_distribution']
+                percentile_gb = self.stat_percentile(
+                    stat = pct_gb, 
+                    min_max_dict = sc.POINT_GB_MIN_MAX,
+                    allow_negative=True
+                )               
+                self.out_dist_points = pt_weight_gb * percentile_gb
+                points += self.out_dist_points
+                self.chart_pct_gb = pct_gb
+            else:
+                self.out_dist_points = 0
+                self.chart_pct_gb = pct_gb
 
         # POINTS ARE ALWAYS ROUNDED TO TENTH
         points_to_nearest_tenth = int(round(points,-1))
@@ -1638,7 +1655,8 @@ class ShowdownPlayerCardGenerator:
             pt_category_string += f"  ICONS:{self.icon_points}"
         if not self.is_pitcher:
             pt_category_string += '  HR:{hr}  DEF:{defense}'.format(hr=self.hr_points,defense=self.defense_points)
-
+        else:
+            pt_category_string += f"  OUT_DIST: {round(self.out_dist_points,2)}"
         # NOT USING DOCSTRING FOR FORMATTING REASONS
         card_as_string = (
             '***********************************************\n' +
@@ -1760,7 +1778,9 @@ class ShowdownPlayerCardGenerator:
                 self.__position_and_defense_as_string(is_horizontal=True),
                 str(round(self.defense_points))
             ])
-
+        else:
+            pts_data.append(['OUT DIST', str(round(self.chart_pct_gb,2)), str(round(self.out_dist_points))])
+        
         if self.points_bonus > 0:
             pts_data.append(['BONUS', 'N/A', str(round(self.points_bonus))])
         if self.icon_points > 0:
