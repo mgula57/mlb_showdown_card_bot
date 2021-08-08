@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
    <head>
       <!-- Global site tag (gtag.js) - Google Analytics -->
       <script async src="https://www.googletagmanager.com/gtag/js?id=UA-183879922-1"></script>
@@ -11,128 +12,254 @@
       </script>
       <title>MLB Showdown Card Bot</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <link href="//netdna.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" media="screen">
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
       <link rel="stylesheet" href="/static/front_end/style.css">
       <link rel="apple-touch-icon" href="/static/interface/ShowdownLogoSquare.png">
    </head>
+
+
    <body>
+
+      <!-- OVERLAY FOR HIDDEN LOADER OBJECT -->
       <div id="overlay">
          <div class="loader" id="loader"></div>
       </div>
+
       <div class="container">
-         <!-- INPUT  -->
-         <div class="input_container">
-            <!-- SHOWDOWN LOGO  -->
-            <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" width=300 height=105 style="padding-top:30px">
-            <br>
-            <div align="right" style="padding-top:10px;padding-right:10px;">
-               <a href="https://twitter.com/mlbshowdownbot?ref_src=twsrc%5Etfw" class="twitter-follow-button" data-show-count="false">Follow</a><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+         <div class="row">
+            <div class="col-md-4">
+               <!------ INPUT  ------>
+               <div class="input_container">
+
+                  <!-- SHOWDOWN LOGO  -->
+                  <div class="d-flex justify-content-center">
+                     <div class="" style="max-width: 400px;">
+                        <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" class="img-fluid" style="padding:30px; padding-bottom:5px;">
+                     </div>
+                  </div>
+                  
+                  <!-- FORM  -->
+                  <form id="formInput" role="form" method='POST' enctype="multipart/form-data" class='form_wrapper'>
+                     
+                     <!-- NAME  -->
+                     <div class="form-group" style="padding-bottom: 10px; padding-top: 15px;">
+                        <label for="name" style="color:Gray;"><b>Player Name</b></label>
+                        <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Bot not finding your card? Try inputting the baseball reference id (ex: troutmi01). For 2-way players, try adding (Hitter) or (Pitcher) to the name (ex: Shohei Ohtani (Pitcher))" >
+                        <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" autofocus required>
+                     </div>
+                     
+                     <!-- YEAR  -->
+                     <div class="form-group" style="padding-bottom: 10px;">
+                        <label for="year" style="color:Gray;"><b>Year</b></label>
+                        <img for="year" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Looking to use multiple years? You can enter a range of years using '-' (ex: 2012-2020) or collection of years using '+' (ex: 2012+2015+2019). Alternatively you can use a player's entire career by entering CAREER" >
+                        <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" required>
+                     </div>
+
+                     <!-- SET AND EXPANSION  -->
+                     <div class="form-group">
+                        <div class="row">
+                           <div class="col-md-6">
+                              <label for="setSelection" style="color:Gray;"><b>Set</b></label>
+                              <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                 {% for year in [2000,2001,2002,2003,2004,2005] %}
+                                    <option value={{ year }} {% if year == 2000 %} selected="selected" {% endif %}>{{ year }}</option>
+                                 {% endfor %}
+                              </select>
+                           </div>
+                           <div class="col-md-6">
+                              <label style="color:Gray;" for="expansionSelection"> <b>Expansion</b> </label>
+                              <select id="expansionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                 <option value="BS" selected="selected">Base Set</option>
+                                 <option value="TD">Trading Deadline</option>
+                                 <option value="PR">Pennant Run</option>
+                              </select>
+                           </div>
+                        </div>   
+                     </div>
+
+                     <!-- EDITION AND SET NUMBER  -->
+                     <div class="form-group">
+                        <div class="row">
+                           <div class="col-md-6">
+                              <label style="color:Gray;" for="editionSelection"> <b>Edition</b></label>
+                              <select id="editionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                 <option value="None" selected="selected">None</option>
+                                 <option value="Cooperstown Collection">Cooperstown Collection</option>
+                                 <option value="All-Star Game">All-Star Game</option>
+                                 <option value="Super Season">Super Season</option>
+                              </select>
+                           </div>
+                           <div class="col-md-6" style="padding-bottom: 10px;">
+                              <label for="setnum" style="color:Gray;"><b>Set Number</b></label>
+                              <input type="text" name="setnum" class="form-control" id="setnum" placeholder="">
+                           </div>
+                        </div>   
+                     </div>
+                     
+                     <!-- STATS VERSION  -->
+                     <div class="form-group">
+                        <label for="offset" style="color:Gray;"><b>Stats Version</b></label>
+                        <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
+                        <br>
+                        <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
+                           {% for index in [1,2,3,4,5] -%}
+                              {% set offsetName = "offset" ~ (index-1) %}
+                              {% set checkedStr = "checked" if loop.first else "" %}
+                              <input type="radio" class="btn-check" name="offset" id={{offsetName}} autocomplete="off" {{ checkedStr }}>
+                              <label class="btn btn-outline-secondary" for={{offsetName}}>{{ index }}</label>
+                           {% endfor %}
+                           
+                         </div>
+                        
+                     </div>
+
+                     <!-- IMAGES  -->
+                     <div class="form-group" style="padding-top: 20px;">
+                        <label><b style="color:Gray;">Image</b><a style="color:Gray;"> (Optional)</a></label>
+                        <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="If no image is selected, the bot will check for an available player image in public google drive linked. If no image exists, the bot will display the default silhouette." >
+                        <b><a style="color:Black; opacity: 0.35;" href="https://drive.google.com/drive/folders/1pReqc5SQCRVRdlKkAhD8lnHV6hCC8LFq?usp=sharing">Drive</a></b>
+                        <div class="row">
+                           <div class="col-md-12" >
+                              <input type="text" name="url" class="form-control" id="url" placeholder="Paste Link">
+                           </div>
+                        </div>   
+                        <div class="row">
+                           <div class="col-md-12">
+                              <label for="img_upload" style="color:Gray;"> <i>Or</i></label>
+                              <input class="form-control" type="file" id="img_upload" accept="image/*">
+                           </div>
+                        </div>
+                     </div>
+
+                     <!-- BUTTONS  -->
+                     <div class="form-group" style="padding-top:20px">
+                        <div class="row">
+                           <div class="col-md-12" >
+                              <!-- CREATE CARD BUTTON  -->
+                              <a href=# id=create_card>
+                                 <button type="submit" class="btn btn-primary">
+                                    <span>Submit</span>
+                                 </button>
+                              </a>
+                              <!-- RESET BUTTON  -->
+                              <button type="reset" class="btn btn-secondary" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''" style="margin: 10px;">
+                                 <span>Clear</span>
+                              </button>
+                           </div>
+                        </div>   
+
+                        <!-- TWITTER LINK  -->
+                        <div style="padding-top:10px;padding-right:10px;">
+                           <a href="https://twitter.com/mlbshowdownbot?ref_src=twsrc%5Etfw" class="twitter-follow-button" data-size='small' data-show-count="false">Follow</a><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+                        </div>
+                     </div>
+                     <br>
+                  </form>
+               </div>
             </div>
-            <form id="formInput" role="form" method='POST' enctype="multipart/form-data">
-               <!-- PLAYER AND SEASON  -->
-               <h4><b>Step 1: Select a Player and Season</b></h4>
-               <!-- NAME  -->
-               <div class="form-group">
-                  <label for="name" style="color:Gray;">Player Name</label>
-                  <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Bot not finding your card? Try inputting the baseball reference id (ex: troutmi01). For 2-way players, try adding (Hitter) or (Pitcher) to the name (ex: Shohei Ohtani (Pitcher))" >
-                  <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" style="max-width: 300px; padding: 20px;" autofocus required>
+            <div class="col-md-8">
+               <div class="d-flex justify-content-center">
+                  <!-- OUTPUT  -->
+                  <div class="output_container">
+                     <div class="row">
+                        
+                        <div class="col-md-6" style="padding: 20px;">
+                           <!-- ERROR MESSAGE  -->
+                           <h4 id=error style="color:red"></h4>
+                           <h4><b>Output</b></h4>
+                           <!-- CARD OUTPUT  -->
+                           <h5 style="color:Gray;"><b>Card</b></h5>
+                           <img id="card_image" src="static/interface/BlankPlayer.png" alt="card" class="img-fluid">
+                        </div>
+
+                        <div class="col-md-6" style="padding: 20px; padding-bottom: 60px;">
+                           
+                           <h4 id=na style="color:blue"></h4>
+                           <h4><b>Breakdown</b></h4>
+
+                           <div class="btn-group" role="group" aria-label="Basic radio toggle button group" style="padding: 10px;">
+                              <input type="radio" class="btn-check" onchange="checkHideForStats(this)" name="category" id="stats_btn" autocomplete="off" checked>
+                              <label class="btn btn-outline-secondary" for="stats_btn">Stats</label>
+                              <input type="radio" class="btn-check" onchange="checkHideForPoints(this)" name="category" id="points_btn" autocomplete="off">
+                              <label class="btn btn-outline-secondary" for="points_btn">Points</label>
+                              <input type="radio" class="btn-check" onchange="checkHideForAccuracy(this)" name="category" id="accuracy_btn" autocomplete="off">
+                              <label class="btn btn-outline-secondary" for="accuracy_btn">Accuracy</label>
+                            </div>
+
+                           <!-- STATS TABLE  -->
+                           <div id="stats_div" style="display:initial" >
+                              <table class='table' id="stats_table">
+                                 <tr>
+                                    <th> </th>
+                                    <th>Actual</th>
+                                    <th>Showdown</th>
+                                 </tr>
+                                 {% for stat in ['BA','OBP','SLG','PA','1B','2B','3B','HR','BB','SO'] -%}
+                                 <tr>
+                                    <td><b>{{ stat }}</b></td>
+                                    <td>?</td>
+                                    <td>?</td>
+                                 </tr>
+                                 {% endfor %}
+                              </table>
+                           </div>
+
+                           <div id="points_div" style="display:none" >
+                              <table class='table' id="points_table">
+                                 <tr>
+                                    <th>Category</th>
+                                    <th>Stat</th>
+                                    <th>Points</th>
+                                 </tr>
+                                 {% for stat in ['?', '?', '?', '?', '?', 'TOTAL'] -%}
+                                 <tr>
+                                    <td><b>{{ stat }}</b></td>
+                                    <td>?</td>
+                                    <td>?</td>
+                                 </tr>
+                                 {% endfor %}
+                              </table>
+                           </div>
+
+                           <div id="accuracy_div" style="display:none" >
+                              <table class='table' id="accuracy_table">
+                                 <tr>
+                                    <th>Version</th>
+                                    <th>OB/Control</th>
+                                    <th>Outs</th>
+                                    <th>Accuracy</th>
+                                 </tr>
+                                 {% for stat in ['1', '2', '3', '4', '5'] -%}
+                                 <tr>
+                                    <td><b>{{ stat }}</b></td>
+                                    <td>?</td>
+                                    <td>?</td>
+                                    <td>?</td>
+                                 </tr>
+                                 {% endfor %}
+                              </table>
+                           </div>
+                           
+                        </div>
+
+                     </div>
+
+                     
+                  </div>
                </div>
-               <!-- YEAR  -->
-               <div class="form-group">
-                  <label for="year" style="color:Gray;">Year</label>
-                  <img for="year" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Looking to use multiple years? You can enter a range of years using '-' (ex: 2012-2020) or collection of years using '+' (ex: 2012+2015+2019). Alternatively you can use a player's entire career by entering CAREER" >
-                  <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" style="max-width: 300px; padding: 20px;" required>
-               </div>
-               <!-- SETS  -->
-               <div class="form-group">
-                  <label for="set" style="color:Gray;">MLB Showdown Set</label>
-                  <br>
-                  <input type="radio" name = "set" value=2000 checked> 2000</br>
-                  <input type="radio" name = "set" value=2001> 2001</br>
-                  <input type="radio" name = "set" value=2002> 2002</br>
-                  <input type="radio" name = "set" value=2003> 2003</br>
-                  <input type="radio" name = "set" value=2004> 2004</br>
-                  <input type="radio" name = "set" value=2005> 2005</br>
-               </div>
-               <!-- MORE OPTIONS  -->
-               <div class="form-group" id="moreOptionsDiv">
-                  <h5 style="color:Gray; padding-top:0px; padding-bottom:0px;"><b>More Options</b></h5>
-                  <input type="checkbox" id="cc" name="cc" value="Cooperstown" style="padding-left: 15px;">
-                  <label for="cc" style="color:#8B4513;">Cooperstown Collection</label></br>
-                  <input type="checkbox" id="ss" name="ss" value="Super Season" style="padding-left: 15px;">
-                  <label for="ss" style="color:#982319;">Super Season</label></br>
-                  <input type="checkbox" id="asg" name="asg" value="All-Star Game" style="padding-left: 15px;">
-                  <label for="asg" style="color:#81420f;">All-Star Game</label></br>
-                  <label for="offset" style="color:Gray;">Stats Alternate</label>
-                  <input type="number" id="offset" name="offset" value="0" min="0" max="4" style="padding-left: 15px;"></br>
-                  <label for="setnum" style="color:Gray;">Set Number</label>
-                  <input type="text" id="setnum" name="setnum" placeholder="" style="padding-left: 15px; width: 100px;"></br>
-                  <label style="color:Gray;" for="expansion">Expansion </label>
-                  <select id="expansionSelection" name="expansionSelection">
-                     <option value="BS" selected="selected">Base Set</option>
-                     <option value="TD">Trading Deadline</option>
-                     <option value="PR">Pennant Run</option>
-                  </select>
-               </div>
-               <!-- IMAGES  -->
-               <h4><b>Step 2: Select an Image</b></h4>
-               <h6 style="color:Gray; max-width: 300px; padding: 0px;"><i><b>**OPTIONAL**</b> If no image is selected, the bot will check for an available player image <a href="https://drive.google.com/drive/folders/1pReqc5SQCRVRdlKkAhD8lnHV6hCC8LFq?usp=sharing">here</a>. If no image exists, the bot will display the default silhouette.</i></h6>
-               <br>
-               <div class="form-group" style="color:Gray;">
-                  <!-- IMAGE URL  -->
-                  <label for="url" >Paste Image URL</label>
-                  <input type="text" name="url" class="form-control" id="url" placeholder="(OPTIONAL) Paste Link" style="max-width: 300px; padding: 20px;">
-                  <h5><i>Or...</i></h5>
-                  <!-- IMAGE UPLOAD  -->
-                  <label for="img_upload" style="color:Gray;">Upload Image</label>
-                  <input type="file" name="img_upload" id="img_upload" accept="image/*" style="color:Gray;"/>
-               </div>
-               <!-- BUTTONS  -->
-               <div style="padding-top:20px">
-                   <!-- CREATE CARD BUTTON  -->
-                  <a href=# id=create_card>
-                  <button type="submit" class="btn btn-default">
-                  <span>Submit</span>
-                  </button>
-                  </a>
-                  <!-- RESET BUTTON  -->
-                  <button type="reset" class="btn btn-secondary" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''" style="margin: 20px; margin-left: 25px;">
-                  <span>Clear</span>
-                  </button>
-               </div>
-               <br>
-            </form>
+
+
+            </div>
+         
          </div>
-         <!-- OUTPUT  -->
-         <div class="output_container">
-            <!-- ERROR MESSAGE  -->
-            <h4 id=error style="color:red"></h4>
-            <h4><b>Output</b></h4>
-            <!-- CARD OUTPUT  -->
-            <h5 style="color:Gray;"><b>Card</b></h5>
-            <img id="card_image" src="static/interface/BlankPlayer.png" width=300 height=420 alt="card">
-            <br>
-            <!-- STATS TABLE  -->
-            <h5 style="color:Gray;"><b>Stats</b></h5>
-            <table id="stats_table">
-               <tr>
-                  <th> </th>
-                  <th>Actual</th>
-                  <th>Showdown</th>
-               </tr>
-               {% for stat in ['BA','OBP','SLG','PA','1B','2B','3B','HR','BB','SO'] -%}
-               <tr>
-                  <td><b>{{ stat }}</b></td>
-                  <td>?</td>
-                  <td>?</td>
-               </tr>
-               {% endfor %}
-            </table>
-            <br>
-         </div>
+         
       </div>
+
+      <!-- JAVASCRIPT -->
       <script src="//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-      <script src="//netdna.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
-      <script src="/static/front_end/script_2_3.js" charset="utf-8"></script>
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+      <script src="/static/front_end/script_2_5.js" charset="utf-8"></script>
+   
    </body>
+   
 </html>
