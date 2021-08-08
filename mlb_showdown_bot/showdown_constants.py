@@ -477,6 +477,10 @@ CHART_CATEGORY_WEIGHTS = {
 POINT WEIGHTS
   - POINT VALUE GIVEN TO A PLAYER IN THE 100TH PERCENTILE FOR A CATEGORY
 """
+POINT_GB_MIN_MAX = {
+    'min': 0.3,
+    'max': 0.5,
+}
 POINT_CATEGORY_WEIGHTS = {
     '2000': {
         'position_player': {
@@ -491,13 +495,15 @@ POINT_CATEGORY_WEIGHTS = {
             'ip': 105,
             'onbase': 485,
             'average': 55,
-            'slugging': 210
+            'slugging': 210,
+            'out_distribution': 20,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 110,
             'average': 20,
-            'slugging': 90
+            'slugging': 90,
+            'out_distribution': 10,
         }
     },
     '2001': {
@@ -513,13 +519,15 @@ POINT_CATEGORY_WEIGHTS = {
             'ip': 115,
             'onbase': 470,
             'average': 35,
-            'slugging': 255
+            'slugging': 255,
+            'out_distribution': 20,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 145,
             'average': 25,
-            'slugging': 120
+            'slugging': 120,
+            'out_distribution': 10,
         }
     },
     '2002': {
@@ -535,13 +543,15 @@ POINT_CATEGORY_WEIGHTS = {
             'ip': 100,
             'onbase': 330,
             'average': 45,
-            'slugging': 280
+            'slugging': 280,
+            'out_distribution': 20,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 100,
             'average': 20,
-            'slugging': 85
+            'slugging': 85,
+            'out_distribution': 10,
         }
     },
     '2003': {
@@ -557,13 +567,15 @@ POINT_CATEGORY_WEIGHTS = {
             'ip': 70,
             'onbase': 280,
             'average': 60,
-            'slugging': 270
+            'slugging': 270,
+            'out_distribution': 20,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 135,
             'average': 20,
-            'slugging': 110
+            'slugging': 110,
+            'out_distribution': 10,
         }
     },
     '2004': {
@@ -579,13 +591,15 @@ POINT_CATEGORY_WEIGHTS = {
             'ip': 70,
             'onbase': 295,
             'average': 50,
-            'slugging': 150
+            'slugging': 150,
+            'out_distribution': 20,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 105,
             'average': 20,
-            'slugging': 105
+            'slugging': 105,
+            'out_distribution': 10,
         }
     },
     '2005': {
@@ -601,13 +615,15 @@ POINT_CATEGORY_WEIGHTS = {
             'ip': 75,
             'onbase': 305,
             'average': 60,
-            'slugging': 180
+            'slugging': 180,
+            'out_distribution': 20,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 105,
             'average': 20,
-            'slugging': 105
+            'slugging': 105,
+            'out_distribution': 10,
         }
     }
 }
