@@ -1334,8 +1334,9 @@ class ShowdownPlayerCardGenerator:
                     position_pts = percentile * sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['defense']
                     position_pts = position_pts * sc.POINTS_POSITIONAL_DEFENSE_MULTIPLIER[self.context][position]
                     defense_points += position_pts
+            use_avg = list(positions_and_defense.keys()) == ['CF', 'LF/RF'] or list(positions_and_defense.keys()) == ['LF/RF', 'CF']
             num_positions = len(positions_and_defense.keys()) if len(positions_and_defense.keys()) > 0 else 1
-            avg_points_per_position = defense_points / (num_positions if num_positions < 2 else (num_positions * 2 / 3))
+            avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else (num_positions * 2 / 3))
             self.defense_points = avg_points_per_position
 
         # CLOSER BONUS (00 ONLY)
