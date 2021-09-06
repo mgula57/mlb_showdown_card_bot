@@ -314,6 +314,8 @@ class ShowdownPlayerCardGenerator:
             gsRatio = games_started / games_played
             starter_threshold = 0.40
             if gsRatio > starter_threshold or self.ip > 4:
+                # ASSIGN MINIMUM IP FOR STARTERS
+                self.ip = 4 if self.ip < 4 else self.ip
                 return 'STARTER'
             if saves > 10:
                 return 'CLOSER'
@@ -1438,7 +1440,6 @@ class ShowdownPlayerCardGenerator:
         """
 
         # NORMALIZE SCORE ACROSS MEDIAN
-        lower_limit = 10
         is_starting_pitcher = self.player_type() == 'starting_pitcher'
         is_relief_pitcher = self.player_type() == 'relief_pitcher'
         reliever_normalizer = 2.0 if is_relief_pitcher else 1.0
@@ -1446,15 +1447,26 @@ class ShowdownPlayerCardGenerator:
         upper_limit = 800 if int(self.context) < 2002 else 800
         upper_limit = upper_limit / reliever_normalizer
 
+        # CHECK FOR STARTER WITH LOW IP
+        if is_starting_pitcher and self.ip < 6:
+            pts_6_ip = sc.POINT_CATEGORY_WEIGHTS[self.context]['starting_pitcher']['ip'] \
+                            * self.stat_percentile(stat=6,
+                                                   min_max_dict=sc.IP_RANGE['starting_pitcher'],
+                                                   is_desc=False,
+                                                   allow_negative=True)
+            pts_to_compare = round(points + pts_6_ip,-1)
+        else:
+            pts_to_compare = round(points,-1)
+
         # CENTER SLIGHTLY TOWARDS MEDIAN
         points_cutoff = 120 if is_relief_pitcher else 500
-        if points >= points_cutoff:
+        if pts_to_compare >= points_cutoff:
             min_max = {
                 'min': median,
                 'max': upper_limit
             }
             percentile = self.stat_percentile(
-                stat = points if points < upper_limit else upper_limit,
+                stat = pts_to_compare if pts_to_compare < upper_limit else upper_limit,
                 min_max_dict = min_max,
                 is_desc = True
             )
