@@ -2089,6 +2089,7 @@ class ShowdownPlayerCardGenerator:
                                         folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[self.context],
                                         substring_search = self.bref_id,
                                         additional_substring_search_list = additional_substring_filters,
+                                        year = self.year,
                                     )
             except:
                 player_image_url = None
@@ -3002,7 +3003,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # IMAGE QUERIES
 
-    def __query_google_drive_for_image_url(self, folder_id, substring_search, additional_substring_search_list=[]):
+    def __query_google_drive_for_image_url(self, folder_id, substring_search, additional_substring_search_list=[], year=None):
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -3010,6 +3011,8 @@ class ShowdownPlayerCardGenerator:
           folder_id: Unique ID for folder in drive (found in URL)
           substring_search: string used to filter results 
           additional_substring_search_list: List of strings to filter down results in case of multiple results.
+          year: Year(s) of card.
+
         Returns:
           List of dicts with file metadata
         """
@@ -3047,17 +3050,35 @@ class ShowdownPlayerCardGenerator:
         if num_files == 0:
             return None
         elif num_files > 1:
-            query_result = None
-            player_matched_image_files = sorted(player_matched_image_files, key = lambda i: len(i['name']), reverse=True)
+            player_matched_image_files = sorted(player_matched_image_files, key = lambda i: len(i['name']), reverse=False)
+            match_rates = {}
             for img_metadata in player_matched_image_files:
-                is_all_substrings_match = all(val in img_metadata['name'] for val in additional_substring_search_list)
-                if is_all_substrings_match:
-                    query_result = img_metadata['id']
-            file_id = query_result if query_result else player_matched_image_files[0]['id']
+                img_name = img_metadata['name']
+                img_id = img_metadata['id']
+                match_rate = sum(val in img_name for val in additional_substring_search_list)
+
+                # ADD DISTANCE FROM YEAR                
+                year_from_img_name = img_name.split(" ")[0]
+                is_img_multi_year = len(year_from_img_name) > 4
+                if year_from_img_name == year:
+                    # EXACT YEAR MATCH
+                    match_rate += 1
+                elif is_img_multi_year == False and self.is_multi_year == False:
+                    year_img = float(year_from_img_name)
+                    year_self = float(year)
+                    pct_diff = 1 - (abs(year_img - year_self) / year_self)
+                    match_rate += pct_diff
+                
+                # ADD MATCH RATE SCORE
+                match_rates[img_id] = match_rate
+            
+            # GET BEST MATCH
+            sorted_matches = sorted(match_rates.items(), key=operator.itemgetter(1), reverse=True)
+            file_id = sorted_matches[0][0]
         else:
             file_id = player_matched_image_files[0]['id']
         
         # GET WEB CONTENT URL
         img_url = files.get(fileId=file_id, fields="webContentLink").execute()['webContentLink']
-        
+
         return img_url
