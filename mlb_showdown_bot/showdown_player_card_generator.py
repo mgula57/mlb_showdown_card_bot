@@ -68,6 +68,7 @@ class ShowdownPlayerCardGenerator:
         self.test_numbers = test_numbers
         self.command_out_override = command_out_override
         self.is_running_in_flask = is_running_in_flask
+        self.is_automated_image = False
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -2096,6 +2097,7 @@ class ShowdownPlayerCardGenerator:
                 # USE PLAYER IMAGE FROM GOOGLE
                 response = requests.get(player_image_url)
                 player_image = Image.open(BytesIO(response.content)).convert("RGBA")
+                self.is_automated_image = True
             else:
                 # ADD PLAYER SILHOUETTE
                 type_string = 'P' if self.is_pitcher else 'H'
@@ -2105,6 +2107,11 @@ class ShowdownPlayerCardGenerator:
                 player_image = Image.open(silhouetee_image_path)
             
             background_image.paste(player_image,(0,0),player_image)
+
+        # IF 2000, PASTE SET CONTAINER BEFORE PLAYER CUTOUT
+        if self.context == '2000':
+            set_container = self.__2000_player_set_container_image()
+            background_image.paste(set_container,(0,0),set_container)
 
         return background_image
 
@@ -2336,6 +2343,17 @@ class ShowdownPlayerCardGenerator:
           PIL image object for 2000 name background/container
         """
         return Image.open(os.path.join(os.path.dirname(__file__), 'templates', "2000-Name.png"))
+
+    def __2000_player_set_container_image(self):
+        """Gets template asset image for 2000 set box.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for 2000 set background/container
+        """
+        return Image.open(os.path.join(os.path.dirname(__file__), 'templates', "2000-Set-Box.png"))
 
     def __player_name_text_image(self):
         """Creates Player name to match showdown context.

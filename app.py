@@ -82,6 +82,7 @@ def card_submission():
 def card_creator():
 
     error = ''
+    is_automated_image = False
     showdown = None
     name = None
     year = None
@@ -151,6 +152,7 @@ def card_creator():
         player_stats_data = showdown.player_data_for_html_table()
         player_points_data = showdown.points_data_for_html_table()
         player_accuracy_data = showdown.accuracy_data_for_html_table()
+        is_automated_image = showdown.is_automated_image
 
         error = ''
         log_card_submission_to_db(
@@ -170,6 +172,7 @@ def card_creator():
         return jsonify(
             image_path=card_image_path,
             error=error,
+            is_automated_image=is_automated_image,
             player_command=player_command,
             player_stats=player_stats_data, 
             player_points=player_points_data,
@@ -194,6 +197,7 @@ def card_creator():
         return jsonify(
             image_path=None,
             error=error,
+            is_automated_image=is_automated_image,
             player_command=None,
             player_stats=None,
             player_points=None,
