@@ -1448,13 +1448,13 @@ class ShowdownPlayerCardGenerator:
         upper_limit = upper_limit / reliever_normalizer
 
         # CHECK FOR STARTER WITH LOW IP
-        if is_starting_pitcher and self.ip < 6:
-            pts_6_ip = sc.POINT_CATEGORY_WEIGHTS[self.context]['starting_pitcher']['ip'] \
-                            * self.stat_percentile(stat=6,
+        if is_starting_pitcher and self.ip < 7:
+            pts_ip_add = sc.POINT_CATEGORY_WEIGHTS[self.context]['starting_pitcher']['ip'] \
+                            * self.stat_percentile(stat=7,
                                                    min_max_dict=sc.IP_RANGE['starting_pitcher'],
                                                    is_desc=False,
                                                    allow_negative=True)
-            pts_to_compare = round(points + pts_6_ip,-1)
+            pts_to_compare = round(points + pts_ip_add,-1)
         else:
             pts_to_compare = round(points,-1)
 
@@ -1671,6 +1671,8 @@ class ShowdownPlayerCardGenerator:
             pt_category_string += '  HR:{hr}  DEF:{defense}'.format(hr=self.hr_points,defense=self.defense_points)
         else:
             pt_category_string += f"  OUT_DIST: {round(self.out_dist_points,2)}"
+        if self.points_normalizer < 1.0:
+            pt_category_string += f"  NORMALIZER: {round(self.points_normalizer,2)}"
         # NOT USING DOCSTRING FOR FORMATTING REASONS
         card_as_string = (
             '***********************************************\n' +
