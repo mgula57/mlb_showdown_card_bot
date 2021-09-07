@@ -1448,7 +1448,7 @@ class ShowdownPlayerCardGenerator:
         upper_limit = upper_limit / reliever_normalizer
 
         # CHECK FOR STARTER WITH LOW IP
-        if is_starting_pitcher and self.ip < 7:
+        if is_starting_pitcher and self.ip < 7 and points < 550:
             pts_ip_add = sc.POINT_CATEGORY_WEIGHTS[self.context]['starting_pitcher']['ip'] \
                             * self.stat_percentile(stat=7,
                                                    min_max_dict=sc.IP_RANGE['starting_pitcher'],
