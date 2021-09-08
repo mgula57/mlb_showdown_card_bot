@@ -120,6 +120,11 @@ $(function () {
                 // ADD STATS TO TABLE
                 if (data.error != 'Unable to create Showdown Card. Make sure the player name and year are correct.') {
                     $("#card_image").attr('src', data.image_path);
+                    console.log("auto image");
+                    if (data.is_automated_image) {
+                        document.getElementById("error").style.color = "green";
+                        $("#error").text("Automated Image! See Drive link for more");
+                    };
                     
                     // PLAYER STATS
                     var player_stats_table = '<table id="stats_table"><tr><th> </th><th>Actual</th><th>Showdown</th></tr>';
