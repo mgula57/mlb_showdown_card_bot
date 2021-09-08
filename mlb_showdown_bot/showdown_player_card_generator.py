@@ -32,7 +32,7 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "2.5"
+        self.version = "2.6"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.year = str(year).upper()
@@ -68,6 +68,7 @@ class ShowdownPlayerCardGenerator:
         self.test_numbers = test_numbers
         self.command_out_override = command_out_override
         self.is_running_in_flask = is_running_in_flask
+        self.is_automated_image = False
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -313,6 +314,8 @@ class ShowdownPlayerCardGenerator:
             gsRatio = games_started / games_played
             starter_threshold = 0.40
             if gsRatio > starter_threshold or self.ip > 4:
+                # ASSIGN MINIMUM IP FOR STARTERS
+                self.ip = 4 if self.ip < 4 else self.ip
                 return 'STARTER'
             if saves > 10:
                 return 'CLOSER'
@@ -1334,8 +1337,9 @@ class ShowdownPlayerCardGenerator:
                     position_pts = percentile * sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['defense']
                     position_pts = position_pts * sc.POINTS_POSITIONAL_DEFENSE_MULTIPLIER[self.context][position]
                     defense_points += position_pts
+            use_avg = list(positions_and_defense.keys()) == ['CF', 'LF/RF'] or list(positions_and_defense.keys()) == ['LF/RF', 'CF']
             num_positions = len(positions_and_defense.keys()) if len(positions_and_defense.keys()) > 0 else 1
-            avg_points_per_position = defense_points / (num_positions if num_positions < 2 else (num_positions * 2 / 3))
+            avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else (num_positions * 2 / 3))
             self.defense_points = avg_points_per_position
 
         # CLOSER BONUS (00 ONLY)
@@ -1436,7 +1440,6 @@ class ShowdownPlayerCardGenerator:
         """
 
         # NORMALIZE SCORE ACROSS MEDIAN
-        lower_limit = 10
         is_starting_pitcher = self.player_type() == 'starting_pitcher'
         is_relief_pitcher = self.player_type() == 'relief_pitcher'
         reliever_normalizer = 2.0 if is_relief_pitcher else 1.0
@@ -1444,15 +1447,26 @@ class ShowdownPlayerCardGenerator:
         upper_limit = 800 if int(self.context) < 2002 else 800
         upper_limit = upper_limit / reliever_normalizer
 
+        # CHECK FOR STARTER WITH LOW IP
+        if is_starting_pitcher and self.ip < 7 and points < 550:
+            pts_ip_add = sc.POINT_CATEGORY_WEIGHTS[self.context]['starting_pitcher']['ip'] \
+                            * self.stat_percentile(stat=7,
+                                                   min_max_dict=sc.IP_RANGE['starting_pitcher'],
+                                                   is_desc=False,
+                                                   allow_negative=True)
+            pts_to_compare = round(points + pts_ip_add,-1)
+        else:
+            pts_to_compare = round(points,-1)
+
         # CENTER SLIGHTLY TOWARDS MEDIAN
         points_cutoff = 120 if is_relief_pitcher else 500
-        if points >= points_cutoff:
+        if pts_to_compare >= points_cutoff:
             min_max = {
                 'min': median,
                 'max': upper_limit
             }
             percentile = self.stat_percentile(
-                stat = points if points < upper_limit else upper_limit,
+                stat = pts_to_compare if pts_to_compare < upper_limit else upper_limit,
                 min_max_dict = min_max,
                 is_desc = True
             )
@@ -1657,6 +1671,8 @@ class ShowdownPlayerCardGenerator:
             pt_category_string += '  HR:{hr}  DEF:{defense}'.format(hr=self.hr_points,defense=self.defense_points)
         else:
             pt_category_string += f"  OUT_DIST: {round(self.out_dist_points,2)}"
+        if self.points_normalizer < 1.0:
+            pt_category_string += f"  NORMALIZER: {round(self.points_normalizer,2)}"
         # NOT USING DOCSTRING FOR FORMATTING REASONS
         card_as_string = (
             '***********************************************\n' +
@@ -2087,6 +2103,7 @@ class ShowdownPlayerCardGenerator:
                                         folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[self.context],
                                         substring_search = self.bref_id,
                                         additional_substring_search_list = additional_substring_filters,
+                                        year = self.year,
                                     )
             except:
                 player_image_url = None
@@ -2095,6 +2112,7 @@ class ShowdownPlayerCardGenerator:
                 # USE PLAYER IMAGE FROM GOOGLE
                 response = requests.get(player_image_url)
                 player_image = Image.open(BytesIO(response.content)).convert("RGBA")
+                self.is_automated_image = True
             else:
                 # ADD PLAYER SILHOUETTE
                 type_string = 'P' if self.is_pitcher else 'H'
@@ -2104,6 +2122,11 @@ class ShowdownPlayerCardGenerator:
                 player_image = Image.open(silhouetee_image_path)
             
             background_image.paste(player_image,(0,0),player_image)
+
+        # IF 2000, PASTE SET CONTAINER BEFORE PLAYER CUTOUT
+        if self.context == '2000':
+            set_container = self.__2000_player_set_container_image()
+            background_image.paste(set_container,(0,0),set_container)
 
         return background_image
 
@@ -2335,6 +2358,17 @@ class ShowdownPlayerCardGenerator:
           PIL image object for 2000 name background/container
         """
         return Image.open(os.path.join(os.path.dirname(__file__), 'templates', "2000-Name.png"))
+
+    def __2000_player_set_container_image(self):
+        """Gets template asset image for 2000 set box.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for 2000 set background/container
+        """
+        return Image.open(os.path.join(os.path.dirname(__file__), 'templates', "2000-Set-Box.png"))
 
     def __player_name_text_image(self):
         """Creates Player name to match showdown context.
@@ -2983,7 +3017,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # IMAGE QUERIES
 
-    def __query_google_drive_for_image_url(self, folder_id, substring_search, additional_substring_search_list=[]):
+    def __query_google_drive_for_image_url(self, folder_id, substring_search, additional_substring_search_list=[], year=None):
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -2991,6 +3025,8 @@ class ShowdownPlayerCardGenerator:
           folder_id: Unique ID for folder in drive (found in URL)
           substring_search: string used to filter results 
           additional_substring_search_list: List of strings to filter down results in case of multiple results.
+          year: Year(s) of card.
+
         Returns:
           List of dicts with file metadata
         """
@@ -3028,17 +3064,35 @@ class ShowdownPlayerCardGenerator:
         if num_files == 0:
             return None
         elif num_files > 1:
-            query_result = None
-            player_matched_image_files = sorted(player_matched_image_files, key = lambda i: len(i['name']), reverse=True)
+            player_matched_image_files = sorted(player_matched_image_files, key = lambda i: len(i['name']), reverse=False)
+            match_rates = {}
             for img_metadata in player_matched_image_files:
-                is_all_substrings_match = all(val in img_metadata['name'] for val in additional_substring_search_list)
-                if is_all_substrings_match:
-                    query_result = img_metadata['id']
-            file_id = query_result if query_result else player_matched_image_files[0]['id']
+                img_name = img_metadata['name']
+                img_id = img_metadata['id']
+                match_rate = sum(val in img_name for val in additional_substring_search_list)
+
+                # ADD DISTANCE FROM YEAR                
+                year_from_img_name = img_name.split(" ")[0]
+                is_img_multi_year = len(year_from_img_name) > 4
+                if year_from_img_name == year:
+                    # EXACT YEAR MATCH
+                    match_rate += 1
+                elif is_img_multi_year == False and self.is_multi_year == False:
+                    year_img = float(year_from_img_name)
+                    year_self = float(year)
+                    pct_diff = 1 - (abs(year_img - year_self) / year_self)
+                    match_rate += pct_diff
+                
+                # ADD MATCH RATE SCORE
+                match_rates[img_id] = match_rate
+            
+            # GET BEST MATCH
+            sorted_matches = sorted(match_rates.items(), key=operator.itemgetter(1), reverse=True)
+            file_id = sorted_matches[0][0]
         else:
             file_id = player_matched_image_files[0]['id']
         
         # GET WEB CONTENT URL
         img_url = files.get(fileId=file_id, fields="webContentLink").execute()['webContentLink']
-        
+
         return img_url
