@@ -32,7 +32,7 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "2.6"
+        self.version = "2.6.1"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.year = str(year).upper()
@@ -58,6 +58,12 @@ class ShowdownPlayerCardGenerator:
         self.context = context
         self.expansion = expansion
         self.stats = stats
+        # COMBINE BB AND HBP
+        if 'HBP' in self.stats.keys():
+            try:
+                self.stats['BB'] = self.stats['BB'] + self.stats['HBP']
+            except:
+                print("ERROR COMBINING BB AND HBP")
         self.is_cooperstown = is_cooperstown
         self.is_super_season = is_super_season
         self.is_all_star_game = is_all_star_game
