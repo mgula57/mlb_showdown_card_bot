@@ -1739,8 +1739,8 @@ TEAM_LOGO_ALTERNATES = {
         '1': list(range(1900,1950)),
     },
     'OAK': {
-        '1': list(range(1970,1992)),
-        '2': list(range(1992,2019)),
+        '1': list(range(1970,1982)),
+        '2': list(range(1982,1993)),
     },
     'PHI': {
         '1': list(range(1900,1950)),
@@ -1773,6 +1773,9 @@ TEAM_LOGO_ALTERNATES = {
         '1': list(range(1900,1927)),
         '2': list(range(1927,1965)),
         '3': list(range(1965,1998)),
+    },
+    'TBD': {
+        '1': list(range(1998,2001)),
     },
     'TEX': {
         '1': list(range(1972,1982)),
