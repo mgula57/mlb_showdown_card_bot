@@ -101,6 +101,7 @@ $(function () {
             var is_cc = editionSelection == "Cooperstown Collection";
             var is_ss = editionSelection == "Super Season";
             var is_asg = editionSelection == "All-Star Game";
+            var is_holiday = editionSelection == "Holiday";
 
             $.getJSON('/card_creation', {
                 name: $('input[name="name"]').val(),
@@ -114,6 +115,7 @@ $(function () {
                 set_num: $('input[name="setnum"]').val(),
                 offset: selectedOffset,
                 expansion: $("#expansionSelection :selected").val(),
+                is_holiday: is_holiday,
             }, function (data) {
                 $('#overlay').hide();
                 $("#error").text(data.error);
