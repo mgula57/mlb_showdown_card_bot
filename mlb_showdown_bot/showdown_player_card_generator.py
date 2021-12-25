@@ -28,11 +28,11 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "2.6.2"
+        self.version = "2.6.3"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.year = str(year).upper()
@@ -67,6 +67,7 @@ class ShowdownPlayerCardGenerator:
         self.is_cooperstown = is_cooperstown
         self.is_super_season = is_super_season
         self.is_all_star_game = is_all_star_game
+        self.is_holiday = is_holiday
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
         self.card_img_output_folder_path = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
@@ -1935,6 +1936,12 @@ class ShowdownPlayerCardGenerator:
         # LOAD PLAYER IMAGE
         player_image = self.__background_image()
 
+        # ADD HOLIDAY THEME
+        if self.is_holiday:
+            holiday_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Holiday.png')
+            holiday_image = Image.open(holiday_image_path)
+            player_image.paste(holiday_image,(0,0),holiday_image)
+
         # LOAD SHOWDOWN TEMPLATE
         showdown_template_frame_image = self.__template_image()
         player_image.paste(showdown_template_frame_image,(0,0),showdown_template_frame_image)
@@ -2324,7 +2331,7 @@ class ShowdownPlayerCardGenerator:
         # GET TEMPLATE FOR PLAYER TYPE (HITTER OR PITCHER)
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
         cc_extension = '-CC' if self.is_cooperstown and int(self.context) >= 2004 else ''
-        ss_extension = '-SS' if self.is_super_season and int(self.context) >= 2004 else ''
+        ss_extension = '-SS' if (self.is_super_season or self.is_holiday) and int(self.context) >= 2004 else ''
         type_template = '{context}-{type}{cc}{ss}.png'.format(context = year, type = type, cc = cc_extension, ss = ss_extension)
         template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
 
