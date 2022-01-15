@@ -40,8 +40,8 @@ FIRST_BASE_PLUS_2_CUTOFF = {
     'dWAR': 0.8
 }
 FIRST_BASE_PLUS_1_CUTOFF = {
-    'drs': 0,
-    'tzr': 0,
+    'drs': 4,
+    'tzr': 4,
     'dWAR': -0.25
 }
 # MINIMUM REQUIRED GAMES PLAYED AT A POSITION TO QUALIFY
@@ -496,14 +496,14 @@ POINT_CATEGORY_WEIGHTS = {
             'onbase': 485,
             'average': 55,
             'slugging': 210,
-            'out_distribution': 20,
+            'out_distribution': 30,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
             'onbase': 110,
             'average': 20,
             'slugging': 90,
-            'out_distribution': 10,
+            'out_distribution': 20,
         }
     },
     '2001': {
@@ -520,14 +520,14 @@ POINT_CATEGORY_WEIGHTS = {
             'onbase': 470,
             'average': 35,
             'slugging': 255,
-            'out_distribution': 20,
+            'out_distribution': 30,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 145,
+            'onbase': 174,
             'average': 25,
-            'slugging': 120,
-            'out_distribution': 10,
+            'slugging': 112,
+            'out_distribution': 20,
         }
     },
     '2002': {
@@ -933,6 +933,19 @@ POINTS_NORMALIZER_MULTIPLIER = {
 }
 
 """
+POINTS_NORMALIZER_RELIEVER_MULTIPLIER
+  - WHAT TO MULTIPLY MEDIAN FOR POSITION PLAYER / STARTERS BY
+"""
+POINTS_NORMALIZER_RELIEVER_MULTIPLIER = {
+    '2000': 2.0,
+    '2001': 1.5,
+    '2002': 2.0,
+    '2003': 2.0,
+    '2004': 2.0,
+    '2005': 2.0,
+}
+
+"""
 POINTS_RELIEVER_IP_MULTIPLIER
   - WHAT PERCENT OF POINTS TO GIVE FOR 2ND INNING OF RELIEF
 """
@@ -972,8 +985,8 @@ ONBASE_PCT_RANGE = {
             'max': 0.400
         },
         'relief_pitcher': {
-            'min': 0.250,
-            'max': 0.370
+            'min': 0.240,
+            'max': 0.360
         },
         'position_player': {
             'min': 0.290,
