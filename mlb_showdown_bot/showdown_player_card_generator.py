@@ -32,7 +32,7 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "2.6.3"
+        self.version = "2.6.4"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.year = str(year).upper()
@@ -189,9 +189,11 @@ class ShowdownPlayerCardGenerator:
                 if position is not None:
                     if not self.is_pitcher:
                         try:                                
-                            drs = int(defensive_stats['drsPosition{}'.format(position_index)])
+                            is_drs_available = f'drsPosition{position_index}' in defensive_stats.keys()
+                            is_d_war_available = 'dWAR' in defensive_stats.keys()
+                            drs = int(defensive_stats['drsPosition{}'.format(position_index)]) if is_drs_available else None
                             tzr = int(defensive_stats['tzPosition{}'.format(position_index)])
-                            dWar = float(defensive_stats['dWAR'])
+                            dWar = float(defensive_stats['dWAR']) if is_d_war_available else None
                             if drs:
                                 metric = 'drs'
                             elif tzr: 
@@ -1449,7 +1451,7 @@ class ShowdownPlayerCardGenerator:
         # NORMALIZE SCORE ACROSS MEDIAN
         is_starting_pitcher = self.player_type() == 'starting_pitcher'
         is_relief_pitcher = self.player_type() == 'relief_pitcher'
-        reliever_normalizer = 2.0 if is_relief_pitcher else 1.0
+        reliever_normalizer = sc.POINTS_NORMALIZER_RELIEVER_MULTIPLIER[self.context] if is_relief_pitcher else 1.0
         median = 310 / reliever_normalizer
         upper_limit = 800 if int(self.context) < 2002 else 800
         upper_limit = upper_limit / reliever_normalizer
@@ -1589,6 +1591,7 @@ class ShowdownPlayerCardGenerator:
         chart_w_combined_command_outs = self.chart
         chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart['command'],self.chart['outs'])
         chart_w_combined_command_outs['spd'] = self.speed
+        chart_w_combined_command_outs['defense'] = int(list(self.positions_and_defense.values())[0])
         
         # COMBINE 1B and 1B+ IF NON-VOLATILE CATEGORIES
         if not self.is_pitcher and '1b+' not in wotc_card_dict.keys():
