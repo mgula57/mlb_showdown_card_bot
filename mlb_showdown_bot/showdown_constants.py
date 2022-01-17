@@ -6,6 +6,14 @@
 # -------------------------------------------
 
 """
+SET STYLES
+"""
+EXPANDED_ALIAS = 'EXPANDED'
+CLASSIC_ALIAS = 'CLASSIC'
+EXPANDED_SETS = ['2002','2003','2004','2005',f'2022-{EXPANDED_ALIAS}',]
+CLASSIC_SETS = ['2000','2001',f'2022-{CLASSIC_ALIAS}',]
+SETS_HAS_ICONS = ['2003','2004','2005',f'2022-{EXPANDED_ALIAS}',]
+"""
 SPEED AND FIELDING
   - MIN AND MAX USED IN PERCENTILE CALCULATIONS
   - ** STOLEN BASES MINIMUM IS NEGATIVE JUST TO BALANCE OUT PERCENTILE RANGE
@@ -21,6 +29,8 @@ SB_MULTIPLIER = {
     '2003': 0.95,
     '2004': 0.98,
     '2005': 1.0,
+    f'2022-{CLASSIC_ALIAS}': 1.0,
+    f'2022-{EXPANDED_ALIAS}': 1.0,
 }
 
 MIN_SABER_FIELDING = {
@@ -55,6 +65,8 @@ PU_MULTIPLIER = {
     '2003': 2.2,
     '2004': 2.05,
     '2005': 2.4,
+    f'2022-{CLASSIC_ALIAS}': 2.5,
+    f'2022-{EXPANDED_ALIAS}': 2.4,
 }
 # THIS GB MULTIPLIER IS A MORE SIMPLE MODE OF ADJUSTMENT.
 # REPLACE HAVING DEFAULT GB AND FB FOR OPPONENT CHART
@@ -66,6 +78,8 @@ GB_MULTIPLIER = {
         '2003': 1.12,
         '2004': 1.1,
         '2005': 1.1,
+        f'2022-{CLASSIC_ALIAS}': 1.0,
+        f'2022-{EXPANDED_ALIAS}': 1.0,
     },
     'pitcher': {
         '2000': 0.85,
@@ -74,6 +88,8 @@ GB_MULTIPLIER = {
         '2003': 1.05,
         '2004': 1.05,
         '2005': 1.05,
+        f'2022-{CLASSIC_ALIAS}': 1.0,
+        f'2022-{EXPANDED_ALIAS}': 1.0,
     },
 }
 """
@@ -141,7 +157,27 @@ BASELINE_PITCHER = {
         '2b': 0.50,
         '3b': 0.09,
         'hr': 0.33
-    }
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'command': 3.0,
+        'outs': 16.0,
+        'so': 4.1,
+        'bb': 1.35,
+        '1b': 2.0,
+        '2b': 0.62,
+        '3b': 0.00,
+        'hr': 0.11
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'command': 4.0,
+        'outs': 16.0,
+        'so': 4.25,
+        'bb': 1.25,
+        '1b': 2.05,
+        '2b': 0.50,
+        '3b': 0.09,
+        'hr': 0.33
+    },
 }
 
 """
@@ -209,6 +245,28 @@ BASELINE_HITTER = {
         'command': 8.8,
         'outs': 7.4,
         'so': 2.4,
+        'bb': 3.3,
+        '1b': 6.0,
+        '1b+': 0.12,
+        '2b': 1.3,
+        '3b': 0.19,
+        'hr': 1.4
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'command': 8.0,
+        'outs': 4.0,
+        'so': 1.7,
+        'bb': 4.45,
+        '1b': 6.7,
+        '1b+': 0.63,
+        '2b': 1.95,
+        '3b': 0.2,
+        'hr': 2.0
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'command': 9.5,
+        'outs': 7.4,
+        'so': 3.0,
         'bb': 3.3,
         '1b': 6.0,
         '1b+': 0.12,
@@ -288,7 +346,30 @@ OB_COMBOS = {
         [14,5],[14,6],
         [15,6],
         [16,3],[16,6]
-    ]
+    ],
+    f'2022-{CLASSIC_ALIAS}': [
+        [4,5],[4,6],
+        [5,2],[5,3],[5,4],[5,5],[5,6],
+        [6,2],[6,3],[6,4],[6,5],[6,6],
+        [7,3],[7,4],[7,5],[7,6],
+        [8,3],[8,4],[8,5],[8,6],
+        [9,3],[9,4],[9,5],[9,6],
+        [10,2],[10,3],[10,4],
+        [11,2],[11,3],[11,4],
+        [12,0],[12,2],[12,3]
+    ],
+    f'2022-{EXPANDED_ALIAS}': [
+        [8,5],[8,6],[8,7],[8,8],[8,9],[8,10],
+        [9,5],[9,6],[9,7],[9,8],[9,9],[9,10],[9,11],
+        [10,5],[10,6],[10,7],[10,8],
+        [11,5],[11,6],[11,7],[11,8],
+        [12,5],[12,6],[12,7],
+        [13,5],[13,6],[13,7],
+        [14,5],[14,6],[14,7],
+        [15,6],[15,7],
+        [16,3],[16,6],
+    ],
+
 }
 CONTROL_COMBOS = {
     '2000':[
@@ -339,7 +420,24 @@ CONTROL_COMBOS = {
         [4,16],[4,17],
         [5,16],[5,17],[5,18],[5,19],
         [6,15],[6,16],[6,17],[6,18]
-    ]
+    ],
+    f'2022-{CLASSIC_ALIAS}': [
+        [0,17],[0,18],
+        [1,17],[1,18],
+        [2,16],[2,17],
+        [3,14],[3,15],[3,16],[3,17],
+        [4,14],[4,15],[4,16],[4,17],[4,18],
+        [5,14],[5,15],[5,16],[5,17],[5,18],[5,19],
+        [6,14],[6,15],[6,16],[6,17],[6,18],
+    ],
+    f'2022-{EXPANDED_ALIAS}': [
+        [1,14],[1,15],[1,16],
+        [2,15],[2,16],
+        [3,15],[3,16],
+        [4,16],[4,17],[4,18],
+        [5,16],[5,17],[5,18],[5,19],
+        [6,15],[6,16],[6,17],[6,18]
+    ],
 }
 
 """
@@ -352,7 +450,9 @@ MAX_HITTER_SO_RESULTS = {
     '2002': 6,
     '2003': 4,
     '2004': 4,
-    '2005': 4
+    '2005': 4,
+    f'2022-{CLASSIC_ALIAS}': 5,
+    f'2022-{EXPANDED_ALIAS}': 4,
 }
 
 """
@@ -382,6 +482,14 @@ HITTER_SINGLE_PLUS_DENOMINATOR_RANGE = {
         'max': 10.5
     },
     '2005': {
+        'min': 5.5,
+        'max': 9.75
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'min': 3.2,
+        'max': 9.6
+    },
+    f'2022-{EXPANDED_ALIAS}': {
         'min': 5.5,
         'max': 9.75
     },
@@ -469,6 +577,34 @@ CHART_CATEGORY_WEIGHTS = {
         'relief_pitcher': {
             'slugging_perc': 1.0,
             'onbase_perc': 3.0,
+        }
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'position_player': {
+            'onbase_perc': 1.5,
+            'slugging_perc': 1.0,
+        },
+        'starting_pitcher': {
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
+        },
+        'relief_pitcher': {
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
+        }
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'position_player': {
+            'onbase_perc': 1.5,
+            'slugging_perc': 1.0,
+        },
+        'starting_pitcher': {
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
+        },
+        'relief_pitcher': {
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.0,
         }
     },
 }
@@ -625,7 +761,55 @@ POINT_CATEGORY_WEIGHTS = {
             'slugging': 105,
             'out_distribution': 10,
         }
-    }
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'position_player': {
+            'defense': 65,
+            'speed': 60,
+            'onbase': 190,
+            'average': 50,
+            'slugging': 165,
+            'home_runs': 45
+        },
+        'starting_pitcher': {
+            'ip': 115,
+            'onbase': 470,
+            'average': 35,
+            'slugging': 255,
+            'out_distribution': 30,
+        },
+        'relief_pitcher': {
+            'ip': 0, # IP IS ADJUSTED ELSEWHERE
+            'onbase': 174,
+            'average': 25,
+            'slugging': 112,
+            'out_distribution': 20,
+        }
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'position_player': {
+            'defense': 65,
+            'speed': 60,
+            'onbase': 140,
+            'average': 70,
+            'slugging': 140,
+            'home_runs': 50
+        },
+        'starting_pitcher': {
+            'ip': 75,
+            'onbase': 305,
+            'average': 60,
+            'slugging': 180,
+            'out_distribution': 20,
+        },
+        'relief_pitcher': {
+            'ip': 0, # IP IS ADJUSTED ELSEWHERE
+            'onbase': 105,
+            'average': 20,
+            'slugging': 105,
+            'out_distribution': 10,
+        }
+    },
 }
 
 """
@@ -694,7 +878,29 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'OF': 1.0,
         'LF/RF': 1.0,
         'IF': 1.0,
-    }
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'CA': 1.0,
+        '1B': 0.5,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 1.0,
+        'CF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+        'IF': 1.0,
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'CA': 1.0,
+        '1B': 0.5,
+        '2B': 1.0,
+        '3B': 1.0,
+        'SS': 1.0,
+        'CF': 1.0,
+        'OF': 1.0,
+        'LF/RF': 1.0,
+        'IF': 1.0,
+    },
 }
 
 """
@@ -728,6 +934,19 @@ POINTS_ICONS = {
         'CY': 15,
     },
     '2005': {
+        'G': 10,
+        'S': 10,
+        'V': 15,
+        'HR': 15,
+        'SB': 10,
+        'RY': 10,
+        'R': 0,
+        'RP': 10,
+        'K': 10,
+        '20': 10,
+        'CY': 15,
+    },
+    f'2022-{EXPANDED_ALIAS}': {
         'G': 10,
         'S': 10,
         'V': 15,
@@ -817,7 +1036,38 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '3-18': 0.9,
         '4-17': 0.8,
         '6-17': 1.03,
-    }
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        '10-4': 1.05,
+        '10-2': 0.96,
+        '9-5': 1.05,
+        '9-3': 0.925,
+        '8-4': 0.925,
+        '8-3': 0.90,
+        '7-4': 0.90,
+        '7-3': 0.90,
+
+        '2-17': 0.92,
+        '3-17': 0.85,
+        '4-14': 1.15,
+        '4-15': 1.15,
+        '5-14': 1.25,
+        '6-14': 1.05,
+        '6-15': 1.05,
+        '5-17': 0.99,
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        '9-5': 1.15,
+        '9-6': 1.1,
+        '9-7': 0.95,
+
+        '3-15': 1.00,
+        '3-16': 1.00,
+        '3-17': 0.8,
+        '3-18': 0.9,
+        '4-17': 0.9,
+        '6-17': 1.03,
+    },
 }
 
 
@@ -852,6 +1102,16 @@ POINTS_ALLOW_NEGATIVE = {
         'relief_pitcher': True,
     },
     '2005': {
+        'position_player': True,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'position_player': True,
+        'starting_pitcher': False,
+        'relief_pitcher': False,
+    },
+    f'2022-{EXPANDED_ALIAS}': {
         'position_player': True,
         'starting_pitcher': True,
         'relief_pitcher': True,
@@ -893,6 +1153,16 @@ POINTS_NORMALIZE_TOWARDS_MEDIAN = {
         'starting_pitcher': True,
         'relief_pitcher': True,
     },
+    f'2022-{CLASSIC_ALIAS}': {
+        'position_player': False,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'position_player': False,
+        'starting_pitcher': True,
+        'relief_pitcher': True,
+    },
 }
 
 """
@@ -930,6 +1200,16 @@ POINTS_NORMALIZER_MULTIPLIER = {
         'starting_pitcher': 0.75,
         'relief_pitcher': 0.70,
     },
+    f'2022-{CLASSIC_ALIAS}': {
+        'position_player': 0.65,
+        'starting_pitcher': 0.70,
+        'relief_pitcher': 0.72,
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'position_player': 0.65,
+        'starting_pitcher': 0.75,
+        'relief_pitcher': 0.70,
+    },
 }
 
 """
@@ -943,6 +1223,8 @@ POINTS_NORMALIZER_RELIEVER_MULTIPLIER = {
     '2003': 2.0,
     '2004': 2.0,
     '2005': 2.0,
+    f'2022-{CLASSIC_ALIAS}': 1.5,
+    f'2022-{EXPANDED_ALIAS}': 2.0,
 }
 
 """
@@ -956,6 +1238,8 @@ POINTS_RELIEVER_IP_MULTIPLIER = {
     '2003': 0.55,
     '2004': 0.67,
     '2005': 0.625,
+    f'2022-{CLASSIC_ALIAS}': 0.80,
+    f'2022-{EXPANDED_ALIAS}': 0.625,
 }
 
 
@@ -1048,7 +1332,35 @@ ONBASE_PCT_RANGE = {
             'min': 0.310,
             'max': 0.410
         }
-    }
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'starting_pitcher': {
+            'min': 0.240,
+            'max': 0.400
+        },
+        'relief_pitcher': {
+            'min': 0.240,
+            'max': 0.360
+        },
+        'position_player': {
+            'min': 0.290,
+            'max': 0.450
+        }
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'starting_pitcher': {
+            'min': 0.223,
+            'max': 0.370
+        },
+        'relief_pitcher': {
+            'min': 0.240,
+            'max': 0.390
+        },
+        'position_player': {
+            'min': 0.310,
+            'max': 0.410
+        }
+    },
 }
 BATTING_AVG_RANGE = {
     '2000': {
@@ -1134,7 +1446,35 @@ BATTING_AVG_RANGE = {
             'min': 0.245,
             'max': 0.330
         }
-    }
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'starting_pitcher': {
+            'min': 0.210,
+            'max': 0.300
+        },
+        'relief_pitcher': {
+            'min': 0.210,
+            'max': 0.300
+        },
+        'position_player': {
+            'min': 0.225,
+            'max': 0.330
+        }
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'starting_pitcher': {
+            'min': 0.210,
+            'max': 0.280
+        },
+        'relief_pitcher': {
+            'min': 0.210,
+            'max': 0.280
+        },
+        'position_player': {
+            'min': 0.245,
+            'max': 0.330
+        }
+    },
 }
 SLG_RANGE = {
     '2000': {
@@ -1220,7 +1560,35 @@ SLG_RANGE = {
             'min': 0.360,
             'max': 0.545
         }
-    }
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'starting_pitcher': {
+            'min': 0.340,
+            'max': 0.500
+        },
+        'relief_pitcher': {
+            'min': 0.345,
+            'max': 0.500
+        },
+        'position_player': {
+            'min': 0.350,
+            'max': 0.545
+        }
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'starting_pitcher': {
+            'min': 0.335,
+            'max': 0.475
+        },
+        'relief_pitcher': {
+            'min': 0.330,
+            'max': 0.480
+        },
+        'position_player': {
+            'min': 0.360,
+            'max': 0.545
+        }
+    },
 }
 SPEED_RANGE = {
     '2000': {
@@ -1244,6 +1612,14 @@ SPEED_RANGE = {
         'max': 20
     },
     '2005': {
+        'min': 10,
+        'max': 20
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'min': 10,
+        'max': 20
+    },
+    f'2022-{EXPANDED_ALIAS}': {
         'min': 10,
         'max': 20
     },
@@ -1282,7 +1658,15 @@ HR_RANGE = {
     '2005': {
         'min': 10,
         'max': 35
-    }
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'min': 10,
+        'max': 35
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'min': 10,
+        'max': 35
+    },
 }
 
 """
@@ -1370,7 +1754,35 @@ POSITION_DEFENSE_RANGE = {
         'IF': 1.0,
         'LF/RF': 2.0,
         'DH': 0
-    }
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        'CA': 12.0,
+        '1B': 1.0,
+        '2B': 5.0,
+        '3B': 4.0,
+        'SS': 5.0,
+        'LF': 2.0,
+        'CF': 3.0,
+        'RF': 2.0,
+        'OF': 2.0,
+        'IF': 1.0,
+        'LF/RF': 2.0,
+        'DH': 0
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        'CA': 12.0,
+        '1B': 1.0,
+        '2B': 5.0,
+        '3B': 4.0,
+        'SS': 5.0,
+        'LF': 2.0,
+        'CF': 3.0,
+        'RF': 2.0,
+        'OF': 2.0,
+        'IF': 1.0,
+        'LF/RF': 2.0,
+        'DH': 0
+    },
 }
 
 """

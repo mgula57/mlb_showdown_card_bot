@@ -26,6 +26,8 @@ parser.add_argument('-ss','--is_ss', action='store_true', help='Optionally make 
 parser.add_argument('-asg','--is_asg', action='store_true', help='Optionally make the card All Star Game')
 parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default='', type=str)
 parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='BS')
+parser.add_argument('-sty','--style',help='Add style to player card',default='',type=str)
+
 args = parser.parse_args()
 
 def main():
@@ -48,6 +50,7 @@ def main():
         is_all_star_game=args.is_asg,
         context=args.context,
         expansion=args.expansion,
+        style=args.style,
         offset=args.offset,
         player_image_url=args.image_url,
         player_image_path=args.image_path,
