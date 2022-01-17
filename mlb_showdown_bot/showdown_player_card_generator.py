@@ -1858,11 +1858,12 @@ class ShowdownPlayerCardGenerator:
 
         return accuracy_data
 
-    def __player_metadata_summary_text(self, is_horizontal=False):
+    def __player_metadata_summary_text(self, is_horizontal=False, delimeter=' '):
         """Creates a multi line string with all player metadata for card output.
 
         Args:
           is_horizontal: Optional boolean for horizontally formatted text (04/05)
+          delimeter: Optional delimeter (ex: ',' , '|') to separate categories
 
         Returns:
           String of output text for player info + stats
@@ -1870,14 +1871,15 @@ class ShowdownPlayerCardGenerator:
         positions_string = self.__position_and_defense_as_string(is_horizontal=is_horizontal)
 
         ip = '{} IP'.format(self.ip) if self.context in ['2000','2001','2002','2003'] else 'IP {}'.format(self.ip)
-        speed = 'Speed {} ({})'.format(self.speed_letter,self.speed)
+        speed = f'Speed {self.speed_letter} ({self.speed})' if int(self.context_year) < 2022 else f'SPD {self.speed}'
         ip_or_speed = speed if not self.is_pitcher else ip
         if is_horizontal:
-            final_text = '{points} PT.   {item2}   {hand}   {item4}'.format(
+            final_text = '{points} PT. {delimeter} {item2} {delimeter} {hand} {delimeter} {item4}'.format(
                 points=self.points,
                 item2=positions_string if self.is_pitcher else speed,
                 hand=self.hand,
                 item4=ip if self.is_pitcher else positions_string,
+                delimeter=delimeter
             )
         else:
 
@@ -2346,7 +2348,7 @@ class ShowdownPlayerCardGenerator:
         # GET IMAGE WITH PLAYER COMMAND
         if int(year) >= 2022:
             # ADD TEXT + BACKGROUND AS IMAGE
-            print("ADD TEXT")
+            command_image = self.__command_image()
         else:
             command_image_name = '{context}-{type}-{command}.png'.format(
                 context = year,
@@ -2354,7 +2356,8 @@ class ShowdownPlayerCardGenerator:
                 command = str(self.chart['command'])
             )
             command_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', command_image_name))
-            template_image.paste(command_image, (0,0), command_image)
+            
+        template_image.paste(command_image, sc.IMAGE_LOCATIONS['command'][self.context_year], command_image)
 
         # HANDLE MULTI POSITION TEMPLATES FOR 00/01 POSITION PLAYERS
         if year in ['2000','2001'] and not self.is_pitcher:
@@ -2508,6 +2511,9 @@ class ShowdownPlayerCardGenerator:
             # DONT ASSIGN A COLOR TO TEXT AS 04/05 HAS MULTIPLE COLORS.
             # ASSIGN THE TEXT ITSELF AS THE COLOR OBJECT
             name_color = final_text
+        else:
+            # 2022 >=
+            name_color = sc.COLOR_BLACK
 
         return final_text, name_color
 
@@ -2588,7 +2594,7 @@ class ShowdownPlayerCardGenerator:
             # 2002 & 2003
 
             color = sc.COLOR_BLACK if self.context == '2002' else sc.COLOR_WHITE
-            if year == 2002:
+            if self.context_year == '2002':
                 helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
                 metadata_font = ImageFont.truetype(helvetica_neue_lt_path, size=120)
             else:
@@ -2627,7 +2633,7 @@ class ShowdownPlayerCardGenerator:
             # DONT WANT TO RETURN A COLOR (BECAUSE IT'S MULTI-COLORED)
             # PASS THE IMAGE ITSELF AS THE COLOR
             color = metadata_image
-        else:
+        elif self.context_year in ['2004', '2005']:
             # 2004 & 2005
 
             metadata_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
@@ -2649,6 +2655,24 @@ class ShowdownPlayerCardGenerator:
             # DONT WANT TO RETURN A COLOR (BECAUSE IT'S MULTI-COLORED)
             # PASS THE IMAGE ITSELF AS THE COLOR
             color = metadata_image
+        else:
+            # 2022+
+            metadata_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+            metadata_font = ImageFont.truetype(metadata_font_path, size=160)
+            metadata_text_string = self.__player_metadata_summary_text(is_horizontal=True, delimeter=' ')
+            metadata_text = self.__text_image(
+                text = metadata_text_string,
+                size = (3600, 900),
+                font = metadata_font,
+                fill = sc.COLOR_WHITE,
+                rotation = 0,
+                alignment = "left",
+                padding = 0,
+            )
+            metadata_image = metadata_text.resize((1200,300), Image.ANTIALIAS)
+            # DONT WANT TO RETURN A COLOR (BECAUSE IT'S MULTI-COLORED)
+            # PASS THE IMAGE ITSELF AS THE COLOR
+            color = sc.COLOR_BLACK
 
         return metadata_image, color
 
@@ -3050,6 +3074,54 @@ class ShowdownPlayerCardGenerator:
                 if is_file_stale:
                     # DELETE IF UPLOADED/MODIFIED OVER 5 MINS AGO
                     os.remove(item_path)
+
+    def __command_image(self):
+        """For 2022 > sets, create onbase/control image asset dynamically
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for Control/Onbase 
+        """
+
+        # BACKGROUND CONTAINER IMAGE
+        img_type_suffix = 'Control' if self.is_pitcher else 'Onbase'
+        background_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{img_type_suffix}.png'))
+        font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
+        font = ImageFont.truetype(font_path, size=135)
+
+        # ADD TEXT
+        command_text_img = self.__text_image(
+            text = str(self.chart['command']),
+            size = (188,210),
+            font = font,
+            alignment = "center",
+            fill = 255, # TODO: FILL WITH TEAM COLOR
+            has_border=True,
+            border_color=sc.COLOR_BLACK,
+            border_size=3,
+        )
+        paste_location = (50,55) if self.is_pitcher else (0,24)
+        background_img.paste(command_text_img, paste_location, command_text_img)
+
+        # ADD "+" if pitcher
+        if self.is_pitcher:
+            font_plus = ImageFont.truetype(font_path, size=95)
+            command_text_plus_img = self.__text_image(
+                text = "+",
+                size = (188,210),
+                font = font_plus,
+                alignment = "center",
+                fill = 255, # TODO: FILL WITH TEAM COLOR
+                has_border=True,
+                border_color=sc.COLOR_BLACK,
+                border_size=3,
+            )
+            background_img.paste(command_text_plus_img, (-15,60), command_text_plus_img)
+
+
+        return background_img
 
     def __is_file_over_5_mins_old(self, path):
         """Checks modified date of file to see if it is older than 5 mins.
