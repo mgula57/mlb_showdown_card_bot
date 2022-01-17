@@ -32,7 +32,7 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "2.6.4"
+        self.version = "2.6.5"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.year = str(year).upper()
@@ -1059,7 +1059,7 @@ class ShowdownPlayerCardGenerator:
                     if current_range_start == '—':
                         current_range_start = '21'
                     range_updated = '{}–{}'.format(current_range_start,new_range_end)
-                    chart_ranges['1b Range'] = range_updated
+                    chart_ranges[category_1b] = range_updated
                 else:
                     # SPLIT BETWEEN 2B AND 3B
                     dbl_pct = dbl_per_400_pa / (trpl_per_400_pa + dbl_per_400_pa)
