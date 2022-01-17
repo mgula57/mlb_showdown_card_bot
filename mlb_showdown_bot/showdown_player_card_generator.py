@@ -2346,9 +2346,14 @@ class ShowdownPlayerCardGenerator:
         template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
+        paste_location = sc.IMAGE_LOCATIONS['command'][self.context_year]
         if int(year) >= 2022:
             # ADD TEXT + BACKGROUND AS IMAGE
             command_image = self.__command_image()
+            if not self.is_pitcher:
+                paste_location = (paste_location[0] + 15, paste_location[1])
+
+            # ADD CHART ROUNDED RECT
         else:
             command_image_name = '{context}-{type}-{command}.png'.format(
                 context = year,
@@ -2357,7 +2362,7 @@ class ShowdownPlayerCardGenerator:
             )
             command_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', command_image_name))
             
-        template_image.paste(command_image, sc.IMAGE_LOCATIONS['command'][self.context_year], command_image)
+        template_image.paste(command_image, paste_location, command_image)
 
         # HANDLE MULTI POSITION TEMPLATES FOR 00/01 POSITION PLAYERS
         if year in ['2000','2001'] and not self.is_pitcher:
@@ -2707,26 +2712,30 @@ class ShowdownPlayerCardGenerator:
             range = self.chart_ranges['{} Range'.format(category)]
             # 2004/2005 CHART IS HORIZONTAL. PASTE TEXT ONTO IMAGE INSTEAD OF STRING OBJECT.
             if is_horizontal:
+                is_wotc = self.context_year in ['2004','2005']
                 range_text = self.__text_image(
                     text = range,
                     size = (450,450),
                     font = chart_font,
                     fill = sc.COLOR_WHITE,
                     alignment = "center",
-                    has_border = True,
+                    has_border = is_wotc,
                     border_color = sc.COLOR_BLACK,
                     border_size = 9
                 )
                 chart_text.paste(range_text, (chart_text_x, 0), range_text)
-                chart_text_x += 531 if self.is_pitcher else 468
+                pitcher_spacing = 531 if is_wotc else 515
+                hitter_spacing = 468 if is_wotc else 445
+                chart_text_x += pitcher_spacing if self.is_pitcher else hitter_spacing
             else:
                 chart_string += '{}\n'.format(range)
 
         # CREATE FINAL CHART IMAGE
         if is_horizontal:
             # COLOR IS TEXT ITSELF
+            is_wotc = self.context_year in ['2004','2005']
             chart_text = chart_text.resize((2100,240), Image.ANTIALIAS)
-            color = chart_text
+            color = chart_text if is_wotc else sc.COLOR_BLACK
         else:
             spacing = int(sc.TEXT_SIZES['chart_spacing'][self.context_year])
             chart_text = self.__text_image(
