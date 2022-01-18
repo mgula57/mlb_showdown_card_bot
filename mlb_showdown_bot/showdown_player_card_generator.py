@@ -59,9 +59,9 @@ class ShowdownPlayerCardGenerator:
         self.context = context if len(style) == 0 else f'{context}-{style}'
         self.context_year = context[:5]
         self.expansion = expansion
-        self.is_expanded = context in sc.EXPANDED_SETS
-        self.is_classic = context in sc.CLASSIC_SETS
-        self.has_icons = context in sc.SETS_HAS_ICONS
+        self.is_expanded = self.context in sc.EXPANDED_SETS
+        self.is_classic = self.context in sc.CLASSIC_SETS
+        self.has_icons = self.context in sc.SETS_HAS_ICONS
         self.stats = stats
         # COMBINE BB AND HBP
         if 'HBP' in self.stats.keys():
@@ -1345,6 +1345,7 @@ class ShowdownPlayerCardGenerator:
             defense_points = 0
             for position, fielding in positions_and_defense.items():
                 if position != 'DH':
+                    print(self.is_expanded)
                     percentile = fielding / sc.POSITION_DEFENSE_RANGE[self.context][position]
                     position_pts = percentile * sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['defense']
                     position_pts = position_pts * sc.POINTS_POSITIONAL_DEFENSE_MULTIPLIER[self.context][position]
@@ -3121,12 +3122,14 @@ class ShowdownPlayerCardGenerator:
         img_type_suffix = 'Control' if self.is_pitcher else 'Onbase'
         background_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{img_type_suffix}.png'))
         font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
-        font = ImageFont.truetype(font_path, size=135)
+        command = str(self.chart['command'])
+        size = 155 if len(command) == 1 and not self.is_pitcher else 135
+        font = ImageFont.truetype(font_path, size=size)
 
         # ADD TEXT
         fill_color = sc.TEAM_COLOR_PRIMARY[self.team]
         command_text_img = self.__text_image(
-            text = str(self.chart['command']),
+            text = command,
             size = (188,210),
             font = font,
             alignment = "center",
