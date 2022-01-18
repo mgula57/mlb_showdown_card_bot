@@ -61,7 +61,7 @@
                            <div class="col-md-6">
                               <label for="setSelection" style="color:Gray;"><b>Set</b></label>
                               <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                 {% for year in [2000,2001,2002,2003,2004,2005] %}
+                                 {% for year in [2000,2001,2002,2003,2004,2005,2022] %}
                                     <option value={{ year }} {% if year == 2000 %} selected="selected" {% endif %}>{{ year }}</option>
                                  {% endfor %}
                               </select>
@@ -97,20 +97,31 @@
                         </div>   
                      </div>
                      
-                     <!-- STATS VERSION  -->
+                     <!-- STATS VERSION AND STYLE  -->
                      <div class="form-group">
-                        <label for="offset" style="color:Gray;"><b>Stats Version</b></label>
-                        <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
-                        <br>
-                        <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
-                           {% for index in [1,2,3,4,5] -%}
-                              {% set offsetName = "offset" ~ (index-1) %}
-                              {% set checkedStr = "checked" if loop.first else "" %}
-                              <input type="radio" class="btn-check" name="offset" id={{offsetName}} autocomplete="off" {{ checkedStr }}>
-                              <label class="btn btn-outline-secondary" for={{offsetName}}>{{ index }}</label>
-                           {% endfor %}
-                           
-                         </div>
+                        <div class="row">
+                           <div class="col-md-6">
+                              <label for="offset" style="color:Gray;"><b>Stats Version</b></label>
+                              <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
+                              <br>
+                              <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
+                                 {% for index in [1,2,3,4,5] -%}
+                                    {% set offsetName = "offset" ~ (index-1) %}
+                                    {% set checkedStr = "checked" if loop.first else "" %}
+                                    <input type="radio" class="btn-check" name="offset" id={{offsetName}} autocomplete="off" {{ checkedStr }}>
+                                    <label class="btn btn-outline-secondary" for={{offsetName}}>{{ index }}</label>
+                                 {% endfor %}
+                              </div>
+                           </div>
+                           <div class="col-md-6" style="padding-bottom: 10px;">
+                              <label style="color:Gray;" for="styleSelection"> <b>Style</b></label>
+                              <select id="styleSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                 <option value="None" selected="selected">None</option>
+                                 <option value="Classic">Classic</option>
+                                 <option value="Expanded">Expanded</option>
+                              </select>
+                           </div>
+                        </div>   
                         
                      </div>
 

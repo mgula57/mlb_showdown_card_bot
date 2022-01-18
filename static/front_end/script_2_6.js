@@ -116,6 +116,7 @@ $(function () {
                 offset: selectedOffset,
                 expansion: $("#expansionSelection :selected").val(),
                 is_holiday: is_holiday,
+                style: $("#styleSelection :selected").val(),
             }, function (data) {
                 $('#overlay').hide();
                 $("#error").text(data.error);
