@@ -554,6 +554,11 @@ class BaseballReferenceScraper:
             ratio_table_key = f'{table_prefix}_ratio.{year}'
             ratio_table = soup_for_advanced_stats.find('tr', attrs = {'class':'full','id': ratio_table_key})
         advanced_stats.update(self.__parse_ratio_stats(ratio_table,year=year))
+        
+        # ROOKIE ICON
+        if not is_full_career and not self.is_multi_year:
+            is_rookie_season = self.__is_rookie_season(table_prefix=table_prefix, advanced_stats_soup=soup_for_advanced_stats)
+            advanced_stats['is_rookie'] = is_rookie_season
 
         return advanced_stats
 
@@ -960,6 +965,23 @@ class BaseballReferenceScraper:
             return None
 
         return stat_list
+
+    def __is_rookie_season(self, table_prefix, advanced_stats_soup):
+        """Checks to see if the selected season is the player's rookie season
+        Args:
+          table_prefix: String for whether player is batter or pitcher
+          advanced_stats_soup: BeautifulSoup object for advanced stats table.
+        Returns:
+          TRUE or FALSE bool
+        """
+        try:
+            full_element_prefix = '{}_standard.'.format(table_prefix)
+            all_seasons_list = advanced_stats_soup.find_all('tr',attrs={'class':'full','id': re.compile(full_element_prefix)})
+            first_season = all_seasons_list[0].find('th',attrs={'class':'left','data-stat': 'year_ID'} )
+            year_of_first_season = str(first_season["csk"])
+            return year_of_first_season in self.years
+        except:
+            return False
 
 # ------------------------------------------------------------------------
 # HELPER METHODS
