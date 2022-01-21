@@ -206,8 +206,8 @@ BASELINE_HITTER = {
         'hr': 1.6
     },
     '2005': {
-        'command': 8.8,
-        'outs': 7.4,
+        'command': 9.0,
+        'outs': 7.3,
         'so': 2.4,
         'bb': 3.3,
         '1b': 6.0,
@@ -615,15 +615,15 @@ POINT_CATEGORY_WEIGHTS = {
             'ip': 75,
             'onbase': 305,
             'average': 60,
-            'slugging': 180,
+            'slugging': 190,
             'out_distribution': 20,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 105,
+            'onbase': 115,
             'average': 20,
-            'slugging': 105,
-            'out_distribution': 10,
+            'slugging': 107,
+            'out_distribution': 20,
         }
     }
 }
@@ -816,6 +816,7 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '3-17': 0.8,
         '3-18': 0.9,
         '4-17': 0.8,
+        '5-17': 0.95,
         '6-17': 1.03,
     }
 }
@@ -928,7 +929,7 @@ POINTS_NORMALIZER_MULTIPLIER = {
     '2005': {
         'position_player': 0.65,
         'starting_pitcher': 0.75,
-        'relief_pitcher': 0.70,
+        'relief_pitcher': 0.74,
     },
 }
 
