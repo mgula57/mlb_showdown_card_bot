@@ -22,6 +22,8 @@
     * [Speed](#speed)
     * [Icons](#icons)
     * [Points](#points)
+    * [Multi-Year Cards](#multi-year-cards)
+* [Running Locally](#running-locally)
 * [Contact the Dev](#contact-the-dev)
 
 ----
@@ -80,7 +82,11 @@ showdown.player_image(show=True)
 
 ### Player Identification
 
-At minimum, the bot takes a player's NAME and SEASON as inputs. The first step is identifying which player the user is trying to create a card for. Because there have been around 20,000 unique players in the history of the MLB, there are cases of multiple players sharing the same name (ex: Frank Thomas _(1951-1966)_ and Frank Thomas _(1990-2008)_).
+At minimum, the bot takes a player's NAME and SEASON as inputs. The first step is identifying which player the user is trying to create a card for. 
+
+Included in the Bot's files is a mapping of Player Name (ex: Jacob DeGrom) -> Baseball Reference Id (ex: degroja01). The Bot will use this mapping if the entered name matches ONE player in the mapping file.
+
+Because there have been around 20,000 unique players in the history of the MLB, there are cases of multiple players sharing the same name (ex: Frank Thomas _(1951-1966)_ and Frank Thomas _(1990-2008)_).
 
 To solve for this, the bot first searches the phrase **"baseball reference {name} {year}"**. (Ex: "baseball reference frank thomas 1994"). Using Google's indexing algorithm, the bot chooses the first search result and derives the player's unique baseball reference id from it. 
 
@@ -90,7 +96,14 @@ To solve for this, the bot first searches the phrase **"baseball reference {name
 
 The bot uses [Baseball Reference](https://www.baseball-reference.com) as it's source for player data. Baseball Reference stores statistics for all of the ~20,000 players to make an appearance in the big leagues. 
 
-Stats are extracted from the the baseball reference page for the player id selected in the previous step. Stats like batting average, home runs, and total zone runs (tzr) are extracted only for the chosen season. For pitchers, opponent batting results are used (ex: batting average against). 
+Stats are extracted from the the baseball reference page for the player id selected in the previous step. Stats like batting average, home runs, and defensive metrics (tzr/drs) are extracted only for the chosen season(s). For pitchers, opponent batting results are used (ex: batting average against). 
+
+Some of this player data is unavailable for certain years or timeframes. Below is a list of unsupported time periods:
+1. Pitchers before 1901 (no batting against data)
+2. Negro Leagues (no batting against data)
+3. Postseason (no batting against data)
+4. Minor Leagues (no batting against data)
+5. Spring Training (no batting against data)
 
 If the selected season occured after 2015, sprint speed is also extracted from [Baseball Savant](https://baseballsavant.mlb.com/sprint_speed_leaderboard). A player's average sprint speed is used to determine in-game SPEED.
 
@@ -114,7 +127,7 @@ The following steps are used to select the most accurate MLB Showdown card stats
 
 1. Calculate **Onbase Pct** for each possible **Command/Out** combination.
 2. Produce a chart for each **Command/Out** combination using the player's real life statline.
-3. Choose the most accurate chart + **Command/Out** combination by comparing projected Showdown statline to real life statline.
+3. Choose the most accurate chart + **Command/Out** combination by comparing projected Showdown statline to real life statline for that set's weight categories (ex: OBP, SLG)
 
 Each of these steps work by a using baseline opponent to project in-game outcomes. A baseline opponent represents the approximate average pitcher or hitter a player would face in-game. The baseline stats are represented by a dictionary that includes **Command**, **Outs**, and number of chart results for each category (SO, BB, HR, etc). Baseline opponents differ for each MLB Showdown set. 
 
@@ -122,20 +135,17 @@ Each of these steps work by a using baseline opponent to project in-game outcome
 ###### _Example baseline pitcher for 2001 set. **Note that all weight categories may not add up to 20 perfectly._
     
     '2001': {
-        'command': 3.1,
-        'outs': 16.1,
-        'pu': 2.69,
-        'so': 4.30,
-        'gb': 5.56,
-        'fb': 3.41,
-        'bb': 1.24,
-        '1b': 1.97,
-        '2b': 0.73,
+        'command': 3.0,
+        'outs': 16.0,
+        'so': 4.1,
+        'bb': 1.35,
+        '1b': 2.0,
+        '2b': 0.62,
         '3b': 0.00,
-        'hr': 0.1
+        'hr': 0.11
     }
 
-These baseline opponents are vital to determining the final output of the player card. Adjusting these values will change which chart the bot decides is the most accurate. Because the actual baselines used to create the original sets are unknown, these are estimations based on set averages and testing. The goal is to find the baseline weights that most closely resemble the original sets from 2000-2005.
+These baseline opponents are vital to determining the final output of the player card. Adjusting these values will change which chart the bot decides is the most accurate. Because the actual baselines used to create the original sets are unknown, these are estimations based on set averages and testing against WOTC cards. The goal is to find the baseline weights that most closely resemble the original sets from 2000-2005.
 
 ### **Command/Out --> Onbase Pct**
 
@@ -143,7 +153,7 @@ For each set, a static list of possible **Command/Out** combinations is defined 
 
 `P(My Advantage) * P(Walk Or Hit on My Chart) + P(Opponent Advantage) * P(Walk Or Hit on Opponent's Chart)`
 
-Only the **Command/Out** combinations that are closest to the player's real life onbase pct are further processed. This is for efficiency and greater accuracy. 
+Only a few **Command/Out** combinations that are closest to the player's real life onbase pct are further processed. This is for efficiency and greater accuracy. 
 
 ### Generating Player Chart
 
@@ -162,23 +172,25 @@ The number of results (out of 20 slots) assigned to each category are calculated
 
 * Stats are normalized to 400 Plate Appearances to mirror the 400 possible showdown roll combinations (_20 (Pitch Roll) * 20 (Swing Roll)_).
 * FB, GB, PU are limited to OUT constraints. They use a different formula involving **Ground/Air Out Ratio** and **Infield FB Pct**.
-* 1B+ is determined by dividing stolen bases per 400 PA by 10 _(Should be changed to be more dynamic in the future)_.
+* 1B+ is determined by dividing stolen bases per 400 PA by a weighting determined by the player's Onbase. This yields higher 1B+ chart slots for player's with a lower Onbase. For example lets say Player A had 30 steals per 400PA and an Onbase of 6, while Player B had 30 steals per 400PA and an Onbase of 9. Player A will have more 1B+ on his card, as he gets the advantage less.
 * 1B is filled with the slots remaining after all other categories are populated.
+* The Maximum BB on a hitter's chart is 13 (thanks Barry Bonds '04).
+* The maximum HR on a hitter's chart is 10.
 
 ### Selecting Most Accurate Chart
 
 Now that a chart has been generated for each **Command/Out** combination, the bot has all the required datapoints needed to determine accuracy. 
 
-The player's **Command** and chart values are used to estimate the player's _in-game_ statline for 400 Plate Appearances. That statline is then compared to the player's _real life_ statline per 400 Plate Appearances. Some stat categories are given more weight than others (ex: _Batting Avg_ accuracy is weighted more heavily than _2B_ accuracy). _Both real and in-game statlines are displayed in website and CLI outputs._
+The player's **Command** and chart values are used to estimate the player's _in-game_ statline for 400 Plate Appearances. That statline is then compared to the player's _real life_ statline per 400 Plate Appearances. Some stat categories are given more weight than others (ex: _OBP_ accuracy is weighted more heavily than _SLG_ accuracy). _Both real and in-game statlines are displayed in website and CLI outputs._
 
 **The chart with the highest aggregate accuracy is chosen as the final chart returned by the bot.**
 
-To display one of the other chart outputs, add the optional **offset** argument. It allows the user to use any of the other charts from the Top 5 most accurate list. Use the `--offset` argument if in the CLI or choose an offset > 0 in the _More Options_ section of the website.
+To display one of the other chart outputs, add the optional **offset**/ argument on the CLI or the **Stats Version** option on the website. It allows the user to use any of the other charts from the Top 5 most accurate list. Use the `--offset` argument if in the CLI or choose an **Stats Version** > 1 in the _Stats Version_ section of the website.
 
 ### **Defense**
 
 #### _Hitters_
-Each player can have a maximum of **2 positions**. For a position to qualify, the player has to make at least **10 appearances** at that position in the given season. The positions are then limited to the top 2 by number of appearances. 
+Each player can have a maximum of **2 positions**. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. The positions are then limited to the top 2 by number of appearances. 
 
 In-game defensive ratings are calculated based on either Total Zone Rating (tzr), Defensive Runs Saved (drs), or Defensive Wins Above Replacement (dWAR). The bot will choose which metric to use depending on the year:
 
@@ -191,22 +203,23 @@ All these metrics work by comparing a certain player to the average replacement 
 The player's in-game rating is calculated with a percentile within a range. The player's in-game rating is calculated based on that percentile multiplied by the highest rating for each position (Ex: **3B: +4**, **SS: +5**, **LF/RF: +2**).
 
 Ex: David Wright 2007 (+12 DRS)
+```
 * 3B Rating = Percentile * 3B In-Game Max  
 * 3B Rating = 0.8 * 4
 * 3B Rating = 3.2
 * 3B Rating = +3
-
+```
 
 #### _Pitchers_
 Pitchers fall under the following categories
-1. STARTER: >65% of pitcher's appearances were starts
-2. RELIEVER: <=65 % of pitcher's appearances were in relief
+1. STARTER: >40% of pitcher's appearances were starts
+2. RELIEVER: <=40 % of pitcher's appearances were in relief
 3. CLOSER: pitcher had at least 10 saves
 
 ### **Speed**
 
 In-game SPEED is calculated differently depending on the year. 
-* If the year is AFTER 2015, SPRINT SPEED is used. 
+* If the year is AFTER 2015, SPRINT SPEED is used. _(Sourced from Baseball Savant)_
 * If the year is BEFORE or ON 2015, STOLEN BASES (per 650 PA) is used.
 
 Either SPRINT SPEED or STOLEN BASES is then converted to a percentile based off a range (the same way that defense is calculated). That percentile is then multiplied by the maximum in-game speed.
@@ -233,8 +246,8 @@ _** Some of these thresholds are slightly different than the original game._
 * **RY**: Won AL or NL Rookie of the Year Award.
 * **20**: Won 20 or more games as a Pitcher.
 * **K**: Struck out at least 215 batters.
-* **HR**: Hit at least 40 Home Runs.
-* **SB**: Stole at least 40 bases.
+* **HR**: Hit at least 40 Home Runs or led either league in Home Runs.
+* **SB**: Stole at least 40 bases or led either league in Steals.
 * **RP**: Led AL or NL in Saves.
 
 ### **Points**
@@ -245,36 +258,118 @@ _Hitters_
 * Onbase Pct
 * Batting Avg
 * Slugging Pct
-* Defense (Avg Across Positions)
+* Defense
 * Speed
 * Home Runs
+* Icons (03+)
 
 _Pitchers_
 * Onbase Pct Against
 * Batting Avg Against
 * Slugging Pct Against
 * Innings Pitched
+* Icons (03+)
+* CLOSER Bonus (00 ONLY)
 
 A player's point value in each category is calculated by multiplying the WEIGHT given to the category by the PERCENTILE the player placed in. 
 
 The WEIGHT is the number of points provided if the player achieves the 100th percentile in that category. The percentile is calculated by taking difference between the player's stat and minimum values for a category, and dividing it by the difference between maximum and minimum values assigned to the category. The WEIGHT represents how many points a player will receive if they are in the 100th percentile in the category. _NOTE: WEIGHTS change across sets._
 
-Ex: **_Mike Yastrzemski 2019 (2000 Set)_**
+This calculation is performed for each category. The categorical point values are summed into the player's final total point value. 
+
+Ex: **Larry Walker, 550 PTS** _(2003 Base Set)_
 ```
+Statline:
+    BA: .348
+    OBP: .419
+    SLG: .608
+
+    PA: 553
+    1B: 104
+    2B: 33
+    3B: 1
+    HR: 29 (34.5 per 650 PAs)
+    BB: 68
+    SO: 67
+
+    SPD: SPEED C (11)
+    ICONS: G
+
 Points (OBP) = WEIGHT * PERCENTILE
-             = 250 * (0.330 - 0.250) / (0.450 - 0.250)
-             = 250 * 0.4
-             = 100 pts.
+             = 160 * (0.419 - 0.270) / (0.425 - 0.270)
+             = 160 * 0.96
+             = 154 pts.
+Points (SLG) = WEIGHT * PERCENTILE
+             = 160 * 1.29
+             = 206 pts.
+Points (BA)  = WEIGHT * PERCENTILE
+             = 50 * 1.37
+             = 68.5 pts.
+Points (HR)  = WEIGHT * PERCENTILE
+             = 60 * 0.98
+             = 59 pts.
+Points (SPD) = WEIGHT * PERCENTILE
+             = 55 * 0.10
+             = 5.5 pts.
+Points (DEF) = WEIGHT * PERCENTILE
+             = 45 * 1.00
+             = 45 pts.
+Points (G Icon) = WEIGHT
+                = 10 pts.
+
+Points (Total) = Round(154 + 206 + 68.5 + 59 + 5.5 + 45 + 10)
+               = 550
+
 ```
 ##### _Note: Pitchers have some categories (ex: BAA) where is percentile is reversed (1-percentile)_
 
-This calculation is performed for each category. The categorical point values are summed into the player's final total point value. 
-
 There are additional weights/logic applied across the different sets to try to match to the original WOTC sets. 
-Including:
 
 - **Allow Negatives**: If True, allows a player to be penalized in the negative for a bad category. For example if a player is under the threshold defined for OBP, they will receive negative PTS for OBP. If False, player gets +0 PTS for that category if below threshold.
 - **Normalize Towards Median**: If True, a player over a certain value will get overall points reduced in order to keep a "Bell Curve" of point distribution. Scaler increases as point value above set value increases.
+- **Positional Defense Weights**: In some sets, certain positions are weighted lower than others. For example in the 2003 set, LF/RF max defense (+2) is worth 25% less than max CF defense (+3)
+- **Command Outs Adjustment**: In some sets, certain Command - Out combinations receive a manual adjustment to closer match WOTC. These are often small adjustments (1-5%) that only are applied to slashline and HR point categories.
+
+### **Multi-Year Cards**
+
+Multi-year or career long cards can be created on Showdown Bot using the year input. Here are some examples:
+
+- 2005-2010
+- 2005+2007+2010+2013
+- CAREER
+
+Card methodology will slightly change if the user enters a multi-year card. Differences include:
+
+- **SPEED**: Speed rating is based on the avg across the selected years. If the card crosses between using SB and Sprint Speed as metrics, it will use Sprint Speed if 35% of the seasons choosen are after 2015. Otherwise it will use SB as the benchmark.
+- **TEAM**: If the choosen player played for multiple teams, the Bot will assign the team with the most games played.
+- **DEFENSE**: For each qualified position, the Bot uses the **median** defensive metric (drs/tzr/dWar) calculated across the choosen years. The qualification for positions increases from 15% -> 25%.
+- **GB/FB**: The GO/AO ratio is averaged across choosen years.
+- **Icons**: If the player qualified for an icon in any of the choosen seasons, he is granted the icon in the multi-year variant. This is excluding the R icon, which is only available in single-year cards.
+
+----
+## Running Locally
+
+You can [clone](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository and run it locally on your machine. Be sure you have went through the [prerequisites](#prerequisites) before proceeding.
+
+Here are the high level steps:
+
+1. [Clone](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this repository to your local machine
+2. Open Terminal (MacOS) or Windows CLI
+3. Change the current working directory to the location where you cloned in step 1.
+4. Create a new [virtual environment](https://virtualenv.pypa.io/en/latest/) (optional)
+5. Install required package dependencies ([instructions](https://stackoverflow.com/questions/7225900/how-can-i-install-packages-using-pip-according-to-the-requirements-txt-file-from))
+
+After installing and handling any package errors, you can run Showdown Bot from the command line or locally in a browser.
+
+Command Line
+```
+python mlb_showdown_bot --name "Mike Piazza" --year 1997 --context 2001
+```
+
+Flask App (opened via Browser)
+```
+python app.py
+```
 
 ----
 ## Contact the Dev
