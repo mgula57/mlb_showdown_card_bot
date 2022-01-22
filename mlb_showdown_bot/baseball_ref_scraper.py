@@ -595,11 +595,12 @@ class BaseballReferenceScraper:
 
         for category in standard_table:
             stat_category = category['data-stat']
-            # SAVE THIS INFO FOR RP ICON
-            if stat_category == 'SV':
-                # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD TEXT
-                is_league_leader = '<strong>' in str(category)
-                standard_stats_dict['is_sv_leader'] = is_league_leader
+            # LEAGUE LEADER?
+            is_league_leader = '<strong>' in str(category) # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD TEXT
+
+            if stat_category in ('SV','HR','SB'):
+                # SAVE THIS INFO FOR RP, HR, OR SB ICONS
+                standard_stats_dict[f'is_{stat_category.lower()}_leader'] = is_league_leader
              
             stat = category.get_text()
             if stat_category in ['SF','IBB','CS'] and stat == '':
@@ -832,6 +833,8 @@ class BaseballReferenceScraper:
             'is_above_sb_threshold': 'max',
             'is_above_w_threshold': 'max',
             'is_sv_leader': 'max',
+            'is_hr_leader': 'max',
+            'is_sb_leader': 'max',
             'award_summary': ','.join,
         }
 

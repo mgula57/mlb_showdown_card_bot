@@ -306,7 +306,7 @@ class ShowdownPlayerCardGenerator:
                     positions_and_games_played['LF/RF'] = positions_and_games_played['CF']
         
         # CHANGE OF TO LF/RF IF PLAYER HASNT PLAYED CF
-        if 'OF' in positions_set and is_of_but_hasnt_played_cf:
+        if 'OF' in positions_set and is_of_but_hasnt_played_cf and 'OF' in positions_and_defense.keys():
             positions_and_games_played['LF/RF'] = positions_and_games_played['OF']
             positions_and_defense['LF/RF'] = positions_and_defense['OF']
             del positions_and_defense['OF']
@@ -519,10 +519,14 @@ class ShowdownPlayerCardGenerator:
         else:
             # HR, SB
             for stat in ['HR', 'SB']:
-                key = f"is_above_{stat.lower()}_threshold"
-                if key in self.stats.keys():
-                    if self.stats[key] == True:
-                        icons.append(stat)
+                is_eligible_for_icon = False
+                qualification_categories = [f"is_above_{stat.lower()}_threshold",f'is_{stat.lower()}_leader']
+                for category in qualification_categories:
+                    if category in self.stats.keys():
+                        if self.stats[category] == True:
+                            is_eligible_for_icon = True
+                if is_eligible_for_icon:
+                    icons.append(stat.upper())
 
         # ROOKIE ICON
         rookie_key = 'is_rookie'
