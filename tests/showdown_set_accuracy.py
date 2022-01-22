@@ -98,8 +98,7 @@ class ShowdownSetAccuracy:
                     print(my_player_card.points - wotc_player_card.PTS, wotc_player_card.Name,('Me', my_player_card.points),('WOTC', wotc_player_card.PTS)) 
                     # my_player_card.print_player()
                 else:
-                    print(my_player_card.positions_and_defense)
-                    print(wotc_player_card.Name,('Me', list(my_player_card.positions_and_defense.values())[0]),('WOTC', wotc_player_card.Fielding1))
+                    print(wotc_player_card.Name,('Me', my_player_card.chart['command'], my_player_card.chart['outs']),('WOTC', wotc_player_card.OnbaseOrControl, wotc_player_card.OUTS))
             
             accuracy, categorical_accuracy, categorical_above_below = my_player_card.accuracy_against_wotc(wotc_card_dict=wotc_player_card_dict, is_pts_only=self.is_pts_only)
             sum_of_card_accuracy += accuracy

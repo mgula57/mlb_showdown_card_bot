@@ -55,7 +55,11 @@ FIRST_BASE_PLUS_1_CUTOFF = {
     'dWAR': -0.25
 }
 # MINIMUM REQUIRED GAMES PLAYED AT A POSITION TO QUALIFY
-NUMBER_OF_GAMES = 7 
+NUMBER_OF_GAMES_DEFENSE = 7 
+PCT_OF_GAMES_DEFENSE = 0.15
+PCT_OF_GAMES_DEFENSE_MULTI_YEAR = 0.25
+STARTING_PITCHER_PCT_GAMES_STARTED = 0.40
+CLOSER_MIN_SAVES_REQUIRED = 10
 
 # MULTIPLIER TO MATCH PU WITH ORIGINAL SETS
 PU_MULTIPLIER = {
@@ -231,10 +235,10 @@ BASELINE_HITTER = {
         'hr': 1.75
     },
     '2004': {
-        'command': 8.7,
-        'outs': 7.4,
+        'command': 9.05,
+        'outs': 7.5,
         'so': 2.3,
-        'bb': 2.9,
+        'bb': 2.95,
         '1b': 6.59,
         '1b+': 0.12,
         '2b': 1.25,
@@ -242,8 +246,8 @@ BASELINE_HITTER = {
         'hr': 1.6
     },
     '2005': {
-        'command': 8.8,
-        'outs': 7.4,
+        'command': 9.0,
+        'outs': 7.3,
         'so': 2.4,
         'bb': 3.3,
         '1b': 6.0,
@@ -728,14 +732,14 @@ POINT_CATEGORY_WEIGHTS = {
             'onbase': 295,
             'average': 50,
             'slugging': 150,
-            'out_distribution': 20,
+            'out_distribution': 30,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 105,
+            'onbase': 115,
             'average': 20,
             'slugging': 105,
-            'out_distribution': 10,
+            'out_distribution': 20,
         }
     },
     '2005': {
@@ -751,15 +755,15 @@ POINT_CATEGORY_WEIGHTS = {
             'ip': 75,
             'onbase': 305,
             'average': 60,
-            'slugging': 180,
-            'out_distribution': 20,
+            'slugging': 190,
+            'out_distribution': 30,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 105,
+            'onbase': 115,
             'average': 20,
-            'slugging': 105,
-            'out_distribution': 10,
+            'slugging': 107,
+            'out_distribution': 20,
         }
     },
     f'2022-{CLASSIC_ALIAS}': {
@@ -1023,6 +1027,7 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
 
         '6-16': 1.15,
         '3-17': 0.90,
+        '4-17': 0.95,
         '2-18': 0.80,
     },
     '2005': {
@@ -1035,6 +1040,7 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '3-17': 0.8,
         '3-18': 0.9,
         '4-17': 0.8,
+        '5-17': 0.95,
         '6-17': 1.03,
     },
     f'2022-{CLASSIC_ALIAS}': {
@@ -1193,12 +1199,12 @@ POINTS_NORMALIZER_MULTIPLIER = {
     '2004': {
         'position_player': 0.65,
         'starting_pitcher': 0.75,
-        'relief_pitcher': 0.65,
+        'relief_pitcher': 0.675,
     },
     '2005': {
         'position_player': 0.65,
         'starting_pitcher': 0.75,
-        'relief_pitcher': 0.70,
+        'relief_pitcher': 0.74,
     },
     f'2022-{CLASSIC_ALIAS}': {
         'position_player': 0.65,
