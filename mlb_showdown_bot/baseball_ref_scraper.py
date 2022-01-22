@@ -209,10 +209,19 @@ class BaseballReferenceScraper:
             # ICON THRESHOLDS
             icon_threshold_bools = self.__add_icon_threshold_bools(type=type, year=year, stats_dict=stats_dict, homepage_soup=soup_for_homepage_stats)
             stats_dict.update(icon_threshold_bools)
+            
+            if self.__is_pitcher_from_1901_to_1918(year=year,type=type):
+                stats_dict['SH'] = 0 # NO SACRIFICE DATA WAS STORED
+                stats_dict['GIDP'] = 0 # NO DOUBLE PLAY DATA WAS STORED
+                stats_dict['IBB'] = 0 # NO INTENTIONAL WALK DATA WAS STORED
+                team_id = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=[int(year)])
+                if team_id == 'TOT':
+                    team_id = self.__parse_team_after_trade(advanced_stats_soup=soup_for_homepage_stats,year=year)
+                stats_dict['team_ID'] = team_id
 
             # FULL CAREER
             if is_full_career:
-                stats_dict['team_ID'] = self.__team_multi_year(type, soup_for_homepage_stats)
+                stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats)
                 sprint_speed_list = []
                 for year in years_played:
                     sprint_speed = self.sprint_speed(name=name, year=year, type=type)
@@ -232,7 +241,7 @@ class BaseballReferenceScraper:
         if self.is_multi_year:
             # COMBINE INDIVIDUAL YEAR DATA
             stats_dict.update(self.__combine_multi_year_dict(master_stats_dict))
-            stats_dict['team_ID'] = self.__team_multi_year(type, soup_for_homepage_stats, years_filter_list=self.years)
+            stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=self.years)
             return stats_dict
         else:
             return stats_dict
@@ -518,10 +527,18 @@ class BaseballReferenceScraper:
         # BATTING AGAINST (PITCHERS ONLY)
         if type == 'Pitcher':
             if is_full_career:
-                batting_against_table = self.__get_career_totals_row(div_id='div_pitching_batting',soup_object=soup_for_advanced_stats)
+                try:
+                    batting_against_table = self.__get_career_totals_row(div_id='div_pitching_batting',soup_object=soup_for_advanced_stats)
+                    advanced_stats.update(self.__parse_batting_against(batting_against_table))
+                except:
+                    advanced_stats.update(self.__parse_splits_stats(year=year))
             else:
-                batting_against_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': 'pitching_batting.{}'.format(year)})
-            advanced_stats.update(self.__parse_batting_against(batting_against_table))
+                # LOOK AT "SPLITS" PAGE FOR PRE-1916 PITCHERS
+                if self.__is_pitcher_from_1901_to_1918(year=year,type=type):
+                    advanced_stats.update(self.__parse_splits_stats(year=year))
+                else:
+                    batting_against_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': 'pitching_batting.{}'.format(year)})
+                    advanced_stats.update(self.__parse_batting_against(batting_against_table))
         
         # STANDARD STATS
         standard_stats_dict = self.__parse_standard_stats(type, standard_table, included_g_for_pitcher=is_full_career)
@@ -554,6 +571,11 @@ class BaseballReferenceScraper:
             ratio_table_key = f'{table_prefix}_ratio.{year}'
             ratio_table = soup_for_advanced_stats.find('tr', attrs = {'class':'full','id': ratio_table_key})
         advanced_stats.update(self.__parse_ratio_stats(ratio_table,year=year))
+        
+        # ROOKIE ICON
+        if not is_full_career and not self.is_multi_year:
+            is_rookie_season = self.__is_rookie_season(table_prefix=table_prefix, advanced_stats_soup=soup_for_advanced_stats)
+            advanced_stats['is_rookie'] = is_rookie_season
 
         return advanced_stats
 
@@ -573,11 +595,12 @@ class BaseballReferenceScraper:
 
         for category in standard_table:
             stat_category = category['data-stat']
-            # SAVE THIS INFO FOR RP ICON
-            if stat_category == 'SV':
-                # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD TEXT
-                is_league_leader = '<strong>' in str(category)
-                standard_stats_dict['is_sv_leader'] = is_league_leader
+            # LEAGUE LEADER?
+            is_league_leader = '<strong>' in str(category) # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD TEXT
+
+            if stat_category in ('SV','HR','SB'):
+                # SAVE THIS INFO FOR RP, HR, OR SB ICONS
+                standard_stats_dict[f'is_{stat_category.lower()}_leader'] = is_league_leader
              
             stat = category.get_text()
             if stat_category in ['SF','IBB','CS'] and stat == '':
@@ -594,6 +617,24 @@ class BaseballReferenceScraper:
                 standard_stats_dict[stat_category] = stat
 
         return standard_stats_dict
+
+    def __parse_splits_stats(self,year):
+        """Parse standard statline from the "splits" page on Baseball Reference
+
+        Args:
+          year: Year for data stats (ex: 2021, CAREER)
+
+        Returns:
+          Dict with standard statistics.
+        """
+        url_splits = f'https://www.baseball-reference.com/players/split.fcgi?id={self.baseball_ref_id}&year={year}&t=p'
+        soup_for_split = self.__soup_for_url(url_splits, is_baseball_ref_page=True)
+        tables_w_incomplete_split = [a for a in soup_for_split.select('th[data-stat="incomplete_split"]')]
+        stats = tables_w_incomplete_split[1]
+        header_values = [self.__convert_to_numeric(sib['data-stat']) for sib in stats.next_siblings]
+        stats_values = [self.__convert_to_numeric(sib.string) for sib in stats.next_siblings]
+        batting_against_dict = dict(zip(header_values, stats_values))
+        return batting_against_dict
 
     def __parse_batting_against(self, batting_against_table):
         """Parse hitting stats a pitcher allowed.
@@ -617,6 +658,8 @@ class BaseballReferenceScraper:
             stat_category = category['data-stat']
             stat = category.get_text()
             stat = self.__convert_to_numeric(stat)
+            if stat_category == 'IBB' and stat == '':
+                stat = 0
             batting_against_dict[stat_category]= stat
 
         return batting_against_dict
@@ -790,6 +833,8 @@ class BaseballReferenceScraper:
             'is_above_sb_threshold': 'max',
             'is_above_w_threshold': 'max',
             'is_sv_leader': 'max',
+            'is_hr_leader': 'max',
+            'is_sb_leader': 'max',
             'award_summary': ','.join,
         }
 
@@ -799,8 +844,9 @@ class BaseballReferenceScraper:
         if max(self.years) < 2015:
             columns_to_remove.append('sprint_speed')
         [column_aggs.pop(key) for key in columns_to_remove]
-        avg_year = yearPd.groupby(by='name',as_index=False).agg(column_aggs)
+        yearPd.info(verbose=True)
 
+        avg_year = yearPd.groupby(by='name',as_index=False).agg(column_aggs)
         # CALCULATE RATES
         avg_year["batting_avg"] = round(avg_year['H'] / float(avg_year['AB']),3)
         avg_year["onbase_perc"] = round((avg_year['H'] + avg_year['BB'] + avg_year['HBP']) / float(avg_year['AB'] + avg_year['BB'] + avg_year['HBP'] + avg_year['SF']),3)
@@ -906,7 +952,7 @@ class BaseballReferenceScraper:
         years_parsed = [year['id'].split('.')[-1] for year in year_soup_objects_list]
         return years_parsed
 
-    def __team_multi_year(self, type, homepage_soup, years_filter_list=[]):
+    def __team_w_most_games_played(self, type, homepage_soup, years_filter_list=[]):
         """Parse the standard batting/pitching table to get a list of the years
            a player played in.
 
@@ -931,8 +977,11 @@ class BaseballReferenceScraper:
                     if team in teams_and_games_played.keys():
                         games += teams_and_games_played[team]
                     teams_and_games_played[team] = games
-        team_w_most_games = sorted(teams_and_games_played.items(), key=operator.itemgetter(1), reverse=True)[0][0]
-        return team_w_most_games
+        if len(teams_and_games_played.keys()) > 0:
+            team_w_most_games = sorted(teams_and_games_played.items(), key=operator.itemgetter(1), reverse=True)[0][0]
+            return team_w_most_games
+        else:
+            return 'TOT'
 
     def __get_stat_list_from_standard_table(self, type, homepage_soup, stat_key):
         """Parse the standard batting/pitching table to get a list of values for a given stat.
@@ -960,6 +1009,38 @@ class BaseballReferenceScraper:
             return None
 
         return stat_list
+
+    def __is_rookie_season(self, table_prefix, advanced_stats_soup):
+        """Checks to see if the selected season is the player's rookie season
+        Args:
+          table_prefix: String for whether player is batter or pitcher
+          advanced_stats_soup: BeautifulSoup object for advanced stats table.
+        Returns:
+          TRUE or FALSE bool
+        """
+        try:
+            full_element_prefix = '{}_standard.'.format(table_prefix)
+            all_seasons_list = advanced_stats_soup.find_all('tr',attrs={'class':'full','id': re.compile(full_element_prefix)})
+            first_season = all_seasons_list[0].find('th',attrs={'class':'left','data-stat': 'year_ID'} )
+            year_of_first_season = str(first_season["csk"])
+            return year_of_first_season in self.years
+        except:
+            return False
+
+    def __is_pitcher_from_1901_to_1918(self, year, type):
+        """Checks to see if the player is a pitcher and the year is between 1901-1917.
+        
+        Args:
+          year: Year for player stats
+          type: String to designate player type ('Pitcher','Hitter')
+        
+        Returns:
+          TRUE or FALSE bool
+        """
+        try:
+            return int(year) > 1900 and int(year) < 1918 and type == 'Pitcher'
+        except:
+            return False
 
 # ------------------------------------------------------------------------
 # HELPER METHODS
@@ -998,6 +1079,10 @@ class BaseballReferenceScraper:
           Converted attribute
         """
         # CONVERT TYPE IF INT OR FLOAT
+
+        if string_value is None:
+            return 0
+
         if string_value.isdigit():
             return int(string_value)
         elif string_value.replace('.','',1).isdigit() and string_value.count('.') < 2:

@@ -32,7 +32,7 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "2.6.5"
+        self.version = "2.7"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.year = str(year).upper()
@@ -170,6 +170,10 @@ class ShowdownPlayerCardGenerator:
         positions_and_defense = {}
         positions_and_games_played = {}
 
+        # FLAG IF OF IS AVAILABLE BUT NOT CF (SHOHEI OHTANI 2021 CASE)
+        positions_list = [defensive_stats[f'Position{i}'] for i in range(1, num_positions+1)]
+        is_of_but_hasnt_played_cf = 'OF' in positions_list and 'CF' not in positions_list
+
         # POPULATE POSITION DICTS
         # PARSE POSITION NAME, GAMES, AND TZ RATING AND CONVERT TO IN-GAME
         for position_index in range(1, num_positions+1):
@@ -209,7 +213,7 @@ class ShowdownPlayerCardGenerator:
                         positions_and_defense[position] = 0
 
         # COMBINE ALIKE IN-GAME POSITIONS (LF/RF, OF, IF, ...)
-        final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played)
+        final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played,is_of_but_hasnt_played_cf=is_of_but_hasnt_played_cf)
 
         # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
         position_limit = 2
@@ -229,7 +233,7 @@ class ShowdownPlayerCardGenerator:
 
         return final_positions_in_game
 
-    def __combine_like_positions(self, positions_and_defense, positions_and_games_played):
+    def __combine_like_positions(self, positions_and_defense, positions_and_games_played, is_of_but_hasnt_played_cf=False):
         """Limit and combine positions (ex: combine LF and RF -> LF/RF)
 
         Args:
@@ -300,6 +304,13 @@ class ShowdownPlayerCardGenerator:
                 else:
                     positions_and_defense['LF/RF'] = lf_rf_defense
                     positions_and_games_played['LF/RF'] = positions_and_games_played['CF']
+        
+        # CHANGE OF TO LF/RF IF PLAYER HASNT PLAYED CF
+        if 'OF' in positions_set and is_of_but_hasnt_played_cf and 'OF' in positions_and_defense.keys():
+            positions_and_games_played['LF/RF'] = positions_and_games_played['OF']
+            positions_and_defense['LF/RF'] = positions_and_defense['OF']
+            del positions_and_defense['OF']
+            del positions_and_games_played['OF']
 
         return positions_and_defense, positions_and_games_played
 
@@ -321,16 +332,15 @@ class ShowdownPlayerCardGenerator:
         if position == 'P' and self.is_pitcher:
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
-            starter_threshold = 0.40
-            if gsRatio > starter_threshold or self.ip > 4:
+            if gsRatio > sc.STARTING_PITCHER_PCT_GAMES_STARTED or self.ip > 4:
                 # ASSIGN MINIMUM IP FOR STARTERS
                 self.ip = 4 if self.ip < 4 else self.ip
                 return 'STARTER'
-            if saves > 10:
+            if saves > sc.CLOSER_MIN_SAVES_REQUIRED:
                 return 'CLOSER'
             else:
                 return 'RELIEVER'
-        elif position_appearances < sc.NUMBER_OF_GAMES or (self.is_multi_year and ( (position_appearances / games_played) < 0.25 )):
+        elif ( position_appearances < sc.NUMBER_OF_GAMES_DEFENSE and (position_appearances / games_played < sc.PCT_OF_GAMES_DEFENSE) ) or (self.is_multi_year and ( (position_appearances / games_played) < sc.PCT_OF_GAMES_DEFENSE_MULTI_YEAR )):
             # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
             return None
         elif position == 'DH' and num_positions > 1:
@@ -509,10 +519,14 @@ class ShowdownPlayerCardGenerator:
         else:
             # HR, SB
             for stat in ['HR', 'SB']:
-                key = f"is_above_{stat.lower()}_threshold"
-                if key in self.stats.keys():
-                    if self.stats[key] == True:
-                        icons.append(stat)
+                is_eligible_for_icon = False
+                qualification_categories = [f"is_above_{stat.lower()}_threshold",f'is_{stat.lower()}_leader']
+                for category in qualification_categories:
+                    if category in self.stats.keys():
+                        if self.stats[category] == True:
+                            is_eligible_for_icon = True
+                if is_eligible_for_icon:
+                    icons.append(stat.upper())
 
         # ROOKIE ICON
         rookie_key = 'is_rookie'
