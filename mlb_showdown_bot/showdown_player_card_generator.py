@@ -332,12 +332,11 @@ class ShowdownPlayerCardGenerator:
         if position == 'P' and self.is_pitcher:
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
-            starter_threshold = 0.40
-            if gsRatio > starter_threshold or self.ip > 4:
+            if gsRatio > sc.STARTING_PITCHER_PCT_GAMES_STARTED or self.ip > 4:
                 # ASSIGN MINIMUM IP FOR STARTERS
                 self.ip = 4 if self.ip < 4 else self.ip
                 return 'STARTER'
-            if saves > 10:
+            if saves > sc.CLOSER_MIN_SAVES_REQUIRED:
                 return 'CLOSER'
             else:
                 return 'RELIEVER'
