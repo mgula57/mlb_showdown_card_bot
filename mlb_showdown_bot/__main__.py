@@ -50,7 +50,7 @@ def main():
         is_all_star_game=args.is_asg,
         context=args.context,
         expansion=args.expansion,
-        style=args.style,
+        style=args.style.upper(),
         offset=args.offset,
         player_image_url=args.image_url,
         player_image_path=args.image_path,
