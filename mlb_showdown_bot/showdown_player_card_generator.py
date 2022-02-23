@@ -28,7 +28,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -76,6 +76,7 @@ class ShowdownPlayerCardGenerator:
         self.command_out_override = command_out_override
         self.is_running_in_flask = is_running_in_flask
         self.is_automated_image = False
+        self.is_img_part_of_a_set = is_img_part_of_a_set
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -2013,7 +2014,10 @@ class ShowdownPlayerCardGenerator:
         # CROP TO 63mmx88mm
         player_image = self.__center_crop(player_image,(1488,2079))
         player_image = self.__round_corners(player_image, 60)
-        self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
+        if self.is_img_part_of_a_set:
+            self.image_name = f'{self.set_number} {self.name}.png'
+        else:
+            self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
         if int(self.context) in [2002,2004,2005]:
             # TODO: SOLVE HTML PNG ISSUES
             player_image = player_image.convert('RGB')
