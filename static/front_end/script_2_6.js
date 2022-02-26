@@ -126,7 +126,7 @@ $(function () {
                     console.log("auto image");
                     if (data.is_automated_image) {
                         document.getElementById("error").style.color = "green";
-                        $("#error").text("Automated Image! See Drive link for more");
+                        $("#error").text("Automated Image!");
                     };
                     
                     // PLAYER STATS

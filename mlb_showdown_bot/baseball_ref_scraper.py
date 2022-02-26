@@ -210,10 +210,15 @@ class BaseballReferenceScraper:
             icon_threshold_bools = self.__add_icon_threshold_bools(type=type, year=year, stats_dict=stats_dict, homepage_soup=soup_for_homepage_stats)
             stats_dict.update(icon_threshold_bools)
             
+            # FILL BLANKS IF NEEDED
+            keys_to_fill = ['SH','GIDP','IBB']
+            for key in keys_to_fill:
+                if key in stats_dict.keys():
+                    raw_value = stats_dict[key]
+                    if len(str(raw_value)) == 0:
+                        stats_dict[key] = 0
+
             if self.__is_pitcher_from_1901_to_1918(year=year,type=type):
-                stats_dict['SH'] = 0 # NO SACRIFICE DATA WAS STORED
-                stats_dict['GIDP'] = 0 # NO DOUBLE PLAY DATA WAS STORED
-                stats_dict['IBB'] = 0 # NO INTENTIONAL WALK DATA WAS STORED
                 team_id = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=[int(year)])
                 if team_id == 'TOT':
                     team_id = self.__parse_team_after_trade(advanced_stats_soup=soup_for_homepage_stats,year=year)
