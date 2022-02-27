@@ -40,6 +40,15 @@ function uploadImageFile() {
     });
 }
 
+// STORE SET IN CACHE
+function cacheSet(set) {
+    // Check if the localStorage object exists
+    if(localStorage) {
+        // Store data
+        localStorage.setItem("set", set);
+    }
+}
+
 // CHANGE OUTPUT VIEWS
 function checkHideForStats(statsElement) {
     if (statsElement.checked) {
@@ -64,6 +73,19 @@ function checkHideForAccuracy(accuracyElement) {
         document.getElementById("accuracy_div").style.display = "initial";
     }
 }
+
+// -------------------------------------------------------
+// ON LOAD
+// -------------------------------------------------------
+
+$(document).ready(function() {
+    if(localStorage) {
+        var storedSet = localStorage.getItem("set")
+        if (storedSet.length > 0) {
+            document.getElementById("setSelection").value = storedSet;
+        }
+    }
+});
 
 // -------------------------------------------------------
 // AJAX
@@ -103,10 +125,14 @@ $(function () {
             var is_asg = editionSelection == "All-Star Game";
             var is_holiday = editionSelection == "Holiday";
 
+            // CACHE SET VALUE
+            var set = $("#setSelection :selected").val()
+            cacheSet(set)
+
             $.getJSON('/card_creation', {
                 name: $('input[name="name"]').val(),
                 year: $('input[name="year"]').val(),
-                set: $("#setSelection :selected").val(),
+                set: set,
                 url: $('input[name="url"]').val(),
                 img_name: image_name,
                 cc: is_cc,
