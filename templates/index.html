@@ -60,9 +60,10 @@
                         <div class="row">
                            <div class="col-md-6">
                               <label for="setSelection" style="color:Gray;"><b>Set</b></label>
+                              <img for="setSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="2022+ Sets are split into CLASSIC AND EXPANDED. CLASSIC is compatible with '00-'01 sets, while EXPANDED works well with '02-'05. EXPANDED set increases hitter onbase values and adds results over 20+." >
                               <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                 {% for year in [2000,2001,2002,2003,2004,2005,2022] %}
-                                    <option value={{ year }} {% if year == 2000 %} selected="selected" {% endif %}>{{ year }}</option>
+                                 {% for year in ['2000','2001','2002','2003','2004','2005','2022-CLASSIC','2022-EXPANDED'] %}
+                                    <option value={{ year }} {% if year == '2000' %} selected="selected" {% endif %}>{{ year }}</option>
                                  {% endfor %}
                               </select>
                            </div>
@@ -113,16 +114,7 @@
                                  {% endfor %}
                               </div>
                            </div>
-                           <div class="col-md-6" style="padding-bottom: 10px;">
-                              <label style="color:Gray;" for="styleSelection"> <b>Style</b></label>
-                              <select id="styleSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                 <option value="None" selected="selected">None</option>
-                                 <option value="Classic">Classic</option>
-                                 <option value="Expanded">Expanded</option>
-                              </select>
-                           </div>
                         </div>   
-                        
                      </div>
 
                      <!-- IMAGES  -->

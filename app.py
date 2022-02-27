@@ -121,7 +121,6 @@ def card_creator():
         img = request.args.get('img_name')
         set_num = str(request.args.get('set_num'))
         expansion_raw = str(request.args.get('expansion'))
-        style_raw = str(request.args.get('style'))
 
         # SCRAPE PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
@@ -135,7 +134,6 @@ def card_creator():
         img_name = None if img == '' else img
         set_number = year if set_num == '' else set_num
         expansion = "BS" if expansion_raw == '' else expansion_raw
-        style = '' if style_raw == 'None' else style_raw.upper()
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
@@ -145,7 +143,6 @@ def card_creator():
             stats=statline,
             context=set,
             expansion=expansion,
-            style=style,
             player_image_path=img_name,
             player_image_url=img_url,
             is_cooperstown=is_cooperstown,
