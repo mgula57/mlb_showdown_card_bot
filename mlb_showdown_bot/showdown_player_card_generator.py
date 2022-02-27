@@ -2893,11 +2893,11 @@ class ShowdownPlayerCardGenerator:
           PIL image object for super season logo + text.
         """
 
-        is_04_05 = self.context in ['2004','2005']
-        include_accolades = self.context in ['2000','2001']
+        is_after_03 = self.context_year in ['2004','2005','2022']
+        include_accolades = self.context_year not in ['2000','2001','2022']
 
         # BACKGROUND IMAGE LOGO
-        super_season_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', '{}-Super Season.png'.format(self.context)))
+        super_season_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-Super Season.png'))
 
         # FONTS
         super_season_year_path = os.path.join(os.path.dirname(__file__), 'fonts', 'URW Corporate W01 Normal.ttf')
@@ -2907,7 +2907,7 @@ class ShowdownPlayerCardGenerator:
 
         # YEAR
         if self.is_multi_year:
-            font_scaling = 0 if is_04_05 else 40
+            font_scaling = 0 if is_after_03 else 40
             if self.is_full_career:
                 year_string = 'CAREER'
                 font_size = 110 + font_scaling
@@ -2916,27 +2916,28 @@ class ShowdownPlayerCardGenerator:
                 font_size = 130 + font_scaling
             super_season_year_font = ImageFont.truetype(super_season_year_path, size=font_size)
         else:
-            year_string = '’{}'.format(str(self.year)[2:4]) if is_04_05 else str(self.year)
+            year_string = '’{}'.format(str(self.year)[2:4]) if is_after_03 else str(self.year)
         year_text = self.__text_image(
             text = year_string,
-            size = (750,540) if is_04_05 else (1125,600),
+            size = (750,540) if is_after_03 else (1125,600),
             font = super_season_year_font,
             alignment = "left",
-            rotation = 0 if is_04_05 else 7
+            rotation = 0 if is_after_03 else 7
         )
         year_text = year_text.resize((180,180), Image.ANTIALIAS)
-        year_paste_coords = (135,90) if is_04_05 else (24,282)
-        if self.is_multi_year:
-            year_paste_coords = (126,110) if is_04_05 else (26,290)
-        super_season_image.paste("#982319",year_paste_coords,year_text)
+        year_paste_coords = sc.IMAGE_LOCATIONS['super_season_year_text'][self.context_year]
+        if self.is_multi_year and self.context_year != '2022':
+            year_paste_coords = (126,110) if is_after_03 else (26,290)
+        year_color = "#982319" if self.context_year != '2022' else "#ffffff"
+        super_season_image.paste(year_color,year_paste_coords,year_text)
 
         if include_accolades:
             # ACCOLADES
             accolades_list = sorted(self.__super_season_accolades(),key=len,reverse=True)
-            x_position = 18 if is_04_05 else 9
-            y_position = 342 if is_04_05 else 324
-            accolade_rotation = 15 if is_04_05 else 13
-            accolade_spacing = 45 if is_04_05 else 72
+            x_position = 18 if is_after_03 else 9
+            y_position = 342 if is_after_03 else 324
+            accolade_rotation = 15 if is_after_03 else 13
+            accolade_spacing = 45 if is_after_03 else 72
             for accolade in accolades_list:
                 accolade_text = self.__text_image(
                     text = accolade,
@@ -2951,7 +2952,7 @@ class ShowdownPlayerCardGenerator:
                 y_position += accolade_spacing
 
         # RESIZE
-        super_season_image = super_season_image.resize(sc.IMAGE_SIZES['super_season'][self.context], Image.ANTIALIAS)
+        super_season_image = super_season_image.resize(sc.IMAGE_SIZES['super_season'][self.context_year], Image.ANTIALIAS)
         return super_season_image
 
     def __super_season_accolades(self):
