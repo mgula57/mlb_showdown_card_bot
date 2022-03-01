@@ -2024,9 +2024,11 @@ class ShowdownPlayerCardGenerator:
         # EXPANSION
         if self.expansion != 'BS':
             expansion_image = self.__expansion_image()
-            expansion_location = sc.IMAGE_LOCATIONS['expansion'][str(self.context)]
+            expansion_location = sc.IMAGE_LOCATIONS['expansion'][str(self.context_year)]
             if self.context == '2002' and self.expansion == 'TD':
                 expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
+            elif self.context_year == '2022' and self.expansion == 'TD':
+                expansion_location = (expansion_location[0],expansion_location[1] - 12)
             player_image.paste(expansion_image, expansion_location, expansion_image)
 
         # SAVE AND SHOW IMAGE
