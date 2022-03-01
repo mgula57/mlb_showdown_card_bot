@@ -43,7 +43,7 @@ class BaseballReferenceScraper:
         # CHECK FOR BASEBALL REFERENCE ID
         self.is_name_a_bref_id = any(char.isdigit() for char in name)
         if self.is_name_a_bref_id:
-            self.baseball_ref_id = name.lower()
+            self.baseball_ref_id = name.split(' ')[0].lower()
         else:
             # CHECK DEFAULT CSV
             default_bref_id = self.__check_for_default_bref_id(name)
