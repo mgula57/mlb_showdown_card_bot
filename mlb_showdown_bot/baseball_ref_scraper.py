@@ -116,8 +116,7 @@ class BaseballReferenceScraper:
         # NO BASEBALL REFERENCE RESULTS FOR THAT NAME AND YEAR
         if search_results == []:
             raise AttributeError('Cannot Find BRef Page for {} in {}'.format(name,year))
-          
-
+        
         top_result_url = search_results[0]["href"]
         player_b_ref_id = top_result_url.split('.shtml')[0].split('/')[-1]
         return player_b_ref_id
@@ -240,7 +239,9 @@ class BaseballReferenceScraper:
                 stats_dict['sprint_speed'] = self.sprint_speed(name=name, year=year, type=type)
             
             # DERIVE 1B 
-            stats_dict['1B'] = int(stats_dict['H']) - int(stats_dict['HR']) - int(stats_dict['3B']) - int(stats_dict['2B'])
+            triples = 0 if '3B' not in stats_dict.keys() else int(stats_dict['3B'])
+            doubles = 0 if '2B' not in stats_dict.keys() else int(stats_dict['2B'])
+            stats_dict['1B'] = int(stats_dict['H']) - int(stats_dict['HR']) - triples - doubles
             master_stats_dict[year] = stats_dict
         
         if self.is_multi_year:
@@ -277,7 +278,7 @@ class BaseballReferenceScraper:
             if is_position_found:
                 position_name = position_info.find('td', attrs={'data-stat':'pos'}).get_text()
                 games_played = position_info.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
-                    
+
                 if position_name != 'TOT':
                     # DRS (2003+)
                     drs_metric_name = 'bis_runs_total'
@@ -582,6 +583,46 @@ class BaseballReferenceScraper:
             is_rookie_season = self.__is_rookie_season(table_prefix=table_prefix, advanced_stats_soup=soup_for_advanced_stats)
             advanced_stats['is_rookie'] = is_rookie_season
 
+        # FILL IN EMPTY STATS
+        current_categories = advanced_stats.keys()
+        if 'PA' not in current_categories:
+            # CHECK FOR BATTERS FACED
+            if advanced_stats['batters_faced'] > 0:
+                advanced_stats['PA'] = advanced_stats['batters_faced']
+            # ESTIMATE PA AGAINST
+            else:
+                advanced_stats['PA'] = advanced_stats['IP'] * 4.25
+        
+        keys_to_fill = ['SH','HBP','IBB']
+        for key in keys_to_fill:
+            if key not in current_categories:
+                advanced_stats[key] = 0
+
+        if '2B' not in current_categories:
+            maxDoubles = 0.25
+            eraPercentile = self.__percentile(minValue=1.0, maxValue=5.0, value=advanced_stats['earned_run_avg'])
+            advanced_stats['2B'] = int(advanced_stats['H'] * eraPercentile * maxDoubles)
+
+        if '3B' not in current_categories:
+            maxTriples = 0.025
+            eraPercentile = self.__percentile(minValue=1.0, maxValue=5.0, value=advanced_stats['earned_run_avg'])
+            advanced_stats['3B'] = int(advanced_stats['H'] * eraPercentile * maxTriples)
+        
+        if 'slugging_perc' not in current_categories:
+            ab = advanced_stats['PA'] - advanced_stats['BB']
+            singles = advanced_stats['H'] - advanced_stats['2B'] - advanced_stats['3B'] - advanced_stats['HR']
+            advanced_stats['AB'] = ab
+            advanced_stats['slugging_perc'] = (singles + (2 * advanced_stats['2B']) + (3 * advanced_stats['3B']) + (4 * advanced_stats['HR'])) / ab
+
+        if 'onbase_perc' not in current_categories:
+            advanced_stats['onbase_perc'] = (advanced_stats['H'] + advanced_stats['BB']) / advanced_stats['PA']
+        
+        if 'batting_avg' not in current_categories:
+            advanced_stats['batting_avg'] = advanced_stats['H'] / advanced_stats['AB']
+        
+        if 'SB' not in current_categories:
+            advanced_stats['SB'] = 0
+
         return advanced_stats
 
     def __parse_standard_stats(self, type, standard_table, included_g_for_pitcher=False):
@@ -613,13 +654,19 @@ class BaseballReferenceScraper:
             stat = self.__convert_to_numeric(stat)
 
             if type == 'Pitcher':
-                pitching_categories = ['earned_run_avg','GS','W','SV','IP','award_summary']
+                pitching_categories = ['earned_run_avg','team_ID','G','GS','W','SV','IP','H','2B','3B','HR','BB','SO','HBP','batters_faced','award_summary']
+                fill_zeros = ['GS','W','SV','H','2B','3B','HR','BB','SO','HBP','batters_faced']
                 if included_g_for_pitcher:
                     pitching_categories.append('G')
                 if stat_category in pitching_categories:
+                    if len(str(stat)) == 0 and stat_category in fill_zeros:
+                        stat = 0
                     standard_stats_dict[stat_category] = stat
             else:
-                standard_stats_dict[stat_category] = stat
+                if stat_category == 'SO' and len(str(stat)) == 0:
+                    standard_stats_dict[stat_category] = 0
+                else:
+                    standard_stats_dict[stat_category] = stat
 
         return standard_stats_dict
 
@@ -654,18 +701,15 @@ class BaseballReferenceScraper:
           Dict with opponent hitting statistics.
         """
 
-        if batting_against_table is None:
-            # NO HITTING AGAINST DATA AVAILABLE BEFORE 1918.
-            raise ValueError('No Pitcher Data Before 1918 can be used to calculate Showdown Metrics needed for a card')
-
         batting_against_dict = {}
-        for category in batting_against_table:
-            stat_category = category['data-stat']
-            stat = category.get_text()
-            stat = self.__convert_to_numeric(stat)
-            if stat_category == 'IBB' and stat == '':
-                stat = 0
-            batting_against_dict[stat_category]= stat
+        if batting_against_table is not None:
+            for category in batting_against_table:
+                stat_category = category['data-stat']
+                stat = category.get_text()
+                stat = self.__convert_to_numeric(stat)
+                if stat_category == 'IBB' and stat == '':
+                    stat = 0
+                batting_against_dict[stat_category]= stat
 
         return batting_against_dict
 
@@ -683,7 +727,7 @@ class BaseballReferenceScraper:
         if ratio_table is None:
             # DEFAULT TO 50 / 50 SPLIT
             gb_ao_ratio = 1.0
-            pu_ratio = 0.5
+            pu_ratio = 0.13
         else:
             gb_ao_ratio_raw = ratio_table.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
             try:
@@ -771,8 +815,11 @@ class BaseballReferenceScraper:
                     icon_threshold_bools[bool_key_name] = is_qualified_for_icon
             else:
                 if stat in stats_dict.keys():
-                    is_qualified_for_icon = int(stats_dict[stat]) >= threshold
-                    icon_threshold_bools[bool_key_name] = is_qualified_for_icon
+                    if len(str(stats_dict[stat])) == 0:
+                        icon_threshold_bools[bool_key_name] = False
+                    else:
+                        is_qualified_for_icon = int(stats_dict[stat]) >= threshold
+                        icon_threshold_bools[bool_key_name] = is_qualified_for_icon
         
         return icon_threshold_bools
 
@@ -1073,6 +1120,22 @@ class BaseballReferenceScraper:
 
         last_initial = name_no_suffix.split(' ')[1][:1]
         return last_initial
+
+    def __percentile(self,minValue,maxValue,value):
+        """Get percentile of value given a range.
+
+        Args:
+          minValue: minimum of range
+          maxValue: maximum of range
+          value: value to compare
+
+        Returns:
+          float for percentile within range
+        """
+
+        percentile_raw = (value-minValue) / (maxValue-minValue)
+
+        return min(percentile_raw,1.0) if percentile_raw > 0 else 0
 
     def __convert_to_numeric(self, string_value):
         """Will convert a string to either int or float if able, otherwise return as string
