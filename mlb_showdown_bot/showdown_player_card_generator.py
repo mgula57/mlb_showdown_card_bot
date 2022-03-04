@@ -1761,17 +1761,22 @@ class ShowdownPlayerCardGenerator:
 
         final_player_data = []
 
+        # ADD WHETHER STATS ESTIMATIONS WERE INVOLVED
+        category_prefix = ''
+        if self.is_stats_estimate:
+            category_prefix = '*'
+
         # SLASH LINE
         slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
         for key, cleaned_category in slash_categories:
             in_game = f"{float(round(self.real_stats[key],3)):.3f}".replace('0.','.')
             actual = f"{float(self.stats[key]):.3f}".replace('0.','.')
-            final_player_data.append([cleaned_category,actual,in_game])
+            final_player_data.append([category_prefix+cleaned_category,actual,in_game])
 
         # PLATE APPEARANCES
         real_life_pa = int(self.stats['PA'])
         real_life_pa_ratio = int(self.stats['PA']) / 650.0
-        final_player_data.append(['PA', str(real_life_pa), str(real_life_pa)])
+        final_player_data.append([f'{category_prefix}PA', str(real_life_pa), str(real_life_pa)])
 
         # ADD EACH RESULT CATEGORY, REAL LIFE # RESULTS, AND PROJECTED IN-GAME # RESULTS
         # EX: [['1B','75','80'],['2B','30','29']]
@@ -1786,7 +1791,8 @@ class ShowdownPlayerCardGenerator:
         for key, cleaned_category in result_categories:
             in_game = str(int(round(self.real_stats[key]) * real_life_pa_ratio))
             actual = str(self.stats[cleaned_category])
-            final_player_data.append([cleaned_category,actual,in_game])
+            prefix = category_prefix if cleaned_category in ['2B','3B'] else ''
+            final_player_data.append([f'{prefix}{cleaned_category}',actual,in_game])
         
         # NON COMPARABLE STATS
         category_list = ['earned_run_avg', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
@@ -1797,7 +1803,7 @@ class ShowdownPlayerCardGenerator:
                     'onbase_plus_slugging_plus': 'OPS+',
                     'bWAR': 'bWAR',
                     'dWAR': 'dWAR',
-                    'SB': 'SB',
+                    'SB': f'{category_prefix}SB',
                     'earned_run_avg': 'ERA',
                 }
                 short_category_name = short_name_map[category]
@@ -2031,6 +2037,13 @@ class ShowdownPlayerCardGenerator:
             elif self.context_year == '2022' and self.expansion == 'TD':
                 expansion_location = (expansion_location[0],expansion_location[1] - 12)
             player_image.paste(expansion_image, expansion_location, expansion_image)
+
+        # BETA TAG
+        # TO BE REMOVED AFTER TEST PERIOD
+        if self.context_year == '2022':
+            beta_img_path = os.path.join(os.path.dirname(__file__), 'templates', 'BETA.png')
+            beta_banner_image = Image.open(beta_img_path)
+            player_image.paste(beta_banner_image,(0,0),beta_banner_image)
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm
@@ -2277,7 +2290,7 @@ class ShowdownPlayerCardGenerator:
         except:
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
             team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', 'MLB.png')).convert("RGBA")
-            team_logo = team_logo.resize((270, 147), Image.ANTIALIAS)
+            team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and not self.is_cooperstown else team_logo
 
         # OVERRIDE IF SUPER SEASON
