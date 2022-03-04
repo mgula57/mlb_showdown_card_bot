@@ -83,6 +83,7 @@ class ShowdownPlayerCardGenerator:
         self.is_running_in_flask = is_running_in_flask
         self.is_automated_image = False
         self.is_img_part_of_a_set = is_img_part_of_a_set
+        self.is_stats_estimate = 'is_stats_estimate' in stats.keys()
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -2390,7 +2391,8 @@ class ShowdownPlayerCardGenerator:
 
             # ADD CHART ROUNDED RECT
             container_img_black = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-ChartOutsContainer-{type}.png'))
-            container_img = self.__color_overlay_to_img(img=container_img_black,color=sc.TEAM_COLOR_PRIMARY[self.team])
+            fill_color = sc.TEAM_COLOR_PRIMARY[self.team] if self.team in sc.TEAM_COLOR_PRIMARY.keys() else (0,0,0,0)
+            container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
             text_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-ChartOutsText-{type}.png'))
             template_image.paste(container_img, (0,0), container_img)
             template_image.paste(text_img, (0,0), text_img)
@@ -3149,7 +3151,7 @@ class ShowdownPlayerCardGenerator:
         font = ImageFont.truetype(font_path, size=size)
 
         # ADD TEXT
-        fill_color = sc.TEAM_COLOR_PRIMARY[self.team]
+        fill_color = sc.TEAM_COLOR_PRIMARY[self.team] if self.team in sc.TEAM_COLOR_PRIMARY.keys() else (0,0,0,0)
         command_text_img = self.__text_image(
             text = command,
             size = (188,210),

@@ -586,14 +586,15 @@ class BaseballReferenceScraper:
         # FILL IN EMPTY STATS
         current_categories = advanced_stats.keys()
         if 'PA' not in current_categories:
+            advanced_stats['is_stats_estimate'] = True
             # CHECK FOR BATTERS FACED
             if advanced_stats['batters_faced'] > 0:
                 advanced_stats['PA'] = advanced_stats['batters_faced']
             # ESTIMATE PA AGAINST
             else:
-                advanced_stats['PA'] = advanced_stats['IP'] * 4.25
+                advanced_stats['PA'] = advanced_stats['IP'] * 4.25 # NEED TO ESTIMATE PA BASED ON AVG PA PER INNING
         
-        keys_to_fill = ['SH','HBP','IBB']
+        keys_to_fill = ['SH','HBP','IBB','SF']
         for key in keys_to_fill:
             if key not in current_categories:
                 advanced_stats[key] = 0
@@ -609,10 +610,12 @@ class BaseballReferenceScraper:
             advanced_stats['3B'] = int(advanced_stats['H'] * eraPercentile * maxTriples)
         
         if 'slugging_perc' not in current_categories:
-            ab = advanced_stats['PA'] - advanced_stats['BB']
+            ab = advanced_stats['PA'] - advanced_stats['BB'] - advanced_stats['HBP']
             singles = advanced_stats['H'] - advanced_stats['2B'] - advanced_stats['3B'] - advanced_stats['HR']
+            total_bases = (singles + (2 * advanced_stats['2B']) + (3 * advanced_stats['3B']) + (4 * advanced_stats['HR']))
             advanced_stats['AB'] = ab
-            advanced_stats['slugging_perc'] = (singles + (2 * advanced_stats['2B']) + (3 * advanced_stats['3B']) + (4 * advanced_stats['HR'])) / ab
+            advanced_stats['TB'] = total_bases
+            advanced_stats['slugging_perc'] = total_bases / ab
 
         if 'onbase_perc' not in current_categories:
             advanced_stats['onbase_perc'] = (advanced_stats['H'] + advanced_stats['BB']) / advanced_stats['PA']
