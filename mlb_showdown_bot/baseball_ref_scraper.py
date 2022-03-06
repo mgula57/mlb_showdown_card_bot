@@ -411,7 +411,10 @@ class BaseballReferenceScraper:
             raise ValueError('No player name found')
         # FIND THE ITEMPROP TAG
         name_object = metadata.find('h1', attrs = {'itemprop': 'name'})
-        name_string = name_object.find('span').get_text()
+        if name_object is None:
+            name_string = metadata.find('span').get_text()
+        else:
+            name_string = name_object.find('span').get_text()
         return name_string
 
     def type(self, positional_fielding, year):
