@@ -62,7 +62,7 @@ class ShowdownPlayerCardGenerator:
         self.expansion = expansion
         self.is_expanded = self.context in sc.EXPANDED_SETS
         self.is_classic = self.context in sc.CLASSIC_SETS
-        self.has_icons = self.context in sc.SETS_HAS_ICONS
+        self.has_icons = self.context_year in sc.SETS_HAS_ICONS
         self.stats = stats
         # COMBINE BB AND HBP
         if 'HBP' in self.stats.keys():
@@ -493,7 +493,7 @@ class ShowdownPlayerCardGenerator:
         """
 
         # ICONS ONLY APPLY TO 2003+
-        if self.has_icons:
+        if not self.has_icons:
             return []
 
         awards_string = '' if awards is None else str(awards).upper()
@@ -2021,7 +2021,7 @@ class ShowdownPlayerCardGenerator:
         player_image.paste("#b5b4b4", sc.IMAGE_LOCATIONS['version'][str(self.context_year)], version_image)
         
         # ICONS
-        if self.is_expanded:
+        if self.has_icons:
             player_image = self.__add_icons_to_image(player_image)
 
         # SET
@@ -2188,7 +2188,7 @@ class ShowdownPlayerCardGenerator:
                 type_string = 'P' if self.is_pitcher else 'H'
                 hand_prefix = self.hand[0 if self.is_pitcher else -1]
                 hand_string = 'L' if hand_prefix == 'S' else hand_prefix
-                silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context}-SIL-{hand_string}H{type_string}.png')
+                silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-SIL-{hand_string}H{type_string}.png')
                 player_image = Image.open(silhouetee_image_path)
             
             background_image.paste(player_image,(0,0),player_image)
@@ -2855,11 +2855,11 @@ class ShowdownPlayerCardGenerator:
             # CARD NUMBER
             number_text = self.__text_image(
                 text = self.set_number,
-                size = (600, 480),
+                size = (600, 450),
                 font = set_font,
                 alignment = "center"
             )
-            number_text = number_text.resize((150,120), Image.ANTIALIAS)
+            number_text = number_text.resize((160,120), Image.ANTIALIAS)
             number_color = sc.COLOR_BLACK if self.context_year == '2003' else sc.COLOR_WHITE
             set_image.paste(number_color, sc.IMAGE_LOCATIONS['number'][str(self.context_year)], number_text)
 
@@ -3032,7 +3032,8 @@ class ShowdownPlayerCardGenerator:
         icon_positional_mapping = sc.ICON_LOCATIONS[self.context_year]
         # ITERATE THROUGH AND PASTE ICONS
         for index, icon in enumerate(self.icons[0:4]):
-            icon_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', '{}-{}.png'.format(self.context_year,icon)))
+            icon_img_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{icon}.png')
+            icon_image = Image.open(icon_img_path)
             position = icon_positional_mapping[index]
             # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
             # EX: 'LF/RF' IS LONGER STRING THAN '3B'
