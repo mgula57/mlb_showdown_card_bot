@@ -2170,6 +2170,7 @@ TEAM_LOGO_ALTERNATES = {
         '3': list(range(1946,1973)),
         '4': list(range(1973,1979)),
         '5': list(range(1979,2013)),
+        '6': list(range(2013,2022)),
     },
     'DET': {
         '1': list(range(1901,1957)),

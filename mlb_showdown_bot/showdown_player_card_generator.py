@@ -2284,7 +2284,7 @@ class ShowdownPlayerCardGenerator:
         try:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
             historical_alternate_ext = self.__team_logo_historical_alternate_extension()
-            alternate_logo_ext = '-A' if is_04_05 and not self.is_all_star_game else ''
+            alternate_logo_ext = '-A' if int(self.context_year) >= 2004 and not self.is_all_star_game else ''
             team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', '{}{}{}.png'.format(logo_name,alternate_logo_ext,historical_alternate_ext))).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         except:
