@@ -3171,28 +3171,28 @@ class ShowdownPlayerCardGenerator:
             size = (188,210),
             font = font,
             alignment = "center",
-            fill = fill_color, # TODO: FILL WITH TEAM COLOR
+            fill = fill_color,
             has_border=True,
             border_color=sc.COLOR_BLACK,
             border_size=3,
         )
-        paste_location = (50,55) if self.is_pitcher else (0,28)
+        paste_location = (35,55) if self.is_pitcher else (0,28)
         background_img.paste(command_text_img, paste_location, command_text_img)
 
         # ADD "+" if pitcher
         if self.is_pitcher:
-            font_plus = ImageFont.truetype(font_path, size=95)
+            font_plus = ImageFont.truetype(font_path, size=60)
             command_text_plus_img = self.__text_image(
                 text = "+",
                 size = (188,210),
                 font = font_plus,
                 alignment = "center",
-                fill = fill_color, # TODO: FILL WITH TEAM COLOR
+                fill = fill_color,
                 has_border=True,
                 border_color=sc.COLOR_BLACK,
-                border_size=3,
+                border_size=2,
             )
-            background_img.paste(command_text_plus_img, (-15,60), command_text_plus_img)
+            background_img.paste(command_text_plus_img, (-20,90), command_text_plus_img)
 
 
         return background_img
