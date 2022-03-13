@@ -390,6 +390,7 @@ class BaseballReferenceScraper:
             hand_tag = 'Bats: ' if type == 'Hitter' else 'Throws: '
             if strong_tag.text == hand_tag:
                 hand = strong_tag.next_sibling.replace('•','').rstrip()
+                hand = 'Both' if hand == 'Unknown' else hand
                 return hand
 
     def player_name(self, soup_for_homepage_stats):

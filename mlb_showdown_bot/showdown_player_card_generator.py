@@ -142,7 +142,8 @@ class ShowdownPlayerCardGenerator:
         games_started_raw = int(stats['GS']) if self.is_pitcher else 0
         saves_raw = int(stats['SV']) if self.is_pitcher else 0
         sprint_speed_raw = stats['sprint_speed']
-        stolen_bases_raw = int(stats['SB']) if not self.is_pitcher else 0
+        is_sb_empty = len(str(stats['SB'])) == 0
+        stolen_bases_raw = int(0 if is_sb_empty else stats['SB']) if not self.is_pitcher else 0
 
         # DERIVED SB PER 650 PA (NORMAL SEASON)
         pa_to_650_ratio = int(stats['PA']) / 650.0
@@ -155,7 +156,7 @@ class ShowdownPlayerCardGenerator:
                                                                   games_started=games_started_raw,
                                                                   saves=saves_raw)
         self.hand = self.__handedness(hand=hand_raw)
-        self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa)
+        self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
         self.icons = self.__icons(awards=stats['award_summary'] if 'award_summary' in stats.keys() else '')
 
     def __positions_and_defense(self, defensive_stats, games_played, games_started, saves):
@@ -430,7 +431,7 @@ class ShowdownPlayerCardGenerator:
 
         return ip
 
-    def __speed(self, sprint_speed, stolen_bases):
+    def __speed(self, sprint_speed, stolen_bases, is_sb_empty):
         """In game speed for a position player. Will use pure sprint speed
            if year is >= 2015, otherwise uses stolen bases. Pitcher defaults to 10.
 
@@ -438,6 +439,7 @@ class ShowdownPlayerCardGenerator:
           sprint_speed: Average sprint speed according to baseballsavant.com.
                         IMPORTANT: Data is available for 2015+.
           stolen_bases: Number of steals during the season.
+          is_sb_empty: Bool for whether SB are unavailable for the player.
 
         Returns:
           In game speed ability, in game letter grade
@@ -446,6 +448,10 @@ class ShowdownPlayerCardGenerator:
         if self.is_pitcher:
             # PITCHER DEFAULTS TO 10
             return 10, 'C'
+    
+        if is_sb_empty:
+            # DEFAULT PLAYERS WITHOUT SB AVAILABLE TO 12
+            return 12, 'C' if self.context == '2002' else 'B'
 
         # IF FULL CAREER CARD, ONLY USE SPRINT SPEED IF PLAYER HAS OVER 35% of CAREER POST 2015
         pct_career_post_2015 = sum([1 if year >= 2015 else 0 for year in self.year_list]) / len(self.year_list)
@@ -465,7 +471,7 @@ class ShowdownPlayerCardGenerator:
         speed_raw = int(round(speed_percentile * max_speed_in_game))
         # CHANGE OUTLIERS
         speed = 8 if speed_raw < 8 else speed_raw
-        speed = 27 if speed_raw > 27 else speed
+        speed = sc.MAX_IN_GAME_SPD[self.context] if speed_raw > sc.MAX_IN_GAME_SPD[self.context] else speed
 
         c_speeed_cutoff = 13 if self.context == '2002' else 12
         if speed < c_speeed_cutoff:
@@ -1137,7 +1143,8 @@ class ShowdownPlayerCardGenerator:
         chart_result_categories = ['SO','BB','1B','2B','3B','HR','SB','H']
         for category in chart_result_categories:
             key = '{}_per_{}_pa'.format(category.lower(), plate_appearances)
-            stats_for_n_pa[key] = int(stats[category]) / pct_of_n_pa
+            stat_value = int(stats[category]) if len(str(stats[category])) > 0 else 0
+            stats_for_n_pa[key] = stat_value / pct_of_n_pa
 
         return stats_for_n_pa
 
@@ -2136,7 +2143,7 @@ class ShowdownPlayerCardGenerator:
         if self.context in ['2000', '2001']:
             # TEAM BACKGROUNDS
             if self.is_cooperstown:
-                background_image_name = 'CC'
+                background_image_name = 'CCC'
             elif self.is_all_star_game and not self.is_multi_year:
                 background_image_name = f"ASG-{self.year}"
             else:
@@ -2277,7 +2284,7 @@ class ShowdownPlayerCardGenerator:
 
         if self.is_cooperstown or self.is_all_star_game:
             # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
-            logo_name = 'CC' if self.is_cooperstown else f'ASG-{self.year}'
+            logo_name = 'CCC' if self.is_cooperstown else f'ASG-{self.year}'
             if is_04_05 and self.is_cooperstown:
                 logo_size = (330,330)
                 logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 120)
@@ -2329,11 +2336,11 @@ class ShowdownPlayerCardGenerator:
 
         return team_logo, logo_paste_coordinates
 
-    def __team_logo_historical_alternate_extension(self):
+    def __team_logo_historical_alternate_extension(self, include_dash=True):
         """Check to see if there is an alternate team logo to use for the given team + year
 
         Args:
-          None
+          include_dash: Boolean for whether to include prefix of "-". Default is True
 
         Returns:
           Index of alternate logo for team. If none exists, fn will return empty string
@@ -2369,7 +2376,10 @@ class ShowdownPlayerCardGenerator:
             year_for_team_logo = int(self.year)
         for index, year_range in logo_historical_alternates[self.team].items():
             if year_for_team_logo in year_range:
-                return '-{}'.format(index)
+                if include_dash:
+                    return f'-{index}'
+                else:
+                    return str(index)
 
         # NO ALTERNATES FOUND, RETURN NONE
         return ''
@@ -2404,7 +2414,7 @@ class ShowdownPlayerCardGenerator:
 
             # ADD CHART ROUNDED RECT
             container_img_black = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-ChartOutsContainer-{type}.png'))
-            fill_color = sc.TEAM_COLOR_PRIMARY[self.team] if self.team in sc.TEAM_COLOR_PRIMARY.keys() else (0,0,0,0)
+            fill_color = self.__team_color_rgbs()
             container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
             text_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-ChartOutsText-{type}.png'))
             template_image.paste(container_img, (0,0), container_img)
@@ -2571,7 +2581,7 @@ class ShowdownPlayerCardGenerator:
             # DONT ASSIGN A COLOR TO TEXT AS 04/05 HAS MULTIPLE COLORS.
             # ASSIGN THE TEXT ITSELF AS THE COLOR OBJECT
             name_color = final_text
-        else:
+        elif self.context_year in ['2022']:
             # 2022 >=
             name_color = sc.COLOR_BLACK
 
@@ -2828,7 +2838,7 @@ class ShowdownPlayerCardGenerator:
         set_image = Image.new('RGBA', (1500, 2100), 255)
         set_image_location = sc.IMAGE_LOCATIONS['set'][str(self.context_year)]
 
-        if self.context in ['2000', '2001']:
+        if self.context in ['2000', '2001', '2002']:
             # SET AND NUMBER IN SAME STRING
             set_text = self.__text_image(
                 text = self.set_number,
@@ -2841,15 +2851,35 @@ class ShowdownPlayerCardGenerator:
         else:
             # DIFFERENT STYLES BETWEEN NUMBER AND SET
             # CARD YEAR
-            year_suffix = "" if self.is_multi_year and self.context_year in ['2004', '2005'] else f"'{str(self.year)[2:4]}"
-            year_text = year_suffix if int(self.context_year) < 2022 else str(self.year)
+            set_font_year = set_font
+            year_as_str = str(self.year)
+            if self.is_multi_year and self.context_year in ['2004', '2005']:
+                # EMPTY YEAR
+                year_string = ''
+            elif self.is_full_career and self.context_year == '2003':
+                year_string = 'ALL'
+            elif self.is_multi_year and self.context_year == '2022':
+                set_image_location = (set_image_location[0]-15,set_image_location[1])
+                if '-' in year_as_str:
+                    try:
+                        years_split = year_as_str.split('-')
+                        year_string = f"'{years_split[0][2:4]}-'{years_split[1][2:4]}"                        
+                    except:
+                        year_string = year_as_str
+                else:
+                    year_string = "CAREER" if self.is_full_career else year_as_str
+                    if self.is_full_career:
+                        set_font_year = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size-20)
+                        set_image_location = (set_image_location[0]-5,set_image_location[1]+3)
+            else:
+                year_string = year_as_str if int(self.context_year) >= 2022 else f"'{year_as_str[2:4]}"
             year_text = self.__text_image(
-                text = year_text,
-                size = (450, 450),
-                font = set_font,
+                text = year_string,
+                size = (525, 450),
+                font = set_font_year,
                 alignment = "left"
             )
-            year_text = year_text.resize((120,120), Image.ANTIALIAS)
+            year_text = year_text.resize((140,120), Image.ANTIALIAS)
             set_image.paste(sc.COLOR_WHITE, set_image_location, year_text)
 
             # CARD NUMBER
@@ -2943,8 +2973,11 @@ class ShowdownPlayerCardGenerator:
         )
         year_text = year_text.resize((180,180), Image.ANTIALIAS)
         year_paste_coords = sc.IMAGE_LOCATIONS['super_season_year_text'][self.context_year]
-        if self.is_multi_year and self.context_year != '2022':
-            year_paste_coords = (126,110) if is_after_03 else (26,290)
+        if self.is_multi_year:
+            if self.context_year == '2022':
+                year_paste_coords = (122,265)
+            else:
+                year_paste_coords = (126,110) if is_after_03 else (26,290)
         year_color = "#982319" if self.context_year != '2022' else "#ffffff"
         super_season_image.paste(year_color,year_paste_coords,year_text)
 
@@ -3161,38 +3194,36 @@ class ShowdownPlayerCardGenerator:
         background_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{img_type_suffix}.png'))
         font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
         command = str(self.chart['command'])
-        size = 155 if len(command) == 1 and not self.is_pitcher else 135
+        num_chars_command = len(command)
+        size = 155
         font = ImageFont.truetype(font_path, size=size)
 
         # ADD TEXT
-        fill_color = sc.TEAM_COLOR_PRIMARY[self.team] if self.team in sc.TEAM_COLOR_PRIMARY.keys() else (0,0,0,0)
-        command_text_img = self.__text_image(
-            text = command,
-            size = (188,210),
-            font = font,
-            alignment = "center",
-            fill = fill_color,
-            has_border=True,
-            border_color=sc.COLOR_BLACK,
-            border_size=3,
-        )
-        paste_location = (35,55) if self.is_pitcher else (0,28)
-        background_img.paste(command_text_img, paste_location, command_text_img)
+        fill_color = self.__team_color_rgbs()
+        fill_color_hex = '#' + ''.join(f'{i:02X}' for i in fill_color[0:3])
+        # SEPARATE 
+        for index, char in enumerate(command):
+            position_multiplier = 1 if (index + 1) == num_chars_command else -1
+            x_position = 0 if num_chars_command == 1 else 35 * position_multiplier
+            command_text_img = self.__text_image(
+                text = char,
+                size = (188,210),
+                font = font,
+                alignment = "center",
+            )
+            paste_location = (30,50) if self.is_pitcher else (x_position,28)
+            background_img.paste(fill_color_hex, paste_location, command_text_img)
 
         # ADD "+" if pitcher
         if self.is_pitcher:
-            font_plus = ImageFont.truetype(font_path, size=60)
+            font_plus = ImageFont.truetype(font_path, size=55)
             command_text_plus_img = self.__text_image(
                 text = "+",
                 size = (188,210),
                 font = font_plus,
                 alignment = "center",
-                fill = fill_color,
-                has_border=True,
-                border_color=sc.COLOR_BLACK,
-                border_size=2,
             )
-            background_img.paste(command_text_plus_img, (-20,90), command_text_plus_img)
+            background_img.paste(fill_color_hex, (-27,90), command_text_plus_img)
 
 
         return background_img
@@ -3231,6 +3262,28 @@ class ShowdownPlayerCardGenerator:
         colored_img.putalpha(alpha) 
 
         return colored_img
+
+    def __team_color_rgbs(self):
+        """RGB colors for player team
+
+        Args:
+          None
+
+        Returns:
+            Tuple with RGB team colors
+        """
+
+        default_color = (55, 55, 55, 255)
+        team_index = self.__team_logo_historical_alternate_extension(include_dash=False)
+        if len(team_index) > 0:
+            # GRAB FROM ALT/HISTORICAL TEAM COLORS
+            try:
+                return sc.TEAM_COLOR_PRIMARY_ALT[self.team][team_index]
+            except:
+                return default_color
+        else:
+            # GRAB FROM CURRENT TEAM COLORS
+            return sc.TEAM_COLOR_PRIMARY[self.team] if self.team in sc.TEAM_COLOR_PRIMARY.keys() else default_color
 
 # ------------------------------------------------------------------------
 # IMAGE QUERIES

@@ -132,7 +132,10 @@ def card_creator():
         is_holiday = is_hol if is_hol else False
         img_url = None if url == '' else url
         img_name = None if img == '' else img
-        set_number = year if set_num == '' else set_num
+        if set_num == '':
+            set_number = year if set[0:4] not in ['2003','2022'] else '001'
+        else:
+            set_number = set_num
         expansion = "BS" if expansion_raw == '' else expansion_raw
 
         # CREATE CARD
