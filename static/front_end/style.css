@@ -1,9 +1,36 @@
+html, body {
+    margin: 0;
+    height: 100%;
+}
 
 .input_container {
+    background-color: #ffffff;
+}
+
+.container {
     border-radius: 20px;
     box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    margin-top: 15px;
-    margin-bottom: 15px;
+    margin: 25px;
+    background-color: #f3f3f3; /*#416a9d; */
+    overflow: hidden;
+}
+
+.output_container {
+    padding-left: 20px;
+    padding-right: 20px;    
+}
+
+.breakdown_output {
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    padding: 8px;
+    overflow: hidden;
+
+}
+
+.card_image {
+    padding: 5px;
 }
 
 .loader {
@@ -41,9 +68,12 @@ h1, h2, h3, h4, h5, h6 {
     padding-top: 10px;
     padding-bottom: 10px;
 }
-img {
-    border-radius: 12px;
+.card_output {
+    border-radius: 18px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    overflow: hidden;
 }
+
 td, th {
     border: 1px solid #dddddd;
     text-align: left;

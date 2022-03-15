@@ -18,7 +18,7 @@
    </head>
 
 
-   <body>
+   <body style="margin:0;">
 
       <!-- OVERLAY FOR HIDDEN LOADER OBJECT -->
       <div id="overlay">
@@ -27,13 +27,13 @@
 
       <div class="container">
          <div class="row">
-            <div class="col-md-4">
+            <div class="col-md-4" style="background-color: #ffffff;">
                <!------ INPUT  ------>
                <div class="input_container">
 
                   <!-- SHOWDOWN LOGO  -->
                   <div class="d-flex justify-content-center">
-                     <div class="" style="max-width: 400px;">
+                     <div class="">
                         <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" class="img-fluid" style="padding:30px; padding-bottom:5px;">
                      </div>
                   </div>
@@ -136,19 +136,23 @@
 
                      <!-- BUTTONS  -->
                      <div class="form-group" style="padding-top:20px">
-                        <div class="row">
-                           <div class="col-md-12" >
+                        <div class="row" style="padding-top: 20px; padding-bottom: 20px;">
+                           <div class="col-md-8" style="padding: 8px;" >
                               <!-- CREATE CARD BUTTON  -->
                               <a href=# id=create_card>
-                                 <button type="submit" class="btn btn-primary">
-                                    <span>Submit</span>
+                                 <button type="submit" style="border-radius: 10px; color: white; background-color: #4A6999;" class="btn w-100">
+                                    <div style="padding: 5px;"><b>Submit</b></div>
                                  </button>
                               </a>
-                              <!-- RESET BUTTON  -->
-                              <button type="reset" class="btn btn-secondary" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''" style="margin: 10px;">
-                                 <span>Clear</span>
-                              </button>
+                              
                            </div>
+
+                           <div class="col-md-4" style="padding: 8px;" >
+                              <!-- RESET CARD BUTTON  -->
+                              <button type="reset" style="border-radius: 10px; background-color: #d8d8d8;" class="btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''">
+                                 <div style="padding: 5px;">Clear</div>
+                              </button>
+                           </div>                           
                         </div>   
 
                         <!-- TWITTER LINK  -->
@@ -160,90 +164,97 @@
                   </form>
                </div>
             </div>
-            <div class="col-md-8">
+            <div class="col-md-8" style="padding-bottom: 20px;">
                <div class="d-flex justify-content-center">
                   <!-- OUTPUT  -->
                   <div class="output_container">
+                     <div class="d-flex justify-content-center">
+                        <img src="static/interface/CardOutputText.png" alt="CardOutputText" class="img-fluid" style="max-height:55px; padding-top: 20px;">
+                     </div>
                      <div class="row">
                         
-                        <div class="col-md-6" style="padding: 20px;">
-                           <!-- ERROR MESSAGE  -->
-                           <h5 id=error style="color:red"></h5>
-                           <h4><b>Output</b></h4>
-                           <!-- CARD OUTPUT  -->
-                           <h5 style="color:Gray;"><b>Card</b></h5>
-                           <img id="card_image" src="static/interface/BlankPlayer.png" alt="card" class="img-fluid">
+                        <div class="col-md-7">
+                           <div class="card_container" style="padding-right: 10px;">
+                              <!-- ERROR MESSAGE  -->
+                              <h5 id=error style="color:red"></h5>
+                              <h4 style="color: #686666"><b>Image</b></h4>
+                              <!-- CARD OUTPUT  -->
+                              <div class="card_output">
+                                 <img id="card_image" src="static/interface/BlankPlayer.png" alt="card" class="img-fluid">
+                              </div>
+                           </div>
                         </div>
 
-                        <div class="col-md-6" style="padding: 20px; padding-bottom: 60px;">
-                           
-                           <h4 id=na style="color:blue"></h4>
-                           <h4><b>Breakdown</b></h4>
+                        <div class="col-md-5">
+                           <div class="breakdown_container">
+                                 <h4 id=na style="color:blue"></h4>
+                                 <h4 style="color: #686666"><b>Breakdown</b></h4>
+                                 <div class="breakdown_output">
+                                 <div class="btn-group" role="group" aria-label="Basic radio toggle button group" style="padding: 10px;">
+                                    <input type="radio" class="btn-check" onchange="checkHideForStats(this)" name="category" id="stats_btn" autocomplete="off" checked>
+                                    <label class="btn btn-outline-secondary btn-sm" for="stats_btn">Stats</label>
+                                    <input type="radio" class="btn-check" onchange="checkHideForPoints(this)" name="category" id="points_btn" autocomplete="off">
+                                    <label class="btn btn-outline-secondary btn-sm" for="points_btn">Points</label>
+                                    <input type="radio" class="btn-check" onchange="checkHideForAccuracy(this)" name="category" id="accuracy_btn" autocomplete="off">
+                                    <label class="btn btn-outline-secondary btn-sm" for="accuracy_btn">Accuracy</label>
+                                 </div>
 
-                           <div class="btn-group" role="group" aria-label="Basic radio toggle button group" style="padding: 10px;">
-                              <input type="radio" class="btn-check" onchange="checkHideForStats(this)" name="category" id="stats_btn" autocomplete="off" checked>
-                              <label class="btn btn-outline-secondary" for="stats_btn">Stats</label>
-                              <input type="radio" class="btn-check" onchange="checkHideForPoints(this)" name="category" id="points_btn" autocomplete="off">
-                              <label class="btn btn-outline-secondary" for="points_btn">Points</label>
-                              <input type="radio" class="btn-check" onchange="checkHideForAccuracy(this)" name="category" id="accuracy_btn" autocomplete="off">
-                              <label class="btn btn-outline-secondary" for="accuracy_btn">Accuracy</label>
-                            </div>
+                                 <!-- STATS TABLE  -->
+                                 <div id="stats_div" style="display:initial" >
+                                    <table class='table table-striped' id="stats_table">
+                                       <tr>
+                                          <th> </th>
+                                          <th>Actual</th>
+                                          <th>Showdown</th>
+                                       </tr>
+                                       {% for stat in ['BA','OBP','SLG','PA','1B','2B','3B','HR','BB','SO','?','?','?'] -%}
+                                       <tr>
+                                          <td><b>{{ stat }}</b></td>
+                                          <td>?</td>
+                                          <td>?</td>
+                                       </tr>
+                                       {% endfor %}
+                                    </table>
+                                    <p style="font-size:60%; color: #000000"><i>* Indicates a Bot estimated value, real stat unavailable (1800's, Negro Leagues)</i></p>
+                                 </div>
 
-                           <!-- STATS TABLE  -->
-                           <div id="stats_div" style="display:initial" >
-                              <table class='table' id="stats_table">
-                                 <tr>
-                                    <th> </th>
-                                    <th>Actual</th>
-                                    <th>Showdown</th>
-                                 </tr>
-                                 {% for stat in ['BA','OBP','SLG','PA','1B','2B','3B','HR','BB','SO'] -%}
-                                 <tr>
-                                    <td><b>{{ stat }}</b></td>
-                                    <td>?</td>
-                                    <td>?</td>
-                                 </tr>
-                                 {% endfor %}
-                              </table>
-                              <p style="font-size:60%;"><i>* Indicates a Bot estimated value, real stat unavailable (1800's, Negro Leagues)</i></p>
+                                 <div id="points_div" style="display:none" >
+                                    <table class='table table-striped' id="points_table">
+                                       <tr>
+                                          <th>Category</th>
+                                          <th>Stat</th>
+                                          <th>Points</th>
+                                       </tr>
+                                       {% for stat in ['?', '?', '?', '?', '?', 'TOTAL'] -%}
+                                       <tr>
+                                          <td><b>{{ stat }}</b></td>
+                                          <td>?</td>
+                                          <td>?</td>
+                                       </tr>
+                                       {% endfor %}
+                                    </table>
+                                 </div>
+
+                                 <div id="accuracy_div" style="display:none" >
+                                    <table class='table table-striped' id="accuracy_table">
+                                       <tr>
+                                          <th>Version</th>
+                                          <th>OB/C</th>
+                                          <th>Outs</th>
+                                          <th>Accuracy</th>
+                                       </tr>
+                                       {% for stat in ['1', '2', '3', '4', '5'] -%}
+                                       <tr>
+                                          <td><b>{{ stat }}</b></td>
+                                          <td>?</td>
+                                          <td>?</td>
+                                          <td>?</td>
+                                       </tr>
+                                       {% endfor %}
+                                    </table>
+                                 </div>
+                              </div> 
                            </div>
-
-                           <div id="points_div" style="display:none" >
-                              <table class='table' id="points_table">
-                                 <tr>
-                                    <th>Category</th>
-                                    <th>Stat</th>
-                                    <th>Points</th>
-                                 </tr>
-                                 {% for stat in ['?', '?', '?', '?', '?', 'TOTAL'] -%}
-                                 <tr>
-                                    <td><b>{{ stat }}</b></td>
-                                    <td>?</td>
-                                    <td>?</td>
-                                 </tr>
-                                 {% endfor %}
-                              </table>
-                           </div>
-
-                           <div id="accuracy_div" style="display:none" >
-                              <table class='table' id="accuracy_table">
-                                 <tr>
-                                    <th>Version</th>
-                                    <th>OB/Control</th>
-                                    <th>Outs</th>
-                                    <th>Accuracy</th>
-                                 </tr>
-                                 {% for stat in ['1', '2', '3', '4', '5'] -%}
-                                 <tr>
-                                    <td><b>{{ stat }}</b></td>
-                                    <td>?</td>
-                                    <td>?</td>
-                                    <td>?</td>
-                                 </tr>
-                                 {% endfor %}
-                              </table>
-                           </div>
-                           
                         </div>
 
                      </div>

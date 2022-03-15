@@ -155,7 +155,7 @@ $(function () {
                     };
                     
                     // PLAYER STATS
-                    var player_stats_table = '<table id="stats_table"><tr><th> </th><th>Actual</th><th>Showdown</th></tr>';
+                    var player_stats_table = "<table class='table table-striped' id='stats_table'><tr><th> </th><th>Actual</th><th>Showdown</th></tr>";
                     $.each(data.player_stats, function (index, value) {
                         player_stats_table += '<tr>'
                         $.each(value, function (index, value) {
@@ -174,7 +174,7 @@ $(function () {
                     $("#stats_table").replaceWith(player_stats_table);
 
                     // PLAYER POINTS
-                    var player_points_table = '<table id="points_table"><tr> <th>Category</th> <th>Stat</th> <th>Points</th> </tr>';
+                    var player_points_table = "<table class='table table-striped' id='points_table'><tr> <th>Category</th> <th>Stat</th> <th>Points</th> </tr>";
                     $.each(data.player_points, function (index, value) {
                         player_points_table += '<tr>'
                         is_total_row = (data.player_points.length - 1) == index;
@@ -199,7 +199,7 @@ $(function () {
                     $("#points_table").replaceWith(player_points_table);
 
                     // PLAYER ACCURACY
-                    var player_accuracy_table = '<table id="accuracy_table"><tr> <th>Version</th> <th>' + data.player_command + '</th> <th>Outs</th> <th>Accuracy</th> </tr>';
+                    var player_accuracy_table = "<table class='table table-striped' id='accuracy_table'><tr> <th>Version</th> <th>' + data.player_command + '</th> <th>Outs</th> <th>Accuracy</th> </tr>";
                     $.each(data.player_accuracy, function (index, value) {
                         player_accuracy_table += '<tr>'
                         $.each(value, function (index, value) {
