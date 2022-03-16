@@ -903,7 +903,6 @@ class BaseballReferenceScraper:
         if max(self.years) < 2015:
             columns_to_remove.append('sprint_speed')
         [column_aggs.pop(key) for key in columns_to_remove]
-        yearPd.info(verbose=True)
 
         avg_year = yearPd.groupby(by='name',as_index=False).agg(column_aggs)
         # CALCULATE RATES

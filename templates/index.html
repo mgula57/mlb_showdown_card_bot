@@ -114,6 +114,16 @@
                                  {% endfor %}
                               </div>
                            </div>
+                           <div class="col-md-6" style="padding-top: 10px;">
+                              <div>
+                                 <label style="color:Gray;"><b>More Options</b></label>
+
+                                 <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="addBorder">
+                                    <label class="form-check-label" for="addBorder">Add Border</label>
+                                  </div>
+                              </div>                              
+                           </div>
                         </div>   
                      </div>
 
@@ -175,13 +185,15 @@
                         
                         <div class="col-md-7">
                            <div class="card_container" style="padding-right: 10px;">
-                              <!-- ERROR MESSAGE  -->
-                              <h5 id=error style="color:red"></h5>
-                              <h4 style="color: #686666"><b>Image</b></h4>
                               <!-- CARD OUTPUT  -->
+                              <h4 id=na style="color:blue"></h4>
+                              <h4 style="color: #686666"><b>Image</b></h4>
                               <div class="card_output">
                                  <img id="card_image" src="static/interface/BlankPlayer.png" alt="card" class="img-fluid">
                               </div>
+
+                              <!-- ERROR MESSAGE  -->
+                              <h5 id=error style="color:red"></h5>
                            </div>
                         </div>
 

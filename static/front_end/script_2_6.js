@@ -142,6 +142,7 @@ $(function () {
                 offset: selectedOffset,
                 expansion: $("#expansionSelection :selected").val(),
                 is_holiday: is_holiday,
+                addBorder: $('#addBorder').is(':checked'),
             }, function (data) {
                 $('#overlay').hide();
                 $("#error").text(data.error);

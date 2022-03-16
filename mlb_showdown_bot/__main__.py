@@ -26,6 +26,7 @@ parser.add_argument('-ss','--is_ss', action='store_true', help='Optionally make 
 parser.add_argument('-asg','--is_asg', action='store_true', help='Optionally make the card All Star Game')
 parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default='', type=str)
 parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='BS')
+parser.add_argument('-bor','--add_border', action='store_true', help='Optionally add border to player image')
 
 args = parser.parse_args()
 
@@ -57,6 +58,7 @@ def main():
         show_player_card_image=args.show_image,
         set_number=str(args.set_num),
         command_out_override=command_out_override,
+        add_image_border=args.add_border,
     )
 
 if __name__ == "__main__":

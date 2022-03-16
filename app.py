@@ -99,7 +99,7 @@ def card_creator():
     set_num = None
     expansion = None
     offset = None
-    style = None
+    add_img_border = None
 
     try:
         # PARSE INPUTS
@@ -121,6 +121,7 @@ def card_creator():
         img = request.args.get('img_name')
         set_num = str(request.args.get('set_num'))
         expansion_raw = str(request.args.get('expansion'))
+        is_border = request.args.get('addBorder').lower() == 'true'
 
         # SCRAPE PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
@@ -137,6 +138,7 @@ def card_creator():
         else:
             set_number = set_num
         expansion = "BS" if expansion_raw == '' else expansion_raw
+        add_img_border = is_border if is_border else False
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
@@ -154,6 +156,7 @@ def card_creator():
             is_holiday=is_holiday,
             offset=offset,
             set_number=set_number,
+            add_image_border=add_img_border,
             is_running_in_flask=True
         )
         error = "Error - Unable to create Showdown Card Image."

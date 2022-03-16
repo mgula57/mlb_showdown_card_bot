@@ -28,7 +28,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -84,6 +84,7 @@ class ShowdownPlayerCardGenerator:
         self.is_automated_image = False
         self.is_img_part_of_a_set = is_img_part_of_a_set
         self.is_stats_estimate = 'is_stats_estimate' in stats.keys()
+        self.add_image_border = add_image_border
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -2064,6 +2065,12 @@ class ShowdownPlayerCardGenerator:
         if self.context_year in ['2002','2004','2005','2022']:
             # TODO: SOLVE HTML PNG ISSUES
             player_image = player_image.convert('RGB')
+
+        # SAVE IMAGE
+        if self.add_image_border:
+            image_border = Image.new('RGBA', (1632,2220), color=sc.COLOR_WHITE)
+            image_border.paste(player_image.convert("RGBA"),(72,72),player_image.convert("RGBA"))
+            player_image = image_border
 
         player_image.save(os.path.join(self.card_img_output_folder_path, self.image_name), dpi=(300, 300), quality=100)
         if self.is_running_in_flask:
