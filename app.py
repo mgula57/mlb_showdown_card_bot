@@ -106,7 +106,7 @@ def card_creator():
         error = 'Input Error. Please Try Again'
         name = request.args.get('name').title()
         year = str(request.args.get('year'))
-        set = str(request.args.get('set'))
+        set = str(request.args.get('set')).upper()
         url = request.args.get('url')
         is_cc = request.args.get('cc').lower() == 'true'
         is_ss = request.args.get('ss').lower() == 'true'
@@ -167,6 +167,10 @@ def card_creator():
         player_points_data = showdown.points_data_for_html_table()
         player_accuracy_data = showdown.accuracy_data_for_html_table()
         is_automated_image = showdown.is_automated_image
+        player_name = showdown.name
+        player_year = showdown.year
+        player_context = showdown.context
+        bref_url = showdown.bref_url
 
         error = ''
         log_card_submission_to_db(
@@ -192,6 +196,10 @@ def card_creator():
             player_stats=player_stats_data, 
             player_points=player_points_data,
             player_accuracy=player_accuracy_data,
+            player_name=player_name,
+            player_year=player_year,
+            player_context=player_context,
+            bref_url=bref_url,
         )
 
     except:
@@ -218,6 +226,10 @@ def card_creator():
             player_stats=None,
             player_points=None,
             player_accuracy=None,
+            player_name=None,
+            player_year=None,
+            player_context=None,
+            bref_url=None,
         )
 
 @app.route('/upload', methods=["POST","GET"])

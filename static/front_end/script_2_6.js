@@ -155,6 +155,10 @@ $(function () {
                         $("#error").text("Automated Image!");
                     };
                     
+                    // ADD HYPERLINK TO BREF
+                    document.getElementById("playerlink_href").href = data.bref_url;
+                    $("#playerlink").text(`${data.player_name} - ${data.player_year} (${data.player_context} Set)`);
+                    
                     // PLAYER STATS
                     var player_stats_table = "<table class='table table-striped' id='stats_table'><tr><th> </th><th>Actual</th><th>Showdown</th></tr>";
                     $.each(data.player_stats, function (index, value) {

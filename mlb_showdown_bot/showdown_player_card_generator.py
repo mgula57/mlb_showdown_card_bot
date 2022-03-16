@@ -35,6 +35,7 @@ class ShowdownPlayerCardGenerator:
         self.version = "2.7"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
+        self.bref_url = stats['bref_url'] if 'bref_url' in stats.keys() else ''
         self.year = str(year).upper()
         self.is_full_career = self.year == "CAREER"
         self.is_multi_year = len(self.year) > 4

@@ -180,7 +180,7 @@ class BaseballReferenceScraper:
         is_full_career = self.years == ['CAREER']
         for year in self.years:
             # DEFENSE
-            stats_dict = {'bref_id': self.baseball_ref_id}
+            stats_dict = {'bref_id': self.baseball_ref_id, 'bref_url': url_for_homepage_stats}
             positional_fielding = self.positional_fielding(soup_for_homepage_stats=soup_for_homepage_stats,year=year)
             stats_dict.update(positional_fielding)
 
