@@ -2926,7 +2926,7 @@ class ShowdownPlayerCardGenerator:
           PIL image object for version number
         """
         helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueCondensedBold.ttf')
-        text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=50 if self.context_year not in ['2004','2005'] else 35)
+        text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=50 if self.context_year not in ['2004','2005','2022'] else 35)
         # DATE NUMBER
         version_text = self.__text_image(
             text = f"v{self.version}",
@@ -3089,6 +3089,8 @@ class ShowdownPlayerCardGenerator:
                 elif 'CA' in positions_list:
                     offset = 30
                 position = (position[0] + offset, position[1])
+            if self.context_year == '2022':
+                icon_image = icon_image.resize((70,70), Image.ANTIALIAS)
             player_image.paste(icon_image, position, icon_image)
 
         return player_image
@@ -3317,6 +3319,7 @@ class ShowdownPlayerCardGenerator:
             # IF NO CREDS, RETURN NONE
             return None
         # CREDS FILE FOUND, PROCEED
+        GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
         GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
         creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, SCOPES)
 

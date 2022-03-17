@@ -146,8 +146,9 @@ $(function () {
             }, function (data) {
                 $('#overlay').hide();
                 $("#error").text(data.error);
+                document.getElementById("error").style.color = "red";
                 // ADD STATS TO TABLE
-                if (data.error != 'Unable to create Showdown Card. Make sure the player name and year are correct.') {
+                if (!data.error) {
                     $("#card_image").attr('src', data.image_path);
                     console.log("auto image");
                     if (data.is_automated_image) {
@@ -156,8 +157,12 @@ $(function () {
                     };
                     
                     // ADD HYPERLINK TO BREF
-                    document.getElementById("playerlink_href").href = data.bref_url;
-                    $("#playerlink").text(`${data.player_name} - ${data.player_year} (${data.player_context} Set)`);
+                    if (data.player_name) {
+                        document.getElementById("playerlink_href").href = data.bref_url;
+                        $("#playerlink_href_text").text('BREF Page');
+                        $("#playername").text(data.player_name.toUpperCase());
+                        $("#playerlink").text(`${data.player_year} (${data.player_context} Set)`);
+                    }
                     
                     // PLAYER STATS
                     var player_stats_table = "<table class='table table-striped' id='stats_table'><tr><th> </th><th>Actual</th><th>Showdown</th></tr>";
@@ -204,7 +209,7 @@ $(function () {
                     $("#points_table").replaceWith(player_points_table);
 
                     // PLAYER ACCURACY
-                    var player_accuracy_table = "<table class='table table-striped' id='accuracy_table'><tr> <th>Version</th> <th>' + data.player_command + '</th> <th>Outs</th> <th>Accuracy</th> </tr>";
+                    var player_accuracy_table = "<table class='table table-striped' id='accuracy_table'><tr> <th>Version</th> <th>" + data.player_command + "</th> <th>Outs</th> <th>Accuracy</th> </tr>";
                     $.each(data.player_accuracy, function (index, value) {
                         player_accuracy_table += '<tr>'
                         $.each(value, function (index, value) {
