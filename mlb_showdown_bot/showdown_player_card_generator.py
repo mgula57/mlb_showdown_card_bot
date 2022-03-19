@@ -2525,7 +2525,7 @@ class ShowdownPlayerCardGenerator:
             name_rotation = 90
             name_alignment = "left"
             name_size = 115 if is_name_over_char_limit else 144
-            name_color = "#A09D9F"
+            name_color = "#b5b4b5"
             padding = 15
         elif self.context == '2003':
             name_rotation = 90
