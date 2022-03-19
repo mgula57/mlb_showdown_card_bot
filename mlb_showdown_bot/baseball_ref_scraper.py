@@ -737,7 +737,6 @@ class BaseballReferenceScraper:
             multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
             gb_ao_ratio = 1.5 * max(multiplier, 0.5)
             pu_ratio = 0.16 * max(multiplier, 0.5)
-            print(pu_ratio, gb_ao_ratio)
         else:
             gb_ao_ratio_raw = ratio_table.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
             try:
