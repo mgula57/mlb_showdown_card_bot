@@ -32,7 +32,7 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "2.7"
+        self.version = "3.0"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.bref_url = stats['bref_url'] if 'bref_url' in stats.keys() else ''
@@ -1947,16 +1947,17 @@ class ShowdownPlayerCardGenerator:
         """
         positions_string = ''
         position_num = 1
+        dh_string = '–' if self.context_year != '2000' else 'DH'
 
         if self.positions_and_defense == {}:
             # THE PLAYER IS A DH
-            positions_string = '–'
+            positions_string = dh_string
         else:
             for position,fielding in self.positions_and_defense.items():
                 if self.is_pitcher:
                     positions_string += position
                 elif position == 'DH':
-                    positions_string += '—'
+                    positions_string += dh_string
                 else:
                     is_last_element = position_num == len(self.positions_and_defense.keys())
                     positions_separator = ' ' if is_horizontal else '\n'
@@ -2654,7 +2655,8 @@ class ShowdownPlayerCardGenerator:
                 ordered_by_len_position = sorted(self.positions_and_defense.items(), key=lambda l: len(l[0]), reverse=True)
                 y_position = 407
                 for position, rating in ordered_by_len_position:
-                    position_rating_text = '   —' if position == 'DH' else '{} +{}'.format(position,str(rating))
+                    dh_string = '   —' if self.context_year != '2000' else '   DH'
+                    position_rating_text = dh_string if position == 'DH' else '{} +{}'.format(position,str(rating))
                     position_rating_image = self.__text_image(text=position_rating_text, size=(600, 300), font=font_position)
                     x_position = 1083 if len(position) > 4 else 1161
                     x_position += 18 if position in ['C','CA'] and rating < 10 else 0 # CATCHER POSITIONING ADJUSTMENT
