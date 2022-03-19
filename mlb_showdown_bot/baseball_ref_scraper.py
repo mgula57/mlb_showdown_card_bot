@@ -572,15 +572,6 @@ class BaseballReferenceScraper:
         if team_id_key in advanced_stats.keys():
             if advanced_stats[team_id_key] == 'TOT':
                 advanced_stats[team_id_key] = self.__parse_team_after_trade(advanced_stats_soup=soup_for_advanced_stats,year=year)
-
-        # RATIO STATS
-        if is_full_career:
-            ratio_table_key = f'div_{table_prefix}_ratio'
-            ratio_table = self.__get_career_totals_row(div_id=ratio_table_key,soup_object=soup_for_advanced_stats)
-        else:
-            ratio_table_key = f'{table_prefix}_ratio.{year}'
-            ratio_table = soup_for_advanced_stats.find('tr', attrs = {'class':'full','id': ratio_table_key})
-        advanced_stats.update(self.__parse_ratio_stats(ratio_table,year=year))
         
         # ROOKIE ICON
         if not is_full_career and not self.is_multi_year:
@@ -629,6 +620,15 @@ class BaseballReferenceScraper:
         
         if 'SB' not in current_categories:
             advanced_stats['SB'] = 0
+
+        # RATIO STATS
+        if is_full_career:
+            ratio_table_key = f'div_{table_prefix}_ratio'
+            ratio_table = self.__get_career_totals_row(div_id=ratio_table_key,soup_object=soup_for_advanced_stats)
+        else:
+            ratio_table_key = f'{table_prefix}_ratio.{year}'
+            ratio_table = soup_for_advanced_stats.find('tr', attrs = {'class':'full','id': ratio_table_key})
+        advanced_stats.update(self.__parse_ratio_stats(ratio_table, slg=advanced_stats['slugging_perc']))
 
         return advanced_stats
 
@@ -720,12 +720,12 @@ class BaseballReferenceScraper:
 
         return batting_against_dict
 
-    def __parse_ratio_stats(self, ratio_table, year):
+    def __parse_ratio_stats(self, ratio_table, slg):
         """Parse out ratios (GB/AO, PU)
 
         Args:
           ratio_table: BeautifulSoup table object with ratios.
-          year: Year for Player stats
+          slg: Slugging Pct, used if ratio's dont exist
 
         Returns:
           Dict with ratio statistics.
@@ -733,8 +733,11 @@ class BaseballReferenceScraper:
 
         if ratio_table is None:
             # DEFAULT TO 50 / 50 SPLIT
-            gb_ao_ratio = 1.0
-            pu_ratio = 0.13
+            slg_percentile = self.__percentile(minValue=0.3, maxValue=0.5, value=slg)
+            multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
+            gb_ao_ratio = 1.5 * max(multiplier, 0.5)
+            pu_ratio = 0.16 * max(multiplier, 0.5)
+            print(pu_ratio, gb_ao_ratio)
         else:
             gb_ao_ratio_raw = ratio_table.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
             try:
