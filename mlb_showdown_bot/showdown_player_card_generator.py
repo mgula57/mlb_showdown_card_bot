@@ -3287,7 +3287,9 @@ class ShowdownPlayerCardGenerator:
 
         default_color = (55, 55, 55, 255)
         team_index = self.__team_logo_historical_alternate_extension(include_dash=False)
-        if len(team_index) > 0:
+        if self.is_cooperstown:
+            return sc.TEAM_COLOR_PRIMARY['CCC']
+        elif len(team_index) > 0:
             # GRAB FROM ALT/HISTORICAL TEAM COLORS
             try:
                 return sc.TEAM_COLOR_PRIMARY_ALT[self.team][team_index]
