@@ -23,6 +23,8 @@
     * [Icons](#icons)
     * [Points](#points)
     * [Multi-Year Cards](#multi-year-cards)
+    * [Negro Leagues and Pre-20th Century](#negro-leagues-and-pre-20th-century)
+    * [2022 Sets](#2022-sets)
 * [Running Locally](#running-locally)
 * [Contact the Dev](#contact-the-dev)
 
@@ -345,6 +347,68 @@ Card methodology will slightly change if the user enters a multi-year card. Diff
 - **DEFENSE**: For each qualified position, the Bot uses the **median** defensive metric (drs/tzr/dWar) calculated across the choosen years. The qualification for positions increases from 15% -> 25%.
 - **GB/FB**: The GO/AO ratio is averaged across choosen years.
 - **Icons**: If the player qualified for an icon in any of the choosen seasons, he is granted the icon in the multi-year variant. This is excluding the R icon, which is only available in single-year cards.
+
+### **Negro Leagues and Pre-20th Century**
+
+As of the 3.0 update, Showdown Bot now supports all players from Baseball Reference, including the Negro Leagues and pitchers from the 19th century. Data for these players is not fully available, so the Bot does it's best to fill in gaps through estimation. Any estimation will show a **'*'** next to the category in the breakdown section.
+
+Here are the stats that the Bot will estimate if unavailable:
+
+Pitchers
+- PA: Uses BF if available, otherwise predicts PA based on IP * 4.25 (represents a league avg)
+- 2B: Predicts 2B based on player's ERA percentile (1.0-5.0). Max value is 25% of total hits allowed.
+- 3B: Predicts 2B based on player's ERA percentile (1.0-5.0). Max value is 2.5% of total hits allowed.
+- SLG: Derived from 2B and 3B estimations from above.
+- OBP: Derived using PA estimation from above as denominator.
+- RATIO: Estimates GO/AO ratio based on estimated SLG (higher the SLG, more FB on chart)
+
+Hitters
+- SB: Will use SPEED 12 if SB not available.
+
+## **2022 Sets**
+
+ **Showdown Bot now includes new sets that modernize the look and play of MLB Showdown!**
+
+
+### **Design**
+
+The 2022 set design takes elements from classic MLB Showdown sets and adds a modern twist, resulting in a streamlined design that will look great with any background image. Chart and Command colors will change from team to team, creating a blend of 2000/2001's color with 2004/2005's simplicity.
+
+
+![Image](./static/interface/Example2022Headliner.png)
+
+
+
+### **Styles**
+
+These sets are split between **Classic** and **Expanded** styles, with the goal of offering modern cards to every type of Showdown fan. The Classic style is most compatible with 2000/2001 sets, while Expanded fits with 2002-2005 sets. You will see a visual indicator of the card style in the bottom left of each card.
+
+![Image](./static/interface/Example2022SetDifference.png)
+
+### **Classic Style**
+
+The Classic Style is made for the OG Showdown fan who prefers the 2000/2001 sets. In this style, hitters have lower Onbase numbers (between 4-12) but better charts. It uses the 2001 set as a starting point, but alters the original formula to fix gaps while maintaining compatibility.
+
+Changes from 2001 set:
+- **SPEED**: Expands options from 10/15/20 to the full range of 8-25.
+- **HITTING**: The formula has been tweaked to account for the shift in balance between hitter and pitcher. Hitter charts will be slightly better than in the 2001 set to due to better Pitcher opponents!
+- **ICONS**: Icons will appear on the card. Players can optionally incorporate them into gameplay or simply have them as a visual representation of awards and rookie status.
+- **PITCHER CHART HRS**: To account for an increase in HRs, the minimum requirement for HR on a pitcher's chart has decreased, resulting in more HR results.
+- **MORE COMMAND-OUT COMBINATIONS**: In order to increase variety and accuracy of cards, more possible Onbase/Control + Out combinations have been added. For example it is possible to have a 4 Control pitcher with 19 outs, or a 9 Onbase hitter with 6 Outs. This will help increase balance of low onbase and high SLG hitters (ex: Javy Baez), who under normal Showdown constraints were constrained to lower Onbase numbers.
+- **STRIKEOUTS**: The number of strikeouts on a hitters chart should slightly decrease, with the assumption that pitcher charts will have more SO results than in 2000-2001.
+- **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2021 Francisco Lindor goes from +3 SS in 2001 set to +4 SS in 2022 set.
+
+### **Expanded Style**
+
+The Expanded Style is made for the new school Showdown fan who prefers the 2002-2005 sets. In this style, hitters have higher Onbase numbers (between 7-16) but less impactful charts. Charts also expand past 20, creating possible results outside of the normal 1-20 range. It uses the 2005 set as a starting point, but alters the original formula to fix gaps while maintaining compatibility.
+
+Changes from 2005 set:
+- **SPEED**: Reduces maximum speed to 25, helping reduce automatic steals and advances from players like Lou Brock and Rickey Henderson.
+- **HITTING**: The formula has been tweaked to account for the shift in balance between hitter and pitcher. Hitter charts will be slightly better than in the 2005 set to due to better Pitcher opponents!
+- **PITCHER CHART HRS**: To account for an increase in HRs, the minimum requirement for HR on a pitcher's chart has decreased, resulting in more HR results.
+- **MORE COMMAND-OUT COMBINATIONS**: In order to increase variety and accuracy of cards, more possible Onbase/Control + Out combinations have been added. For example it is possible to have a 4 Control pitcher with 19 outs, or a 10 Onbase hitter with 8 Outs. This will help increase balance of low onbase and high SLG hitters (ex: Javy Baez), who under normal Showdown constraints were constrained to lower Onbase numbers.
+- **STRIKEOUTS**: The number of strikeouts on a hitters chart should slightly decrease, with the assumption that pitcher charts will have more SO results than in 2002-2005.
+- **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2021 Francisco Lindor goes from +3 SS in 2005 set to +4 SS in 2022 set.
 
 ----
 ## Running Locally
