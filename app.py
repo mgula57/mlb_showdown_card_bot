@@ -99,13 +99,14 @@ def card_creator():
     set_num = None
     expansion = None
     offset = None
+    add_img_border = None
 
     try:
         # PARSE INPUTS
         error = 'Input Error. Please Try Again'
         name = request.args.get('name').title()
         year = str(request.args.get('year'))
-        set = str(request.args.get('set'))
+        set = str(request.args.get('set')).upper()
         url = request.args.get('url')
         is_cc = request.args.get('cc').lower() == 'true'
         is_ss = request.args.get('ss').lower() == 'true'
@@ -120,6 +121,7 @@ def card_creator():
         img = request.args.get('img_name')
         set_num = str(request.args.get('set_num'))
         expansion_raw = str(request.args.get('expansion'))
+        is_border = request.args.get('addBorder').lower() == 'true'
 
         # SCRAPE PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
@@ -131,8 +133,12 @@ def card_creator():
         is_holiday = is_hol if is_hol else False
         img_url = None if url == '' else url
         img_name = None if img == '' else img
-        set_number = year if set_num == '' else set_num
+        if set_num == '':
+            set_number = year if set[0:4] not in ['2003','2022'] else '001'
+        else:
+            set_number = set_num
         expansion = "BS" if expansion_raw == '' else expansion_raw
+        add_img_border = is_border if is_border else False
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
@@ -150,6 +156,7 @@ def card_creator():
             is_holiday=is_holiday,
             offset=offset,
             set_number=set_number,
+            add_image_border=add_img_border,
             is_running_in_flask=True
         )
         error = "Error - Unable to create Showdown Card Image."
@@ -160,6 +167,10 @@ def card_creator():
         player_points_data = showdown.points_data_for_html_table()
         player_accuracy_data = showdown.accuracy_data_for_html_table()
         is_automated_image = showdown.is_automated_image
+        player_name = showdown.name
+        player_year = showdown.year
+        player_context = showdown.context
+        bref_url = showdown.bref_url
 
         error = ''
         log_card_submission_to_db(
@@ -185,6 +196,10 @@ def card_creator():
             player_stats=player_stats_data, 
             player_points=player_points_data,
             player_accuracy=player_accuracy_data,
+            player_name=player_name,
+            player_year=player_year,
+            player_context=player_context,
+            bref_url=bref_url,
         )
 
     except:
@@ -211,6 +226,10 @@ def card_creator():
             player_stats=None,
             player_points=None,
             player_accuracy=None,
+            player_name=None,
+            player_year=None,
+            player_context=None,
+            bref_url=None,
         )
 
 @app.route('/upload', methods=["POST","GET"])
