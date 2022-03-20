@@ -18,11 +18,14 @@
    </head>
 
 
-   <body style="margin:0;">
+   <body>
 
       <!-- OVERLAY FOR HIDDEN LOADER OBJECT -->
       <div id="overlay">
-         <div class="loader" id="loader"></div>
+         <div class="loader_container">
+            <h6 class="loader_text">Generating Card...</h6>
+            <div class="loader" id="loader"></div>
+         </div>         
       </div>
 
       <div class="container">
@@ -33,7 +36,7 @@
 
                   <!-- SHOWDOWN LOGO  -->
                   <div class="d-flex justify-content-center">
-                     <div class="">
+                     <div class="" style="max-width: 400px;">
                         <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" class="img-fluid" style="padding:30px; padding-bottom:5px;">
                      </div>
                   </div>
@@ -168,6 +171,13 @@
                         <!-- TWITTER LINK  -->
                         <div style="padding-top:10px;padding-right:10px;">
                            <a href="https://twitter.com/mlbshowdownbot?ref_src=twsrc%5Etfw" class="twitter-follow-button" data-size='small' data-show-count="false">Follow</a><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+                        </div>
+
+                        <!-- HOW DOES SHOWDOWN BOT WORK? -->
+                        <div style="padding-top:10px;padding-right:10px;">
+                           <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" class="link-secondary" target="_blank" rel="noopener noreferrer">
+                              <p>How does Showdown Bot work?</p>
+                           </a>
                         </div>
                      </div>
                      <br>
