@@ -1,21 +1,58 @@
 
 .input_container {
+    background-color: #ffffff;
+}
+
+.container_bg {
     border-radius: 20px;
     box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    margin-top: 15px;
-    margin-bottom: 15px;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    margin-right: 10px;
+    margin-left: 10px;
+    background-color: #f3f3f3; /*#416a9d; */
+    overflow: hidden;
+}
+
+.output_container {
+    padding-left: 20px;
+    padding-right: 20px;    
+}
+
+.breakdown_output {
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    padding: 8px;
+    overflow: hidden;
+
+}
+
+.card_image {
+    padding: 5px;
+}
+
+.loader_container {
+    position: relative;
+    margin: 0 auto;
+    width: 100%;
+    left: 50%;
+    top: 50%;
+}
+
+.loader_text {
+    margin-left: -40px;
+    margin-bottom: 0px;
+    opacity: 0.9;
 }
 
 .loader {
-    position: relative;
     border: 8px solid #f3f3f3;
     border-top: 8px solid #3498db;
     border-radius: 50%;
     opacity: 1.0;
     width: 40px;
     height: 40px;
-    left: 50%;
-    top: 50%;
     animation: spin 2s linear infinite;
 }
 #overlay{
@@ -41,9 +78,12 @@ h1, h2, h3, h4, h5, h6 {
     padding-top: 10px;
     padding-bottom: 10px;
 }
-img {
-    border-radius: 12px;
+.card_output {
+    border-radius: 18px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    overflow: hidden;
 }
+
 td, th {
     border: 1px solid #dddddd;
     text-align: left;
