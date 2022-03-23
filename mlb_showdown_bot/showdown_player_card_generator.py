@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 from pprint import pprint
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
 from urllib.request import urlopen, Request
+from time import sleep
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
@@ -227,7 +228,7 @@ class ShowdownPlayerCardGenerator:
         final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played,is_of_but_hasnt_played_cf=is_of_but_hasnt_played_cf)
 
         # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
-        position_limit = 2
+        position_limit = sc.MAX_NUMBER_OF_POSITIONS[self.context]
         if len(final_positions_in_game.items()) > position_limit:
             sorted_positions = sorted(final_position_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:position_limit]
             included_positions_list = [pos[0] for pos in sorted_positions]
@@ -386,7 +387,7 @@ class ShowdownPlayerCardGenerator:
         defensive_range = MAX_SABER_FIELDING - MIN_SABER_FIELDING
         percentile = (rating-MIN_SABER_FIELDING) / defensive_range
         defense_raw = percentile * max_defense_for_position
-        defense = round(defense_raw) if defense_raw > 0 else 0
+        defense = round(defense_raw) if defense_raw > 0 or self.context_year == '2022' else 0
 
         # ADD IN STATIC METRICS FOR 1B
         if position.upper() == '1B':
@@ -394,6 +395,8 @@ class ShowdownPlayerCardGenerator:
                 defense = 2
             elif rating > sc.FIRST_BASE_PLUS_1_CUTOFF[metric]:
                 defense = 1
+            elif rating < sc.FIRST_BASE_MINUS_1_CUTOFF[metric] and self.context_year == '2022':
+                defense = -1
             else:
                 defense = 0
         
@@ -764,7 +767,7 @@ class ShowdownPlayerCardGenerator:
                 chart_results = outs if key == 'so' and chart_results > outs else chart_results
                 chart_results = chart_results if chart_results > 0 else 0
                 # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
-                if self.is_pitcher and key == 'hr' and chart_results < 1.0 and self.context_year != '2022':
+                if self.is_pitcher and key == 'hr' and chart_results < 1.0:
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
                     # CHANGE TO ROUNDING FROM > .85 INSTEAD OF 0.5
                     chart_results_decimal = chart_results % 1
@@ -1377,7 +1380,7 @@ class ShowdownPlayerCardGenerator:
                     defense_points += position_pts
             use_avg = list(positions_and_defense.keys()) == ['CF', 'LF/RF'] or list(positions_and_defense.keys()) == ['LF/RF', 'CF']
             num_positions = len(positions_and_defense.keys()) if len(positions_and_defense.keys()) > 0 else 1
-            avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else (num_positions * 2 / 3))
+            avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else (4.0 / 3))
             self.defense_points = avg_points_per_position
 
         # CLOSER BONUS (00 ONLY)
@@ -1654,7 +1657,7 @@ class ShowdownPlayerCardGenerator:
         # POSITION
         positions_string = ''
         for position,fielding in self.positions_and_defense.items():
-            positions_string += '{}+{}   '.format(position,fielding) if not self.is_pitcher else position
+            positions_string += f'{position} {"" if fielding < 0 else "+"}{fielding}   ' if not self.is_pitcher else position
 
         # IP / SPEED
         ip_or_speed = 'Speed {} ({})'.format(self.speed_letter,self.speed) if not self.is_pitcher else '{} IP'.format(self.ip)
@@ -1961,7 +1964,8 @@ class ShowdownPlayerCardGenerator:
                 else:
                     is_last_element = position_num == len(self.positions_and_defense.keys())
                     positions_separator = ' ' if is_horizontal else '\n'
-                    positions_string += '{} +{}{}'.format(position,fielding,'' if is_last_element else positions_separator)
+                    fielding_plus = "" if fielding < 0 else "+"
+                    positions_string += f'{position} {fielding_plus}{fielding}{"" if is_last_element else positions_separator}'
                 position_num += 1
         
         return positions_string
@@ -2196,16 +2200,23 @@ class ShowdownPlayerCardGenerator:
 
             if player_image_url:
                 # USE PLAYER IMAGE FROM GOOGLE
-                response = requests.get(player_image_url)
-                player_image = Image.open(BytesIO(response.content)).convert("RGBA")
-                self.is_automated_image = True
+                num_tries = 2
+                for try_num in range(num_tries):
+                    # ATTEMPT THIS TWICE, ON SECOND TRY DELAY 3 SECONDS FOR GOOGLE DRIVE API
+                    if try_num > 0:
+                        sleep(3)
+                    response = requests.get(player_image_url)
+                    try:
+                        player_image = Image.open(BytesIO(response.content)).convert("RGBA")
+                        self.is_automated_image = True
+                        break
+                    except:
+                        # IMAGE MAY FAIL TO LOAD SOMETIMES
+                        player_image = self.__player_silhouetee_image()
+                    
             else:
                 # ADD PLAYER SILHOUETTE
-                type_string = 'P' if self.is_pitcher else 'H'
-                hand_prefix = self.hand[0 if self.is_pitcher else -1]
-                hand_string = 'L' if hand_prefix == 'S' else hand_prefix
-                silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-SIL-{hand_string}H{type_string}.png')
-                player_image = Image.open(silhouetee_image_path)
+                player_image = self.__player_silhouetee_image()
             
             background_image.paste(player_image,(0,0),player_image)
 
@@ -2215,6 +2226,22 @@ class ShowdownPlayerCardGenerator:
             background_image.paste(set_container,(0,0),set_container)
 
         return background_image
+
+    def __player_silhouetee_image(self):
+        """Loads the image used for a player's silhouette in the case an image does not exist.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for the player's positional silhouetee.
+        """
+
+        type_string = 'P' if self.is_pitcher else 'H'
+        hand_prefix = self.hand[0 if self.is_pitcher else -1]
+        hand_string = 'L' if hand_prefix == 'S' else hand_prefix
+        silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-SIL-{hand_string}H{type_string}.png')
+        return Image.open(silhouetee_image_path)
 
     def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=3,overlay_image_path=None):
         """Generates a new PIL image object with text.
@@ -2718,30 +2745,34 @@ class ShowdownPlayerCardGenerator:
             metadata_image = Image.new('RGBA', (1400, 200), 255)
             metadata_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueCondensedBold.ttf')
             metadata_font = ImageFont.truetype(metadata_font_path, size=170)
+            metadata_font_small = ImageFont.truetype(metadata_font_path, size=150)
             metadata_text_list = self.__player_metadata_summary_text(is_horizontal=True, return_as_list=True)
             current_x_position = 0
             for index, category in enumerate(metadata_text_list):
                 category_length = len(metadata_text_list)
                 is_last = (index + 1) == category_length
+                is_small_text = is_last and len(category) > 17
+                category_font = metadata_font_small if is_small_text else metadata_font
                 metadata_text = self.__text_image(
                     text = category,
                     size = (1500, 900),
-                    font = metadata_font,
+                    font = category_font,
                     fill = sc.COLOR_WHITE,
                     rotation = 0,
                     alignment = "left",
                     padding = 0,
                 )
                 metadata_text = metadata_text.resize((500,300), Image.ANTIALIAS)
-                metadata_image.paste(metadata_text, (int(current_x_position),0), metadata_text)
-                category_font_width = metadata_font.getsize(category)[0] / 3.0
+                y_position = 5 if is_small_text else 0
+                metadata_image.paste(metadata_text, (int(current_x_position),y_position), metadata_text)
+                category_font_width = category_font.getsize(category)[0] / 3.0
                 current_x_position += category_font_width
                 if not is_last:
                     # DIVIDER
                     divider_text = self.__text_image(
                         text = '|',
                         size = (900, 900),
-                        font = metadata_font,
+                        font = category_font,
                         fill = sc.COLOR_WHITE,
                         rotation = 0,
                         alignment = "left",
