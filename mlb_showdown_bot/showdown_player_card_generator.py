@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 from pprint import pprint
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
 from urllib.request import urlopen, Request
+from time import sleep
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
@@ -2196,16 +2197,23 @@ class ShowdownPlayerCardGenerator:
 
             if player_image_url:
                 # USE PLAYER IMAGE FROM GOOGLE
-                response = requests.get(player_image_url)
-                player_image = Image.open(BytesIO(response.content)).convert("RGBA")
-                self.is_automated_image = True
+                num_tries = 2
+                for try_num in range(num_tries):
+                    # ATTEMPT THIS TWICE, ON SECOND TRY DELAY 3 SECONDS FOR GOOGLE DRIVE API
+                    if try_num > 0:
+                        sleep(3)
+                    response = requests.get(player_image_url)
+                    try:
+                        player_image = Image.open(BytesIO(response.content)).convert("RGBA")
+                        self.is_automated_image = True
+                        break
+                    except:
+                        # IMAGE MAY FAIL TO LOAD SOMETIMES
+                        player_image = self.__player_silhouetee_image()
+                    
             else:
                 # ADD PLAYER SILHOUETTE
-                type_string = 'P' if self.is_pitcher else 'H'
-                hand_prefix = self.hand[0 if self.is_pitcher else -1]
-                hand_string = 'L' if hand_prefix == 'S' else hand_prefix
-                silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-SIL-{hand_string}H{type_string}.png')
-                player_image = Image.open(silhouetee_image_path)
+                player_image = self.__player_silhouetee_image()
             
             background_image.paste(player_image,(0,0),player_image)
 
@@ -2215,6 +2223,22 @@ class ShowdownPlayerCardGenerator:
             background_image.paste(set_container,(0,0),set_container)
 
         return background_image
+
+    def __player_silhouetee_image(self):
+        """Loads the image used for a player's silhouette in the case an image does not exist.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for the player's positional silhouetee.
+        """
+
+        type_string = 'P' if self.is_pitcher else 'H'
+        hand_prefix = self.hand[0 if self.is_pitcher else -1]
+        hand_string = 'L' if hand_prefix == 'S' else hand_prefix
+        silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-SIL-{hand_string}H{type_string}.png')
+        return Image.open(silhouetee_image_path)
 
     def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=3,overlay_image_path=None):
         """Generates a new PIL image object with text.
