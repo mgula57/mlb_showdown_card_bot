@@ -64,12 +64,28 @@ FIRST_BASE_PLUS_1_CUTOFF = {
     'tzr': 4,
     'dWAR': -0.25
 }
+# -1 1B DEFENSE ONLY APPLIES TO 2022 SET AND BEYOND
+FIRST_BASE_MINUS_1_CUTOFF = {
+    'drs': -5,
+    'tzr': -5,
+    'dWAR': -1.0
+}
 # MINIMUM REQUIRED GAMES PLAYED AT A POSITION TO QUALIFY
 NUMBER_OF_GAMES_DEFENSE = 7 
 PCT_OF_GAMES_DEFENSE = 0.15
 PCT_OF_GAMES_DEFENSE_MULTI_YEAR = 0.25
 STARTING_PITCHER_PCT_GAMES_STARTED = 0.40
 CLOSER_MIN_SAVES_REQUIRED = 10
+MAX_NUMBER_OF_POSITIONS = {
+    '2000': 2,
+    '2001': 2,
+    '2002': 2,
+    '2003': 2,
+    '2004': 2,
+    '2005': 2,
+    f'2022-{CLASSIC_ALIAS}': 3,
+    f'2022-{EXPANDED_ALIAS}': 3,
+}
 
 # MULTIPLIER TO MATCH PU WITH ORIGINAL SETS
 PU_MULTIPLIER = {
@@ -172,10 +188,11 @@ BASELINE_PITCHER = {
         '3b': 0.09,
         'hr': 0.33
     },
+    # INCREASED FOR 2022 TO ACCOUNT FOR BETTER AVG PITCHING IN MLB
     f'2022-{CLASSIC_ALIAS}': {
         'command': 3.3,
         'outs': 16.0,
-        'so': 4.1,
+        'so': 5.25,
         'bb': 1.35,
         '1b': 2.0,
         '2b': 0.62,
@@ -183,9 +200,9 @@ BASELINE_PITCHER = {
         'hr': 0.11
     },
     f'2022-{EXPANDED_ALIAS}': {
-        'command': 4.0,
-        'outs': 16.0,
-        'so': 4.25,
+        'command': 4.2,
+        'outs': 16.2,
+        'so': 5.5,
         'bb': 1.25,
         '1b': 2.05,
         '2b': 0.50,
@@ -269,7 +286,7 @@ BASELINE_HITTER = {
     f'2022-{CLASSIC_ALIAS}': {
         'command': 8.0,
         'outs': 4.0,
-        'so': 1.7,
+        'so': 2.0,
         'bb': 4.45,
         '1b': 6.7,
         '1b+': 0.63,
@@ -780,11 +797,11 @@ POINT_CATEGORY_WEIGHTS = {
     f'2022-{CLASSIC_ALIAS}': {
         'position_player': {
             'defense': 65,
-            'speed': 60,
-            'onbase': 190,
-            'average': 50,
-            'slugging': 165,
-            'home_runs': 45
+            'speed': 65,
+            'onbase': 200,
+            'average': 55,
+            'slugging': 170,
+            'home_runs': 50
         },
         'starting_pitcher': {
             'ip': 115,
@@ -805,9 +822,9 @@ POINT_CATEGORY_WEIGHTS = {
         'position_player': {
             'defense': 65,
             'speed': 60,
-            'onbase': 140,
+            'onbase': 150,
             'average': 70,
-            'slugging': 140,
+            'slugging': 150,
             'home_runs': 50
         },
         'starting_pitcher': {
