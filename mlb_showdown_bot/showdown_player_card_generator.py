@@ -387,7 +387,7 @@ class ShowdownPlayerCardGenerator:
         defensive_range = MAX_SABER_FIELDING - MIN_SABER_FIELDING
         percentile = (rating-MIN_SABER_FIELDING) / defensive_range
         defense_raw = percentile * max_defense_for_position
-        defense = round(defense_raw) if defense_raw > 0 else 0
+        defense = round(defense_raw) if defense_raw > 0 or self.context_year == '2022' else 0
 
         # ADD IN STATIC METRICS FOR 1B
         if position.upper() == '1B':
@@ -395,6 +395,8 @@ class ShowdownPlayerCardGenerator:
                 defense = 2
             elif rating > sc.FIRST_BASE_PLUS_1_CUTOFF[metric]:
                 defense = 1
+            elif rating < sc.FIRST_BASE_MINUS_1_CUTOFF[metric] and self.context_year == '2022':
+                defense = -1
             else:
                 defense = 0
         
@@ -1655,7 +1657,7 @@ class ShowdownPlayerCardGenerator:
         # POSITION
         positions_string = ''
         for position,fielding in self.positions_and_defense.items():
-            positions_string += '{}+{}   '.format(position,fielding) if not self.is_pitcher else position
+            positions_string += f'{position} {"" if fielding < 0 else "+"}{fielding}   ' if not self.is_pitcher else position
 
         # IP / SPEED
         ip_or_speed = 'Speed {} ({})'.format(self.speed_letter,self.speed) if not self.is_pitcher else '{} IP'.format(self.ip)
@@ -1962,7 +1964,8 @@ class ShowdownPlayerCardGenerator:
                 else:
                     is_last_element = position_num == len(self.positions_and_defense.keys())
                     positions_separator = ' ' if is_horizontal else '\n'
-                    positions_string += '{} +{}{}'.format(position,fielding,'' if is_last_element else positions_separator)
+                    fielding_plus = "" if fielding < 0 else "+"
+                    positions_string += f'{position} {fielding_plus}{fielding}{"" if is_last_element else positions_separator}'
                 position_num += 1
         
         return positions_string
