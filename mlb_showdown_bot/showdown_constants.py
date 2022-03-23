@@ -172,10 +172,11 @@ BASELINE_PITCHER = {
         '3b': 0.09,
         'hr': 0.33
     },
+    # INCREASED FOR 2022 TO ACCOUNT FOR BETTER AVG PITCHING IN MLB
     f'2022-{CLASSIC_ALIAS}': {
         'command': 3.3,
         'outs': 16.0,
-        'so': 4.1,
+        'so': 5.25,
         'bb': 1.35,
         '1b': 2.0,
         '2b': 0.62,
@@ -183,9 +184,9 @@ BASELINE_PITCHER = {
         'hr': 0.11
     },
     f'2022-{EXPANDED_ALIAS}': {
-        'command': 4.0,
-        'outs': 16.0,
-        'so': 4.25,
+        'command': 4.2,
+        'outs': 16.2,
+        'so': 5.5,
         'bb': 1.25,
         '1b': 2.05,
         '2b': 0.50,
@@ -269,7 +270,7 @@ BASELINE_HITTER = {
     f'2022-{CLASSIC_ALIAS}': {
         'command': 8.0,
         'outs': 4.0,
-        'so': 1.7,
+        'so': 2.0,
         'bb': 4.45,
         '1b': 6.7,
         '1b+': 0.63,
