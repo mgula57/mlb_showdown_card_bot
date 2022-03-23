@@ -228,7 +228,7 @@ class ShowdownPlayerCardGenerator:
         final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played,is_of_but_hasnt_played_cf=is_of_but_hasnt_played_cf)
 
         # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
-        position_limit = 2
+        position_limit = sc.MAX_NUMBER_OF_POSITIONS[self.context]
         if len(final_positions_in_game.items()) > position_limit:
             sorted_positions = sorted(final_position_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:position_limit]
             included_positions_list = [pos[0] for pos in sorted_positions]
@@ -1378,7 +1378,7 @@ class ShowdownPlayerCardGenerator:
                     defense_points += position_pts
             use_avg = list(positions_and_defense.keys()) == ['CF', 'LF/RF'] or list(positions_and_defense.keys()) == ['LF/RF', 'CF']
             num_positions = len(positions_and_defense.keys()) if len(positions_and_defense.keys()) > 0 else 1
-            avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else (num_positions * 2 / 3))
+            avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else (4.0 / 3))
             self.defense_points = avg_points_per_position
 
         # CLOSER BONUS (00 ONLY)
@@ -2742,30 +2742,34 @@ class ShowdownPlayerCardGenerator:
             metadata_image = Image.new('RGBA', (1400, 200), 255)
             metadata_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueCondensedBold.ttf')
             metadata_font = ImageFont.truetype(metadata_font_path, size=170)
+            metadata_font_small = ImageFont.truetype(metadata_font_path, size=150)
             metadata_text_list = self.__player_metadata_summary_text(is_horizontal=True, return_as_list=True)
             current_x_position = 0
             for index, category in enumerate(metadata_text_list):
                 category_length = len(metadata_text_list)
                 is_last = (index + 1) == category_length
+                is_small_text = is_last and len(category) > 17
+                category_font = metadata_font_small if is_small_text else metadata_font
                 metadata_text = self.__text_image(
                     text = category,
                     size = (1500, 900),
-                    font = metadata_font,
+                    font = category_font,
                     fill = sc.COLOR_WHITE,
                     rotation = 0,
                     alignment = "left",
                     padding = 0,
                 )
                 metadata_text = metadata_text.resize((500,300), Image.ANTIALIAS)
-                metadata_image.paste(metadata_text, (int(current_x_position),0), metadata_text)
-                category_font_width = metadata_font.getsize(category)[0] / 3.0
+                y_position = 5 if is_small_text else 0
+                metadata_image.paste(metadata_text, (int(current_x_position),y_position), metadata_text)
+                category_font_width = category_font.getsize(category)[0] / 3.0
                 current_x_position += category_font_width
                 if not is_last:
                     # DIVIDER
                     divider_text = self.__text_image(
                         text = '|',
                         size = (900, 900),
-                        font = metadata_font,
+                        font = category_font,
                         fill = sc.COLOR_WHITE,
                         rotation = 0,
                         alignment = "left",
