@@ -764,7 +764,7 @@ class ShowdownPlayerCardGenerator:
                 chart_results = outs if key == 'so' and chart_results > outs else chart_results
                 chart_results = chart_results if chart_results > 0 else 0
                 # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
-                if self.is_pitcher and key == 'hr' and chart_results < 1.0 and self.context_year != '2022':
+                if self.is_pitcher and key == 'hr' and chart_results < 1.0:
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
                     # CHANGE TO ROUNDING FROM > .85 INSTEAD OF 0.5
                     chart_results_decimal = chart_results % 1
