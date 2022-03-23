@@ -797,11 +797,11 @@ POINT_CATEGORY_WEIGHTS = {
     f'2022-{CLASSIC_ALIAS}': {
         'position_player': {
             'defense': 65,
-            'speed': 60,
-            'onbase': 190,
-            'average': 50,
-            'slugging': 165,
-            'home_runs': 45
+            'speed': 65,
+            'onbase': 200,
+            'average': 55,
+            'slugging': 170,
+            'home_runs': 50
         },
         'starting_pitcher': {
             'ip': 115,
@@ -822,9 +822,9 @@ POINT_CATEGORY_WEIGHTS = {
         'position_player': {
             'defense': 65,
             'speed': 60,
-            'onbase': 140,
+            'onbase': 150,
             'average': 70,
-            'slugging': 140,
+            'slugging': 150,
             'home_runs': 50
         },
         'starting_pitcher': {
