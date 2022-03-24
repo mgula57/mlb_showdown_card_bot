@@ -122,6 +122,17 @@ GB_MULTIPLIER = {
         f'2022-{EXPANDED_ALIAS}': 1.0,
     },
 }
+# MULTIPLIER TO MATCH PU WITH ORIGINAL SETS
+HR_ROUNDING_CUTOFF = {
+    '2000': 0.85,
+    '2001': 0.85,
+    '2002': 0.85,
+    '2003': 0.85,
+    '2004': 0.85,
+    '2005': 0.85,
+    f'2022-{CLASSIC_ALIAS}': 0.75,
+    f'2022-{EXPANDED_ALIAS}': 0.75,
+}
 """
 BASELINE PITCHER VALUES
 NOTE: INDIVIDUAL RESULT CATEGORIES MAY NOT ADD UP TO 20 OR TOTAL OUTS.
@@ -2560,9 +2571,9 @@ TEAM_COLOR_PRIMARY_ALT = {
         '3': (0, 40, 120, 255),
     },
     'SFG': {
-        '1': list(range(1968,1983)),
-        '2': list(range(1983,1994)),
-        '3': list(range(1994,2000)),
+        '1': (253, 90, 30, 255),
+        '2': (253, 90, 30, 255),
+        '3': (253, 90, 30, 255),
     },
     'STL': {
         '1': (196, 30, 58, 255),
