@@ -153,11 +153,11 @@ class ShowdownPlayerCardGenerator:
         stolen_bases_per_650_pa = stolen_bases_raw / pa_to_650_ratio
 
         # CALL METHODS AND ASSIGN TO SELF
-        self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw)
         self.positions_and_defense = self.__positions_and_defense(defensive_stats=defensive_stats_raw,
                                                                   games_played=games_played_raw,
                                                                   games_started=games_started_raw,
                                                                   saves=saves_raw)
+        self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw, games_started=games_started_raw)
         self.hand = self.__handedness(hand=hand_raw)
         self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
         self.icons = self.__icons(awards=stats['award_summary'] if 'award_summary' in stats.keys() else '')
@@ -344,9 +344,8 @@ class ShowdownPlayerCardGenerator:
         if position == 'P' and self.is_pitcher:
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
-            if gsRatio > sc.STARTING_PITCHER_PCT_GAMES_STARTED or self.ip > 4:
+            if gsRatio > sc.STARTING_PITCHER_PCT_GAMES_STARTED:
                 # ASSIGN MINIMUM IP FOR STARTERS
-                self.ip = 4 if self.ip < 4 else self.ip
                 return 'STARTER'
             if saves > sc.CLOSER_MIN_SAVES_REQUIRED:
                 return 'CLOSER'
@@ -420,20 +419,33 @@ class ShowdownPlayerCardGenerator:
 
         return hand_formatted_for_position
 
-    def __innings_pitched(self, innings_pitched, games):
+    def __innings_pitched(self, innings_pitched, games, games_started):
         """In game stamina for a pitcher. Position Player defaults to 0.
 
         Args:
           innings_pitched: The total innings pitched during the season.
           games: The total games played during the season.
+          games_started: The total games started during the season.
 
         Returns:
           In game innings pitched ability.
         """
-
-        ip = round(innings_pitched / games)
+        # ACCOUNT FOR HYBRID STARTER/RELIEVERS
+        pct_games_started = games_started / games
+        type = self.player_type()
+        is_reliever = type == 'relief_pitcher'
+        if is_reliever:
+            # REMOVE STARTER INNINGS (ASSUME 5.5 IP)
+            ip_from_starts = games_started * 5.5
+            innings_pitched -= ip_from_starts
+            games -= games_started
+            ip = round(innings_pitched / games)
+            ip = 2 if ip > 2 and pct_games_started >= 0.2 and is_reliever else ip
+        else:
+            ip = round(innings_pitched / games)
+        
         ip = 1 if ip < 1 else ip
-
+        
         return ip
 
     def __speed(self, sprint_speed, stolen_bases, is_sb_empty):
@@ -769,9 +781,8 @@ class ShowdownPlayerCardGenerator:
                 # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
                 if self.is_pitcher and key == 'hr' and chart_results < 1.0:
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
-                    # CHANGE TO ROUNDING FROM > .85 INSTEAD OF 0.5
                     chart_results_decimal = chart_results % 1
-                    rounded_results = round(chart_results) if chart_results_decimal > 0.85 else math.floor(chart_results)
+                    rounded_results = round(chart_results) if chart_results_decimal > sc.HR_ROUNDING_CUTOFF[self.context] else math.floor(chart_results)
                 else:                    
                     rounded_results = round(chart_results)
                 # PITCHERS SHOULD ALWAYS GET 0 FOR 3B
@@ -3238,7 +3249,7 @@ class ShowdownPlayerCardGenerator:
         font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
         command = str(self.chart['command'])
         num_chars_command = len(command)
-        size = 155
+        size = 170 if self.is_pitcher else 155
         font = ImageFont.truetype(font_path, size=size)
 
         # ADD TEXT
@@ -3254,20 +3265,8 @@ class ShowdownPlayerCardGenerator:
                 font = font,
                 alignment = "center",
             )
-            paste_location = (30,50) if self.is_pitcher else (x_position,28)
+            paste_location = (22,43) if self.is_pitcher else (x_position,28)
             background_img.paste(fill_color_hex, paste_location, command_text_img)
-
-        # ADD "+" if pitcher
-        if self.is_pitcher:
-            font_plus = ImageFont.truetype(font_path, size=55)
-            command_text_plus_img = self.__text_image(
-                text = "+",
-                size = (188,210),
-                font = font_plus,
-                alignment = "center",
-            )
-            background_img.paste(fill_color_hex, (-27,90), command_text_plus_img)
-
 
         return background_img
 
