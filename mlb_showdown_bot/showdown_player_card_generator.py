@@ -781,9 +781,8 @@ class ShowdownPlayerCardGenerator:
                 # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
                 if self.is_pitcher and key == 'hr' and chart_results < 1.0:
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
-                    # CHANGE TO ROUNDING FROM > .85 INSTEAD OF 0.5
                     chart_results_decimal = chart_results % 1
-                    rounded_results = round(chart_results) if chart_results_decimal > 0.85 else math.floor(chart_results)
+                    rounded_results = round(chart_results) if chart_results_decimal > sc.HR_ROUNDING_CUTOFF[self.context] else math.floor(chart_results)
                 else:                    
                     rounded_results = round(chart_results)
                 # PITCHERS SHOULD ALWAYS GET 0 FOR 3B
