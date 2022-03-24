@@ -437,9 +437,8 @@ class ShowdownPlayerCardGenerator:
         if is_reliever:
             # REMOVE STARTER INNINGS (ASSUME 5.5 IP)
             ip_from_starts = games_started * 5.5
-            games_removing_starts = games - games_started
             innings_pitched -= ip_from_starts
-            games -= games_removing_starts
+            games -= games_started
             ip = round(innings_pitched / games)
             ip = 2 if ip > 2 and pct_games_started >= 0.2 and is_reliever else ip
         else:
