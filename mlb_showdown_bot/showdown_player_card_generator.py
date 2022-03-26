@@ -1648,6 +1648,17 @@ class ShowdownPlayerCardGenerator:
                                            weights={},
                                            all_or_nothing=['command-outs'])
 
+    def ordinal(self, number):
+        """Convert int to string with ordinal (ex: 1 -> 1st, 13 -> 13th)
+
+        Args:
+          number: Integer value to convert.
+
+        Returns:
+          String with ordinal number
+        """
+        return "%d%s" % (number,"tsnrhtdd"[(number//10%10!=1)*(number%10<4)*number%10::4])
+
 # ------------------------------------------------------------------------
 # OUTPUT PLAYER METHODS
 
@@ -3069,37 +3080,77 @@ class ShowdownPlayerCardGenerator:
 
         # FIRST LOOK AT ICONS
         accolades_list = []
+
+        # AWARDS ----
         for icon in self.icons:
             icons_full_description = {
                 'V': 'MVP',
                 'S': 'SILVER SLUGGER',
-                'GG': 'GOLD GLOVE',
+                'G': 'GOLD GLOVE',
                 'CY': 'CY YOUNG',
-                'K': str(self.stats['SO']) + ' STRIKEOUTS',
                 'RY': 'ROY',
-                'HR': str(self.stats['HR']) + ' HOMERS',
-                '20': '20 GAME WINNER'
+                'HR': str(self.stats['HR']) + ' HR',
             }
             if icon in icons_full_description.keys():
                 accolades_list.append(icons_full_description[icon])
 
-        if 'AS' in self.stats['award_summary']:
-            accolades_list.append('ALL-STAR')
-
+        # LOOK FOR AWARD PLACEMENT
+        awards_summary_list = self.stats['award_summary'].split(',')
+        for award in awards_summary_list:
+            award_split = award.split('-')
+            if len(award_split) > 1:
+                award_mapping = {'CYA': 'CY YOUNG', 'MVP': 'MVP', 'RoY': 'RoY'}
+                award_short = award_split[0]
+                if award_short in award_mapping.keys():
+                    award_full = award_mapping[award_short]
+                    award_placement = award_split[-1]
+                    if award_placement != '1':
+                        accolades_list.append(f'{self.ordinal(int(award_placement))} in {award_full}'.upper())
+            elif award == 'AS':
+                accolades_list.append('ALL-STAR')
         # DEFAULT ACCOLADES
         # HANDLES CASE OF NO AWARDS
+
+        # PITCHERS ----
         if self.is_pitcher:
-            accolades_list.append(str(self.stats['earned_run_avg']) + ' ERA')
+            # ERA
+            era_2_decimals = '%.2f' % self.stats['earned_run_avg']
+            accolades_list.append(str(era_2_decimals) + ' ERA')
             is_starter = 'STARTER' in self.positions_and_defense.keys()
             if is_starter:
-                accolades_list.append(str(self.stats['W']) + ' WINS')
+                # WINS
+                if self.stats['W'] > 14:
+                    accolades_list.append(str(self.stats['W']) + ' WINS')
             else:
-                accolades_list.append(str(self.stats['SV']) + ' SAVES')
-            accolades_list.append(str(self.stats['batting_avg']).replace('0.','.') + ' BA AGAINST')
+                if self.stats['SV'] > 20:
+                    # SAVES
+                    accolades_list.append(str(self.stats['SV']) + ' SAVES')
+
         else:
-            accolades_list.append(str(self.stats['batting_avg']).replace('0.','.') + ' BA')
-            accolades_list.append(str(self.stats['RBI']) + ' RBI')
-            accolades_list.append(str(self.stats['HR']) + ' HOMERS')
+        # HITTERS ----
+            # BATTING AVG
+            if self.stats['batting_avg'] >= 0.30:
+                ba_3_decimals = '%.3f' % self.stats['batting_avg']
+                accolades_list.append(str(ba_3_decimals).replace('0.','.') + ' BA')
+            # RBI
+            if self.stats['RBI'] >= 100:
+                accolades_list.append(str(self.stats['RBI']) + ' RBI')
+            # HOME RUNS
+            if self.stats['HR'] >= (15 if self.year == 2020 else 30):
+                accolades_list.append(str(self.stats['HR']) + ' HOMERS')
+            # HITS
+            if self.stats['H'] >= 175:
+                accolades_list.append(str(self.stats['H']) + ' HITS')
+            # dWAR
+            if float(self.stats['dWAR']) >= 2.5:
+                accolades_list.append(str(self.stats['dWAR']) + ' dWAR')
+            # OPS+
+            if 'onbase_plus_slugging_plus' in self.stats.keys():
+                accolades_list.append(str(self.stats['onbase_plus_slugging_plus']) + ' OPS+')           
+
+        # GENERIC ----
+        if 'bWAR' in self.stats.keys():
+            accolades_list.append(str(self.stats['bWAR']) + ' WAR')
 
         return accolades_list[0:3]
 
