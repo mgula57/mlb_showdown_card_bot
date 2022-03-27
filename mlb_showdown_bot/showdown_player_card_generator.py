@@ -29,7 +29,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -87,6 +87,7 @@ class ShowdownPlayerCardGenerator:
         self.is_img_part_of_a_set = is_img_part_of_a_set
         self.is_stats_estimate = 'is_stats_estimate' in stats.keys()
         self.add_image_border = add_image_border
+        self.is_dark_mode = is_dark_mode
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -2209,6 +2210,8 @@ class ShowdownPlayerCardGenerator:
                 additional_substring_filters.append('(ASG)')
             if len(self.type_override) > 0:
                 additional_substring_filters.append(self.type_override)
+            if self.is_dark_mode:
+                additional_substring_filters.append('(DARK)')
 
             try:
                 player_image_url = self.__query_google_drive_for_image_url(
@@ -2459,7 +2462,8 @@ class ShowdownPlayerCardGenerator:
         is_04_05 = self.context in ['2004','2005']
         cc_extension = '-CC' if self.is_cooperstown and is_04_05 else ''
         ss_extension = '-SS' if (self.is_super_season or self.is_holiday) and is_04_05 else ''
-        type_template = '{context}-{type}{cc}{ss}.png'.format(context = year, type = type, cc = cc_extension, ss = ss_extension)
+        dark_mode_extension = '-DARK' if self.context_year == '2022' and self.is_dark_mode else ''
+        type_template = f'{year}-{type}{cc_extension}{ss_extension}{dark_mode_extension}.png'
         template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
@@ -2641,7 +2645,7 @@ class ShowdownPlayerCardGenerator:
             name_color = final_text
         elif self.context_year in ['2022']:
             # 2022 >=
-            name_color = sc.COLOR_BLACK
+            name_color = sc.COLOR_WHITE if self.is_dark_mode else sc.COLOR_BLACK
 
         return final_text, name_color
 
@@ -2805,7 +2809,7 @@ class ShowdownPlayerCardGenerator:
                     current_x_position += 65
                 
 
-            color = sc.COLOR_BLACK
+            color = sc.COLOR_GRAY if self.is_dark_mode else sc.COLOR_BLACK
 
         return metadata_image, color
 
@@ -2853,7 +2857,7 @@ class ShowdownPlayerCardGenerator:
                     border_color = sc.COLOR_BLACK,
                     border_size = 9
                 )
-                color_range = range_text if is_wotc or is_out_category else sc.COLOR_BLACK
+                color_range = range_text if is_wotc or is_out_category or self.is_dark_mode else sc.COLOR_BLACK
                 chart_text.paste(color_range, (chart_text_x, 0), range_text)
                 pitcher_spacing = 531 if is_wotc else 510
                 hitter_spacing = 468 if is_wotc else 445
@@ -3296,7 +3300,8 @@ class ShowdownPlayerCardGenerator:
 
         # BACKGROUND CONTAINER IMAGE
         img_type_suffix = 'Control' if self.is_pitcher else 'Onbase'
-        background_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{img_type_suffix}.png'))
+        dark_mode_suffix = '-DARK' if self.is_dark_mode else ''
+        background_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{img_type_suffix}{dark_mode_suffix}.png'))
         font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
         command = str(self.chart['command'])
         num_chars_command = len(command)
