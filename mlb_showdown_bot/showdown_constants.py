@@ -295,7 +295,7 @@ BASELINE_HITTER = {
         'hr': 1.4
     },
     f'2022-{CLASSIC_ALIAS}': {
-        'command': 8.0,
+        'command': 7.5,
         'outs': 4.0,
         'so': 2.0,
         'bb': 4.45,
