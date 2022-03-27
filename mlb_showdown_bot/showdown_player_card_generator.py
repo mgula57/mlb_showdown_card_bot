@@ -1338,6 +1338,7 @@ class ShowdownPlayerCardGenerator:
         command_outs = f"{str(self.chart['command'])}-{str(self.chart['outs'])}"
         pts_multiplier_dict = sc.POINTS_COMMAND_OUT_MULTIPLIER[self.context]
         pts_multiplier = pts_multiplier_dict[command_outs] if command_outs in pts_multiplier_dict.keys() else 1.0
+        self.points_command_out_multiplier = pts_multiplier
 
         # SLASH LINE VALUE
         allow_negatives = sc.POINTS_ALLOW_NEGATIVE[self.context][player_category]
@@ -1660,6 +1661,17 @@ class ShowdownPlayerCardGenerator:
         """
         return "%d%s" % (number,"tsnrhtdd"[(number//10%10!=1)*(number%10<4)*number%10::4])
 
+    def __rbgs_to_hex(self, rgbs):
+        """Convert RGB tuples to hex string (Ex: (255, 255, 255, 0) -> "#fffffff")
+
+        Args:
+          rgbs: Tuple of RGB values
+
+        Returns:
+          String representation of hex color code
+        """
+        return '#' + ''.join(f'{i:02X}' for i in rgbs[0:3])
+
 # ------------------------------------------------------------------------
 # OUTPUT PLAYER METHODS
 
@@ -1890,6 +1902,9 @@ class ShowdownPlayerCardGenerator:
             pts_data.append(['ICONS', ','.join(self.icons), str(round(self.icon_points))])
         if self.points_normalizer < 1.0:
             pts_data.append(['NORMALIZER', 'N/A', str(round(self.points_normalizer,2))])
+        if self.points_command_out_multiplier != 1.0:
+            command_name = 'CTRL' if self.is_pitcher else 'OB'
+            pts_data.append([f'{command_name}/OUT MULTLIPLIER', 'N/A', str(round(self.points_command_out_multiplier,2))])
         
         
         pts_data.append(['TOTAL', '', self.points])
@@ -2097,7 +2112,14 @@ class ShowdownPlayerCardGenerator:
 
         # SAVE IMAGE
         if self.add_image_border:
-            image_border = Image.new('RGBA', (1632,2220), color=sc.COLOR_WHITE)
+            if self.context in ['2000','2001']:
+                # USE TEAM COLOR AS BACKGROUND
+                team_color_tuple = self.__team_color_rgbs()
+                border_color = self.__rbgs_to_hex(rgbs=team_color_tuple)
+            else:
+                # USE WHITE OR BLACK
+                border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
+            image_border = Image.new('RGBA', (1632,2220), color=border_color)
             image_border.paste(player_image.convert("RGBA"),(72,72),player_image.convert("RGBA"))
             player_image = image_border
 
@@ -3310,7 +3332,7 @@ class ShowdownPlayerCardGenerator:
 
         # ADD TEXT
         fill_color = self.__team_color_rgbs()
-        fill_color_hex = '#' + ''.join(f'{i:02X}' for i in fill_color[0:3])
+        fill_color_hex = self.__rbgs_to_hex(rgbs=fill_color)
         # SEPARATE 
         for index, char in enumerate(command):
             position_multiplier = 1 if (index + 1) == num_chars_command else -1
