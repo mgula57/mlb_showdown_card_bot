@@ -2092,10 +2092,10 @@ class ShowdownPlayerCardGenerator:
 
         # BETA TAG
         # TO BE REMOVED AFTER TEST PERIOD
-        if self.context_year == '2022':
-            beta_img_path = os.path.join(os.path.dirname(__file__), 'templates', 'BETA.png')
-            beta_banner_image = Image.open(beta_img_path)
-            player_image.paste(beta_banner_image,(0,0),beta_banner_image)
+        # if self.context_year == '2022':
+        #     beta_img_path = os.path.join(os.path.dirname(__file__), 'templates', 'BETA.png')
+        #     beta_banner_image = Image.open(beta_img_path)
+        #     player_image.paste(beta_banner_image,(0,0),beta_banner_image)
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm
@@ -2145,7 +2145,8 @@ class ShowdownPlayerCardGenerator:
           PIL image object for the player background.
           Boolean for whether a background player image was applied
         """
-        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}.png')
+        dark_mode_suffix = '-DARK' if self.is_dark_mode and self.context_year == '2022' else ''
+        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}{dark_mode_suffix}.png')
         is_default_image = False
         if self.player_image_path:
             # LOAD IMAGE FROM UPLOAD
@@ -2197,7 +2198,8 @@ class ShowdownPlayerCardGenerator:
         """
         
         # GET TEAM BACKGROUND (00/01)
-        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Default Background - {}.png'.format(self.context_year))
+        dark_mode_suffix = '-DARK' if self.is_dark_mode and self.context_year == '2022' else ''
+        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}{dark_mode_suffix}.png')
         if self.context in ['2000', '2001']:
             # TEAM BACKGROUNDS
             if self.is_cooperstown:

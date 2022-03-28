@@ -18,10 +18,10 @@
    </head>
 
 
-   <body>
+   <body class="main_body_light" id="main_body">
 
       <!-- OVERLAY FOR HIDDEN LOADER OBJECT -->
-      <div id="overlay">
+      <div class="overlay_light" id="overlay">
          <div class="loader_container">
             <h6 class="loader_text">Generating Card...</h6>
             <div class="loader" id="loader"></div>
@@ -29,173 +29,186 @@
       </div>
 
       <div class="container">
-         <div class="container_bg">
+         <div class="container_bg_light" id="container_bg">
             <div class="row">
-               <div class="col-md-4" style="background-color: #ffffff;">
-                  <!------ INPUT  ------>
-                  <div class="input_container">
-   
-                     <!-- SHOWDOWN LOGO  -->
-                     <div class="d-flex justify-content-center">
-                        <div class="" style="max-width: 400px;">
-                           <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" class="img-fluid" style="padding:30px; padding-bottom:5px;">
-                        </div>
-                     </div>
-                     
-                     <!-- FORM  -->
-                     <form id="formInput" role="form" method='POST' enctype="multipart/form-data" class='form_wrapper'>
-                        
-                        <!-- NAME  -->
-                        <div class="form-group" style="padding-bottom: 10px; padding-top: 15px;">
-                           <label for="name" style="color:Gray;"><b>Player Name</b></label>
-                           <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Bot not finding your card? Try inputting the baseball reference id (ex: troutmi01). For 2-way players, try adding (Hitter) or (Pitcher) to the name (ex: Shohei Ohtani (Pitcher))" >
-                           <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" autofocus required>
-                        </div>
-                        
-                        <!-- YEAR  -->
-                        <div class="form-group" style="padding-bottom: 10px;">
-                           <label for="year" style="color:Gray;"><b>Year</b></label>
-                           <img for="year" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Looking to use multiple years? You can enter a range of years using '-' (ex: 2012-2020) or collection of years using '+' (ex: 2012+2015+2019). Alternatively you can use a player's entire career by entering CAREER" >
-                           <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" required>
+               <div class="col-md-4">
+                  <div class="input_container_column_light" id="input_container_column">
+                     <!------ INPUT  ------>
+                     <div class="input_container_light" id="input_container">
+      
+                        <!-- SHOWDOWN LOGO  -->
+                        <div class="d-flex justify-content-center">
+                           <div class="" style="max-width: 400px;">
+                              <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" class="img-fluid" id="showdown_logo_img">
+                           </div>
                         </div>
    
-                        <!-- SET AND EXPANSION  -->
-                        <div class="form-group">
-                           <div class="row">
-                              <div class="col-md-6">
-                                 <label for="setSelection" style="color:Gray;"><b>Set</b></label>
-                                 <img for="setSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="2022+ Sets are split into CLASSIC AND EXPANDED. CLASSIC is compatible with '00-'01 sets, while EXPANDED works well with '02-'05. EXPANDED set increases hitter onbase values and adds results over 20+." >
-                                 <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                    {% for year in ['2000','2001','2002','2003','2004','2005','2022-Classic','2022-Expanded'] %}
-                                       <option value={{ year }} {% if year == '2000' %} selected="selected" {% endif %}>{{ year }}</option>
-                                    {% endfor %}
-                                 </select>
-                              </div>
-                              <div class="col-md-6">
-                                 <label style="color:Gray;" for="expansionSelection"> <b>Expansion</b> </label>
-                                 <select id="expansionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                    <option value="BS" selected="selected">Base Set</option>
-                                    <option value="TD">Trading Deadline</option>
-                                    <option value="PR">Pennant Run</option>
-                                 </select>
-                              </div>
-                           </div>   
-                        </div>
-   
-                        <!-- EDITION AND SET NUMBER  -->
-                        <div class="form-group">
-                           <div class="row">
-                              <div class="col-md-6">
-                                 <label style="color:Gray;" for="editionSelection"> <b>Edition</b></label>
-                                 <select id="editionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                    <option value="None" selected="selected">None</option>
-                                    <option value="Cooperstown Collection">Cooperstown Collection</option>
-                                    <option value="All-Star Game">All-Star Game</option>
-                                    <option value="Super Season">Super Season</option>
-                                    <option value="Holiday">Holiday</option>
-                                 </select>
-                              </div>
-                              <div class="col-md-6" style="padding-bottom: 10px;">
-                                 <label for="setnum" style="color:Gray;"><b>Set Number</b></label>
-                                 <input type="text" name="setnum" class="form-control" id="setnum" placeholder="">
-                              </div>
-                           </div>   
-                        </div>
+                        <div class="form-check form-switch" style="display: flex; justify-content: flex-end; padding-top: 5px; padding-right: 20px;">                        
+                           <input class="form-check-input" type="checkbox" id="dark_theme_toggle" onchange="toggleTheme(this)">
+                           <label class="form-check-label" for="dark_theme_toggle" id="darkThemeToggleLabel">Dark Theme</label>
+                         </div>
                         
-                        <!-- STATS VERSION AND STYLE  -->
-                        <div class="form-group">
-                           <div class="row">
-                              <div class="col-md-6">
-                                 <label for="offset" style="color:Gray;"><b>Stats Version</b></label>
-                                 <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
-                                 <br>
-                                 <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
-                                    {% for index in [1,2,3,4,5] -%}
-                                       {% set offsetName = "offset" ~ (index-1) %}
-                                       {% set checkedStr = "checked" if loop.first else "" %}
-                                       <input type="radio" class="btn-check" name="offset" id={{offsetName}} autocomplete="off" {{ checkedStr }}>
-                                       <label class="btn btn-outline-secondary" for={{offsetName}}>{{ index }}</label>
-                                    {% endfor %}
+                        <!-- FORM  -->
+                        <form id="formInput" role="form" method='POST' enctype="multipart/form-data" class='form_wrapper'>
+                           
+                           <!-- NAME  -->
+                           <div class="form-group" style="padding-bottom: 10px; padding-top: 15px;">
+                              <label for="name" style="color:Gray;"><b>Player Name</b></label>
+                              <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Bot not finding your card? Try inputting the baseball reference id (ex: troutmi01). For 2-way players, try adding (Hitter) or (Pitcher) to the name (ex: Shohei Ohtani (Pitcher))" >
+                              <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" autofocus required>
+                           </div>
+                           
+                           <!-- YEAR  -->
+                           <div class="form-group" style="padding-bottom: 10px;">
+                              <label for="year" style="color:Gray;"><b>Year</b></label>
+                              <img for="year" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Looking to use multiple years? You can enter a range of years using '-' (ex: 2012-2020) or collection of years using '+' (ex: 2012+2015+2019). Alternatively you can use a player's entire career by entering CAREER" >
+                              <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" required>
+                           </div>
+      
+                           <!-- SET AND EXPANSION  -->
+                           <div class="form-group">
+                              <div class="row">
+                                 <div class="col-md-6">
+                                    <label for="setSelection" style="color:Gray;"><b>Set</b></label>
+                                    <img for="setSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="2022+ Sets are split into CLASSIC AND EXPANDED. CLASSIC is compatible with '00-'01 sets, while EXPANDED works well with '02-'05. EXPANDED set increases hitter onbase values and adds results over 20+." >
+                                    <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                       {% for year in ['2000','2001','2002','2003','2004','2005','2022-Classic','2022-Expanded'] %}
+                                          <option value={{ year }} {% if year == '2000' %} selected="selected" {% endif %}>{{ year }}</option>
+                                       {% endfor %}
+                                    </select>
+                                 </div>
+                                 <div class="col-md-6">
+                                    <label style="color:Gray;" for="expansionSelection"> <b>Expansion</b> </label>
+                                    <select id="expansionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                       <option value="BS" selected="selected">Base Set</option>
+                                       <option value="TD">Trading Deadline</option>
+                                       <option value="PR">Pennant Run</option>
+                                    </select>
+                                 </div>
+                              </div>   
+                           </div>
+      
+                           <!-- EDITION AND SET NUMBER  -->
+                           <div class="form-group">
+                              <div class="row">
+                                 <div class="col-md-6">
+                                    <label style="color:Gray;" for="editionSelection"> <b>Edition</b></label>
+                                    <select id="editionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                       <option value="None" selected="selected">None</option>
+                                       <option value="Cooperstown Collection">Cooperstown Collection</option>
+                                       <option value="All-Star Game">All-Star Game</option>
+                                       <option value="Super Season">Super Season</option>
+                                       <option value="Holiday">Holiday</option>
+                                    </select>
+                                 </div>
+                                 <div class="col-md-6" style="padding-bottom: 10px;">
+                                    <label for="setnum" style="color:Gray;"><b>Set Number</b></label>
+                                    <input type="text" name="setnum" class="form-control" id="setnum" placeholder="">
+                                 </div>
+                              </div>   
+                           </div>
+                           
+                           <!-- STATS VERSION AND STYLE  -->
+                           <div class="form-group">
+                              <div class="row">
+                                 <div class="col-md-6">
+                                    <label for="offset" style="color:Gray;"><b>Stats Version</b></label>
+                                    <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
+                                    <br>
+                                    <div class="btn-group" id="statsVersionSelection" role="group" aria-label="Basic radio toggle button group" style="padding-bottom: 10px;">
+                                       {% for index in [1,2,3,4,5] -%}
+                                          {% set offsetName = "offset" ~ (index-1) %}
+                                          {% set checkedStr = "checked" if loop.first else "" %}
+                                          <input type="radio" class="btn-check" name="offset" id={{offsetName}} autocomplete="off" {{ checkedStr }}>
+                                          <label class="btn btn-outline-secondary" for={{offsetName}}>{{ index }}</label>
+                                       {% endfor %}
+                                    </div>
+                                 </div>
+                                 <div class="col-md-6">
+                                    <div>
+                                       <label style="color:Gray;"><b>More Options</b></label>
+      
+                                       <div class="form-check form-switch">
+                                          <input class="form-check-input" type="checkbox" id="addBorder">
+                                          <label class="form-check-label" for="addBorder" id="addBorderLabel">Add Border</label>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                          <input class="form-check-input" type="checkbox" id="darkModeToggle">
+                                          <label class="form-check-label" for="darkModeToggle" id="darkModeToggleLabel">Dark Mode</label>
+                                        </div>
+                                    </div>                              
+                                 </div>
+                              </div>   
+                           </div>
+      
+                           <!-- IMAGES  -->
+                           <div class="form-group" style="padding-top: 20px;">
+                              <label><b style="color:Gray;">Image</b><a style="color:Gray;"> (Optional)</a></label>
+                              <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="If no image is selected, the bot will check for an available pre-built player image. If no image exists, the bot will display the default silhouette." >
+                              <div class="row">
+                                 <div class="col-md-12" >
+                                    <input type="text" name="url" class="form-control" id="url" placeholder="Paste Link">
+                                 </div>
+                              </div>   
+                              <div class="row">
+                                 <div class="col-md-12">
+                                    <label for="img_upload" style="color:Gray;"> <i>Or</i></label>
+                                    <input class="form-control" type="file" id="img_upload" accept="image/*">
                                  </div>
                               </div>
-                              <div class="col-md-6" style="padding-top: 10px;">
-                                 <div>
-                                    <label style="color:Gray;"><b>More Options</b></label>
-   
-                                    <div class="form-check form-switch">
-                                       <input class="form-check-input" type="checkbox" id="addBorder">
-                                       <label class="form-check-label" for="addBorder">Add Border</label>
-                                     </div>
-                                 </div>                              
-                              </div>
-                           </div>   
-                        </div>
-   
-                        <!-- IMAGES  -->
-                        <div class="form-group" style="padding-top: 20px;">
-                           <label><b style="color:Gray;">Image</b><a style="color:Gray;"> (Optional)</a></label>
-                           <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="If no image is selected, the bot will check for an available pre-built player image. If no image exists, the bot will display the default silhouette." >
-                           <div class="row">
-                              <div class="col-md-12" >
-                                 <input type="text" name="url" class="form-control" id="url" placeholder="Paste Link">
-                              </div>
-                           </div>   
-                           <div class="row">
-                              <div class="col-md-12">
-                                 <label for="img_upload" style="color:Gray;"> <i>Or</i></label>
-                                 <input class="form-control" type="file" id="img_upload" accept="image/*">
-                              </div>
                            </div>
-                        </div>
-   
-                        <!-- BUTTONS  -->
-                        <div class="form-group" style="padding-top:20px">
-                           <div class="row" style="padding-top: 20px; padding-bottom: 20px;">
-                              <div class="col-md-8" style="padding: 8px;" >
-                                 <!-- CREATE CARD BUTTON  -->
-                                 <a href=# id=create_card>
-                                    <button type="submit" style="border-radius: 10px; color: white; background-color: #4A6999;" class="btn w-100">
-                                       <div style="padding: 5px;"><b>Submit</b></div>
+      
+                           <!-- BUTTONS  -->
+                           <div class="form-group" style="padding-top:20px">
+                              <div class="row" style="padding-top: 20px; padding-bottom: 20px;">
+                                 <div class="col-md-8" style="padding: 8px;" >
+                                    <!-- CREATE CARD BUTTON  -->
+                                    <a href=# id=create_card>
+                                       <button type="submit" style="border-radius: 10px; color: white; background-color: #5d82b8;" class="btn w-100">
+                                          <div style="padding: 5px;"><b>Submit</b></div>
+                                       </button>
+                                    </a>
+                                    
+                                 </div>
+      
+                                 <div class="col-md-4" style="padding: 8px;" >
+                                    <!-- RESET CARD BUTTON  -->
+                                    <button type="reset" style="border-radius: 10px; color: white; background-color: #858585;" class="btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''">
+                                       <div style="padding: 5px;">Clear</div>
                                     </button>
-                                 </a>
-                                 
+                                 </div>                           
+                              </div>   
+      
+                              <!-- TWITTER LINK  -->
+                              <div style="padding-top:10px;padding-right:10px;">
+                                 <a href="https://twitter.com/mlbshowdownbot?ref_src=twsrc%5Etfw" class="twitter-follow-button" data-size='small' data-show-count="false">Follow</a><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
                               </div>
-   
-                              <div class="col-md-4" style="padding: 8px;" >
-                                 <!-- RESET CARD BUTTON  -->
-                                 <button type="reset" style="border-radius: 10px; background-color: #d8d8d8;" class="btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''">
-                                    <div style="padding: 5px;">Clear</div>
-                                 </button>
-                              </div>                           
-                           </div>   
-   
-                           <!-- TWITTER LINK  -->
-                           <div style="padding-top:10px;padding-right:10px;">
-                              <a href="https://twitter.com/mlbshowdownbot?ref_src=twsrc%5Etfw" class="twitter-follow-button" data-size='small' data-show-count="false">Follow</a><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+                              <!-- HOW DOES SHOWDOWN BOT WORK? -->
+                              <div style="padding-top: 10px;">
+                                 <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" class="link-secondary" target="_blank" rel="noopener noreferrer">
+                                    <p>How does Showdown Bot work?</p>
+                                 </a>
+                              </div>
+                              
                            </div>
-   
-                           <!-- HOW DOES SHOWDOWN BOT WORK? -->
-                           <div style="padding-top:10px;padding-right:10px;">
-                              <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" class="link-secondary" target="_blank" rel="noopener noreferrer">
-                                 <p>How does Showdown Bot work?</p>
-                              </a>
-                           </div>
-                        </div>
-                        <br>
-                     </form>
+                           <br>
+                        </form>
+                     </div>
                   </div>
                </div>
+
                <div class="col-md-8" style="padding-bottom: 20px;">
                   <div class="d-flex justify-content-center">
                      <!-- OUTPUT  -->
                      <div class="output_container">
                         <!-- PLAYER NAME -->
                         <div class="d-flex justify-content-center">
-                           <h2 id="playername" style="padding: 0px; padding-top: 20px; margin: 0px; font-weight: bolder; font-family: Helvetica Neue;"></h2>
+                           <h2 id="player_name" class="player_name_light"></h2>
                         </div>
                         <!-- PLAYER NAME AND HYPERLINK -->
                         <div class="d-flex justify-content-center">
-                           <p style="margin: 2px;" id="playerlink"><b></b></p>
+                           <p style="margin: 2px;" id="player_link" class="player_link_light"><b></b></p>
                            <a href=# id="playerlink_href" class="link-primary" target="_blank" rel="noopener noreferrer">
                               <p style="margin: 2px;" id="playerlink_href_text"><b></b></p>
                            </a>
@@ -221,7 +234,7 @@
                               <div class="breakdown_container">
                                     <h4 id=na style="color:blue"></h4>
                                     <h4 style="color: #686666"><b>Breakdown</b></h4>
-                                    <div class="breakdown_output">
+                                    <div class="breakdown_output_light" id="breakdown_output">
                                     <div class="btn-group" role="group" aria-label="Basic radio toggle button group" style="padding: 10px;">
                                        <input type="radio" class="btn-check" onchange="checkHideForStats(this)" name="category" id="stats_btn" autocomplete="off" checked>
                                        <label class="btn btn-outline-secondary btn-sm" for="stats_btn">Stats</label>
@@ -233,7 +246,7 @@
    
                                     <!-- STATS TABLE  -->
                                     <div id="stats_div" style="display:initial" >
-                                       <table class='table table-striped' id="stats_table">
+                                       <table class='table' id="stats_table">
                                           <tr>
                                              <th> </th>
                                              <th>Actual</th>
@@ -247,11 +260,11 @@
                                           </tr>
                                           {% endfor %}
                                        </table>
-                                       <p style="font-size:60%; color: #000000"><i>* Indicates a Bot estimated value, real stat unavailable (1800's, Negro Leagues)</i></p>
+                                       <p class="estimated_values_footnote_light" id="estimated_values_footnote"><i>* Indicates a Bot estimated value, real stat unavailable (1800's, Negro Leagues)</i></p>
                                     </div>
    
                                     <div id="points_div" style="display:none" >
-                                       <table class='table table-striped' id="points_table">
+                                       <table class='table' id="points_table">
                                           <tr>
                                              <th>Category</th>
                                              <th>Stat</th>
@@ -259,16 +272,16 @@
                                           </tr>
                                           {% for stat in ['?', '?', '?', '?', '?', 'TOTAL'] -%}
                                           <tr>
-                                             <td><b>{{ stat }}</b></td>
-                                             <td>?</td>
-                                             <td>?</td>
+                                             <td class="{{ 'table-success' if stat == 'TOTAL' }}" ><b>{{ stat }}</b></td>
+                                             <td class="{{ 'table-success' if stat == 'TOTAL' }}">?</td>
+                                             <td class="{{ 'table-success' if stat == 'TOTAL' }}">?</td>
                                           </tr>
                                           {% endfor %}
                                        </table>
                                     </div>
    
                                     <div id="accuracy_div" style="display:none" >
-                                       <table class='table table-striped' id="accuracy_table">
+                                       <table class='table' id="accuracy_table">
                                           <tr>
                                              <th>Version</th>
                                              <th>OB/C</th>
