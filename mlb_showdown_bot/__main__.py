@@ -27,6 +27,7 @@ parser.add_argument('-asg','--is_asg', action='store_true', help='Optionally mak
 parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default='', type=str)
 parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='BS')
 parser.add_argument('-bor','--add_border', action='store_true', help='Optionally add border to player image')
+parser.add_argument('-dark','--dark_mode', action='store_true', help='Optionally toggle dark mode (2022+ sets only)')
 
 args = parser.parse_args()
 
@@ -59,6 +60,7 @@ def main():
         set_number=str(args.set_num),
         command_out_override=command_out_override,
         add_image_border=args.add_border,
+        is_dark_mode=args.dark_mode,
     )
 
 if __name__ == "__main__":

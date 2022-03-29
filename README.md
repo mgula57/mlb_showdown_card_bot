@@ -330,7 +330,7 @@ There are additional weights/logic applied across the different sets to try to m
 - **Allow Negatives**: If True, allows a player to be penalized in the negative for a bad category. For example if a player is under the threshold defined for OBP, they will receive negative PTS for OBP. If False, player gets +0 PTS for that category if below threshold.
 - **Normalize Towards Median**: If True, a player over a certain value will get overall points reduced in order to keep a "Bell Curve" of point distribution. Scaler increases as point value above set value increases.
 - **Positional Defense Weights**: In some sets, certain positions are weighted lower than others. For example in the 2003 set, LF/RF max defense (+2) is worth 25% less than max CF defense (+3)
-- **Command Outs Adjustment**: In some sets, certain Command - Out combinations receive a manual adjustment to closer match WOTC. These are often small adjustments (1-5%) that only are applied to slashline and HR point categories.
+- **Command Outs Adjustment**: In some sets, certain Command - Out combinations receive a manual adjustment to closer match WOTC. These are often small adjustments (1-5%) that only are applied to slashline and HR point categories. These help balance out points for cards that work better for stategy and advanced play.
 
 ### **Multi-Year Cards**
 
@@ -411,6 +411,12 @@ Changes from 2005 set:
 - **STRIKEOUTS**: The number of strikeouts on a hitters chart should slightly decrease, with the assumption that pitcher charts will have more SO results than in 2002-2005.
 - **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2021 Francisco Lindor goes from +3 SS in 2005 set to +4 SS in 2022 set. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
 - **NUMBER OF POSITIONS**: Now a player has a maximum of 3 available positions. This provides more value to super utility players like Ben Zobrist and Kris Bryant.
+
+### **Dark Mode**
+
+There is now an additional option for **Dark Mode**, available on 2022 Classic and Expanded sets only. Works with any player!
+
+![Image](./static/interface/Example2022LightVsDark.png)
 
 ----
 ## Running Locally

@@ -29,7 +29,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -87,6 +87,7 @@ class ShowdownPlayerCardGenerator:
         self.is_img_part_of_a_set = is_img_part_of_a_set
         self.is_stats_estimate = 'is_stats_estimate' in stats.keys()
         self.add_image_border = add_image_border
+        self.is_dark_mode = is_dark_mode
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -1337,6 +1338,7 @@ class ShowdownPlayerCardGenerator:
         command_outs = f"{str(self.chart['command'])}-{str(self.chart['outs'])}"
         pts_multiplier_dict = sc.POINTS_COMMAND_OUT_MULTIPLIER[self.context]
         pts_multiplier = pts_multiplier_dict[command_outs] if command_outs in pts_multiplier_dict.keys() else 1.0
+        self.points_command_out_multiplier = pts_multiplier
 
         # SLASH LINE VALUE
         allow_negatives = sc.POINTS_ALLOW_NEGATIVE[self.context][player_category]
@@ -1648,6 +1650,28 @@ class ShowdownPlayerCardGenerator:
                                            weights={},
                                            all_or_nothing=['command-outs'])
 
+    def ordinal(self, number):
+        """Convert int to string with ordinal (ex: 1 -> 1st, 13 -> 13th)
+
+        Args:
+          number: Integer value to convert.
+
+        Returns:
+          String with ordinal number
+        """
+        return "%d%s" % (number,"tsnrhtdd"[(number//10%10!=1)*(number%10<4)*number%10::4])
+
+    def __rbgs_to_hex(self, rgbs):
+        """Convert RGB tuples to hex string (Ex: (255, 255, 255, 0) -> "#fffffff")
+
+        Args:
+          rgbs: Tuple of RGB values
+
+        Returns:
+          String representation of hex color code
+        """
+        return '#' + ''.join(f'{i:02X}' for i in rgbs[0:3])
+
 # ------------------------------------------------------------------------
 # OUTPUT PLAYER METHODS
 
@@ -1878,6 +1902,9 @@ class ShowdownPlayerCardGenerator:
             pts_data.append(['ICONS', ','.join(self.icons), str(round(self.icon_points))])
         if self.points_normalizer < 1.0:
             pts_data.append(['NORMALIZER', 'N/A', str(round(self.points_normalizer,2))])
+        if self.points_command_out_multiplier != 1.0:
+            command_name = 'CTRL' if self.is_pitcher else 'OB'
+            pts_data.append([f'{command_name}/OUT MULTLIPLIER', 'N/A', str(round(self.points_command_out_multiplier,2))])
         
         
         pts_data.append(['TOTAL', '', self.points])
@@ -2065,10 +2092,10 @@ class ShowdownPlayerCardGenerator:
 
         # BETA TAG
         # TO BE REMOVED AFTER TEST PERIOD
-        if self.context_year == '2022':
-            beta_img_path = os.path.join(os.path.dirname(__file__), 'templates', 'BETA.png')
-            beta_banner_image = Image.open(beta_img_path)
-            player_image.paste(beta_banner_image,(0,0),beta_banner_image)
+        # if self.context_year == '2022':
+        #     beta_img_path = os.path.join(os.path.dirname(__file__), 'templates', 'BETA.png')
+        #     beta_banner_image = Image.open(beta_img_path)
+        #     player_image.paste(beta_banner_image,(0,0),beta_banner_image)
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm
@@ -2085,7 +2112,14 @@ class ShowdownPlayerCardGenerator:
 
         # SAVE IMAGE
         if self.add_image_border:
-            image_border = Image.new('RGBA', (1632,2220), color=sc.COLOR_WHITE)
+            if self.context in ['2000','2001']:
+                # USE TEAM COLOR AS BACKGROUND
+                team_color_tuple = self.__team_color_rgbs()
+                border_color = self.__rbgs_to_hex(rgbs=team_color_tuple)
+            else:
+                # USE WHITE OR BLACK
+                border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
+            image_border = Image.new('RGBA', (1632,2220), color=border_color)
             image_border.paste(player_image.convert("RGBA"),(72,72),player_image.convert("RGBA"))
             player_image = image_border
 
@@ -2111,7 +2145,8 @@ class ShowdownPlayerCardGenerator:
           PIL image object for the player background.
           Boolean for whether a background player image was applied
         """
-        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}.png')
+        dark_mode_suffix = '-DARK' if self.is_dark_mode and self.context_year == '2022' else ''
+        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}{dark_mode_suffix}.png')
         is_default_image = False
         if self.player_image_path:
             # LOAD IMAGE FROM UPLOAD
@@ -2163,7 +2198,8 @@ class ShowdownPlayerCardGenerator:
         """
         
         # GET TEAM BACKGROUND (00/01)
-        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Default Background - {}.png'.format(self.context_year))
+        dark_mode_suffix = '-DARK' if self.is_dark_mode and self.context_year == '2022' else ''
+        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}{dark_mode_suffix}.png')
         if self.context in ['2000', '2001']:
             # TEAM BACKGROUNDS
             if self.is_cooperstown:
@@ -2198,6 +2234,8 @@ class ShowdownPlayerCardGenerator:
                 additional_substring_filters.append('(ASG)')
             if len(self.type_override) > 0:
                 additional_substring_filters.append(self.type_override)
+            if self.is_dark_mode:
+                additional_substring_filters.append('(DARK)')
 
             try:
                 player_image_url = self.__query_google_drive_for_image_url(
@@ -2448,7 +2486,8 @@ class ShowdownPlayerCardGenerator:
         is_04_05 = self.context in ['2004','2005']
         cc_extension = '-CC' if self.is_cooperstown and is_04_05 else ''
         ss_extension = '-SS' if (self.is_super_season or self.is_holiday) and is_04_05 else ''
-        type_template = '{context}-{type}{cc}{ss}.png'.format(context = year, type = type, cc = cc_extension, ss = ss_extension)
+        dark_mode_extension = '-DARK' if self.context_year == '2022' and self.is_dark_mode else ''
+        type_template = f'{year}-{type}{cc_extension}{ss_extension}{dark_mode_extension}.png'
         template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
@@ -2630,7 +2669,7 @@ class ShowdownPlayerCardGenerator:
             name_color = final_text
         elif self.context_year in ['2022']:
             # 2022 >=
-            name_color = sc.COLOR_BLACK
+            name_color = sc.COLOR_WHITE if self.is_dark_mode else sc.COLOR_BLACK
 
         return final_text, name_color
 
@@ -2794,7 +2833,7 @@ class ShowdownPlayerCardGenerator:
                     current_x_position += 65
                 
 
-            color = sc.COLOR_BLACK
+            color = sc.COLOR_GRAY if self.is_dark_mode else sc.COLOR_BLACK
 
         return metadata_image, color
 
@@ -2842,7 +2881,7 @@ class ShowdownPlayerCardGenerator:
                     border_color = sc.COLOR_BLACK,
                     border_size = 9
                 )
-                color_range = range_text if is_wotc or is_out_category else sc.COLOR_BLACK
+                color_range = range_text if is_wotc or is_out_category or self.is_dark_mode else sc.COLOR_BLACK
                 chart_text.paste(color_range, (chart_text_x, 0), range_text)
                 pitcher_spacing = 531 if is_wotc else 510
                 hitter_spacing = 468 if is_wotc else 445
@@ -3069,37 +3108,77 @@ class ShowdownPlayerCardGenerator:
 
         # FIRST LOOK AT ICONS
         accolades_list = []
+
+        # AWARDS ----
         for icon in self.icons:
             icons_full_description = {
                 'V': 'MVP',
                 'S': 'SILVER SLUGGER',
-                'GG': 'GOLD GLOVE',
+                'G': 'GOLD GLOVE',
                 'CY': 'CY YOUNG',
-                'K': str(self.stats['SO']) + ' STRIKEOUTS',
                 'RY': 'ROY',
-                'HR': str(self.stats['HR']) + ' HOMERS',
-                '20': '20 GAME WINNER'
+                'HR': str(self.stats['HR']) + ' HR',
             }
             if icon in icons_full_description.keys():
                 accolades_list.append(icons_full_description[icon])
 
-        if 'AS' in self.stats['award_summary']:
-            accolades_list.append('ALL-STAR')
-
+        # LOOK FOR AWARD PLACEMENT
+        awards_summary_list = self.stats['award_summary'].split(',')
+        for award in awards_summary_list:
+            award_split = award.split('-')
+            if len(award_split) > 1:
+                award_mapping = {'CYA': 'CY YOUNG', 'MVP': 'MVP', 'RoY': 'RoY'}
+                award_short = award_split[0]
+                if award_short in award_mapping.keys():
+                    award_full = award_mapping[award_short]
+                    award_placement = award_split[-1]
+                    if award_placement != '1':
+                        accolades_list.append(f'{self.ordinal(int(award_placement))} in {award_full}'.upper())
+            elif award == 'AS':
+                accolades_list.append('ALL-STAR')
         # DEFAULT ACCOLADES
         # HANDLES CASE OF NO AWARDS
+
+        # PITCHERS ----
         if self.is_pitcher:
-            accolades_list.append(str(self.stats['earned_run_avg']) + ' ERA')
+            # ERA
+            era_2_decimals = '%.2f' % self.stats['earned_run_avg']
+            accolades_list.append(str(era_2_decimals) + ' ERA')
             is_starter = 'STARTER' in self.positions_and_defense.keys()
             if is_starter:
-                accolades_list.append(str(self.stats['W']) + ' WINS')
+                # WINS
+                if self.stats['W'] > 14:
+                    accolades_list.append(str(self.stats['W']) + ' WINS')
             else:
-                accolades_list.append(str(self.stats['SV']) + ' SAVES')
-            accolades_list.append(str(self.stats['batting_avg']).replace('0.','.') + ' BA AGAINST')
+                if self.stats['SV'] > 20:
+                    # SAVES
+                    accolades_list.append(str(self.stats['SV']) + ' SAVES')
+
         else:
-            accolades_list.append(str(self.stats['batting_avg']).replace('0.','.') + ' BA')
-            accolades_list.append(str(self.stats['RBI']) + ' RBI')
-            accolades_list.append(str(self.stats['HR']) + ' HOMERS')
+        # HITTERS ----
+            # BATTING AVG
+            if self.stats['batting_avg'] >= 0.30:
+                ba_3_decimals = '%.3f' % self.stats['batting_avg']
+                accolades_list.append(str(ba_3_decimals).replace('0.','.') + ' BA')
+            # RBI
+            if self.stats['RBI'] >= 100:
+                accolades_list.append(str(self.stats['RBI']) + ' RBI')
+            # HOME RUNS
+            if self.stats['HR'] >= (15 if self.year == 2020 else 30):
+                accolades_list.append(str(self.stats['HR']) + ' HOMERS')
+            # HITS
+            if self.stats['H'] >= 175:
+                accolades_list.append(str(self.stats['H']) + ' HITS')
+            # dWAR
+            if float(self.stats['dWAR']) >= 2.5:
+                accolades_list.append(str(self.stats['dWAR']) + ' dWAR')
+            # OPS+
+            if 'onbase_plus_slugging_plus' in self.stats.keys():
+                accolades_list.append(str(self.stats['onbase_plus_slugging_plus']) + ' OPS+')           
+
+        # GENERIC ----
+        if 'bWAR' in self.stats.keys():
+            accolades_list.append(str(self.stats['bWAR']) + ' WAR')
 
         return accolades_list[0:3]
 
@@ -3245,7 +3324,8 @@ class ShowdownPlayerCardGenerator:
 
         # BACKGROUND CONTAINER IMAGE
         img_type_suffix = 'Control' if self.is_pitcher else 'Onbase'
-        background_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{img_type_suffix}.png'))
+        dark_mode_suffix = '-DARK' if self.is_dark_mode else ''
+        background_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{img_type_suffix}{dark_mode_suffix}.png'))
         font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
         command = str(self.chart['command'])
         num_chars_command = len(command)
@@ -3254,7 +3334,7 @@ class ShowdownPlayerCardGenerator:
 
         # ADD TEXT
         fill_color = self.__team_color_rgbs()
-        fill_color_hex = '#' + ''.join(f'{i:02X}' for i in fill_color[0:3])
+        fill_color_hex = self.__rbgs_to_hex(rgbs=fill_color)
         # SEPARATE 
         for index, char in enumerate(command):
             position_multiplier = 1 if (index + 1) == num_chars_command else -1
