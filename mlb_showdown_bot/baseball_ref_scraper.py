@@ -569,7 +569,7 @@ class BaseballReferenceScraper:
                     if self.team_override and partial_stats:
                         advanced_stats.update(partial_stats)
                     else:
-                        batting_against_row = batting_against_soup.find('tr',attrs={'class':'full','id': f'pitching_batting.{year}'})
+                        batting_against_row = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': f'pitching_batting.{year}'})
                         advanced_stats.update(self.__parse_generic_bref_row(batting_against_row))
         
         # STANDARD STATS

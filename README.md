@@ -102,11 +102,9 @@ The bot uses [Baseball Reference](https://www.baseball-reference.com) as it's so
 Stats are extracted from the the baseball reference page for the player id selected in the previous step. Stats like batting average, home runs, and defensive metrics (tzr/drs) are extracted only for the chosen season(s). For pitchers, opponent batting results are used (ex: batting average against). 
 
 Some of this player data is unavailable for certain years or timeframes. Below is a list of unsupported time periods:
-1. Pitchers before 1901 (no batting against data)
-2. Negro Leagues (no batting against data)
-3. Postseason (no batting against data)
-4. Minor Leagues (no batting against data)
-5. Spring Training (no batting against data)
+1. Postseason (no batting against data)
+2. Minor Leagues (no batting against data)
+3. Spring Training (no batting against data)
 
 If the selected season occured after 2015, sprint speed is also extracted from [Baseball Savant](https://baseballsavant.mlb.com/sprint_speed_leaderboard). A player's average sprint speed is used to determine in-game SPEED.
 
