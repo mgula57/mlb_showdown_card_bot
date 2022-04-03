@@ -1,26 +1,57 @@
-import argparse
-from tests.tests import analyze_baseline_weights
-
-parser = argparse.ArgumentParser(description="Test accuracy of Showdown Bot set compared to original WOC set")
-parser.add_argument('-c','--context', help='The showdown set meta to use (2000-2005)', default='2000')
-parser.add_argument('-t','--type', help='Choose either Hitter or Pitcher to test',default='Hitter')
-parser.add_argument('-cb','--is_current_baseline', action='store_true', help='Set to True to test for accuracy of current baseline weights, otherwise iterates through all possible weights')
-parser.add_argument('-ex','--exclude_volatile', action='store_true', help='Set to True to leave out categories such as out results and 1b+ from tests')
-parser.add_argument('-pts','--only_pts', action='store_true', help='Set to True to only test for point value.')
-parser.add_argument('-p','--positions', help='Choose to filter by certain positions', default='', type=str)
-parser.add_argument('-uw','--use_wotc', action='store_true', help='Use WOTC Command/Out combos')
-parser.add_argument('-co','--command_outs', help='Filter to only certain Command-Outs combinations. Enter like "10-5,..."', default='', type=str)
-
-
-args = parser.parse_args()
+from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
+from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
+from termcolor import colored
 
 if __name__ == "__main__":
-    # TEST SET ACCURACY
-    analyze_baseline_weights(context=int(args.context), 
-                             type=args.type, 
-                             is_testing_current_baseline=args.is_current_baseline,
-                             ignore_volatile_categories=args.exclude_volatile,
-                             is_pts_only=args.only_pts,
-                             position_filters=[str(item) for item in args.positions.split(',')],
-                             use_wotc_command_outs=args.use_wotc,
-                             command_out_combos=[str(item) for item in args.command_outs.split(',')])
+    
+    # DEFINE INPUTS
+    inputs_to_test = [
+        {'name': 'Juan Encarnacion', 'year': '2007',},
+        {'name': 'Walter Johnson', 'year': '1908',},
+        {'name': 'Manny Ramirez (LAD)', 'year': '2008',},
+        {'name': 'Mike Piazza (FLA)', 'year': '1997',},
+        {'name': 'Aroldis Chapman (NYY)', 'year': '2016',},
+        {'name': 'Derek Jeter', 'year': '2006+2014+2008',},
+        {'name': 'Old Hoss Radbourn', 'year': '1885-1889',},
+        {'name': 'Gary Carter', 'year': '1981+1988',},
+        {'name': 'Bartolo Colon (Hitter)', 'year': '2016',},
+        {'name': 'Shohei Ohtani (Pitcher)', 'year': '2021',},
+        {'name': 'Michael Lorenzen (Pitcher)', 'year': '2019',},
+        {'name': 'wittwh01', 'year': '1924',},
+        {'name': 'Josh Gibson ', 'year': '1939-1944',},
+        {'name': 'Satchel Paige', 'year': '1941+1965',},
+    ]
+    num_tests = len(inputs_to_test)
+    sets = ['2000','2001','2002','2003','2004','2005','2022-CLASSIC','2022-EXPANDED']
+
+    # TEST EACH PLAYER IN EACH SET
+    failures = 0
+    error_messages = []
+    for player_inputs in inputs_to_test:
+        result = 'SUCCESS'
+        try:
+            name = player_inputs['name']
+            year = player_inputs['year']
+            # GET PLAYER DATA
+            scraper = BaseballReferenceScraper(name=name,year=year)
+            statline = scraper.player_statline()
+            for set in sets:
+                # CREATE SHOWDOWN CARD 
+                showdown = ShowdownPlayerCardGenerator(
+                    name=name,
+                    year=year,
+                    stats=statline,
+                    context=set,
+                    print_to_cli=False
+                )
+        except Exception as e:
+            result = 'FAILED'
+            failures += 1
+            error_messages.append(f'{name}-{set}: {str(e)}')
+        print(colored(f'{name}: {result}', 'red' if result == 'FAILED' else 'green'))
+
+    # PRINT RESULT
+    pct_success = round((num_tests - failures) / num_tests * 100,2)
+    print(f"-- SUCCESS RATE: {pct_success}%--")
+    if len(error_messages) > 0:
+        print(error_messages)

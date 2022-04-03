@@ -15,6 +15,7 @@
 * [How it Works](#how-it-works)
     * [Player Identification](#player-identification)
     * [Gather Player Data](#gather-player-data)
+    * [Overrides](#overrides)
     * [Convert to MLB Showdown Card](#convert-to-mlb-showdown-card)
 * [Card Methodology](#card-methodology)
     * [Creating a Chart](#creating-a-chart)
@@ -101,13 +102,19 @@ The bot uses [Baseball Reference](https://www.baseball-reference.com) as it's so
 Stats are extracted from the the baseball reference page for the player id selected in the previous step. Stats like batting average, home runs, and defensive metrics (tzr/drs) are extracted only for the chosen season(s). For pitchers, opponent batting results are used (ex: batting average against). 
 
 Some of this player data is unavailable for certain years or timeframes. Below is a list of unsupported time periods:
-1. Pitchers before 1901 (no batting against data)
-2. Negro Leagues (no batting against data)
-3. Postseason (no batting against data)
-4. Minor Leagues (no batting against data)
-5. Spring Training (no batting against data)
+1. Postseason (no batting against data)
+2. Minor Leagues (no batting against data)
+3. Spring Training (no batting against data)
 
 If the selected season occured after 2015, sprint speed is also extracted from [Baseball Savant](https://baseballsavant.mlb.com/sprint_speed_leaderboard). A player's average sprint speed is used to determine in-game SPEED.
+
+### Overrides
+
+Overrides give additional ways to customize a player's card. They are applied by adding text after the player's name. These are the available overrides:
+
+- **(PITCHER)**: Type override to use a player's pitching stats. Can be applied to create proper 2-way players (ex: Shohei Ohtani (Pitcher)) or create pitching cards for position players (ex: Anthony Rizzo (Pitcher)).
+- **(HITTER)**: Type override to use a player's hitting stats. Can be applied to create proper 2-way players (ex: Michael Lorenzen (Hitter)) or create hitting cards for position players (ex: Mike Hampton (Hitter)).
+- **({TEAM_ID})**: Override to only use stats for a specific team. Can be used to create partial year cards for players that switched teams mid-season! (ex: Manny Ramirez (LAD)). Team Ids are found on the player's baseball reference page in the "Tm" column. Limited to seasons after 1918 and does not apply to multi-year or career long cards.
 
 ### Convert to MLB Showdown Card
 

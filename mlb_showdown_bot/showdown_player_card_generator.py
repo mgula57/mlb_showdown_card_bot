@@ -2225,7 +2225,7 @@ class ShowdownPlayerCardGenerator:
         if search_for_image:
             # -- GET PLAYER IMAGE --
             # SEARCH FOR PLAYER IMAGE
-            additional_substring_filters = [self.year, f'({self.team})']
+            additional_substring_filters = [self.year, f'({self.team})',f'({self.team})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
             if self.is_super_season:
                 additional_substring_filters.append('(SS)')
             elif self.is_cooperstown:
