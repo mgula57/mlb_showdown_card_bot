@@ -13,6 +13,12 @@ from bs4 import BeautifulSoup
 from pprint import pprint
 from datetime import datetime
 import unidecode
+try:
+    # ASSUME THIS IS A SUBMODULE IN A PACKAGE
+    from . import showdown_constants as sc
+except ImportError:
+    # USE LOCAL IMPORT
+    import showdown_constants as sc
 
 class BaseballReferenceScraper:
 
@@ -20,7 +26,8 @@ class BaseballReferenceScraper:
 # INIT
 
     def __init__(self, name, year):
-        if year.upper() == 'CAREER':
+        is_full_career = year.upper() == 'CAREER'
+        if is_full_career:
             year = 'CAREER'
         elif '-' in year:
             # RANGE OF YEARS
@@ -33,6 +40,8 @@ class BaseballReferenceScraper:
             year = [int(x.strip()) for x in years]
 
         self.name = name
+        
+        # PARSE MULTI YEARS
         if isinstance(year, list):
             is_multi_value_list = len(year) > 1
             self.is_multi_year = is_multi_value_list
@@ -40,6 +49,14 @@ class BaseballReferenceScraper:
         else:
             self.is_multi_year = False
             self.years = [year]
+
+        # CHECK FOR TEAM OVERRIDE
+        self.team_override = None
+        for team_id in sc.TEAM_COLOR_PRIMARY.keys():
+            team_match = f'({team_id})' in self.name.upper()
+            if team_match and not self.is_multi_year and not is_full_career:
+                self.team_override = team_id
+
         # CHECK FOR BASEBALL REFERENCE ID
         self.is_name_a_bref_id = any(char.isdigit() for char in name)
         if self.is_name_a_bref_id:
@@ -526,11 +543,11 @@ class BaseballReferenceScraper:
         table_prefix = 'batting' if type == 'Hitter' else 'pitching'
 
         if is_full_career:
-            standard_table = self.__get_career_totals_row(div_id=f'all_{table_prefix}_standard',soup_object=soup_for_advanced_stats)
+            standard_row = self.__get_career_totals_row(div_id=f'all_{table_prefix}_standard',soup_object=soup_for_advanced_stats)
             
         else:
-            standard_table_key = '{}_standard.{}'.format(table_prefix, year)
-            standard_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': standard_table_key})
+            standard_row_key = '{}_standard.{}'.format(table_prefix, year)
+            standard_row = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': standard_row_key})
 
         advanced_stats = {}
 
@@ -539,7 +556,7 @@ class BaseballReferenceScraper:
             if is_full_career:
                 try:
                     batting_against_table = self.__get_career_totals_row(div_id='div_pitching_batting',soup_object=soup_for_advanced_stats)
-                    advanced_stats.update(self.__parse_batting_against(batting_against_table))
+                    advanced_stats.update(self.__parse_generic_bref_row(batting_against_table))
                 except:
                     advanced_stats.update(self.__parse_splits_stats(year=year))
             else:
@@ -547,19 +564,30 @@ class BaseballReferenceScraper:
                 if self.__is_pitcher_from_1901_to_1918(year=year,type=type):
                     advanced_stats.update(self.__parse_splits_stats(year=year))
                 else:
-                    batting_against_table = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': 'pitching_batting.{}'.format(year)})
-                    advanced_stats.update(self.__parse_batting_against(batting_against_table))
+                    batting_against_soup = soup_for_advanced_stats.find('table', attrs={'id': 'pitching_batting'})
+                    partial_stats = self.__find_partial_team_stats_row(soup_object=batting_against_soup, team=self.team_override, year=year)
+                    if self.team_override and partial_stats:
+                        advanced_stats.update(partial_stats)
+                    else:
+                        batting_against_row = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': f'pitching_batting.{year}'})
+                        advanced_stats.update(self.__parse_generic_bref_row(batting_against_row))
         
         # STANDARD STATS
-        standard_stats_dict = self.__parse_standard_stats(type, standard_table, included_g_for_pitcher=is_full_career)
-        advanced_stats.update(standard_stats_dict)
+        standard_table_soup = soup_for_advanced_stats.find('div', attrs={'class': 'table_container', 'id': f'div_{table_prefix}_standard'})
+        partial_stats_soup = self.__find_partial_team_stats_row(soup_object=standard_table_soup, team=self.team_override, year=year, return_soup_object=True)
+        if self.team_override and partial_stats_soup:
+            advanced_stats.update(self.__parse_standard_stats(type, partial_stats_soup, included_g_for_pitcher=is_full_career))
+        else:
+            standard_stats_dict = self.__parse_standard_stats(type, standard_row, included_g_for_pitcher=is_full_career)
+            advanced_stats.update(standard_stats_dict)
 
         # PARSE AWARDS IF FULL CAREER
-        if is_full_career:
-            all_year_standard_stats = soup_for_advanced_stats.find_all('tr',attrs={'class':'full','id': re.compile(f"{table_prefix}_standard.")})
+        if is_full_career or self.team_override:
+            year_filter = '' if is_full_career else str(year)
+            all_year_standard_stats = soup_for_advanced_stats.find_all('tr',attrs={'class':'full','id': re.compile(f"{table_prefix}_standard.{year_filter}")})
             awards_total = ""
-            for year in all_year_standard_stats:
-                stats_dict = self.__parse_standard_stats(type, year)
+            for year_stats in all_year_standard_stats:
+                stats_dict = self.__parse_standard_stats(type, year_stats)
                 if 'is_sv_leader' in stats_dict:
                     advanced_stats['is_sv_leader'] = stats_dict['is_sv_leader']
                 year_award_summary = stats_dict['award_summary']
@@ -622,22 +650,27 @@ class BaseballReferenceScraper:
             advanced_stats['SB'] = 0
 
         # RATIO STATS
+        ratio_table_key = f'div_{table_prefix}_ratio'
         if is_full_career:
-            ratio_table_key = f'div_{table_prefix}_ratio'
-            ratio_table = self.__get_career_totals_row(div_id=ratio_table_key,soup_object=soup_for_advanced_stats)
+            ratio_row = self.__get_career_totals_row(div_id=ratio_table_key,soup_object=soup_for_advanced_stats)
         else:
-            ratio_table_key = f'{table_prefix}_ratio.{year}'
-            ratio_table = soup_for_advanced_stats.find('tr', attrs = {'class':'full','id': ratio_table_key})
-        advanced_stats.update(self.__parse_ratio_stats(ratio_table, slg=advanced_stats['slugging_perc']))
+            ratio_table = soup_for_advanced_stats.find('div', attrs = {'id': ratio_table_key})
+            partial_stats_soup = self.__find_partial_team_stats_row(soup_object=ratio_table, team=self.team_override, year=year, return_soup_object=True)
+            if self.team_override and partial_stats_soup:
+                ratio_row = partial_stats_soup
+            else:
+                ratio_row_key = f'{table_prefix}_ratio.{year}'
+                ratio_row = soup_for_advanced_stats.find('tr', attrs = {'class': 'full', 'id': ratio_row_key})
+        advanced_stats.update(self.__parse_ratio_stats(ratio_row=ratio_row, slg=advanced_stats['slugging_perc']))
 
         return advanced_stats
 
-    def __parse_standard_stats(self, type, standard_table, included_g_for_pitcher=False):
+    def __parse_standard_stats(self, type, soup_row, included_g_for_pitcher=False):
         """Parse standard batting table.
 
         Args:
           type: Player is Pitcher or Hitter.
-          standard_table: BeautifulSoup table object with season hitting stats.
+          soup_row: BeautifulSoup row object with season stats.
           included_g_for_pitcher: Boolean for whether to parse 'G' for pitchers.
 
         Returns:
@@ -646,7 +679,7 @@ class BaseballReferenceScraper:
 
         standard_stats_dict = {}
 
-        for category in standard_table:
+        for category in soup_row:
             stat_category = category['data-stat']
             # LEAGUE LEADER?
             is_league_leader = '<strong>' in str(category) # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD TEXT
@@ -695,55 +728,52 @@ class BaseballReferenceScraper:
         batting_against_dict = dict(zip(header_values, stats_values))
         return batting_against_dict
 
-    def __parse_batting_against(self, batting_against_table):
+    def __parse_generic_bref_row(self, row):
         """Parse hitting stats a pitcher allowed.
 
         Args:
-          batting_against_table: BeautifulSoup table object with opponent hitting stats.
-
-        Raises:
-          ValueError: No Pitcher Data Before 1918 can be used to calculate Showdown Metrics needed for a card.
+          row: BeautifulSoup tr row object with stats
 
         Returns:
-          Dict with opponent hitting statistics.
+          Dict with statistics
         """
 
-        batting_against_dict = {}
-        if batting_against_table is not None:
-            for category in batting_against_table:
+        final_stats_dict = {}
+        if row is not None:
+            for category in row:
                 stat_category = category['data-stat']
                 stat = category.get_text()
                 stat = self.__convert_to_numeric(stat)
-                if stat_category == 'IBB' and stat == '':
+                if stat_category in ['IBB'] and stat == '':
                     stat = 0
-                batting_against_dict[stat_category]= stat
+                final_stats_dict[stat_category]= stat
 
-        return batting_against_dict
+        return final_stats_dict
 
-    def __parse_ratio_stats(self, ratio_table, slg):
+    def __parse_ratio_stats(self, ratio_row, slg):
         """Parse out ratios (GB/AO, PU)
 
         Args:
-          ratio_table: BeautifulSoup table object with ratios.
+          ratio_row: BeautifulSoup table row for ratios.
           slg: Slugging Pct, used if ratio's dont exist
 
         Returns:
           Dict with ratio statistics.
         """
 
-        if ratio_table is None:
+        if ratio_row is None:
             # DEFAULT TO 50 / 50 SPLIT
             slg_percentile = self.__percentile(minValue=0.3, maxValue=0.5, value=slg)
             multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
             gb_ao_ratio = 1.5 * max(multiplier, 0.5)
             pu_ratio = 0.16 * max(multiplier, 0.5)
         else:
-            gb_ao_ratio_raw = ratio_table.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
+            gb_ao_ratio_raw = ratio_row.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
             try:
                 gb_ao_ratio = float(gb_ao_ratio_raw)
             except:
                 gb_ao_ratio = 1.0
-            pu_ratio_raw = ratio_table.find('td',attrs={'class':'right','data-stat': 'infield_fb_perc'})
+            pu_ratio_raw = ratio_row.find('td',attrs={'class':'right','data-stat': 'infield_fb_perc'})
             if pu_ratio_raw:
                 # PU RATIO DATA AVAILABLE AFTER 1988
                 pu_ratio_text = pu_ratio_raw.get_text()
@@ -1102,6 +1132,36 @@ class BaseballReferenceScraper:
         except:
             return False
 
+    def __find_partial_team_stats_row(self, soup_object, team, year, return_soup_object=False):
+        """Iterates through each object to try to find specific team stats for a given year.
+        
+        Args:
+          soup_object: Beautiful Soup object to search in
+          team: Team ID to search for
+          year: Year for player stats
+          return_soup_object: Optionally return the soup object instead of the dictionary
+        
+        Returns:
+          Soup object for the players statline for that specific team.
+        """
+
+        # TEAM OVERRIDE IS NONE, RETURN NONE
+        if not team:
+            return None
+
+        # FIND ALL OPPORTUNITIES
+        partial_seasons = soup_object.find_all('tr',attrs={'class':'partial_table'})
+
+        # FILTER TO ROW WHERE TEAM AND YEAR MATCH
+        for season in partial_seasons:
+            data = self.__parse_generic_bref_row(season)
+            if 'team_ID' in data.keys() and 'year_ID' in data.keys():
+                if data['team_ID'] == team and str(data['year_ID']) == year:
+                    return season if return_soup_object else data
+
+        # NO MATCHES, RETURN NONE    
+        return None
+            
 # ------------------------------------------------------------------------
 # HELPER METHODS
 
