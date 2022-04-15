@@ -606,7 +606,8 @@ class ShowdownPlayerCardGenerator:
 
         combo_accuracies = {}
         for combo, predicted_obp in combos.items():
-            accuracy = self.__relative_pct_accuracy(actual=obp, measurement=predicted_obp)
+            obp_for_measurement = 0.001 if obp == 0 else obp
+            accuracy = self.__relative_pct_accuracy(actual=obp_for_measurement, measurement=predicted_obp)
             combo_accuracies[combo] = accuracy
 
         # LIMIT TO TOP N BY ACCURACY
@@ -792,6 +793,8 @@ class ShowdownPlayerCardGenerator:
                 rounded_results = 12 if key == 'bb' and rounded_results > 13 else rounded_results
                 # MAX HR RESULTS AT 10
                 rounded_results = 10 if key == 'hr' and rounded_results > 10 else rounded_results
+                # MAX 2B RESULTS AT 12
+                rounded_results = 12 if key == '2b' and rounded_results > 12 else rounded_results
                 chart[key] = rounded_results
 
         # FILL "OUT" CATEGORIES (PU, GB, FB)
