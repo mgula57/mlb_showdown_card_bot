@@ -29,7 +29,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -76,6 +76,7 @@ class ShowdownPlayerCardGenerator:
         self.is_super_season = is_super_season
         self.is_all_star_game = is_all_star_game
         self.is_holiday = is_holiday
+        self.is_rookie_season = is_rookie_season
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
         self.card_img_output_folder_path = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
@@ -2422,6 +2423,12 @@ class ShowdownPlayerCardGenerator:
             cooperstown_logo.paste(year_text, year_coords, year_text)
             team_logo = cooperstown_logo
 
+        # OVERRIDE IF ROOKIE SEASON
+        if self.is_rookie_season:
+            team_logo = self.__rookie_season_image()
+            team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
+            logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
+
         return team_logo, logo_paste_coordinates
 
     def __team_logo_historical_alternate_extension(self, include_dash=True):
@@ -3184,6 +3191,42 @@ class ShowdownPlayerCardGenerator:
             accolades_list.append(str(self.stats['bWAR']) + ' WAR')
 
         return accolades_list[0:3]
+
+    def __rookie_season_image(self):
+        """Creates image for optional rookie season logo.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for rookie season logo + year.
+        """
+
+        # BACKGROUND IMAGE LOGO
+        rookie_season_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-Rookie Season.png'))
+
+        # ADD YEAR
+        first_year = str(min(self.year_list))
+        year_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'SquareSlabSerif.ttf')
+        year_font = ImageFont.truetype(year_font_path, size=70)
+        for index, year_part in enumerate([first_year[0:2],first_year[2:4]]):
+            is_suffix = index > 0
+            year_text = self.__text_image(
+                text = year_part,
+                size = (150,150),
+                font = year_font,
+                alignment = "left"
+            )
+            location_original = sc.IMAGE_LOCATIONS['rookie_season_year_text'][self.context_year]
+            x_adjustment = 230 if is_suffix else 0
+            paste_location = (location_original[0] + x_adjustment, location_original[1])
+            rookie_season_image.paste(year_text,paste_location,year_text)
+
+        # RESIZE
+        logo_size = sc.IMAGE_SIZES['rookie_season'][str(self.context_year)]
+        rookie_season_image = rookie_season_image.resize(logo_size, Image.ANTIALIAS)
+
+        return rookie_season_image
 
     def __add_icons_to_image(self, player_image):
         """Add icon images (if player has icons) to existing player_image object.

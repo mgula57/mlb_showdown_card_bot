@@ -24,10 +24,12 @@ parser.add_argument('-show','--show_image', action='store_true', help='Optionall
 parser.add_argument('-cc','--is_cc', action='store_true', help='Optionally make the card Cooperstown Collection')
 parser.add_argument('-ss','--is_ss', action='store_true', help='Optionally make the card Super Season')
 parser.add_argument('-asg','--is_asg', action='store_true', help='Optionally make the card All Star Game')
+parser.add_argument('-rs','--is_rookie_season', action='store_true', help='Optionally make the card have a rookie season logo')
 parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default='', type=str)
 parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='BS')
 parser.add_argument('-bor','--add_border', action='store_true', help='Optionally add border to player image')
 parser.add_argument('-dark','--dark_mode', action='store_true', help='Optionally toggle dark mode (2022+ sets only)')
+
 
 args = parser.parse_args()
 
@@ -49,6 +51,7 @@ def main():
         is_cooperstown=args.is_cc,
         is_super_season=args.is_ss,
         is_all_star_game=args.is_asg,
+        is_rookie_season=args.is_rookie_season,
         context=args.context,
         expansion=args.expansion,
         offset=args.offset,
