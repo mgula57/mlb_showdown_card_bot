@@ -93,10 +93,10 @@ function setTheme(themeName) {
         document.getElementById(id).className = (id + "_" + themeName);
     }
 
-    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "setnum", "statsVersionSelection", "darkModeToggleLabel", "addBorderLabel", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table"]
+    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "setnum", "statsVersionSelection", "darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table"]
     for (const id of form_inputs_to_alter) {
         var current_name = document.getElementById(id).className
-        const is_text_only = ["darkModeToggleLabel", "addBorderLabel", "darkThemeToggleLabel"].includes(id)
+        const is_text_only = ["darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel"].includes(id)
         const suffix = (is_text_only) ? 'text-muted' : 'bg-dark text-white';
         if (themeName == 'dark') {
             if (current_name.includes(suffix) == false) {
@@ -195,6 +195,7 @@ $(function () {
                 is_holiday: is_holiday,
                 addBorder: $('#addBorder').is(':checked'),
                 is_dark_mode: $('#darkModeToggle').is(':checked'),
+                is_variable_spd_01: $('#varSpdToggle').is(':checked'),
             }, function (data) {
                 $('#overlay').hide();
                 $("#error").text(data.error);

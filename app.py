@@ -35,8 +35,9 @@ class CardLog(db.Model):
     is_holiday = db.Column(db.Boolean)
     is_dark_mode = db.Column(db.Boolean)
     is_rookie_season = db.Column(db.Boolean)
+    is_variable_spd_01 = db.Column(db.Boolean)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_01):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -54,8 +55,9 @@ class CardLog(db.Model):
         self.is_holiday = is_holiday
         self.is_dark_mode = is_dark_mode
         self.is_rookie_season = is_rookie_season
+        self.is_variable_spd_01 = is_variable_spd_01
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season):
+def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_01):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -73,7 +75,8 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             set_num=set_num,
             is_holiday=is_holiday,
             is_dark_mode=is_dark_mode,
-            is_rookie_season=is_rookie_season
+            is_rookie_season=is_rookie_season,
+            is_variable_spd_01=is_variable_spd_01
         )
         db.session.add(card_log)
         db.session.commit()
@@ -108,6 +111,7 @@ def card_creator():
     offset = None
     add_img_border = None
     is_dark_mode = None
+    is_variable_spd_01 = None
 
     try:
         # PARSE INPUTS
@@ -132,6 +136,7 @@ def card_creator():
         expansion_raw = str(request.args.get('expansion'))
         is_border = request.args.get('addBorder').lower() == 'true'
         dark_mode = request.args.get('is_dark_mode').lower() == 'true'
+        is_variable_spd_01 = request.args.get('is_variable_spd_01').lower() == 'true'
 
         # SCRAPE PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
@@ -151,6 +156,7 @@ def card_creator():
         expansion = "BS" if expansion_raw == '' else expansion_raw
         add_img_border = is_border if is_border else False
         is_dark_mode = dark_mode if dark_mode else False
+        is_variable_spd_01 = is_variable_spd_01 if is_variable_spd_01 else False
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
@@ -171,6 +177,7 @@ def card_creator():
             set_number=set_number,
             add_image_border=add_img_border,
             is_dark_mode=is_dark_mode,
+            is_variable_speed_01=is_variable_spd_01,
             is_running_in_flask=True
         )
         error = "Error - Unable to create Showdown Card Image."
@@ -202,7 +209,8 @@ def card_creator():
             set_num=set_num,
             is_holiday=is_holiday,
             is_dark_mode=is_dark_mode,
-            is_rookie_season=is_rookie_season
+            is_rookie_season=is_rookie_season,
+            is_variable_spd_01=is_variable_spd_01
         )
         return jsonify(
             image_path=card_image_path,
@@ -234,7 +242,8 @@ def card_creator():
             set_num=set_num,
             is_holiday=is_holiday,
             is_dark_mode=is_dark_mode,
-            is_rookie_season=is_rookie_season
+            is_rookie_season=is_rookie_season,
+            is_variable_spd_01=is_variable_spd_01
         )
         return jsonify(
             image_path=None,

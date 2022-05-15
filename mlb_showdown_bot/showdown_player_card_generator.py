@@ -29,7 +29,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_01 = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -89,6 +89,7 @@ class ShowdownPlayerCardGenerator:
         self.is_stats_estimate = 'is_stats_estimate' in stats.keys()
         self.add_image_border = add_image_border
         self.is_dark_mode = is_dark_mode
+        self.is_variable_speed_01 = is_variable_speed_01
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -501,7 +502,7 @@ class ShowdownPlayerCardGenerator:
             letter = 'A'
 
         # IF 2000 OR 2001, SPEED VALUES CAN ONLY BE 10,15,20
-        if self.context in ['2000','2001']:
+        if self.context == '2000' or (self.context == '2001' and not self.is_variable_speed_01):
             spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
             speed = spd_letter_to_number[letter]
 
@@ -2742,7 +2743,8 @@ class ShowdownPlayerCardGenerator:
                     )
                     parenthesis_left = self.__text_image(text='(   )', size=(300, 300), font=font_parenthesis)
                     metadata_image.paste(color, (1116,342), parenthesis_left)
-                    metadata_image.paste(color, (1128,345), speed_num_text)
+                    spd_number_x_position = 1135 if len(str(self.speed)) < 2 else 1128
+                    metadata_image.paste(color, (spd_number_x_position,345), speed_num_text)
                 # POSITION(S)
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)
                 ordered_by_len_position = sorted(self.positions_and_defense.items(), key=lambda l: len(l[0]), reverse=True)
