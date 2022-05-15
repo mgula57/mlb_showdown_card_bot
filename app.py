@@ -34,8 +34,9 @@ class CardLog(db.Model):
     set_num = db.Column(db.Text)
     is_holiday = db.Column(db.Boolean)
     is_dark_mode = db.Column(db.Boolean)
+    is_rookie_season = db.Column(db.Boolean)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -52,8 +53,9 @@ class CardLog(db.Model):
         self.set_num = set_num
         self.is_holiday = is_holiday
         self.is_dark_mode = is_dark_mode
+        self.is_rookie_season = is_rookie_season
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode):
+def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -70,7 +72,8 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             stats_offset=stats_offset,
             set_num=set_num,
             is_holiday=is_holiday,
-            is_dark_mode=is_dark_mode
+            is_dark_mode=is_dark_mode,
+            is_rookie_season=is_rookie_season
         )
         db.session.add(card_log)
         db.session.commit()
@@ -95,6 +98,7 @@ def card_creator():
     set = None
     is_cooperstown = None
     is_super_season = None
+    is_rookie_season = None
     is_all_star_game = None
     is_holiday = None
     img_url = None
@@ -114,6 +118,7 @@ def card_creator():
         url = request.args.get('url')
         is_cc = request.args.get('cc').lower() == 'true'
         is_ss = request.args.get('ss').lower() == 'true'
+        is_rs = request.args.get('rs').lower() == 'true'
         is_asg = request.args.get('asg').lower() == 'true'
         is_hol = request.args.get('is_holiday').lower() == 'true'
         try:
@@ -134,6 +139,7 @@ def card_creator():
         statline = scraper.player_statline()
         is_cooperstown = is_cc if is_cc else False
         is_super_season = is_ss if is_ss else False
+        is_rookie_season = is_rs if is_rs else False
         is_all_star_game = is_asg if is_asg else False
         is_holiday = is_hol if is_hol else False
         img_url = None if url == '' else url
@@ -158,6 +164,7 @@ def card_creator():
             player_image_url=img_url,
             is_cooperstown=is_cooperstown,
             is_super_season=is_super_season,
+            is_rookie_season=is_rookie_season,
             is_all_star_game=is_all_star_game,
             is_holiday=is_holiday,
             offset=offset,
@@ -194,7 +201,8 @@ def card_creator():
             stats_offset=offset,
             set_num=set_num,
             is_holiday=is_holiday,
-            is_dark_mode=is_dark_mode
+            is_dark_mode=is_dark_mode,
+            is_rookie_season=is_rookie_season
         )
         return jsonify(
             image_path=card_image_path,
@@ -225,7 +233,8 @@ def card_creator():
             stats_offset=offset,
             set_num=set_num,
             is_holiday=is_holiday,
-            is_dark_mode=is_dark_mode
+            is_dark_mode=is_dark_mode,
+            is_rookie_season=is_rookie_season
         )
         return jsonify(
             image_path=None,

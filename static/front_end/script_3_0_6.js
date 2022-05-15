@@ -171,6 +171,7 @@ $(function () {
             var editionSelection = $("#editionSelection :selected").val();
             var is_cc = editionSelection == "Cooperstown Collection";
             var is_ss = editionSelection == "Super Season";
+            var is_rs = editionSelection == "Rookie Season";
             var is_asg = editionSelection == "All-Star Game";
             var is_holiday = editionSelection == "Holiday";
 
@@ -186,6 +187,7 @@ $(function () {
                 img_name: image_name,
                 cc: is_cc,
                 ss: is_ss,
+                rs: is_rs,
                 asg: is_asg,
                 set_num: $('input[name="setnum"]').val(),
                 offset: selectedOffset,
