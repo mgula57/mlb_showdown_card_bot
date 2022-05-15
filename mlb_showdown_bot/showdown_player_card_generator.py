@@ -2054,6 +2054,12 @@ class ShowdownPlayerCardGenerator:
         team_logo, team_logo_coords = self.__team_logo_image()
         player_image.paste(team_logo, team_logo_coords, team_logo)
 
+        # IF 2001 ROOKIE SEASON, ADD ADDITIONAL LOGO
+        if self.is_rookie_season and self.context == '2001':
+            rs_logo = self.__rookie_season_image()
+            logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
+            player_image.paste(rs_logo, logo_paste_coordinates, rs_logo)
+
         # METADATA
         metadata_image, color = self.__metadata_image()
         player_image.paste(color, sc.IMAGE_LOCATIONS['metadata'][str(self.context_year)], metadata_image)
@@ -2424,7 +2430,7 @@ class ShowdownPlayerCardGenerator:
             team_logo = cooperstown_logo
 
         # OVERRIDE IF ROOKIE SEASON
-        if self.is_rookie_season:
+        if self.is_rookie_season and self.context != '2001':
             team_logo = self.__rookie_season_image()
             team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
