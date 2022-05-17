@@ -29,7 +29,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_01 = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -89,7 +89,7 @@ class ShowdownPlayerCardGenerator:
         self.is_stats_estimate = 'is_stats_estimate' in stats.keys()
         self.add_image_border = add_image_border
         self.is_dark_mode = is_dark_mode
-        self.is_variable_speed_01 = is_variable_speed_01
+        self.is_variable_speed_00_01 = is_variable_speed_00_01
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -502,7 +502,7 @@ class ShowdownPlayerCardGenerator:
             letter = 'A'
 
         # IF 2000 OR 2001, SPEED VALUES CAN ONLY BE 10,15,20
-        if self.context == '2000' or (self.context == '2001' and not self.is_variable_speed_01):
+        if self.context in ('2000', '2001') and not self.is_variable_speed_00_01:
             spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
             speed = spd_letter_to_number[letter]
 
@@ -2727,12 +2727,15 @@ class ShowdownPlayerCardGenerator:
                 metadata_image.paste(sc.COLOR_WHITE, (1260,420), ip_text)
             else:
                 # SPEED | HAND
-                font_speed_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
-                speed_text = self.__text_image(text='SPEED {}'.format(self.speed_letter), size=(900, 300), font=font_speed_hand)
-                hand_text = self.__text_image(text=self.hand[-1], size=(300, 300), font=font_speed_hand)
-                metadata_image.paste(color, (969 if self.context == '2000' else 915,342), speed_text)
+                is_variable_spd_2000 = self.context == '2000' and self.is_variable_speed_00_01
+                font_size_speed = 40 if is_variable_spd_2000 else 54
+                font_speed = ImageFont.truetype(helvetica_neue_lt_path, size=font_size_speed)
+                font_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
+                speed_text = self.__text_image(text='SPEED {}'.format(self.speed_letter), size=(900, 300), font=font_speed)
+                hand_text = self.__text_image(text=self.hand[-1], size=(300, 300), font=font_hand)
+                metadata_image.paste(color, (969 if self.context == '2000' else 915, 345 if is_variable_spd_2000 else 342), speed_text)
                 metadata_image.paste(color, (1212,342), hand_text)
-                if self.context == '2001':
+                if self.context == '2001' or is_variable_spd_2000:
                     # ADD # TO SPEED
                     font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
                     font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)

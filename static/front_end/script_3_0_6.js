@@ -195,7 +195,7 @@ $(function () {
                 is_holiday: is_holiday,
                 addBorder: $('#addBorder').is(':checked'),
                 is_dark_mode: $('#darkModeToggle').is(':checked'),
-                is_variable_spd_01: $('#varSpdToggle').is(':checked'),
+                is_variable_spd_00_01: $('#varSpdToggle').is(':checked'),
             }, function (data) {
                 $('#overlay').hide();
                 $("#error").text(data.error);
