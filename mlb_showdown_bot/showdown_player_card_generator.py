@@ -2940,8 +2940,7 @@ class ShowdownPlayerCardGenerator:
 
         # FONT FOR SET
         helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
-        base_font_size = 135 if int(self.context_year) < 2022 else 180
-        font_size = 100 if self.is_multi_year and self.context_year == '2003' else base_font_size
+        font_size = 135 if int(self.context_year) < 2022 else 180
         set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size)
 
         set_image = Image.new('RGBA', (1500, 2100), 255)
@@ -2965,8 +2964,9 @@ class ShowdownPlayerCardGenerator:
             if self.is_multi_year and self.context_year in ['2004', '2005']:
                 # EMPTY YEAR
                 year_string = ''
-            elif self.is_full_career and self.context_year == '2003':
-                year_string = 'ALL'
+            elif (self.is_full_career or self.is_multi_year) and self.context_year == '2003':
+                year_string = 'ALL' if self.is_full_career else 'MLT'
+                set_image_location = (set_image_location[0]-5,set_image_location[1])
             elif self.is_multi_year and self.context_year == '2022':
                 set_image_location = (set_image_location[0]-15,set_image_location[1])
                 if '-' in year_as_str:
