@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, jsonify, Response
 from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 import os
+import pandas as pd
+from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -35,9 +37,10 @@ class CardLog(db.Model):
     is_holiday = db.Column(db.Boolean)
     is_dark_mode = db.Column(db.Boolean)
     is_rookie_season = db.Column(db.Boolean)
-    is_variable_spd_01 = db.Column(db.Boolean)
+    is_variable_spd_00_01 = db.Column(db.Boolean)
+    is_random = db.Column(db.Boolean)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_01):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -55,9 +58,10 @@ class CardLog(db.Model):
         self.is_holiday = is_holiday
         self.is_dark_mode = is_dark_mode
         self.is_rookie_season = is_rookie_season
-        self.is_variable_spd_01 = is_variable_spd_01
+        self.is_variable_spd_00_01 = is_variable_spd_00_01
+        self.is_random = is_random
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_01):
+def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -76,7 +80,8 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             is_holiday=is_holiday,
             is_dark_mode=is_dark_mode,
             is_rookie_season=is_rookie_season,
-            is_variable_spd_01=is_variable_spd_01
+            is_variable_spd_00_01=is_variable_spd_00_01,
+            is_random=is_random,
         )
         db.session.add(card_log)
         db.session.commit()
@@ -111,7 +116,8 @@ def card_creator():
     offset = None
     add_img_border = None
     is_dark_mode = None
-    is_variable_spd_01 = None
+    is_variable_spd_00_01 = None
+    is_random = None
 
     try:
         # PARSE INPUTS
@@ -136,7 +142,11 @@ def card_creator():
         expansion_raw = str(request.args.get('expansion'))
         is_border = request.args.get('addBorder').lower() == 'true'
         dark_mode = request.args.get('is_dark_mode').lower() == 'true'
-        is_variable_spd_01 = request.args.get('is_variable_spd_01').lower() == 'true'
+        is_variable_spd_00_01 = request.args.get('is_variable_spd_00_01').lower() == 'true'
+        is_random = name.upper() == '((RANDOM))'
+        if is_random:
+            # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
+            name, year = random_player_id_and_year()
 
         # SCRAPE PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
@@ -156,7 +166,7 @@ def card_creator():
         expansion = "BS" if expansion_raw == '' else expansion_raw
         add_img_border = is_border if is_border else False
         is_dark_mode = dark_mode if dark_mode else False
-        is_variable_spd_01 = is_variable_spd_01 if is_variable_spd_01 else False
+        is_variable_speed_00_01 = is_variable_spd_00_01 if is_variable_spd_00_01 else False
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
@@ -177,7 +187,7 @@ def card_creator():
             set_number=set_number,
             add_image_border=add_img_border,
             is_dark_mode=is_dark_mode,
-            is_variable_speed_01=is_variable_spd_01,
+            is_variable_speed_00_01=is_variable_speed_00_01,
             is_running_in_flask=True
         )
         error = "Error - Unable to create Showdown Card Image."
@@ -210,7 +220,8 @@ def card_creator():
             is_holiday=is_holiday,
             is_dark_mode=is_dark_mode,
             is_rookie_season=is_rookie_season,
-            is_variable_spd_01=is_variable_spd_01
+            is_variable_spd_00_01=is_variable_speed_00_01,
+            is_random=is_random
         )
         return jsonify(
             image_path=card_image_path,
@@ -243,7 +254,8 @@ def card_creator():
             is_holiday=is_holiday,
             is_dark_mode=is_dark_mode,
             is_rookie_season=is_rookie_season,
-            is_variable_spd_01=is_variable_spd_01
+            is_variable_spd_00_01=is_variable_spd_00_01,
+            is_random=is_random
         )
         return jsonify(
             image_path=None,
@@ -268,5 +280,13 @@ def upload():
     except:
         name = ''
 
+def random_player_id_and_year():
+    random_players_filepath = os.path.join(Path(os.path.dirname(__file__)),'random_players.csv')
+    random_players_pd = pd.read_csv(random_players_filepath, index_col=None)
+    random_players_qualified = random_players_pd[(random_players_pd['games_played'] > 50) | (random_players_pd['games_pitched'] > 20)]
+    random_player_sample = random_players_qualified.sample(1).to_dict('records')[0]
+
+    return random_player_sample['player_id'], str(random_player_sample['year'])
+
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
