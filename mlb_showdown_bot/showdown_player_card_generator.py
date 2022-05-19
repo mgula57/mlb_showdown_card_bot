@@ -2043,7 +2043,8 @@ class ShowdownPlayerCardGenerator:
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
-        location_key = 'player_name_small' if len(self.name) > 18 else 'player_name'
+        small_name_cutoff = 18 if self.context == '2000' else 19
+        location_key = 'player_name_small' if len(self.name) >= small_name_cutoff else 'player_name'
         name_paste_location = sc.IMAGE_LOCATIONS[location_key][str(self.context_year)]
         if self.context_year in ['2000', '2001']:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
@@ -2586,25 +2587,32 @@ class ShowdownPlayerCardGenerator:
         # PARSE NAME STRING
         first, last = self.name.upper().split(" ", 1)
         name = self.name.upper() if self.context_year != '2001' else first
-        is_name_over_char_limit = len(name) > 18
+        is_name_over_char_limit = len(name) > 15
 
         futura_black_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Futura Black.ttf')
         helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
         helvetica_neue_cond_black_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
+        helvetica_neue_lt_93_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-93-Black-Extended-Oblique.ttf')
 
         # DEFAULT NAME ATTRIBUTES
         name_font_path = helvetica_neue_lt_path
         has_border = False
         border_color = None
-        fill_color = 255
         overlay_image_path = None
 
         # DEFINE ATTRIBUTES BASED ON CONTEXT
         if self.context == '2000':
             name_rotation = 90
             name_alignment = "center"
-            name_size = 110 if is_name_over_char_limit else 135
+            is_name_over_18_chars = len(name) >= 18
+            is_name_over_15_chars = len(name) >= 15
+            name_size = 145
+            if is_name_over_18_chars:
+                name_size = 110
+            elif is_name_over_15_chars:
+                name_size = 127
             name_color = "#D2D2D2"
+            name_font_path = helvetica_neue_lt_93_path
             padding = 0
             overlay_image_path = os.path.join(os.path.dirname(__file__), 'templates', '2000-Name-Text-Background.png')
         elif self.context == '2001':
@@ -2645,7 +2653,6 @@ class ShowdownPlayerCardGenerator:
             has_border = False
 
         name_font = ImageFont.truetype(name_font_path, size=name_size)
-
         # CREATE TEXT IMAGE
         final_text = self.__text_image(
             text = name,
@@ -2662,9 +2669,7 @@ class ShowdownPlayerCardGenerator:
 
         # ADJUSTMENTS
         if self.context == '2000':
-            # STRETCH OUT NAME
-            text_stretched = final_text.resize((300,5100), Image.ANTIALIAS)
-            final_text = text_stretched.crop((0,1545,300,3555))
+            # SETUP COLOR FOR LATER STEP OF IMAGE OVERLAY
             name_color = final_text
         elif self.context == '2001':
             # ADD LAST NAME
