@@ -39,8 +39,9 @@ class CardLog(db.Model):
     is_rookie_season = db.Column(db.Boolean)
     is_variable_spd_00_01 = db.Column(db.Boolean)
     is_random = db.Column(db.Boolean)
+    is_automated_image = db.Column(db.Boolean)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -60,8 +61,9 @@ class CardLog(db.Model):
         self.is_rookie_season = is_rookie_season
         self.is_variable_spd_00_01 = is_variable_spd_00_01
         self.is_random = is_random
+        self.is_automated_image = is_automated_image
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random):
+def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -82,6 +84,7 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             is_rookie_season=is_rookie_season,
             is_variable_spd_00_01=is_variable_spd_00_01,
             is_random=is_random,
+            is_automated_image=is_automated_image,
         )
         db.session.add(card_log)
         db.session.commit()
@@ -118,6 +121,7 @@ def card_creator():
     is_dark_mode = None
     is_variable_spd_00_01 = None
     is_random = None
+    is_automated_image = None
 
     try:
         # PARSE INPUTS
@@ -221,7 +225,8 @@ def card_creator():
             is_dark_mode=is_dark_mode,
             is_rookie_season=is_rookie_season,
             is_variable_spd_00_01=is_variable_speed_00_01,
-            is_random=is_random
+            is_random=is_random,
+            is_automated_image=is_automated_image
         )
         return jsonify(
             image_path=card_image_path,
@@ -255,7 +260,8 @@ def card_creator():
             is_dark_mode=is_dark_mode,
             is_rookie_season=is_rookie_season,
             is_variable_spd_00_01=is_variable_spd_00_01,
-            is_random=is_random
+            is_random=is_random,
+            is_automated_image=is_automated_image
         )
         return jsonify(
             image_path=None,
