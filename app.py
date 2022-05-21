@@ -206,7 +206,7 @@ def card_creator():
         player_year = showdown.year
         player_context = showdown.context
         bref_url = showdown.bref_url
-
+        name = player_name if is_random else name # LOG ACTUAL NAME IF IS RANDOMIZED PLAYER
         error = ''
         log_card_submission_to_db(
             name=name,
