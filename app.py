@@ -295,4 +295,4 @@ def random_player_id_and_year():
     return random_player_sample['player_id'], str(random_player_sample['year'])
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
