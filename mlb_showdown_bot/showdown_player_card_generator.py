@@ -29,11 +29,11 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "3.0"
+        self.version = "3.1"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.bref_url = stats['bref_url'] if 'bref_url' in stats.keys() else ''
@@ -76,6 +76,7 @@ class ShowdownPlayerCardGenerator:
         self.is_super_season = is_super_season
         self.is_all_star_game = is_all_star_game
         self.is_holiday = is_holiday
+        self.is_rookie_season = is_rookie_season
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
         self.card_img_output_folder_path = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
@@ -88,6 +89,7 @@ class ShowdownPlayerCardGenerator:
         self.is_stats_estimate = 'is_stats_estimate' in stats.keys()
         self.add_image_border = add_image_border
         self.is_dark_mode = is_dark_mode
+        self.is_variable_speed_00_01 = is_variable_speed_00_01
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -500,7 +502,7 @@ class ShowdownPlayerCardGenerator:
             letter = 'A'
 
         # IF 2000 OR 2001, SPEED VALUES CAN ONLY BE 10,15,20
-        if self.context in ['2000','2001']:
+        if self.context in ('2000', '2001') and not self.is_variable_speed_00_01:
             spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
             speed = spd_letter_to_number[letter]
 
@@ -2041,7 +2043,8 @@ class ShowdownPlayerCardGenerator:
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
-        location_key = 'player_name_small' if len(self.name) > 18 else 'player_name'
+        small_name_cutoff = 18 if self.context == '2000' else 19
+        location_key = 'player_name_small' if len(self.name) >= small_name_cutoff else 'player_name'
         name_paste_location = sc.IMAGE_LOCATIONS[location_key][str(self.context_year)]
         if self.context_year in ['2000', '2001']:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
@@ -2052,6 +2055,12 @@ class ShowdownPlayerCardGenerator:
         # ADD TEAM LOGO
         team_logo, team_logo_coords = self.__team_logo_image()
         player_image.paste(team_logo, team_logo_coords, team_logo)
+
+        # IF 2001 ROOKIE SEASON, ADD ADDITIONAL LOGO
+        if self.is_rookie_season and self.context == '2001':
+            rs_logo = self.__rookie_season_image()
+            logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
+            player_image.paste(rs_logo, logo_paste_coordinates, rs_logo)
 
         # METADATA
         metadata_image, color = self.__metadata_image()
@@ -2235,6 +2244,8 @@ class ShowdownPlayerCardGenerator:
                 additional_substring_filters.append('(CC)')
             elif self.is_all_star_game:
                 additional_substring_filters.append('(ASG)')
+            elif self.is_rookie_season:
+                additional_substring_filters.append('(RS)')
             if len(self.type_override) > 0:
                 additional_substring_filters.append(self.type_override)
             if self.is_dark_mode:
@@ -2422,6 +2433,12 @@ class ShowdownPlayerCardGenerator:
             cooperstown_logo.paste(year_text, year_coords, year_text)
             team_logo = cooperstown_logo
 
+        # OVERRIDE IF ROOKIE SEASON
+        if self.is_rookie_season and self.context != '2001':
+            team_logo = self.__rookie_season_image()
+            team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
+            logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
+
         return team_logo, logo_paste_coordinates
 
     def __team_logo_historical_alternate_extension(self, include_dash=True):
@@ -2572,25 +2589,32 @@ class ShowdownPlayerCardGenerator:
         # PARSE NAME STRING
         first, last = self.name.upper().split(" ", 1)
         name = self.name.upper() if self.context_year != '2001' else first
-        is_name_over_char_limit = len(name) > 18
+        is_name_over_char_limit = len(name) > 15
 
         futura_black_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Futura Black.ttf')
         helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
         helvetica_neue_cond_black_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
+        helvetica_neue_lt_93_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-93-Black-Extended-Oblique.ttf')
 
         # DEFAULT NAME ATTRIBUTES
         name_font_path = helvetica_neue_lt_path
         has_border = False
         border_color = None
-        fill_color = 255
         overlay_image_path = None
 
         # DEFINE ATTRIBUTES BASED ON CONTEXT
         if self.context == '2000':
             name_rotation = 90
             name_alignment = "center"
-            name_size = 110 if is_name_over_char_limit else 135
+            is_name_over_18_chars = len(name) >= 18
+            is_name_over_15_chars = len(name) >= 15
+            name_size = 145
+            if is_name_over_18_chars:
+                name_size = 110
+            elif is_name_over_15_chars:
+                name_size = 127
             name_color = "#D2D2D2"
+            name_font_path = helvetica_neue_lt_93_path
             padding = 0
             overlay_image_path = os.path.join(os.path.dirname(__file__), 'templates', '2000-Name-Text-Background.png')
         elif self.context == '2001':
@@ -2631,7 +2655,6 @@ class ShowdownPlayerCardGenerator:
             has_border = False
 
         name_font = ImageFont.truetype(name_font_path, size=name_size)
-
         # CREATE TEXT IMAGE
         final_text = self.__text_image(
             text = name,
@@ -2648,9 +2671,7 @@ class ShowdownPlayerCardGenerator:
 
         # ADJUSTMENTS
         if self.context == '2000':
-            # STRETCH OUT NAME
-            text_stretched = final_text.resize((300,5100), Image.ANTIALIAS)
-            final_text = text_stretched.crop((0,1545,300,3555))
+            # SETUP COLOR FOR LATER STEP OF IMAGE OVERLAY
             name_color = final_text
         elif self.context == '2001':
             # ADD LAST NAME
@@ -2713,12 +2734,15 @@ class ShowdownPlayerCardGenerator:
                 metadata_image.paste(sc.COLOR_WHITE, (1260,420), ip_text)
             else:
                 # SPEED | HAND
-                font_speed_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
-                speed_text = self.__text_image(text='SPEED {}'.format(self.speed_letter), size=(900, 300), font=font_speed_hand)
-                hand_text = self.__text_image(text=self.hand[-1], size=(300, 300), font=font_speed_hand)
-                metadata_image.paste(color, (969 if self.context == '2000' else 915,342), speed_text)
+                is_variable_spd_2000 = self.context == '2000' and self.is_variable_speed_00_01
+                font_size_speed = 40 if is_variable_spd_2000 else 54
+                font_speed = ImageFont.truetype(helvetica_neue_lt_path, size=font_size_speed)
+                font_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
+                speed_text = self.__text_image(text='SPEED {}'.format(self.speed_letter), size=(900, 300), font=font_speed)
+                hand_text = self.__text_image(text=self.hand[-1], size=(300, 300), font=font_hand)
+                metadata_image.paste(color, (969 if self.context == '2000' else 915, 345 if is_variable_spd_2000 else 342), speed_text)
                 metadata_image.paste(color, (1212,342), hand_text)
-                if self.context == '2001':
+                if self.context == '2001' or is_variable_spd_2000:
                     # ADD # TO SPEED
                     font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
                     font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)
@@ -2729,7 +2753,8 @@ class ShowdownPlayerCardGenerator:
                     )
                     parenthesis_left = self.__text_image(text='(   )', size=(300, 300), font=font_parenthesis)
                     metadata_image.paste(color, (1116,342), parenthesis_left)
-                    metadata_image.paste(color, (1128,345), speed_num_text)
+                    spd_number_x_position = 1135 if len(str(self.speed)) < 2 else 1128
+                    metadata_image.paste(color, (spd_number_x_position,345), speed_num_text)
                 # POSITION(S)
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)
                 ordered_by_len_position = sorted(self.positions_and_defense.items(), key=lambda l: len(l[0]), reverse=True)
@@ -2925,8 +2950,7 @@ class ShowdownPlayerCardGenerator:
 
         # FONT FOR SET
         helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
-        base_font_size = 135 if int(self.context_year) < 2022 else 180
-        font_size = 100 if self.is_multi_year and self.context_year == '2003' else base_font_size
+        font_size = 135 if int(self.context_year) < 2022 else 180
         set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size)
 
         set_image = Image.new('RGBA', (1500, 2100), 255)
@@ -2950,8 +2974,9 @@ class ShowdownPlayerCardGenerator:
             if self.is_multi_year and self.context_year in ['2004', '2005']:
                 # EMPTY YEAR
                 year_string = ''
-            elif self.is_full_career and self.context_year == '2003':
-                year_string = 'ALL'
+            elif (self.is_full_career or self.is_multi_year) and self.context_year == '2003':
+                year_string = 'ALL' if self.is_full_career else 'MLT'
+                set_image_location = (set_image_location[0]-5,set_image_location[1])
             elif self.is_multi_year and self.context_year == '2022':
                 set_image_location = (set_image_location[0]-15,set_image_location[1])
                 if '-' in year_as_str:
@@ -3184,6 +3209,42 @@ class ShowdownPlayerCardGenerator:
             accolades_list.append(str(self.stats['bWAR']) + ' WAR')
 
         return accolades_list[0:3]
+
+    def __rookie_season_image(self):
+        """Creates image for optional rookie season logo.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for rookie season logo + year.
+        """
+
+        # BACKGROUND IMAGE LOGO
+        rookie_season_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-Rookie Season.png'))
+
+        # ADD YEAR
+        first_year = str(min(self.year_list))
+        year_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'SquareSlabSerif.ttf')
+        year_font = ImageFont.truetype(year_font_path, size=70)
+        for index, year_part in enumerate([first_year[0:2],first_year[2:4]]):
+            is_suffix = index > 0
+            year_text = self.__text_image(
+                text = year_part,
+                size = (150,150),
+                font = year_font,
+                alignment = "left"
+            )
+            location_original = sc.IMAGE_LOCATIONS['rookie_season_year_text'][self.context_year]
+            x_adjustment = 230 if is_suffix else 0
+            paste_location = (location_original[0] + x_adjustment, location_original[1])
+            rookie_season_image.paste(year_text,paste_location,year_text)
+
+        # RESIZE
+        logo_size = sc.IMAGE_SIZES['rookie_season'][str(self.context_year)]
+        rookie_season_image = rookie_season_image.resize(logo_size, Image.ANTIALIAS)
+
+        return rookie_season_image
 
     def __add_icons_to_image(self, player_image):
         """Add icon images (if player has icons) to existing player_image object.
