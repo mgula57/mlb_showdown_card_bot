@@ -2244,6 +2244,8 @@ class ShowdownPlayerCardGenerator:
                 additional_substring_filters.append('(CC)')
             elif self.is_all_star_game:
                 additional_substring_filters.append('(ASG)')
+            elif self.is_rookie_season:
+                additional_substring_filters.append('(RS)')
             if len(self.type_override) > 0:
                 additional_substring_filters.append(self.type_override)
             if self.is_dark_mode:
