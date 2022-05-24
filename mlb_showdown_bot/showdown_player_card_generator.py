@@ -2753,7 +2753,7 @@ class ShowdownPlayerCardGenerator:
                     )
                     parenthesis_left = self.__text_image(text='(   )', size=(300, 300), font=font_parenthesis)
                     metadata_image.paste(color, (1116,342), parenthesis_left)
-                    spd_number_x_position = 1135 if len(str(self.speed)) < 2 else 1128
+                    spd_number_x_position = 1138 if len(str(self.speed)) < 2 else 1128
                     metadata_image.paste(color, (spd_number_x_position,345), speed_num_text)
                 # POSITION(S)
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)

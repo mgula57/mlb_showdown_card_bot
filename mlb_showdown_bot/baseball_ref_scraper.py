@@ -511,6 +511,11 @@ class BaseballReferenceScraper:
             first_name_cleaned = unidecode.unidecode(name.split(' ')[0].replace(".", ""))
             last_name = unidecode.unidecode(name.split(' ')[1])
             full_name_baseball_savant = unidecode.unidecode(player_dict['name_display_last_first'])
+            # REPLACE DECIMAL POINTS WITH EMPTY STRING
+            try:
+                full_name_baseball_savant = full_name_baseball_savant.replace(".",'')
+            except:
+                break
             is_player_match = first_name_cleaned in full_name_baseball_savant \
                               and last_name in full_name_baseball_savant
             if is_player_match:
