@@ -2387,6 +2387,12 @@ class ShowdownPlayerCardGenerator:
             if is_04_05 and self.is_cooperstown:
                 logo_size = (330,330)
                 logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 120)
+            # MAKE ASG LOGO LARGER
+            is_wide_logo = logo_name = 'ASG-2022'
+            if is_wide_logo and self.is_all_star_game:
+                logo_size = (logo_size[0] + 85, logo_size[1] + 85)
+                x_movement = -40 if self.context in ['2000','2001'] else -85
+                logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
         try:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
             historical_alternate_ext = self.__team_logo_historical_alternate_extension()
