@@ -2384,12 +2384,11 @@ class ShowdownPlayerCardGenerator:
         if self.is_cooperstown or self.is_all_star_game:
             # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
             logo_name = 'CCC' if self.is_cooperstown else f'ASG-{self.year}'
+            is_wide_logo = logo_name == 'ASG-2022'
             if is_04_05 and self.is_cooperstown:
                 logo_size = (330,330)
                 logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 120)
-            # MAKE ASG LOGO LARGER
-            is_wide_logo = logo_name = 'ASG-2022'
-            if is_wide_logo and self.is_all_star_game:
+            elif is_wide_logo and self.is_all_star_game:
                 logo_size = (logo_size[0] + 85, logo_size[1] + 85)
                 x_movement = -40 if self.context in ['2000','2001'] else -85
                 logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
