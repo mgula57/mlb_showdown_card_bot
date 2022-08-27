@@ -535,7 +535,7 @@ class ShowdownPlayerCardGenerator:
         icons = []
         for award, icon in awards_to_icon_map.items():
             if award in awards_list:
-                if not (self.is_pitcher and award in ['SS', 'GG']):
+                if not (self.is_pitcher and award == 'SS'):
                     icons.append(icon)
 
         # DATA DRIVEN ICONS
