@@ -33,7 +33,7 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "3.1"
+        self.version = "3.2"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.bref_url = stats['bref_url'] if 'bref_url' in stats.keys() else ''
@@ -588,6 +588,69 @@ class ShowdownPlayerCardGenerator:
             player_category = 'position_player'
 
         return player_category
+
+    def player_classification(self):
+        """Gives the player a classification based on their stats, hand, and position. 
+          Used to inform which silhouette is given to a player.
+
+        Args:
+          None
+
+        Returns:
+          String with player's classification (ex: "LHH", "LHH-OF", "RHP-CL")
+        """
+
+        positions = self.positions_and_defense.keys()
+        is_catcher = any(pos in positions for pos in ['C','CA'])
+        is_middle_infield = any(pos in positions for pos in ['IF','2B','SS'])
+        is_outfield = any(pos in positions for pos in ['OF','CF','LF/RF'])
+        is_1b = '1B' in positions
+        is_multi_position = len(positions) > 1
+        hitter_hand = "LHH" if self.hand[-1] == "S" else f"{self.hand[-1]}HH"
+        hand_prefix = self.hand if self.is_pitcher else hitter_hand
+        hand_throwing = self.stats['hand_throw']
+        throwing_hand_prefix = f"{hand_throwing[0].upper()}H"
+
+        # CATCHERS
+        if is_catcher:
+            return "CA"
+
+        # MIDDLE INFIELDERS
+        if is_middle_infield and not is_outfield:
+            return "MIF"
+
+        # OLD TIMERS
+        if min(self.year_list) < 1950:
+            # IF YEAR IS LESS THAN 1950, ASSIGN OLD TIMER SILHOUETTES
+            return f"{hand_prefix}-OT"
+
+        # PITCHERS
+        if self.is_pitcher:
+            # PITCHERS ARE CLASSIFIED AS SP, RP, CL
+            if 'RELIEVER' in positions:
+                return f"{hand_prefix}-RP"
+            elif 'CLOSER' in positions:
+                return f"{hand_prefix}-CL"
+            else:
+                return f"{hand_prefix}-SP"
+        # HITTERS
+        else:
+            is_slg_above_threshold = self.stats['slugging_perc'] >= 0.475
+            # FOR HITTERS CHECK FOR POSITIONS
+            # 1. LHH OUTFIELDER
+            if is_outfield and hand_throwing == "Left" and not is_slg_above_threshold:
+                return f"LH-OF"
+
+            # 2. CHECK FOR 1B
+            if is_1b and not is_multi_position:
+                return f"{throwing_hand_prefix}-1B"
+
+            # 3. CHECK FOR POWER HITTER
+            if is_slg_above_threshold:
+                return f"{hand_prefix}-POW"
+
+        # RETURN STANDARD CUTOUT
+        return hand_prefix
 
 # ------------------------------------------------------------------------
 # COMMAND / OUTS METHODS
@@ -2299,11 +2362,9 @@ class ShowdownPlayerCardGenerator:
         Returns:
           PIL image object for the player's positional silhouetee.
         """
-
-        type_string = 'P' if self.is_pitcher else 'H'
-        hand_prefix = self.hand[0 if self.is_pitcher else -1]
-        hand_string = 'L' if hand_prefix == 'S' else hand_prefix
-        silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-SIL-{hand_string}H{type_string}.png')
+        # NOTE: 2004 and 2005 share image assets
+        year = '2004' if self.context_year == '2005' else self.context_year
+        silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{year}-SIL-{self.player_classification()}.png')
         return Image.open(silhouetee_image_path)
 
     def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=3,overlay_image_path=None):

@@ -215,6 +215,7 @@ class BaseballReferenceScraper:
             years_played = self.__years_played_list(type=type, homepage_soup=soup_for_homepage_stats)
             stats_dict['type'] = type
             stats_dict['hand'] = self.hand(soup_for_homepage_stats, type)
+            stats_dict['hand_throw'] = self.hand(soup_for_homepage_stats, type='Pitcher') # ALWAYS PASS PITCHER TO STORE THROWING HAND
             stats_dict['name'] = name
             stats_dict['years_played'] = years_played
             
