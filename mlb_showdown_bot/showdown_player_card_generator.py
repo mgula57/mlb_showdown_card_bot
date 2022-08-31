@@ -29,7 +29,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -90,6 +90,7 @@ class ShowdownPlayerCardGenerator:
         self.add_image_border = add_image_border
         self.is_dark_mode = is_dark_mode
         self.is_variable_speed_00_01 = is_variable_speed_00_01
+        self.is_foil = is_foil
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -2198,9 +2199,24 @@ class ShowdownPlayerCardGenerator:
             image_border.paste(player_image.convert("RGBA"),(72,72),player_image.convert("RGBA"))
             player_image = image_border
 
-        player_image.save(os.path.join(self.card_img_output_folder_path, self.image_name), dpi=(300, 300), quality=100)
+        save_img_path = os.path.join(self.card_img_output_folder_path, self.image_name)
+        if self.is_foil:
+            player_image = player_image.resize((int(1488 / 2), int(2079 / 2)), Image.ANTIALIAS)
+            foil_images = self.__foil_effect_images(image=player_image)
+            foil_images[0].save(save_img_path,
+               save_all = True, append_images = foil_images[1:], 
+               optimize = True, duration = 8, loop=0, format="PNG")
+        else:
+            player_image.save(save_img_path, dpi=(300, 300), quality=100)
+        
         if self.is_running_in_flask:
-            player_image.save(os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name), dpi=(300, 300), quality=100)
+            flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name)
+            if self.is_foil:
+                foil_images[0].save(flask_img_path,
+                    save_all = True, append_images = foil_images[1:], 
+                    optimize = True, duration = 8, loop=0, format="PNG")
+            else:
+                player_image.save(flask_img_path, dpi=(300, 300), quality=100)
 
         # OPEN THE IMAGE LOCALLY
         if show:
@@ -3405,6 +3421,17 @@ class ShowdownPlayerCardGenerator:
 
         # CROP THE CENTER OF THE IMAGE
         return image.crop((left, top, right, bottom))
+
+    def __foil_effect_images(self, image):
+
+        images = []
+        for i in range(1,24,1):
+            image_updated = image.convert('RGBA')
+            foil_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'Foil-Animation-{i}.png')).convert('RGBA').resize((int(1488 / 2), int(2079 / 2)),Image.ANTIALIAS)
+            image_updated.paste(foil_img,(0,0),foil_img)
+            images.append(image_updated)
+
+        return images
 
     def __clean_images_directory(self):
         """Removes all images from output folder that are not the current card. Leaves

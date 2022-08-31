@@ -97,7 +97,7 @@ function setTheme(themeName) {
         document.getElementById(id).className = (id + "_" + themeName);
     }
 
-    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "setnum", "statsVersionSelection", "darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table"]
+    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "statsVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table"]
     for (const id of form_inputs_to_alter) {
         var current_name = document.getElementById(id).className
         const is_text_only = ["darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel"].includes(id)
@@ -277,6 +277,20 @@ $(function () {
             var is_asg = editionSelection == "All-Star Game";
             var is_holiday = editionSelection == "Holiday";
 
+            // MORE OPTIONS
+            var moreOptionsSelected = [];
+            for (var option of document.getElementById('moreOptionsSelect').options)
+            {
+                if (option.selected) {
+                    moreOptionsSelected.push(option.value);
+                }
+            }
+            var is_border = moreOptionsSelected.includes("Border");
+            var is_dark_mode = moreOptionsSelected.includes("DarkMode");
+            var is_foil = moreOptionsSelected.includes("Foil");
+            var is_variable_spd = moreOptionsSelected.includes("VariableSpeed");
+            console.log(moreOptionsSelected);
+
             // CACHE SET VALUE
             var set = $("#setSelection :selected").val()
             cacheSet(set)
@@ -295,9 +309,10 @@ $(function () {
                 offset: selectedOffset,
                 expansion: $("#expansionSelection :selected").val(),
                 is_holiday: is_holiday,
-                addBorder: $('#addBorder').is(':checked'),
-                is_dark_mode: $('#darkModeToggle').is(':checked'),
-                is_variable_spd_00_01: $('#varSpdToggle').is(':checked'),
+                addBorder: is_border,
+                is_dark_mode: is_dark_mode,
+                is_variable_spd_00_01: is_variable_spd,
+                is_foil: is_foil,
             }, function (data) {
                 showCardData(data)
             });
