@@ -808,24 +808,24 @@ POINT_CATEGORY_WEIGHTS = {
     f'2022-{CLASSIC_ALIAS}': {
         'position_player': {
             'defense': 65,
-            'speed': 65,
-            'onbase': 200,
-            'average': 55,
-            'slugging': 170,
+            'speed': 75,
+            'onbase': 220,
+            'average': 70,
+            'slugging': 180,
             'home_runs': 50
         },
         'starting_pitcher': {
-            'ip': 115,
-            'onbase': 470,
+            'ip': 110,
+            'onbase': 425,
             'average': 35,
-            'slugging': 255,
+            'slugging': 230,
             'out_distribution': 30,
         },
         'relief_pitcher': {
             'ip': 0, # IP IS ADJUSTED ELSEWHERE
-            'onbase': 174,
+            'onbase': 150,
             'average': 25,
-            'slugging': 112,
+            'slugging': 100,
             'out_distribution': 20,
         }
     },
@@ -923,7 +923,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'IF': 1.0,
     },
     f'2022-{CLASSIC_ALIAS}': {
-        'C': 1.0,
+        'C': 1.2,
         '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
@@ -934,7 +934,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'IF': 1.0,
     },
     f'2022-{EXPANDED_ALIAS}': {
-        'CA': 1.0,
+        'CA': 1.2,
         '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
