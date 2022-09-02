@@ -3598,11 +3598,21 @@ class ShowdownPlayerCardGenerator:
         service = build('drive', 'v3', credentials=creds)
 
         # GET LIST OF FILE METADATA FROM CORRECT FOLDER
-        query = f"parents = '{folder_id}'"
-        files = service.files()
-        response = files.list(q=query,pageSize=1000).execute()
-        files_metadata = response.get('files')
-
+        files_metadata = []
+        page_token = None
+        while True:
+            try:
+                query = f"parents = '{folder_id}'"
+                files = service.files()
+                response = files.list(q=query,pageSize=1000,pageToken=page_token).execute()
+                new_files_list = response.get('files')
+                page_token = response.get('nextPageToken', None)
+                files_metadata = files_metadata + new_files_list
+                if not page_token:
+                    break
+            except:
+                break
+        
         # LOOK FOR SUBSTRING IN FILE NAMES
         player_matched_image_files = []
         for img_file in files_metadata:
