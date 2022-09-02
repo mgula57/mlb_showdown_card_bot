@@ -44,28 +44,33 @@ MAX_IN_GAME_SPD = {
 }
 
 MIN_SABER_FIELDING = {
+    'outs_above_avg': -12,
     'drs': -20,
     'tzr': -18,
     'dWAR': -2.5
 }
 MAX_SABER_FIELDING = {
+    'outs_above_avg': 12,
     'drs': 20,
     'tzr': 18,
     'dWAR': 2.5
 }
 # FOR 1B, USE A STATIC CUTOFFS INSTEAD OF RANGE
 FIRST_BASE_PLUS_2_CUTOFF = {
+    'outs_above_avg': 13,
     'drs': 17,
     'tzr': 15,
     'dWAR': 0.8
 }
 FIRST_BASE_PLUS_1_CUTOFF = {
+    'outs_above_avg': 2,
     'drs': 4,
     'tzr': 4,
     'dWAR': -0.25
 }
 # -1 1B DEFENSE ONLY APPLIES TO 2022 SET AND BEYOND
 FIRST_BASE_MINUS_1_CUTOFF = {
+    'outs_above_avg': -5,
     'drs': -5,
     'tzr': -5,
     'dWAR': -1.0

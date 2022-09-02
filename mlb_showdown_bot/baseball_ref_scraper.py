@@ -246,7 +246,7 @@ class BaseballReferenceScraper:
                 stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats)
                 sprint_speed_list = []
                 for year in years_played:
-                    sprint_speed = self.sprint_speed(name=name, year=year, type=type)
+                    sprint_speed = self.statcast_sprint_speed(name=name, year=year)
                     if sprint_speed:
                         sprint_speed_list.append(sprint_speed)
                 if len(sprint_speed_list) > 0:
@@ -254,7 +254,12 @@ class BaseballReferenceScraper:
                 else:
                     stats_dict['sprint_speed'] = None
             else:
-                stats_dict['sprint_speed'] = self.sprint_speed(name=name, year=year, type=type)
+                stats_dict['sprint_speed'] = self.statcast_sprint_speed(name=name, year=year)
+
+            # OUTS ABOVE AVERAGE (2016+)
+            primary_position, outs_above_avg = self.statcast_outs_above_average_and_position(name=name, year=year)
+            stats_dict['outs_above_avg_position'] = primary_position
+            stats_dict['outs_above_avg'] = outs_above_avg
             
             # DERIVE 1B 
             triples = 0 if '3B' not in stats_dict.keys() else int(stats_dict['3B'])
@@ -482,13 +487,12 @@ class BaseballReferenceScraper:
         else:
             return "Pitcher"
 
-    def sprint_speed(self, name, year, type):
+    def statcast_sprint_speed(self, name, year):
         """Sprint Speed for player from Baseball Savant (Only applicable to 2015+).
 
         Args:
           name: Full name of Player
           year: Year for Player stats
-          type: String for player type (Pitcher or Hitter)
 
         Raises:
           AttributeError: This Player Played 0 Games. Check Player Name and Year.
@@ -509,22 +513,71 @@ class BaseballReferenceScraper:
 
         for player_dict in speed_list_all_players:
             # FIND PLAYER IN LIST
-            first_name_cleaned = unidecode.unidecode(name.split(' ')[0].replace(".", ""))
-            last_name = unidecode.unidecode(name.split(' ')[1])
-            full_name_baseball_savant = unidecode.unidecode(player_dict['name_display_last_first'])
-            # REPLACE DECIMAL POINTS WITH EMPTY STRING
-            try:
-                full_name_baseball_savant = full_name_baseball_savant.replace(".",'')
-            except:
-                break
-            is_player_match = first_name_cleaned in full_name_baseball_savant \
-                              and last_name in full_name_baseball_savant
+            is_player_match = self.__statcast_name_match(bref_name=name, statcast_name=player_dict['name_display_last_first'])
             if is_player_match:
                 speed = float(player_dict['r_sprint_speed_top50percent_pretty'])
                 return speed
         # IF NOT FOUND, RETURN LEAGUE AVG
         default_speed = 26.25
         return default_speed
+
+    def statcast_outs_above_average_and_position(self, name, year):
+        """Outs above average metric for players from Baseball Savant (Only applicable to 2016+).
+
+        Args:
+          name: Full name of Player
+          year: Year for Player stats
+
+        Returns:
+          Tuple object with position and outs above average integer.
+        """
+        # DATA ONLY AVAILABLE 2016+
+        if int(year) < 2016:
+            return (None, None)
+
+        url = f'https://baseballsavant.mlb.com/leaderboard/outs_above_average?type=Fielder&startYear={year}&endYear={year}&position=&team=&min=0'
+        oaa_html = self.html_for_url(url)
+
+        data_extracted = re.search('var data = (.*);',oaa_html).group(1)
+        oaa_list_all_players = json.loads(data_extracted)
+
+        for player_dict in oaa_list_all_players:
+            # FIND PLAYER IN LIST
+            
+            is_player_match = self.__statcast_name_match(bref_name=name, statcast_name=player_dict['entity_name'])
+            if is_player_match:
+                primary_position = player_dict['primary_pos_formatted']
+                outs_above_avg = player_dict['outs_above_average']
+                return (primary_position, outs_above_avg)
+
+        # IF NOT FOUND, RETURN NONE
+        return (None, None)
+
+    def __statcast_name_match(self, bref_name, statcast_name):
+        """Compare first name and last name from bref vs statcast to match to a player.
+        Returns true if both the first name and last name are a match.
+
+        Args:
+          bref_name: Full name of Player from baseball reference.
+          statcast_name: String from a statcast leaderboard.
+
+        Returns:
+          True or False for whether the name matches.
+        """
+
+        # REMOVE SPECIAL CHARACTERS FROM THE NAME
+        first_name_cleaned = unidecode.unidecode(bref_name.split(' ')[0].replace(".", ""))
+        last_name = unidecode.unidecode(bref_name.split(' ')[1])
+        full_name_baseball_savant = unidecode.unidecode(statcast_name)
+
+        # REPLACE DECIMAL POINTS WITH EMPTY STRING
+        try:
+            full_name_baseball_savant = full_name_baseball_savant.replace(".",'')
+        except:
+            return False
+        
+        return first_name_cleaned in full_name_baseball_savant \
+                and last_name in full_name_baseball_savant
 
     def advanced_stats(self, type, year):
         """Parse advanced stats page from baseball reference.

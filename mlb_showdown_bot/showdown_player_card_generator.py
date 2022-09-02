@@ -142,7 +142,7 @@ class ShowdownPlayerCardGenerator:
         """
 
         # RAW METADATA FROM BASEBALL REFERENCE
-        defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k}
+        defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k or 'outs_above_avg' in k}
         hand_raw = stats['hand']
         innings_pitched_raw = float(stats['IP']) if self.is_pitcher else 0.0
         games_played_raw = int(stats['G'])
@@ -211,16 +211,20 @@ class ShowdownPlayerCardGenerator:
                         try:                                
                             is_drs_available = f'drsPosition{position_index}' in defensive_stats.keys()
                             is_d_war_available = 'dWAR' in defensive_stats.keys()
+                            is_ooa_available = defensive_stats['outs_above_avg_position'] == position
+                            ooa = defensive_stats['outs_above_avg'] if is_ooa_available else None
                             drs = int(defensive_stats['drsPosition{}'.format(position_index)]) if is_drs_available else None
                             tzr = int(defensive_stats['tzPosition{}'.format(position_index)])
                             dWar = float(defensive_stats['dWAR']) if is_d_war_available else None
-                            if drs:
+                            if is_ooa_available:
+                                metric = 'outs_above_avg'
+                            elif drs:
                                 metric = 'drs'
                             elif tzr: 
                                 metric = 'tzr'
                             else:
                                 metric = 'dWAR'
-                            defensive_rating = drs or tzr or dWar
+                            defensive_rating = ooa or drs or tzr or dWar
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
                         except:
                             in_game_defense = 0
@@ -1911,16 +1915,17 @@ class ShowdownPlayerCardGenerator:
             final_player_data.append([f'{prefix}{cleaned_category}',actual,in_game])
         
         # NON COMPARABLE STATS
-        category_list = ['earned_run_avg', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
+        category_list = ['earned_run_avg', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'outs_above_avg', 'dWAR', 'bWAR']
         for category in category_list:
             if category in self.stats.keys():
-                stat = str(self.stats[category])
+                stat = str(self.stats[category]) if self.stats[category] else 'N/A'
                 short_name_map = {
                     'onbase_plus_slugging_plus': 'OPS+',
                     'bWAR': 'bWAR',
                     'dWAR': 'dWAR',
                     'SB': f'{category_prefix}SB',
                     'earned_run_avg': 'ERA',
+                    'outs_above_avg': 'OOA',
                 }
                 short_category_name = short_name_map[category]
                 final_player_data.append([short_category_name,stat,'N/A'])
