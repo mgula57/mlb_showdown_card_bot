@@ -605,7 +605,7 @@ class BaseballReferenceScraper:
             standard_row = self.__get_career_totals_row(div_id=f'all_{table_prefix}_standard',soup_object=soup_for_advanced_stats)
             
         else:
-            standard_row_key = '{}_standard.{}'.format(table_prefix, year)
+            standard_row_key = f'{table_prefix}_standard.{year}'
             standard_row = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': standard_row_key})
 
         advanced_stats = {}
@@ -722,6 +722,18 @@ class BaseballReferenceScraper:
                 ratio_row = soup_for_advanced_stats.find('tr', attrs = {'class': 'full', 'id': ratio_row_key})
         advanced_stats.update(self.__parse_ratio_stats(ratio_row=ratio_row, slg=advanced_stats['slugging_perc']))
 
+        # IP/GS (STARTING PITCHER)
+        if type == 'Pitcher':
+            starter_stats_soup = soup_for_advanced_stats.find('div', attrs={'id': 'div_pitching_starter'})
+            if starter_stats_soup:
+                partial_stats_soup = self.__find_partial_team_stats_row(soup_object=starter_stats_soup, team=self.team_override, year=year, return_soup_object=True)
+                row_accounting_for_team_override = partial_stats_soup if self.team_override and partial_stats_soup else starter_stats_soup.find('tr', attrs={'id': f'pitching_starter.{year}'})
+                if row_accounting_for_team_override:
+                    ip_per_start_object = row_accounting_for_team_override.find('td', attrs={'data-stat': 'innings_per_start'})
+                    if ip_per_start_object:
+                        ip_per_start_text = ip_per_start_object.get_text()
+                        advanced_stats['IP/GS'] = self.__convert_to_numeric(ip_per_start_text)
+        
         return advanced_stats
 
     def __parse_standard_stats(self, type, soup_row, included_g_for_pitcher=False):
