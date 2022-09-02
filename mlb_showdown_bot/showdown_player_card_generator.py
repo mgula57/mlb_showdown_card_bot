@@ -145,6 +145,7 @@ class ShowdownPlayerCardGenerator:
         defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k or 'outs_above_avg' in k}
         hand_raw = stats['hand']
         innings_pitched_raw = float(stats['IP']) if self.is_pitcher else 0.0
+        ip_per_start = stats['IP/GS'] if 'IP/GS' in stats.keys() else 0.0
         games_played_raw = int(stats['G'])
         games_started_raw = int(stats['GS']) if self.is_pitcher else 0
         saves_raw = int(stats['SV']) if self.is_pitcher else 0
@@ -161,7 +162,7 @@ class ShowdownPlayerCardGenerator:
                                                                   games_played=games_played_raw,
                                                                   games_started=games_started_raw,
                                                                   saves=saves_raw)
-        self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw, games_started=games_started_raw)
+        self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw, games_started=games_started_raw, ip_per_start=ip_per_start)
         self.hand = self.__handedness(hand=hand_raw)
         self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
         self.icons = self.__icons(awards=stats['award_summary'] if 'award_summary' in stats.keys() else '')
@@ -427,28 +428,28 @@ class ShowdownPlayerCardGenerator:
 
         return hand_formatted_for_position
 
-    def __innings_pitched(self, innings_pitched, games, games_started):
+    def __innings_pitched(self, innings_pitched, games, games_started, ip_per_start):
         """In game stamina for a pitcher. Position Player defaults to 0.
 
         Args:
           innings_pitched: The total innings pitched during the season.
           games: The total games played during the season.
           games_started: The total games started during the season.
+          ip_per_start: IP per game started.
 
         Returns:
           In game innings pitched ability.
         """
         # ACCOUNT FOR HYBRID STARTER/RELIEVERS
-        pct_games_started = games_started / games
         type = self.player_type()
         is_reliever = type == 'relief_pitcher'
         if is_reliever:
-            # REMOVE STARTER INNINGS (ASSUME 5.5 IP)
-            ip_from_starts = games_started * 5.5
-            innings_pitched -= ip_from_starts
-            games -= games_started
+            # REMOVE STARTER INNINGS
+            ip_as_starter = games_started * ip_per_start
+            innings_pitched -= ip_as_starter
             ip = round(innings_pitched / games)
-            ip = 2 if ip > 2 and pct_games_started >= 0.2 and is_reliever else ip
+        elif ip_per_start > 0:
+            ip = round(ip_per_start)
         else:
             ip = round(innings_pitched / games)
         
