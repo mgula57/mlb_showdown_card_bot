@@ -145,7 +145,7 @@ class ShowdownPlayerCardGenerator:
         defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k or 'outs_above_avg' in k}
         hand_raw = stats['hand']
         innings_pitched_raw = float(stats['IP']) if self.is_pitcher else 0.0
-        ip_per_start = stats['IP/GS'] if 'IP/GS' in stats.keys() else 0.0
+        ip_per_start = (stats['IP/GS'] or 0.0) if 'IP/GS' in stats.keys() else 0.0
         games_played_raw = int(stats['G'])
         games_started_raw = int(stats['GS']) if self.is_pitcher else 0
         saves_raw = int(stats['SV']) if self.is_pitcher else 0

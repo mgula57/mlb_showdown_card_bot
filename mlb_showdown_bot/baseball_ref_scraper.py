@@ -758,6 +758,7 @@ class BaseballReferenceScraper:
 
         # IP/GS (STARTING PITCHER)
         if type == 'Pitcher':
+            ip_per_gs = 0.0
             starter_stats_soup = soup_for_advanced_stats.find('div', attrs={'id': 'div_pitching_starter'})
             if starter_stats_soup:
                 partial_stats_soup = self.__find_partial_team_stats_row(soup_object=starter_stats_soup, team=self.team_override, year=year, return_soup_object=True)
@@ -766,7 +767,8 @@ class BaseballReferenceScraper:
                     ip_per_start_object = row_accounting_for_team_override.find('td', attrs={'data-stat': 'innings_per_start'})
                     if ip_per_start_object:
                         ip_per_start_text = ip_per_start_object.get_text()
-                        advanced_stats['IP/GS'] = self.__convert_to_numeric(ip_per_start_text)
+                        ip_per_gs = self.__convert_to_numeric(ip_per_start_text)
+            advanced_stats['IP/GS'] = ip_per_gs
         
         return advanced_stats
 
