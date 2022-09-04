@@ -476,9 +476,10 @@ class ShowdownPlayerCardGenerator:
         type = self.player_type()
         is_reliever = type == 'relief_pitcher'
         if is_reliever:
-            # REMOVE STARTER INNINGS
+            # REMOVE STARTER INNINGS AND GAMES STARTED
             ip_as_starter = games_started * ip_per_start
             innings_pitched -= ip_as_starter
+            games -= games_started
             ip = round(innings_pitched / games)
         elif ip_per_start > 0:
             ip = round(ip_per_start)
