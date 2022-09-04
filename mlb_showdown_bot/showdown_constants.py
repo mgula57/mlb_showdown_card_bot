@@ -44,13 +44,13 @@ MAX_IN_GAME_SPD = {
 }
 
 MIN_SABER_FIELDING = {
-    'oaa': -15,
+    'oaa': -16,
     'drs': -20,
     'tzr': -18,
     'dWAR': -2.5
 }
 MAX_SABER_FIELDING = {
-    'oaa': 15,
+    'oaa': 16,
     'drs': 20,
     'tzr': 18,
     'dWAR': 2.5

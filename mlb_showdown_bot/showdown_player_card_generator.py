@@ -412,10 +412,10 @@ class ShowdownPlayerCardGenerator:
             rating = rating / games * 162.0
             # FOR OUTS ABOVE AVG OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
             # EX: NICK AHMED 2018 - 38.45 OAA per 162
-            #   - OAA FOR +5 = 15
-            #   - OAA OVER MAX = 38.45 - 15 = 23.45
-            #   - REDUCED OVER MAX = 23.45 * 0.5 = 11.7
-            #   - NEW RATING = 15 + 11.7 = 26.7
+            #   - OAA FOR +5 = 16
+            #   - OAA OVER MAX = 38.45 - 16 = 22.45
+            #   - REDUCED OVER MAX = 22.45 * 0.5 = 11.23
+            #   - NEW RATING = 16 + 11.23 = 26.23
             
             if rating > MAX_SABER_FIELDING and not is_1b:
                 amount_over_max = rating - MAX_SABER_FIELDING
