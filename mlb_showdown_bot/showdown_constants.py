@@ -44,37 +44,39 @@ MAX_IN_GAME_SPD = {
 }
 
 MIN_SABER_FIELDING = {
-    'outs_above_avg': -12,
+    'oaa': -15,
     'drs': -20,
     'tzr': -18,
     'dWAR': -2.5
 }
 MAX_SABER_FIELDING = {
-    'outs_above_avg': 12,
+    'oaa': 15,
     'drs': 20,
     'tzr': 18,
     'dWAR': 2.5
 }
 # FOR 1B, USE A STATIC CUTOFFS INSTEAD OF RANGE
 FIRST_BASE_PLUS_2_CUTOFF = {
-    'outs_above_avg': 13,
+    'oaa': 13,
     'drs': 17,
     'tzr': 15,
     'dWAR': 0.8
 }
 FIRST_BASE_PLUS_1_CUTOFF = {
-    'outs_above_avg': 2,
+    'oaa': 2,
     'drs': 4,
     'tzr': 4,
     'dWAR': -0.25
 }
 # -1 1B DEFENSE ONLY APPLIES TO 2022 SET AND BEYOND
 FIRST_BASE_MINUS_1_CUTOFF = {
-    'outs_above_avg': -5,
+    'oaa': -5,
     'drs': -5,
     'tzr': -5,
     'dWAR': -1.0
 }
+# REDUCES OUTLIERS IN OOA BY REDUCING VALUES OVER THE DEFENSE MAXIMUM
+OAA_OVER_MAX_MULTIPLIER = 0.5
 # MINIMUM REQUIRED GAMES PLAYED AT A POSITION TO QUALIFY
 NUMBER_OF_GAMES_DEFENSE = 7 
 PCT_OF_GAMES_DEFENSE = 0.15

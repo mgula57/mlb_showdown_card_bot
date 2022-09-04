@@ -257,9 +257,10 @@ class BaseballReferenceScraper:
                 stats_dict['sprint_speed'] = self.statcast_sprint_speed(name=name, year=year)
 
             # OUTS ABOVE AVERAGE (2016+)
-            primary_position, outs_above_avg = self.statcast_outs_above_average_and_position(name=name, year=year)
-            stats_dict['outs_above_avg_position'] = primary_position
-            stats_dict['outs_above_avg'] = outs_above_avg
+            if 'outs_above_avg' not in stats_dict.keys(): # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
+                years_list = years_played if is_full_career else self.years
+                years_as_ints = [int(y) for y in years_list]
+                stats_dict['outs_above_avg'] = self.statcast_outs_above_average_dict(name=name, years=years_as_ints)
             
             # DERIVE 1B 
             triples = 0 if '3B' not in stats_dict.keys() else int(stats_dict['3B'])
@@ -304,19 +305,20 @@ class BaseballReferenceScraper:
 
                 if position_name != 'TOT':
                     # DRS (2003+)
-                    drs_metric_name = 'bis_runs_total'
                     drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total'})
-                    drs_rating = drs_object.get_text() if drs_object != None else 0
-                    drs_rating = 0 if drs_rating == '' else drs_rating
+                    drs_rating = drs_object.get_text() if drs_object else None
+                    drs_rating = None if (drs_rating or '') == '' else drs_rating
                     
                     # ACCOUNT FOR SHORTENED OR ONGOING SEASONS
+                    use_stat_per_yr = False
                     if is_full_career:
                         use_stat_per_yr = True
                     else:
                         today = datetime.today()
                         card_year_end_date = datetime(int(year), 10, 15)
                         is_year_end_date_before_today = today < card_year_end_date
-                        use_stat_per_yr = (str(year) == '2020' or is_year_end_date_before_today) and int(drs_rating) > 0
+                        drs_is_above_0 = int(drs_rating) > 0 if drs_rating else False
+                        use_stat_per_yr = (str(year) == '2020' or is_year_end_date_before_today) and drs_is_above_0
                     
                     if use_stat_per_yr:
                         drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total_per_season'})
@@ -326,8 +328,8 @@ class BaseballReferenceScraper:
                     # TOTAL ZONE (1953-2003)
                     suffix = '_per_season' if use_stat_per_yr else ''
                     total_zone_object = position_info.find('td',attrs={'class':'right','data-stat':f'tz_runs_total{suffix}'})
-                    total_zone_rating = total_zone_object.get_text() if total_zone_object != None else 0
-                    total_zone_rating = 0 if total_zone_rating == '' else total_zone_rating
+                    total_zone_rating = total_zone_object.get_text() if total_zone_object else None
+                    total_zone_rating = None if (total_zone_rating or '') == '' else total_zone_rating
 
                     # UPDATE POSITION DICTIONARY
                     position_dict = {
@@ -521,21 +523,27 @@ class BaseballReferenceScraper:
         default_speed = 26.25
         return default_speed
 
-    def statcast_outs_above_average_and_position(self, name, year):
+    def statcast_outs_above_average_dict(self, name, years):
         """Outs above average metric for players from Baseball Savant (Only applicable to 2016+).
 
         Args:
           name: Full name of Player
-          year: Year for Player stats
+          year: List of years to include.
 
         Returns:
-          Tuple object with position and outs above average integer.
+          Dictionary with position and outs above avg value
         """
-        # DATA ONLY AVAILABLE 2016+
-        if int(year) < 2016:
-            return (None, None)
+        # DEFINE YEAR RANGE
+        min_year = min(years)
+        max_year = max(years)
 
-        url = f'https://baseballsavant.mlb.com/leaderboard/outs_above_average?type=Fielder&startYear={year}&endYear={year}&position=&team=&min=0'
+        year_start_for_query = max(min_year, 2016)
+        year_end_for_query = max_year
+        # DATA ONLY AVAILABLE 2016+
+        if max_year < 2016:
+            return {}
+
+        url = f'https://baseballsavant.mlb.com/leaderboard/outs_above_average?type=Fielder&startYear={year_start_for_query}&endYear={year_end_for_query}&position=&team=&min=0'
         oaa_html = self.html_for_url(url)
 
         data_extracted = re.search('var data = (.*);',oaa_html).group(1)
@@ -546,12 +554,38 @@ class BaseballReferenceScraper:
             
             is_player_match = self.__statcast_name_match(bref_name=name, statcast_name=player_dict['entity_name'])
             if is_player_match:
-                primary_position = player_dict['primary_pos_formatted']
-                outs_above_avg = player_dict['outs_above_average']
-                return (primary_position, outs_above_avg)
-
+                # MAKE REQUEST FOR DETAILED PAGE WITH EXACT NUMBERS
+                statcast_player_id = player_dict['entity_id']
+                player_detail_url = f'https://baseballsavant.mlb.com/savant-player/{statcast_player_id}?stats=statcast-r-fielding-mlb'
+                player_detail_html = self.html_for_url(url=player_detail_url)
+                fielding_data_extracted = re.search('infieldDefense: (.*),',player_detail_html)
+                if fielding_data_extracted:
+                    fielding_data_grouped = fielding_data_extracted.group(1)
+                    fielding_data_jsons = json.loads(fielding_data_grouped)
+                    fielding_data = {}
+                    for fielding_row in fielding_data_jsons:
+                        team_abbr = fielding_row['fld_abbreviation']
+                        is_year_match = int(fielding_row['year']) in years
+                        is_team_row = self.team_override == team_abbr if self.team_override else team_abbr != 'NA'
+                        if is_year_match and is_team_row:
+                            position = fielding_row['pos_name_short']
+                            ooa = fielding_row['outs_above_average']
+                            if position in fielding_data.keys():
+                                # POSITION IS ALREADY IN JSON, ADD TO IT
+                                fielding_data[position] += ooa
+                            else:
+                                fielding_data[position] = ooa
+                            # IF OF POSITION, ADD TO TOTAL OF DEFENSE
+                            if position in ['LF','CF','RF']:
+                                if 'OF' in fielding_data.keys():
+                                    # POSITION IS ALREADY IN JSON, ADD TO IT
+                                    fielding_data['OF'] += ooa
+                                else:
+                                    fielding_data['OF'] = ooa
+                    return fielding_data
+                
         # IF NOT FOUND, RETURN NONE
-        return (None, None)
+        return {}
 
     def __statcast_name_match(self, bref_name, statcast_name):
         """Compare first name and last name from bref vs statcast to match to a player.

@@ -186,6 +186,7 @@ class ShowdownPlayerCardGenerator:
         # INITIAL DICTS TO STORE POSITIONS AND DEFENSE
         positions_and_defense = {}
         positions_and_games_played = {}
+        positions_and_real_life_ratings = {}
 
         # FLAG IF OF IS AVAILABLE BUT NOT CF (SHOHEI OHTANI 2021 CASE)
         positions_list = [defensive_stats[f'Position{i}'] for i in range(1, num_positions+1)]
@@ -198,7 +199,7 @@ class ShowdownPlayerCardGenerator:
             # CHECK IF POSITION MATCHES PLAYER TYPE
             is_valid_position = self.is_pitcher == ('P' == position_raw)
             if is_valid_position:
-                games_at_position = int(defensive_stats['gPosition{}'.format(position_index)])
+                games_at_position = int(defensive_stats[f'gPosition{position_index}'])
                 position = self.__position_name_in_game(position=position_raw,
                                                         num_positions=num_positions,
                                                         position_appearances=games_at_position,
@@ -209,23 +210,34 @@ class ShowdownPlayerCardGenerator:
                 # IN-GAME RATING AT
                 if position is not None:
                     if not self.is_pitcher:
-                        try:                                
+                        try:
+                            # FOR MULTI YEAR CARDS THAT SPAN CROSS OVER 2016, IGNORE OAA
+                            # CHECK WHAT YEARS THE CARD SPANS OVER
+                            start_year = min(self.year_list)
+                            end_year = max(self.year_list)
+                            use_drs_over_oaa = start_year < 2016 and end_year >= 2016
+                            
+                            # CHECK WHICH DEFENSIVE METRIC TO USE
                             is_drs_available = f'drsPosition{position_index}' in defensive_stats.keys()
                             is_d_war_available = 'dWAR' in defensive_stats.keys()
-                            is_ooa_available = defensive_stats['outs_above_avg_position'] == position
-                            ooa = defensive_stats['outs_above_avg'] if is_ooa_available else None
-                            drs = int(defensive_stats['drsPosition{}'.format(position_index)]) if is_drs_available else None
-                            tzr = int(defensive_stats['tzPosition{}'.format(position_index)])
+                            is_oaa_available = position in defensive_stats['outs_above_avg'].keys() and not use_drs_over_oaa
+                            oaa = defensive_stats['outs_above_avg'][position] if is_oaa_available else None
+                            drs = int(defensive_stats[f'drsPosition{position_index}']) if is_drs_available else None
+                            tzr = int(defensive_stats[f'tzPosition{position_index}'])
                             dWar = float(defensive_stats['dWAR']) if is_d_war_available else None
-                            if is_ooa_available:
-                                metric = 'outs_above_avg'
-                            elif drs:
+                            if is_oaa_available:
+                                metric = 'oaa'
+                                defensive_rating = oaa
+                            elif drs != None:
                                 metric = 'drs'
-                            elif tzr: 
+                                defensive_rating = drs
+                            elif tzr != None: 
                                 metric = 'tzr'
+                                defensive_rating = tzr
                             else:
                                 metric = 'dWAR'
-                            defensive_rating = ooa or drs or tzr or dWar
+                                defensive_rating = dWar
+                            positions_and_real_life_ratings[position] = { metric: defensive_rating }
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
                         except:
                             in_game_defense = 0
@@ -251,6 +263,9 @@ class ShowdownPlayerCardGenerator:
         # ASSIGN DH IF POSITIONS DICT IS EMPTY
         if final_positions_in_game == {}:
             final_positions_in_game = {'DH': 0}
+
+        # STORE TO REAL LIFE NUMBERS TO SELF
+        self.positions_and_real_life_ratings = positions_and_real_life_ratings
 
         return final_positions_in_game
 
@@ -390,6 +405,22 @@ class ShowdownPlayerCardGenerator:
         """
         MIN_SABER_FIELDING = sc.MIN_SABER_FIELDING[metric]
         MAX_SABER_FIELDING = sc.MAX_SABER_FIELDING[metric]
+        # IF USING OUTS ABOVE AVG, CALCULATE RATING PER 162 GAMES
+        is_using_oaa = metric == 'oaa'
+        is_1b = position.upper() == '1B'
+        if is_using_oaa:
+            rating = rating / games * 162.0
+            # FOR OUTS ABOVE AVG OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
+            # EX: NICK AHMED 2018 - 38.45 OAA per 162
+            #   - OAA FOR +5 = 15
+            #   - OAA OVER MAX = 38.45 - 15 = 23.45
+            #   - REDUCED OVER MAX = 23.45 * 0.5 = 11.7
+            #   - NEW RATING = 15 + 11.7 = 26.7
+            
+            if rating > MAX_SABER_FIELDING and not is_1b:
+                amount_over_max = rating - MAX_SABER_FIELDING
+                reduced_amount_over_max = amount_over_max * sc.OAA_OVER_MAX_MULTIPLIER
+                rating = reduced_amount_over_max + MAX_SABER_FIELDING
 
         max_defense_for_position = sc.POSITION_DEFENSE_RANGE[self.context][position]
         defensive_range = MAX_SABER_FIELDING - MIN_SABER_FIELDING
@@ -398,7 +429,7 @@ class ShowdownPlayerCardGenerator:
         defense = round(defense_raw) if defense_raw > 0 or self.context_year == '2022' else 0
 
         # ADD IN STATIC METRICS FOR 1B
-        if position.upper() == '1B':
+        if is_1b:
             if rating > sc.FIRST_BASE_PLUS_2_CUTOFF[metric]:
                 defense = 2
             elif rating > sc.FIRST_BASE_PLUS_1_CUTOFF[metric]:
@@ -409,7 +440,8 @@ class ShowdownPlayerCardGenerator:
                 defense = 0
         
         # CAP DEFENSE IF GAMES PLAYED AT POSITION IS LESS THAN 80
-        defense = int(max_defense_for_position) if games < 100 and defense > max_defense_for_position else defense
+        defense_over_the_max = defense > max_defense_for_position
+        defense = int(max_defense_for_position) if games < 100 and defense_over_the_max else defense
 
         return defense
 
@@ -1808,22 +1840,17 @@ class ShowdownPlayerCardGenerator:
             results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, real_stats_str)
 
         # DISPLAY INDIVIDUAL PT CATEGORIES
-        pt_category_string = 'OBP:{obp}  BA:{ba}  SLG:{slg}  SPD/IP:{spd_ip}'.format(
-            obp = round(self.obp_points,2),
-            ba = round(self.ba_points,2),
-            slg = round(self.slg_points,2),
-            spd_ip = round(self.spd_ip_points,2)
-        )
+        pt_category_string = f'OBP:{round(self.obp_points,1)}  BA:{round(self.ba_points,1)}  SLG:{round(self.slg_points,1)}  SPD/IP:{round(self.spd_ip_points,1)}'
         if self.points_bonus > 0:
-            pt_category_string += f"  BONUS:{self.points_bonus}"
+            pt_category_string += f"  BONUS:{round(self.points_bonus,1)}"
         if self.icon_points != 0:
-            pt_category_string += f"  ICONS:{self.icon_points}"
+            pt_category_string += f"  ICONS:{round(self.icon_points,1)}"
         if not self.is_pitcher:
-            pt_category_string += '  HR:{hr}  DEF:{defense}'.format(hr=self.hr_points,defense=self.defense_points)
+            pt_category_string += f'  HR:{round(self.hr_points,1)}  DEF:{round(self.defense_points,1)}'
         else:
-            pt_category_string += f"  OUT_DIST: {round(self.out_dist_points,2)}"
+            pt_category_string += f"  OUT_DIST: {round(self.out_dist_points,1)}"
         if self.points_normalizer < 1.0:
-            pt_category_string += f"  NORMALIZER: {round(self.points_normalizer,2)}"
+            pt_category_string += f"  NORMALIZER: {round(self.points_normalizer,1)}"
         # NOT USING DOCSTRING FOR FORMATTING REASONS
         card_as_string = (
             '***********************************************\n' +
@@ -1916,7 +1943,7 @@ class ShowdownPlayerCardGenerator:
             final_player_data.append([f'{prefix}{cleaned_category}',actual,in_game])
         
         # NON COMPARABLE STATS
-        category_list = ['earned_run_avg', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'outs_above_avg', 'dWAR', 'bWAR']
+        category_list = ['earned_run_avg', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
         for category in category_list:
             if category in self.stats.keys():
                 stat = str(self.stats[category]) if self.stats[category] else 'N/A'
@@ -1926,11 +1953,14 @@ class ShowdownPlayerCardGenerator:
                     'dWAR': 'dWAR',
                     'SB': f'{category_prefix}SB',
                     'earned_run_avg': 'ERA',
-                    'outs_above_avg': 'OOA',
                 }
                 short_category_name = short_name_map[category]
                 final_player_data.append([short_category_name,stat,'N/A'])
 
+        # DEFENSE (IF APPLICABLE)
+        for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
+            for metric, value in metric_and_value_dict.items():
+                final_player_data.append([f'{metric.upper()}-{position}',str(round(value)),'N/A'])
 
         return final_player_data
 
