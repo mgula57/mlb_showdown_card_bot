@@ -2241,7 +2241,7 @@ class ShowdownPlayerCardGenerator:
 
         save_img_path = os.path.join(self.card_img_output_folder_path, self.image_name)
         if self.is_foil:
-            player_image = player_image.resize((int(1488 / 2), int(2079 / 2)), Image.ANTIALIAS)
+            player_image = player_image.resize((int(1488 / 2.75), int(2079 / 2.75)), Image.ANTIALIAS)
             foil_images = self.__foil_effect_images(image=player_image)
             foil_images[0].save(save_img_path,
                save_all = True, append_images = foil_images[1:], 
@@ -3467,7 +3467,7 @@ class ShowdownPlayerCardGenerator:
         images = []
         for i in range(1,24,1):
             image_updated = image.convert('RGBA')
-            foil_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'Foil-Animation-{i}.png')).convert('RGBA').resize((int(1488 / 2), int(2079 / 2)),Image.ANTIALIAS)
+            foil_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'Foil-Animation-{i}.png')).convert('RGBA').resize((int(1488 / 2.75), int(2079 / 2.75)),Image.ANTIALIAS)
             image_updated.paste(foil_img,(0,0),foil_img)
             images.append(image_updated)
 
