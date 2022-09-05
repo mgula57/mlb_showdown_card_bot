@@ -2241,7 +2241,7 @@ class ShowdownPlayerCardGenerator:
 
         save_img_path = os.path.join(self.card_img_output_folder_path, self.image_name)
         if self.is_foil:
-            player_image = player_image.resize((int(1488 / 2), int(2079 / 2)), Image.ANTIALIAS)
+            player_image = player_image.resize((int(1488 / 2.75), int(2079 / 2.75)), Image.ANTIALIAS)
             foil_images = self.__foil_effect_images(image=player_image)
             foil_images[0].save(save_img_path,
                save_all = True, append_images = foil_images[1:], 
