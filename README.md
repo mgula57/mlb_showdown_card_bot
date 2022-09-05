@@ -20,6 +20,7 @@
 * [Card Methodology](#card-methodology)
     * [Creating a Chart](#creating-a-chart)
     * [Defense](#defense)
+    * [Innings Pitched](#innings-pitched)
     * [Speed](#speed)
     * [Icons](#icons)
     * [Points](#points)
@@ -199,13 +200,14 @@ To display one of the other chart outputs, add the optional **offset**/ argument
 ### **Defense**
 
 #### _Hitters_
-Each player can have a maximum of **2 positions**. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. The positions are then limited to the top 2 by number of appearances. 
+Each player can have a maximum of **2 positions** or WOTC sets (2000-2005). That is expanded to **3 positions** for 2022 sets. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. The positions are then limited to the top by number of appearances. 
 
-In-game defensive ratings are calculated based on either Total Zone Rating (tzr), Defensive Runs Saved (drs), or Defensive Wins Above Replacement (dWAR). The bot will choose which metric to use depending on the year:
+In-game defensive ratings are calculated based on either Outs Above Avg (OAA), Total Zone Rating (tzr), Defensive Runs Saved (drs), or Defensive Wins Above Replacement (dWAR). The bot will choose which metric to use depending on the year:
 
 - 1870-1953: dWAR
 - 1953-2002: TZR
-- 2003-Pres: DRS
+- 2003-2015: DRS
+- 2016-PRES: OAA (EXCEPT CATCHERS)
 
 All these metrics work by comparing a certain player to the average replacement at that position (0). For example a +10 TZR is an above average rating, while a -7 TZR is below average.
 
@@ -218,6 +220,15 @@ Ex: David Wright 2007 (+12 DRS)
 * 3B Rating = 3.2
 * 3B Rating = +3
 ```
+
+For multi-year cards, the bot will take an average or median depending on which metric is used. Below is the breakdown for each metric.
+
+- dWAR - MEDIAN
+- TZR - MEDIAN
+- DRS - MEDIAN
+- OAA - AVG PER 162 GAMES AT POSITION
+
+If the multi-year card spans across available metrics (ex: a card using 2014-2022), it will use the metric available for the entire period.
 
 #### _Pitchers_
 Pitchers fall under the following categories
@@ -238,7 +249,27 @@ For example, the range of SPRINT SPEED is from 23 ft/sec to 31 ft/sec. If a play
 
 _** Pitchers are automatically given a SPEED of 10._
 
+### **Innings Pitched**
 
+Innings pitched is calculated based a Pitcher's innings pitched / games played (IP/G). The components of that equation will change depending on the pitcher's type (STARTER vs RELIEVER). 
+
+- STARTER: IP/GS
+- RELIEVER: (IP - (GS * IP/GS)) / (G-GS)
+
+Ex: Nestor Cortes (2021) (RELIEVER)
+```
+Stats:
+    G: 39
+    GS: 12
+    IP/GS: 5.5
+    IP: 123.2
+
+IP = (IP - (GS * IP/GS)) / (G-GS)
+   = (123.67 - (12 * 5.5)) / (39-12)
+   = 57.67 / 27
+   = 2.09
+   = 2 IP
+```
 ### **Icons**
 
 Icons were a feature introduced in 2003 MLB Showdown sets. 
@@ -351,7 +382,7 @@ Card methodology will slightly change if the user enters a multi-year card. Diff
 
 - **SPEED**: Speed rating is based on the avg across the selected years. If the card crosses between using SB and Sprint Speed as metrics, it will use Sprint Speed if 35% of the seasons choosen are after 2015. Otherwise it will use SB as the benchmark.
 - **TEAM**: If the choosen player played for multiple teams, the Bot will assign the team with the most games played.
-- **DEFENSE**: For each qualified position, the Bot uses the **median** defensive metric (drs/tzr/dWar) calculated across the choosen years. The qualification for positions increases from 15% -> 25%.
+- **DEFENSE**: For each qualified position, the Bot uses the **median** defensive metric (drs/tzr/dWar) calculated across the choosen years. If outs above avg is available, it takes uses 162 game average instead of a median. The qualification for positions increases from 15% -> 25%.
 - **GB/FB**: The GO/AO ratio is averaged across choosen years.
 - **Icons**: If the player qualified for an icon in any of the choosen seasons, he is granted the icon in the multi-year variant. This is excluding the R icon, which is only available in single-year cards.
 

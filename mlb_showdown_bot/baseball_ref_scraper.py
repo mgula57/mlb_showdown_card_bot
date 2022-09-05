@@ -215,6 +215,7 @@ class BaseballReferenceScraper:
             years_played = self.__years_played_list(type=type, homepage_soup=soup_for_homepage_stats)
             stats_dict['type'] = type
             stats_dict['hand'] = self.hand(soup_for_homepage_stats, type)
+            stats_dict['hand_throw'] = self.hand(soup_for_homepage_stats, type='Pitcher') # ALWAYS PASS PITCHER TO STORE THROWING HAND
             stats_dict['name'] = name
             stats_dict['years_played'] = years_played
             
@@ -245,7 +246,7 @@ class BaseballReferenceScraper:
                 stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats)
                 sprint_speed_list = []
                 for year in years_played:
-                    sprint_speed = self.sprint_speed(name=name, year=year, type=type)
+                    sprint_speed = self.statcast_sprint_speed(name=name, year=year)
                     if sprint_speed:
                         sprint_speed_list.append(sprint_speed)
                 if len(sprint_speed_list) > 0:
@@ -253,7 +254,13 @@ class BaseballReferenceScraper:
                 else:
                     stats_dict['sprint_speed'] = None
             else:
-                stats_dict['sprint_speed'] = self.sprint_speed(name=name, year=year, type=type)
+                stats_dict['sprint_speed'] = self.statcast_sprint_speed(name=name, year=year)
+
+            # OUTS ABOVE AVERAGE (2016+)
+            if 'outs_above_avg' not in stats_dict.keys(): # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
+                years_list = years_played if is_full_career else self.years
+                years_as_ints = [int(y) for y in years_list]
+                stats_dict['outs_above_avg'] = self.statcast_outs_above_average_dict(name=name, years=years_as_ints)
             
             # DERIVE 1B 
             triples = 0 if '3B' not in stats_dict.keys() else int(stats_dict['3B'])
@@ -298,19 +305,20 @@ class BaseballReferenceScraper:
 
                 if position_name != 'TOT':
                     # DRS (2003+)
-                    drs_metric_name = 'bis_runs_total'
                     drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total'})
-                    drs_rating = drs_object.get_text() if drs_object != None else 0
-                    drs_rating = 0 if drs_rating == '' else drs_rating
+                    drs_rating = drs_object.get_text() if drs_object else None
+                    drs_rating = None if (drs_rating or '') == '' else drs_rating
                     
                     # ACCOUNT FOR SHORTENED OR ONGOING SEASONS
+                    use_stat_per_yr = False
                     if is_full_career:
                         use_stat_per_yr = True
                     else:
                         today = datetime.today()
                         card_year_end_date = datetime(int(year), 10, 15)
                         is_year_end_date_before_today = today < card_year_end_date
-                        use_stat_per_yr = (str(year) == '2020' or is_year_end_date_before_today) and int(drs_rating) > 0
+                        drs_is_above_0 = int(drs_rating) > 0 if drs_rating else False
+                        use_stat_per_yr = (str(year) == '2020' or is_year_end_date_before_today) and drs_is_above_0
                     
                     if use_stat_per_yr:
                         drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total_per_season'})
@@ -320,8 +328,8 @@ class BaseballReferenceScraper:
                     # TOTAL ZONE (1953-2003)
                     suffix = '_per_season' if use_stat_per_yr else ''
                     total_zone_object = position_info.find('td',attrs={'class':'right','data-stat':f'tz_runs_total{suffix}'})
-                    total_zone_rating = total_zone_object.get_text() if total_zone_object != None else 0
-                    total_zone_rating = 0 if total_zone_rating == '' else total_zone_rating
+                    total_zone_rating = total_zone_object.get_text() if total_zone_object else None
+                    total_zone_rating = None if (total_zone_rating or '') == '' else total_zone_rating
 
                     # UPDATE POSITION DICTIONARY
                     position_dict = {
@@ -481,13 +489,12 @@ class BaseballReferenceScraper:
         else:
             return "Pitcher"
 
-    def sprint_speed(self, name, year, type):
+    def statcast_sprint_speed(self, name, year):
         """Sprint Speed for player from Baseball Savant (Only applicable to 2015+).
 
         Args:
           name: Full name of Player
           year: Year for Player stats
-          type: String for player type (Pitcher or Hitter)
 
         Raises:
           AttributeError: This Player Played 0 Games. Check Player Name and Year.
@@ -508,22 +515,103 @@ class BaseballReferenceScraper:
 
         for player_dict in speed_list_all_players:
             # FIND PLAYER IN LIST
-            first_name_cleaned = unidecode.unidecode(name.split(' ')[0].replace(".", ""))
-            last_name = unidecode.unidecode(name.split(' ')[1])
-            full_name_baseball_savant = unidecode.unidecode(player_dict['name_display_last_first'])
-            # REPLACE DECIMAL POINTS WITH EMPTY STRING
-            try:
-                full_name_baseball_savant = full_name_baseball_savant.replace(".",'')
-            except:
-                break
-            is_player_match = first_name_cleaned in full_name_baseball_savant \
-                              and last_name in full_name_baseball_savant
+            is_player_match = self.__statcast_name_match(bref_name=name, statcast_name=player_dict['name_display_last_first'])
             if is_player_match:
                 speed = float(player_dict['r_sprint_speed_top50percent_pretty'])
                 return speed
         # IF NOT FOUND, RETURN LEAGUE AVG
         default_speed = 26.25
         return default_speed
+
+    def statcast_outs_above_average_dict(self, name, years):
+        """Outs above average metric for players from Baseball Savant (Only applicable to 2016+).
+
+        Args:
+          name: Full name of Player
+          year: List of years to include.
+
+        Returns:
+          Dictionary with position and outs above avg value
+        """
+        # DEFINE YEAR RANGE
+        min_year = min(years)
+        max_year = max(years)
+
+        year_start_for_query = max(min_year, 2016)
+        year_end_for_query = max_year
+        # DATA ONLY AVAILABLE 2016+
+        if max_year < 2016:
+            return {}
+
+        url = f'https://baseballsavant.mlb.com/leaderboard/outs_above_average?type=Fielder&startYear={year_start_for_query}&endYear={year_end_for_query}&position=&team=&min=0'
+        oaa_html = self.html_for_url(url)
+
+        data_extracted = re.search('var data = (.*);',oaa_html).group(1)
+        oaa_list_all_players = json.loads(data_extracted)
+
+        for player_dict in oaa_list_all_players:
+            # FIND PLAYER IN LIST
+            
+            is_player_match = self.__statcast_name_match(bref_name=name, statcast_name=player_dict['entity_name'])
+            if is_player_match:
+                # MAKE REQUEST FOR DETAILED PAGE WITH EXACT NUMBERS
+                statcast_player_id = player_dict['entity_id']
+                player_detail_url = f'https://baseballsavant.mlb.com/savant-player/{statcast_player_id}?stats=statcast-r-fielding-mlb'
+                player_detail_html = self.html_for_url(url=player_detail_url)
+                fielding_data_extracted = re.search('infieldDefense: (.*),',player_detail_html)
+                if fielding_data_extracted:
+                    fielding_data_grouped = fielding_data_extracted.group(1)
+                    fielding_data_jsons = json.loads(fielding_data_grouped)
+                    fielding_data = {}
+                    for fielding_row in fielding_data_jsons:
+                        team_abbr = fielding_row['fld_abbreviation']
+                        is_year_match = int(fielding_row['year']) in years
+                        is_team_row = self.team_override == team_abbr if self.team_override else team_abbr != 'NA'
+                        if is_year_match and is_team_row:
+                            position = fielding_row['pos_name_short']
+                            ooa = fielding_row['outs_above_average']
+                            if position in fielding_data.keys():
+                                # POSITION IS ALREADY IN JSON, ADD TO IT
+                                fielding_data[position] += ooa
+                            else:
+                                fielding_data[position] = ooa
+                            # IF OF POSITION, ADD TO TOTAL OF DEFENSE
+                            if position in ['LF','CF','RF']:
+                                if 'OF' in fielding_data.keys():
+                                    # POSITION IS ALREADY IN JSON, ADD TO IT
+                                    fielding_data['OF'] += ooa
+                                else:
+                                    fielding_data['OF'] = ooa
+                    return fielding_data
+                
+        # IF NOT FOUND, RETURN NONE
+        return {}
+
+    def __statcast_name_match(self, bref_name, statcast_name):
+        """Compare first name and last name from bref vs statcast to match to a player.
+        Returns true if both the first name and last name are a match.
+
+        Args:
+          bref_name: Full name of Player from baseball reference.
+          statcast_name: String from a statcast leaderboard.
+
+        Returns:
+          True or False for whether the name matches.
+        """
+
+        # REMOVE SPECIAL CHARACTERS FROM THE NAME
+        first_name_cleaned = unidecode.unidecode(bref_name.split(' ')[0].replace(".", ""))
+        last_name = unidecode.unidecode(bref_name.split(' ')[1])
+        full_name_baseball_savant = unidecode.unidecode(statcast_name)
+
+        # REPLACE DECIMAL POINTS WITH EMPTY STRING
+        try:
+            full_name_baseball_savant = full_name_baseball_savant.replace(".",'')
+        except:
+            return False
+        
+        return first_name_cleaned in full_name_baseball_savant \
+                and last_name in full_name_baseball_savant
 
     def advanced_stats(self, type, year):
         """Parse advanced stats page from baseball reference.
@@ -551,7 +639,7 @@ class BaseballReferenceScraper:
             standard_row = self.__get_career_totals_row(div_id=f'all_{table_prefix}_standard',soup_object=soup_for_advanced_stats)
             
         else:
-            standard_row_key = '{}_standard.{}'.format(table_prefix, year)
+            standard_row_key = f'{table_prefix}_standard.{year}'
             standard_row = soup_for_advanced_stats.find('tr',attrs={'class':'full','id': standard_row_key})
 
         advanced_stats = {}
@@ -668,6 +756,20 @@ class BaseballReferenceScraper:
                 ratio_row = soup_for_advanced_stats.find('tr', attrs = {'class': 'full', 'id': ratio_row_key})
         advanced_stats.update(self.__parse_ratio_stats(ratio_row=ratio_row, slg=advanced_stats['slugging_perc']))
 
+        # IP/GS (STARTING PITCHER)
+        if type == 'Pitcher':
+            ip_per_gs = 0.0
+            starter_stats_soup = soup_for_advanced_stats.find('div', attrs={'id': 'div_pitching_starter'})
+            if starter_stats_soup:
+                partial_stats_soup = self.__find_partial_team_stats_row(soup_object=starter_stats_soup, team=self.team_override, year=year, return_soup_object=True)
+                row_accounting_for_team_override = partial_stats_soup if self.team_override and partial_stats_soup else starter_stats_soup.find('tr', attrs={'id': f'pitching_starter.{year}'})
+                if row_accounting_for_team_override:
+                    ip_per_start_object = row_accounting_for_team_override.find('td', attrs={'data-stat': 'innings_per_start'})
+                    if ip_per_start_object:
+                        ip_per_start_text = ip_per_start_object.get_text()
+                        ip_per_gs = self.__convert_to_numeric(ip_per_start_text)
+            advanced_stats['IP/GS'] = ip_per_gs
+        
         return advanced_stats
 
     def __parse_standard_stats(self, type, soup_row, included_g_for_pitcher=False):

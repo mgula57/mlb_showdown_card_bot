@@ -40,8 +40,9 @@ class CardLog(db.Model):
     is_variable_spd_00_01 = db.Column(db.Boolean)
     is_random = db.Column(db.Boolean)
     is_automated_image = db.Column(db.Boolean)
+    is_foil = db.Column(db.Boolean)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -62,8 +63,9 @@ class CardLog(db.Model):
         self.is_variable_spd_00_01 = is_variable_spd_00_01
         self.is_random = is_random
         self.is_automated_image = is_automated_image
+        self.is_foil = is_foil
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image):
+def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -85,6 +87,7 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             is_variable_spd_00_01=is_variable_spd_00_01,
             is_random=is_random,
             is_automated_image=is_automated_image,
+            is_foil=is_foil,
         )
         db.session.add(card_log)
         db.session.commit()
@@ -122,6 +125,7 @@ def card_creator():
     is_variable_spd_00_01 = None
     is_random = None
     is_automated_image = None
+    is_foil = None
 
     try:
         # PARSE INPUTS
@@ -147,6 +151,7 @@ def card_creator():
         is_border = request.args.get('addBorder').lower() == 'true'
         dark_mode = request.args.get('is_dark_mode').lower() == 'true'
         is_variable_spd_00_01 = request.args.get('is_variable_spd_00_01').lower() == 'true'
+        foil = request.args.get('is_foil').lower() == 'true'
         is_random = name.upper() == '((RANDOM))'
         if is_random:
             # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
@@ -171,6 +176,7 @@ def card_creator():
         add_img_border = is_border if is_border else False
         is_dark_mode = dark_mode if dark_mode else False
         is_variable_speed_00_01 = is_variable_spd_00_01 if is_variable_spd_00_01 else False
+        is_foil = foil if foil else False
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
@@ -192,6 +198,7 @@ def card_creator():
             add_image_border=add_img_border,
             is_dark_mode=is_dark_mode,
             is_variable_speed_00_01=is_variable_speed_00_01,
+            is_foil=is_foil,
             is_running_in_flask=True
         )
         error = "Error - Unable to create Showdown Card Image."
@@ -226,7 +233,8 @@ def card_creator():
             is_rookie_season=is_rookie_season,
             is_variable_spd_00_01=is_variable_speed_00_01,
             is_random=is_random,
-            is_automated_image=is_automated_image
+            is_automated_image=is_automated_image,
+            is_foil=is_foil
         )
         return jsonify(
             image_path=card_image_path,
@@ -261,7 +269,8 @@ def card_creator():
             is_rookie_season=is_rookie_season,
             is_variable_spd_00_01=is_variable_spd_00_01,
             is_random=is_random,
-            is_automated_image=is_automated_image
+            is_automated_image=is_automated_image,
+            is_foil=is_foil
         )
         return jsonify(
             image_path=None,
