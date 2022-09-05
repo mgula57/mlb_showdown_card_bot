@@ -3467,7 +3467,7 @@ class ShowdownPlayerCardGenerator:
         images = []
         for i in range(1,24,1):
             image_updated = image.convert('RGBA')
-            foil_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'Foil-Animation-{i}.png')).convert('RGBA').resize((int(1488 / 2), int(2079 / 2)),Image.ANTIALIAS)
+            foil_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'Foil-Animation-{i}.png')).convert('RGBA').resize((int(1488 / 2.75), int(2079 / 2.75)),Image.ANTIALIAS)
             image_updated.paste(foil_img,(0,0),foil_img)
             images.append(image_updated)
 
