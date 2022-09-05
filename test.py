@@ -44,6 +44,7 @@ if __name__ == "__main__":
                     context=set,
                     print_to_cli=False
                 )
+                showdown.player_image()
         except Exception as e:
             result = 'FAILED'
             failures += 1

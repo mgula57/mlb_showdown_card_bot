@@ -29,11 +29,11 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "3.1"
+        self.version = "3.2"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.bref_url = stats['bref_url'] if 'bref_url' in stats.keys() else ''
@@ -90,6 +90,7 @@ class ShowdownPlayerCardGenerator:
         self.add_image_border = add_image_border
         self.is_dark_mode = is_dark_mode
         self.is_variable_speed_00_01 = is_variable_speed_00_01
+        self.is_foil = is_foil
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -141,9 +142,10 @@ class ShowdownPlayerCardGenerator:
         """
 
         # RAW METADATA FROM BASEBALL REFERENCE
-        defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k}
+        defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k or 'outs_above_avg' in k}
         hand_raw = stats['hand']
         innings_pitched_raw = float(stats['IP']) if self.is_pitcher else 0.0
+        ip_per_start = (stats['IP/GS'] or 0.0) if 'IP/GS' in stats.keys() else 0.0
         games_played_raw = int(stats['G'])
         games_started_raw = int(stats['GS']) if self.is_pitcher else 0
         saves_raw = int(stats['SV']) if self.is_pitcher else 0
@@ -160,7 +162,7 @@ class ShowdownPlayerCardGenerator:
                                                                   games_played=games_played_raw,
                                                                   games_started=games_started_raw,
                                                                   saves=saves_raw)
-        self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw, games_started=games_started_raw)
+        self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw, games_started=games_started_raw, ip_per_start=ip_per_start)
         self.hand = self.__handedness(hand=hand_raw)
         self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
         self.icons = self.__icons(awards=stats['award_summary'] if 'award_summary' in stats.keys() else '')
@@ -184,6 +186,7 @@ class ShowdownPlayerCardGenerator:
         # INITIAL DICTS TO STORE POSITIONS AND DEFENSE
         positions_and_defense = {}
         positions_and_games_played = {}
+        positions_and_real_life_ratings = {}
 
         # FLAG IF OF IS AVAILABLE BUT NOT CF (SHOHEI OHTANI 2021 CASE)
         positions_list = [defensive_stats[f'Position{i}'] for i in range(1, num_positions+1)]
@@ -196,7 +199,7 @@ class ShowdownPlayerCardGenerator:
             # CHECK IF POSITION MATCHES PLAYER TYPE
             is_valid_position = self.is_pitcher == ('P' == position_raw)
             if is_valid_position:
-                games_at_position = int(defensive_stats['gPosition{}'.format(position_index)])
+                games_at_position = int(defensive_stats[f'gPosition{position_index}'])
                 position = self.__position_name_in_game(position=position_raw,
                                                         num_positions=num_positions,
                                                         position_appearances=games_at_position,
@@ -207,19 +210,37 @@ class ShowdownPlayerCardGenerator:
                 # IN-GAME RATING AT
                 if position is not None:
                     if not self.is_pitcher:
-                        try:                                
+                        try:
+                            # FOR MULTI YEAR CARDS THAT SPAN CROSS OVER 2016, IGNORE OAA
+                            # CHECK WHAT YEARS THE CARD SPANS OVER
+                            start_year = min(self.year_list)
+                            end_year = max(self.year_list)
+                            use_drs_over_oaa = start_year < 2016 and end_year >= 2016
+                            
+                            # CHECK WHICH DEFENSIVE METRIC TO USE
                             is_drs_available = f'drsPosition{position_index}' in defensive_stats.keys()
                             is_d_war_available = 'dWAR' in defensive_stats.keys()
-                            drs = int(defensive_stats['drsPosition{}'.format(position_index)]) if is_drs_available else None
-                            tzr = int(defensive_stats['tzPosition{}'.format(position_index)])
+                            is_oaa_available = position in defensive_stats['outs_above_avg'].keys() and not use_drs_over_oaa
+                            oaa = defensive_stats['outs_above_avg'][position] if is_oaa_available else None
+                            if is_drs_available:
+                                drs = int(defensive_stats[f'drsPosition{position_index}']) if defensive_stats[f'drsPosition{position_index}'] != None else None
+                            else:
+                                drs = None
+                            tzr = int(defensive_stats[f'tzPosition{position_index}']) if defensive_stats[f'tzPosition{position_index}'] != None else None
                             dWar = float(defensive_stats['dWAR']) if is_d_war_available else None
-                            if drs:
+                            if is_oaa_available:
+                                metric = 'oaa'
+                                defensive_rating = oaa
+                            elif drs != None:
                                 metric = 'drs'
-                            elif tzr: 
+                                defensive_rating = drs
+                            elif tzr != None: 
                                 metric = 'tzr'
+                                defensive_rating = tzr
                             else:
                                 metric = 'dWAR'
-                            defensive_rating = drs or tzr or dWar
+                                defensive_rating = dWar
+                            positions_and_real_life_ratings[position] = { metric: defensive_rating }
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
                         except:
                             in_game_defense = 0
@@ -245,6 +266,9 @@ class ShowdownPlayerCardGenerator:
         # ASSIGN DH IF POSITIONS DICT IS EMPTY
         if final_positions_in_game == {}:
             final_positions_in_game = {'DH': 0}
+
+        # STORE TO REAL LIFE NUMBERS TO SELF
+        self.positions_and_real_life_ratings = positions_and_real_life_ratings
 
         return final_positions_in_game
 
@@ -384,6 +408,22 @@ class ShowdownPlayerCardGenerator:
         """
         MIN_SABER_FIELDING = sc.MIN_SABER_FIELDING[metric]
         MAX_SABER_FIELDING = sc.MAX_SABER_FIELDING[metric]
+        # IF USING OUTS ABOVE AVG, CALCULATE RATING PER 162 GAMES
+        is_using_oaa = metric == 'oaa'
+        is_1b = position.upper() == '1B'
+        if is_using_oaa:
+            rating = rating / games * 162.0
+            # FOR OUTS ABOVE AVG OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
+            # EX: NICK AHMED 2018 - 38.45 OAA per 162
+            #   - OAA FOR +5 = 16
+            #   - OAA OVER MAX = 38.45 - 16 = 22.45
+            #   - REDUCED OVER MAX = 22.45 * 0.5 = 11.23
+            #   - NEW RATING = 16 + 11.23 = 26.23
+            
+            if rating > MAX_SABER_FIELDING and not is_1b:
+                amount_over_max = rating - MAX_SABER_FIELDING
+                reduced_amount_over_max = amount_over_max * sc.OAA_OVER_MAX_MULTIPLIER
+                rating = reduced_amount_over_max + MAX_SABER_FIELDING
 
         max_defense_for_position = sc.POSITION_DEFENSE_RANGE[self.context][position]
         defensive_range = MAX_SABER_FIELDING - MIN_SABER_FIELDING
@@ -392,7 +432,7 @@ class ShowdownPlayerCardGenerator:
         defense = round(defense_raw) if defense_raw > 0 or self.context_year == '2022' else 0
 
         # ADD IN STATIC METRICS FOR 1B
-        if position.upper() == '1B':
+        if is_1b:
             if rating > sc.FIRST_BASE_PLUS_2_CUTOFF[metric]:
                 defense = 2
             elif rating > sc.FIRST_BASE_PLUS_1_CUTOFF[metric]:
@@ -403,7 +443,8 @@ class ShowdownPlayerCardGenerator:
                 defense = 0
         
         # CAP DEFENSE IF GAMES PLAYED AT POSITION IS LESS THAN 80
-        defense = int(max_defense_for_position) if games < 100 and defense > max_defense_for_position else defense
+        defense_over_the_max = defense > max_defense_for_position
+        defense = int(max_defense_for_position) if games < 100 and defense_over_the_max else defense
 
         return defense
 
@@ -422,28 +463,29 @@ class ShowdownPlayerCardGenerator:
 
         return hand_formatted_for_position
 
-    def __innings_pitched(self, innings_pitched, games, games_started):
+    def __innings_pitched(self, innings_pitched, games, games_started, ip_per_start):
         """In game stamina for a pitcher. Position Player defaults to 0.
 
         Args:
           innings_pitched: The total innings pitched during the season.
           games: The total games played during the season.
           games_started: The total games started during the season.
+          ip_per_start: IP per game started.
 
         Returns:
           In game innings pitched ability.
         """
         # ACCOUNT FOR HYBRID STARTER/RELIEVERS
-        pct_games_started = games_started / games
         type = self.player_type()
         is_reliever = type == 'relief_pitcher'
         if is_reliever:
-            # REMOVE STARTER INNINGS (ASSUME 5.5 IP)
-            ip_from_starts = games_started * 5.5
-            innings_pitched -= ip_from_starts
+            # REMOVE STARTER INNINGS AND GAMES STARTED
+            ip_as_starter = games_started * ip_per_start
+            innings_pitched -= ip_as_starter
             games -= games_started
             ip = round(innings_pitched / games)
-            ip = 2 if ip > 2 and pct_games_started >= 0.2 and is_reliever else ip
+        elif ip_per_start > 0:
+            ip = round(ip_per_start)
         else:
             ip = round(innings_pitched / games)
         
@@ -535,7 +577,7 @@ class ShowdownPlayerCardGenerator:
         icons = []
         for award, icon in awards_to_icon_map.items():
             if award in awards_list:
-                if not (self.is_pitcher and award in ['SS', 'GG']):
+                if not (self.is_pitcher and award == 'SS'):
                     icons.append(icon)
 
         # DATA DRIVEN ICONS
@@ -588,6 +630,69 @@ class ShowdownPlayerCardGenerator:
             player_category = 'position_player'
 
         return player_category
+
+    def player_classification(self):
+        """Gives the player a classification based on their stats, hand, and position. 
+          Used to inform which silhouette is given to a player.
+
+        Args:
+          None
+
+        Returns:
+          String with player's classification (ex: "LHH", "LHH-OF", "RHP-CL")
+        """
+
+        positions = self.positions_and_defense.keys()
+        is_catcher = any(pos in positions for pos in ['C','CA'])
+        is_middle_infield = any(pos in positions for pos in ['IF','2B','SS'])
+        is_outfield = any(pos in positions for pos in ['OF','CF','LF/RF'])
+        is_1b = '1B' in positions
+        is_multi_position = len(positions) > 1
+        hitter_hand = "LHH" if self.hand[-1] == "S" else f"{self.hand[-1]}HH"
+        hand_prefix = self.hand if self.is_pitcher else hitter_hand
+        hand_throwing = self.stats['hand_throw']
+        throwing_hand_prefix = f"{hand_throwing[0].upper()}H"
+
+        # CATCHERS
+        if is_catcher:
+            return "CA"
+
+        # MIDDLE INFIELDERS
+        if is_middle_infield and not is_outfield:
+            return "MIF"
+
+        # OLD TIMERS
+        if min(self.year_list) < 1950:
+            # IF YEAR IS LESS THAN 1950, ASSIGN OLD TIMER SILHOUETTES
+            return f"{hand_prefix}-OT"
+
+        # PITCHERS
+        if self.is_pitcher:
+            # PITCHERS ARE CLASSIFIED AS SP, RP, CL
+            if 'RELIEVER' in positions:
+                return f"{hand_prefix}-RP"
+            elif 'CLOSER' in positions:
+                return f"{hand_prefix}-CL"
+            else:
+                return f"{hand_prefix}-SP"
+        # HITTERS
+        else:
+            is_slg_above_threshold = self.stats['slugging_perc'] >= 0.475
+            # FOR HITTERS CHECK FOR POSITIONS
+            # 1. LHH OUTFIELDER
+            if is_outfield and hand_throwing == "Left" and not is_slg_above_threshold:
+                return f"LH-OF"
+
+            # 2. CHECK FOR 1B
+            if is_1b and not is_multi_position:
+                return f"{throwing_hand_prefix}-1B"
+
+            # 3. CHECK FOR POWER HITTER
+            if is_slg_above_threshold:
+                return f"{hand_prefix}-POW"
+
+        # RETURN STANDARD CUTOUT
+        return hand_prefix
 
 # ------------------------------------------------------------------------
 # COMMAND / OUTS METHODS
@@ -1739,22 +1844,17 @@ class ShowdownPlayerCardGenerator:
             results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, real_stats_str)
 
         # DISPLAY INDIVIDUAL PT CATEGORIES
-        pt_category_string = 'OBP:{obp}  BA:{ba}  SLG:{slg}  SPD/IP:{spd_ip}'.format(
-            obp = round(self.obp_points,2),
-            ba = round(self.ba_points,2),
-            slg = round(self.slg_points,2),
-            spd_ip = round(self.spd_ip_points,2)
-        )
+        pt_category_string = f'OBP:{round(self.obp_points,1)}  BA:{round(self.ba_points,1)}  SLG:{round(self.slg_points,1)}  SPD/IP:{round(self.spd_ip_points,1)}'
         if self.points_bonus > 0:
-            pt_category_string += f"  BONUS:{self.points_bonus}"
+            pt_category_string += f"  BONUS:{round(self.points_bonus,1)}"
         if self.icon_points != 0:
-            pt_category_string += f"  ICONS:{self.icon_points}"
+            pt_category_string += f"  ICONS:{round(self.icon_points,1)}"
         if not self.is_pitcher:
-            pt_category_string += '  HR:{hr}  DEF:{defense}'.format(hr=self.hr_points,defense=self.defense_points)
+            pt_category_string += f'  HR:{round(self.hr_points,1)}  DEF:{round(self.defense_points,1)}'
         else:
-            pt_category_string += f"  OUT_DIST: {round(self.out_dist_points,2)}"
+            pt_category_string += f"  OUT_DIST: {round(self.out_dist_points,1)}"
         if self.points_normalizer < 1.0:
-            pt_category_string += f"  NORMALIZER: {round(self.points_normalizer,2)}"
+            pt_category_string += f"  NORMALIZER: {round(self.points_normalizer,1)}"
         # NOT USING DOCSTRING FOR FORMATTING REASONS
         card_as_string = (
             '***********************************************\n' +
@@ -1850,7 +1950,7 @@ class ShowdownPlayerCardGenerator:
         category_list = ['earned_run_avg', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
         for category in category_list:
             if category in self.stats.keys():
-                stat = str(self.stats[category])
+                stat = str(self.stats[category]) if self.stats[category] else 'N/A'
                 short_name_map = {
                     'onbase_plus_slugging_plus': 'OPS+',
                     'bWAR': 'bWAR',
@@ -1861,6 +1961,10 @@ class ShowdownPlayerCardGenerator:
                 short_category_name = short_name_map[category]
                 final_player_data.append([short_category_name,stat,'N/A'])
 
+        # DEFENSE (IF APPLICABLE)
+        for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
+            for metric, value in metric_and_value_dict.items():
+                final_player_data.append([f'{metric.upper()}-{position}',str(round(value)),'N/A'])
 
         return final_player_data
 
@@ -2135,9 +2239,24 @@ class ShowdownPlayerCardGenerator:
             image_border.paste(player_image.convert("RGBA"),(72,72),player_image.convert("RGBA"))
             player_image = image_border
 
-        player_image.save(os.path.join(self.card_img_output_folder_path, self.image_name), dpi=(300, 300), quality=100)
+        save_img_path = os.path.join(self.card_img_output_folder_path, self.image_name)
+        if self.is_foil:
+            player_image = player_image.resize((int(1488 / 2), int(2079 / 2)), Image.ANTIALIAS)
+            foil_images = self.__foil_effect_images(image=player_image)
+            foil_images[0].save(save_img_path,
+               save_all = True, append_images = foil_images[1:], 
+               optimize = True, duration = 8, loop=0, format="PNG")
+        else:
+            player_image.save(save_img_path, dpi=(300, 300), quality=100)
+        
         if self.is_running_in_flask:
-            player_image.save(os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name), dpi=(300, 300), quality=100)
+            flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name)
+            if self.is_foil:
+                foil_images[0].save(flask_img_path,
+                    save_all = True, append_images = foil_images[1:], 
+                    optimize = True, duration = 8, loop=0, format="PNG")
+            else:
+                player_image.save(flask_img_path, dpi=(300, 300), quality=100)
 
         # OPEN THE IMAGE LOCALLY
         if show:
@@ -2299,11 +2418,9 @@ class ShowdownPlayerCardGenerator:
         Returns:
           PIL image object for the player's positional silhouetee.
         """
-
-        type_string = 'P' if self.is_pitcher else 'H'
-        hand_prefix = self.hand[0 if self.is_pitcher else -1]
-        hand_string = 'L' if hand_prefix == 'S' else hand_prefix
-        silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-SIL-{hand_string}H{type_string}.png')
+        # NOTE: 2004 and 2005 share image assets
+        year = '2004' if self.context_year == '2005' else self.context_year
+        silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{year}-SIL-{self.player_classification()}.png')
         return Image.open(silhouetee_image_path)
 
     def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=3,overlay_image_path=None):
@@ -3345,6 +3462,17 @@ class ShowdownPlayerCardGenerator:
         # CROP THE CENTER OF THE IMAGE
         return image.crop((left, top, right, bottom))
 
+    def __foil_effect_images(self, image):
+
+        images = []
+        for i in range(1,24,1):
+            image_updated = image.convert('RGBA')
+            foil_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'Foil-Animation-{i}.png')).convert('RGBA').resize((int(1488 / 2), int(2079 / 2)),Image.ANTIALIAS)
+            image_updated.paste(foil_img,(0,0),foil_img)
+            images.append(image_updated)
+
+        return images
+
     def __clean_images_directory(self):
         """Removes all images from output folder that are not the current card. Leaves
            photos that are less than 5 mins old to prevent errors from simultaneous uploads.
@@ -3510,11 +3638,21 @@ class ShowdownPlayerCardGenerator:
         service = build('drive', 'v3', credentials=creds)
 
         # GET LIST OF FILE METADATA FROM CORRECT FOLDER
-        query = f"parents = '{folder_id}'"
-        files = service.files()
-        response = files.list(q=query,pageSize=1000).execute()
-        files_metadata = response.get('files')
-
+        files_metadata = []
+        page_token = None
+        while True:
+            try:
+                query = f"parents = '{folder_id}'"
+                files = service.files()
+                response = files.list(q=query,pageSize=1000,pageToken=page_token).execute()
+                new_files_list = response.get('files')
+                page_token = response.get('nextPageToken', None)
+                files_metadata = files_metadata + new_files_list
+                if not page_token:
+                    break
+            except:
+                break
+        
         # LOOK FOR SUBSTRING IN FILE NAMES
         player_matched_image_files = []
         for img_file in files_metadata:
