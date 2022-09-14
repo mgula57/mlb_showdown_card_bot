@@ -418,8 +418,7 @@ class ShowdownPlayerCardGenerator:
             #   - OAA FOR +5 = 16
             #   - OAA OVER MAX = 38.45 - 16 = 22.45
             #   - REDUCED OVER MAX = 22.45 * 0.5 = 11.23
-            #   - NEW RATING = 16 + 11.23 = 26.23
-            
+            #   - NEW RATING = 16 + 11.23 = 26.23            
             if rating > MAX_SABER_FIELDING and not is_1b:
                 amount_over_max = rating - MAX_SABER_FIELDING
                 reduced_amount_over_max = amount_over_max * sc.OAA_OVER_MAX_MULTIPLIER
@@ -430,6 +429,9 @@ class ShowdownPlayerCardGenerator:
         percentile = (rating-MIN_SABER_FIELDING) / defensive_range
         defense_raw = percentile * max_defense_for_position
         defense = round(defense_raw) if defense_raw > 0 or self.context_year == '2022' else 0
+        
+        # FOR NEGATIVES, CAP DEFENSE AT -2
+        defense = -2 if self.context_year == '2022' and defense < -2 else defense
 
         # ADD IN STATIC METRICS FOR 1B
         if is_1b:
@@ -445,6 +447,9 @@ class ShowdownPlayerCardGenerator:
         # CAP DEFENSE IF GAMES PLAYED AT POSITION IS LESS THAN 80
         defense_over_the_max = defense > max_defense_for_position
         defense = int(max_defense_for_position) if games < 100 and defense_over_the_max else defense
+
+        # CAP DEFENSE AT +0 IF IN NEGATIVES AND GAMES PLAYED IS UNDER 0 (2022 SET)
+        defense = 0 if defense < 0 and games < 50 else defense
 
         return defense
 
