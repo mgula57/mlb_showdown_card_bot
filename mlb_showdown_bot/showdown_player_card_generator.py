@@ -2234,9 +2234,10 @@ class ShowdownPlayerCardGenerator:
         # SAVE IMAGE
         if self.add_image_border:
             if self.context in ['2000','2001']:
-                # USE TEAM COLOR AS BACKGROUND
-                team_color_tuple = self.__team_color_rgbs()
-                border_color = self.__rbgs_to_hex(rgbs=team_color_tuple)
+                # SAMPLE THE BACKGROUND TO GRAB THE BORDER COLOR
+                pix = player_image.load()
+                background_rgb = pix[30,30] # SAMPLE AT 30x 30y FROM TOP LEFT CORNER OF IMAGE
+                border_color = self.__rbgs_to_hex(rgbs=background_rgb)
             else:
                 # USE WHITE OR BLACK
                 border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
