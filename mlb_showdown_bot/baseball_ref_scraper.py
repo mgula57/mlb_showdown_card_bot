@@ -570,18 +570,19 @@ class BaseballReferenceScraper:
                         if is_year_match and is_team_row:
                             position = fielding_row['pos_name_short']
                             ooa = fielding_row['outs_above_average']
-                            if position in fielding_data.keys():
-                                # POSITION IS ALREADY IN JSON, ADD TO IT
-                                fielding_data[position] += ooa
-                            else:
-                                fielding_data[position] = ooa
-                            # IF OF POSITION, ADD TO TOTAL OF DEFENSE
-                            if position in ['LF','CF','RF']:
-                                if 'OF' in fielding_data.keys():
+                            if ooa:
+                                if position in fielding_data.keys():
                                     # POSITION IS ALREADY IN JSON, ADD TO IT
-                                    fielding_data['OF'] += ooa
+                                    fielding_data[position] += ooa
                                 else:
-                                    fielding_data['OF'] = ooa
+                                    fielding_data[position] = ooa
+                                # IF OF POSITION, ADD TO TOTAL OF DEFENSE
+                                if position in ['LF','CF','RF']:
+                                    if 'OF' in fielding_data.keys():
+                                        # POSITION IS ALREADY IN JSON, ADD TO IT
+                                        fielding_data['OF'] += ooa
+                                    else:
+                                        fielding_data['OF'] = ooa
                     return fielding_data
                 
         # IF NOT FOUND, RETURN NONE
