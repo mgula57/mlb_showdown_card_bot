@@ -488,9 +488,9 @@ class ShowdownPlayerCardGenerator:
             ip_as_starter = games_started * ip_per_start
             innings_pitched -= ip_as_starter
             games -= games_started
-            ip = round(innings_pitched / games)
+            ip = min(round(innings_pitched / games),3) # CAP RELIEVERS AT 3 IP
         elif ip_per_start > 0:
-            ip = round(ip_per_start)
+            ip = max(round(ip_per_start),4) # MINIMUM FOR SP IS 4 IP
         else:
             ip = round(innings_pitched / games)
         
@@ -1538,10 +1538,12 @@ class ShowdownPlayerCardGenerator:
         # ADJUST POINTS FOR RELIEVERS WITH 2X IP
         if player_category == 'relief_pitcher':
             is_multi_inning = self.ip > 1
-            multi_inning_points_multiplier = self.ip * (sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context] if is_multi_inning else 1.0)
-            if is_multi_inning:
-                self.multi_inning_points_multiplier = multi_inning_points_multiplier
-            points *= multi_inning_points_multiplier
+            ip_as_string = str(self.ip)
+            if ip_as_string in sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context].keys():
+                multi_inning_points_multiplier = sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context][ip_as_string] if is_multi_inning else 1.0
+                if is_multi_inning:
+                    self.multi_inning_points_multiplier = multi_inning_points_multiplier
+                points *= multi_inning_points_multiplier
         
         if self.is_pitcher:
             # PITCHERS GET PTS FOR OUT DISTRIBUTION IN SOME SETS
