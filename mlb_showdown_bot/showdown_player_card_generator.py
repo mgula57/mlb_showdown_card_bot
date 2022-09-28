@@ -488,9 +488,9 @@ class ShowdownPlayerCardGenerator:
             ip_as_starter = games_started * ip_per_start
             innings_pitched -= ip_as_starter
             games -= games_started
-            ip = round(innings_pitched / games)
+            ip = min(round(innings_pitched / games),3) # CAP RELIEVERS AT 3 IP
         elif ip_per_start > 0:
-            ip = round(ip_per_start)
+            ip = max(round(ip_per_start),4) # MINIMUM FOR SP IS 4 IP
         else:
             ip = round(innings_pitched / games)
         
@@ -1538,10 +1538,12 @@ class ShowdownPlayerCardGenerator:
         # ADJUST POINTS FOR RELIEVERS WITH 2X IP
         if player_category == 'relief_pitcher':
             is_multi_inning = self.ip > 1
-            multi_inning_points_multiplier = self.ip * (sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context] if is_multi_inning else 1.0)
-            if is_multi_inning:
-                self.multi_inning_points_multiplier = multi_inning_points_multiplier
-            points *= multi_inning_points_multiplier
+            ip_as_string = str(self.ip)
+            if ip_as_string in sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context].keys():
+                multi_inning_points_multiplier = sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context][ip_as_string] if is_multi_inning else 1.0
+                if is_multi_inning:
+                    self.multi_inning_points_multiplier = multi_inning_points_multiplier
+                points *= multi_inning_points_multiplier
         
         if self.is_pitcher:
             # PITCHERS GET PTS FOR OUT DISTRIBUTION IN SOME SETS
@@ -2289,10 +2291,9 @@ class ShowdownPlayerCardGenerator:
             # LOAD IMAGE FROM UPLOAD
             image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.player_image_path)
             try:
-                player_image = self.__default_background_image(search_for_image=False)
                 player_image_actual = Image.open(image_path).convert('RGBA')
                 player_image_actual_cropped = self.__center_crop(player_image_actual, (1500,2100))
-                player_image.paste(player_image_actual_cropped,(0,0),player_image_actual_cropped)
+                player_image = self.__default_background_image(search_for_image=False, uploaded_player_image=player_image_actual_cropped)
             except:
                 print("Error Loading Image from Path. Using default background...")
                 player_image = Image.open(default_image_path)
@@ -2317,18 +2318,19 @@ class ShowdownPlayerCardGenerator:
         player_image = self.__center_crop(player_image, (1500,2100))
 
         # IF 2000 CARD AND A DEFAULT WAS NOT USED, ADD NAME CONTAINER IN FRONT OF IMAGE
-        if self.context == '2000' and not is_default_image:
+        if self.context == '2000' and not is_default_image and not self.is_img_part_of_a_set:
             name_container = self.__2000_player_name_container_image()
             player_image.paste(name_container,(0,0),name_container)
 
         return player_image
 
-    def __default_background_image(self, search_for_image=True):
+    def __default_background_image(self, search_for_image=True, uploaded_player_image=None):
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
         Args:
           search_for_image: Boolean for whether to search google drive for image.
+          uploaded_player_image: Optional image to use instead of searching. 
 
         Returns:
           PIL image object for the player background.
@@ -2407,6 +2409,9 @@ class ShowdownPlayerCardGenerator:
                 player_image = self.__player_silhouetee_image()
             
             background_image.paste(player_image,(0,0),player_image)
+        elif uploaded_player_image:
+            # IMAGE IS TRANSPARENT
+            background_image.paste(uploaded_player_image,(0,0),uploaded_player_image)
 
         # IF 2000, PASTE SET CONTAINER BEFORE PLAYER CUTOUT
         if self.context == '2000':

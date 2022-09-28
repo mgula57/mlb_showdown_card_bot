@@ -1281,17 +1281,41 @@ POINTS_NORMALIZER_RELIEVER_MULTIPLIER = {
 
 """
 POINTS_RELIEVER_IP_MULTIPLIER
-  - WHAT PERCENT OF POINTS TO GIVE FOR 2ND INNING OF RELIEF
+  - WHAT PERCENT OF POINTS TO GIVE FOR 2ND/3RD INNING OF RELIEF
 """
 POINTS_RELIEVER_IP_MULTIPLIER = {
-    '2000': 0.95,
-    '2001': 0.80,
-    '2002': 0.60,
-    '2003': 0.55,
-    '2004': 0.67,
-    '2005': 0.625,
-    f'2022-{CLASSIC_ALIAS}': 0.80,
-    f'2022-{EXPANDED_ALIAS}': 0.625,
+    '2000': {
+        '2': 1.90,
+        '3': 2.55,
+    },
+    '2001': {
+        '2': 1.60,
+        '3': 2.10,
+    },
+    '2002': {
+        '2': 1.20,
+        '3': 1.80,
+    },
+    '2003': {
+        '2': 1.10,
+        '3': 1.65,
+    },
+    '2004': {
+        '2': 1.34,
+        '3': 2.01,
+    },
+    '2005': {
+        '2': 1.34,
+        '3': 2.01,
+    },
+    f'2022-{CLASSIC_ALIAS}': {
+        '2': 1.60,
+        '3': 2.10,
+    },
+    f'2022-{EXPANDED_ALIAS}': {
+        '2': 1.40,
+        '3': 2.01,
+    },
 }
 
 
