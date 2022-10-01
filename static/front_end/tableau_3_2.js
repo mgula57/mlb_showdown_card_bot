@@ -15,11 +15,11 @@ return Math.max(
 var divElement = document.getElementById('viz1664118452778');
 var vizElement = divElement.getElementsByTagName('object')[0];
 var isMobile = getWidth() < 600
-vizElement.style.width = getWidth() == 0 ? '400px' : '100%';
-vizElement.style.minHeight = '700px';
+vizElement.style.width = '100%';
+vizElement.style.minHeight = isMobile ? '600px' : '825px';
 vizElement.style.maxHeight = '900px';
 
-
+console.log(getWidth())
 // ADD PARAM TO FORCE EITHER DESKTOP OR MOBILE LAYOUT
 var deviceElementvizElement = document.getElementById('deviceParam')
 deviceElementvizElement.value = isMobile ? "mobile" : "desktop";
