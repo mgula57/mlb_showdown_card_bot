@@ -19,6 +19,17 @@
     overflow: hidden;
 }
 
+.tableau_bg_light {
+    border-radius: 20px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    margin-top: 10px;
+    margin-bottom: 20px;
+    margin-right: 10px;
+    margin-left: 10px;
+    background-color: #f3f3f3;
+    overflow: hidden;
+}
+
 /* INPUT: WHERE USER ENTERS PLAYER INFO */
 .input_container_light {
     background-color: #ffffff;
