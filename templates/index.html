@@ -37,10 +37,10 @@
             <div class="col-md-8">
                <ul class="nav nav-pills" id="pills-tab" role="tablist">
                <li class="nav-item" role="presentation">
-                  <button class="nav-link active" id="pills-create-tab" data-bs-toggle="pill" data-bs-target="#pills-create" type="button" role="tab" aria-controls="pills-create" aria-selected="true">Create</button>
+                  <button class="nav-link active" id="pills-explore-tab" data-bs-toggle="pill" data-bs-target="#pills-explore" type="button" role="tab" aria-controls="pills-explore" aria-selected="false">Explore</button>
                </li>
                <li class="nav-item" role="presentation">
-                  <button class="nav-link" id="pills-explore-tab" data-bs-toggle="pill" data-bs-target="#pills-explore" type="button" role="tab" aria-controls="pills-explore" aria-selected="false">Explore</button>
+                  <button class="nav-link" id="pills-create-tab" data-bs-toggle="pill" data-bs-target="#pills-create" type="button" role="tab" aria-controls="pills-create" aria-selected="true">Create</button>
                </li>
                <div class="form-check form-switch" style="margin-left: auto; margin-top: auto; margin-bottom: auto;">                        
                   <input class="form-check-input" type="checkbox" id="dark_theme_toggle" onchange="toggleTheme(this)">
@@ -53,7 +53,7 @@
       
       <div class="tab-content" id="pills-tabContent">
          <!------ CREATE  ------>
-         <div class="tab-pane fade show active" id="pills-create" role="tabpanel" aria-labelledby="pills-create-tab">
+         <div class="tab-pane fade" id="pills-create" role="tabpanel" aria-labelledby="pills-create-tab">
             <div class="container">
                <div class="container_bg_light" id="container_bg">
                   <div class="row">
@@ -341,7 +341,7 @@
          </div>
 
          <!------ EXPLORE  ------>
-         <div class="tab-pane fade" id="pills-explore" role="tabpanel" aria-labelledby="pills-explore-tab">
+         <div class="tab-pane fade show active" id="pills-explore" role="tabpanel" aria-labelledby="pills-explore-tab">
             <div class="container">
                <div class="tableau_bg_light" id="tableau_bg">
                   <div class='tableauPlaceholder' id='viz1664118452778' style='position: relative'>
