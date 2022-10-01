@@ -22,7 +22,7 @@ vizElement.style.maxHeight = '900px';
 console.log(getWidth())
 // ADD PARAM TO FORCE EITHER DESKTOP OR MOBILE LAYOUT
 var deviceElementvizElement = document.getElementById('deviceParam')
-deviceElementvizElement.value = isMobile ? "mobile" : "desktop";
+deviceElementvizElement.value = isMobile ? "phone" : "desktop";
 
 // ADD TABLEAU JS
 var scriptElement = document.createElement('script');
