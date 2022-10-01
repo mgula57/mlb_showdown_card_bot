@@ -14,12 +14,15 @@ return Math.max(
 // ADD WIDTH AND HEIGHT
 var divElement = document.getElementById('viz1664118452778');
 var vizElement = divElement.getElementsByTagName('object')[0];
-vizElement.style.width = '100%';
-vizElement.style.height = '900px';
+var isMobile = getWidth() < 600
+vizElement.style.width = getWidth() == 0 ? '400px' : '100%';
+vizElement.style.minHeight = '700px';
+vizElement.style.maxHeight = '900px';
+
 
 // ADD PARAM TO FORCE EITHER DESKTOP OR MOBILE LAYOUT
 var deviceElementvizElement = document.getElementById('deviceParam')
-deviceElementvizElement.value = getWidth() < 600 ? "mobile" : "desktop";
+deviceElementvizElement.value = isMobile ? "mobile" : "desktop";
 
 // ADD TABLEAU JS
 var scriptElement = document.createElement('script');
