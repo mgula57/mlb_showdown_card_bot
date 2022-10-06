@@ -219,14 +219,14 @@ function showCardData(data) {
 // -------------------------------------------------------
 
 function setActiveTab(tab) {
-    // $('.nav-pills li').removeClass('active');
-    // $('.tab-content .tab-pane').removeClass('active');
-    // $('.nav-link').removeClass('active');
+    $('.nav-pills li').removeClass('active');
+    $('.tab-content .tab-pane').removeClass('active');
+    $('.nav-link').removeClass('active');
 
-    // $('#pills-' + tab).addClass('active');
-    // $('#pills-' + tab + '-tab').addClass('active');
-    // $('#pills-' + tab).tab('show');
-    // $('#pills-' + tab).tab('show');
+    $('#pills-' + tab).addClass('active');
+    $('#pills-' + tab + '-tab').addClass('active');
+    $('#pills-' + tab).tab('show');
+    $('#pills-' + tab).tab('show');
 
 };
 
