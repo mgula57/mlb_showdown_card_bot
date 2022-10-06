@@ -215,6 +215,18 @@ function showCardData(data) {
 }
 
 // -------------------------------------------------------
+// BOOTSTRAP TABS
+// -------------------------------------------------------
+
+function setActiveTab(tab) {
+    $('.nav-pills li').removeClass('active');
+    $('.tab-content .tab-pane').removeClass('active');
+
+    $('#pills-' + tab).addClass('active');
+    $('#pills-' + tab).tab('show');
+};
+
+// -------------------------------------------------------
 // ON LOAD
 // -------------------------------------------------------
 
@@ -232,6 +244,8 @@ $(document).ready(function() {
             }
         }
     }
+    // SET TAB
+    setActiveTab('create');
 });
 
 // -------------------------------------------------------
