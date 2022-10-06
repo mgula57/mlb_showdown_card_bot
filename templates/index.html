@@ -35,25 +35,22 @@
                <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" class="img-fluid" id="showdown_logo_img" onclick="window.open('http://showdownbot.com', '_blank');">
             </div>
             <div class="col-md-8">
-               <ul class="nav nav-pills" id="pills-tab" role="tablist">
-               <li class="nav-item" role="presentation">
-                  <button class="nav-link active" id="pills-create-tab" data-bs-toggle="pill" data-bs-target="#pills-create" type="button" role="tab" aria-controls="pills-create" aria-selected="true">Create</button>
-               </li>
-               <li class="nav-item" role="presentation">
-                  <button class="nav-link" id="pills-explore-tab" data-bs-toggle="pill" data-bs-target="#pills-explore" type="button" role="tab" aria-controls="pills-explore" aria-selected="false">Explore</button>
-               </li>
-               <div class="form-check form-switch" style="margin-left: auto; margin-top: auto; margin-bottom: auto;">                        
-                  <input class="form-check-input" type="checkbox" id="dark_theme_toggle" onchange="toggleTheme(this)">
-                  <label class="form-check-label" for="dark_theme_toggle" id="darkThemeToggleLabel">Dark Theme</label>
-                </div>
-               </ul>
+                  <!-- TABS -->
+                  <div class="tabs">
+                     <button class="tabs_button" data-for-tab="create">Create</button>
+                     <button class="tabs_button" data-for-tab="explore">Explore</button>
+                     <div class="form-check form-switch" style="margin-left: auto; margin-top: auto; margin-bottom: auto;">                        
+                        <input class="form-check-input" type="checkbox" id="dark_theme_toggle" onchange="toggleTheme(this)">
+                        <label class="form-check-label" for="dark_theme_toggle" id="darkThemeToggleLabel">Dark Theme</label>
+                     </div>
+                  </div>
             </div>
          </div>
       </div>
    
-      <div class="tab-content" id="pills-tabContent">
+      <div class="tabs-content" id="tabs-content">
          <!------ CREATE  ------>
-         <div class="tab-pane show active" id="pills-create" role="tabpanel" aria-labelledby="pills-create-tab">
+         <div class="tab-content" data-tab="create">
             <div class="container">
                <div class="container_bg_light" id="container_bg">
                   <div class="row">
@@ -341,7 +338,7 @@
          </div>
 
          <!------ EXPLORE  ------>
-         <div class="tab-pane show active" id="pills-explore" role="tabpanel" aria-labelledby="pills-explore-tab">
+         <div class="tab-content" data-tab="explore">
             <div class="container">
                <div class="tableau_bg_light" id="tableau_bg">
                   <div class='tableauPlaceholder' id='viz1664118452778' style='position: relative'>

@@ -215,19 +215,39 @@ function showCardData(data) {
 }
 
 // -------------------------------------------------------
-// BOOTSTRAP TABS
+// TABS
 // -------------------------------------------------------
 
-function setActiveTab(tab) {
-    $('.nav-pills li').removeClass('active');
-    $('.tab-content .tab-pane').removeClass('active');
-    $('.nav-link').removeClass('active');
+function setupTabs(selectedTab) {
+    // ITERATE THROUGH BUTTONS TO APPLY ON CLICK EVENT
+    document.querySelectorAll(".tabs_button").forEach(button => {
+        button.addEventListener("click", () => {
+            const tabsParent = button.parentElement;
+            const tabContentId = button.dataset.forTab;
+            const tabToActivate = document.querySelector(`.tab-content[data-tab="${tabContentId}"]`);
+            const tabContentContainer = document.getElementById('tabs-content')
 
-    $('#pills-' + tab).addClass('active');
-    $('#pills-' + tab + '-tab').addClass('active');
-    $('#pills-' + tab).tab('show');
-    $('#pills-' + tab).tab('show');
+            tabsParent.querySelectorAll(".tabs_button").forEach(button => {
+                button.classList.remove("tabs_button--active");
+            });
+            
+            tabContentContainer.querySelectorAll(".tab-content").forEach(tab => {
+                tab.classList.remove("tab-content--active");
+            });
 
+            button.classList.add("tabs_button--active");
+            tabToActivate.classList.add("tab-content--active");
+
+            // SET DEFAULT
+            localStorage.setItem('tab', tabContentId);
+        });
+    });
+
+    // APPLY DEFAULT TAB
+    const tabToLoad = document.querySelector(`.tab-content[data-tab="${selectedTab}"]`);
+    tabToLoad.classList.add("tab-content--active");
+    const tabButtonToLoad = document.querySelector(`.tabs_button[data-for-tab="${selectedTab}"]`);
+    tabButtonToLoad.classList.add("tabs_button--active");
 };
 
 // -------------------------------------------------------
@@ -235,6 +255,7 @@ function setActiveTab(tab) {
 // -------------------------------------------------------
 
 $(document).ready(function() {
+    var selectedTab = "create"
     if(localStorage) {
         var storedSet = localStorage.getItem("set")
         if (storedSet.length > 0) {
@@ -247,9 +268,11 @@ $(document).ready(function() {
                 document.getElementById("dark_theme_toggle").checked = true;
             }
         }
+        // CHECK FOR LAST SELECTED TAB
+        selectedTab = localStorage.getItem("tab")
     }
-    // SET TAB
-    setActiveTab('create');
+    // SET TABS
+    setupTabs(selectedTab);
 });
 
 // -------------------------------------------------------
