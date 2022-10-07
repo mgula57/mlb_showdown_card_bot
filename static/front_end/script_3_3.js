@@ -283,11 +283,11 @@ $(document).ready(function() {
     var selectedTab = "create"
     if(localStorage) {
         var storedSet = localStorage.getItem("set")
-        if (storedSet.length > 0) {
+        if (storedSet) {
             document.getElementById("setSelection").value = storedSet;
         }
         var storedTheme = localStorage.getItem('theme')
-        if (storedTheme.length > 0) {
+        if (storedTheme) {
             setTheme(storedTheme);
             if (storedTheme == 'dark') {
                 document.getElementById("dark_theme_toggle").checked = true;
