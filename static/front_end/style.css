@@ -131,6 +131,7 @@
 /* TABS BUTTON WHEN BEING CLICKED */
 .tabs_button:active {
     background-color: rgb(150, 148, 148);
+    color: rgb(37, 37, 37);
 }
 
 /* TABS BUTTON WHEN BEING CLICKED */
