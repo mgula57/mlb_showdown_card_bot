@@ -2,7 +2,7 @@
 .container_bg_light {
     border-radius: 20px;
     box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    margin-top: 20px;
+    margin-top: 10px;
     margin-bottom: 20px;
     margin-right: 10px;
     margin-left: 10px;
@@ -16,6 +16,17 @@
     margin-right: 10px;
     margin-left: 10px;
     background-color: #303030; /*#416a9d; */
+    overflow: hidden;
+}
+
+.tableau_bg_light {
+    border-radius: 20px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    margin-top: 10px;
+    margin-bottom: 20px;
+    margin-right: 10px;
+    margin-left: 10px;
+    background-color: #f3f3f3;
     overflow: hidden;
 }
 
@@ -89,12 +100,62 @@
 
 /* LOGO IMAGE */
 #showdown_logo_img {
-    padding: 30px; 
-    padding-bottom: 5px;
+    max-width: 250px;
+    max-height: 200px;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 10px;
+}
+
+/* TABS CONTAINER */
+.tabs {
+    display: flex;
+    padding-top: 15px;
+    padding-left: 10px;
+    padding-right: 5px;
+}
+
+/* TABS BUTTON */
+.tabs_button {
+    padding: 10px;
+    padding-left: 20px;
+    padding-right: 20px;
+    border-radius: 20px;
+    background-color: rgb(227, 226, 226);
+    margin-right: 10px;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    color: rgb(37, 37, 37);
+}
+
+/* TABS BUTTON WHEN BEING CLICKED */
+.tabs_button:active {
+    background-color: rgb(150, 148, 148);
+}
+
+/* TABS BUTTON WHEN BEING CLICKED */
+.tabs_button--active {
+    background-color: rgb(73, 131, 212);
+    font-weight: bold;
+    color: white;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content-explore-hidden {
+    display: block;
+    visibility: hidden;
+}
+
+.tab-content--active {
+    display: block;
 }
 
 #darkThemeToggleLabel {
-    margin-left: 8px;
+    margin-right: 10px;
 }
 
 /* PLAYER NAME */
