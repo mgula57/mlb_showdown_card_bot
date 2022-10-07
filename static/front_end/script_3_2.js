@@ -222,30 +222,55 @@ function setupTabs(selectedTab) {
     // ITERATE THROUGH BUTTONS TO APPLY ON CLICK EVENT
     document.querySelectorAll(".tabs_button").forEach(button => {
         button.addEventListener("click", () => {
+            // POPULATE CONSTANTS
             const tabsParent = button.parentElement;
             const tabContentId = button.dataset.forTab;
-            const tabToActivate = document.querySelector(`.tab-content[data-tab="${tabContentId}"]`);
+            const isExploreButton = tabContentId == "explore"
+            var tabToActivate = document.querySelector(`.tab-content[data-tab="${tabContentId}"]`);
             const tabContentContainer = document.getElementById('tabs-content')
+            if (!tabToActivate) {
+                tabToActivate = document.getElementById('explore_content');
+            }
 
+            // REMOVE ACTIVE BUTTONS
             tabsParent.querySelectorAll(".tabs_button").forEach(button => {
                 button.classList.remove("tabs_button--active");
             });
             
+            // REMOVE ACTIVE CONTENT
             tabContentContainer.querySelectorAll(".tab-content").forEach(tab => {
                 tab.classList.remove("tab-content--active");
             });
 
+            if (isExploreButton) {
+                // REMOVE HIDDEN
+                tabToActivate.classList.remove('tab-content-explore-hidden');
+                // ADD NORMAL
+                tabToActivate.classList.add('tab-content');
+            };
+
+            // TRIGGER ACTIVE BUTTON/CONTENT
             button.classList.add("tabs_button--active");
             tabToActivate.classList.add("tab-content--active");
-
+            
             // SET DEFAULT
             localStorage.setItem('tab', tabContentId);
         });
     });
 
     // APPLY DEFAULT TAB
-    const tabToLoad = document.querySelector(`.tab-content[data-tab="${selectedTab}"]`);
-    tabToLoad.classList.add("tab-content--active");
+    const isExploreButton = selectedTab == "explore"
+    var tabToLoad = document.querySelector(`.tab-content[data-tab="${selectedTab}"]`);
+    if (!tabToLoad) {
+        tabToLoad = document.getElementById('explore_content');
+    }
+    if (isExploreButton) {
+        // REMOVE HIDDEN
+        tabToLoad.classList.remove('tab-content-explore-hidden');
+        // ADD NORMAL
+        tabToLoad.classList.add('tab-content');
+    };
+    tabToLoad.classList.add('tab-content--active');
     const tabButtonToLoad = document.querySelector(`.tabs_button[data-for-tab="${selectedTab}"]`);
     tabButtonToLoad.classList.add("tabs_button--active");
 };
@@ -269,7 +294,11 @@ $(document).ready(function() {
             }
         }
         // CHECK FOR LAST SELECTED TAB
-        selectedTab = localStorage.getItem("tab")
+        selectedTab = localStorage.getItem("tab");
+        if (!selectedTab) {
+            selectedTab = "create";
+            localStorage.setItem('tab', selectedTab);
+        }
     }
     // SET TABS
     setupTabs(selectedTab);

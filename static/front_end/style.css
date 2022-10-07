@@ -144,6 +144,11 @@
     display: none;
 }
 
+.tab-content-explore-hidden {
+    display: block;
+    visibility: hidden;
+}
+
 .tab-content--active {
     display: block;
 }
