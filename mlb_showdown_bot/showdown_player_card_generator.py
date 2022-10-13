@@ -222,12 +222,22 @@ class ShowdownPlayerCardGenerator:
                             is_d_war_available = 'dWAR' in defensive_stats.keys()
                             is_oaa_available = position in defensive_stats['outs_above_avg'].keys() and not use_drs_over_oaa
                             oaa = defensive_stats['outs_above_avg'][position] if is_oaa_available else None
-                            if is_drs_available:
-                                drs = int(defensive_stats[f'drsPosition{position_index}']) if defensive_stats[f'drsPosition{position_index}'] != None else None
-                            else:
+                            # DRS
+                            try:
+                                if is_drs_available:
+                                    drs = int(defensive_stats[f'drsPosition{position_index}']) if defensive_stats[f'drsPosition{position_index}'] != None else None
+                                else:
+                                    drs = None
+                            except:
                                 drs = None
-                            tzr = int(defensive_stats[f'tzPosition{position_index}']) if defensive_stats[f'tzPosition{position_index}'] != None else None
+                            # TZR
+                            try:
+                                tzr = int(defensive_stats[f'tzPosition{position_index}']) if defensive_stats[f'tzPosition{position_index}'] != None else None
+                            except:
+                                tzr = None
+                            # DWAR
                             dWar = float(defensive_stats['dWAR']) if is_d_war_available else None
+                            
                             if is_oaa_available:
                                 metric = 'oaa'
                                 defensive_rating = oaa
