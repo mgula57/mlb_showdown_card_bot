@@ -91,6 +91,7 @@ class ShowdownPlayerCardGenerator:
         self.is_dark_mode = is_dark_mode
         self.is_variable_speed_00_01 = is_variable_speed_00_01
         self.is_foil = is_foil
+        self.img_loading_error = None
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -2400,20 +2401,17 @@ class ShowdownPlayerCardGenerator:
 
             if player_image_url:
                 # USE PLAYER IMAGE FROM GOOGLE
-                num_tries = 2
+                num_tries = 1
                 for try_num in range(num_tries):
-                    # ATTEMPT THIS TWICE, ON SECOND TRY DELAY 3 SECONDS FOR GOOGLE DRIVE API
-                    if try_num > 0:
-                        sleep(3)
                     response = requests.get(player_image_url)
                     try:
                         player_image = Image.open(BytesIO(response.content)).convert("RGBA")
                         self.is_automated_image = True
                         break
-                    except:
+                    except Exception as err:
                         # IMAGE MAY FAIL TO LOAD SOMETIMES
+                        self.img_loading_error = str(err)
                         player_image = self.__player_silhouetee_image()
-                    
             else:
                 # ADD PLAYER SILHOUETTE
                 player_image = self.__player_silhouetee_image()
