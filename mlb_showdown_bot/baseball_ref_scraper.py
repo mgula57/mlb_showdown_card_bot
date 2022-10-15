@@ -315,7 +315,7 @@ class BaseballReferenceScraper:
                         use_stat_per_yr = True
                     else:
                         today = datetime.today()
-                        card_year_end_date = datetime(int(year), 10, 15)
+                        card_year_end_date = datetime(int(year), 10, 1)
                         is_year_end_date_before_today = today < card_year_end_date
                         drs_is_above_0 = int(drs_rating) > 0 if drs_rating else False
                         use_stat_per_yr = (str(year) == '2020' or is_year_end_date_before_today) and drs_is_above_0

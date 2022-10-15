@@ -214,7 +214,9 @@ def card_creator():
         player_context = showdown.context
         bref_url = showdown.bref_url
         name = player_name if is_random else name # LOG ACTUAL NAME IF IS RANDOMIZED PLAYER
-        error = ''
+        error = showdown.img_loading_error[:250] if showdown.img_loading_error else ''
+        if len(error) > 0:
+            print(error)
         log_card_submission_to_db(
             name=name,
             year=year,
