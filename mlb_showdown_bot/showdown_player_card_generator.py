@@ -2198,7 +2198,8 @@ class ShowdownPlayerCardGenerator:
 
         # STYLE (IF APPLICABLE)
         if self.style != '':
-            style_img_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.style.upper()}.png')
+            theme_suffix = '-DARK' if self.is_dark_mode else ''
+            style_img_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.style.upper()}{theme_suffix}.png')
             style_img = Image.open(style_img_path)
             player_image.paste(style_img,sc.IMAGE_LOCATIONS['style'][self.context_year],style_img)
 
@@ -3401,28 +3402,59 @@ class ShowdownPlayerCardGenerator:
         icon_positional_mapping = sc.ICON_LOCATIONS[self.context_year]
         # ITERATE THROUGH AND PASTE ICONS
         for index, icon in enumerate(self.icons[0:4]):
-            icon_img_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{icon}.png')
-            icon_image = Image.open(icon_img_path)
             position = icon_positional_mapping[index]
-            # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
-            # EX: 'LF/RF' IS LONGER STRING THAN '3B'
-            if self.context_year in ['2004','2005']:
-                positions_list = self.positions_and_defense.keys()
-                offset = 0
-                if len(positions_list) > 1:
-                    # SHIFT ICONS TO RIGHT
-                    offset = 165 if 'LF/RF' in positions_list else 135
-                elif 'LF/RF' in positions_list:
-                    offset = 75
-                elif 'CA' in positions_list:
-                    offset = 30
-                position = (position[0] + offset, position[1])
-            if self.context_year == '2022':
-                icon_image = icon_image.resize((70,70), Image.ANTIALIAS)
+            if int(self.context_year) < 2022:
+                icon_img_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{icon}.png')
+                icon_image = Image.open(icon_img_path)
+                # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
+                # EX: 'LF/RF' IS LONGER STRING THAN '3B'
+                if self.context_year in ['2004','2005']:
+                    positions_list = self.positions_and_defense.keys()
+                    offset = 0
+                    if len(positions_list) > 1:
+                        # SHIFT ICONS TO RIGHT
+                        offset = 165 if 'LF/RF' in positions_list else 135
+                    elif 'LF/RF' in positions_list:
+                        offset = 75
+                    elif 'CA' in positions_list:
+                        offset = 30
+                    position = (position[0] + offset, position[1])
+            else:
+                icon_image = self.__icon_image_circle(text=icon)
             player_image.paste(icon_image, position, icon_image)
 
         return player_image
 
+    def __icon_image_circle(self, text):
+        """For CLASSIC and EXPANDED sets, generate a circle image with text for the icons.
+
+        Args:
+          text: String to show on the icon
+
+        Returns:
+          PIL Image for with icon text and background circle.
+        """
+        # CIRCLE
+        text_color = sc.COLOR_WHITE
+        border_size = 9
+        icon_img = Image.new('RGBA',(220,220))
+        draw = ImageDraw.Draw(icon_img)
+        x1 = 20
+        y1 = 20
+        x2 = 190
+        y2 = 190       
+        draw.ellipse((x1-border_size, y1-border_size, x2+border_size, y2+border_size), fill=text_color)
+        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs())
+
+        # ADD TEXT
+        font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
+        font = ImageFont.truetype(font_path, size=120)
+        text_img = self.__text_image(text=text,size=(210,220),font=font,alignment='center',fill=text_color)
+        icon_img.paste(text_img, (0,60), text_img)
+        icon_img = icon_img.resize((80, 80), Image.ANTIALIAS)
+
+        return icon_img
+        
     def __round_corners(self, image, radius):
         """Round corners of a given image to a certain radius.
 
