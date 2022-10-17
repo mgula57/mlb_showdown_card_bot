@@ -930,7 +930,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'IF': 1.0,
     },
     f'2022-{CLASSIC_ALIAS}': {
-        'C': 1.2,
+        'C': 1.4,
         '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
@@ -941,7 +941,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'IF': 1.0,
     },
     f'2022-{EXPANDED_ALIAS}': {
-        'CA': 1.2,
+        'CA': 1.4,
         '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
@@ -1259,8 +1259,8 @@ POINTS_NORMALIZER_MULTIPLIER = {
     },
     f'2022-{EXPANDED_ALIAS}': {
         'position_player': 0.65,
-        'starting_pitcher': 0.75,
-        'relief_pitcher': 0.70,
+        'starting_pitcher': 0.80,
+        'relief_pitcher': 0.77,
     },
 }
 
