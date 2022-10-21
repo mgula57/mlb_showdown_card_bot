@@ -44,3 +44,6 @@ tests/cache/player_cache.csv
 static/output/
 mlb_showdown_bot/uploads/
 mlb_showdown_bot/output/
+
+# CREDS
+firebase_creds.json

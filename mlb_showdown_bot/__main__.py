@@ -1,13 +1,15 @@
 import argparse
 import os
-import pandas as pd
+
 # MY PACKAGES
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
+    from .firebase import Firebase
     from .baseball_ref_scraper import BaseballReferenceScraper
     from .showdown_player_card_generator import ShowdownPlayerCardGenerator
 except ImportError:
     # USE LOCAL IMPORT 
+    from firebase import Firebase
     from baseball_ref_scraper import BaseballReferenceScraper
     from showdown_player_card_generator import ShowdownPlayerCardGenerator
 
@@ -40,35 +42,46 @@ def main():
 
     name = args.name.title()
     year = args.year
+    context = args.context
+    command_out_override = None if args.co_override == '' else tuple([int(x) for x in args.co_override.split('-')])
 
     scraper = BaseballReferenceScraper(name=name,year=year)
-    statline = scraper.player_statline()
-
-    command_out_override = None if args.co_override == '' else tuple([int(x) for x in args.co_override.split('-')])
-    
-    showdown = ShowdownPlayerCardGenerator(
-        name=name,
+    # CHECK FOR CACHED STATS
+    db = Firebase()
+    cached_player_card = db.load_showdown_card(
+        bref_id = scraper.baseball_ref_id,
         year=year,
-        stats=statline,
-        is_cooperstown=args.is_cc,
-        is_super_season=args.is_ss,
-        is_all_star_game=args.is_asg,
-        is_rookie_season=args.is_rookie_season,
-        context=args.context,
-        expansion=args.expansion,
-        offset=args.offset,
-        player_image_url=args.image_url,
-        player_image_path=args.image_path,
-        card_img_output_folder_path=args.image_output_path,
-        print_to_cli=True,
-        show_player_card_image=args.show_image,
-        set_number=str(args.set_num),
-        command_out_override=command_out_override,
-        add_image_border=args.add_border,
-        is_dark_mode=args.dark_mode,
-        is_variable_speed_00_01=args.variable_spd,
-        is_foil=args.is_foil
+        context=context
     )
+    if cached_player_card:
+        cached_player_card.print_player()
+        if args.show_image:
+            cached_player_card.player_image(show = True)
+    else:
+        statline = scraper.player_statline()
+        showdown = ShowdownPlayerCardGenerator(
+            name=name,
+            year=year,
+            stats=statline,
+            is_cooperstown=args.is_cc,
+            is_super_season=args.is_ss,
+            is_all_star_game=args.is_asg,
+            is_rookie_season=args.is_rookie_season,
+            context=context,
+            expansion=args.expansion,
+            offset=args.offset,
+            player_image_url=args.image_url,
+            player_image_path=args.image_path,
+            card_img_output_folder_path=args.image_output_path,
+            print_to_cli=True,
+            show_player_card_image=args.show_image,
+            set_number=str(args.set_num),
+            command_out_override=command_out_override,
+            add_image_border=args.add_border,
+            is_dark_mode=args.dark_mode,
+            is_variable_speed_00_01=args.variable_spd,
+            is_foil=args.is_foil
+        )
 
 if __name__ == "__main__":
     main()

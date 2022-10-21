@@ -117,10 +117,10 @@ class ShowdownPlayerCardGenerator:
                                                       dbl_per_400_pa=float(stats_for_400_pa['2b_per_400_pa']),
                                                       trpl_per_400_pa=float(stats_for_400_pa['3b_per_400_pa']),
                                                       hr_per_400_pa=float(stats_for_400_pa['hr_per_400_pa']))
-            self.real_stats = self.stats_for_full_season(stats_per_400_pa=chart_results_per_400_pa)
+            self.projected = self.stats_for_full_season(stats_per_400_pa=chart_results_per_400_pa)
 
             self.points = self.point_value(chart=self.chart,
-                                            real_stats=self.real_stats,
+                                            projected=self.projected,
                                             positions_and_defense=self.positions_and_defense,
                                             speed_or_ip=self.ip if self.is_pitcher else self.speed)
             if print_to_cli:
@@ -853,19 +853,19 @@ class ShowdownPlayerCardGenerator:
         for command_out_tuple in command_out_combos:
             command = command_out_tuple[0]
             outs = command_out_tuple[1]
-            chart, accuracy, real_stats = self.__chart_with_accuracy(
+            chart, accuracy, projected = self.__chart_with_accuracy(
                                             command=command,
                                             outs=outs,
                                             stats_for_400_pa=stats_per_400_pa
                                           )
-            chart_and_accuracies.append( (command_out_tuple, chart, accuracy, real_stats) )
+            chart_and_accuracies.append( (command_out_tuple, chart, accuracy, projected) )
 
         chart_and_accuracies.sort(key=operator.itemgetter(2),reverse=True)
         best_chart = chart_and_accuracies[offset][1]
         self.top_command_out_combinations = [(ca[0],ca[2]) for ca in chart_and_accuracies]
-        real_stats_for_best_chart = chart_and_accuracies[offset][3]
+        projected_stats_for_best_chart = chart_and_accuracies[offset][3]
 
-        return best_chart, real_stats_for_best_chart
+        return best_chart, projected_stats_for_best_chart
 
     def __chart_with_accuracy(self, command, outs, stats_for_400_pa):
         """Create Player's chart and compare back to input stats.
@@ -1443,12 +1443,12 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # PLAYER VALUE METHODS
 
-    def point_value(self, chart, real_stats, positions_and_defense, speed_or_ip):
+    def point_value(self, chart, projected, positions_and_defense, speed_or_ip):
         """Derive player's value. Uses constants to compare against other cards in set.
 
         Args:
           chart: Dict containing number of results per result category ({'1b': 5, 'hr': 3}).
-          real_stats: Dict with real metrics (obp, ba, ...) for 650 PA (~ full season)
+          projected: Dict with projected metrics (obp, ba, ...) for 650 PA (~ full season)
           positions_and_defense: Dict with all valid positions and their corresponding defensive rating.
           speed_or_ip: In game speed ability or innings pitched.
 
@@ -1470,7 +1470,7 @@ class ShowdownPlayerCardGenerator:
         allow_negatives = sc.POINTS_ALLOW_NEGATIVE[self.context][player_category]
         self.obp_points = round(
                             sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['onbase'] \
-                            * self.stat_percentile(stat=real_stats['onbase_perc'],
+                            * self.stat_percentile(stat=projected['onbase_perc'],
                                                     min_max_dict=sc.ONBASE_PCT_RANGE[self.context][player_category],
                                                     is_desc=self.is_pitcher,
                                                     allow_negative=allow_negatives) \
@@ -1479,7 +1479,7 @@ class ShowdownPlayerCardGenerator:
                         )
         self.ba_points = round(
                             sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['average'] \
-                            * self.stat_percentile(stat=real_stats['batting_avg'],
+                            * self.stat_percentile(stat=projected['batting_avg'],
                                                     min_max_dict=sc.BATTING_AVG_RANGE[self.context][player_category],
                                                     is_desc=self.is_pitcher,
                                                     allow_negative=allow_negatives) \
@@ -1488,7 +1488,7 @@ class ShowdownPlayerCardGenerator:
                         )
         self.slg_points = round(
                             sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['slugging'] \
-                            * self.stat_percentile(stat=real_stats['slugging_perc'],
+                            * self.stat_percentile(stat=projected['slugging_perc'],
                                                     min_max_dict=sc.SLG_RANGE[self.context][player_category],
                                                     is_desc=self.is_pitcher,
                                                     allow_negative=allow_negatives) \
@@ -1517,7 +1517,7 @@ class ShowdownPlayerCardGenerator:
             # ONLY HITTERS HAVE HR ADD TO POINTS
             self.hr_points = round(
                                 sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['home_runs'] \
-                                * self.stat_percentile(stat=real_stats['hr_per_650_pa'],
+                                * self.stat_percentile(stat=projected['hr_per_650_pa'],
                                                         min_max_dict=sc.HR_RANGE[self.context],
                                                         is_desc=self.is_pitcher,
                                                         allow_negative=allow_negatives) \
@@ -1855,7 +1855,7 @@ class ShowdownPlayerCardGenerator:
         slash_categories = [('batting_avg', ' BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
         slash_as_string = ''
         for key, cleaned_category in slash_categories:
-            showdown_stat_str = '{}: {}'.format(cleaned_category,str(round(self.real_stats[key],3)).replace('0.','.'))
+            showdown_stat_str = '{}: {}'.format(cleaned_category,str(round(self.projected[key],3)).replace('0.','.'))
             real_stat_str = '{}: {}'.format(cleaned_category,str(round(self.stats[key],3)).replace('0.','.'))
             slash_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str,real_stat_str)
 
@@ -1872,9 +1872,9 @@ class ShowdownPlayerCardGenerator:
             ('so_per_650_pa', 'SO')
         ]
         for key, cleaned_category in result_categories:
-            showdown_stat_str = ' {}: {}'.format(cleaned_category,int(round(self.real_stats[key]) * real_life_pa_ratio))
-            real_stats_str = ' {}: {:>4}'.format(cleaned_category,self.stats[cleaned_category])
-            results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, real_stats_str)
+            showdown_stat_str = ' {}: {}'.format(cleaned_category,int(round(self.projected[key]) * real_life_pa_ratio))
+            projected_stat_str = ' {}: {:>4}'.format(cleaned_category,self.stats[cleaned_category])
+            results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, projected_stat_str)
 
         # DISPLAY INDIVIDUAL PT CATEGORIES
         pt_category_string = f'OBP:{round(self.obp_points,1)}  BA:{round(self.ba_points,1)}  SLG:{round(self.slg_points,1)}  SPD/IP:{round(self.spd_ip_points,1)}'
@@ -1954,7 +1954,7 @@ class ShowdownPlayerCardGenerator:
         # SLASH LINE
         slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
         for key, cleaned_category in slash_categories:
-            in_game = f"{float(round(self.real_stats[key],3)):.3f}".replace('0.','.')
+            in_game = f"{float(round(self.projected[key],3)):.3f}".replace('0.','.')
             actual = f"{float(self.stats[key]):.3f}".replace('0.','.')
             final_player_data.append([category_prefix+cleaned_category,actual,in_game])
 
@@ -1974,7 +1974,7 @@ class ShowdownPlayerCardGenerator:
             ('so_per_650_pa', 'SO')
         ]
         for key, cleaned_category in result_categories:
-            in_game = str(int(round(self.real_stats[key]) * real_life_pa_ratio))
+            in_game = str(int(round(self.projected[key]) * real_life_pa_ratio))
             actual = str(self.stats[cleaned_category])
             prefix = category_prefix if cleaned_category in ['2B','3B'] else ''
             final_player_data.append([f'{prefix}{cleaned_category}',actual,in_game])
@@ -2021,15 +2021,15 @@ class ShowdownPlayerCardGenerator:
                 str(round(self.spd_ip_points))
             ]
         pts_data = [
-            ['BA', str(round(self.real_stats['batting_avg'],3)).replace("0.","."), str(round(self.ba_points))],
-            ['OBP', str(round(self.real_stats['onbase_perc'],3)).replace("0.","."), str(round(self.obp_points))],
-            ['SLG', str(round(self.real_stats['slugging_perc'],3)).replace("0.","."), str(round(self.slg_points))],
+            ['BA', str(round(self.projected['batting_avg'],3)).replace("0.","."), str(round(self.ba_points))],
+            ['OBP', str(round(self.projected['onbase_perc'],3)).replace("0.","."), str(round(self.obp_points))],
+            ['SLG', str(round(self.projected['slugging_perc'],3)).replace("0.","."), str(round(self.slg_points))],
             spd_or_ip,
 
         ]
 
         if not self.is_pitcher:
-            pts_data.append(['HR (650 PA)', str(round(self.real_stats['hr_per_650_pa'])), str(round(self.hr_points))])
+            pts_data.append(['HR (650 PA)', str(round(self.projected['hr_per_650_pa'])), str(round(self.hr_points))])
             pts_data.append([
                 'DEFENSE', 
                 self.__position_and_defense_as_string(is_horizontal=True),
