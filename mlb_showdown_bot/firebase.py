@@ -34,23 +34,25 @@ class Firebase:
             'GO/AO': 'GO-AO',
             'IF/FB': 'IF-FB',
             'IP/GS': 'IP-GS',
+            'real_stats': 'projected',
         }
         if load_creds:
             self.creds = self.__get_creds()
 
-    def __get_creds(self):
-        """Check local env var for creds.
+    def __get_creds(self) -> firebase_admin.App:
+        """Check local env var for firebase creds. Initializes app if creds exist.
 
         Args:
           None
 
         Returns:
-          String of output text for player info + stats
+          Firebase instance currently running.
         """
 
         # LOAD CREDS FROM ENV VAR
         FIREBASE_CREDS_STR = os.getenv('FIREBASE_CREDS')
-        if not FIREBASE_CREDS_STR:
+        FIREBASE_URL_STR = os.getenv('FIREBASE_URL')
+        if not FIREBASE_CREDS_STR or not FIREBASE_URL_STR:
             # IF NO CREDS, RETURN NONE
             print("CREDS NOT AVAILABLE")
             return None
@@ -59,10 +61,21 @@ class Firebase:
         FIREBASE_CREDS_STR = FIREBASE_CREDS_STR.replace("\'", "\"")
         FIREBASE_CREDS_JSON = json.loads(FIREBASE_CREDS_STR)
         cred = credentials.Certificate(FIREBASE_CREDS_JSON)
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': "https://showdown-bot-315820-default-rtdb.firebaseio.com"
+        running_app = firebase_admin.initialize_app(cred, {
+            'databaseURL': FIREBASE_URL_STR
         })
-        return cred
+        return running_app
+    
+    def close_session(self):
+        """Delete the initialized firebase app instance.
+
+        Args:
+          None
+
+        Returns:
+          None
+        """
+        firebase_admin.delete_app(self.creds)
 
 # ------------------------------------------------------------------------
 # DATABASE
@@ -112,22 +125,16 @@ class Firebase:
         # MAKE DICT JSON COMPLIANT
         player_dict_final = self.__clean_data_for_json_upload(data)
 
-        # ADD TO DATABASE
-        final_data = {
-            self.destination_card_output: {
-                self.version_json_safe: player_dict_final
-            }
-        }
-
-        ref = db.reference("/")
+        # SAVE TO DATABASE        
+        ref = db.reference(f"/{self.destination_card_output}/{self.version_json_safe}/")
         ref.delete()
-        ref.set(final_data)
+        ref.set(player_dict_final)
 
 # ------------------------------------------------------------------------
 # PARSING
 # ------------------------------------------------------------------------
 
-    def load_showdown_card(self, bref_id: str, year: str, context: str) -> ShowdownPlayerCardGenerator:
+    def load_showdown_card(self, bref_id: str, year: str, context: str, expansion, player_image_path, player_image_url, is_cooperstown, is_super_season, is_rookie_season, is_all_star_game, is_holiday, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, is_running_in_flask) -> ShowdownPlayerCardGenerator:
         """Load cached player showdown data from database.
 
         Args:
@@ -144,14 +151,38 @@ class Firebase:
         if not cached_data:
             return None
 
-        # ADD EMPTY LISTS
-        list_attr_to_fill = ['icons']
-        for attr in list_attr_to_fill:
+        # ADD EMPTY VALUES WHERE NEEDED
+        attr_to_fill = {
+            'icons': [],
+            'positions_and_real_life_ratings': {}
+        }
+        for attr, value_to_fill in attr_to_fill.items():
             if attr not in cached_data.keys():
-                cached_data[attr] = []
+                cached_data[attr] = value_to_fill
 
         # SET ATTRIBUTES OF THE CLASS FROM CACHE
-        showdown = ShowdownPlayerCardGenerator(name=bref_id, year=year, stats={}, context=context, run_stats=False)
+        showdown = ShowdownPlayerCardGenerator(
+            name=bref_id, 
+            year=year, 
+            stats={}, 
+            context=context, 
+            run_stats=False,
+            expansion=expansion,
+            player_image_path=player_image_path,
+            player_image_url=player_image_url,
+            is_cooperstown=is_cooperstown,
+            is_super_season=is_super_season,
+            is_rookie_season=is_rookie_season,
+            is_all_star_game=is_all_star_game,
+            is_holiday=is_holiday,
+            offset=offset,
+            set_number=set_number,
+            add_image_border=add_image_border,
+            is_dark_mode=is_dark_mode,
+            is_variable_speed_00_01=is_variable_speed_00_01,
+            is_foil=is_foil,
+            is_running_in_flask=is_running_in_flask
+        )
         for k,v in cached_data.items():
             setattr(showdown,k,v)
         

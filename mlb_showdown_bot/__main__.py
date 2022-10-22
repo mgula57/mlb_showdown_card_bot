@@ -51,12 +51,29 @@ def main():
     cached_player_card = db.load_showdown_card(
         bref_id = scraper.baseball_ref_id,
         year=year,
-        context=context
+        context=context,
+        expansion=args.expansion, 
+        player_image_path=args.image_path,
+        player_image_url=args.image_url,
+        is_cooperstown=args.is_cc,
+        is_super_season=args.is_ss,
+        is_rookie_season=args.is_rookie_season,
+        is_all_star_game=args.is_asg,
+        is_holiday=False, 
+        offset=args.offset,
+        set_number=str(args.set_num),
+        add_image_border=args.add_border,
+        is_dark_mode=args.dark_mode,
+        is_variable_speed_00_01=args.variable_spd,
+        is_foil=args.is_foil,
+        is_running_in_flask=False
     )
+    db.close_session()
     if cached_player_card:
         cached_player_card.print_player()
         if args.show_image:
-            cached_player_card.player_image(show = True)
+            cached_player_card.player_image(show=True)
+
     else:
         statline = scraper.player_statline()
         showdown = ShowdownPlayerCardGenerator(

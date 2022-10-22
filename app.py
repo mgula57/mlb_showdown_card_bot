@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, Response
+from mlb_showdown_bot.firebase import Firebase
 from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 import os
@@ -160,7 +161,6 @@ def card_creator():
         # SCRAPE PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
         scraper = BaseballReferenceScraper(name=name,year=year)
-        statline = scraper.player_statline()
         is_cooperstown = is_cc if is_cc else False
         is_super_season = is_ss if is_ss else False
         is_rookie_season = is_rs if is_rs else False
@@ -180,10 +180,11 @@ def card_creator():
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
-        showdown = ShowdownPlayerCardGenerator(
-            name=name,
+
+        db = Firebase()
+        showdown = db.load_showdown_card(
+            bref_id = scraper.baseball_ref_id,
             year=year,
-            stats=statline,
             context=set,
             expansion=expansion,
             player_image_path=img_name,
@@ -201,9 +202,39 @@ def card_creator():
             is_foil=is_foil,
             is_running_in_flask=True
         )
+        db.close_session()
+        if not showdown:
+            error = 'Error loading player data. Make sure the player name and year are correct'
+            statline = scraper.player_statline()
+            showdown = ShowdownPlayerCardGenerator(
+                name=name,
+                year=year,
+                stats=statline,
+                context=set,
+                expansion=expansion,
+                player_image_path=img_name,
+                player_image_url=img_url,
+                is_cooperstown=is_cooperstown,
+                is_super_season=is_super_season,
+                is_rookie_season=is_rookie_season,
+                is_all_star_game=is_all_star_game,
+                is_holiday=is_holiday,
+                offset=offset,
+                set_number=set_number,
+                add_image_border=add_img_border,
+                is_dark_mode=is_dark_mode,
+                is_variable_speed_00_01=is_variable_speed_00_01,
+                is_foil=is_foil,
+                is_running_in_flask=True
+            )
         error = "Error - Unable to create Showdown Card Image."
-        showdown.player_image()
-        card_image_path = os.path.join('static', 'output', showdown.image_name)
+        if showdown.img_id:
+            # USE IMAGE FROM GDRIVE
+            card_image_path = f'https://drive.google.com/uc?id={showdown.img_id}'
+        else:
+            # GENERATE THE IMAGE
+            showdown.player_image()
+            card_image_path = os.path.join('static', 'output', showdown.image_name)
         player_command = "Control" if showdown.is_pitcher else "Onbase"
         player_stats_data = showdown.player_data_for_html_table()
         player_points_data = showdown.points_data_for_html_table()
@@ -252,7 +283,9 @@ def card_creator():
             bref_url=bref_url,
         )
 
-    except:
+    except Exception as e:
+        error_full = str(e)[:250]
+        print(error_full)
         log_card_submission_to_db(
             name=name,
             year=year,
@@ -261,7 +294,7 @@ def card_creator():
             is_super_season=is_super_season,
             img_url=img_url,
             img_name=img_name,
-            error=error,
+            error=error_full,
             is_all_star_game=is_all_star_game,
             expansion=expansion,
             stats_offset=offset,
