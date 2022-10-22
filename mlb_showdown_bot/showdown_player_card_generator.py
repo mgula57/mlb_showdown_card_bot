@@ -92,6 +92,7 @@ class ShowdownPlayerCardGenerator:
         self.is_variable_speed_00_01 = is_variable_speed_00_01
         self.is_foil = is_foil
         self.img_loading_error = None
+        self.img_id = None
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -1438,6 +1439,11 @@ class ShowdownPlayerCardGenerator:
                 # PCT VALUE (OBP, SLG, BA, ...)
                 stats_per_650_pa[category] = round(value,4)
 
+        # ADD OPS
+        keys = stats_per_650_pa.keys()
+        if 'onbase_perc' in keys and 'slugging_perc' in keys:
+            stats_per_650_pa['onbase_plus_slugging'] = round(stats_per_650_pa['onbase_perc'] + stats_per_650_pa['slugging_perc'], 4)
+        
         return stats_per_650_pa
 
 # ------------------------------------------------------------------------
@@ -1852,7 +1858,7 @@ class ShowdownPlayerCardGenerator:
             chart_string += '{}: {}\n'.format(category.upper(), range)
 
         # SLASH LINE
-        slash_categories = [('batting_avg', ' BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
+        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS')]
         slash_as_string = ''
         for key, cleaned_category in slash_categories:
             showdown_stat_str = '{}: {}'.format(cleaned_category,str(round(self.projected[key],3)).replace('0.','.'))
@@ -1873,7 +1879,7 @@ class ShowdownPlayerCardGenerator:
         ]
         for key, cleaned_category in result_categories:
             showdown_stat_str = ' {}: {}'.format(cleaned_category,int(round(self.projected[key]) * real_life_pa_ratio))
-            projected_stat_str = ' {}: {:>4}'.format(cleaned_category,self.stats[cleaned_category])
+            projected_stat_str = ' {}: {:>4}'.format(cleaned_category,int(self.stats[cleaned_category]))
             results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, projected_stat_str)
 
         # DISPLAY INDIVIDUAL PT CATEGORIES
@@ -1893,6 +1899,7 @@ class ShowdownPlayerCardGenerator:
             '***********************************************\n' +
             '{name} ({year}) ({team})\n' +
             '{context} {expansion} Card\n' +
+            'Showdown Bot v{version}\n' +
             '\n' +
             '{positions}\n' +
             '{hand}\n' +
@@ -1915,6 +1922,7 @@ class ShowdownPlayerCardGenerator:
             name = self.name,
             year = self.year,
             team = self.team,
+            version = self.version,
             context = self.context,
             expansion = self.expansion,
             positions = positions_string,
@@ -1952,7 +1960,7 @@ class ShowdownPlayerCardGenerator:
             category_prefix = '*'
 
         # SLASH LINE
-        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG')]
+        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS')]
         for key, cleaned_category in slash_categories:
             in_game = f"{float(round(self.projected[key],3)):.3f}".replace('0.','.')
             actual = f"{float(self.stats[key]):.3f}".replace('0.','.')
@@ -1975,15 +1983,17 @@ class ShowdownPlayerCardGenerator:
         ]
         for key, cleaned_category in result_categories:
             in_game = str(int(round(self.projected[key]) * real_life_pa_ratio))
-            actual = str(self.stats[cleaned_category])
+            actual = str(int(self.stats[cleaned_category]))
             prefix = category_prefix if cleaned_category in ['2B','3B'] else ''
             final_player_data.append([f'{prefix}{cleaned_category}',actual,in_game])
         
         # NON COMPARABLE STATS
         category_list = ['earned_run_avg', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
+        rounded_metrics_list = ['SB', 'onbase_plus_slugging_plus']
         for category in category_list:
             if category in self.stats.keys():
-                stat = str(self.stats[category]) if self.stats[category] else 'N/A'
+                stat_cleaned = int(self.stats[category]) if category in rounded_metrics_list else self.stats[category]
+                stat = str(stat_cleaned) if self.stats[category] else 'N/A'
                 short_name_map = {
                     'onbase_plus_slugging_plus': 'OPS+',
                     'bWAR': 'bWAR',
@@ -2165,6 +2175,15 @@ class ShowdownPlayerCardGenerator:
           None
         """
 
+        # CHECK IF IMAGE EXISTS ALREADY IN CACHE
+        if self.img_id and not self.player_image_url and not self.player_image_path:
+            # LOAD DIRECTLY FROM GOOGLE DRIVE
+            img_link = f'https://drive.google.com/uc?id={self.img_id}'
+            response = requests.get(img_link)
+            player_image = Image.open(BytesIO(response.content))
+            self.save_image(image=player_image, show=show, disable_add_border=True)
+            return 
+
         # LOAD PLAYER IMAGE
         player_image = self.__background_image()
 
@@ -2251,6 +2270,19 @@ class ShowdownPlayerCardGenerator:
         # CROP TO 63mmx88mm
         player_image = self.__center_crop(player_image,(1488,2079))
         player_image = self.__round_corners(player_image, 60)
+        self.save_image(image=player_image, show=show)
+
+    def save_image(self, image, show=False, disable_add_border=False):
+        """Stores image in proper folder depending on the context of the run.
+
+        Args:
+          image: PIL image object
+          show: Boolean flag for whether to open the final image after creation.
+          disable_add_border: Optional flag to skip border addition.
+
+        Returns:
+          None
+        """
         if self.is_img_part_of_a_set:
             self.image_name = f'{self.set_number} {self.name}.png'
         else:
@@ -2258,31 +2290,31 @@ class ShowdownPlayerCardGenerator:
         
         if self.context_year in ['2002','2004','2005','2022']:
             # TODO: SOLVE HTML PNG ISSUES
-            player_image = player_image.convert('RGB')
+            image = image.convert('RGB')
 
-        # SAVE IMAGE
-        if self.add_image_border:
+        # ADD BORDER TO IMAGE
+        if self.add_image_border and not disable_add_border:
             if self.context in ['2000','2001']:
                 # SAMPLE THE BACKGROUND TO GRAB THE BORDER COLOR
-                pix = player_image.load()
+                pix = image.load()
                 background_rgb = pix[30,30] # SAMPLE AT 30x 30y FROM TOP LEFT CORNER OF IMAGE
                 border_color = self.__rbgs_to_hex(rgbs=background_rgb)
             else:
                 # USE WHITE OR BLACK
                 border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
             image_border = Image.new('RGBA', (1632,2220), color=border_color)
-            image_border.paste(player_image.convert("RGBA"),(72,72),player_image.convert("RGBA"))
-            player_image = image_border
+            image_border.paste(image.convert("RGBA"),(72,72),image.convert("RGBA"))
+            image = image_border
 
         save_img_path = os.path.join(self.card_img_output_folder_path, self.image_name)
         if self.is_foil:
-            player_image = player_image.resize((int(1488 / 2.75), int(2079 / 2.75)), Image.ANTIALIAS)
-            foil_images = self.__foil_effect_images(image=player_image)
+            image = image.resize((int(1488 / 2.75), int(2079 / 2.75)), Image.ANTIALIAS)
+            foil_images = self.__foil_effect_images(image=image)
             foil_images[0].save(save_img_path,
                save_all = True, append_images = foil_images[1:], 
                optimize = True, duration = 8, loop=0, format="PNG")
         else:
-            player_image.save(save_img_path, dpi=(300, 300), quality=100)
+            image.save(save_img_path, dpi=(300, 300), quality=100)
         
         if self.is_running_in_flask:
             flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name)
@@ -2291,12 +2323,12 @@ class ShowdownPlayerCardGenerator:
                     save_all = True, append_images = foil_images[1:], 
                     optimize = True, duration = 8, loop=0, format="PNG")
             else:
-                player_image.save(flask_img_path, dpi=(300, 300), quality=100)
+                image.save(flask_img_path, dpi=(300, 300), quality=100)
 
         # OPEN THE IMAGE LOCALLY
         if show:
             image_title = f"{self.name} - {self.year}"
-            player_image.show(title=image_title)
+            image.show(title=image_title)
 
         self.__clean_images_directory()
 
