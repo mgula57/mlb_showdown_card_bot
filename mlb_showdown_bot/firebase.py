@@ -100,18 +100,21 @@ class Firebase:
             # NO CREDS
             return None
 
-        ref = db.reference(f'{self.destination_card_output}/{self.version_json_safe}/{bref_id}-{year}-{context}')
+        ref = db.reference(f'{self.destination_card_output}/{self.version_json_safe}/{context}/{year}/{bref_id}')
 
         # READ THE DATA AT THE POSTS REFERENCE (THIS IS A BLOCKING OPERATION)
         data = ref.get()
         return data
 
-    def upload(self, data: dict):
+    def upload(self, context: str, year: str, data: dict, remove_existing=True):
         """Clean and upload data to firebase.
 
         Args:
+          year: Year for stats (ex: 2022)
+          context: Showdown Bot Set type (ex: 2022-CLASSIC)
           data: Dictionary with player data for upload. 
                 Key = player ID, value = player data dictionary
+          remove_existing: Optionally remove existing context + year data
 
         Returns:
           None
@@ -126,8 +129,9 @@ class Firebase:
         player_dict_final = self.__clean_data_for_json_upload(data)
 
         # SAVE TO DATABASE        
-        ref = db.reference(f"/{self.destination_card_output}/{self.version_json_safe}/")
-        ref.delete()
+        ref = db.reference(f"/{self.destination_card_output}/{self.version_json_safe}/{context}/{year}/")
+        if remove_existing:
+            ref.delete()
         ref.set(player_dict_final)
 
 # ------------------------------------------------------------------------
