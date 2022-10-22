@@ -2165,13 +2165,14 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # IMAGE CREATION METHODS
 
-    def player_image(self, show=False):
+    def player_image(self, show=False, img_name_suffix=''):
         """Generates a 500/700 player image mocking what a real MLB Showdown card
            would look like for the player output. Final image is dumped to
            mlb_showdown_bot/output folder.
 
         Args:
           show: Boolean flag for whether to open the final image after creation.
+          img_name_suffix: Optional suffix added to the image name.
 
         Returns:
           None
@@ -2272,21 +2273,22 @@ class ShowdownPlayerCardGenerator:
         # CROP TO 63mmx88mm
         player_image = self.__center_crop(player_image,(1488,2079))
         player_image = self.__round_corners(player_image, 60)
-        self.save_image(image=player_image, show=show)
+        self.save_image(image=player_image, show=show, img_name_suffix=img_name_suffix)
 
-    def save_image(self, image, show=False, disable_add_border=False):
+    def save_image(self, image, show=False, disable_add_border=False, img_name_suffix=''):
         """Stores image in proper folder depending on the context of the run.
 
         Args:
           image: PIL image object
           show: Boolean flag for whether to open the final image after creation.
           disable_add_border: Optional flag to skip border addition.
+          img_name_suffix: Optional suffix added to the image name.
 
         Returns:
           None
         """
         if self.is_img_part_of_a_set:
-            self.image_name = f'{self.set_number} {self.name}.png'
+            self.image_name = f'{self.set_number} {self.name}{img_name_suffix}.png'
         else:
             self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
         
