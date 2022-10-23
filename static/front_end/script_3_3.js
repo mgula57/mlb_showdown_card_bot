@@ -119,7 +119,6 @@ function setTheme(themeName) {
 }
 
 function showCardData(data) {
-    $('#overlay').hide();
     $("#error").text(data.error);
     document.getElementById("error").style.color = "red";
     // ADD STATS TO TABLE
@@ -129,9 +128,19 @@ function showCardData(data) {
 
         // CHANGE CARD IMAGE
         $("#card_image").attr('src', data.image_path);
-        console.log("auto image");
-        if (data.is_automated_image) {
-            const successColor = (storedTheme == 'dark') ? "#41d21a" : "green"
+
+        // ADD MESSAGING BELOW CARD IMAGE
+        const successColor = (storedTheme == 'dark') ? "#41d21a" : "green"
+        if (data.is_img_loaded_from_library) {
+            console.log("Img Loaded From Library");
+            document.getElementById("error").style.color = successColor;
+            $("#error").text("Powered by Showdown Library");
+        } else if (data.is_stats_loaded_from_library) {
+            console.log("Stats Loaded From Library");
+            document.getElementById("error").style.color = successColor;
+            $("#error").text("Stats Powered by Showdown Library");
+        } else if (data.is_automated_image) {
+            console.log("auto image");
             document.getElementById("error").style.color = successColor;
             $("#error").text("Automated Image!");
         };
@@ -212,6 +221,7 @@ function showCardData(data) {
         player_accuracy_table += '</table>';
         $("#accuracy_table").replaceWith(player_accuracy_table);
     };
+    $('#overlay').hide();
 }
 
 // -------------------------------------------------------

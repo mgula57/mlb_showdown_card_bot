@@ -187,8 +187,10 @@ class Firebase:
             is_foil=is_foil,
             is_running_in_flask=is_running_in_flask
         )
+        ignore_keys_list = ['has_custom_set_number', 'set_number', 'expansion']
         for k,v in cached_data.items():
-            setattr(showdown,k,v)
+            if k not in ignore_keys_list:
+                setattr(showdown,k,v)
         
         return showdown
 

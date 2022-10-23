@@ -29,7 +29,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='001', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -80,7 +80,9 @@ class ShowdownPlayerCardGenerator:
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
         self.card_img_output_folder_path = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
-        self.set_number = set_number
+        default_set_number = '—' if self.context_year in ['2003','2022'] else year
+        self.has_custom_set_number = set_number != ''
+        self.set_number = set_number if self.has_custom_set_number else default_set_number
         self.test_numbers = test_numbers
         self.command_out_override = command_out_override
         self.is_running_in_flask = is_running_in_flask
@@ -93,6 +95,10 @@ class ShowdownPlayerCardGenerator:
         self.is_foil = is_foil
         self.img_loading_error = None
         self.img_id = None
+        self.img_bordered_id = None
+        self.img_dark_id = None
+        self.img_dark_bordered_id = None
+        self.stats_version = int(offset)
 
         if run_stats:
             # DERIVED ATTRIBUTES
@@ -2179,10 +2185,10 @@ class ShowdownPlayerCardGenerator:
         """
 
         # CHECK IF IMAGE EXISTS ALREADY IN CACHE
-        if self.img_id and not self.player_image_url and not self.player_image_path:
+        cached_img_link = self.cached_img_link()
+        if cached_img_link:
             # LOAD DIRECTLY FROM GOOGLE DRIVE
-            img_link = f'https://drive.google.com/uc?id={self.img_id}'
-            response = requests.get(img_link)
+            response = requests.get(cached_img_link)
             player_image = Image.open(BytesIO(response.content))
             self.save_image(image=player_image, show=show, disable_add_border=True)
             return 
@@ -3707,6 +3713,78 @@ class ShowdownPlayerCardGenerator:
         else:
             # GRAB FROM CURRENT TEAM COLORS
             return sc.TEAM_COLOR_PRIMARY[self.team] if self.team in sc.TEAM_COLOR_PRIMARY.keys() else default_color
+
+    def cached_img_link(self) -> str:
+        """URL for the cached player image from Showdown Library. 
+
+        Will return None if the image is custom and does not match cache.
+
+        Player can have 4 different types of images:
+            - Standard
+            - Standard w/ Border
+            - Dark Mode (2022+)
+            - Dark Mode w/ Border (2022+)
+
+        Args:
+          None
+
+        Returns:
+          URL for image if it exists.
+        """
+        cached_img_id = self.__img_id_for_style()
+        if cached_img_id and not self.is_img_processing_required():
+            # LOAD DIRECTLY FROM GOOGLE DRIVE
+            return f'https://drive.google.com/uc?id={cached_img_id}'
+        else:
+            return None
+
+    def __img_id_for_style(self) -> str:
+        """Unique ID for the google drive image for the player.
+
+        Player can have 4 different types of images:
+            - Standard
+            - Standard w/ Border
+            - Dark Mode (2022+)
+            - Dark Mode w/ Border (2022+)
+
+        Args:
+          None
+
+        Returns:
+          Id for image if it exists
+        """
+
+        if self.is_dark_mode:
+            return self.img_dark_bordered_id if self.add_image_border else self.img_dark_id
+        else:
+            return self.img_bordered_id if self.add_image_border else self.img_id
+
+    def is_img_processing_required(self) -> bool:
+        """Certain attributes about a card dictate when processing a new image is required, 
+        even if the card has an image in the Showdown Library.
+
+        List of reasons:
+            - Non V1 Card.
+            - Custom set number
+            - Has special edition (ex: CC, SS, RS)
+            - Has variable speed
+            - Is a Foil
+            - Img Link was provided by user
+            - Img Upload was provided by user
+
+        Args:
+          None
+
+        Returns:
+          Id for image if it exists
+        """
+
+        is_not_v1 = self.stats_version != 0
+        has_user_uploaded_img = self.player_image_url or self.player_image_path
+        has_special_edition = self.is_cooperstown or self.is_super_season or self.is_all_star_game or self.is_holiday or self.is_rookie_season
+        has_expansion = self.expansion != 'BS'
+        has_variable_spd_diff = self.is_variable_speed_00_01 and self.context_year in ['2000', '2001']
+        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or self.is_foil or has_variable_spd_diff or self.has_custom_set_number
 
 # ------------------------------------------------------------------------
 # IMAGE QUERIES

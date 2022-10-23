@@ -42,8 +42,10 @@ class CardLog(db.Model):
     is_random = db.Column(db.Boolean)
     is_automated_image = db.Column(db.Boolean)
     is_foil = db.Column(db.Boolean)
+    is_stats_loaded_from_library = db.Column(db.Boolean)
+    is_img_loaded_from_library = db.Column(db.Boolean)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -65,8 +67,10 @@ class CardLog(db.Model):
         self.is_random = is_random
         self.is_automated_image = is_automated_image
         self.is_foil = is_foil
+        self.is_stats_loaded_from_library = is_stats_loaded_from_library
+        self.is_img_loaded_from_library = is_img_loaded_from_library
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil):
+def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -89,6 +93,8 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             is_random=is_random,
             is_automated_image=is_automated_image,
             is_foil=is_foil,
+            is_stats_loaded_from_library=is_stats_loaded_from_library,
+            is_img_loaded_from_library=is_img_loaded_from_library,
         )
         db.session.add(card_log)
         db.session.commit()
@@ -107,6 +113,8 @@ def card_creator():
 
     error = ''
     is_automated_image = False
+    is_stats_loaded_from_library = False
+    is_img_loaded_from_library = False
     showdown = None
     name = None
     year = None
@@ -125,7 +133,6 @@ def card_creator():
     is_dark_mode = None
     is_variable_spd_00_01 = None
     is_random = None
-    is_automated_image = None
     is_foil = None
 
     try:
@@ -158,7 +165,7 @@ def card_creator():
             # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
             name, year = random_player_id_and_year()
 
-        # SCRAPE PLAYER DATA
+        # LOAD PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
         scraper = BaseballReferenceScraper(name=name,year=year)
         is_cooperstown = is_cc if is_cc else False
@@ -168,10 +175,7 @@ def card_creator():
         is_holiday = is_hol if is_hol else False
         img_url = None if url == '' else url
         img_name = None if img == '' else img
-        if set_num == '':
-            set_number = year if set[0:4] not in ['2003','2022'] else '001'
-        else:
-            set_number = set_num
+        set_number = set_num
         expansion = "BS" if expansion_raw == '' else expansion_raw
         add_img_border = is_border if is_border else False
         is_dark_mode = dark_mode if dark_mode else False
@@ -203,7 +207,9 @@ def card_creator():
             is_running_in_flask=True
         )
         db.close_session()
-        if not showdown:
+        if showdown:
+            is_stats_loaded_from_library = True
+        else:
             error = 'Error loading player data. Make sure the player name and year are correct'
             statline = scraper.player_statline()
             showdown = ShowdownPlayerCardGenerator(
@@ -228,9 +234,11 @@ def card_creator():
                 is_running_in_flask=True
             )
         error = "Error - Unable to create Showdown Card Image."
-        if showdown.img_id:
+        cached_img_link = showdown.cached_img_link()
+        if cached_img_link:
             # USE IMAGE FROM GDRIVE
-            card_image_path = f'https://drive.google.com/uc?id={showdown.img_id}'
+            card_image_path = cached_img_link
+            is_img_loaded_from_library = True
         else:
             # GENERATE THE IMAGE
             showdown.player_image()
@@ -267,12 +275,16 @@ def card_creator():
             is_variable_spd_00_01=is_variable_speed_00_01,
             is_random=is_random,
             is_automated_image=is_automated_image,
-            is_foil=is_foil
+            is_foil=is_foil,
+            is_stats_loaded_from_library=is_stats_loaded_from_library,
+            is_img_loaded_from_library=is_img_loaded_from_library
         )
         return jsonify(
             image_path=card_image_path,
             error=error,
             is_automated_image=is_automated_image,
+            is_img_loaded_from_library=is_img_loaded_from_library,
+            is_stats_loaded_from_library=is_stats_loaded_from_library,
             player_command=player_command,
             player_stats=player_stats_data, 
             player_points=player_points_data,
@@ -311,6 +323,8 @@ def card_creator():
             image_path=None,
             error=error,
             is_automated_image=is_automated_image,
+            is_img_loaded_from_library=is_img_loaded_from_library,
+            is_stats_loaded_from_library=is_stats_loaded_from_library,
             player_command=None,
             player_stats=None,
             player_points=None,
