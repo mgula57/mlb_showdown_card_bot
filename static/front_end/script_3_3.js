@@ -92,7 +92,7 @@ function setTheme(themeName) {
     localStorage.setItem('theme', themeName);
 
     // ALTER CONTAINERS
-    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "player_name", "player_link", "estimated_values_footnote"]
+    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "player_name", "player_link", "estimated_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
         document.getElementById(id).className = (id + "_" + themeName);
     }

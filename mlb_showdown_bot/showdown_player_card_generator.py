@@ -3811,7 +3811,7 @@ class ShowdownPlayerCardGenerator:
         Returns:
           PIL image with year range.
         """
-        
+
         # LOAD CONTAINER
         path = os.path.join(os.path.dirname(__file__), 'templates', "YEAR CONTAINER.png")
         year_img = Image.open(path)
