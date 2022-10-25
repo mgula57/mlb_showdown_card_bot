@@ -368,6 +368,7 @@ $(function () {
             var is_border = moreOptionsSelected.includes("Border");
             var is_dark_mode = moreOptionsSelected.includes("DarkMode");
             var is_foil = moreOptionsSelected.includes("Foil");
+            var add_year_container = moreOptionsSelected.includes("YearContainer");
             var is_variable_spd = moreOptionsSelected.includes("VariableSpeed");
             console.log(moreOptionsSelected);
 
@@ -393,6 +394,7 @@ $(function () {
                 is_dark_mode: is_dark_mode,
                 is_variable_spd_00_01: is_variable_spd,
                 is_foil: is_foil,
+                add_year_container: add_year_container,
             }, function (data) {
                 showCardData(data)
             });

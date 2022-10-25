@@ -2015,6 +2015,8 @@ COLOR_BLACK = "#000000"
 COLOR_RED = "#963219"
 COLOR_GRAY = "#e4e3e3"
 
+CONTEXT_YEARS_ELIGIBLE_FOR_YEAR_CONTAINER = ['2000', '2001', '2002', '2003']
+
 """ COORDINATES FOR IMAGE COMPONENTS """
 IMAGE_LOCATIONS = {
     'team_logo': {
@@ -2072,6 +2074,12 @@ IMAGE_LOCATIONS = {
         '2004': (1344,1911),
         '2005': (1344,1911),
         '2022': (1200,2020),
+    },
+    'year_container': {
+        '2000': (1250,1865),
+        '2001': (1250,1865),
+        '2002': (60,2038),
+        '2003': (482,1775),
     },
     'number': {
         '2002': (120,1785),

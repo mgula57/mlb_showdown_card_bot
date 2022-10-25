@@ -29,7 +29,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, is_running_in_flask=False):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -83,6 +83,7 @@ class ShowdownPlayerCardGenerator:
         default_set_number = '—' if self.context_year in ['2003','2022'] else year
         self.has_custom_set_number = set_number != ''
         self.set_number = set_number if self.has_custom_set_number else default_set_number
+        self.add_year_container = add_year_container and self.context_year in sc.CONTEXT_YEARS_ELIGIBLE_FOR_YEAR_CONTAINER
         self.test_numbers = test_numbers
         self.command_out_override = command_out_override
         self.is_running_in_flask = is_running_in_flask
@@ -2258,10 +2259,19 @@ class ShowdownPlayerCardGenerator:
         set_image = self.__card_set_image()
         player_image.paste(set_image, (0,0), set_image)
 
+        # YEAR CONTAINER
+        if self.add_year_container:
+            paste_location = sc.IMAGE_LOCATIONS['year_container'][str(self.context_year)]
+            year_container_img = self.__year_container_add_on()
+            player_image.paste(year_container_img, paste_location, year_container_img)
+
         # EXPANSION
         if self.expansion != 'BS':
             expansion_image = self.__expansion_image()
             expansion_location = sc.IMAGE_LOCATIONS['expansion'][str(self.context_year)]
+            if self.add_year_container and self.context_year in ['2000','2001']:
+                # IF YEAR CONTAINER EXISTS, MOVE OVER EXPANSION LOGO
+                expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
             if self.context == '2002' and self.expansion == 'TD':
                 expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
             elif self.context_year == '2022' and self.expansion == 'TD':
@@ -3785,6 +3795,45 @@ class ShowdownPlayerCardGenerator:
         has_expansion = self.expansion != 'BS'
         has_variable_spd_diff = self.is_variable_speed_00_01 and self.context_year in ['2000', '2001']
         return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or self.is_foil or has_variable_spd_diff or self.has_custom_set_number
+
+    def __year_container_add_on(self) -> Image:
+        """User can optionally add a box dedicated to showing years used for the card.
+
+        Applies to only the following contexts:
+            - 2000
+            - 2001
+            - 2002
+            - 2003
+
+        Args:
+          None
+
+        Returns:
+          PIL image with year range.
+        """
+        
+        # LOAD CONTAINER
+        path = os.path.join(os.path.dirname(__file__), 'templates', "YEAR CONTAINER.png")
+        year_img = Image.open(path)
+
+        # ADD TEXT
+        helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
+        is_multi_year = len(self.year_list) > 1
+        set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=120 if is_multi_year else 160)
+        year_end = max(self.year_list)
+        year_start = min(self.year_list)
+        year_str = f'{year_start}-{year_end}' if len(self.year_list) > 1 else f'{year_end}'
+        year_text = self.__text_image(
+            text = year_str,
+            size = (600, 300),
+            font = set_font,
+            alignment = "center"
+        )
+        multi_year_y_adjustment = 3 if is_multi_year else 0
+        year_text = year_text.resize((150,75), Image.ANTIALIAS)
+        year_img.paste("#272727", (4,13 + multi_year_y_adjustment), year_text)
+
+        return year_img
 
 # ------------------------------------------------------------------------
 # IMAGE QUERIES

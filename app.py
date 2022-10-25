@@ -44,8 +44,9 @@ class CardLog(db.Model):
     is_foil = db.Column(db.Boolean)
     is_stats_loaded_from_library = db.Column(db.Boolean)
     is_img_loaded_from_library = db.Column(db.Boolean)
+    add_year_container = db.Column(db.Boolean)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -69,8 +70,9 @@ class CardLog(db.Model):
         self.is_foil = is_foil
         self.is_stats_loaded_from_library = is_stats_loaded_from_library
         self.is_img_loaded_from_library = is_img_loaded_from_library
+        self.add_year_container = add_year_container
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library):
+def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -95,6 +97,7 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             is_foil=is_foil,
             is_stats_loaded_from_library=is_stats_loaded_from_library,
             is_img_loaded_from_library=is_img_loaded_from_library,
+            add_year_container=add_year_container,
         )
         db.session.add(card_log)
         db.session.commit()
@@ -134,6 +137,7 @@ def card_creator():
     is_variable_spd_00_01 = None
     is_random = None
     is_foil = None
+    add_year_container = None
 
     try:
         # PARSE INPUTS
@@ -160,6 +164,7 @@ def card_creator():
         dark_mode = request.args.get('is_dark_mode').lower() == 'true'
         is_variable_spd_00_01 = request.args.get('is_variable_spd_00_01').lower() == 'true'
         foil = request.args.get('is_foil').lower() == 'true'
+        year_container = request.args.get('add_year_container').lower() == 'true'
         is_random = name.upper() == '((RANDOM))'
         if is_random:
             # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
@@ -181,6 +186,7 @@ def card_creator():
         is_dark_mode = dark_mode if dark_mode else False
         is_variable_speed_00_01 = is_variable_spd_00_01 if is_variable_spd_00_01 else False
         is_foil = foil if foil else False
+        add_year_container = year_container if year_container else False
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
@@ -231,6 +237,7 @@ def card_creator():
                 is_dark_mode=is_dark_mode,
                 is_variable_speed_00_01=is_variable_speed_00_01,
                 is_foil=is_foil,
+                add_year_container=add_year_container,
                 is_running_in_flask=True
             )
         error = "Error - Unable to create Showdown Card Image."
@@ -277,7 +284,8 @@ def card_creator():
             is_automated_image=is_automated_image,
             is_foil=is_foil,
             is_stats_loaded_from_library=is_stats_loaded_from_library,
-            is_img_loaded_from_library=is_img_loaded_from_library
+            is_img_loaded_from_library=is_img_loaded_from_library,
+            add_year_container=add_year_container
         )
         return jsonify(
             image_path=card_image_path,
@@ -317,7 +325,8 @@ def card_creator():
             is_variable_spd_00_01=is_variable_spd_00_01,
             is_random=is_random,
             is_automated_image=is_automated_image,
-            is_foil=is_foil
+            is_foil=is_foil,
+            add_year_container=add_year_container
         )
         return jsonify(
             image_path=None,
