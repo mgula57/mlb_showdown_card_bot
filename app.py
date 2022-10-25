@@ -137,6 +137,8 @@ def card_creator():
     is_variable_spd_00_01 = None
     is_random = None
     is_foil = None
+    is_stats_loaded_from_library = None
+    is_img_loaded_from_library = None
     add_year_container = None
 
     try:
@@ -216,6 +218,7 @@ def card_creator():
         if showdown:
             is_stats_loaded_from_library = True
         else:
+            is_stats_loaded_from_library = False
             error = 'Error loading player data. Make sure the player name and year are correct'
             statline = scraper.player_statline()
             showdown = ShowdownPlayerCardGenerator(
@@ -248,6 +251,7 @@ def card_creator():
             is_img_loaded_from_library = True
         else:
             # GENERATE THE IMAGE
+            is_img_loaded_from_library = False
             showdown.player_image()
             card_image_path = os.path.join('static', 'output', showdown.image_name)
         player_command = "Control" if showdown.is_pitcher else "Onbase"
@@ -326,6 +330,8 @@ def card_creator():
             is_random=is_random,
             is_automated_image=is_automated_image,
             is_foil=is_foil,
+            is_stats_loaded_from_library=is_stats_loaded_from_library,
+            is_img_loaded_from_library=is_img_loaded_from_library,
             add_year_container=add_year_container
         )
         return jsonify(

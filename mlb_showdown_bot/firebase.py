@@ -154,7 +154,7 @@ class Firebase:
         cached_data = self.query(bref_id=bref_id, year=year, context=context)
         if not cached_data:
             return None
-
+        
         # ADD EMPTY VALUES WHERE NEEDED
         attr_to_fill = {
             'icons': [],
@@ -163,6 +163,14 @@ class Firebase:
         for attr, value_to_fill in attr_to_fill.items():
             if attr not in cached_data.keys():
                 cached_data[attr] = value_to_fill
+
+        # UPDATE LF-RF -> LF/RF
+        if 'positions_and_defense' in cached_data.keys():
+            positions_and_defense_updated = {}
+            for position, value in cached_data['positions_and_defense'].items():
+                position_updated = position.replace('-','/')
+                positions_and_defense_updated[position_updated] = value
+            cached_data['positions_and_defense'] = positions_and_defense_updated
 
         # SET ATTRIBUTES OF THE CLASS FROM CACHE
         showdown = ShowdownPlayerCardGenerator(
