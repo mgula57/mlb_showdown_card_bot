@@ -135,6 +135,27 @@ class Firebase:
             ref.delete()
         ref.set(player_dict_final)
 
+    def download_all_data(self) -> dict:
+        """Download all data from Showdown Library
+
+        Args:
+          None
+
+        Returns:
+          Python dict object with data from showdown library
+        """
+
+        # CHECK FOR CREDS
+        if not self.creds:
+            # NO CREDS
+            return None
+
+        ref = db.reference(f'{self.destination_card_output}/{self.version_json_safe}/')
+
+        # READ THE DATA AT THE POSTS REFERENCE (THIS IS A BLOCKING OPERATION)
+        data = ref.get()
+        return data
+
 # ------------------------------------------------------------------------
 # PARSING
 # ------------------------------------------------------------------------
