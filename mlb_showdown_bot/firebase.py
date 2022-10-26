@@ -100,7 +100,8 @@ class Firebase:
             # NO CREDS
             return None
 
-        ref = db.reference(f'{self.destination_card_output}/{self.version_json_safe}/{context}/{year}/{bref_id}')
+        bref_id_json_safe = self.__bref_id_json_safe(bref_id)
+        ref = db.reference(f'{self.destination_card_output}/{self.version_json_safe}/{context}/{year}/{bref_id_json_safe}')
 
         # READ THE DATA AT THE POSTS REFERENCE (THIS IS A BLOCKING OPERATION)
         data = ref.get()
@@ -226,12 +227,26 @@ class Firebase:
         player_dict = json.loads(json_removing_nan)
         player_dict_final = {}
         for player_id, player_data in player_dict.items():
+            player_id_safe = self.__bref_id_json_safe(player_id)
             player_data_updated = {}
             for k,v in player_data.items():
                 key_new = k.replace('.','').replace('/','')
                 player_data_updated[key_new] = v
-            player_dict_final[player_id] = player_data_updated
+            player_dict_final[player_id_safe] = player_data_updated
         
         return player_dict_final
 
-        
+    def __bref_id_json_safe(self, bref_id) -> str:
+        """Remove '.' from bref_id in order to be json compliant.
+
+        Replaces '.' with '@'
+        Ex: "surhob.01" -> "surhob@01"
+
+        Args:
+          bref_id: Baseball Reference Player ID (ex: ohtansh01)
+
+        Returns:
+          Updated string replacing '.' with '@'
+        """
+
+        return bref_id.replace('.', '@')
