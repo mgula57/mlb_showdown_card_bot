@@ -259,7 +259,7 @@ class ShowdownPlayerCardGenerator:
                             else:
                                 metric = 'dWAR'
                                 defensive_rating = dWar
-                            positions_and_real_life_ratings[position] = { metric: defensive_rating }
+                            positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
                         except:
                             in_game_defense = 0
@@ -872,7 +872,7 @@ class ShowdownPlayerCardGenerator:
 
         chart_and_accuracies.sort(key=operator.itemgetter(2),reverse=True)
         best_chart = chart_and_accuracies[offset][1]
-        self.top_command_out_combinations = [(ca[0],ca[2]) for ca in chart_and_accuracies]
+        self.top_command_out_combinations = [(ca[0],round(ca[2],4)) for ca in chart_and_accuracies]
         projected_stats_for_best_chart = chart_and_accuracies[offset][3]
 
         return best_chart, projected_stats_for_best_chart
