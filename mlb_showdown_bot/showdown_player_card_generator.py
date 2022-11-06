@@ -29,11 +29,11 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='BS', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, is_running_in_flask=False):
+    def __init__(self, name, year, stats, context, expansion='FINAL', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, is_running_in_flask=False, source='Baseball Reference'):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "3.3"
+        self.version = "3.4"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.bref_url = stats['bref_url'] if 'bref_url' in stats.keys() else ''
@@ -66,6 +66,7 @@ class ShowdownPlayerCardGenerator:
         self.is_classic = self.context in sc.CLASSIC_SETS
         self.has_icons = self.context_year in sc.SETS_HAS_ICONS
         self.stats = stats
+        self.source = source
         # COMBINE BB AND HBP
         if 'HBP' in self.stats.keys():
             try:
@@ -405,7 +406,7 @@ class ShowdownPlayerCardGenerator:
         elif position == 'DH' and num_positions > 1:
             # PLAYER MAY HAVE PLAYED AT DH, BUT HAS OTHER POSITIONS, SO DH WONT BE LISTED
             return None
-        elif self.is_expanded and position == 'C':
+        elif self.context_year not in ['2000', '2001'] and position == 'C':
             # CHANGE CATCHER POSITION NAME DEPENDING ON CONTEXT YEAR
             return 'CA'
         else:
@@ -1909,6 +1910,7 @@ class ShowdownPlayerCardGenerator:
             '{name} ({year}) ({team})\n' +
             '{context} {expansion} Card\n' +
             'Showdown Bot v{version}\n' +
+            'Data Loaded from {source}\n' +
             '\n' +
             '{positions}\n' +
             '{hand}\n' +
@@ -1932,6 +1934,7 @@ class ShowdownPlayerCardGenerator:
             year = self.year,
             team = self.team,
             version = self.version,
+            source = self.source,
             context = self.context,
             expansion = self.expansion,
             positions = positions_string,
@@ -2266,7 +2269,7 @@ class ShowdownPlayerCardGenerator:
             player_image.paste(year_container_img, paste_location, year_container_img)
 
         # EXPANSION
-        if self.expansion != 'BS':
+        if self.expansion != 'FINAL':
             expansion_image = self.__expansion_image()
             expansion_location = sc.IMAGE_LOCATIONS['expansion'][str(self.context_year)]
             if self.add_year_container and self.context_year in ['2000','2001']:
@@ -3792,7 +3795,7 @@ class ShowdownPlayerCardGenerator:
         is_not_v1 = self.stats_version != 0
         has_user_uploaded_img = self.player_image_url or self.player_image_path
         has_special_edition = self.is_cooperstown or self.is_super_season or self.is_all_star_game or self.is_holiday or self.is_rookie_season
-        has_expansion = self.expansion != 'BS'
+        has_expansion = self.expansion != 'FINAL'
         has_variable_spd_diff = self.is_variable_speed_00_01 and self.context_year in ['2000', '2001']
         return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or self.is_foil or has_variable_spd_diff or self.has_custom_set_number
 

@@ -930,7 +930,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'IF': 1.0,
     },
     f'2022-{CLASSIC_ALIAS}': {
-        'C': 1.4,
+        'CA': 1.4,
         '1B': 0.5,
         '2B': 1.0,
         '3B': 1.0,
@@ -1832,7 +1832,7 @@ POSITION_DEFENSE_RANGE = {
         'DH': 0
     },
     f'2022-{CLASSIC_ALIAS}': {
-        'C': 12.0,
+        'CA': 12.0,
         '1B': 1.0,
         '2B': 5.0,
         '3B': 4.5,

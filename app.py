@@ -183,7 +183,7 @@ def card_creator():
         img_url = None if url == '' else url
         img_name = None if img == '' else img
         set_number = set_num
-        expansion = "BS" if expansion_raw == '' else expansion_raw
+        expansion = "FINAL" if expansion_raw == '' else expansion_raw
         add_img_border = is_border if is_border else False
         is_dark_mode = dark_mode if dark_mode else False
         is_variable_speed_00_01 = is_variable_spd_00_01 if is_variable_spd_00_01 else False

@@ -28,7 +28,7 @@ parser.add_argument('-ss','--is_ss', action='store_true', help='Optionally make 
 parser.add_argument('-asg','--is_asg', action='store_true', help='Optionally make the card All Star Game')
 parser.add_argument('-rs','--is_rookie_season', action='store_true', help='Optionally make the card have a rookie season logo')
 parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default='', type=str)
-parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='BS')
+parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='FINAL')
 parser.add_argument('-bor','--add_border', action='store_true', help='Optionally add border to player image')
 parser.add_argument('-dark','--dark_mode', action='store_true', help='Optionally toggle dark mode (2022+ sets only)')
 parser.add_argument('-vs','--variable_spd', action='store_true', help='Optionally toggle variable speed (2000 + 2001 sets only)')
