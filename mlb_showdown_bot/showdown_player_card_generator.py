@@ -101,6 +101,8 @@ class ShowdownPlayerCardGenerator:
         self.img_dark_id = None
         self.img_dark_bordered_id = None
         self.stats_version = int(offset)
+        self.rank = {}
+        self.pct_rank = {}
 
         if run_stats:
             # DERIVED ATTRIBUTES
