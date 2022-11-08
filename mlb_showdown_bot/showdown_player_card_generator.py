@@ -2174,6 +2174,68 @@ class ShowdownPlayerCardGenerator:
         
         return positions_string
 
+    def radar_chart_labels_as_values(self):
+        """Defines the labels and values used in the radar chart shown on the front end.
+
+        Args:
+          None
+
+        Returns:
+          Tuples of lists, one label and one value
+        """
+        # RETURN NONE FOR EMPTY OBJECT
+        if self.pct_rank == {}:
+            return None, None
+
+        # DEFINE LABEL CATEGORIES
+        all_labels_pitcher = {
+            'batting_avg': 'BAa', 
+            'onbase_perc': 'OBPa',
+            'slugging_perc': 'SLGa',  
+            'onbase_plus_slugging': 'OPSa', 
+            'ip': 'IP',
+        }
+        all_labels_hitter = {
+            'batting_avg': 'BA', 
+            'onbase_perc': 'OBP', 
+            'slugging_perc': 'SLG',
+            'onbase_plus_slugging': 'OPS', 
+            'speed': 'SPD',
+            'C': 'DEF-C',
+            'CA': 'DEF-CA',
+            '1B': 'DEF-1B',
+            '2B': 'DEF-2B',
+            '3B': 'DEF-3B',
+            'SS': 'DEF-SS',
+            'LF/RF': 'DEF-LF/RF',
+            'CF': 'DEF-CF',
+            'OF': 'DEF-OF',
+        }
+        all_labels = all_labels_pitcher if self.is_pitcher else all_labels_hitter
+
+        labels = []
+        values = []
+        for category, label in all_labels.items():
+            if category in self.pct_rank.keys():
+                percentile_value = self.pct_rank[category]
+                labels.append(label)
+                values.append(round(percentile_value * 100, 1))
+
+        return labels, values
+
+    def radar_chart_color(self) -> str:
+        """RGB color scheme for the player's team, used for the inside of the radar chart.
+
+        Args:
+          None
+
+        Returns:
+          String with RGB codes (ex: "rgba(255, 50, 25, 1.0)")
+        """
+        tm_colors = self.__team_color_rgbs()
+
+        return f'rgba({tm_colors[0]}, {tm_colors[1]}, {tm_colors[2]}, 0.2)'
+
 # ------------------------------------------------------------------------
 # IMAGE CREATION METHODS
 

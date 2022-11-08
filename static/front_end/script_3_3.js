@@ -92,7 +92,7 @@ function setTheme(themeName) {
     localStorage.setItem('theme', themeName);
 
     // ALTER CONTAINERS
-    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "player_name", "player_link", "estimated_values_footnote", "loader_container_rectangle"]
+    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "player_name", "player_link", "estimated_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
         document.getElementById(id).className = (id + "_" + themeName);
     }
@@ -220,6 +220,61 @@ function showCardData(data) {
         });
         player_accuracy_table += '</table>';
         $("#accuracy_table").replaceWith(player_accuracy_table);
+
+        // PLAYER RADAR CHART
+        if (data.radar_labels != null) {
+            $("#radar_container").show();
+
+            // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
+            let chartStatus = Chart.getChart("playerRadar");
+            if (chartStatus != undefined) {
+                chartStatus.destroy();
+            }
+
+            // CREATE NEW CHART OBJECT
+            var marksCanvas = document.getElementById("playerRadar");
+            var marksData = {
+                labels: data.radar_labels,
+                datasets: [
+                    {
+                        label: `${data.player_name} (${data.player_year})`,
+                        backgroundColor: data.radar_color,
+                        borderColor: "black",
+                        borderWidth: 1,
+                        data: data.radar_values
+                    },
+                    {
+                        label: `Avg (${data.player_year})`,
+                        backgroundColor: "rgb(0,0,0,0.1)",
+                        borderColor: "gray",
+                        borderWidth: 0.5,
+                        data: data.radar_values.map(x => 50)
+                    },
+                ]
+            };
+
+            var chartOptions = {
+                scales: {
+                    r: {
+                        pointLabels: {
+                            font: {
+                                size: 11
+                            }
+                        },
+                        suggestedMin: 0,
+                        suggestedMax: 100
+                    }
+                }
+            };
+
+            var radarChart = new Chart(marksCanvas, {
+                type: "radar",
+                data: marksData,
+                options: chartOptions
+            });
+        } else {
+            $("#radar_container").hide();
+        }
     };
     $('#overlay').hide();
 }

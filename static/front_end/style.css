@@ -53,6 +53,25 @@
     background-color: #000000;
 }
 
+/* RADAR: SHOWS RADAR CHART FOR PLAYER ATTRIBUTES */
+.radar_container_light {
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    padding: 8px;
+    overflow: hidden;
+    display: none;
+    margin-bottom: 8px;
+}
+.radar_container_dark {
+    background-color: #222222;
+    border-radius: 10px;
+    padding: 8px;
+    overflow: hidden;
+    display: none;
+    margin-bottom: 8px;
+}
+
 /* BREAKDOWN: SHOWS STATS, POINTS, ACCURACY, ETC */
 .breakdown_output_light {
     background-color: #ffffff;

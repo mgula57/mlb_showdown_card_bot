@@ -258,6 +258,8 @@ def card_creator():
         player_stats_data = showdown.player_data_for_html_table()
         player_points_data = showdown.points_data_for_html_table()
         player_accuracy_data = showdown.accuracy_data_for_html_table()
+        radar_labels, radar_values = showdown.radar_chart_labels_as_values()
+        radar_color = showdown.radar_chart_color()
         is_automated_image = showdown.is_automated_image
         player_name = showdown.name
         player_year = showdown.year
@@ -305,6 +307,9 @@ def card_creator():
             player_year=player_year,
             player_context=player_context,
             bref_url=bref_url,
+            radar_labels=radar_labels,
+            radar_values=radar_values,
+            radar_color=radar_color,
         )
 
     except Exception as e:
@@ -348,6 +353,9 @@ def card_creator():
             player_year=None,
             player_context=None,
             bref_url=None,
+            radar_labels=None,
+            radar_values=None,
+            radar_color=None,
         )
 
 @app.route('/upload', methods=["POST","GET"])
