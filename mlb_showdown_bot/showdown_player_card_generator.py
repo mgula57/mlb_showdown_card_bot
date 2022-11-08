@@ -2234,7 +2234,7 @@ class ShowdownPlayerCardGenerator:
         """
         tm_colors = self.__team_color_rgbs()
 
-        return f'rgba({tm_colors[0]}, {tm_colors[1]}, {tm_colors[2]}, 0.2)'
+        return f'rgb({tm_colors[0]}, {tm_colors[1]}, {tm_colors[2]})'
 
 # ------------------------------------------------------------------------
 # IMAGE CREATION METHODS

@@ -91,6 +91,7 @@ function setTheme(themeName) {
     // UPDATE LOCAL STORAGE
     localStorage.setItem('theme', themeName);
 
+    var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
     containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "player_name", "player_link", "estimated_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
@@ -102,7 +103,7 @@ function setTheme(themeName) {
         var current_name = document.getElementById(id).className
         const is_text_only = ["darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel"].includes(id)
         const suffix = (is_text_only) ? 'text-muted' : 'bg-dark text-white';
-        if (themeName == 'dark') {
+        if (is_dark) {
             if (current_name.includes(suffix) == false) {
                 document.getElementById(id).className = (current_name + ' ' + suffix);
             }
@@ -111,7 +112,7 @@ function setTheme(themeName) {
         }
     }
     // IMAGES
-    const suffix = (themeName == 'dark') ? '-Dark' : ''; 
+    const suffix = (is_dark) ? '-Dark' : ''; 
     document.getElementById('showdown_logo_img').src = `static/interface/ShowdownLogo${suffix}.png`;
     if (document.getElementById('card_image').src.includes('interface')) {
         document.getElementById('card_image').src = `static/interface/BlankPlayer${suffix}.png`;
@@ -230,17 +231,19 @@ function showCardData(data) {
             if (chartStatus != undefined) {
                 chartStatus.destroy();
             }
-
             // CREATE NEW CHART OBJECT
             var marksCanvas = document.getElementById("playerRadar");
+            var color = Chart.helpers.color;
+            Chart.defaults.color = "black"
             var marksData = {
                 labels: data.radar_labels,
                 datasets: [
                     {
                         label: `${data.player_name} (${data.player_year})`,
-                        backgroundColor: data.radar_color,
-                        borderColor: "black",
+                        backgroundColor: color(data.radar_color).alpha(0.2).rgbString(),
+                        borderColor: data.radar_color,
                         borderWidth: 1,
+                        pointBackgroundColor: data.radar_color,
                         data: data.radar_values
                     },
                     {
@@ -258,12 +261,17 @@ function showCardData(data) {
                     r: {
                         pointLabels: {
                             font: {
-                                size: 11
+                                size: 12,
                             }
                         },
+                        ticks: {
+                            callback: function() {return ""},
+                            beginAtZero: true,
+                            showLabelBackdrop: false
+                        },
                         suggestedMin: 0,
-                        suggestedMax: 100
-                    }
+                        suggestedMax: 100,
+                    },
                 }
             };
 
