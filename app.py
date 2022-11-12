@@ -265,6 +265,7 @@ def card_creator():
         player_year = showdown.year
         player_context = showdown.context
         bref_url = showdown.bref_url
+        shOPS_plus = showdown.projected['onbase_plus_slugging_plus'] if 'onbase_plus_slugging_plus' in showdown.projected else None
         name = player_name if is_random else name # LOG ACTUAL NAME IF IS RANDOMIZED PLAYER
         error = showdown.img_loading_error[:250] if showdown.img_loading_error else ''
         if len(error) > 0:
@@ -310,6 +311,7 @@ def card_creator():
             radar_labels=radar_labels,
             radar_values=radar_values,
             radar_color=radar_color,
+            shOPS_plus=shOPS_plus,
         )
 
     except Exception as e:
@@ -356,6 +358,7 @@ def card_creator():
             radar_labels=None,
             radar_values=None,
             radar_color=None,
+            shOPS_plus=None,
         )
 
 @app.route('/upload', methods=["POST","GET"])

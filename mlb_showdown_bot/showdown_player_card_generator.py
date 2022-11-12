@@ -65,6 +65,10 @@ class ShowdownPlayerCardGenerator:
         self.is_expanded = self.context in sc.EXPANDED_SETS
         self.is_classic = self.context in sc.CLASSIC_SETS
         self.has_icons = self.context_year in sc.SETS_HAS_ICONS
+        # ADD OPS IF NOT IN DICT (< 1900 CARDS)
+        if 'onbase_plus_slugging' not in stats.keys() and 'slugging_perc' in stats.keys() and 'onbase_perc' in stats.keys():
+            stats['onbase_plus_slugging'] = stats['slugging_perc'] + stats['onbase_perc']
+            
         self.stats = stats
         self.source = source
         # COMBINE BB AND HBP
@@ -128,7 +132,7 @@ class ShowdownPlayerCardGenerator:
                                                       dbl_per_400_pa=float(stats_for_400_pa['2b_per_400_pa']),
                                                       trpl_per_400_pa=float(stats_for_400_pa['3b_per_400_pa']),
                                                       hr_per_400_pa=float(stats_for_400_pa['hr_per_400_pa']))
-            self.projected = self.stats_for_full_season(stats_per_400_pa=chart_results_per_400_pa)
+            self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart['command'])
 
             self.points = self.point_value(chart=self.chart,
                                             projected=self.projected,
@@ -1431,11 +1435,12 @@ class ShowdownPlayerCardGenerator:
         """Calculate Slugging Pct"""
         return (singles + (2 * doubles) + (3 * triples) + (4 * homers)) / ab
 
-    def stats_for_full_season(self, stats_per_400_pa):
+    def projected_statline(self, stats_per_400_pa, command: str) -> dict:
         """Predicted season stats (650 PA)
 
         Args:
           stats_per_400_pa: Stats and Ratios weighted for every 400 plate appearances.
+          command: Player Onbase or Control
 
         Returns:
           Dict with stats for 650 PA.
@@ -1453,8 +1458,15 @@ class ShowdownPlayerCardGenerator:
 
         # ADD OPS
         keys = stats_per_650_pa.keys()
-        if 'onbase_perc' in keys and 'slugging_perc' in keys:
+        has_slg_and_obp = 'onbase_perc' in keys and 'slugging_perc' in keys
+        if has_slg_and_obp:
             stats_per_650_pa['onbase_plus_slugging'] = round(stats_per_650_pa['onbase_perc'] + stats_per_650_pa['slugging_perc'], 4)
+
+        # ADD shOPS+ (SHOWDOWN OPS+ EQUIVALENT)
+        try:
+            stats_per_650_pa['onbase_plus_slugging_plus'] = self.calculate_shOPS_plus(command=command, proj_obp=stats_per_650_pa['onbase_perc'], proj_slg=stats_per_650_pa['slugging_perc'])
+        except:
+            stats_per_650_pa['onbase_plus_slugging_plus'] = None
         
         return stats_per_650_pa
 
@@ -1703,6 +1715,73 @@ class ShowdownPlayerCardGenerator:
             self.points_normalizer = 1.0
             return points
 
+    def calculate_shOPS_plus(self, command: int, proj_obp: float, proj_slg: float) -> float:
+        """Calculates shoOPS+ metric.
+
+        shOPS+ provides context around projected OPS numbers accounting for Command adjustments.
+
+        Args:
+          - command: Player's command (Onbase or Control).
+          - proj_obp: Player's in-game projected OBP against baseline opponent.
+          - proj_slg: Player's in-game projected SLG against baseline opponent.
+
+        Returns:
+          shOPS+ number (100 is avg). Rounded to one decimal place.
+        """
+
+        # -- CHECK FOR CONSTANTS --
+        key_command = 'command'
+        key_obp = 'obp'
+        key_slg = 'slg'
+        type = 'Pitcher' if self.is_pitcher else 'Hitter'
+        years_list_str = [str(yr) for yr in self.year_list]
+        sources_dict = {
+            key_command: sc.LEAGUE_AVG_COMMAND[self.context], 
+            key_obp: sc.LEAGUE_AVG_PROJ_OBP[self.context],
+            key_slg: sc.LEAGUE_AVG_PROJ_SLG[self.context],
+        }
+        metric_values_list_dict = {}
+        for metric, source in sources_dict.items():
+            values_list = []
+            for year in years_list_str:
+                # SKIP IF AVG DOESN'T EXIST
+                if year not in source.keys():
+                    continue
+                if type not in source[year].keys():
+                    continue
+                    
+                # ADD VALUE TO LIST
+                values_list.append(source[year][type])
+            
+            if len(values_list) == 0:
+                # NO RESULTS, RETURN NONE
+                return None
+            
+            # TAKE AVG OF EACH YEAR IF MULTI YEAR CARD
+            metric_values_list_dict[metric] = round(statistics.mean(values_list),3)
+
+        # -- CALCULATE ADJUSTMENT FACTOR --
+        # ADJUSTMENT FACTOR USED TO ACCOUNT FOR TYPICAL SHOWDOWN ROSTER BUILDS THAT FEATURE HIGHER COMMAND PLAYERS.
+        # WILL SLIGHTLY ADJUST EXPECTED OPS UP FOR HIGHER COMMAND AND DOWN FOR LOWER COMMAND.
+        # WORKS BY COMPARING TO THE AVG COMMAND IN THAT GIVEN YEAR.
+        lg_avg_command = metric_values_list_dict[key_command]
+        is_below_avg = command < lg_avg_command
+        negative_multiplier = -1 if is_below_avg else 1
+        abs_pct_above_or_below_avg = abs(command - lg_avg_command) / lg_avg_command
+        command_adjustment_factor = 1.0 + ( abs_pct_above_or_below_avg * sc.COMMAND_ADJUSTMENT_FACTOR_WEIGHT * negative_multiplier)
+
+        # -- CALCULATE FINAL shOPS+ --
+        lg_avg_obp = metric_values_list_dict[key_obp]
+        lg_avg_slg = metric_values_list_dict[key_slg]
+        obp_numerator = lg_avg_obp if self.is_pitcher else proj_obp
+        obp_denominator = proj_obp if self.is_pitcher else lg_avg_obp
+        slg_numerator = lg_avg_slg if self.is_pitcher else (proj_slg * command_adjustment_factor)
+        slg_denominator = (proj_slg / command_adjustment_factor) if self.is_pitcher else lg_avg_slg
+
+        shOPS_plus = round(100 * ( (obp_numerator / obp_denominator) + (slg_numerator / slg_denominator) - 1), 0)
+        
+        return shOPS_plus
+
 # ------------------------------------------------------------------------
 # GENERIC METHODS
 
@@ -1876,6 +1955,9 @@ class ShowdownPlayerCardGenerator:
             showdown_stat_str = '{}: {}'.format(cleaned_category,str(round(self.projected[key],3)).replace('0.','.'))
             real_stat_str = '{}: {}'.format(cleaned_category,str(round(self.stats[key],3)).replace('0.','.'))
             slash_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str,real_stat_str)
+        
+        # shOPS+
+        shOPS_plus = str(self.projected['onbase_plus_slugging_plus']) if 'onbase_plus_slugging_plus' in self.projected.keys() else 'N/A'
 
         # RESULT LINE
         real_life_pa = int(self.stats['PA'])
@@ -1920,6 +2002,7 @@ class ShowdownPlayerCardGenerator:
             '{icons}\n' +
             '{points} PT.\n' +
             '{pts_per_category}\n' +
+            'shOPS+: {shOPS_plus}\n' +
             '\n' +
             '{command_header}: {command}\n' +
             '{chart}\n' +
@@ -1945,6 +2028,7 @@ class ShowdownPlayerCardGenerator:
             icons = icon_string,
             points = str(self.points),
             pts_per_category = pt_category_string,
+            shOPS_plus = shOPS_plus,
             command_header = 'CONTROL' if self.is_pitcher else 'ONBASE',
             command=self.chart['command'],
             chart = chart_string,

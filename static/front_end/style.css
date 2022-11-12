@@ -11,7 +11,7 @@
 }
 .container_bg_dark {
     border-radius: 20px;
-    margin-top: 20px;
+    margin-top: 10px;
     margin-bottom: 20px;
     margin-right: 10px;
     margin-left: 10px;
@@ -108,12 +108,12 @@
 }
 
 /* ESTIMATED VALUES FOOTNOTE */
-.estimated_values_footnote_light {
-    font-size:60%; 
+.estimated_values_footnote_light, .shops_footnote_light {
+    font-size:50%; 
     color: #000000;
 }
-.estimated_values_footnote_dark {
-    font-size:60%; 
+.estimated_values_footnote_dark, .shops_footnote_dark {
+    font-size:50%; 
     color: #ffffff;
 }
 
@@ -200,6 +200,16 @@
 }
 .player_link_dark {
     margin: 2px;
+    color: gray;
+}
+.player_shOPS_plus_light {
+    margin: 2px;
+    font-weight: bolder;
+    color: black;
+}
+.player_shOPS_plus_dark {
+    margin: 2px;
+    font-weight: bolder;
     color: gray;
 }
 

@@ -93,7 +93,7 @@ function setTheme(themeName) {
 
     var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
-    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "player_name", "player_link", "estimated_values_footnote", "loader_container_rectangle"]
+    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
         document.getElementById(id).className = (id + "_" + themeName);
     }
@@ -149,9 +149,18 @@ function showCardData(data) {
         // ADD HYPERLINK TO BREF
         if (data.player_name) {
             document.getElementById("playerlink_href").href = data.bref_url;
-            $("#playerlink_href_text").text('BREF Page');
+            $("#playerlink_href_text").text(data.player_year);
             $("#player_name").text(data.player_name.toUpperCase());
-            $("#player_link").text(`${data.player_year} (${data.player_context} Set)`);
+            $("#player_link").text(`Set: ${data.player_context} | Year(s):`);
+        }
+
+        // ADD shOPS+
+        if (data.shOPS_plus) {
+            $("#player_shOPS_plus_text").text("shOPS+");
+            $("#player_shOPS_plus").text(data.shOPS_plus);
+        } else {
+            $("#player_shOPS_plus_text").text("");
+            $("#player_shOPS_plus").text("");
         }
         
         // VAR NEEDED FOR TABLE CLASSES

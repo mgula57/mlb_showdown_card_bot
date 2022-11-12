@@ -243,13 +243,17 @@
                                     <p style="margin: 2px;" id="playerlink_href_text"><b></b></p>
                                  </a>
                               </div>
-         
+                              <div class="d-flex justify-content-center">
+                                 <p style="margin: 2px;" id="player_shOPS_plus" class="player_shOPS_plus_light"><b></b></p>
+                                 <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md#2022-sets" id="player_shOPS_plus_href" class="link-primary" target="_blank" rel="noopener noreferrer">
+                                    <p style="margin: 2px;" id="player_shOPS_plus_text"><b></b></p>
+                                 </a>
+                              </div>
                               <div class="row">
                                  
                                  <div class="col-md-7">
                                     <div class="card_container">
                                        <!-- CARD OUTPUT  -->
-                                       <h4 id=na style="color:blue"></h4>
                                        <h4 style="color: #686666"><b>Image</b></h4>
                                        <div class="card_output">
                                           <img id="card_image" src="static/interface/BlankPlayer.png" alt="card" class="img-fluid">
@@ -262,7 +266,6 @@
          
                                  <div class="col-md-5">                                    
                                     <div class="breakdown_container">
-                                          <h4 id=na style="color:blue"></h4>
                                           <h4 style="color: #686666"><b>Breakdown</b></h4>
                                           
                                           <div class="radar_container_light" id="radar_container">
@@ -287,7 +290,7 @@
                                                    <th>Actual</th>
                                                    <th>Showdown</th>
                                                 </tr>
-                                                {% for stat in ['BA','OBP','SLG','PA','1B','2B','3B','HR','BB','SO'] -%}
+                                                {% for stat in ['BA','OBP','SLG','OPS','PA','1B','2B','3B','HR','BB','SO'] -%}
                                                 <tr>
                                                    <td><b>{{ stat }}</b></td>
                                                    <td>?</td>
