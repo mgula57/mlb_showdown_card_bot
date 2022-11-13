@@ -2949,7 +2949,8 @@ class ShowdownPlayerCardGenerator:
         # PARSE NAME STRING
         first, last = self.name.upper().split(" ", 1)
         name = self.name.upper() if self.context_year != '2001' else first
-        is_name_over_char_limit = len(name) > 15
+        default_chart_char_cutoff = 19 if self.context_year in ('2002') else 15
+        is_name_over_char_limit =  len(name) > default_chart_char_cutoff
 
         futura_black_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Futura Black.ttf')
         helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
