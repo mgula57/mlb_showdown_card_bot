@@ -130,6 +130,7 @@
 #showdown_library_logo_img {
     max-height: 35px;
     max-width: 90px;
+    display: none;
 }
 
 .library_logo_container {
