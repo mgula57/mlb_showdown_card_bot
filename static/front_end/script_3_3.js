@@ -132,15 +132,15 @@ function showCardData(data) {
 
         // ADD MESSAGING BELOW CARD IMAGE
         const successColor = (storedTheme == 'dark') ? "#41d21a" : "green"
-        if (data.is_img_loaded_from_library) {
-            console.log("Img Loaded From Library");
-            document.getElementById("error").style.color = successColor;
-            $("#error").text("Powered by Showdown Library");
-        } else if (data.is_stats_loaded_from_library) {
-            console.log("Stats Loaded From Library");
-            document.getElementById("error").style.color = successColor;
-            $("#error").text("Stats Powered by Showdown Library");
-        } else if (data.is_automated_image) {
+        
+        if (data.is_stats_loaded_from_library || data.is_img_loaded_from_library) {
+            console.log("Loaded From Showdown Library");
+            $('#library_logo').show();
+        } else {
+            $('#library_logo').hide();
+        }
+        
+        if (data.is_automated_image) {
             console.log("auto image");
             document.getElementById("error").style.color = successColor;
             $("#error").text("Automated Image!");

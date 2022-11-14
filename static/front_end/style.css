@@ -126,6 +126,24 @@
     padding-top: 10px;
 }
 
+/* LIBRARY LOGO IMAGE */
+#showdown_library_logo_img {
+    max-height: 35px;
+    max-width: 90px;
+}
+
+.library_logo_container {
+    margin-left: auto; 
+    margin-top: auto; 
+    margin-bottom: auto;
+    padding-right: 10px;
+}
+
+/* FLEX BOX CUSTOM */
+.flex_box_custom {
+    display: flex;
+}
+
 /* TABS CONTAINER */
 .tabs {
     display: flex;
