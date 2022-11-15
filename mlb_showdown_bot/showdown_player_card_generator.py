@@ -94,7 +94,7 @@ class ShowdownPlayerCardGenerator:
         self.is_running_in_flask = is_running_in_flask
         self.is_automated_image = False
         self.is_img_part_of_a_set = is_img_part_of_a_set
-        self.is_stats_estimate = 'is_stats_estimate' in stats.keys()
+        self.is_stats_estimate = stats['is_stats_estimate'] == True if 'is_stats_estimate' in stats.keys() else False
         self.add_image_border = add_image_border
         self.is_dark_mode = is_dark_mode
         self.is_variable_speed_00_01 = is_variable_speed_00_01
