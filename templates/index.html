@@ -315,10 +315,10 @@
                                                    <th>Points</th>
                                                 </tr>
                                                 {% for stat in ['?', '?', '?', '?', '?', 'TOTAL'] -%}
-                                                <tr>
-                                                   <td class="{{ 'table-success' if stat == 'TOTAL' }}" ><b>{{ stat }}</b></td>
-                                                   <td class="{{ 'table-success' if stat == 'TOTAL' }}">?</td>
-                                                   <td class="{{ 'table-success' if stat == 'TOTAL' }}">?</td>
+                                                <tr class="{{ 'table-success' if stat == 'TOTAL' }}">
+                                                   <td ><b>{{ stat }}</b></td>
+                                                   <td>?</td>
+                                                   <td>?</td>
                                                 </tr>
                                                 {% endfor %}
                                              </table>

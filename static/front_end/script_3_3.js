@@ -166,10 +166,11 @@ function showCardData(data) {
         }
         
         // VAR NEEDED FOR TABLE CLASSES
-        var table_class_suffix = (storedTheme == 'dark') ? " bg-dark text-white" : ""
+        var table_class_suffix = (storedTheme == 'dark') ? " table-dark" : ""
 
         // PLAYER STATS
-        var player_stats_table = "<table class='table" + table_class_suffix + "' id='stats_table'><tr><th> </th><th>Actual</th><th>Showdown</th></tr>";
+        var table_class_name = "table table-striped table-bordered" + table_class_suffix
+        var player_stats_table = "<table class='" + table_class_name + "' id='stats_table'><tr><th> </th><th>Actual</th><th>Showdown</th></tr>";
         $.each(data.player_stats, function (index, value) {
             player_stats_table += '<tr>'
             $.each(value, function (index, value) {
@@ -188,10 +189,12 @@ function showCardData(data) {
         $("#stats_table").replaceWith(player_stats_table);
 
         // PLAYER POINTS
-        var player_points_table = "<table class='table" + table_class_suffix + "' id='points_table'><tr> <th>Category</th> <th>Stat</th> <th>Points</th> </tr>";
+        var player_points_table = "<table class='" + table_class_name + "' id='points_table'><tr> <th>Category</th> <th>Stat</th> <th>Points</th> </tr>";
         $.each(data.player_points, function (index, value) {
-            player_points_table += '<tr>'
             is_total_row = (data.player_points.length - 1) == index;
+            const tr_class = (is_total_row) ? ' class="table-success">' : '>';
+            player_points_table += '<tr' + tr_class
+            
             $.each(value, function (index, value) {
                 if (index == 0) {
                     bold_start = '<b>';
@@ -200,12 +203,7 @@ function showCardData(data) {
                     bold_start = '';
                     bold_end = '';
                 }
-                if (is_total_row) {
-                    td_class = ' class="table-success">';
-                } else {
-                    td_class = '>';
-                }
-                player_points_table += '<td' + td_class + bold_start + value + bold_end + '</td>';
+                player_points_table += '<td>' + bold_start + value + bold_end + '</td>';
             });
             player_points_table += '</tr>';
         });
@@ -215,7 +213,7 @@ function showCardData(data) {
         $('#year').val(data.player_year);
         // PLAYER ACCURACY
         
-        var player_accuracy_table = "<table class='table" + table_class_suffix + "' id='accuracy_table'><tr> <th>Version</th> <th>" + data.player_command + "</th> <th>Outs</th> <th>Accuracy</th> </tr>";
+        var player_accuracy_table = "<table class='" + table_class_name + "' id='accuracy_table'><tr> <th>Version</th> <th>" + data.player_command + "</th> <th>Outs</th> <th>Accuracy</th> </tr>";
         $.each(data.player_accuracy, function (index, value) {
             player_accuracy_table += '<tr>'
             $.each(value, function (index, value) {
