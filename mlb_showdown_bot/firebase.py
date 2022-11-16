@@ -175,7 +175,7 @@ class Firebase:
         """
         
         # GRAB DATA FROM FIREBASE IF IT EXISTS
-        cached_data = self.query(bref_id=bref_id, year=year, context=context, expansion=expansion)
+        cached_data = self.query(bref_id=bref_id, year=year, context=context, expansion='FINAL') # TODO: UPDATE IN 2023 FOR LIVE CARDS
         if not cached_data:
             return None
 
