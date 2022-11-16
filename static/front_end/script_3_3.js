@@ -102,7 +102,9 @@ function setTheme(themeName) {
     for (const id of form_inputs_to_alter) {
         var current_name = document.getElementById(id).className
         const is_text_only = ["darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel"].includes(id)
-        const suffix = (is_text_only) ? 'text-muted' : 'bg-dark text-white';
+        const is_table = ["stats_table", "points_table", "accuracy_table"].includes(id)
+        const default_suffix = (is_text_only) ? 'text-muted' : 'bg-dark text-white';
+        const suffix = (is_table) ? 'table-dark' : default_suffix;
         if (is_dark) {
             if (current_name.includes(suffix) == false) {
                 document.getElementById(id).className = (current_name + ' ' + suffix);

@@ -322,13 +322,6 @@ h1, h2, h3, h4, h5, h6 {
     padding-bottom: 10px;
 }
 
-/* TABLES */
-td, th {
-    border: 1px solid #dddddd;
-    text-align: left;
-    padding: 8px;
-}
-
 /* GENERAL */
 input[type='text'],
 input[type='number'],
