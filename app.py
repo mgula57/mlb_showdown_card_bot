@@ -258,6 +258,7 @@ def card_creator():
         player_stats_data = showdown.player_data_for_html_table()
         player_points_data = showdown.points_data_for_html_table()
         player_accuracy_data = showdown.accuracy_data_for_html_table()
+        player_ranks_data = showdown.rank_data_for_html_table()
         radar_labels, radar_values = showdown.radar_chart_labels_as_values()
         radar_color = showdown.radar_chart_color()
         is_automated_image = showdown.is_automated_image
@@ -304,6 +305,7 @@ def card_creator():
             player_stats=player_stats_data, 
             player_points=player_points_data,
             player_accuracy=player_accuracy_data,
+            player_ranks=player_ranks_data,
             player_name=player_name,
             player_year=player_year,
             player_context=player_context,
@@ -351,6 +353,7 @@ def card_creator():
             player_stats=None,
             player_points=None,
             player_accuracy=None,
+            player_ranks=None,
             player_name=None,
             player_year=None,
             player_context=None,

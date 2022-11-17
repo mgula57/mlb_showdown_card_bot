@@ -59,6 +59,7 @@ function checkHideForStats(statsElement) {
         document.getElementById("stats_div").style.display = "initial";
         document.getElementById("points_div").style.display = "none";
         document.getElementById("accuracy_div").style.display = "none";
+        document.getElementById("rank_div").style.display = "none";
     }
 }
  
@@ -67,6 +68,7 @@ function checkHideForPoints(pointsElement) {
         document.getElementById("stats_div").style.display = "none";
         document.getElementById("points_div").style.display = "initial";
         document.getElementById("accuracy_div").style.display = "none";
+        document.getElementById("rank_div").style.display = "none";
     }
 }
 
@@ -75,6 +77,16 @@ function checkHideForAccuracy(accuracyElement) {
         document.getElementById("stats_div").style.display = "none";
         document.getElementById("points_div").style.display = "none";
         document.getElementById("accuracy_div").style.display = "initial";
+        document.getElementById("rank_div").style.display = "none";
+    }
+}
+
+function checkHideForRank(rankElement) {
+    if (rankElement.checked) {
+        document.getElementById("stats_div").style.display = "none";
+        document.getElementById("points_div").style.display = "none";
+        document.getElementById("accuracy_div").style.display = "none";
+        document.getElementById("rank_div").style.display = "initial";
     }
 }
 
@@ -93,16 +105,16 @@ function setTheme(themeName) {
 
     var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
-    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "loader_container_rectangle"]
+    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "rank_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
         document.getElementById(id).className = (id + "_" + themeName);
     }
 
-    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "statsVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table"]
+    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "statsVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table","rank_table"]
     for (const id of form_inputs_to_alter) {
         var current_name = document.getElementById(id).className
         const is_text_only = ["darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel"].includes(id)
-        const is_table = ["stats_table", "points_table", "accuracy_table"].includes(id)
+        const is_table = ["stats_table", "points_table", "accuracy_table", "rank_table"].includes(id)
         const default_suffix = (is_text_only) ? 'text-muted' : 'bg-dark text-white';
         const suffix = (is_table) ? 'table-dark' : default_suffix;
         if (is_dark) {
@@ -137,9 +149,9 @@ function showCardData(data) {
         
         if (data.is_stats_loaded_from_library || data.is_img_loaded_from_library) {
             console.log("Loaded From Showdown Library");
-            $('#library_logo').show();
+            $('#showdown_library_logo_img').show();
         } else {
-            $('#library_logo').hide();
+            $('#showdown_library_logo_img').hide();
         }
         
         if (data.is_automated_image) {
@@ -167,9 +179,9 @@ function showCardData(data) {
         
         // VAR NEEDED FOR TABLE CLASSES
         var table_class_suffix = (storedTheme == 'dark') ? " table-dark" : ""
-
-        // PLAYER STATS
         var table_class_name = "table table-striped table-bordered" + table_class_suffix
+        
+        // PLAYER STATS
         var player_stats_table = "<table class='" + table_class_name + "' id='stats_table'><tr><th> </th><th>Actual</th><th>Showdown</th></tr>";
         $.each(data.player_stats, function (index, value) {
             player_stats_table += '<tr>'
@@ -211,8 +223,8 @@ function showCardData(data) {
         $("#points_table").replaceWith(player_points_table);
         $('#name').val(data.player_name);
         $('#year').val(data.player_year);
-        // PLAYER ACCURACY
         
+        // PLAYER ACCURACY
         var player_accuracy_table = "<table class='" + table_class_name + "' id='accuracy_table'><tr> <th>Version</th> <th>" + data.player_command + "</th> <th>Outs</th> <th>Accuracy</th> </tr>";
         $.each(data.player_accuracy, function (index, value) {
             player_accuracy_table += '<tr>'
@@ -230,6 +242,27 @@ function showCardData(data) {
         });
         player_accuracy_table += '</table>';
         $("#accuracy_table").replaceWith(player_accuracy_table);
+
+        // PLAYER RANK
+        // ONLY AVAILABLE FOR SHOWDOWN LIBRARY
+        var player_ranks_table = "<table class='" + table_class_name + "' id='rank_table'><tr> <th> </th> <th>Value</th> <th>Rank</th> <th>Percentile</th> </tr>";
+        $.each(data.player_ranks, function (index, value) {
+            player_ranks_table += '<tr>'
+            $.each(value, function (index, value) {
+                if (index == 0) {
+                    bold_start = '<b>';
+                    bold_end = '</b>';
+                } else {
+                    bold_start = '';
+                    bold_end = '';
+                }
+                td_colspan = (value == 'RANKINGS NOT AVAILABLE') ? " colspan='4'" : ""
+                player_ranks_table += `<td${td_colspan}>` + bold_start + value + bold_end + '</td>';
+            });
+            player_ranks_table += '</tr>';
+        });
+        player_ranks_table += '</table>';
+        $("#rank_table").replaceWith(player_ranks_table);
 
         // PLAYER RADAR CHART
         if (data.radar_labels != null) {

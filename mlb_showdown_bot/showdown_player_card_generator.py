@@ -2129,9 +2129,9 @@ class ShowdownPlayerCardGenerator:
                 str(round(self.spd_ip_points))
             ]
         pts_data = [
-            ['BA', str(round(self.projected['batting_avg'],3)).replace("0.","."), str(round(self.ba_points))],
-            ['OBP', str(round(self.projected['onbase_perc'],3)).replace("0.","."), str(round(self.obp_points))],
-            ['SLG', str(round(self.projected['slugging_perc'],3)).replace("0.","."), str(round(self.slg_points))],
+            ['BA', self.__format_slash_pct(self.projected['batting_avg']), str(round(self.ba_points))],
+            ['OBP', self.__format_slash_pct(self.projected['onbase_perc']), str(round(self.obp_points))],
+            ['SLG', self.__format_slash_pct(self.projected['slugging_perc']), str(round(self.slg_points))],
             spd_or_ip,
 
         ]
@@ -2180,6 +2180,58 @@ class ShowdownPlayerCardGenerator:
             accuracy_data.append([str(index + 1), f"{command}", f"{outs}", f"{round(100 * accuracy, 2)}%"])
 
         return accuracy_data
+
+    def rank_data_for_html_table(self):
+        """Provides data needed to populate the rank breakdown shown on the
+           showdownbot.com webpage. Only for cards loaded via the Showdown Library
+
+        Args:
+          None
+
+        Returns:
+          Multi-Dimensional list where each row is a list of ranks for a given category.
+        """
+
+        if len(self.rank) == 0 or len(self.pct_rank) == 0:
+            # EMPTY RANKS, RETURN EMPTY MESSAGE
+            return [['RANKINGS NOT AVAILABLE']]
+        
+        categories_to_exclude = ['speed', 'defense'] if self.is_pitcher else ['ip', 'defense']
+        alias_mapping = {
+            'points': 'PTS',
+            'speed': 'SPD',
+            'ip': 'IP',
+            'onbase_perc': 'PROJ. OBP',
+            'slugging_perc': 'PROJ. SLG',
+            'batting_avg': 'PROJ. BA',
+            'onbase_plus_slugging': 'PROJ. OPS',
+            'hr_per_650_pa': 'PROJ. HR/650 PA',
+        }
+        values_mapping = {
+            'points': self.points,
+            'speed': self.speed,
+            'ip': self.ip,
+            'onbase_perc': self.__format_slash_pct(self.projected['onbase_perc']) if 'onbase_perc' in self.projected.keys() else 0.00,
+            'slugging_perc': self.__format_slash_pct(self.projected['slugging_perc']) if 'slugging_perc' in self.projected.keys() else 0.00,
+            'batting_avg': self.__format_slash_pct(self.projected['batting_avg']) if 'batting_avg' in self.projected.keys() else 0.00,
+            'onbase_plus_slugging': self.__format_slash_pct(self.projected['onbase_plus_slugging']) if 'onbase_plus_slugging' in self.projected.keys() else 0.00,
+            'hr_per_650_pa': round(self.projected['hr_per_650_pa'],1) if 'hr_per_650_pa' in self.projected.keys() else 0,
+        }
+        positions = ['CA','C','1B','2B','3B','SS','LF/RF','CF','OF']
+        for position in positions:
+            values_mapping[position] = self.positions_and_defense[position] if position in self.positions_and_defense.keys() else 0
+
+        ranking_data = []
+        for category in self.rank.keys():
+            if category in self.pct_rank.keys() and category not in categories_to_exclude:
+                category_cleaned = alias_mapping[category] if category in alias_mapping.keys() else category.upper()
+                value = values_mapping[category] if category in values_mapping.keys() else 0.00
+                rank = round(self.rank[category])
+                pct_rank = round(self.pct_rank[category] * 100,1)
+                ranking_data.append([category_cleaned, f"{value}", f"{rank}", f"{pct_rank}"])
+        
+        ranking_data.sort()
+        return ranking_data
 
     def __player_metadata_summary_text(self, is_horizontal=False, return_as_list=False):
         """Creates a multi line string with all player metadata for card output.
@@ -2319,6 +2371,18 @@ class ShowdownPlayerCardGenerator:
         tm_colors = self.__team_color_rgbs()
 
         return f'rgb({tm_colors[0]}, {tm_colors[1]}, {tm_colors[2]})'
+
+    def __format_slash_pct(self, value) -> str:
+        """Converts a float value into a rounded decimal string without the leading 0.
+
+        Args:
+          value: Float value to be converted.
+
+        Returns:
+          Formatted string version of slashline percentage.
+        
+        """
+        return str(round(value,3)).replace('0.','.')
 
 # ------------------------------------------------------------------------
 # IMAGE CREATION METHODS

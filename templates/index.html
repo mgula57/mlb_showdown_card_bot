@@ -286,6 +286,8 @@
                                              <label class="btn btn-outline-secondary btn-sm" for="points_btn">Points</label>
                                              <input type="radio" class="btn-check" onchange="checkHideForAccuracy(this)" name="category" id="accuracy_btn" autocomplete="off">
                                              <label class="btn btn-outline-secondary btn-sm" for="accuracy_btn">Accuracy</label>
+                                             <input type="radio" class="btn-check" onchange="checkHideForRank(this)" name="category" id="rank_btn" autocomplete="off">
+                                             <label class="btn btn-outline-secondary btn-sm" for="rank_btn">Ranks</label>
                                           </div>
          
                                           <!-- STATS TABLE  -->
@@ -341,6 +343,26 @@
                                                 </tr>
                                                 {% endfor %}
                                              </table>
+                                          </div>
+
+                                          <div id="rank_div" style="display:none" >
+                                             <table class='table table-striped table-bordered' id="rank_table">
+                                                <tr>
+                                                   <th> </th>
+                                                   <th>Value</th>
+                                                   <th>Rank</th>
+                                                   <th>Percentile</th>
+                                                </tr>
+                                                {% for category in ['?', '?', '?', '?', '?'] -%}
+                                                <tr>
+                                                   <td><b>{{ category }}</b></td>
+                                                   <td>?</td>
+                                                   <td>?</td>
+                                                   <td>?</td>
+                                                </tr>
+                                                {% endfor %}
+                                             </table>
+                                             <p class="rank_values_footnote_light" id="rank_values_footnote"><i>Rankings are calculated within top ~500-780 players that season. Rankings only available for player's loaded from Showdown Library.</i></p>
                                           </div>
                                        </div> 
                                     </div>
