@@ -26,7 +26,7 @@
     * [Points](#points)
     * [Multi-Year Cards](#multi-year-cards)
     * [Negro Leagues and Pre-20th Century](#negro-leagues-and-pre-20th-century)
-    * [shOPS+](#shops+)
+    * [shOPS+](#shops)
     * [2022 Sets](#2022-sets)
 * [Showdown Library](#showdown-library)
 * [Showdown Explorer](#showdown-explorer)
