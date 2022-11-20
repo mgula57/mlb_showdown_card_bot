@@ -10,7 +10,7 @@ README = (HERE / "README.md").read_text()
 # SETUP
 setup(
     name="mlb-showdown-bot",
-    version="3.3.4",
+    version="3.4",
     description="Create custom MLB Showdown cards",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -30,6 +30,7 @@ setup(
         'apiclient>=1.0.4',
         'beautifulsoup4>=4.9.3',
         'bs4>=0.0.1',
+        'firebase-admin>=6.0.1',
         'google>=3.0.0',
         'google-api-python-client>=2.7.0',
         'lxml>=4.6.1',
@@ -38,6 +39,7 @@ setup(
         'pandas>=1.1.4',
         'Pillow>=7.2.0',
         'requests>=2.25.0',
+        'simplejson>=3.17.6',
         'Unidecode==1.2.0',
         'urllib3>=1.26.2',
         'xlrd>=1.2.0',
