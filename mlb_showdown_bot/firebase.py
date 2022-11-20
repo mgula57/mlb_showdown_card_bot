@@ -81,7 +81,7 @@ class Firebase:
 # DATABASE
 # ------------------------------------------------------------------------
 
-    def query(self, bref_id: str, year: str, context: str, expansion: str) -> dict:
+    def query(self, bref_id: str, year: str, context: str, expansion: str, is_variable_speed_00_01: False) -> dict:
         """Query cached data for player's card.
 
         Looks for unique ID (Version + Bref Id + Year + Context)
@@ -97,7 +97,8 @@ class Firebase:
         """
 
         # CHECK FOR CREDS
-        if not self.creds:
+        filter_for_var_spd = context in ['2000','2001'] and is_variable_speed_00_01
+        if not self.creds or filter_for_var_spd:
             # NO CREDS
             return None
 
@@ -175,7 +176,7 @@ class Firebase:
         """
         
         # GRAB DATA FROM FIREBASE IF IT EXISTS
-        cached_data = self.query(bref_id=bref_id, year=year, context=context, expansion='FINAL') # TODO: UPDATE IN 2023 FOR LIVE CARDS
+        cached_data = self.query(bref_id=bref_id, year=year, context=context, expansion='FINAL', is_variable_speed_00_01=is_variable_speed_00_01) # TODO: UPDATE IN 2023 FOR LIVE CARDS
         if not cached_data:
             return None
 
