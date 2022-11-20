@@ -59,6 +59,7 @@ function checkHideForStats(statsElement) {
         document.getElementById("stats_div").style.display = "initial";
         document.getElementById("points_div").style.display = "none";
         document.getElementById("accuracy_div").style.display = "none";
+        document.getElementById("rank_div").style.display = "none";
     }
 }
  
@@ -67,6 +68,7 @@ function checkHideForPoints(pointsElement) {
         document.getElementById("stats_div").style.display = "none";
         document.getElementById("points_div").style.display = "initial";
         document.getElementById("accuracy_div").style.display = "none";
+        document.getElementById("rank_div").style.display = "none";
     }
 }
 
@@ -75,6 +77,16 @@ function checkHideForAccuracy(accuracyElement) {
         document.getElementById("stats_div").style.display = "none";
         document.getElementById("points_div").style.display = "none";
         document.getElementById("accuracy_div").style.display = "initial";
+        document.getElementById("rank_div").style.display = "none";
+    }
+}
+
+function checkHideForRank(rankElement) {
+    if (rankElement.checked) {
+        document.getElementById("stats_div").style.display = "none";
+        document.getElementById("points_div").style.display = "none";
+        document.getElementById("accuracy_div").style.display = "none";
+        document.getElementById("rank_div").style.display = "initial";
     }
 }
 
@@ -91,18 +103,21 @@ function setTheme(themeName) {
     // UPDATE LOCAL STORAGE
     localStorage.setItem('theme', themeName);
 
+    var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
-    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "player_name", "player_link", "estimated_values_footnote"]
+    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "rank_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
         document.getElementById(id).className = (id + "_" + themeName);
     }
 
-    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "statsVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table"]
+    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "statsVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table","rank_table"]
     for (const id of form_inputs_to_alter) {
         var current_name = document.getElementById(id).className
         const is_text_only = ["darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel"].includes(id)
-        const suffix = (is_text_only) ? 'text-muted' : 'bg-dark text-white';
-        if (themeName == 'dark') {
+        const is_table = ["stats_table", "points_table", "accuracy_table", "rank_table"].includes(id)
+        const default_suffix = (is_text_only) ? 'text-muted' : 'bg-dark text-white';
+        const suffix = (is_table) ? 'table-dark' : default_suffix;
+        if (is_dark) {
             if (current_name.includes(suffix) == false) {
                 document.getElementById(id).className = (current_name + ' ' + suffix);
             }
@@ -111,7 +126,7 @@ function setTheme(themeName) {
         }
     }
     // IMAGES
-    const suffix = (themeName == 'dark') ? '-Dark' : ''; 
+    const suffix = (is_dark) ? '-Dark' : ''; 
     document.getElementById('showdown_logo_img').src = `static/interface/ShowdownLogo${suffix}.png`;
     if (document.getElementById('card_image').src.includes('interface')) {
         document.getElementById('card_image').src = `static/interface/BlankPlayer${suffix}.png`;
@@ -119,7 +134,6 @@ function setTheme(themeName) {
 }
 
 function showCardData(data) {
-    $('#overlay').hide();
     $("#error").text(data.error);
     document.getElementById("error").style.color = "red";
     // ADD STATS TO TABLE
@@ -129,9 +143,19 @@ function showCardData(data) {
 
         // CHANGE CARD IMAGE
         $("#card_image").attr('src', data.image_path);
-        console.log("auto image");
+
+        // ADD MESSAGING BELOW CARD IMAGE
+        const successColor = (storedTheme == 'dark') ? "#41d21a" : "green"
+        
+        if (data.is_stats_loaded_from_library || data.is_img_loaded_from_library) {
+            console.log("Loaded From Showdown Library");
+            $('#showdown_library_logo_img').show();
+        } else {
+            $('#showdown_library_logo_img').hide();
+        }
+        
         if (data.is_automated_image) {
-            const successColor = (storedTheme == 'dark') ? "#41d21a" : "green"
+            console.log("auto image");
             document.getElementById("error").style.color = successColor;
             $("#error").text("Automated Image!");
         };
@@ -139,16 +163,26 @@ function showCardData(data) {
         // ADD HYPERLINK TO BREF
         if (data.player_name) {
             document.getElementById("playerlink_href").href = data.bref_url;
-            $("#playerlink_href_text").text('BREF Page');
+            $("#playerlink_href_text").text(data.player_year);
             $("#player_name").text(data.player_name.toUpperCase());
-            $("#player_link").text(`${data.player_year} (${data.player_context} Set)`);
+            $("#player_link").text(`Set: ${data.player_context} | Year(s):`);
+        }
+
+        // ADD shOPS+
+        if (data.shOPS_plus) {
+            $("#player_shOPS_plus_text").text("shOPS+");
+            $("#player_shOPS_plus").text(data.shOPS_plus);
+        } else {
+            $("#player_shOPS_plus_text").text("");
+            $("#player_shOPS_plus").text("");
         }
         
         // VAR NEEDED FOR TABLE CLASSES
-        var table_class_suffix = (storedTheme == 'dark') ? " bg-dark text-white" : ""
-
+        var table_class_suffix = (storedTheme == 'dark') ? " table-dark" : ""
+        var table_class_name = "table table-striped table-bordered" + table_class_suffix
+        
         // PLAYER STATS
-        var player_stats_table = "<table class='table" + table_class_suffix + "' id='stats_table'><tr><th> </th><th>Actual</th><th>Showdown</th></tr>";
+        var player_stats_table = "<table class='" + table_class_name + "' id='stats_table'><tr><th> </th><th>Actual</th><th>Showdown</th></tr>";
         $.each(data.player_stats, function (index, value) {
             player_stats_table += '<tr>'
             $.each(value, function (index, value) {
@@ -167,10 +201,12 @@ function showCardData(data) {
         $("#stats_table").replaceWith(player_stats_table);
 
         // PLAYER POINTS
-        var player_points_table = "<table class='table" + table_class_suffix + "' id='points_table'><tr> <th>Category</th> <th>Stat</th> <th>Points</th> </tr>";
+        var player_points_table = "<table class='" + table_class_name + "' id='points_table'><tr> <th>Category</th> <th>Stat</th> <th>Points</th> </tr>";
         $.each(data.player_points, function (index, value) {
-            player_points_table += '<tr>'
             is_total_row = (data.player_points.length - 1) == index;
+            const tr_class = (is_total_row) ? ' class="table-success">' : '>';
+            player_points_table += '<tr' + tr_class
+            
             $.each(value, function (index, value) {
                 if (index == 0) {
                     bold_start = '<b>';
@@ -179,12 +215,7 @@ function showCardData(data) {
                     bold_start = '';
                     bold_end = '';
                 }
-                if (is_total_row) {
-                    td_class = ' class="table-success">';
-                } else {
-                    td_class = '>';
-                }
-                player_points_table += '<td' + td_class + bold_start + value + bold_end + '</td>';
+                player_points_table += '<td>' + bold_start + value + bold_end + '</td>';
             });
             player_points_table += '</tr>';
         });
@@ -192,9 +223,9 @@ function showCardData(data) {
         $("#points_table").replaceWith(player_points_table);
         $('#name').val(data.player_name);
         $('#year').val(data.player_year);
-        // PLAYER ACCURACY
         
-        var player_accuracy_table = "<table class='table" + table_class_suffix + "' id='accuracy_table'><tr> <th>Version</th> <th>" + data.player_command + "</th> <th>Outs</th> <th>Accuracy</th> </tr>";
+        // PLAYER ACCURACY
+        var player_accuracy_table = "<table class='" + table_class_name + "' id='accuracy_table'><tr> <th>Version</th> <th>" + data.player_command + "</th> <th>Outs</th> <th>Accuracy</th> </tr>";
         $.each(data.player_accuracy, function (index, value) {
             player_accuracy_table += '<tr>'
             $.each(value, function (index, value) {
@@ -211,7 +242,91 @@ function showCardData(data) {
         });
         player_accuracy_table += '</table>';
         $("#accuracy_table").replaceWith(player_accuracy_table);
+
+        // PLAYER RANK
+        // ONLY AVAILABLE FOR SHOWDOWN LIBRARY
+        var player_ranks_table = "<table class='" + table_class_name + "' id='rank_table'><tr> <th> </th> <th>Value</th> <th>Rank</th> <th>Percentile</th> </tr>";
+        $.each(data.player_ranks, function (index, value) {
+            player_ranks_table += '<tr>'
+            $.each(value, function (index, value) {
+                if (index == 0) {
+                    bold_start = '<b>';
+                    bold_end = '</b>';
+                } else {
+                    bold_start = '';
+                    bold_end = '';
+                }
+                td_colspan = (value == 'RANKINGS NOT AVAILABLE') ? " colspan='4'" : ""
+                player_ranks_table += `<td${td_colspan}>` + bold_start + value + bold_end + '</td>';
+            });
+            player_ranks_table += '</tr>';
+        });
+        player_ranks_table += '</table>';
+        $("#rank_table").replaceWith(player_ranks_table);
+
+        // PLAYER RADAR CHART
+        if (data.radar_labels != null) {
+            $("#radar_container").show();
+
+            // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
+            let chartStatus = Chart.getChart("playerRadar");
+            if (chartStatus != undefined) {
+                chartStatus.destroy();
+            }
+            // CREATE NEW CHART OBJECT
+            var marksCanvas = document.getElementById("playerRadar");
+            var color = Chart.helpers.color;
+            Chart.defaults.color = "black"
+            var marksData = {
+                labels: data.radar_labels,
+                datasets: [
+                    {
+                        label: `${data.player_name} (${data.player_year})`,
+                        backgroundColor: color(data.radar_color).alpha(0.2).rgbString(),
+                        borderColor: data.radar_color,
+                        borderWidth: 1,
+                        pointBackgroundColor: data.radar_color,
+                        data: data.radar_values
+                    },
+                    {
+                        label: `Avg (${data.player_year})`,
+                        backgroundColor: "rgb(0,0,0,0.1)",
+                        borderColor: "gray",
+                        borderWidth: 0.5,
+                        data: data.radar_values.map(x => 50)
+                    },
+                ]
+            };
+
+            var chartOptions = {
+                scales: {
+                    r: {
+                        pointLabels: {
+                            font: {
+                                size: 12,
+                            }
+                        },
+                        ticks: {
+                            callback: function() {return ""},
+                            beginAtZero: true,
+                            showLabelBackdrop: false
+                        },
+                        suggestedMin: 0,
+                        suggestedMax: 100,
+                    },
+                }
+            };
+
+            var radarChart = new Chart(marksCanvas, {
+                type: "radar",
+                data: marksData,
+                options: chartOptions
+            });
+        } else {
+            $("#radar_container").hide();
+        }
     };
+    $('#overlay').hide();
 }
 
 // -------------------------------------------------------
@@ -358,9 +473,10 @@ $(function () {
             var is_border = moreOptionsSelected.includes("Border");
             var is_dark_mode = moreOptionsSelected.includes("DarkMode");
             var is_foil = moreOptionsSelected.includes("Foil");
+            var add_year_container = moreOptionsSelected.includes("YearContainer");
             var is_variable_spd = moreOptionsSelected.includes("VariableSpeed");
-            console.log(moreOptionsSelected);
-
+            var ignore_showdown_library = moreOptionsSelected.includes("IgnoreShowdownLibrary");
+            
             // CACHE SET VALUE
             var set = $("#setSelection :selected").val()
             cacheSet(set)
@@ -383,6 +499,8 @@ $(function () {
                 is_dark_mode: is_dark_mode,
                 is_variable_spd_00_01: is_variable_spd,
                 is_foil: is_foil,
+                add_year_container: add_year_container,
+                ignore_showdown_library: ignore_showdown_library,
             }, function (data) {
                 showCardData(data)
             });

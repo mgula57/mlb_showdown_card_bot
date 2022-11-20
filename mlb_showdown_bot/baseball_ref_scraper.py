@@ -571,18 +571,19 @@ class BaseballReferenceScraper:
                             position = fielding_row['pos_name_short']
                             ooa = fielding_row['outs_above_average']
                             if ooa:
+                                ooa_rounded = round(ooa, 3)
                                 if position in fielding_data.keys():
                                     # POSITION IS ALREADY IN JSON, ADD TO IT
-                                    fielding_data[position] += ooa
+                                    fielding_data[position] += ooa_rounded
                                 else:
-                                    fielding_data[position] = ooa
+                                    fielding_data[position] = ooa_rounded
                                 # IF OF POSITION, ADD TO TOTAL OF DEFENSE
                                 if position in ['LF','CF','RF']:
                                     if 'OF' in fielding_data.keys():
                                         # POSITION IS ALREADY IN JSON, ADD TO IT
-                                        fielding_data['OF'] += ooa
+                                        fielding_data['OF'] += ooa_rounded
                                     else:
-                                        fielding_data['OF'] = ooa
+                                        fielding_data['OF'] = ooa_rounded
                     return fielding_data
                 
         # IF NOT FOUND, RETURN NONE

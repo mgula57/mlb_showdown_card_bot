@@ -26,7 +26,10 @@
     * [Points](#points)
     * [Multi-Year Cards](#multi-year-cards)
     * [Negro Leagues and Pre-20th Century](#negro-leagues-and-pre-20th-century)
+    * [shOPS+](#shops+)
     * [2022 Sets](#2022-sets)
+* [Showdown Library](#showdown-library)
+* [Showdown Explorer](#showdown-explorer)
 * [Running Locally](#running-locally)
 * [Contact the Dev](#contact-the-dev)
 
@@ -403,6 +406,32 @@ Pitchers
 Hitters
 - SB: Will use SPEED 12 if SB not available.
 
+### **shOPS+**
+
+shOPS+ takes a player's projected in-game OPS and normalizes it across the entire set in that year (26 players/team). It adjusts a player's OPS slightly to account for a typical Showdown manager's tendency to draft higher Onbase/Control cards. A score of 100 is league average, and 175 is 75% better than the league average.
+
+For example, Yandy Diaz's **2022 CLASSIC** card (10 Onbase) had a projected .838 OPS, which was 48% better than the 2022 MLB average after being adjusted to account for higher control pitching. As a result, his shOPS+ was 148.
+
+
+**Calculation:**
+
+##### _Note: Numerator and deominator are flipped for pitchers._
+```
+((PLAYER_PROJ_OBP / LEAGUE_AVG_PROJ_OBP) + (PLAYER_PROJ_SLG * COMMAND_ADJUSTMENT_FACTOR / LEAGUE_AVG_PROJ_SLG) - 1) x 100
+```
+
+**How does the Command Adjustment work?**
+
+The `Command Adjustment Factor` is a way for shOPS+ to account for normal Showdown draft tendencies. Managers tend to weight gaining the advantage over number of outs on their player's chart. One player's stats against the "avg" player in a set may not match the typical card drafted in a real Showdown draft setting.
+
+For example, let's compare **Mike Clevinger** vs **Blake Snell** in the **2022-CLASSIC** set.
+
+![Image](./static/interface/shOPSComparison.png)
+
+These 2 cards have very similar projected OPS against (Clevinger having the slight edge at .622 vs Snell's .625), meaning their non-adjusted shOPS+ numbers are similar (Clevinger at 116, Snell at 114).
+
+Most Showdown managers however would see a larger difference between these 2 cards, as Mike Clevinger's +4 Control performs significantly better against higher Onbase opponents, especially with no 2B on his chart. shOPS+ accounts for that, applying a **1.04** adjustment factor to Clevinger's SLG and a **0.94** to Snell. This results in a larger disparity between the 2 pitchers, with Clevinger ending with a 120 shOPS+ vs Snell's 108.
+
 ## **2022 Sets**
 
  **Showdown Bot now includes new sets that modernize the look and play of MLB Showdown!**
@@ -434,7 +463,7 @@ Changes from 2001 set:
 - **PITCHER CHART HRS**: To account for an increase in HRs, the minimum requirement for HR on a pitcher's chart has decreased, resulting in more HR results.
 - **MORE COMMAND-OUT COMBINATIONS**: In order to increase variety and accuracy of cards, more possible Onbase/Control + Out combinations have been added. For example it is possible to have a 4 Control pitcher with 19 outs, or a 9 Onbase hitter with 6 Outs. This will help increase balance of low onbase and high SLG hitters (ex: Javy Baez), who under normal Showdown constraints were constrained to lower Onbase numbers.
 - **STRIKEOUTS**: The number of strikeouts on a hitters chart should slightly decrease, with the assumption that pitcher charts will have more SO results than in 2000-2001.
-- **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2021 Francisco Lindor goes from +3 SS in 2001 set to +4 SS in 2022 set. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
+- **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2018 Francisco Lindor goes from +5 SS in 2001 set to +7 SS in 2022 set. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
 - **NUMBER OF POSITIONS**: Now a player has a maximum of 3 available positions. This provides more value to super utility players like Ben Zobrist and Kris Bryant.
 
 ### **Expanded Style**
@@ -455,6 +484,42 @@ Changes from 2005 set:
 There is now an additional option for **Dark Mode**, available on 2022 Classic and Expanded sets only. Works with any player!
 
 ![Image](./static/interface/Example2022LightVsDark.png)
+
+
+<img align="right" src="./static/interface/ShowdownLibraryLogo.png" width="90">
+
+## Showdown Library 
+
+The Showdown Library is a backend system used to: 
+1. Store historical data. 
+2. Allow Showdown fans access to cards more efficiently.
+3. Power advanced features.
+4. Centralize Showdown Bot data into one location.
+5. Enable Official Showdown Bot Set Releases.
+
+It leverages the combination of Firebase's Realtime Database and the Google Drive API to deliver realtime Showdown Cards without the need for on-demand processing. 
+
+When a user submits a card on Showdown Bot, it will check to see if the user requested card is stored in the database, and if so will return the card and corresponding image in less than a second.
+
+There are some cases in which the Bot will leverage the data from Showdown Library, but will still need to generate an image live. 
+
+List of reasons it will not used pre-stored image:
+- No automated image exists.
+- Non V1 Card.
+- Custom set number
+- Has special edition (ex: CC, SS, RS)
+- Expansion does not match (ex: TD, PR)
+- Has variable speed ('00-'01 Only)
+- Is a Foil
+- Img Link was provided by the user
+- Img Upload was provided by the user
+
+----
+## Showdown Explorer
+
+The Showdown Explorer tool leverages the power of the Showdown Library to provide the user with the ability to discover and explore cards from 1900-2022.
+
+_In depth walkthroughs and guides will be linked here in a future update._
 
 ----
 ## Running Locally
@@ -486,6 +551,6 @@ python app.py
 
 You can reach out to the developer of MLB Showdown Bot through email mlbshowdownbot@gmail.com
 
-Follow MLB Showdown Bot Twitter for updates and daily card posts!
+Follow MLB Showdown Bot Twitter for updates and card posts!
 
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/mlbshowdownbot.svg?style=social&label=Follow%20%40mlbshowdownbot)](https://twitter.com/mlbshowdownbot)
