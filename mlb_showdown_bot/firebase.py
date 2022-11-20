@@ -81,7 +81,7 @@ class Firebase:
 # DATABASE
 # ------------------------------------------------------------------------
 
-    def query(self, bref_id: str, year: str, context: str, expansion: str, is_variable_speed_00_01: False) -> dict:
+    def query(self, bref_id: str, year: str, context: str, expansion: str, is_variable_speed_00_01: False, disable: bool = False) -> dict:
         """Query cached data for player's card.
 
         Looks for unique ID (Version + Bref Id + Year + Context)
@@ -98,7 +98,7 @@ class Firebase:
 
         # CHECK FOR CREDS
         filter_for_var_spd = context in ['2000','2001'] and is_variable_speed_00_01
-        if not self.creds or filter_for_var_spd:
+        if not self.creds or filter_for_var_spd or disable:
             # NO CREDS
             return None
 
@@ -163,10 +163,11 @@ class Firebase:
 # PARSING
 # ------------------------------------------------------------------------
 
-    def load_showdown_card(self, bref_id: str, year: str, context: str, expansion, player_image_path, player_image_url, is_cooperstown, is_super_season, is_rookie_season, is_all_star_game, is_holiday, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, is_running_in_flask) -> ShowdownPlayerCardGenerator:
+    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion, player_image_path, player_image_url, is_cooperstown, is_super_season, is_rookie_season, is_all_star_game, is_holiday, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, is_running_in_flask) -> ShowdownPlayerCardGenerator:
         """Load cached player showdown data from database.
 
         Args:
+          ignore_showdown_library: Manual override to not query database.
           bref_id: Baseball Reference Player ID (ex: ohtansh01)
           year: Year for stats (ex: 2022)
           context: Showdown Bot Set type (ex: 2022-CLASSIC)
@@ -176,7 +177,14 @@ class Firebase:
         """
         
         # GRAB DATA FROM FIREBASE IF IT EXISTS
-        cached_data = self.query(bref_id=bref_id, year=year, context=context, expansion='FINAL', is_variable_speed_00_01=is_variable_speed_00_01) # TODO: UPDATE IN 2023 FOR LIVE CARDS
+        cached_data = self.query(
+          bref_id=bref_id, 
+          year=year, 
+          context=context, 
+          expansion='FINAL', # TODO: UPDATE IN 2023 FOR LIVE CARDS
+          is_variable_speed_00_01=is_variable_speed_00_01,
+          disable=ignore_showdown_library,
+        )
         if not cached_data:
             return None
 

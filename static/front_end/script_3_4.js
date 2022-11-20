@@ -475,8 +475,8 @@ $(function () {
             var is_foil = moreOptionsSelected.includes("Foil");
             var add_year_container = moreOptionsSelected.includes("YearContainer");
             var is_variable_spd = moreOptionsSelected.includes("VariableSpeed");
-            console.log(moreOptionsSelected);
-
+            var ignore_showdown_library = moreOptionsSelected.includes("IgnoreShowdownLibrary");
+            
             // CACHE SET VALUE
             var set = $("#setSelection :selected").val()
             cacheSet(set)
@@ -500,6 +500,7 @@ $(function () {
                 is_variable_spd_00_01: is_variable_spd,
                 is_foil: is_foil,
                 add_year_container: add_year_container,
+                ignore_showdown_library: ignore_showdown_library,
             }, function (data) {
                 showCardData(data)
             });

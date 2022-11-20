@@ -34,7 +34,7 @@ parser.add_argument('-dark','--dark_mode', action='store_true', help='Optionally
 parser.add_argument('-vs','--variable_spd', action='store_true', help='Optionally toggle variable speed (2000 + 2001 sets only)')
 parser.add_argument('-foil','--is_foil', action='store_true', help='Optionally add overlay with animated foil effect. Saves images as GIF.')
 parser.add_argument('-yc','--add_year_container', action='store_true', help='Optionally add year container box. Applies to 2000-2003 only.')
-
+parser.add_argument('-isl','--ignore_showdown_library', action='store_true', help='Optionally force ignore Showdown Library, will create card live.')
 
 args = parser.parse_args()
 
@@ -50,6 +50,7 @@ def main():
     # CHECK FOR CACHED STATS
     db = Firebase()
     cached_player_card = db.load_showdown_card(
+        ignore_showdown_library=args.ignore_showdown_library,
         bref_id = scraper.baseball_ref_id,
         year=year,
         context=context,

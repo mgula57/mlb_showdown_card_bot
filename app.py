@@ -45,8 +45,9 @@ class CardLog(db.Model):
     is_stats_loaded_from_library = db.Column(db.Boolean)
     is_img_loaded_from_library = db.Column(db.Boolean)
     add_year_container = db.Column(db.Boolean)
+    ignore_showdown_library = db.Column(db.Boolean)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -71,8 +72,9 @@ class CardLog(db.Model):
         self.is_stats_loaded_from_library = is_stats_loaded_from_library
         self.is_img_loaded_from_library = is_img_loaded_from_library
         self.add_year_container = add_year_container
+        self.ignore_showdown_library = ignore_showdown_library
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container):
+def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -98,6 +100,7 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             is_stats_loaded_from_library=is_stats_loaded_from_library,
             is_img_loaded_from_library=is_img_loaded_from_library,
             add_year_container=add_year_container,
+            ignore_showdown_library=ignore_showdown_library
         )
         db.session.add(card_log)
         db.session.commit()
@@ -140,6 +143,7 @@ def card_creator():
     is_stats_loaded_from_library = None
     is_img_loaded_from_library = None
     add_year_container = None
+    ignore_showdown_library = None
 
     try:
         # PARSE INPUTS
@@ -167,6 +171,7 @@ def card_creator():
         is_variable_spd_00_01 = request.args.get('is_variable_spd_00_01').lower() == 'true'
         foil = request.args.get('is_foil').lower() == 'true'
         year_container = request.args.get('add_year_container').lower() == 'true'
+        ignore_sl = request.args.get('ignore_showdown_library').lower() == 'true'
         is_random = name.upper() == '((RANDOM))'
         if is_random:
             # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
@@ -189,12 +194,14 @@ def card_creator():
         is_variable_speed_00_01 = is_variable_spd_00_01 if is_variable_spd_00_01 else False
         is_foil = foil if foil else False
         add_year_container = year_container if year_container else False
+        ignore_showdown_library = ignore_sl if ignore_sl else False
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
 
         db = Firebase()
         showdown = db.load_showdown_card(
+            ignore_showdown_library=ignore_showdown_library,
             bref_id = scraper.baseball_ref_id,
             year=year,
             context=set,
@@ -293,7 +300,8 @@ def card_creator():
             is_foil=is_foil,
             is_stats_loaded_from_library=is_stats_loaded_from_library,
             is_img_loaded_from_library=is_img_loaded_from_library,
-            add_year_container=add_year_container
+            add_year_container=add_year_container,
+            ignore_showdown_library=ignore_showdown_library
         )
         return jsonify(
             image_path=card_image_path,
@@ -341,7 +349,8 @@ def card_creator():
             is_foil=is_foil,
             is_stats_loaded_from_library=is_stats_loaded_from_library,
             is_img_loaded_from_library=is_img_loaded_from_library,
-            add_year_container=add_year_container
+            add_year_container=add_year_container,
+            ignore_showdown_library=ignore_showdown_library
         )
         return jsonify(
             image_path=None,
