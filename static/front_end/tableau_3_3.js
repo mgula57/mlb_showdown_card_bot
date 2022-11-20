@@ -12,7 +12,7 @@ return Math.max(
 }
 
 // ADD WIDTH AND HEIGHT
-var divElement = document.getElementById('viz1664118452778');
+var divElement = document.getElementById('viz1668922109034');
 var vizElement = divElement.getElementsByTagName('object')[0];
 var isMobile = getWidth() < 600
 vizElement.style.width = '100%';
@@ -29,7 +29,7 @@ deviceElementvizElement.value = isMobile ? "phone" : "desktop";
 if (localStorage) {
     var storedSet = (localStorage.getItem("set") ?? "2000").toUpperCase();
     var deviceElementvizElement = document.getElementById('filterParam')
-    deviceElementvizElement.value = `Set=${storedSet}`;
+    deviceElementvizElement.value = `set_selection=${storedSet}`;
     console.log(`Populating Explore Set - ${storedSet}`)
 }
 
