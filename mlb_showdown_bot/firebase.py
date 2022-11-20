@@ -177,13 +177,14 @@ class Firebase:
         """
         
         # GRAB DATA FROM FIREBASE IF IT EXISTS
+        is_offset = offset != 0
         cached_data = self.query(
           bref_id=bref_id, 
           year=year, 
           context=context, 
           expansion='FINAL', # TODO: UPDATE IN 2023 FOR LIVE CARDS
           is_variable_speed_00_01=is_variable_speed_00_01,
-          disable=ignore_showdown_library,
+          disable=ignore_showdown_library or is_offset,
         )
         if not cached_data:
             return None

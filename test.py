@@ -1,6 +1,7 @@
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
 from termcolor import colored
+from time import sleep
 
 if __name__ == "__main__":
     
@@ -30,6 +31,7 @@ if __name__ == "__main__":
     for player_inputs in inputs_to_test:
         result = 'SUCCESS'
         try:
+            sleep(3)
             name = player_inputs['name']
             year = player_inputs['year']
             # GET PLAYER DATA
@@ -37,6 +39,7 @@ if __name__ == "__main__":
             statline = scraper.player_statline()
             for set in sets:
                 # CREATE SHOWDOWN CARD 
+                
                 showdown = ShowdownPlayerCardGenerator(
                     name=name,
                     year=year,
