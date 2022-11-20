@@ -225,7 +225,7 @@ class Firebase:
             is_running_in_flask=is_running_in_flask,
             source='Showdown Library'
         )
-        ignore_keys_list = ['has_custom_set_number', 'set_number', 'expansion']
+        ignore_keys_list = ['has_custom_set_number', 'set_number', 'expansion', 'is_variable_speed_00_01']
         for k,v in cached_data.items():
             if k not in ignore_keys_list:
                 setattr(showdown,k,v)
