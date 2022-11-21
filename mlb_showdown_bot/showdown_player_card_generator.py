@@ -3730,7 +3730,7 @@ class ShowdownPlayerCardGenerator:
         draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs())
 
         # ADD TEXT
-        font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
+        font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
         font = ImageFont.truetype(font_path, size=120)
         text_img = self.__text_image(text=text,size=(210,220),font=font,alignment='center',fill=text_color)
         icon_img.paste(text_img, (0,60), text_img)
