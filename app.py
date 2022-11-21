@@ -152,11 +152,11 @@ def card_creator():
         year = str(request.args.get('year'))
         set = str(request.args.get('set')).upper()
         url = request.args.get('url')
-        is_cc = request.args.get('cc').lower() == 'true'
-        is_ss = request.args.get('ss').lower() == 'true'
-        is_rs = request.args.get('rs').lower() == 'true'
-        is_asg = request.args.get('asg').lower() == 'true'
-        is_hol = request.args.get('is_holiday').lower() == 'true'
+        is_cc = request.args.get('cc').lower() == 'true' if request.args.get('cc') else False
+        is_ss = request.args.get('ss').lower() == 'true' if request.args.get('ss') else False
+        is_rs = request.args.get('rs').lower() == 'true' if request.args.get('rs') else False
+        is_asg = request.args.get('asg').lower() == 'true' if request.args.get('asg') else False
+        is_hol = request.args.get('is_holiday').lower() == 'true' if request.args.get('is_holiday') else False
         try:
             offset = int(request.args.get('offset'))
             offset = 4 if offset > 4 else offset
@@ -166,12 +166,12 @@ def card_creator():
         img = request.args.get('img_name')
         set_num = str(request.args.get('set_num'))
         expansion_raw = str(request.args.get('expansion'))
-        is_border = request.args.get('addBorder').lower() == 'true'
-        dark_mode = request.args.get('is_dark_mode').lower() == 'true'
-        is_variable_spd_00_01 = request.args.get('is_variable_spd_00_01').lower() == 'true'
-        foil = request.args.get('is_foil').lower() == 'true'
-        year_container = request.args.get('add_year_container').lower() == 'true'
-        ignore_sl = request.args.get('ignore_showdown_library').lower() == 'true'
+        is_border = request.args.get('addBorder').lower() == 'true' if request.args.get('addBorder') else False
+        dark_mode = request.args.get('is_dark_mode').lower() == 'true' if request.args.get('is_dark_mode') else False
+        is_variable_spd_00_01 = request.args.get('is_variable_spd_00_01').lower() == 'true' if request.args.get('is_variable_spd_00_01') else False
+        foil = request.args.get('is_foil').lower() == 'true' if request.args.get('is_foil') else False
+        year_container = request.args.get('add_year_container').lower() == 'true' if request.args.get('add_year_container') else False
+        ignore_sl = request.args.get('ignore_showdown_library').lower() == 'true' if request.args.get('ignore_showdown_library') else False
         is_random = name.upper() == '((RANDOM))'
         if is_random:
             # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
