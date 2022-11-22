@@ -163,7 +163,7 @@ class Firebase:
 # PARSING
 # ------------------------------------------------------------------------
 
-    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion, player_image_path, player_image_url, is_cooperstown, is_super_season, is_rookie_season, is_all_star_game, is_holiday, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, is_running_in_flask) -> ShowdownPlayerCardGenerator:
+    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion, player_image_path, player_image_url, is_cooperstown, is_super_season, is_rookie_season, is_all_star_game, is_holiday, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, team_override, pitcher_override, hitter_override, is_running_in_flask) -> ShowdownPlayerCardGenerator:
         """Load cached player showdown data from database.
 
         Args:
@@ -176,15 +176,20 @@ class Firebase:
           Showdown Card Object
         """
         
+        # UPDATE BREF ID FOR ANY OVERRIDES
+        for typ in [pitcher_override, hitter_override]:
+          bref_id += f' {typ.lower()}' if typ else ''
+
         # GRAB DATA FROM FIREBASE IF IT EXISTS
         is_offset = offset != 0
+        is_disabled = ignore_showdown_library or is_offset or team_override
         cached_data = self.query(
           bref_id=bref_id, 
           year=year, 
           context=context, 
           expansion='FINAL', # TODO: UPDATE IN 2023 FOR LIVE CARDS
           is_variable_speed_00_01=is_variable_speed_00_01,
-          disable=ignore_showdown_library or is_offset,
+          disable=is_disabled,
         )
         if not cached_data:
             return None

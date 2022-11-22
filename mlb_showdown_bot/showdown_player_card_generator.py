@@ -165,7 +165,7 @@ class ShowdownPlayerCardGenerator:
         games_played_raw = int(stats['G'])
         games_started_raw = int(stats['GS']) if self.is_pitcher else 0
         saves_raw = int(stats['SV']) if self.is_pitcher else 0
-        sprint_speed_raw = stats['sprint_speed']
+        sprint_speed_raw = stats['sprint_speed'] if 'sprint_speed' in stats.keys() else None
         is_sb_empty = len(str(stats['SB'])) == 0
         stolen_bases_raw = int(0 if is_sb_empty else stats['SB']) if not self.is_pitcher else 0
 
