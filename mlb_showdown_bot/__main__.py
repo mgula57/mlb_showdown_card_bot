@@ -68,6 +68,9 @@ def main():
         is_dark_mode=args.dark_mode,
         is_variable_speed_00_01=args.variable_spd,
         is_foil=args.is_foil,
+        team_override=scraper.team_override,
+        pitcher_override = scraper.pitcher_override,
+        hitter_override = scraper.hitter_override,
         is_running_in_flask=False
     )
     db.close_session()
