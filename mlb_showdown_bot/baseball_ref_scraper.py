@@ -57,6 +57,10 @@ class BaseballReferenceScraper:
             if team_match and not self.is_multi_year and not is_full_career:
                 self.team_override = team_id
 
+        # CHECK FOR TYPE OVERRIDE
+        self.pitcher_override = '(PITCHER)' if '(PITCHER)' in self.name.upper() else None
+        self.hitter_override = '(HITTER)' if '(HITTER)' in self.name.upper() else None
+
         # CHECK FOR BASEBALL REFERENCE ID
         self.is_name_a_bref_id = any(char.isdigit() for char in name)
         if self.is_name_a_bref_id:

@@ -219,6 +219,9 @@ def card_creator():
             is_dark_mode=is_dark_mode,
             is_variable_speed_00_01=is_variable_speed_00_01,
             is_foil=is_foil,
+            team_override=scraper.team_override,
+            pitcher_override=scraper.pitcher_override,
+            hitter_override=scraper.hitter_override,
             is_running_in_flask=True
         )
         db.close_session()
