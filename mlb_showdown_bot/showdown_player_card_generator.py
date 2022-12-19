@@ -3576,7 +3576,7 @@ class ShowdownPlayerCardGenerator:
                 accolades_list.append(icons_full_description[icon])
 
         # LOOK FOR AWARD PLACEMENT
-        awards_summary_list = self.stats['award_summary'].split(',')
+        awards_summary_list = self.stats['award_summary'].split(',') if 'award_summary' in self.stats.keys() else []
         for award in awards_summary_list:
             award_split = award.split('-')
             if len(award_split) > 1:

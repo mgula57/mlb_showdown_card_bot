@@ -75,7 +75,8 @@ class Firebase:
         Returns:
           None
         """
-        firebase_admin.delete_app(self.creds)
+        if self.creds:
+            firebase_admin.delete_app(self.creds)
 
 # ------------------------------------------------------------------------
 # DATABASE
