@@ -199,32 +199,36 @@ def card_creator():
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
 
-        db = Firebase()
-        showdown = db.load_showdown_card(
-            ignore_showdown_library=ignore_showdown_library,
-            bref_id = scraper.baseball_ref_id,
-            year=year,
-            context=set,
-            expansion=expansion,
-            player_image_path=img_name,
-            player_image_url=img_url,
-            is_cooperstown=is_cooperstown,
-            is_super_season=is_super_season,
-            is_rookie_season=is_rookie_season,
-            is_all_star_game=is_all_star_game,
-            is_holiday=is_holiday,
-            offset=offset,
-            set_number=set_number,
-            add_image_border=add_img_border,
-            is_dark_mode=is_dark_mode,
-            is_variable_speed_00_01=is_variable_speed_00_01,
-            is_foil=is_foil,
-            team_override=scraper.team_override,
-            pitcher_override=scraper.pitcher_override,
-            hitter_override=scraper.hitter_override,
-            is_running_in_flask=True
-        )
-        db.close_session()
+        try:
+            db = Firebase()
+            showdown = db.load_showdown_card(
+                ignore_showdown_library=ignore_showdown_library,
+                bref_id = scraper.baseball_ref_id,
+                year=year,
+                context=set,
+                expansion=expansion,
+                player_image_path=img_name,
+                player_image_url=img_url,
+                is_cooperstown=is_cooperstown,
+                is_super_season=is_super_season,
+                is_rookie_season=is_rookie_season,
+                is_all_star_game=is_all_star_game,
+                is_holiday=is_holiday,
+                offset=offset,
+                set_number=set_number,
+                add_image_border=add_img_border,
+                is_dark_mode=is_dark_mode,
+                is_variable_speed_00_01=is_variable_speed_00_01,
+                is_foil=is_foil,
+                team_override=scraper.team_override,
+                pitcher_override=scraper.pitcher_override,
+                hitter_override=scraper.hitter_override,
+                is_running_in_flask=True
+            )
+            db.close_session()
+        except:
+            showdown = None
+            
         if showdown:
             is_stats_loaded_from_library = True
         else:
