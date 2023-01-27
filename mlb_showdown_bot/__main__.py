@@ -34,6 +34,7 @@ parser.add_argument('-dark','--dark_mode', action='store_true', help='Optionally
 parser.add_argument('-vs','--variable_spd', action='store_true', help='Optionally toggle variable speed (2000 + 2001 sets only)')
 parser.add_argument('-foil','--is_foil', action='store_true', help='Optionally add overlay with animated foil effect. Saves images as GIF.')
 parser.add_argument('-yc','--add_year_container', action='store_true', help='Optionally add year container box. Applies to 2000-2003 only.')
+parser.add_argument('-sypls','--set_year_plus_one', action='store_true', help='Optionally add one to the set year on 04/05 set.')
 parser.add_argument('-isl','--ignore_showdown_library', action='store_true', help='Optionally force ignore Showdown Library, will create card live.')
 
 args = parser.parse_args()
@@ -69,6 +70,7 @@ def main():
         is_variable_speed_00_01=args.variable_spd,
         is_foil=args.is_foil,
         team_override=scraper.team_override,
+        set_year_plus_one=args.set_year_plus_one,
         pitcher_override = scraper.pitcher_override,
         hitter_override = scraper.hitter_override,
         is_running_in_flask=False
@@ -103,7 +105,8 @@ def main():
             is_dark_mode=args.dark_mode,
             is_variable_speed_00_01=args.variable_spd,
             is_foil=args.is_foil,
-            add_year_container=args.add_year_container
+            add_year_container=args.add_year_container,
+            set_year_plus_one=args.set_year_plus_one
         )
 
 if __name__ == "__main__":
