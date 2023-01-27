@@ -29,7 +29,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='FINAL', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, is_running_in_flask=False, source='Baseball Reference'):
+    def __init__(self, name, year, stats, context, expansion='FINAL', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, is_running_in_flask=False, source='Baseball Reference'):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -89,6 +89,7 @@ class ShowdownPlayerCardGenerator:
         self.has_custom_set_number = set_number != ''
         self.set_number = set_number if self.has_custom_set_number else default_set_number
         self.add_year_container = add_year_container and self.context_year in sc.CONTEXT_YEARS_ELIGIBLE_FOR_YEAR_CONTAINER
+        self.set_year_plus_one = set_year_plus_one and self.context_year in sc.CONTEXT_YEARS_ELIGIBLE_FOR_SET_YEAR_PLUS_ONE
         self.test_numbers = test_numbers
         self.command_out_override = command_out_override
         self.is_running_in_flask = is_running_in_flask
@@ -3416,6 +3417,10 @@ class ShowdownPlayerCardGenerator:
                         set_font_year = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size-20)
                         set_image_location = (set_image_location[0]-5,set_image_location[1]+3)
             else:
+                try:
+                    year_as_str = str(int(year_as_str) + (1 if self.set_year_plus_one else 0))
+                except:
+                    year_as_str = year_as_str
                 year_string = year_as_str if int(self.context_year) >= 2022 else f"'{year_as_str[2:4]}"
             year_text = self.__text_image(
                 text = year_string,
@@ -3997,6 +4002,7 @@ class ShowdownPlayerCardGenerator:
             - Is a Foil
             - Img Link was provided by user
             - Img Upload was provided by user
+            - Set Year Plus 1 Enabled
 
         Args:
           None
@@ -4010,7 +4016,8 @@ class ShowdownPlayerCardGenerator:
         has_special_edition = self.is_cooperstown or self.is_super_season or self.is_all_star_game or self.is_holiday or self.is_rookie_season
         has_expansion = self.expansion != 'FINAL'
         has_variable_spd_diff = self.is_variable_speed_00_01 and self.context_year in ['2000', '2001']
-        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or self.is_foil or has_variable_spd_diff or self.has_custom_set_number
+        set_yr_plus_one_enabled = self.set_year_plus_one and self.context_year in ['2004', '2005']
+        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or self.is_foil or has_variable_spd_diff or self.has_custom_set_number or set_yr_plus_one_enabled
 
     def __year_container_add_on(self) -> Image:
         """User can optionally add a box dedicated to showing years used for the card.
