@@ -221,8 +221,6 @@ function showCardData(data) {
         });
         player_points_table += '</table>';
         $("#points_table").replaceWith(player_points_table);
-        $('#name').val(data.player_name);
-        $('#year').val(data.player_year);
         
         // PLAYER ACCURACY
         var player_accuracy_table = "<table class='" + table_class_name + "' id='accuracy_table'><tr> <th>Version</th> <th>" + data.player_command + "</th> <th>Outs</th> <th>Accuracy</th> </tr>";
