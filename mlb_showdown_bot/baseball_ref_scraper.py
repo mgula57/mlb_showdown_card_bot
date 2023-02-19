@@ -1094,10 +1094,12 @@ class BaseballReferenceScraper:
                 positions_and_games_played[position] = games_at_position
                 # IN-GAME RATING AT
                 if position:
-                    try:                                
+                    try:
+                        drs_raw = defensive_stats['drsPosition{}'.format(position_index)]
+                        tzr_raw = defensive_stats['tzPosition{}'.format(position_index)]
                         year_defense_metrics = {
-                            'drs': int(defensive_stats['drsPosition{}'.format(position_index)]),
-                            'tzr': int(defensive_stats['tzPosition{}'.format(position_index)]),
+                            'drs': int(drs_raw) if drs_raw else None,
+                            'tzr': int(tzr_raw) if tzr_raw else None,
                         }
                     except:
                         year_defense_metrics = {'drs': 0, 'tzr': 0}
@@ -1112,12 +1114,14 @@ class BaseballReferenceScraper:
         # RE-INDEX POSITIONAL STATS
         positions_and_games_played_sorted_tuple = sorted(positions_and_games_played.items(), key=operator.itemgetter(1), reverse=True)
         for index, (position, games_played) in enumerate(positions_and_games_played_sorted_tuple, 1):
+            drs_list = [df for df in positions_and_defense[position]['drs'] if df is not None]
+            tzr_list = [tz for tz in positions_and_defense[position]['tzr'] if tz is not None]
             position_dict = {
                 f"Position{index}": position,
                 f"gPosition{index}": games_played,
                 "dWar": statistics.median(dWar_list),
-                f"drsPosition{index}": statistics.median(positions_and_defense[position]['drs']),
-                f"tzPosition{index}": statistics.median(positions_and_defense[position]['tzr']),
+                f"drsPosition{index}": statistics.median(drs_list) if len(drs_list) > 0 else None,
+                f"tzPosition{index}": statistics.median(tzr_list) if len(tzr_list) > 0 else None,
             }
             defensive_fields_dict.update(position_dict)
 

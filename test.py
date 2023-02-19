@@ -21,6 +21,7 @@ if __name__ == "__main__":
         {'name': 'wittwh01', 'year': '1924',},
         {'name': 'Josh Gibson ', 'year': '1939-1944',},
         {'name': 'Satchel Paige', 'year': '1941+1965',},
+        {'name': 'Mark Kotsay', 'year': '1998-2000',},
     ]
     num_tests = len(inputs_to_test)
     sets = ['2000','2001','2002','2003','2004','2005','2022-CLASSIC','2022-EXPANDED']
