@@ -41,7 +41,6 @@ class ShowdownPlayerCardGenerator:
         self.is_full_career = self.year == "CAREER"
         self.is_multi_year = len(self.year) > 4
         self.type_override = ''
-        pprint(stats)
         for type_str in ['(Pitcher)','(Hitter)']:
             if type_str in name:
                 self.type_override = type_str
