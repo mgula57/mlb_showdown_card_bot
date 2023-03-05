@@ -35,6 +35,15 @@ class Edition(Enum):
     def is_special_edition(self) -> bool:
         return self != Edition.NONE
 
+    @property
+    def background_folder_name(self) -> str:
+        return 'countries' if self in [Edition.NATIONALITY] else 'team_backgrounds'
+
+    @property
+    def rotate_team_logo_2002(self) -> bool:
+        return self not in [Edition.COOPERSTOWN_COLLECTION, Edition.NATIONALITY]
+
+
 """
 SET STYLES
 """
@@ -2255,6 +2264,26 @@ TEXT_SIZES = {
         '2005': 75,
         '2022': 75,
     },
+}
+
+""" SCALING '00 CUTOUTS FOR DIFFERENT SETS """
+CUTOUT_CUSTOM_SCALER = {
+    '2000': 1.0,
+    '2001': 1.0,
+    '2002': 1.25,
+    '2003': 1.2,
+    '2004': 1.2,
+    '2005': 1.2,
+    '2022': 1.2,
+}
+CUTOUT_CUSTOM_COORDINATES = {
+    '2000': (0,0),
+    '2001': (0,0),
+    '2002': (-340,-200),
+    '2003': (-315,-350),
+    '2004': (-200,-350),
+    '2005': (-200,-350),
+    '2022': (-200,-350),
 }
 
 """ ALTERNATE TEAM LOGO RANGES. NOTE: END YEAR SHOULD BE YEAR OF NEW LOGO """

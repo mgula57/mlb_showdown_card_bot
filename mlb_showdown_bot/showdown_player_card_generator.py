@@ -78,6 +78,7 @@ class ShowdownPlayerCardGenerator:
             except:
                 print("ERROR COMBINING BB AND HBP")
         self.edition = sc.Edition(edition)
+        self.nationality = stats['nationality'] if 'nationality' in stats.keys() else None
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
         self.card_img_output_folder_path = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
@@ -1989,6 +1990,7 @@ class ShowdownPlayerCardGenerator:
         card_as_string = (
             '***********************************************\n' +
             '{name} ({year}) ({team})\n' +
+            'Nationality: {nationality}\n'
             '{context} {expansion} Card\n' +
             'Showdown Bot v{version}\n' +
             'Data Loaded from {source}\n' +
@@ -2015,6 +2017,7 @@ class ShowdownPlayerCardGenerator:
             name = self.name,
             year = self.year,
             team = self.team,
+            nationality = self.nationality if self.nationality else 'N/A',
             version = self.version,
             source = self.source,
             context = self.context,
@@ -2585,8 +2588,8 @@ class ShowdownPlayerCardGenerator:
                 player_image_actual = Image.open(image_path).convert('RGBA')
                 player_image_actual_cropped = self.__center_crop(player_image_actual, (1500,2100))
                 player_image = self.__default_background_image(search_for_image=False, uploaded_player_image=player_image_actual_cropped)
-            except:
-                print("Error Loading Image from Path. Using default background...")
+            except Exception as err:
+                print(f"Error Loading Image from Path. Using default background... ({str(err)})")
                 player_image = Image.open(default_image_path)
         elif self.player_image_url:
             # LOAD IMAGE FROM URL
@@ -2594,15 +2597,17 @@ class ShowdownPlayerCardGenerator:
             try:
                 response = requests.get(image_url)
                 player_image = Image.open(BytesIO(response.content))
-            except:
-                print("Error Loading Image from URL. Using default background...")
+            except Exception as err:
+                print(f"Error Loading Image from URL. Using default background... ({str(err)})")
+                self.img_loading_error = str(err)
                 player_image = Image.open(default_image_path)
         else:
             is_default_image = True
             try:
                 player_image = self.__default_background_image()
-            except:
-                print("Error Loading Default Image from Drive. Using default background...")
+            except Exception as err:
+                print(f"Error Loading Default Image from Drive. Using default background... ({str(err)})")
+                self.img_loading_error = str(err)
                 player_image = Image.open(default_image_path)
             
 
@@ -2630,21 +2635,22 @@ class ShowdownPlayerCardGenerator:
         # GET TEAM BACKGROUND (00/01)
         dark_mode_suffix = '-DARK' if self.is_dark_mode and self.context_year == '2022' else ''
         default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}{dark_mode_suffix}.png')
-        if self.context in ['2000', '2001']:
+        custom_image_path = default_image_path
+        use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
+        if use_nationality:
+            custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, 'backgrounds', f"{self.nationality}.png")
+        elif self.context in ['2000', '2001']:
             # TEAM BACKGROUNDS
+            background_image_name = f"{self.team}{self.__team_logo_historical_alternate_extension()}"
             if self.edition == sc.Edition.COOPERSTOWN_COLLECTION:
-                background_image_name = 'CCC'
-            elif self.edition == sc.Edition.ALL_STAR_GAME and not self.is_multi_year:
-                background_image_name = f"ASG-{self.year}"
-            else:
-                background_image_name = f"{self.team}{self.__team_logo_historical_alternate_extension()}"
-            team_image_path = os.path.join(os.path.dirname(__file__), 'team_backgrounds', self.context_year, f"{background_image_name}.png")
-            try:
-                background_image = Image.open(team_image_path)
-            except:
-                background_image = Image.open(default_image_path)
-        else:
-            # DEFAULT TEAM BACKGROUND
+                background_image_name = 'CCC' # COOPERSTOWN
+            if self.edition == sc.Edition.ALL_STAR_GAME and not self.is_multi_year:
+                background_image_name = f"ASG-{self.year}" # ALL STAR YEAR
+            custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, self.context_year, f"{background_image_name}.png")
+        
+        try:
+            background_image = Image.open(custom_image_path)
+        except:
             background_image = Image.open(default_image_path)
         
         # IF 2000, PASTE NAME CONTAINER BEFORE PLAYER CUTOUT
@@ -2652,6 +2658,7 @@ class ShowdownPlayerCardGenerator:
             name_container = self.__2000_player_name_container_image()
             background_image.paste(name_container,(0,0),name_container)
 
+        player_cutout = uploaded_player_image
         if search_for_image:
             # -- GET PLAYER IMAGE --
             # SEARCH FOR PLAYER IMAGE
@@ -2662,10 +2669,10 @@ class ShowdownPlayerCardGenerator:
                 additional_substring_filters.append(self.type_override)
             if self.is_dark_mode:
                 additional_substring_filters.append('(DARK)')
-
+            img_database_year = '2000' if use_nationality and int(self.context_year) >= 2002 else self.context_year
             try:
                 player_image_url = self.__query_google_drive_for_image_url(
-                                        folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[self.context_year],
+                                        folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[img_database_year],
                                         substring_search = self.bref_id,
                                         additional_substring_search_list = additional_substring_filters,
                                         year = self.year,
@@ -2679,21 +2686,26 @@ class ShowdownPlayerCardGenerator:
                 for try_num in range(num_tries):
                     response = requests.get(player_image_url)
                     try:
-                        player_image = Image.open(BytesIO(response.content)).convert("RGBA")
+                        player_cutout = Image.open(BytesIO(response.content)).convert("RGBA")
                         self.is_automated_image = True
                         break
                     except Exception as err:
                         # IMAGE MAY FAIL TO LOAD SOMETIMES
                         self.img_loading_error = str(err)
-                        player_image = self.__player_silhouetee_image()
+                        player_cutout = self.__player_silhouetee_image()
             else:
                 # ADD PLAYER SILHOUETTE
-                player_image = self.__player_silhouetee_image()
-            
-            background_image.paste(player_image,(0,0),player_image)
-        elif uploaded_player_image:
-            # IMAGE IS TRANSPARENT
-            background_image.paste(uploaded_player_image,(0,0),uploaded_player_image)
+                player_cutout = self.__player_silhouetee_image()
+
+        # PASTE PLAYER IMAGE IF IT EXISTS
+        if player_cutout:
+            has_custom_coordinates = use_nationality
+            paste_location = sc.CUTOUT_CUSTOM_COORDINATES[self.context_year] if has_custom_coordinates else (0,0)
+            scaler = sc.CUTOUT_CUSTOM_SCALER[self.context_year] if has_custom_coordinates else 1.0
+            if scaler != 1.0:
+                w, h = player_cutout.size
+                player_cutout = player_cutout.resize((int(w * scaler), int(h * scaler)), Image.ANTIALIAS)
+            background_image.paste(player_cutout,paste_location,player_cutout)
 
         # IF 2000, PASTE SET CONTAINER BEFORE PLAYER CUTOUT
         if self.context == '2000':
@@ -2808,14 +2820,17 @@ class ShowdownPlayerCardGenerator:
         try:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
             historical_alternate_ext = self.__team_logo_historical_alternate_extension()
-            alternate_logo_ext = '-A' if int(self.context_year) >= 2004 and not is_all_star_game else ''
-            team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', '{}{}{}.png'.format(logo_name,alternate_logo_ext,historical_alternate_ext))).convert("RGBA")
+            alternate_logo_ext = '-A' if int(self.context_year) >= 2004 and not self.edition.has_static_logo else ''
+            team_logo_path = os.path.join(os.path.dirname(__file__), 'team_logos', f'{logo_name}{alternate_logo_ext}{historical_alternate_ext}.png')
+            if self.edition == sc.Edition.NATIONALITY and self.nationality:
+                team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
+            team_logo = Image.open(team_logo_path).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         except:
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
             team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', 'MLB.png')).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
-        team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and not is_cooperstown else team_logo
+        team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and self.edition.rotate_team_logo_2002 else team_logo
 
         # OVERRIDE IF SUPER SEASON
         if self.edition == sc.Edition.SUPER_SEASON:
