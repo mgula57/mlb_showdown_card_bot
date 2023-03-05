@@ -29,7 +29,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='FINAL', is_cooperstown=False, is_super_season=False, is_all_star_game=False, is_holiday=False, is_rookie_season=False, offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, is_running_in_flask=False, source='Baseball Reference'):
+    def __init__(self, name, year, stats, context, expansion='FINAL', edition="None", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, is_running_in_flask=False, source='Baseball Reference'):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -77,11 +77,7 @@ class ShowdownPlayerCardGenerator:
                 self.stats['BB'] = self.stats['BB'] + self.stats['HBP']
             except:
                 print("ERROR COMBINING BB AND HBP")
-        self.is_cooperstown = is_cooperstown
-        self.is_super_season = is_super_season
-        self.is_all_star_game = is_all_star_game
-        self.is_holiday = is_holiday
-        self.is_rookie_season = is_rookie_season
+        self.edition = sc.Edition(edition)
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
         self.card_img_output_folder_path = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
@@ -2414,7 +2410,7 @@ class ShowdownPlayerCardGenerator:
         player_image = self.__background_image()
 
         # ADD HOLIDAY THEME
-        if self.is_holiday:
+        if self.edition == sc.Edition.HOLIDAY:
             holiday_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Holiday.png')
             holiday_image = Image.open(holiday_image_path)
             player_image.paste(holiday_image,(0,0),holiday_image)
@@ -2439,7 +2435,7 @@ class ShowdownPlayerCardGenerator:
         player_image.paste(team_logo, team_logo_coords, team_logo)
 
         # IF 2001 ROOKIE SEASON, ADD ADDITIONAL LOGO
-        if self.is_rookie_season and self.context == '2001':
+        if self.edition == sc.Edition.ROOKIE_SEASON and self.context == '2001':
             rs_logo = self.__rookie_season_image()
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
             player_image.paste(rs_logo, logo_paste_coordinates, rs_logo)
@@ -2636,9 +2632,9 @@ class ShowdownPlayerCardGenerator:
         default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}{dark_mode_suffix}.png')
         if self.context in ['2000', '2001']:
             # TEAM BACKGROUNDS
-            if self.is_cooperstown:
+            if self.edition == sc.Edition.COOPERSTOWN_COLLECTION:
                 background_image_name = 'CCC'
-            elif self.is_all_star_game and not self.is_multi_year:
+            elif self.edition == sc.Edition.ALL_STAR_GAME and not self.is_multi_year:
                 background_image_name = f"ASG-{self.year}"
             else:
                 background_image_name = f"{self.team}{self.__team_logo_historical_alternate_extension()}"
@@ -2660,14 +2656,8 @@ class ShowdownPlayerCardGenerator:
             # -- GET PLAYER IMAGE --
             # SEARCH FOR PLAYER IMAGE
             additional_substring_filters = [self.year, f'({self.team})',f'({self.team})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
-            if self.is_super_season:
-                additional_substring_filters.append('(SS)')
-            elif self.is_cooperstown:
-                additional_substring_filters.append('(CC)')
-            elif self.is_all_star_game:
-                additional_substring_filters.append('(ASG)')
-            elif self.is_rookie_season:
-                additional_substring_filters.append('(RS)')
+            if self.edition != sc.Edition.NONE:
+                additional_substring_filters.append(f'({self.edition.value})')
             if len(self.type_override) > 0:
                 additional_substring_filters.append(self.type_override)
             if self.is_dark_mode:
@@ -2800,37 +2790,40 @@ class ShowdownPlayerCardGenerator:
         logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
         logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context_year)]
         is_04_05 = self.context in ['2004','2005']
+        is_cooperstown = self.edition == sc.Edition.COOPERSTOWN_COLLECTION
+        is_all_star_game = self.edition == sc.Edition.ALL_STAR_GAME
+        is_rookie_season = self.edition == sc.Edition.ROOKIE_SEASON
 
-        if self.is_cooperstown or self.is_all_star_game:
+        if self.edition.has_static_logo:
             # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
-            logo_name = 'CCC' if self.is_cooperstown else f'ASG-{self.year}'
+            logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
             is_wide_logo = logo_name == 'ASG-2022'
-            if is_04_05 and self.is_cooperstown:
+            if is_04_05 and is_cooperstown:
                 logo_size = (330,330)
                 logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 120)
-            elif is_wide_logo and self.is_all_star_game:
+            elif is_wide_logo and is_all_star_game:
                 logo_size = (logo_size[0] + 85, logo_size[1] + 85)
                 x_movement = -40 if self.context in ['2000','2001'] else -85
                 logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
         try:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
             historical_alternate_ext = self.__team_logo_historical_alternate_extension()
-            alternate_logo_ext = '-A' if int(self.context_year) >= 2004 and not self.is_all_star_game else ''
+            alternate_logo_ext = '-A' if int(self.context_year) >= 2004 and not is_all_star_game else ''
             team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', '{}{}{}.png'.format(logo_name,alternate_logo_ext,historical_alternate_ext))).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         except:
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
             team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', 'MLB.png')).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
-        team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and not self.is_cooperstown else team_logo
+        team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and not is_cooperstown else team_logo
 
         # OVERRIDE IF SUPER SEASON
-        if self.is_super_season:
+        if self.edition == sc.Edition.SUPER_SEASON:
             team_logo = self.__super_season_image()
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context_year)]
 
         # ADD YEAR TEXT IF COOPERSTOWN
-        if self.is_cooperstown and is_04_05 and not self.is_all_star_game:
+        if is_cooperstown and is_04_05 and not is_all_star_game:
             cooperstown_logo = Image.new('RGBA', (logo_size[0] + 300, logo_size[1]))
             cooperstown_logo.paste(team_logo,(150,0),team_logo)
             year_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'BaskervilleBoldItalicBT.ttf')
@@ -2859,7 +2852,7 @@ class ShowdownPlayerCardGenerator:
             team_logo = cooperstown_logo
 
         # OVERRIDE IF ROOKIE SEASON
-        if self.is_rookie_season and self.context != '2001':
+        if is_rookie_season and self.context != '2001':
             team_logo = self.__rookie_season_image()
             team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
@@ -2878,8 +2871,8 @@ class ShowdownPlayerCardGenerator:
 
         logo_historical_alternates = sc.TEAM_LOGO_ALTERNATES
 
-        # DONT APPLY IF COOPERSTOWN OR SUPER SEASON
-        if self.is_cooperstown or self.is_super_season or self.is_all_star_game:
+        # DONT APPLY IF COOPERSTOWN, SUPER SEASON, OR ALL-STAR GAME
+        if self.edition.ignore_historical_team_logo:
             return ''
 
         # CHECK TO SEE IF THERE ARE ANY ALTERNATE LOGOS FOR TEAM
@@ -2929,10 +2922,9 @@ class ShowdownPlayerCardGenerator:
         # GET TEMPLATE FOR PLAYER TYPE (HITTER OR PITCHER)
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
         is_04_05 = self.context in ['2004','2005']
-        cc_extension = '-CC' if self.is_cooperstown and is_04_05 else ''
-        ss_extension = '-SS' if (self.is_super_season or self.is_holiday) and is_04_05 else ''
+        edition_extension = self.edition.template_extension if is_04_05 else ''
         dark_mode_extension = '-DARK' if self.context_year == '2022' and self.is_dark_mode else ''
-        type_template = f'{year}-{type}{cc_extension}{ss_extension}{dark_mode_extension}.png'
+        type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}.png'
         template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
@@ -3933,7 +3925,7 @@ class ShowdownPlayerCardGenerator:
 
         default_color = (55, 55, 55, 255)
         team_index = self.__team_logo_historical_alternate_extension(include_dash=False)
-        if self.is_cooperstown:
+        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION:
             return sc.TEAM_COLOR_PRIMARY['CCC']
         elif len(team_index) > 0:
             # GRAB FROM ALT/HISTORICAL TEAM COLORS
@@ -4013,7 +4005,7 @@ class ShowdownPlayerCardGenerator:
 
         is_not_v1 = self.stats_version != 0
         has_user_uploaded_img = self.player_image_url or self.player_image_path
-        has_special_edition = self.is_cooperstown or self.is_super_season or self.is_all_star_game or self.is_holiday or self.is_rookie_season
+        has_special_edition = self.edition.is_special_edition
         has_expansion = self.expansion != 'FINAL'
         has_variable_spd_diff = self.is_variable_speed_00_01 and self.context_year in ['2000', '2001']
         set_yr_plus_one_enabled = self.set_year_plus_one and self.context_year in ['2004', '2005']

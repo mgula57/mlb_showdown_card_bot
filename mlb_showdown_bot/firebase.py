@@ -11,10 +11,12 @@ from pathlib import Path
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .showdown_player_card_generator import ShowdownPlayerCardGenerator
+    from . import showdown_constants as sc
     from .version import __version__
 except ImportError:
     # USE LOCAL IMPORT 
     from showdown_player_card_generator import ShowdownPlayerCardGenerator
+    import showdown_constants as sc
     from version import __version__
 
 class Firebase:
@@ -164,7 +166,7 @@ class Firebase:
 # PARSING
 # ------------------------------------------------------------------------
 
-    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion, player_image_path, player_image_url, is_cooperstown, is_super_season, is_rookie_season, is_all_star_game, is_holiday, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, team_override, set_year_plus_one, pitcher_override, hitter_override, is_running_in_flask) -> ShowdownPlayerCardGenerator:
+    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, team_override, set_year_plus_one, pitcher_override, hitter_override, is_running_in_flask) -> ShowdownPlayerCardGenerator:
         """Load cached player showdown data from database.
 
         Args:
@@ -227,11 +229,7 @@ class Firebase:
             expansion=expansion,
             player_image_path=player_image_path,
             player_image_url=player_image_url,
-            is_cooperstown=is_cooperstown,
-            is_super_season=is_super_season,
-            is_rookie_season=is_rookie_season,
-            is_all_star_game=is_all_star_game,
-            is_holiday=is_holiday,
+            edition=edition,
             offset=offset,
             set_number=set_number,
             add_image_border=add_image_border,
@@ -242,7 +240,7 @@ class Firebase:
             is_running_in_flask=is_running_in_flask,
             source='Showdown Library'
         )
-        ignore_keys_list = ['has_custom_set_number', 'set_number', 'expansion', 'is_variable_speed_00_01','is_cooperstown','is_super_season','is_rookie_season','is_all_star_game','is_holiday']
+        ignore_keys_list = ['has_custom_set_number', 'set_number', 'expansion', 'is_variable_speed_00_01','edition']
         for k,v in cached_data.items():
             if k not in ignore_keys_list:
                 setattr(showdown,k,v)
@@ -354,6 +352,7 @@ class Firebase:
             "defense3": "df3",
             "defense_points": "p_df",
             "expansion": "exps",
+            "edition": "ed",
             "hand": "hnd",
             "hand_throw": "hndt",
             "has_icons": "icn",

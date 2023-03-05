@@ -1,9 +1,39 @@
+from enum import Enum
 
 # -------------------------------------------
 # SHOWDOWN_CONSTANTS.PY
 #   - ONE FILE TO STORE ALL WEIGHTS / STATIC VALUES
 #     NEEDED TO GENERATE PLAYER CARDS
 # -------------------------------------------
+
+"""
+ENUMS
+"""
+
+class Edition(Enum):
+    NONE = "NONE"
+    COOPERSTOWN_COLLECTION = "CC"
+    ALL_STAR_GAME = "ASG"
+    SUPER_SEASON = "SS"
+    ROOKIE_SEASON = "RS"
+    HOLIDAY = "HOL"
+    NATIONALITY = "NAT"
+
+    @property
+    def ignore_historical_team_logo(self) -> bool:
+        return self in [Edition.ALL_STAR_GAME, Edition.SUPER_SEASON, Edition.COOPERSTOWN_COLLECTION]
+    
+    @property
+    def has_static_logo(self) -> bool:
+        return self in [Edition.ALL_STAR_GAME, Edition.COOPERSTOWN_COLLECTION]
+    
+    @property
+    def template_extension(self) -> str:
+        return f'-{self.value}' if self in [Edition.ALL_STAR_GAME, Edition.COOPERSTOWN_COLLECTION] else ''
+    
+    @property
+    def is_special_edition(self) -> bool:
+        return self != Edition.NONE
 
 """
 SET STYLES
