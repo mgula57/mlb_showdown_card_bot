@@ -2734,6 +2734,11 @@ NATIONALITY_COLORS = {
         (206, 17, 38, 255), # RED
         (0, 45, 98, 255), # BLUE
     ],
+    'VE': [
+        (223, 179, 2, 255), # YELLOW
+        (0, 36, 125, 255), # BLUE
+        (207, 20, 43, 255), # RED
+    ],
 }
 
 G_DRIVE_PLAYER_IMAGE_FOLDERS = {

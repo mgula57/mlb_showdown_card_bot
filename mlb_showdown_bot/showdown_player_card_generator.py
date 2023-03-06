@@ -1990,7 +1990,7 @@ class ShowdownPlayerCardGenerator:
         # NOT USING DOCSTRING FOR FORMATTING REASONS
         card_as_string = (
             '***********************************************\n' +
-            '{name} ({year}) ({team}) ({{nationality}})\n' +
+            '{name} ({year}) ({team}) ({nationality})\n' +
             '{context} {expansion} Card\n' +
             'Showdown Bot v{version}\n' +
             'Data Loaded from {source}\n' +
@@ -3959,20 +3959,28 @@ class ShowdownPlayerCardGenerator:
         Returns:
             PIL image with color gradient
         """
-        # GRADIENT
-        color1 = colors[0]
-        color2 = colors[1]
-        w, h = size
 
         # MAKE OUTPUT IMAGE
-        gradient = np.zeros((h,w,3), np.uint8)
+        final_image = Image.new('RGBA', size, color=0)
+        num_iterations = len(colors) - 1
+        w, h = (int(size[0] / num_iterations), size[1])
 
-        # FILL R, G AND B CHANNELS WITH LINEAR GRADIENT BETWEEN TWO COLORS
-        gradient[:,:,0] = np.linspace(color1[0], color2[0], w, dtype=np.uint8)
-        gradient[:,:,1] = np.linspace(color1[1], color2[1], w, dtype=np.uint8)
-        gradient[:,:,2] = np.linspace(color1[2], color2[2], w, dtype=np.uint8)
+        for index in range(0, num_iterations):
+            # GRADIENT
+            color1 = colors[index]
+            color2 = colors[index + 1]
+            
+            gradient = np.zeros((h,w,3), np.uint8)
+            
+            # FILL R, G AND B CHANNELS WITH LINEAR GRADIENT BETWEEN TWO COLORS
+            gradient[:,:,0] = np.linspace(color1[0], color2[0], w, dtype=np.uint8)
+            gradient[:,:,1] = np.linspace(color1[1], color2[1], w, dtype=np.uint8)
+            gradient[:,:,2] = np.linspace(color1[2], color2[2], w, dtype=np.uint8)
 
-        return Image.fromarray(gradient).convert("RGBA")
+            sub_image = Image.fromarray(gradient).convert("RGBA")
+            final_image.paste(sub_image, (int(index * w),0))
+
+        return final_image
 
     def __team_color_rgbs(self):
         """RGB colors for player team
