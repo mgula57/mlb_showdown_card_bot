@@ -2670,6 +2670,9 @@ class ShowdownPlayerCardGenerator:
                 additional_substring_filters.append(self.type_override)
             if self.is_dark_mode:
                 additional_substring_filters.append('(DARK)')
+            if self.edition == sc.Edition.NATIONALITY and self.nationality:
+                for _ in range(0,4):
+                    additional_substring_filters.append(f'({self.nationality})') # ADDS NATIONALITY THREE TIMES TO GIVE IT 3X IMPORTANCE
             img_database_year = '2000' if use_nationality and int(self.context_year) >= 2002 else self.context_year
             try:
                 player_image_url = self.__query_google_drive_for_image_url(
