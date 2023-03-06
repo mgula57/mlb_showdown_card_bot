@@ -1,5 +1,6 @@
 from posixpath import join
 import pandas as pd
+import numpy as np
 import math
 import requests
 import operator
@@ -1989,8 +1990,7 @@ class ShowdownPlayerCardGenerator:
         # NOT USING DOCSTRING FOR FORMATTING REASONS
         card_as_string = (
             '***********************************************\n' +
-            '{name} ({year}) ({team})\n' +
-            'Nationality: {nationality}\n'
+            '{name} ({year}) ({team}) ({{nationality}})\n' +
             '{context} {expansion} Card\n' +
             'Showdown Bot v{version}\n' +
             'Data Loaded from {source}\n' +
@@ -2951,9 +2951,15 @@ class ShowdownPlayerCardGenerator:
                 paste_location = (paste_location[0] + 15, paste_location[1])
 
             # ADD CHART ROUNDED RECT
-            container_img_black = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-ChartOutsContainer-{type}.png'))
+            container_img_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-ChartOutsContainer-{type}.png')
+            container_img_black = Image.open(container_img_path)
             fill_color = self.__team_color_rgbs()
-            container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
+            if self.edition == sc.Edition.NATIONALITY and self.nationality:
+                gradient_img_rect = self.__gradient_img(size=(475, 190), colors=sc.NATIONALITY_COLORS[self.nationality])
+                container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
+                container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
+            else:
+                container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
             text_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-ChartOutsText-{type}.png'))
             template_image.paste(container_img, (0,0), container_img)
             template_image.paste(text_img, (0,0), text_img)
@@ -3910,6 +3916,22 @@ class ShowdownPlayerCardGenerator:
 
         return file_age_mins >= 5.0
 
+    def __add_alpha_mask(self, img, mask_img):
+        """Adds mask to image
+
+        Args:
+          img: PIL image to apply mask to
+          mask_img: PIL image to take alpha values from
+
+        Returns:
+            PIL image with mask applied
+        """
+        
+        alpha = mask_img.getchannel('A')
+        img.putalpha(alpha)
+
+        return img
+
     def __color_overlay_to_img(self,img,color):
         """Adds mask to image with input color.
 
@@ -3922,11 +3944,35 @@ class ShowdownPlayerCardGenerator:
         """
 
         # Create colored image the same size and copy alpha channel across
-        alpha = img.getchannel('A')
         colored_img = Image.new('RGBA', img.size, color=color)
-        colored_img.putalpha(alpha) 
+        colored_img = self.__add_alpha_mask(img=colored_img, mask_img=img)
 
         return colored_img
+
+    def __gradient_img(self, size, colors) -> Image:
+        """Create PIL Image with a horizontal gradient of 2 colors
+
+        Args:
+          size: Tuple of x and y sizing of output
+          colors: List of colors to use. Order determines left -> right.
+
+        Returns:
+            PIL image with color gradient
+        """
+        # GRADIENT
+        color1 = colors[0]
+        color2 = colors[1]
+        w, h = size
+
+        # MAKE OUTPUT IMAGE
+        gradient = np.zeros((h,w,3), np.uint8)
+
+        # FILL R, G AND B CHANNELS WITH LINEAR GRADIENT BETWEEN TWO COLORS
+        gradient[:,:,0] = np.linspace(color1[0], color2[0], w, dtype=np.uint8)
+        gradient[:,:,1] = np.linspace(color1[1], color2[1], w, dtype=np.uint8)
+        gradient[:,:,2] = np.linspace(color1[2], color2[2], w, dtype=np.uint8)
+
+        return Image.fromarray(gradient).convert("RGBA")
 
     def __team_color_rgbs(self):
         """RGB colors for player team
@@ -3942,6 +3988,8 @@ class ShowdownPlayerCardGenerator:
         team_index = self.__team_logo_historical_alternate_extension(include_dash=False)
         if self.edition == sc.Edition.COOPERSTOWN_COLLECTION:
             return sc.TEAM_COLOR_PRIMARY['CCC']
+        elif self.edition == sc.Edition.NATIONALITY and self.nationality:
+            return sc.NATIONALITY_COLORS[self.nationality][0]
         elif len(team_index) > 0:
             # GRAB FROM ALT/HISTORICAL TEAM COLORS
             try:

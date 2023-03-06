@@ -2725,6 +2725,17 @@ TEAM_COLOR_PRIMARY_ALT = {
     },
 }
 
+NATIONALITY_COLORS = {
+    'US': [
+        (178, 34, 52, 255), # RED
+        (60, 59, 110, 255), # BLUE
+    ],
+    'DO': [
+        (206, 17, 38, 255), # RED
+        (0, 45, 98, 255), # BLUE
+    ],
+}
+
 G_DRIVE_PLAYER_IMAGE_FOLDERS = {
     '2000': '1InLYODKI0Fn9ddOLCv8mYPW-tiD29nPN',
     '2001': '1UmKhu_Mluj8Ijki1ruue54tqsqb40Ous',
