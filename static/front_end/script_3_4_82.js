@@ -453,12 +453,7 @@ $(function () {
             // EDITION
             var name = (is_random_card === true) ? '((RANDOM))' : $('input[name="name"]').val();
             var year = (is_random_card === true) ? '((RANDOM))' : $('input[name="year"]').val();
-            var editionSelection = $("#editionSelection :selected").val();
-            var is_cc = editionSelection == "Cooperstown Collection";
-            var is_ss = editionSelection == "Super Season";
-            var is_rs = editionSelection == "Rookie Season";
-            var is_asg = editionSelection == "All-Star Game";
-            var is_holiday = editionSelection == "Holiday";
+            var edition = $("#editionSelection :selected").val();
 
             // MORE OPTIONS
             var moreOptionsSelected = [];
@@ -484,16 +479,12 @@ $(function () {
                 name: name,
                 year: year,
                 set: set,
+                edition: edition,
                 url: $('input[name="url"]').val(),
                 img_name: image_name,
-                cc: is_cc,
-                ss: is_ss,
-                rs: is_rs,
-                asg: is_asg,
                 set_num: $('input[name="setnum"]').val(),
                 offset: selectedOffset,
                 expansion: $("#expansionSelection :selected").val(),
-                is_holiday: is_holiday,
                 addBorder: is_border,
                 is_dark_mode: is_dark_mode,
                 is_variable_spd_00_01: is_variable_spd,
