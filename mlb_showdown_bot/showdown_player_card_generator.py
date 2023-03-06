@@ -2659,6 +2659,7 @@ class ShowdownPlayerCardGenerator:
             background_image.paste(name_container,(0,0),name_container)
 
         player_cutout = uploaded_player_image
+        is_silouette = False
         if search_for_image:
             # -- GET PLAYER IMAGE --
             # SEARCH FOR PLAYER IMAGE
@@ -2693,13 +2694,15 @@ class ShowdownPlayerCardGenerator:
                         # IMAGE MAY FAIL TO LOAD SOMETIMES
                         self.img_loading_error = str(err)
                         player_cutout = self.__player_silhouetee_image()
+                        is_silouette = True
             else:
                 # ADD PLAYER SILHOUETTE
                 player_cutout = self.__player_silhouetee_image()
+                is_silouette = True
 
         # PASTE PLAYER IMAGE IF IT EXISTS
         if player_cutout:
-            has_custom_coordinates = use_nationality
+            has_custom_coordinates = use_nationality and not is_silouette
             paste_location = sc.CUTOUT_CUSTOM_COORDINATES[self.context_year] if has_custom_coordinates else (0,0)
             scaler = sc.CUTOUT_CUSTOM_SCALER[self.context_year] if has_custom_coordinates else 1.0
             if scaler != 1.0:
@@ -2955,9 +2958,14 @@ class ShowdownPlayerCardGenerator:
             container_img_black = Image.open(container_img_path)
             fill_color = self.__team_color_rgbs()
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
-                gradient_img_rect = self.__gradient_img(size=(475, 190), colors=sc.NATIONALITY_COLORS[self.nationality])
-                container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
-                container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
+                colors = sc.NATIONALITY_COLORS[self.nationality]
+                if len(colors) >= 2:
+                    gradient_img_width = 475 if self.player_type() == 'position_player' else 680
+                    gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=colors)
+                    container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
+                    container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
+                else:
+                    container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
             else:
                 container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
             text_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-ChartOutsText-{type}.png'))
