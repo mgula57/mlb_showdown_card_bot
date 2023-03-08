@@ -3611,7 +3611,7 @@ class ShowdownPlayerCardGenerator:
                 'G': 'GOLD GLOVE',
                 'CY': 'CY YOUNG',
                 'RY': 'ROY',
-                'HR': str(self.stats['HR']) + ' HR',
+                'HR': str(int(self.stats['HR'])) + ' HR',
             }
             if icon in icons_full_description.keys():
                 accolades_list.append(icons_full_description[icon])
@@ -3656,20 +3656,19 @@ class ShowdownPlayerCardGenerator:
                 accolades_list.append(str(ba_3_decimals).replace('0.','.') + ' BA')
             # RBI
             if self.stats['RBI'] >= 100:
-                accolades_list.append(str(round(self.stats['RBI'])) + ' RBI')
+                accolades_list.append(str(int(self.stats['RBI'])) + ' RBI')
             # HOME RUNS
             if self.stats['HR'] >= (15 if self.year == 2020 else 30):
-                print(str(round(self.stats['HR'])))
-                accolades_list.append(str(round(self.stats['HR'])).replace('.0','') + ' HOMERS')
+                accolades_list.append(f"{str(int(self.stats['HR']))} HOMERS")
             # HITS
             if self.stats['H'] >= 175:
-                accolades_list.append(str(round(self.stats['H'])) + ' HITS')
+                accolades_list.append(str(int(self.stats['H'])) + ' HITS')
             # dWAR
             if float(self.stats['dWAR']) >= 2.5:
                 accolades_list.append(str(self.stats['dWAR']) + ' dWAR')
             # OPS+
             if 'onbase_plus_slugging_plus' in self.stats.keys():
-                accolades_list.append(str(round(self.stats['onbase_plus_slugging_plus'])) + ' OPS+')           
+                accolades_list.append(str(int(self.stats['onbase_plus_slugging_plus'])) + ' OPS+')           
 
         # GENERIC ----
         if 'bWAR' in self.stats.keys():
