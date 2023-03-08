@@ -2665,7 +2665,8 @@ class ShowdownPlayerCardGenerator:
             # SEARCH FOR PLAYER IMAGE
             additional_substring_filters = [self.year, f'({self.team})',f'({self.team})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
             if self.edition != sc.Edition.NONE:
-                additional_substring_filters.append(f'({self.edition.value})')
+                for _ in range(0,3): # ADD 3X VALUE
+                    additional_substring_filters.append(f'({self.edition.value})')
             if len(self.type_override) > 0:
                 additional_substring_filters.append(self.type_override)
             if self.is_dark_mode:
