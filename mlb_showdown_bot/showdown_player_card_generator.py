@@ -2690,15 +2690,21 @@ class ShowdownPlayerCardGenerator:
                 num_tries = 1
                 for try_num in range(num_tries):
                     response = requests.get(player_image_url)
-                    try:
-                        player_cutout = Image.open(BytesIO(response.content)).convert("RGBA")
-                        self.is_automated_image = True
-                        break
-                    except Exception as err:
-                        # IMAGE MAY FAIL TO LOAD SOMETIMES
-                        self.img_loading_error = str(err)
+                    if response.status_code == 403:
+                        # 403 ERROR, TOO MANY REQUESTS
+                        self.img_loading_error = "403 - Too Many Requests"
                         player_cutout = self.__player_silhouetee_image()
                         is_silouette = True
+                    else:
+                        try:
+                            player_cutout = Image.open(BytesIO(response.content)).convert("RGBA")
+                            self.is_automated_image = True
+                            break
+                        except Exception as err:
+                            # IMAGE MAY FAIL TO LOAD SOMETIMES
+                            self.img_loading_error = str(err)
+                            player_cutout = self.__player_silhouetee_image()
+                            is_silouette = True
             else:
                 # ADD PLAYER SILHOUETTE
                 player_cutout = self.__player_silhouetee_image()
