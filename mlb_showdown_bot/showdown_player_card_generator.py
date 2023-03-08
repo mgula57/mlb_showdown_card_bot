@@ -30,7 +30,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='FINAL', edition="None", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, is_running_in_flask=False, source='Baseball Reference'):
+    def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, is_running_in_flask=False, source='Baseball Reference'):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -2943,10 +2943,22 @@ class ShowdownPlayerCardGenerator:
         # GET TEMPLATE FOR PLAYER TYPE (HITTER OR PITCHER)
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
         is_04_05 = self.context in ['2004','2005']
-        edition_extension = self.edition.template_extension if is_04_05 else ''
-        dark_mode_extension = '-DARK' if self.context_year == '2022' and self.is_dark_mode else ''
-        type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}.png'
-        template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
+        edition_extension = ''
+        if is_04_05:
+            # 04/05 HAS MORE TEMPLATE OPTIONS
+            edition_extension = ''
+            if self.edition.template_color_0405:
+                edition_extension = f'-{self.edition.template_color_0405}'
+            elif self.edition == sc.Edition.NATIONALITY and self.nationality:
+                edition_extension = f'-{sc.NATIONALITY_TEMPLATE_COLOR[self.nationality]}'
+            else:
+                edition_extension = f'-{sc.TEMPLATE_COLOR_0405[type]}'
+            type_template = f'0405-{type}{edition_extension}.png'
+            template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
+        else:
+            dark_mode_extension = '-DARK' if self.context_year == '2022' and self.is_dark_mode else ''
+            type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}.png'
+            template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
         paste_location = sc.IMAGE_LOCATIONS['command'][self.context_year]
@@ -3647,7 +3659,8 @@ class ShowdownPlayerCardGenerator:
                 accolades_list.append(str(round(self.stats['RBI'])) + ' RBI')
             # HOME RUNS
             if self.stats['HR'] >= (15 if self.year == 2020 else 30):
-                accolades_list.append(str(round(self.stats['HR'])) + ' HOMERS')
+                print(str(round(self.stats['HR'])))
+                accolades_list.append(str(round(self.stats['HR'])).replace('.0','') + ' HOMERS')
             # HITS
             if self.stats['H'] >= 175:
                 accolades_list.append(str(round(self.stats['H'])) + ' HITS')

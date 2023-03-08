@@ -24,6 +24,15 @@ class Edition(Enum):
         return self in [Edition.ALL_STAR_GAME, Edition.SUPER_SEASON, Edition.COOPERSTOWN_COLLECTION]
     
     @property
+    def template_color_0405(self) -> str:
+        if self == Edition.COOPERSTOWN_COLLECTION:
+            return "BROWN"
+        elif self == Edition.SUPER_SEASON:
+            return "RED"
+        else:
+            return None
+    
+    @property
     def has_static_logo(self) -> bool:
         return self in [Edition.ALL_STAR_GAME, Edition.COOPERSTOWN_COLLECTION]
     
@@ -42,6 +51,10 @@ class Edition(Enum):
     @property
     def rotate_team_logo_2002(self) -> bool:
         return self not in [Edition.COOPERSTOWN_COLLECTION, Edition.NATIONALITY]
+    
+    @property
+    def ignore_showdown_library(self) -> bool:
+        return self in [Edition.NATIONALITY] # TODO: NATIONALITY DATA CURRENTLY NOT IN SL, REMOVE AFTER ADDING
 
 
 """
@@ -131,6 +144,10 @@ MAX_NUMBER_OF_POSITIONS = {
     '2005': 2,
     f'2022-{CLASSIC_ALIAS}': 3,
     f'2022-{EXPANDED_ALIAS}': 3,
+}
+TEMPLATE_COLOR_0405 = {
+    'Pitcher': 'BLUE',
+    'Hitter': 'GREEN',
 }
 
 # MULTIPLIER TO MATCH PU WITH ORIGINAL SETS
@@ -2810,6 +2827,30 @@ NATIONALITY_COLORS = {
     'IS': [
         (1, 55, 183, 255), # BLUE
     ],
+}
+
+NATIONALITY_TEMPLATE_COLOR = {
+    'US': 'RED',
+    'DO': 'RED',
+    'VE': 'YELLOW',
+    'CU': 'BLUE',
+    'CA': 'RED',
+    'MX': 'GREEN',
+    'PA': 'BLUE',
+    'JP': 'RED',
+    'GB': 'RED',
+    'DE': 'RED',
+    'AU': 'BLUE',
+    'CO': 'YELLOW',
+    'KR': 'BLUE',
+    'CW': 'BLUE',
+    'TW': 'RED',
+    'NI': 'BLUE',
+    'NL': 'BLUE',
+    'IT': 'GREEN',
+    'CN': 'RED',
+    'CZ': 'RED',
+    'IS': 'BLUE',
 }
 
 G_DRIVE_PLAYER_IMAGE_FOLDERS = {

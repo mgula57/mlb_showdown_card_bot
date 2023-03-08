@@ -185,7 +185,7 @@ class Firebase:
 
         # GRAB DATA FROM FIREBASE IF IT EXISTS
         is_offset = offset != 0
-        is_disabled = ignore_showdown_library or is_offset or team_override
+        is_disabled = ignore_showdown_library or is_offset or team_override or sc.Edition(edition).ignore_showdown_library
         cached_data = self.query(
           bref_id=bref_id, 
           year=year, 
