@@ -494,6 +494,7 @@ List of supported countries:
  - Cuba
  - Canada
  - Mexico
+ - Puerto Rico
  - Panama
  - Japan
  - Great Britain

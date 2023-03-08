@@ -2767,6 +2767,10 @@ NATIONALITY_COLORS = {
         (0, 103, 71, 255), # GREEN
         (205, 17, 39, 255), # RED
     ],
+    'PR': [
+        (60, 93, 170, 255), # BLUE
+        (223, 28, 35, 255), # RED
+    ],
     'PA': [
         (7, 35, 87, 255), # BLUE
         (218, 18, 26, 255), # RED
@@ -2836,6 +2840,7 @@ NATIONALITY_TEMPLATE_COLOR = {
     'CU': 'BLUE',
     'CA': 'RED',
     'MX': 'GREEN',
+    'PR': 'BLUE',
     'PA': 'BLUE',
     'JP': 'RED',
     'GB': 'RED',
