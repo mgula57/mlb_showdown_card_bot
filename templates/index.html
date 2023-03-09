@@ -86,7 +86,7 @@
                                           <img for="setSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="2022+ Sets are split into CLASSIC AND EXPANDED. CLASSIC is compatible with '00-'01 sets, while EXPANDED works well with '02-'05. EXPANDED set increases hitter onbase values and adds results over 20+." >
                                           <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              {% for year in ['2000','2001','2002','2003','2004','2005','2022-Classic','2022-Expanded'] %}
-                                                <option value={{ year }} {% if year == '2000' %} selected="selected" {% endif %}>{{ year }}</option>
+                                                <option value={{ year }} {% if year == '2000' %} selected="selected" {% endif %}>{{ year | replace("2022-","")  }}</option>
                                              {% endfor %}
                                           </select>
                                        </div>
@@ -106,13 +106,15 @@
                                     <div class="row">
                                        <div class="col-md-6">
                                           <label style="color:Gray;" for="editionSelection"> <b>Edition</b></label>
+                                          <img for="setSelection" src="static/interface/NEW.png" height=26 width=26 data-toggle="tooltip" data-placement="top" title="Try the new Nationality edition, which adds a custom background and flag from the player's birth country. Perfect for WBC cards!" >
                                           <select id="editionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                             <option value="None" selected="selected">None</option>
-                                             <option value="Cooperstown Collection">Cooperstown Collection</option>
-                                             <option value="All-Star Game">All-Star Game</option>
-                                             <option value="Super Season">Super Season</option>
-                                             <option value="Rookie Season">Rookie Season</option>
-                                             <option value="Holiday">Holiday</option>
+                                             <option value="NONE" selected="selected">None</option>
+                                             <option value="CC">Cooperstown Collection</option>
+                                             <option value="ASG">All-Star Game</option>
+                                             <option value="SS">Super Season</option>
+                                             <option value="RS">Rookie Season</option>
+                                             <option value="HOL">Holiday</option>
+                                             <option value="NAT">Nationality</option>
                                           </select>
                                        </div>
                                        <div class="col-md-6" style="padding-bottom: 10px;">
@@ -411,7 +413,7 @@
       <!-- JAVASCRIPT -->
       <script src="//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-      <script src="/static/front_end/script_3_4_81.js" charset="utf-8"></script>
+      <script src="/static/front_end/script_3_4_82.js" charset="utf-8"></script>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/js/bootstrap-select.min.js"></script>
       <script src="/static/front_end/tableau_3_4.js" type='text/javascript'></script>
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

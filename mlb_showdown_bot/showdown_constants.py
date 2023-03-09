@@ -1,9 +1,61 @@
+from enum import Enum
 
 # -------------------------------------------
 # SHOWDOWN_CONSTANTS.PY
 #   - ONE FILE TO STORE ALL WEIGHTS / STATIC VALUES
 #     NEEDED TO GENERATE PLAYER CARDS
 # -------------------------------------------
+
+"""
+ENUMS
+"""
+
+class Edition(Enum):
+    NONE = "NONE"
+    COOPERSTOWN_COLLECTION = "CC"
+    ALL_STAR_GAME = "ASG"
+    SUPER_SEASON = "SS"
+    ROOKIE_SEASON = "RS"
+    HOLIDAY = "HOL"
+    NATIONALITY = "NAT"
+
+    @property
+    def ignore_historical_team_logo(self) -> bool:
+        return self in [Edition.ALL_STAR_GAME, Edition.SUPER_SEASON, Edition.COOPERSTOWN_COLLECTION]
+    
+    @property
+    def template_color_0405(self) -> str:
+        if self == Edition.COOPERSTOWN_COLLECTION:
+            return "BROWN"
+        elif self == Edition.SUPER_SEASON:
+            return "RED"
+        else:
+            return None
+    
+    @property
+    def has_static_logo(self) -> bool:
+        return self in [Edition.ALL_STAR_GAME, Edition.COOPERSTOWN_COLLECTION]
+    
+    @property
+    def template_extension(self) -> str:
+        return f'-{self.value}' if self in [Edition.ALL_STAR_GAME, Edition.COOPERSTOWN_COLLECTION] else ''
+    
+    @property
+    def is_special_edition(self) -> bool:
+        return self != Edition.NONE
+
+    @property
+    def background_folder_name(self) -> str:
+        return 'countries' if self in [Edition.NATIONALITY] else 'team_backgrounds'
+
+    @property
+    def rotate_team_logo_2002(self) -> bool:
+        return self not in [Edition.COOPERSTOWN_COLLECTION, Edition.NATIONALITY]
+    
+    @property
+    def ignore_showdown_library(self) -> bool:
+        return self in [Edition.NATIONALITY] # TODO: NATIONALITY DATA CURRENTLY NOT IN SL, REMOVE AFTER ADDING
+
 
 """
 SET STYLES
@@ -92,6 +144,10 @@ MAX_NUMBER_OF_POSITIONS = {
     '2005': 2,
     f'2022-{CLASSIC_ALIAS}': 3,
     f'2022-{EXPANDED_ALIAS}': 3,
+}
+TEMPLATE_COLOR_0405 = {
+    'Pitcher': 'BLUE',
+    'Hitter': 'GREEN',
 }
 
 # MULTIPLIER TO MATCH PU WITH ORIGINAL SETS
@@ -2227,6 +2283,26 @@ TEXT_SIZES = {
     },
 }
 
+""" SCALING '00 CUTOUTS FOR DIFFERENT SETS """
+CUTOUT_CUSTOM_SCALER = {
+    '2000': 1.0,
+    '2001': 1.0,
+    '2002': 1.25,
+    '2003': 1.2,
+    '2004': 1.2,
+    '2005': 1.2,
+    '2022': 1.2,
+}
+CUTOUT_CUSTOM_COORDINATES = {
+    '2000': (0,0),
+    '2001': (0,0),
+    '2002': (-340,-200),
+    '2003': (-315,-350),
+    '2004': (-200,-350),
+    '2005': (-200,-350),
+    '2022': (-200,-350),
+}
+
 """ ALTERNATE TEAM LOGO RANGES. NOTE: END YEAR SHOULD BE YEAR OF NEW LOGO """
 
 TEAM_LOGO_ALTERNATES = {
@@ -2664,6 +2740,122 @@ TEAM_COLOR_PRIMARY_ALT = {
     'WSN': {
         '1': (171,0,3,255),
     },
+}
+
+NATIONALITY_COLORS = {
+    'US': [
+        (178, 34, 52, 255), # RED
+        (60, 59, 110, 255), # BLUE
+    ],
+    'DO': [
+        (206, 17, 38, 255), # RED
+        (0, 45, 98, 255), # BLUE
+    ],
+    'VE': [
+        (223, 179, 2, 255), # YELLOW
+        (0, 36, 125, 255), # BLUE
+        (207, 20, 43, 255), # RED
+    ],
+    'CU': [
+        (0, 42, 143, 255), # BLUE
+        (203, 21, 21, 255), # RED        
+    ],
+    'CA': [
+        (234, 6, 25, 255), # RED        
+    ],
+    'MX': [
+        (0, 103, 71, 255), # GREEN
+        (205, 17, 39, 255), # RED
+    ],
+    'PR': [
+        (60, 93, 170, 255), # BLUE
+        (223, 28, 35, 255), # RED
+    ],
+    'PA': [
+        (7, 35, 87, 255), # BLUE
+        (218, 18, 26, 255), # RED
+    ],
+    'JP': [
+        (188, 0, 45, 255), # RED
+        (14, 25, 47, 255), # NAVY
+    ],
+    'GB': [
+        (207, 20, 43, 255), # RED
+        (0, 36, 125, 255), # NAVY
+    ],
+    'DE': [
+        (0, 0, 0, 255), # BLACK
+        (221, 0, 0, 255), # RED
+        (255, 206, 0, 255), # YELLOW
+    ],
+    'AU': [
+        (0, 0, 102, 255), # BLUE
+        (205, 0, 1, 255), # RED
+    ],
+    'CO': [
+        (202, 166, 17, 255), # YELLOW
+        (1, 56, 147, 255), # BLUE
+        (205, 17, 39, 255), # RED
+    ],
+    'KR': [
+        (1, 67, 122, 255), # BLUE
+        (219, 26, 50, 255), # RED
+    ],
+    'CW': [
+        (1, 42, 126, 255), # BLUE
+        (250, 232, 19, 255), # YELLOW
+    ],
+    'TW': [
+        (237, 29, 36, 255), # RED
+        (42, 48, 135, 255), # BLUE
+    ],
+    'NI': [
+        (0, 101, 204, 255), # BLUE
+    ],
+    'NL': [
+        (33, 70, 139, 255), # BLUE
+        (174, 28, 40, 255), # RED
+    ],
+    'IT': [
+        (0, 146, 71, 255), # GREEN
+        (206, 43, 54, 255), # RED
+    ],
+    'CN': [
+        (223, 40, 15, 255), # RED
+        (255, 223, 0, 255), # YELLOW
+    ],
+    'CZ': [
+        (215, 20, 26, 255), # RED
+        (17, 69, 126, 255), # BLUE
+    ],
+    'IS': [
+        (1, 55, 183, 255), # BLUE
+    ],
+}
+
+NATIONALITY_TEMPLATE_COLOR = {
+    'US': 'RED',
+    'DO': 'RED',
+    'VE': 'YELLOW',
+    'CU': 'BLUE',
+    'CA': 'RED',
+    'MX': 'GREEN',
+    'PR': 'BLUE',
+    'PA': 'BLUE',
+    'JP': 'RED',
+    'GB': 'RED',
+    'DE': 'RED',
+    'AU': 'BLUE',
+    'CO': 'YELLOW',
+    'KR': 'BLUE',
+    'CW': 'BLUE',
+    'TW': 'RED',
+    'NI': 'BLUE',
+    'NL': 'BLUE',
+    'IT': 'GREEN',
+    'CN': 'RED',
+    'CZ': 'RED',
+    'IS': 'BLUE',
 }
 
 G_DRIVE_PLAYER_IMAGE_FOLDERS = {

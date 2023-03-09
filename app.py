@@ -47,8 +47,9 @@ class CardLog(db.Model):
     add_year_container = db.Column(db.Boolean)
     ignore_showdown_library = db.Column(db.Boolean)
     set_year_plus_one = db.Column(db.Boolean)
+    edition = db.Column(db.String(64))
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -75,26 +76,27 @@ class CardLog(db.Model):
         self.add_year_container = add_year_container
         self.ignore_showdown_library = ignore_showdown_library
         self.set_year_plus_one = set_year_plus_one
+        self.edition = edition
 
-def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one):
+def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
             name=name,
             year=year,
             set=set,
-            is_cooperstown=is_cooperstown,
-            is_super_season=is_super_season,
+            is_cooperstown=False,
+            is_super_season=False,
             img_url=img_url,
             img_name=img_name,
             error=error,
-            is_all_star_game=is_all_star_game,
+            is_all_star_game=False,
             expansion=expansion,
             stats_offset=stats_offset,
             set_num=set_num,
-            is_holiday=is_holiday,
+            is_holiday=False,
             is_dark_mode=is_dark_mode,
-            is_rookie_season=is_rookie_season,
+            is_rookie_season=False,
             is_variable_spd_00_01=is_variable_spd_00_01,
             is_random=is_random,
             is_automated_image=is_automated_image,
@@ -103,7 +105,8 @@ def log_card_submission_to_db(name, year, set, is_cooperstown, is_super_season, 
             is_img_loaded_from_library=is_img_loaded_from_library,
             add_year_container=add_year_container,
             ignore_showdown_library=ignore_showdown_library,
-            set_year_plus_one=set_year_plus_one
+            set_year_plus_one=set_year_plus_one,
+            edition=edition
         )
         db.session.add(card_log)
         db.session.commit()
@@ -128,11 +131,6 @@ def card_creator():
     name = None
     year = None
     set = None
-    is_cooperstown = None
-    is_super_season = None
-    is_rookie_season = None
-    is_all_star_game = None
-    is_holiday = None
     img_url = None
     img_name = None
     set_num = None
@@ -148,6 +146,7 @@ def card_creator():
     add_year_container = None
     ignore_showdown_library = None
     set_year_plus_one = None
+    edition = None
 
     try:
         # PARSE INPUTS
@@ -156,11 +155,6 @@ def card_creator():
         year = str(request.args.get('year'))
         set = str(request.args.get('set')).upper()
         url = request.args.get('url')
-        is_cc = request.args.get('cc').lower() == 'true' if request.args.get('cc') else False
-        is_ss = request.args.get('ss').lower() == 'true' if request.args.get('ss') else False
-        is_rs = request.args.get('rs').lower() == 'true' if request.args.get('rs') else False
-        is_asg = request.args.get('asg').lower() == 'true' if request.args.get('asg') else False
-        is_hol = request.args.get('is_holiday').lower() == 'true' if request.args.get('is_holiday') else False
         try:
             offset = int(request.args.get('offset'))
             offset = 4 if offset > 4 else offset
@@ -170,6 +164,7 @@ def card_creator():
         img = request.args.get('img_name')
         set_num = str(request.args.get('set_num'))
         expansion_raw = str(request.args.get('expansion'))
+        edition_raw = str(request.args.get('edition'))
         is_border = request.args.get('addBorder').lower() == 'true' if request.args.get('addBorder') else False
         dark_mode = request.args.get('is_dark_mode').lower() == 'true' if request.args.get('is_dark_mode') else False
         is_variable_spd_00_01 = request.args.get('is_variable_spd_00_01').lower() == 'true' if request.args.get('is_variable_spd_00_01') else False
@@ -185,15 +180,11 @@ def card_creator():
         # LOAD PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
         scraper = BaseballReferenceScraper(name=name,year=year)
-        is_cooperstown = is_cc if is_cc else False
-        is_super_season = is_ss if is_ss else False
-        is_rookie_season = is_rs if is_rs else False
-        is_all_star_game = is_asg if is_asg else False
-        is_holiday = is_hol if is_hol else False
         img_url = None if url == '' else url
         img_name = None if img == '' else img
         set_number = set_num
         expansion = "FINAL" if expansion_raw == '' else expansion_raw
+        edition = "NONE" if edition_raw == '' else edition_raw
         add_img_border = is_border if is_border else False
         is_dark_mode = dark_mode if dark_mode else False
         is_variable_speed_00_01 = is_variable_spd_00_01 if is_variable_spd_00_01 else False
@@ -213,13 +204,9 @@ def card_creator():
                 year=year,
                 context=set,
                 expansion=expansion,
+                edition=edition,
                 player_image_path=img_name,
                 player_image_url=img_url,
-                is_cooperstown=is_cooperstown,
-                is_super_season=is_super_season,
-                is_rookie_season=is_rookie_season,
-                is_all_star_game=is_all_star_game,
-                is_holiday=is_holiday,
                 offset=offset,
                 set_number=set_number,
                 add_image_border=add_img_border,
@@ -248,13 +235,9 @@ def card_creator():
                 stats=statline,
                 context=set,
                 expansion=expansion,
+                edition=edition,
                 player_image_path=img_name,
                 player_image_url=img_url,
-                is_cooperstown=is_cooperstown,
-                is_super_season=is_super_season,
-                is_rookie_season=is_rookie_season,
-                is_all_star_game=is_all_star_game,
-                is_holiday=is_holiday,
                 offset=offset,
                 set_number=set_number,
                 add_image_border=add_img_border,
@@ -297,18 +280,13 @@ def card_creator():
             name=name,
             year=year,
             set=set,
-            is_cooperstown=is_cooperstown,
-            is_super_season=is_super_season,
             img_url=img_url,
             img_name=img_name,
             error=error,
-            is_all_star_game=is_all_star_game,
             expansion=expansion,
             stats_offset=offset,
             set_num=set_num,
-            is_holiday=is_holiday,
             is_dark_mode=is_dark_mode,
-            is_rookie_season=is_rookie_season,
             is_variable_spd_00_01=is_variable_speed_00_01,
             is_random=is_random,
             is_automated_image=is_automated_image,
@@ -317,7 +295,8 @@ def card_creator():
             is_img_loaded_from_library=is_img_loaded_from_library,
             add_year_container=add_year_container,
             ignore_showdown_library=ignore_showdown_library,
-            set_year_plus_one=set_year_plus_one
+            set_year_plus_one=set_year_plus_one,
+            edition=edition
         )
         return jsonify(
             image_path=card_image_path,
@@ -347,18 +326,13 @@ def card_creator():
             name=name,
             year=year,
             set=set,
-            is_cooperstown=is_cooperstown,
-            is_super_season=is_super_season,
             img_url=img_url,
             img_name=img_name,
             error=error_full,
-            is_all_star_game=is_all_star_game,
             expansion=expansion,
             stats_offset=offset,
             set_num=set_num,
-            is_holiday=is_holiday,
             is_dark_mode=is_dark_mode,
-            is_rookie_season=is_rookie_season,
             is_variable_spd_00_01=is_variable_spd_00_01,
             is_random=is_random,
             is_automated_image=is_automated_image,
@@ -367,7 +341,8 @@ def card_creator():
             is_img_loaded_from_library=is_img_loaded_from_library,
             add_year_container=add_year_container,
             ignore_showdown_library=ignore_showdown_library,
-            set_year_plus_one=set_year_plus_one
+            set_year_plus_one=set_year_plus_one,
+            edition=edition
         )
         return jsonify(
             image_path=None,

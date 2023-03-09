@@ -1,5 +1,6 @@
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
+import mlb_showdown_bot.showdown_constants as sc
 from termcolor import colored
 from time import sleep
 
@@ -7,21 +8,24 @@ if __name__ == "__main__":
     
     # DEFINE INPUTS
     inputs_to_test = [
-        {'name': 'Juan Encarnacion', 'year': '2007',},
-        {'name': 'Walter Johnson', 'year': '1908',},
-        {'name': 'Manny Ramirez (LAD)', 'year': '2008',},
-        {'name': 'Mike Piazza (FLA)', 'year': '1997',},
-        {'name': 'Aroldis Chapman (NYY)', 'year': '2016',},
-        {'name': 'Derek Jeter', 'year': '2006+2014+2008',},
-        {'name': 'Old Hoss Radbourn', 'year': '1885-1889',},
-        {'name': 'Gary Carter', 'year': '1981+1988',},
-        {'name': 'Bartolo Colon (Hitter)', 'year': '2016',},
-        {'name': 'Shohei Ohtani (Pitcher)', 'year': '2021',},
-        {'name': 'Michael Lorenzen (Pitcher)', 'year': '2019',},
-        {'name': 'wittwh01', 'year': '1924',},
-        {'name': 'Josh Gibson ', 'year': '1939-1944',},
-        {'name': 'Satchel Paige', 'year': '1941+1965',},
-        {'name': 'Mark Kotsay', 'year': '1998-2000',},
+        {'name': 'Juan Encarnacion', 'year': '2007', 'edition': sc.Edition.NONE.value},
+        {'name': 'Walter Johnson', 'year': '1908', 'edition': sc.Edition.NONE.value},
+        {'name': 'Manny Ramirez (LAD)', 'year': '2008', 'edition': sc.Edition.NONE.value},
+        {'name': 'Mike Piazza (FLA)', 'year': '1997', 'edition': sc.Edition.NONE.value},
+        {'name': 'Aroldis Chapman (NYY)', 'year': '2016', 'edition': sc.Edition.NONE.value},
+        {'name': 'Derek Jeter', 'year': '2006+2014+2008', 'edition': sc.Edition.NONE.value},
+        {'name': 'Old Hoss Radbourn', 'year': '1885-1889', 'edition': sc.Edition.NONE.value},
+        {'name': 'Gary Carter', 'year': '1981+1988', 'edition': sc.Edition.NONE.value},
+        {'name': 'Bartolo Colon (Hitter)', 'year': '2016', 'edition': sc.Edition.NONE.value},
+        {'name': 'Shohei Ohtani (Pitcher)', 'year': '2021', 'edition': sc.Edition.NONE.value},
+        {'name': 'Michael Lorenzen (Pitcher)', 'year': '2019', 'edition': sc.Edition.NONE.value},
+        {'name': 'wittwh01', 'year': '1924', 'edition': sc.Edition.NONE.value},
+        {'name': 'Josh Gibson ', 'year': '1939-1944', 'edition': sc.Edition.NONE.value},
+        {'name': 'Satchel Paige', 'year': '1941+1965', 'edition': sc.Edition.NONE.value},
+        {'name': 'Mark Kotsay', 'year': '1998-2000', 'edition': sc.Edition.NONE.value},
+        {'name': 'Bert Blyleven', 'year': '1988', 'edition': sc.Edition.NATIONALITY.value},
+        {'name': 'Bret Boone', 'year': '2001', 'edition': sc.Edition.SUPER_SEASON.value},
+        {'name': 'Bob Gibson', 'year': '1968', 'edition': sc.Edition.COOPERSTOWN_COLLECTION.value},
     ]
     num_tests = len(inputs_to_test)
     sets = ['2000','2001','2002','2003','2004','2005','2022-CLASSIC','2022-EXPANDED']
@@ -35,17 +39,18 @@ if __name__ == "__main__":
             sleep(3)
             name = player_inputs['name']
             year = player_inputs['year']
+            edition = player_inputs['edition']
             # GET PLAYER DATA
             scraper = BaseballReferenceScraper(name=name,year=year)
             statline = scraper.player_statline()
             for set in sets:
                 # CREATE SHOWDOWN CARD 
-                
                 showdown = ShowdownPlayerCardGenerator(
                     name=name,
                     year=year,
                     stats=statline,
                     context=set,
+                    edition=edition,
                     print_to_cli=False
                 )
                 showdown.player_image()

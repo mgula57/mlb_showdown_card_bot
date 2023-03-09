@@ -208,6 +208,9 @@ class BaseballReferenceScraper:
             # HAND / TYPE
             type = self.type(positional_fielding,year=year)
 
+            # NATIONALITY
+            nationality = self.nationality(soup_for_homepage_stats=soup_for_homepage_stats)
+
             # WAR
             stats_dict.update({'bWAR': self.__bWar(soup_for_homepage_stats, year, type)})
 
@@ -222,6 +225,7 @@ class BaseballReferenceScraper:
             stats_dict['hand_throw'] = self.hand(soup_for_homepage_stats, type='Pitcher') # ALWAYS PASS PITCHER TO STORE THROWING HAND
             stats_dict['name'] = name
             stats_dict['years_played'] = years_played
+            stats_dict['nationality'] = nationality
             
             # HITTING / HITTING AGAINST
             advanced_stats = self.advanced_stats(type,year=year)
@@ -447,6 +451,35 @@ class BaseballReferenceScraper:
             name_string = name_object.find('span').get_text()
         return name_string
 
+    def nationality(self, soup_for_homepage_stats) -> str:
+        """Parse player's nationality
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats from homepage.
+
+        Raises:
+          ValueError: No player nationality found.
+
+        Returns:
+          'Right', 'Left', or 'Both' string.
+        """
+
+        # FIND METADATA DIV
+        metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
+        if metadata is None:
+            raise ValueError('No player nationality found')
+        
+        # FIND ALL CLASSES WITH THE KEYWORD "f-i" IN THE CLASS NAME.
+        #   EX: <span class="f-i f-pr" style="">pr</span>
+        # WHEN A PLAYER HAS 2 NATIONALITIES, CHOSE THE BIRTH COUNTRY
+        for strong_tag in metadata.find_all('span', { "class": re.compile('.*f-i.*') }):
+            country_abbr = strong_tag.text
+            if country_abbr:
+                return country_abbr.upper()
+
+        # NO NATIONALITY WAS FOUND, RETURN NONE
+        return None
+    
     def type(self, positional_fielding, year):
         """Guess Player Type (Pitcher or Hitter) based on games played at each position.
 
