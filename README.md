@@ -27,7 +27,8 @@
     * [Multi-Year Cards](#multi-year-cards)
     * [Negro Leagues and Pre-20th Century](#negro-leagues-and-pre-20th-century)
     * [shOPS+](#shops)
-    * [2022 Sets](#2022-sets)
+* [Editions](#editions)
+* [2022 Sets](#2022-sets)
 * [Showdown Library](#showdown-library)
 * [Showdown Explorer](#showdown-explorer)
 * [Running Locally](#running-locally)
@@ -431,6 +432,104 @@ For example, let's compare **Mike Clevinger** vs **Blake Snell** in the **2022-C
 These 2 cards have very similar projected OPS against (Clevinger having the slight edge at .622 vs Snell's .625), meaning their non-adjusted shOPS+ numbers are similar (Clevinger at 116, Snell at 114).
 
 Most Showdown managers however would see a larger difference between these 2 cards, as Mike Clevinger's +4 Control performs significantly better against higher Onbase opponents, especially with no 2B on his chart. shOPS+ accounts for that, applying a **1.04** adjustment factor to Clevinger's SLG and a **0.94** to Snell. This results in a larger disparity between the 2 pitchers, with Clevinger ending with a 120 shOPS+ vs Snell's 108.
+
+## **Editions**
+
+Use Editions to add style variety to your cards. There are currently 6 different Editions available on Showdown Bot.
+
+1. [Cooperstown Collection](#cooperstown-collection)
+2. [Super Season](#super-season)
+3. [Nationality](#nationality)
+4. [All-Star Game](#all-star-game)
+5. [Rookie Season](#rookie-season)
+6. [Holiday](#holiday)
+
+### **Cooperstown Collection**
+
+![Image](./static/interface/CooperstownPlayers.png)
+
+Cooperstown theme is available on all sets. It replaces the player's team logo with a the official Cooperstown Collection logo, changes the template color in 04/05 sets, and some certain players adds new player art.
+
+Custom player art is available in 2003, 2004, and 2005 sets. 2022 sets will use the official Cooperstown color scheme in the chart.
+
+### **Super Season**
+
+![Image](./static/interface/SuperSeasonPlayers.png)
+
+Super Seasons highlight outstanding single season performances throughout baseball history. A custom super season logo will replace the player's team logo, and certain years add a list of 3 accolades as well.
+
+Here are the available accolade categories, ordered by priority:
+ - MVP
+ - SILVER SLUGGER
+ - GOLD GLOVE
+ - CY YOUNG
+ - RoY
+ - HR
+ - CYA FINALIST
+ - MVP FINALIST
+ - RoY FINALIST
+ - ALL-STAR
+ - ERA
+ - W
+ - SV
+ - BA
+ - RBI
+ - H
+ - dWAR
+ - OPS+
+ - bWAR
+
+2004 and 2005 sets feature a special red template, as well as a grid pattern in the background of select players.
+
+### **Nationality**
+
+![Image](./static/interface/NationalityPlayers.png)
+
+Replaces a player's MLB team with their birthplace country. Adds a custom background for all sets that is inspired by WOTC promo cards. For automated images, there will be some World Baseball Classic player images available.
+
+List of supported countries:
+ - United States
+ - Domican Republic
+ - Venezuela
+ - Cuba
+ - Canada
+ - Mexico
+ - Puerto Rico
+ - Panama
+ - Japan
+ - Great Britain
+ - Australia
+ - Colombia
+ - South Korea
+ - Netherlands
+ - Italy
+ - China
+ - Israel
+ - Czech Republic
+ - Nicaragua
+ - Germany
+ - Taiwan
+ - Curacao
+
+2004 and 2005 sets feature a special red template, as well as a grid pattern in the background of select players. 2022 sets feature a new gradient design for the outs portion of player charts.
+
+### **All-Star Game**
+
+![Image](./static/interface/AllStarPlayers.png)
+
+All Star Game logos are available on all sets for all seasons since 1980. Since 2021, custom background art and is available and will continued to be updated every year.
+
+### **Rookie Season**
+
+![Image](./static/interface/RookiePlayers.png)
+
+Rookie Season replaces a player's team logo with a custom rookie season icon. Some players in 2022 CLASSIC/EXPANDED sets also have special edition flashback card art shown above.
+
+### **Holiday**
+
+![Image](./static/interface/HolidayPlayers.png)
+
+The Holiday theme adds a simple Christmas Tree inspired border to any card. This includes user uploaded photos, automated images, and silhouettes. 
 
 ## **2022 Sets**
 
