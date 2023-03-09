@@ -47,7 +47,7 @@ class CardLog(db.Model):
     add_year_container = db.Column(db.Boolean)
     ignore_showdown_library = db.Column(db.Boolean)
     set_year_plus_one = db.Column(db.Boolean)
-    edition = db.column(db.String(64))
+    edition = db.Column(db.String(64))
 
     def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition):
         """ DEFAULT INIT FOR DB OBJECT """
