@@ -2637,7 +2637,10 @@ class ShowdownPlayerCardGenerator:
         default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}{dark_mode_suffix}.png')
         custom_image_path = default_image_path
         use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
+        country_exists = False
         if use_nationality:
+            country_exists = self.nationality in sc.NATIONALITY_COLORS.keys()
+        if use_nationality and country_exists:
             custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, 'backgrounds', f"{self.nationality}.png")
         elif self.context in ['2000', '2001']:
             # TEAM BACKGROUNDS
@@ -2836,7 +2839,8 @@ class ShowdownPlayerCardGenerator:
             alternate_logo_ext = '-A' if int(self.context_year) >= 2004 and not self.edition.has_static_logo else ''
             team_logo_path = os.path.join(os.path.dirname(__file__), 'team_logos', f'{logo_name}{alternate_logo_ext}{historical_alternate_ext}.png')
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
-                team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
+                if self.nationality in sc.NATIONALITY_COLORS.keys():
+                    team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
             team_logo = Image.open(team_logo_path).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         except:
@@ -2957,7 +2961,11 @@ class ShowdownPlayerCardGenerator:
             if self.edition.template_color_0405:
                 edition_extension = f'-{self.edition.template_color_0405}'
             elif self.edition == sc.Edition.NATIONALITY and self.nationality:
-                edition_extension = f'-{sc.NATIONALITY_TEMPLATE_COLOR[self.nationality]}'
+                if self.nationality in sc.NATIONALITY_TEMPLATE_COLOR.keys():
+                    edition_extension = f'-{sc.NATIONALITY_TEMPLATE_COLOR[self.nationality]}'
+                else:
+                    edition_extension = f'-{sc.TEMPLATE_COLOR_0405[type]}'
+                    self.img_loading_error = f"Country {self.nationality} not supported. Select a different Edition."
             else:
                 edition_extension = f'-{sc.TEMPLATE_COLOR_0405[type]}'
             type_template = f'0405-{type}{edition_extension}.png'
@@ -2980,12 +2988,15 @@ class ShowdownPlayerCardGenerator:
             container_img_black = Image.open(container_img_path)
             fill_color = self.__team_color_rgbs()
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
-                colors = sc.NATIONALITY_COLORS[self.nationality]
-                if len(colors) >= 2:
-                    gradient_img_width = 475 if self.player_type() == 'position_player' else 680
-                    gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=colors)
-                    container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
-                    container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
+                if self.nationality in sc.NATIONALITY_COLORS.keys():
+                    colors = sc.NATIONALITY_COLORS[self.nationality]
+                    if len(colors) >= 2:
+                        gradient_img_width = 475 if self.player_type() == 'position_player' else 680
+                        gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=colors)
+                        container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
+                        container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
+                    else:
+                        container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
                 else:
                     container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
             else:
@@ -4024,9 +4035,10 @@ class ShowdownPlayerCardGenerator:
 
         default_color = (55, 55, 55, 255)
         team_index = self.__team_logo_historical_alternate_extension(include_dash=False)
+        country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if self.nationality else False
         if self.edition == sc.Edition.COOPERSTOWN_COLLECTION:
             return sc.TEAM_COLOR_PRIMARY['CCC']
-        elif self.edition == sc.Edition.NATIONALITY and self.nationality:
+        elif self.edition == sc.Edition.NATIONALITY and self.nationality and country_exists:
             return sc.NATIONALITY_COLORS[self.nationality][0]
         elif len(team_index) > 0:
             # GRAB FROM ALT/HISTORICAL TEAM COLORS
