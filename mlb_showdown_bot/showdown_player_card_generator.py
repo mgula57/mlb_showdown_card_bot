@@ -2715,7 +2715,7 @@ class ShowdownPlayerCardGenerator:
 
         # PASTE PLAYER IMAGE IF IT EXISTS
         if player_cutout:
-            has_custom_coordinates = use_nationality and not is_silouette
+            has_custom_coordinates = use_nationality and not is_silouette and not uploaded_player_image
             paste_location = sc.CUTOUT_CUSTOM_COORDINATES[self.context_year] if has_custom_coordinates else (0,0)
             scaler = sc.CUTOUT_CUSTOM_SCALER[self.context_year] if has_custom_coordinates else 1.0
             if scaler != 1.0:
