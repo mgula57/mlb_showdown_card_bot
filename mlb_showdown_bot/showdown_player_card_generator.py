@@ -1291,9 +1291,9 @@ class ShowdownPlayerCardGenerator:
         stats_for_n_pa = {
             'PA': plate_appearances,
             'pct_of_{}_pa'.format(plate_appearances): pct_of_n_pa,
-            'slugging_perc': float(stats['slugging_perc']),
-            'onbase_perc': float(stats['onbase_perc']),
-            'batting_avg': float(stats['batting_avg']),
+            'slugging_perc': float(stats['slugging_perc']) if len(str(stats['slugging_perc'])) > 0 else 1.0,
+            'onbase_perc': float(stats['onbase_perc']) if len(str(stats['onbase_perc'])) > 0 else 1.0,
+            'batting_avg': float(stats['batting_avg']) if len(str(stats['batting_avg'])) > 0 else 1.0,
             'IF/FB': float(stats['IF/FB']),
             'GO/AO': go_ao
         }
@@ -1951,8 +1951,10 @@ class ShowdownPlayerCardGenerator:
         slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS')]
         slash_as_string = ''
         for key, cleaned_category in slash_categories:
-            showdown_stat_str = '{}: {}'.format(cleaned_category,str(round(self.projected[key],3)).replace('0.','.'))
-            real_stat_str = '{}: {}'.format(cleaned_category,str(round(self.stats[key],3)).replace('0.','.'))
+            real_stat_str = str(round(self.stats[key],3)).replace('0.','.') if len(str(self.stats[key])) > 0 else '-'
+            projected_stat_str = str(round(self.projected[key],3)).replace('0.','.') if len(str(self.projected[key])) > 0 else '-'
+            showdown_stat_str = f'{cleaned_category}: {projected_stat_str}'
+            real_stat_str = f'{cleaned_category}: {real_stat_str}'
             slash_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str,real_stat_str)
         
         # shOPS+
