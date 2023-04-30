@@ -183,7 +183,6 @@ function createTrendsChart(data) {
         yValues.push(data.trends_data[day]["points"]);
     }
 
-    console.log(data.radar_color)
     new Chart(marksCanvas, {
         type: "line",
         data: {
