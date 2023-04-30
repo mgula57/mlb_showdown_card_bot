@@ -3,7 +3,7 @@ import simplejson
 import json
 import os
 from pprint import pprint
-from firebase_admin import credentials
+from firebase_admin import credentials, firestore
 from firebase_admin import db
 from pathlib import Path
 
@@ -161,6 +161,26 @@ class Firebase:
         # READ THE DATA AT THE POSTS REFERENCE (THIS IS A BLOCKING OPERATION)
         data = ref.get()
         return data
+
+    def query_firestore(self, collection, document) -> dict:
+        """Query firestore and return a specific document
+
+        Args:
+          collection: Name of top level collection
+          document: Id of the document
+
+        Returns:
+          Dictionary with data from specified document
+        """
+
+        db = firestore.client()
+
+        # UPLOAD CARDS
+        doc = db.collection(collection).document(document).get()
+        if doc.exists:
+            return doc.to_dict()
+        else:
+            return None
 
 # ------------------------------------------------------------------------
 # PARSING

@@ -192,12 +192,14 @@ def card_creator():
         add_year_container = year_container if year_container else False
         set_year_plus_one = set_yr_p1 if set_yr_p1 else False
         ignore_showdown_library = ignore_sl if ignore_sl else False
+        trends_data = None
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
 
         try:
             db = Firebase()
+            trends_data = db.query_firestore(f'trends_{year}_{set}', document=scraper.baseball_ref_id)
             showdown = db.load_showdown_card(
                 ignore_showdown_library=ignore_showdown_library,
                 bref_id = scraper.baseball_ref_id,
@@ -317,6 +319,7 @@ def card_creator():
             radar_values=radar_values,
             radar_color=radar_color,
             shOPS_plus=shOPS_plus,
+            trends_data=trends_data,
         )
 
     except Exception as e:
@@ -363,6 +366,7 @@ def card_creator():
             radar_values=None,
             radar_color=None,
             shOPS_plus=None,
+            trends_data=None,
         )
 
 @app.route('/upload', methods=["POST","GET"])

@@ -99,13 +99,75 @@ function toggleTheme(toggleElement) {
     }
 }
 
+// SETUP TRENDS CHART
+function createTrendsChart(data, color) {
+    // SHOW CONTAINER
+    $("#trend_container").show();
+
+    // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
+    let chartStatus = Chart.getChart("playerTrends");
+    if (chartStatus != undefined) {
+        chartStatus.destroy();
+    }
+    
+    // CREATE NEW CHART OBJECT
+    var marksCanvas = document.getElementById("playerTrends");
+
+    // PARSE VALUES
+    var xValues = []
+    var yValues = []
+    for (let day in data) {
+        xValues.push(day);
+        yValues.push(data[day]["points"]);
+    }
+
+    console.log(xValues)
+    console.log(yValues)
+    new Chart(marksCanvas, {
+        type: "line",
+        data: {
+            labels: xValues,
+            datasets: [{
+                data: yValues,
+                label: "PTS",
+                borderColor: color,
+                fill: false
+            }]
+        },
+        options: {
+            plugins: {
+                legend: {
+                    display: false
+                },
+            },
+            scales: {
+              x: {
+                type: 'time',
+                time: {
+                    unit: 'day',
+                    parser: 'MM-dd-yyyy',
+                    displayFormats: {
+                        'day': 'MMM dd',
+                    },
+                    tooltipFormat: "MMM dd"
+                }
+              },
+              y: {
+                min: 0,
+                max: Math.max(...yValues) + 200
+              }
+            }
+          }
+    });
+}
+
 function setTheme(themeName) {
     // UPDATE LOCAL STORAGE
     localStorage.setItem('theme', themeName);
 
     var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
-    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "rank_values_footnote", "loader_container_rectangle"]
+    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "trend_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "rank_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
         document.getElementById(id).className = (id + "_" + themeName);
     }
@@ -271,6 +333,7 @@ function showCardData(data) {
             if (chartStatus != undefined) {
                 chartStatus.destroy();
             }
+            
             // CREATE NEW CHART OBJECT
             var marksCanvas = document.getElementById("playerRadar");
             var color = Chart.helpers.color;
@@ -320,8 +383,16 @@ function showCardData(data) {
                 data: marksData,
                 options: chartOptions
             });
-        } else {
+        }
+        else {
             $("#radar_container").hide();
+        }
+
+        // TRENDS GRAPH
+        if (data.trends_data != null) {
+            createTrendsChart(data=data.trends_data, color=data.radar_color)
+        } else {
+            $("#trend_container").hide();
         }
     };
     $('#overlay').hide();

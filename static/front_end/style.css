@@ -72,6 +72,32 @@
     margin-bottom: 8px;
 }
 
+/* TREND: SHOWS TREND CHART FOR PLAYER PROGRESS */
+.trend_container_light {
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    padding: 8px;
+    overflow: hidden;
+    display: none;
+    margin-bottom: 8px;
+}
+.trend_container_dark {
+    background-color: #9b9b9b;
+    border-radius: 10px;
+    padding: 8px;
+    overflow: hidden;
+    display: none;
+    margin-bottom: 8px;
+}
+.graph_label {
+    font-weight: bold;
+    display: block;
+    text-align: center;
+    font-size: 12px;
+    opacity: 0.75;
+}
+
 /* BREAKDOWN: SHOWS STATS, POINTS, ACCURACY, ETC */
 .breakdown_output_light {
     background-color: #ffffff;
@@ -109,7 +135,7 @@
 
 /* ESTIMATED VALUES FOOTNOTE */
 .estimated_values_footnote_light, .rank_values_footnote_light {
-    font-size:50%; 
+    font-size: 50%;
     color: #000000;
 }
 .estimated_values_footnote_dark, .rank_values_footnote_dark {
