@@ -16,6 +16,7 @@
       <link rel="stylesheet" href="/static/front_end/style.css">
       <link rel="apple-touch-icon" href="/static/interface/ShowdownLogoSquare.png">
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/css/bootstrap-select.min.css">
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
    </head>
 
 
@@ -177,53 +178,82 @@
                                        </div>
                                     </div>
                                  </div>
+
+                                 <hr>
             
                                  <!-- BUTTONS  -->
                                  <div class="form-group" style="padding-top:10px; padding-bottom:20px;">
-                                    <div class="row" style="padding-top: 10px;">
-                                       <div class="col-md-7" style="padding: 8px;" >
+
+                                    <!-- CREATE BUTTON -->
+                                    <div class="row">
+                                       <div class="col-md-12" style="padding: 8px;" >
                                           <!-- CREATE CARD BUTTON  -->
                                           <a href=# id=create_card>
-                                             <button type="submit" style="border-radius: 10px; color: white; background-color: #5d82b8;" class="btn w-100">
-                                                <div style="padding: 5px;"><b>Submit</b></div>
+                                             <button type="submit" id="btn_custom" style="background-color: #4983D4; padding: 15px;" class="btn w-100">
+                                                <div class="btn_text">
+                                                   <i class="fa-solid fa-baseball fa-bounce"></i>
+                                                   Create Showdown Card
+                                                </div>
                                              </button>
                                           </a>
-                                          
-                                       </div>
-            
-                                       <div class="col-md-2" style="padding: 8px;" >
+                                       </div>                                       
+                                    </div>
+
+                                    <!-- SHUFFLE AND CLEAR BUTTONS -->
+                                    <div class="row">
+                                       <div class="col-md-6" style="padding: 8px;" >
                                           <!-- CREATE RANDOM BUTTON  -->
                                           <a href=# id=create_card_random>
-                                             <button style="border-radius: 10px;" class="btn btn-warning w-100">
-                                                <div style="padding: 5px;">
-                                                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" class="bi bi-shuffle" stroke-width="30" viewBox="0 0 20 20">
-                                                      <path fill-rule="evenodd" d="M0 3.5A.5.5 0 0 1 .5 3H1c2.202 0 3.827 1.24 4.874 2.418.49.552.865 1.102 1.126 1.532.26-.43.636-.98 1.126-1.532C9.173 4.24 10.798 3 13 3v1c-1.798 0-3.173 1.01-4.126 2.082A9.624 9.624 0 0 0 7.556 8a9.624 9.624 0 0 0 1.317 1.918C9.828 10.99 11.204 12 13 12v1c-2.202 0-3.827-1.24-4.874-2.418A10.595 10.595 0 0 1 7 9.05c-.26.43-.636.98-1.126 1.532C4.827 11.76 3.202 13 1 13H.5a.5.5 0 0 1 0-1H1c1.798 0 3.173-1.01 4.126-2.082A9.624 9.624 0 0 0 6.444 8a9.624 9.624 0 0 0-1.317-1.918C4.172 5.01 2.796 4 1 4H.5a.5.5 0 0 1-.5-.5z"></path>
-                                                      <path d="M13 5.466V1.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384l-2.36 1.966a.25.25 0 0 1-.41-.192zm0 9v-3.932a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384l-2.36 1.966a.25.25 0 0 1-.41-.192z"></path>
-                                                   </svg>
+                                             <button id="btn_custom" style="color: black;" class="btn btn-warning w-100">
+                                                <div class="btn_text">
+                                                   <i class="fa-solid fa-shuffle"></i>
+                                                   Shuffle
                                                 </div>
                                              </button>
                                           </a>
                                        </div>
       
-                                       <div class="col-md-3" style="padding: 8px;" >
+                                       <div class="col-md-6" style="padding: 8px;" >
                                           <!-- RESET CARD BUTTON  -->
-                                          <button type="reset" style="border-radius: 10px;" class="btn btn-secondary btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''">
-                                             <div style="padding: 5px;">Clear</div>
+                                          <button id="btn_custom" type="reset" class="btn btn-secondary btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''">
+                                             <div class="btn_text">
+                                                <i class="fa-solid fa-circle-xmark"></i>
+                                                Clear 
+                                             </div>
                                           </button>
                                        </div>
-      
                                     </div>
       
-                                    <!-- TWITTER LINK  -->
-                                    <div style="padding-top:10px;padding-right:10px;">
+                                    <!-- SOCIAL LINKS LINK  -->
+                                    <div class="row" style="padding-top: 30px;">
+                                       <!-- TWITTER  -->
+                                       <div class="col-md-4" style="padding: 8px;" >
+                                          <a href="https://twitter.com/mlbshowdownbot?ref_src=twsrc%5Etfw" class="a_no_style" target="_blank" rel="noopener noreferrer">
+                                             <div class="social_link" style="background-color: #1DA1F2;" >
+                                                <i class="fa-brands fa-twitter"></i>
+                                                Twitter
+                                             </div>
+                                          </a>
+                                       </div>
+                                       
+                                       <!-- GITHUB -->
+                                       <div class="col-md-4" style="padding: 8px;" >
+                                          <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" class="a_no_style" target="_blank" rel="noopener noreferrer">
+                                             <div class="social_link" style="background-color: #161B21;">
+                                                <i class="fa-brands fa-github"></i>
+                                                GitHub
+                                             </div>
+                                          </a>
+                                       </div>
+                                    </div>
+                                    
+                                    <!-- <div style="padding-top:10px;padding-right:10px;">
                                        <a href="https://twitter.com/mlbshowdownbot?ref_src=twsrc%5Etfw" class="twitter-follow-button" data-size='small' data-show-count="false">Follow</a><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
-                                    </div>
+                                    </div> -->
       
-                                    <!-- HOW DOES SHOWDOWN BOT WORK? -->
+                                    
                                     <div style="padding-top: 10px;">
-                                       <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" class="link-secondary" target="_blank" rel="noopener noreferrer">
-                                          <p>How does Showdown Bot work?</p>
-                                       </a>
+                                       
                                     </div>
                                  </div>
                                  <br>
