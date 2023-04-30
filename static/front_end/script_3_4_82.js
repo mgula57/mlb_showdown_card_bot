@@ -99,8 +99,69 @@ function toggleTheme(toggleElement) {
     }
 }
 
+// SETUP RADAR CHART
+function createRadarChart(data) {
+    $("#radar_container").show();
+
+    // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
+    let chartStatus = Chart.getChart("playerRadar");
+    if (chartStatus != undefined) {
+        chartStatus.destroy();
+    }
+    
+    // CREATE NEW CHART OBJECT
+    var marksCanvas = document.getElementById("playerRadar");
+    var color = Chart.helpers.color;
+    Chart.defaults.color = "black"
+    var marksData = {
+        labels: data.radar_labels,
+        datasets: [
+            {
+                label: `${data.player_name} (${data.player_year})`,
+                backgroundColor: color(data.radar_color).alpha(0.2).rgbString(),
+                borderColor: data.radar_color,
+                borderWidth: 1,
+                pointBackgroundColor: data.radar_color,
+                data: data.radar_values
+            },
+            {
+                label: `Avg (${data.player_year})`,
+                backgroundColor: "rgb(0,0,0,0.1)",
+                borderColor: "gray",
+                borderWidth: 0.5,
+                data: data.radar_values.map(x => 50)
+            },
+        ]
+    };
+
+    var chartOptions = {
+        scales: {
+            r: {
+                pointLabels: {
+                    font: {
+                        size: 12,
+                    }
+                },
+                ticks: {
+                    callback: function() {return ""},
+                    beginAtZero: true,
+                    showLabelBackdrop: false
+                },
+                suggestedMin: 0,
+                suggestedMax: 100,
+            },
+        }
+    };
+
+    var radarChart = new Chart(marksCanvas, {
+        type: "radar",
+        data: marksData,
+        options: chartOptions
+    });
+}
+
 // SETUP TRENDS CHART
-function createTrendsChart(data, color) {
+function createTrendsChart(data) {
     // SHOW CONTAINER
     $("#trend_container").show();
 
@@ -112,17 +173,17 @@ function createTrendsChart(data, color) {
     
     // CREATE NEW CHART OBJECT
     var marksCanvas = document.getElementById("playerTrends");
+    var color = Chart.helpers.color;
 
     // PARSE VALUES
     var xValues = []
     var yValues = []
-    for (let day in data) {
+    for (let day in data.trends_data) {
         xValues.push(day);
-        yValues.push(data[day]["points"]);
+        yValues.push(data.trends_data[day]["points"]);
     }
 
-    console.log(xValues)
-    console.log(yValues)
+    console.log(data.radar_color)
     new Chart(marksCanvas, {
         type: "line",
         data: {
@@ -130,8 +191,9 @@ function createTrendsChart(data, color) {
             datasets: [{
                 data: yValues,
                 label: "PTS",
-                borderColor: color,
-                fill: false
+                borderColor: data.radar_color,
+                backgroundColor: color(data.radar_color).alpha(0.2).rgbString(),
+                fill: true
             }]
         },
         options: {
@@ -326,63 +388,7 @@ function showCardData(data) {
 
         // PLAYER RADAR CHART
         if (data.radar_labels != null) {
-            $("#radar_container").show();
-
-            // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
-            let chartStatus = Chart.getChart("playerRadar");
-            if (chartStatus != undefined) {
-                chartStatus.destroy();
-            }
-            
-            // CREATE NEW CHART OBJECT
-            var marksCanvas = document.getElementById("playerRadar");
-            var color = Chart.helpers.color;
-            Chart.defaults.color = "black"
-            var marksData = {
-                labels: data.radar_labels,
-                datasets: [
-                    {
-                        label: `${data.player_name} (${data.player_year})`,
-                        backgroundColor: color(data.radar_color).alpha(0.2).rgbString(),
-                        borderColor: data.radar_color,
-                        borderWidth: 1,
-                        pointBackgroundColor: data.radar_color,
-                        data: data.radar_values
-                    },
-                    {
-                        label: `Avg (${data.player_year})`,
-                        backgroundColor: "rgb(0,0,0,0.1)",
-                        borderColor: "gray",
-                        borderWidth: 0.5,
-                        data: data.radar_values.map(x => 50)
-                    },
-                ]
-            };
-
-            var chartOptions = {
-                scales: {
-                    r: {
-                        pointLabels: {
-                            font: {
-                                size: 12,
-                            }
-                        },
-                        ticks: {
-                            callback: function() {return ""},
-                            beginAtZero: true,
-                            showLabelBackdrop: false
-                        },
-                        suggestedMin: 0,
-                        suggestedMax: 100,
-                    },
-                }
-            };
-
-            var radarChart = new Chart(marksCanvas, {
-                type: "radar",
-                data: marksData,
-                options: chartOptions
-            });
+            createRadarChart(data=data)
         }
         else {
             $("#radar_container").hide();
@@ -390,7 +396,7 @@ function showCardData(data) {
 
         // TRENDS GRAPH
         if (data.trends_data != null) {
-            createTrendsChart(data=data.trends_data, color=data.radar_color)
+            createTrendsChart(data=data)
         } else {
             $("#trend_container").hide();
         }
