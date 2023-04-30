@@ -539,6 +539,7 @@ $(function () {
             var is_foil = moreOptionsSelected.includes("Foil");
             var add_year_container = moreOptionsSelected.includes("YearContainer");
             var set_year_plus_one = moreOptionsSelected.includes("SetYearPlus1");
+            var hide_team_branding = moreOptionsSelected.includes("HideTeamBranding");
             var is_variable_spd = moreOptionsSelected.includes("VariableSpeed");
             var ignore_showdown_library = moreOptionsSelected.includes("IgnoreShowdownLibrary");
             
@@ -562,6 +563,7 @@ $(function () {
                 is_foil: is_foil,
                 add_year_container: add_year_container,
                 set_year_plus_one: set_year_plus_one,
+                hide_team_logo: hide_team_branding,
                 ignore_showdown_library: ignore_showdown_library,
             }, function (data) {
                 showCardData(data)

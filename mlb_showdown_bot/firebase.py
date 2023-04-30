@@ -186,7 +186,7 @@ class Firebase:
 # PARSING
 # ------------------------------------------------------------------------
 
-    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, team_override, set_year_plus_one, pitcher_override, hitter_override, is_running_in_flask) -> ShowdownPlayerCardGenerator:
+    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, is_running_in_flask) -> ShowdownPlayerCardGenerator:
         """Load cached player showdown data from database.
 
         Args:
@@ -205,7 +205,7 @@ class Firebase:
 
         # GRAB DATA FROM FIREBASE IF IT EXISTS
         is_offset = offset != 0
-        is_disabled = ignore_showdown_library or is_offset or team_override or sc.Edition(edition).ignore_showdown_library
+        is_disabled = ignore_showdown_library or is_offset or team_override or sc.Edition(edition).ignore_showdown_library or hide_team_logo
         cached_data = self.query(
           bref_id=bref_id, 
           year=year, 

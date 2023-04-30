@@ -48,8 +48,9 @@ class CardLog(db.Model):
     ignore_showdown_library = db.Column(db.Boolean)
     set_year_plus_one = db.Column(db.Boolean)
     edition = db.Column(db.String(64))
+    hide_team_logo = db.Column(db.Boolean)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -77,8 +78,9 @@ class CardLog(db.Model):
         self.ignore_showdown_library = ignore_showdown_library
         self.set_year_plus_one = set_year_plus_one
         self.edition = edition
+        self.hide_team_logo = hide_team_logo
 
-def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition):
+def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -106,7 +108,8 @@ def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansi
             add_year_container=add_year_container,
             ignore_showdown_library=ignore_showdown_library,
             set_year_plus_one=set_year_plus_one,
-            edition=edition
+            edition=edition,
+            hide_team_logo=hide_team_logo
         )
         db.session.add(card_log)
         db.session.commit()
@@ -146,6 +149,7 @@ def card_creator():
     add_year_container = None
     ignore_showdown_library = None
     set_year_plus_one = None
+    hide_team_logo = None
     edition = None
 
     try:
@@ -171,6 +175,7 @@ def card_creator():
         foil = request.args.get('is_foil').lower() == 'true' if request.args.get('is_foil') else False
         year_container = request.args.get('add_year_container').lower() == 'true' if request.args.get('add_year_container') else False
         set_yr_p1 = request.args.get('set_year_plus_one').lower() == 'true' if request.args.get('set_year_plus_one') else False
+        hide_team = request.args.get('hide_team_logo').lower() == 'true' if request.args.get('hide_team_logo') else False
         ignore_sl = request.args.get('ignore_showdown_library').lower() == 'true' if request.args.get('ignore_showdown_library') else False
         is_random = name.upper() == '((RANDOM))'
         if is_random:
@@ -191,6 +196,7 @@ def card_creator():
         is_foil = foil if foil else False
         add_year_container = year_container if year_container else False
         set_year_plus_one = set_yr_p1 if set_yr_p1 else False
+        hide_team_logo = hide_team if hide_team else False
         ignore_showdown_library = ignore_sl if ignore_sl else False
         trends_data = None
 
@@ -219,6 +225,7 @@ def card_creator():
                 set_year_plus_one=set_year_plus_one,
                 pitcher_override=scraper.pitcher_override,
                 hitter_override=scraper.hitter_override,
+                hide_team_logo=hide_team_logo,
                 is_running_in_flask=True
             )
             db.close_session()
@@ -248,6 +255,7 @@ def card_creator():
                 is_foil=is_foil,
                 add_year_container=add_year_container,
                 set_year_plus_one=set_year_plus_one,
+                hide_team_logo=hide_team_logo,
                 is_running_in_flask=True
             )
         error = "Error - Unable to create Showdown Card Image."
@@ -298,7 +306,8 @@ def card_creator():
             add_year_container=add_year_container,
             ignore_showdown_library=ignore_showdown_library,
             set_year_plus_one=set_year_plus_one,
-            edition=edition
+            edition=edition,
+            hide_team_logo=hide_team_logo
         )
         return jsonify(
             image_path=card_image_path,

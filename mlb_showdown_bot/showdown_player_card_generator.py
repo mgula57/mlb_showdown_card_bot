@@ -30,7 +30,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, is_running_in_flask=False, source='Baseball Reference'):
+    def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, hide_team_logo=False, is_running_in_flask=False, source='Baseball Reference'):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -88,6 +88,7 @@ class ShowdownPlayerCardGenerator:
         self.set_number = set_number if self.has_custom_set_number else default_set_number
         self.add_year_container = add_year_container and self.context_year in sc.CONTEXT_YEARS_ELIGIBLE_FOR_YEAR_CONTAINER
         self.set_year_plus_one = set_year_plus_one and self.context_year in sc.CONTEXT_YEARS_ELIGIBLE_FOR_SET_YEAR_PLUS_ONE
+        self.hide_team_logo = hide_team_logo
         self.test_numbers = test_numbers
         self.command_out_override = command_out_override
         self.is_running_in_flask = is_running_in_flask
@@ -2436,8 +2437,9 @@ class ShowdownPlayerCardGenerator:
         player_image.paste(color, name_paste_location,  name_text)
 
         # ADD TEAM LOGO
-        team_logo, team_logo_coords = self.__team_logo_image()
-        player_image.paste(team_logo, team_logo_coords, team_logo)
+        if not self.hide_team_logo:
+            team_logo, team_logo_coords = self.__team_logo_image()
+            player_image.paste(team_logo, team_logo_coords, team_logo)
 
         # IF 2001 ROOKIE SEASON, ADD ADDITIONAL LOGO
         if self.edition == sc.Edition.ROOKIE_SEASON and self.context == '2001':
@@ -2644,7 +2646,7 @@ class ShowdownPlayerCardGenerator:
             country_exists = self.nationality in sc.NATIONALITY_COLORS.keys()
         if use_nationality and country_exists:
             custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, 'backgrounds', f"{self.nationality}.png")
-        elif self.context in ['2000', '2001']:
+        elif self.context in ['2000', '2001'] and not self.hide_team_logo:
             # TEAM BACKGROUNDS
             background_image_name = f"{self.team}{self.__team_logo_historical_alternate_extension()}"
             if self.edition == sc.Edition.COOPERSTOWN_COLLECTION:
@@ -4110,6 +4112,7 @@ class ShowdownPlayerCardGenerator:
             - Img Link was provided by user
             - Img Upload was provided by user
             - Set Year Plus 1 Enabled
+            - Hide Team Logo Enabled
 
         Args:
           None
@@ -4124,7 +4127,7 @@ class ShowdownPlayerCardGenerator:
         has_expansion = self.expansion != 'FINAL'
         has_variable_spd_diff = self.is_variable_speed_00_01 and self.context_year in ['2000', '2001']
         set_yr_plus_one_enabled = self.set_year_plus_one and self.context_year in ['2004', '2005']
-        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or self.is_foil or has_variable_spd_diff or self.has_custom_set_number or set_yr_plus_one_enabled
+        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or self.is_foil or has_variable_spd_diff or self.has_custom_set_number or set_yr_plus_one_enabled or self.hide_team_logo
 
     def __year_container_add_on(self) -> Image:
         """User can optionally add a box dedicated to showing years used for the card.
