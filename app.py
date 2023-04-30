@@ -4,8 +4,11 @@ from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGe
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 import os
 import pandas as pd
+from datetime import datetime
 from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
+from pprint import pprint
+
 
 app = Flask(__name__)
 
@@ -205,7 +208,7 @@ def card_creator():
 
         try:
             db = Firebase()
-            trends_data = db.query_firestore(f'trends_{year}_{set}', document=scraper.baseball_ref_id)
+            trends_data = db.query_firestore(f'trends_{year}_{set}', document=scraper.baseball_ref_id_used_for_trends)
             showdown = db.load_showdown_card(
                 ignore_showdown_library=ignore_showdown_library,
                 bref_id = scraper.baseball_ref_id,
@@ -283,6 +286,19 @@ def card_creator():
         bref_url = showdown.bref_url
         shOPS_plus = showdown.projected['onbase_plus_slugging_plus'] if 'onbase_plus_slugging_plus' in showdown.projected else None
         name = player_name if is_random else name # LOG ACTUAL NAME IF IS RANDOMIZED PLAYER
+
+        # IF TRENDS DATA EXISTS, CHECK IF CURRENT DAYS DATA IS INCLUDED. 
+        # IF NOT, INCLUDE DATA FROM CARD GENERATED ABOVE
+        if trends_data:
+            current_date = datetime.now().strftime('%m-%d-%Y')
+            if current_date not in trends_data.keys():
+                player_data = showdown.__dict__
+                included_keys = ['positions_and_defense', 'points', 'speed', 'chart', 'ip']
+                reduced_player_data = {key: player_data[key] for key in included_keys}
+                reduced_player_data['chart'] = {key: reduced_player_data['chart'][key] for key in ['command','outs']}
+                trends_data[current_date] = reduced_player_data
+        
+        # PARSE ERRORS AND SEND OUTPUT TO LOGS
         error = showdown.img_loading_error[:250] if showdown.img_loading_error else ''
         if len(error) > 0:
             print(error)

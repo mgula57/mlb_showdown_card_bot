@@ -76,6 +76,12 @@ class BaseballReferenceScraper:
 
         self.first_initial = self.baseball_ref_id[:1]
 
+        # STORE BASEBALL REFERENCE ID USED FOR TRENDS DATA QUERY
+        if "ohtansh01" in self.baseball_ref_id:
+            self.baseball_ref_id_used_for_trends = f"ohtansh01 {'(Pitcher)' if self.pitcher_override else '(Hitter)'}"
+        else:
+            self.baseball_ref_id_used_for_trends = self.baseball_ref_id
+
 # ------------------------------------------------------------------------
 # SCRAPE WEBSITES
 
