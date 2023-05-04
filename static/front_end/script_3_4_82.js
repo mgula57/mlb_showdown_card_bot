@@ -22,6 +22,7 @@ function validate_form(ignoreAlert) {
     }
     return true;
 }
+
 // UPLOADING IMAGE
 function uploadImageFile() {
     var image_data = $('#img_upload').prop('files')[0];
@@ -164,7 +165,15 @@ function createRadarChart(data) {
 function createTrendsChart(data) {
     // SHOW CONTAINER
     $("#trend_container").show();
-
+    if (data.trends_diff > 0) {
+        $("#player_trend_up_arrow").show();
+    } else if (data.trends_diff < 0) {
+        $("#player_trend_down_arrow").show();
+    } else {
+        $("#player_trend_down_arrow").hide();
+        $("#player_trend_up_arrow").hide();
+    }
+    
     // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
     let chartStatus = Chart.getChart("playerTrends");
     if (chartStatus != undefined) {

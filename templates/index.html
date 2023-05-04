@@ -40,8 +40,14 @@
             <div class="col-md-8">
                   <!-- TABS -->
                   <div class="tabs">
-                     <button class="tabs_button" data-for-tab="create">Create</button>
-                     <button class="tabs_button" data-for-tab="explore">Explore</button>
+                     <button class="tabs_button" data-for-tab="create">
+                        <i class="fa-solid fa-baseball"></i>
+                        Create
+                     </button>
+                     <button class="tabs_button" data-for-tab="explore">
+                        <i class="fa-solid fa-chart-simple"></i>
+                        Explore
+                     </button>
                      <div class="form-check form-switch" style="margin-left: auto; margin-top: auto; margin-bottom: auto;">                        
                         <input class="form-check-input" type="checkbox" id="dark_theme_toggle" onchange="toggleTheme(this)">
                         <label class="form-check-label" for="dark_theme_toggle" id="darkThemeToggleLabel">Dark Theme</label>
@@ -267,8 +273,10 @@
                            <!-- OUTPUT  -->
                            <div class="output_container">
                               <!-- PLAYER NAME -->
-                              <div class="d-flex justify-content-center">
+                              <div class="d-flex justify-content-center" id="player_name_container">
                                  <h2 id="player_name" class="player_name_light"></h2>
+                                 <i id="player_trend_up_arrow" class="fa-solid fa-arrow-trend-up fa-2xl" data-toggle="tooltip" data-placement="top" title="This player's Showdown PTS has been trending up recently. See the PTS Trend graph below for more."></i>
+                                 <i id="player_trend_down_arrow" class="fa-solid fa-arrow-trend-down fa-2xl" data-toggle="tooltip" data-placement="top" title="This player's Showdown PTS has been trending down recently. See the PTS Trend graph below for more."></i>
                               </div>
                               <!-- PLAYER NAME AND HYPERLINK -->
                               <div class="d-flex justify-content-center">

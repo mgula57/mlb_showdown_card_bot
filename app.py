@@ -287,9 +287,10 @@ def card_creator():
         shOPS_plus = showdown.projected['onbase_plus_slugging_plus'] if 'onbase_plus_slugging_plus' in showdown.projected else None
         name = player_name if is_random else name # LOG ACTUAL NAME IF IS RANDOMIZED PLAYER
 
-        # IF TRENDS DATA EXISTS, CHECK IF CURRENT DAYS DATA IS INCLUDED. 
-        # IF NOT, INCLUDE DATA FROM CARD GENERATED ABOVE
+        trends_diff = 0
         if trends_data:
+            # IF TRENDS DATA EXISTS, CHECK IF CURRENT DAYS DATA IS INCLUDED. 
+            # IF NOT, INCLUDE DATA FROM CARD GENERATED ABOVE
             current_date = datetime.now().strftime('%m-%d-%Y')
             if current_date not in trends_data.keys():
                 player_data = showdown.__dict__
@@ -297,6 +298,13 @@ def card_creator():
                 reduced_player_data = {key: player_data[key] for key in included_keys}
                 reduced_player_data['chart'] = {key: reduced_player_data['chart'][key] for key in ['command','outs']}
                 trends_data[current_date] = reduced_player_data
+            # SEE IF THE PLAYER WENT UP OR DOWN DAY OVER DAY
+            dates_list = list(trends_data.keys())
+            dates_list.sort(reverse=True)
+            if len(dates_list) > 1:
+                latest_pts = trends_data[dates_list[0]]['points']
+                last_pts = trends_data[dates_list[1]]['points']
+                trends_diff = latest_pts - last_pts
         
         # PARSE ERRORS AND SEND OUTPUT TO LOGS
         error = showdown.img_loading_error[:250] if showdown.img_loading_error else ''
@@ -345,6 +353,7 @@ def card_creator():
             radar_color=radar_color,
             shOPS_plus=shOPS_plus,
             trends_data=trends_data,
+            trends_diff=trends_diff
         )
 
     except Exception as e:
@@ -370,7 +379,8 @@ def card_creator():
             add_year_container=add_year_container,
             ignore_showdown_library=ignore_showdown_library,
             set_year_plus_one=set_year_plus_one,
-            edition=edition
+            edition=edition,
+            hide_team_logo=hide_team_logo
         )
         return jsonify(
             image_path=None,
@@ -392,6 +402,7 @@ def card_creator():
             radar_color=None,
             shOPS_plus=None,
             trends_data=None,
+            trends_diff=0
         )
 
 @app.route('/upload', methods=["POST","GET"])

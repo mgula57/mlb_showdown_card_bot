@@ -226,7 +226,6 @@
 .player_name_light {
     color: black;
     padding: 0px; 
-    padding-top: 20px; 
     margin: 0px; 
     font-weight: bolder; 
     font-family: Helvetica Neue;
@@ -234,7 +233,6 @@
 .player_name_dark {
     color: gray;
     padding: 0px; 
-    padding-top: 20px; 
     margin: 0px; 
     font-weight: bolder; 
     font-family: "Helvetica Neue";
@@ -256,6 +254,27 @@
     margin: 2px;
     font-weight: bolder;
     color: gray;
+}
+#player_name_container {
+    padding-top: 20px;
+}
+#player_trend_up_arrow {
+    color: green;
+    padding: 15px;
+    margin: 0px;
+    display: none;
+}
+#player_trend_down_arrow {
+    color: red;
+    padding: 15px;
+    margin: 0px; 
+    display: none;
+}
+i.fa {
+    line-height: inherit;
+}
+.fa-2x {
+    vertical-align: middle;
 }
 
 /* SWITCHES */
