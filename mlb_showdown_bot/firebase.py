@@ -31,7 +31,7 @@ class Firebase:
         self.version = __version__
         self.version_json_safe = '-'.join(__version__.split('.')[:2])
         self.destination_card_output = 'card_output'
-        self.trends_full_stats_subcollection_name = 'full_data'
+        self.trends_full_data_subcollection_name = 'full_data'
         self.json_safe_replacements_dict = {
             'LF/RF': 'LF-RF',
             'GO/AO': 'GO-AO',
@@ -144,10 +144,10 @@ class Firebase:
             if remove_existing:
                 ref.delete()
             ref.set(player_dict_final)
-        elif destination == 'firestore' and date:
+        elif destination == 'firestore' and date is not None:
             firestore_db = firestore.client()
             trends_ref = firestore_db.collection(f'trends_{year}_{context}')
-            for bref_id, player_data in player_dict_final.items():
+            for bref_id, player_data in data.items():
                 trends_ref.document(bref_id).collection(self.trends_full_data_subcollection_name).document(date).set(player_data['stats'], merge=True)
 
     def download_all_data(self) -> dict:
@@ -190,10 +190,8 @@ class Firebase:
             ref = ref.collection(sub_collection).document(sub_document)
         doc = ref.get()
         if doc.exists:
-            print("DOC EXISTS")
             return doc.to_dict()
         else:
-            print("DOC DOESN'T EXIST", collection, document, sub_collection, sub_document)
             return None
 
 # ------------------------------------------------------------------------
