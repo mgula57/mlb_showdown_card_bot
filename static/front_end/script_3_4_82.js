@@ -167,8 +167,10 @@ function createTrendsChart(data) {
     $("#trend_container").show();
     if (data.trends_diff > 0) {
         $("#player_trend_up_arrow").show();
+        $("#player_trend_down_arrow").hide();
     } else if (data.trends_diff < 0) {
         $("#player_trend_down_arrow").show();
+        $("#player_trend_up_arrow").hide();
     } else {
         $("#player_trend_down_arrow").hide();
         $("#player_trend_up_arrow").hide();
@@ -226,6 +228,12 @@ function createTrendsChart(data) {
                 min: 0,
                 max: Math.max(...yValues) + 200
               }
+            },
+            elements:{
+                point:{
+                    borderWidth: 0,
+                    backgroundColor: 'rgba(0,0,0,0)'
+                }
             }
           }
     });

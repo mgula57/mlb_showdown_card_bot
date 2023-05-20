@@ -29,6 +29,8 @@ class BaseballReferenceScraper:
         is_full_career = year.upper() == 'CAREER'
         if is_full_career:
             year = 'CAREER'
+        elif '(' in year:
+            year = int(year[:4])
         elif '-' in year:
             # RANGE OF YEARS
             years = year.split('-')

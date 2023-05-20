@@ -52,8 +52,9 @@ class CardLog(db.Model):
     set_year_plus_one = db.Column(db.Boolean)
     edition = db.Column(db.String(64))
     hide_team_logo = db.Column(db.Boolean)
+    date_override = db.Column(db.String(256))
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -82,8 +83,9 @@ class CardLog(db.Model):
         self.set_year_plus_one = set_year_plus_one
         self.edition = edition
         self.hide_team_logo = hide_team_logo
+        self.date_override = date_override
 
-def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo):
+def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -112,7 +114,8 @@ def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansi
             ignore_showdown_library=ignore_showdown_library,
             set_year_plus_one=set_year_plus_one,
             edition=edition,
-            hide_team_logo=hide_team_logo
+            hide_team_logo=hide_team_logo,
+            date_override=date_override
         )
         db.session.add(card_log)
         db.session.commit()
@@ -154,12 +157,18 @@ def card_creator():
     set_year_plus_one = None
     hide_team_logo = None
     edition = None
+    date_override = None
 
     try:
         # PARSE INPUTS
         error = 'Input Error. Please Try Again'
         name = request.args.get('name').title()
         year = str(request.args.get('year'))
+        if ' (' in year and ')' in year:
+            month, day = year.split('(')[1].split(')')[0].split('/')
+            year = year.split(' ')[0]
+            date_override = f'{month.zfill(2)}-{day.zfill(2)}-{year}'
+        print(f"DT {date_override}")
         set = str(request.args.get('set')).upper()
         url = request.args.get('url')
         try:
@@ -202,13 +211,17 @@ def card_creator():
         hide_team_logo = hide_team if hide_team else False
         ignore_showdown_library = ignore_sl if ignore_sl else False
         trends_data = None
+        statline = None
 
         # CREATE CARD
         error = "Error - Unable to create Showdown Card data."
 
         try:
             db = Firebase()
-            trends_data = db.query_firestore(f'trends_{year}_{set}', document=scraper.baseball_ref_id_used_for_trends)
+            trends_collection_name = f'trends_{year}_{set}'
+            trends_data = db.query_firestore(trends_collection_name, document=scraper.baseball_ref_id_used_for_trends)
+            if date_override:
+                statline = db.query_firestore(trends_collection_name, document=scraper.baseball_ref_id_used_for_trends, sub_collection=db.trends_full_stats_subcollection_name, sub_document=date_override)
             showdown = db.load_showdown_card(
                 ignore_showdown_library=ignore_showdown_library,
                 bref_id = scraper.baseball_ref_id,
@@ -229,18 +242,22 @@ def card_creator():
                 pitcher_override=scraper.pitcher_override,
                 hitter_override=scraper.hitter_override,
                 hide_team_logo=hide_team_logo,
+                date_override=date_override,
                 is_running_in_flask=True
             )
             db.close_session()
         except:
             showdown = None
+        print("STATLINE ---")
+        print(statline)
             
         if showdown:
             is_stats_loaded_from_library = True
         else:
             is_stats_loaded_from_library = False
             error = 'Error loading player data. Make sure the player name and year are correct'
-            statline = scraper.player_statline()
+            if statline is None:
+                statline = scraper.player_statline()
             showdown = ShowdownPlayerCardGenerator(
                 name=name,
                 year=year,
@@ -259,6 +276,7 @@ def card_creator():
                 add_year_container=add_year_container,
                 set_year_plus_one=set_year_plus_one,
                 hide_team_logo=hide_team_logo,
+                date_override=date_override,
                 is_running_in_flask=True
             )
         error = "Error - Unable to create Showdown Card Image."
@@ -331,7 +349,8 @@ def card_creator():
             ignore_showdown_library=ignore_showdown_library,
             set_year_plus_one=set_year_plus_one,
             edition=edition,
-            hide_team_logo=hide_team_logo
+            hide_team_logo=hide_team_logo,
+            date_override=date_override
         )
         return jsonify(
             image_path=card_image_path,
@@ -380,7 +399,8 @@ def card_creator():
             ignore_showdown_library=ignore_showdown_library,
             set_year_plus_one=set_year_plus_one,
             edition=edition,
-            hide_team_logo=hide_team_logo
+            hide_team_logo=hide_team_logo,
+            date_override=date_override
         )
         return jsonify(
             image_path=None,

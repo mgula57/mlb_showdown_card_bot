@@ -31,6 +31,7 @@ class Firebase:
         self.version = __version__
         self.version_json_safe = '-'.join(__version__.split('.')[:2])
         self.destination_card_output = 'card_output'
+        self.trends_full_stats_subcollection_name = 'full_data'
         self.json_safe_replacements_dict = {
             'LF/RF': 'LF-RF',
             'GO/AO': 'GO-AO',
@@ -112,7 +113,7 @@ class Firebase:
         data = ref.get()
         return data
 
-    def upload(self, context: str, year: str, expansion: str, data: dict, remove_existing=True):
+    def upload(self, context: str, year: str, expansion: str, data: dict, remove_existing:bool = True, destination:str = 'realtime', date:str = None):
         """Clean and upload data to firebase.
 
         Args:
@@ -122,6 +123,8 @@ class Firebase:
           data: Dictionary with player data for upload. 
                 Key = player ID, value = player data dictionary
           remove_existing: Optionally remove existing context + year data
+          destination: 'realtime' publishes to the realtime database, 'firestore' publishes to a subcollection for trends data.
+          date: Used as index for trends full data uploads.
 
         Returns:
           None
@@ -135,11 +138,17 @@ class Firebase:
         # MAKE DICT JSON COMPLIANT
         player_dict_final = self.__clean_data_for_json_upload(data)
 
-        # SAVE TO DATABASE        
-        ref = db.reference(f"/{self.destination_card_output}/{self.version_json_safe}/{context}/{year}/{expansion}")
-        if remove_existing:
-            ref.delete()
-        ref.set(player_dict_final)
+        if destination == 'realtime':
+            # SAVE TO REALTIME DATABASE        
+            ref = db.reference(f"/{self.destination_card_output}/{self.version_json_safe}/{context}/{year}/{expansion}")
+            if remove_existing:
+                ref.delete()
+            ref.set(player_dict_final)
+        elif destination == 'firestore' and date:
+            firestore_db = firestore.client()
+            trends_ref = firestore_db.collection(f'trends_{year}_{context}')
+            for bref_id, player_data in player_dict_final.items():
+                trends_ref.document(bref_id).collection(self.trends_full_data_subcollection_name).document(date).set(player_data['stats'], merge=True)
 
     def download_all_data(self) -> dict:
         """Download all data from Showdown Library
@@ -162,7 +171,7 @@ class Firebase:
         data = ref.get()
         return data
 
-    def query_firestore(self, collection, document) -> dict:
+    def query_firestore(self, collection, document, sub_collection: str = None, sub_document: str = None) -> dict:
         """Query firestore and return a specific document
 
         Args:
@@ -176,17 +185,22 @@ class Firebase:
         db = firestore.client()
 
         # UPLOAD CARDS
-        doc = db.collection(collection).document(document).get()
+        ref = db.collection(collection).document(document)
+        if sub_collection and sub_document:
+            ref = ref.collection(sub_collection).document(sub_document)
+        doc = ref.get()
         if doc.exists:
+            print("DOC EXISTS")
             return doc.to_dict()
         else:
+            print("DOC DOESN'T EXIST", collection, document, sub_collection, sub_document)
             return None
 
 # ------------------------------------------------------------------------
 # PARSING
 # ------------------------------------------------------------------------
 
-    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, is_running_in_flask) -> ShowdownPlayerCardGenerator:
+    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, date_override, is_running_in_flask) -> ShowdownPlayerCardGenerator:
         """Load cached player showdown data from database.
 
         Args:
@@ -257,6 +271,7 @@ class Firebase:
             is_variable_speed_00_01=is_variable_speed_00_01,
             is_foil=is_foil,
             set_year_plus_one=set_year_plus_one,
+            date_override=date_override,
             is_running_in_flask=is_running_in_flask,
             source='Showdown Library'
         )
