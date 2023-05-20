@@ -168,7 +168,6 @@ def card_creator():
             month, day = year.split('(')[1].split(')')[0].split('/')
             year = year.split(' ')[0]
             date_override = f'{month.zfill(2)}-{day.zfill(2)}-{year}'
-        print(f"DT {date_override}")
         set = str(request.args.get('set')).upper()
         url = request.args.get('url')
         try:
@@ -222,6 +221,8 @@ def card_creator():
             trends_data = db.query_firestore(trends_collection_name, document=scraper.baseball_ref_id_used_for_trends)
             if date_override:
                 statline = db.query_firestore(trends_collection_name, document=scraper.baseball_ref_id_used_for_trends, sub_collection=db.trends_full_stats_subcollection_name, sub_document=date_override)
+                if statline is None:
+                    date_override = None
             showdown = db.load_showdown_card(
                 ignore_showdown_library=ignore_showdown_library,
                 bref_id = scraper.baseball_ref_id,
@@ -248,8 +249,6 @@ def card_creator():
             db.close_session()
         except:
             showdown = None
-        print("STATLINE ---")
-        print(statline)
             
         if showdown:
             is_stats_loaded_from_library = True
