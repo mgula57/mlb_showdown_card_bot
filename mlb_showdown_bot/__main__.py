@@ -68,6 +68,7 @@ def main():
         pitcher_override = scraper.pitcher_override,
         hitter_override = scraper.hitter_override,
         hide_team_logo=args.hide_team_logo,
+        date_override=None,
         is_running_in_flask=False
     )
     db.close_session()
