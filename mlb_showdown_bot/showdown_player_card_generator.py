@@ -12,12 +12,9 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 from pathlib import Path
 from io import BytesIO
-from datetime import datetime, date
-from bs4 import BeautifulSoup
-from pprint import pprint
-from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter
-from urllib.request import urlopen, Request
-from time import sleep
+from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from prettytable import PrettyTable
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
@@ -30,7 +27,7 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, hide_team_logo=False, date_override=None, is_running_in_flask=False, source='Baseball Reference'):
+    def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, hide_team_logo=False, date_override=None, era=sc.ERA_STEROID, is_running_in_flask=False, source='Baseball Reference'):
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -79,6 +76,7 @@ class ShowdownPlayerCardGenerator:
             except:
                 print("ERROR COMBINING BB AND HBP")
         self.edition = sc.Edition(edition)
+        self.era = era
         self.nationality = stats['nationality'] if 'nationality' in stats.keys() else None
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
@@ -796,10 +794,10 @@ class ShowdownPlayerCardGenerator:
           Dict object with onbase, control, pitcher outs, hitter outs
         """
 
-        onbase_baseline = sc.BASELINE_HITTER[self.context]['command'] if self.test_numbers is None else self.test_numbers[0]
-        hitter_outs_baseline = sc.BASELINE_HITTER[self.context]['outs'] if self.test_numbers is None else self.test_numbers[1]
-        control_baseline = sc.BASELINE_PITCHER[self.context]['command'] if self.test_numbers is None else self.test_numbers[0]
-        pitcher_outs_baseline = sc.BASELINE_PITCHER[self.context]['outs'] if self.test_numbers is None else self.test_numbers[1]
+        onbase_baseline = sc.BASELINE_HITTER[self.context][self.era]['command'] if self.test_numbers is None else self.test_numbers[0]
+        hitter_outs_baseline = sc.BASELINE_HITTER[self.context][self.era]['outs'] if self.test_numbers is None else self.test_numbers[1]
+        control_baseline = sc.BASELINE_PITCHER[self.context][self.era]['command'] if self.test_numbers is None else self.test_numbers[0]
+        pitcher_outs_baseline = sc.BASELINE_PITCHER[self.context][self.era]['outs'] if self.test_numbers is None else self.test_numbers[1]
 
         return {
             'onbase': playercommand if not self.is_pitcher else onbase_baseline,
@@ -823,11 +821,11 @@ class ShowdownPlayerCardGenerator:
         """
 
         if not self.is_pitcher:
-            opponent_chart = sc.BASELINE_PITCHER[self.context]
+            opponent_chart = sc.BASELINE_PITCHER[self.context][self.era]
             my_advantages_per_20 = command-self.__onbase_control_outs()['control']
             opponent_advantages_per_20 = 20 - my_advantages_per_20
         else:
-            opponent_chart = sc.BASELINE_HITTER[self.context]
+            opponent_chart = sc.BASELINE_HITTER[self.context][self.era]
             opponent_advantages_per_20 = self.__onbase_control_outs()['onbase']-command
             my_advantages_per_20 = 20 - opponent_advantages_per_20
 
@@ -925,7 +923,7 @@ class ShowdownPlayerCardGenerator:
                 if self.is_pitcher and key == 'hr' and chart_results < 1.0:
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
                     chart_results_decimal = chart_results % 1
-                    rounded_results = round(chart_results) if chart_results_decimal > sc.HR_ROUNDING_CUTOFF[self.context] else math.floor(chart_results)
+                    rounded_results = round(chart_results) if chart_results_decimal > sc.HR_ROUNDING_CUTOFF[self.context][self.era] else math.floor(chart_results)
                 else:                    
                     rounded_results = round(chart_results)
                 # PITCHERS SHOULD ALWAYS GET 0 FOR 3B
@@ -997,7 +995,7 @@ class ShowdownPlayerCardGenerator:
             # MULTIPLIERS SERVE TO CORRECT TOWARDS WOTC
             # REPLACE HAVING DEFAULT FOR OPPONENT CHART
             type = 'pitcher' if self.is_pitcher else 'hitter'
-            gb_multi = sc.GB_MULTIPLIER[type][self.context]
+            gb_multi = sc.GB_MULTIPLIER[type][self.context][self.era]
             # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
             gb_outs = round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multi)
             air_outs = out_slots_remaining - gb_outs
@@ -1916,12 +1914,12 @@ class ShowdownPlayerCardGenerator:
 # ------------------------------------------------------------------------
 # OUTPUT PLAYER METHODS
 
-    def print_player(self):
+    def print_player(self) -> None:
         """Prints out self in readable format.
            Prints out the following:
             - Player Metadata
             - Player Chart
-            - Predicted Real Life Stats
+            - Projected Real Life Stats
 
         Args:
           None
@@ -1930,117 +1928,91 @@ class ShowdownPlayerCardGenerator:
           String of output text for player info + stats
         """
 
+        # ----- NAME AND SET  ----- #
+        set = self.context.replace('2022-','')
+        print("----------------------------------------")
+        print(f"{self.name} ({self.year})")
+        print("----------------------------------------")
+        print(f"Team: {self.team}")
+        print(f"Set: {set} {self.expansion} (v{self.version})")
+        print(f"Era: {self.era.title()}")
+        print(f"Source: {self.source}")
+
+        # ----- POSITION AND ICONS  ----- #
+
         # POSITION
         positions_string = ''
         for position,fielding in self.positions_and_defense.items():
-            positions_string += f'{position} {"" if fielding < 0 else "+"}{fielding}   ' if not self.is_pitcher else position
-
+            positions_string += f'{position}{"" if fielding < 0 else "+"}{fielding} ' if not self.is_pitcher else position
         # IP / SPEED
         ip_or_speed = 'Speed {} ({})'.format(self.speed_letter,self.speed) if not self.is_pitcher else '{} IP'.format(self.ip)
-
         # ICON(S)
         icon_string = ''
-        for icon in self.icons:
-            icon_string += '{}  '.format(icon)
+        for index, icon in enumerate(self.icons):
+            icon_string += f"{'|' if index == 0 else ''} {icon} "
 
-        # CHART
-        chart_string = ''
-        for category in self.__chart_categories():
-            range = self.chart_ranges['{} Range'.format(category)]
-            chart_string += '{}: {}\n'.format(category.upper(), range)
+        print(f"\n{self.points} PTS | {positions_string}| {ip_or_speed} | {icon_string}")
 
-        # SLASH LINE
-        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS')]
-        slash_as_string = ''
-        for key, cleaned_category in slash_categories:
-            real_stat_str = str(round(self.stats[key],3)).replace('0.','.') if len(str(self.stats[key])) > 0 else '-'
-            projected_stat_str = str(round(self.projected[key],3)).replace('0.','.') if len(str(self.projected[key])) > 0 else '-'
-            showdown_stat_str = f'{cleaned_category}: {projected_stat_str}'
-            real_stat_str = f'{cleaned_category}: {real_stat_str}'
-            slash_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str,real_stat_str)
-        
-        # shOPS+
-        shOPS_plus = str(self.projected['onbase_plus_slugging_plus']) if 'onbase_plus_slugging_plus' in self.projected.keys() else 'N/A'
+        print(f"{self.chart['command']} {'CONTROL' if self.is_pitcher else 'ONBASE'}")
 
-        # RESULT LINE
+        chart_columns = self.__chart_categories()
+        chart_ranges = [self.chart_ranges[f'{category} Range'] for category in chart_columns]
+        chart_tbl = PrettyTable(field_names=[col.upper() for col in chart_columns])
+        chart_tbl.add_row(chart_ranges)
+
+        print("\nCHART")
+        print(chart_tbl)
+
+        stat_categories_dict = {
+            'BA': 'batting_avg',
+            'OBP': 'onbase_perc',
+            'SLG': 'slugging_perc',
+            'OPS': 'onbase_plus_slugging',
+            'OPS+': 'onbase_plus_slugging_plus',
+            'PA': 'PA',
+            '1B': '1b_per_650_pa',
+            '2B': '2b_per_650_pa',
+            '3B': '3b_per_650_pa',
+            'HR': 'hr_per_650_pa',
+            'BB': 'bb_per_650_pa',
+            'SO': 'so_per_650_pa',
+        }
+
+        statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))
+        slash_categories = ['batting_avg','onbase_perc','slugging_perc','onbase_plus_slugging']
+        final_dict = {
+            'projected': [],
+            'stats': [],
+        }
         real_life_pa = int(self.stats['PA'])
         real_life_pa_ratio = int(self.stats['PA']) / 650.0
-        results_as_string = '{:<12}{:>12}\n'.format(' PA: {}'.format(real_life_pa),' PA: {:>4}'.format(real_life_pa))
-        result_categories = [
-            ('1b_per_650_pa', '1B'),
-            ('2b_per_650_pa', '2B'),
-            ('3b_per_650_pa', '3B'),
-            ('hr_per_650_pa', 'HR'),
-            ('bb_per_650_pa', 'BB'),
-            ('so_per_650_pa', 'SO')
-        ]
-        for key, cleaned_category in result_categories:
-            showdown_stat_str = ' {}: {}'.format(cleaned_category,int(round(self.projected[key]) * real_life_pa_ratio))
-            projected_stat_str = ' {}: {:>4}'.format(cleaned_category,int(self.stats[cleaned_category]))
-            results_as_string += '{:<12}{:>12}\n'.format(showdown_stat_str, projected_stat_str)
+        all_numeric_value_lists = []
+        for source in final_dict.keys():
+            source_dict = getattr(self, source)
+            src_value_name = source.replace('stats', 'real').upper()
+            values = [src_value_name]
+            numeric_values = []
+            for abbr, full_name in stat_categories_dict.items():
+                key = full_name if source == 'projected' or full_name in slash_categories else abbr
+                multiplier = real_life_pa_ratio if 'per_650_pa' in key else 1.0
+                stat_raw = ( ( source_dict.get(key, 0) or 0 ) * multiplier ) if abbr != 'PA' else real_life_pa
+                stat_raw_cleaned = round(stat_raw, 3) if full_name in slash_categories else int(stat_raw)
+                stat_str = str(stat_raw_cleaned).replace('0.', '.') if stat_raw_cleaned != 0 else '-'
+                values.append(stat_str)
+                numeric_values.append(stat_raw_cleaned)
+            final_dict[source] = values
+            all_numeric_value_lists.append(numeric_values)
+        
+        # ADD ROWS
+        for source, values in final_dict.items():
+            statline_tbl.add_row(values, divider=source == 'stats')
+        
+        # ADD DIFFS ROW
+        diffs_row = ['DIFF'] + [round(all_numeric_value_lists[0][i] - all_numeric_value_lists[1][i], 3 if i < 4 else 0) for i in range(len(all_numeric_value_lists[0]))]
+        statline_tbl.add_row(diffs_row)
 
-        # DISPLAY INDIVIDUAL PT CATEGORIES
-        pt_category_string = f'OBP:{round(self.obp_points,1)}  BA:{round(self.ba_points,1)}  SLG:{round(self.slg_points,1)}  SPD/IP:{round(self.spd_ip_points,1)}'
-        if self.points_bonus > 0:
-            pt_category_string += f"  BONUS:{round(self.points_bonus,1)}"
-        if self.icon_points != 0:
-            pt_category_string += f"  ICONS:{round(self.icon_points,1)}"
-        if not self.is_pitcher:
-            pt_category_string += f'  HR:{round(self.hr_points,1)}  DEF:{round(self.defense_points,1)}'
-        else:
-            pt_category_string += f"  OUT_DIST: {round(self.out_dist_points,1)}"
-        if self.points_normalizer < 1.0:
-            pt_category_string += f"  NORMALIZER: {round(self.points_normalizer,1)}"
-        # NOT USING DOCSTRING FOR FORMATTING REASONS
-        card_as_string = (
-            '***********************************************\n' +
-            '{name} ({year}) ({team}) ({nationality})\n' +
-            '{context} {expansion} Card\n' +
-            'Showdown Bot v{version}\n' +
-            'Data Loaded from {source}\n' +
-            '\n' +
-            '{positions}\n' +
-            '{hand}\n' +
-            '{ip_or_speed}\n' +
-            '{icons}\n' +
-            '{points} PT.\n' +
-            '{pts_per_category}\n' +
-            'shOPS+: {shOPS_plus}\n' +
-            '\n' +
-            '{command_header}: {command}\n' +
-            '{chart}\n' +
-            '\n' +
-            'Statline\n' +
-            '\n' +
-            'Showdown            Real\n' +
-            '----------     ---------\n' +
-            '{slash_line}\n' +
-            '{results}\n' +
-            '***********************************************'
-        ).format(
-            name = self.name,
-            year = self.year,
-            team = self.team,
-            nationality = self.nationality if self.nationality else 'N/A',
-            version = self.version,
-            source = self.source,
-            context = self.context,
-            expansion = self.expansion,
-            positions = positions_string,
-            hand = self.hand,
-            ip_or_speed = ip_or_speed,
-            icons = icon_string,
-            points = str(self.points),
-            pts_per_category = pt_category_string,
-            shOPS_plus = shOPS_plus,
-            command_header = 'CONTROL' if self.is_pitcher else 'ONBASE',
-            command=self.chart['command'],
-            chart = chart_string,
-            slash_line = slash_as_string,
-            results = results_as_string
-        )
-        print(card_as_string)
-        return card_as_string
+        print('\nPROJECTED STATS')
+        print(statline_tbl)
 
     def player_data_for_html_table(self):
         """ Provides data needed to populate the statline shown on the

@@ -57,7 +57,6 @@ class Firebase:
         FIREBASE_URL_STR = os.getenv('FIREBASE_URL')
         if not FIREBASE_CREDS_STR or not FIREBASE_URL_STR:
             # IF NO CREDS, RETURN NONE
-            print("CREDS NOT AVAILABLE")
             return None
 
         # CREDS ENV FOUND, PROCEED
