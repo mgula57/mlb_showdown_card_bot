@@ -1951,7 +1951,7 @@ class ShowdownPlayerCardGenerator:
         for index, icon in enumerate(self.icons):
             icon_string += f"{'|' if index == 0 else ''} {icon} "
 
-        print(f"\n{self.points} PTS | {positions_string}| {ip_or_speed} | {icon_string}")
+        print(f"\n{self.points} PTS | {positions_string}| {ip_or_speed} {icon_string}")
 
         print(f"{self.chart['command']} {'CONTROL' if self.is_pitcher else 'ONBASE'}")
 

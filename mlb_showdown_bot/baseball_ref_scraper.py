@@ -219,6 +219,9 @@ class BaseballReferenceScraper:
             # NATIONALITY
             nationality = self.nationality(soup_for_homepage_stats=soup_for_homepage_stats)
 
+            # ROOKIE STATUS YEAR
+            rookie_status_year = self.rookie_status_year(soup_for_homepage_stats=soup_for_homepage_stats)
+
             # WAR
             stats_dict.update({'bWAR': self.__bWar(soup_for_homepage_stats, year, type)})
 
@@ -234,6 +237,8 @@ class BaseballReferenceScraper:
             stats_dict['name'] = name
             stats_dict['years_played'] = years_played
             stats_dict['nationality'] = nationality
+            stats_dict['rookie_status_year'] = rookie_status_year
+            stats_dict['is_rookie'] = False if is_full_career or self.is_multi_year or rookie_status_year is None else ( int(year) <= rookie_status_year )
             
             # HITTING / HITTING AGAINST
             advanced_stats = self.advanced_stats(type,year=year)
@@ -488,6 +493,37 @@ class BaseballReferenceScraper:
         # NO NATIONALITY WAS FOUND, RETURN NONE
         return None
     
+    def rookie_status_year(self, soup_for_homepage_stats) -> int:
+        """Parse the player's rookie status end year. Used for the "R" icon.
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats from homepage.
+
+        Returns:
+          Int for the last year of rookie eligibility for the player.
+        """
+
+        # FIND METADATA DIV
+        metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
+        if metadata is None:
+            return None
+
+        # FIND THE HAND TAG IN THE METADATA LIST
+        for strong_tag in metadata.find_all('strong'):
+            if strong_tag.text == 'Rookie Status:':
+                rookie_status_full_sentence = strong_tag.next_sibling.strip()
+                rookie_status_only_ints = re.sub("[^0-9]", "", rookie_status_full_sentence)
+                if len(rookie_status_only_ints) != 4:
+                    continue
+                try:
+                    rookie_status_year = int(rookie_status_only_ints)
+                    return rookie_status_year
+                except:
+                    continue
+
+        # NO ROOKIE STATUS WAS FOUND, RETURN NONE
+        return None
+    
     def type(self, positional_fielding, year):
         """Guess Player Type (Pitcher or Hitter) based on games played at each position.
 
@@ -740,11 +776,6 @@ class BaseballReferenceScraper:
         if team_id_key in advanced_stats.keys():
             if advanced_stats[team_id_key] == 'TOT':
                 advanced_stats[team_id_key] = self.__parse_team_after_trade(advanced_stats_soup=soup_for_advanced_stats,year=year)
-        
-        # ROOKIE ICON
-        if not is_full_career and not self.is_multi_year:
-            is_rookie_season = self.__is_rookie_season(table_prefix=table_prefix, advanced_stats_soup=soup_for_advanced_stats)
-            advanced_stats['is_rookie'] = is_rookie_season
 
         # FILL IN EMPTY STATS
         current_categories = advanced_stats.keys()
@@ -1257,23 +1288,6 @@ class BaseballReferenceScraper:
             return None
 
         return stat_list
-
-    def __is_rookie_season(self, table_prefix, advanced_stats_soup):
-        """Checks to see if the selected season is the player's rookie season
-        Args:
-          table_prefix: String for whether player is batter or pitcher
-          advanced_stats_soup: BeautifulSoup object for advanced stats table.
-        Returns:
-          TRUE or FALSE bool
-        """
-        try:
-            full_element_prefix = '{}_standard.'.format(table_prefix)
-            all_seasons_list = advanced_stats_soup.find_all('tr',attrs={'class':'full','id': re.compile(full_element_prefix)})
-            first_season = all_seasons_list[0].find('th',attrs={'class':'left','data-stat': 'year_ID'} )
-            year_of_first_season = str(first_season["csk"])
-            return year_of_first_season in self.years
-        except:
-            return False
 
     def __is_pitcher_from_1901_to_1918(self, year, type):
         """Checks to see if the player is a pitcher and the year is between 1901-1917.
