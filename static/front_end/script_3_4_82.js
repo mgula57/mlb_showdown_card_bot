@@ -91,6 +91,18 @@ function checkHideForRank(rankElement) {
     }
 }
 
+function changeImageSection(imageSelectObject) {
+    var selection = imageSelectObject.value;
+    for (const section of ['link', 'upload']) { 
+        console.log(section)
+        if (section == selection) {
+            $("#" + section).show();
+        } else {
+            $("#" + section).hide();
+        }
+    }
+}
+
 // THEME
 function toggleTheme(toggleElement) {
     if (toggleElement.checked) {
@@ -247,22 +259,31 @@ function setTheme(themeName) {
     // ALTER CONTAINERS
     containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "trend_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "rank_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
+        var element = document.getElementById(id);
+        if (element === null) {
+            continue;
+        }
         document.getElementById(id).className = (id + "_" + themeName);
     }
 
-    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "statsVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table","rank_table"]
+    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "chartVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table","rank_table", "eraSelection"]
     for (const id of form_inputs_to_alter) {
-        var current_name = document.getElementById(id).className
+        var element = document.getElementById(id);
+        if (element === null) {
+            continue;
+        }
+        var current_name = element.className
         const is_text_only = ["darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel"].includes(id)
         const is_table = ["stats_table", "points_table", "accuracy_table", "rank_table"].includes(id)
         const default_suffix = (is_text_only) ? 'text-muted' : 'bg-dark text-white';
         const suffix = (is_table) ? 'table-dark' : default_suffix;
+        
         if (is_dark) {
             if (current_name.includes(suffix) == false) {
-                document.getElementById(id).className = (current_name + ' ' + suffix);
+                element.className = (current_name + ' ' + suffix);
             }
         } else {
-            document.getElementById(id).className = current_name.replace(suffix,'');
+            element.className = current_name.replace(suffix,'');
         }
     }
     // IMAGES
@@ -533,15 +554,9 @@ $(function () {
                 image_name = files[0].name;
             }
 
-            // STATS ALTERNATES
-            const offsets = document.querySelectorAll('input[name="offset"]');
-            let selectedOffset;
-            for (const offset of offsets) {
-                if (offset.checked) {
-                    selectedOffset = offset.id.slice(-1);
-                    break;
-                }
-            }
+            // CHART ALTERNATES
+            var selectedOffset = $("#chartVersionSelection :selected").val();
+            var era = $("#eraSelection :selected").val();
 
             // EDITION
             var name = (is_random_card === true) ? '((RANDOM))' : $('input[name="name"]').val();
@@ -587,6 +602,7 @@ $(function () {
                 set_year_plus_one: set_year_plus_one,
                 hide_team_logo: hide_team_branding,
                 ignore_showdown_library: ignore_showdown_library,
+                era: era,
             }, function (data) {
                 showCardData(data)
             });

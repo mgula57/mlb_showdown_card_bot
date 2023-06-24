@@ -9,7 +9,7 @@ import json
 import statistics
 from googleapiclient.discovery import build
 from oauth2client.service_account import ServiceAccountCredentials
-
+from collections import Counter
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
@@ -76,7 +76,7 @@ class ShowdownPlayerCardGenerator:
             except:
                 print("ERROR COMBINING BB AND HBP")
         self.edition = sc.Edition(edition)
-        self.era = era
+        self.era = self.__dynamic_era() if era == "DYNAMIC" else era
         self.nationality = stats['nationality'] if 'nationality' in stats.keys() else None
         self.player_image_url = player_image_url
         self.player_image_path = player_image_path
@@ -725,6 +725,28 @@ class ShowdownPlayerCardGenerator:
 
         # RETURN STANDARD CUTOUT
         return hand_prefix
+
+    def __dynamic_era(self) -> str:
+        """Returns the era that best fits the player's season.
+        If multi-season, return the era with the most years in it.
+
+        Returns:
+            Era name string.
+        """
+
+        eras = []
+        for year in self.year_list:
+            for era, year_range in sc.ERA_YEAR_RANGE.items():
+                if year in year_range:
+                    eras.append(era)
+        
+        # FILTER TO MOST
+        most_common_era_tuples_list = Counter(eras).most_common(1)
+
+        if len(most_common_era_tuples_list) == 0:
+            return sc.ERA_STEROID
+        
+        return most_common_era_tuples_list[0][0]
 
 # ------------------------------------------------------------------------
 # COMMAND / OUTS METHODS

@@ -134,19 +134,42 @@
                                  <div class="form-group">
                                     <div class="row">
                                        <div class="col-md-6">
-                                          <label for="offset" style="color:Gray;"><b>Stats Version</b></label>
+                                          <label style="color:Gray;" for="eraSelection"> <b>Era</b> </label>
+                                          <img for="eraSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Eras determine the average opponent used to create the player's chart." >
+                                          <select id="eraSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                             {% set era_dict = {
+                                                "DYNAMIC": "Dynamic", "PRE 1900 ERA": "Pre-1900 (1800-1899)",
+                                                "DEAD BALL ERA": "Dead Ball (1900-1919)",
+                                                "LIVE BALL ERA": "Live Ball (1920-1941)",
+                                                "INTEGRATION ERA": "Integration (1942-1960)",
+                                                "EXPANSION ERA": "Expansion (1961-1976)",
+                                                "FREE AGENCY ERA": "Free Agency (1977-1993)",
+                                                "STEROID ERA": "Steroid (1994-2009)",
+                                                "POST STEROID ERA": "Post-Steroid (2010-2014)",
+                                                "STATCAST ERA": "Statcast (2015-PRES)",
+                                             } %}
+                                             {% for era_value, era in era_dict.items() -%}
+                                                <option value="{{era_value}}" {% if era_value == "DYNAMIC" %} selected="selected" {% endif %}>{{era}}</option>
+                                             {% endfor -%}
+                                          </select>
+                                       </div>
+                                       <div class="col-md-6">
+                                          <label for="chartVersionSelection" style="color:Gray;"><b>Chart Version</b></label>
                                           <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
-                                          <br>
-                                          <div class="btn-group" id="statsVersionSelection" role="group" aria-label="Basic radio toggle button group" style="padding-bottom: 10px;">
+                                          <select id="chartVersionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              {% for index in [1,2,3,4,5] -%}
                                                 {% set offsetName = "offset" ~ (index-1) %}
                                                 {% set checkedStr = "checked" if loop.first else "" %}
-                                                <input type="radio" class="btn-check" name="offset" id={{offsetName}} autocomplete="off" {{ checkedStr }}>
-                                                <label class="btn btn-outline-secondary" for={{offsetName}}>{{ index }}</label>
+                                                <option value={{ offsetName }} {% if index == 1 %} selected="selected" {% endif %}>{{ index }}</option>
                                              {% endfor %}
-                                          </div>
+                                          </select>
                                        </div>
-                                       <div class="col-md-6">
+                                    </div>   
+                                 </div>
+
+                                 <div class="form-group">
+                                    <div class="row">
+                                       <div class="col-md-12">
                                           <div>
                                              <label style="color:Gray;"><b>More Options</b></label>
                                              <select id="moreOptionsSelect" class="selectpicker" multiple title="(Optional)" data-style="btn-outline-secondary" data-width="100%">
@@ -162,24 +185,33 @@
                                                    <option value="VariableSpeed">Variable Speed ('00-'01)</option>
                                                    <option value="IgnoreShowdownLibrary">Ignore Showdown Library</option>
                                                 </optgroup>
-                                             </select>      
-                                          </div>                              
-                                       </div>
-                                    </div>   
+                                             </select>     
+                                          </div>
+                                       </div> 
+                                    </div>
                                  </div>
             
                                  <!-- IMAGES  -->
                                  <div class="form-group" style="padding-top: 10px;">
-                                    <label><b style="color:Gray;">Image</b><a style="color:Gray;"> (Optional)</a></label>
-                                    <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="If no image is selected, the bot will check for an available pre-built player image. If no image exists, the bot will display the default silhouette." >
                                     <div class="row">
+                                       <div class="col-md-12" >
+                                          <label style="color:Gray;"><b>Image</b></label>
+                                          <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="If you select auto or no link/upload is provided, the bot will check for a curated player image. If no image exists, the bot will display a default silhouette for the player's primary position." >
+                                          <select id="imageTypeSelection" class="form-select mb-3" aria-label=".form-select-lg example" onchange="changeImageSection(this)">
+                                             {% for type in ["Auto", "Link", "Upload"] -%}
+                                                <option value={{ type | lower }} {% if type == "Auto" %} selected="selected" {% endif %}>{{ type }}</option>
+                                             {% endfor -%}
+                                          </select>
+                                       </div>
+                                    </div>
+                                    
+                                    <div class="row" id="link" style="display: none;">
                                        <div class="col-md-12" >
                                           <input type="text" name="url" class="form-control" id="url" placeholder="Paste Link">
                                        </div>
                                     </div>   
-                                    <div class="row">
+                                    <div class="row" id="upload" style="display: none;">
                                        <div class="col-md-12">
-                                          <label for="img_upload" style="color:Gray;"> <i>Or</i></label>
                                           <input class="form-control" type="file" id="img_upload" accept="image/*">
                                        </div>
                                     </div>
