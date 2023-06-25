@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(description="Generate a player's MLB Showdown s
 parser.add_argument('-n','--name', help='The first and last name of the player',required=True)
 parser.add_argument('-y','--year', help='The year of the player',required=True)
 parser.add_argument('-c','--context',help='The showdown set meta to use (2000-2005)',default='2000')
-parser.add_argument('-e','--era',help='The baseball era to use.',default='STEROID ERA')
+parser.add_argument('-e','--era',help='The baseball era to use.',default='DYNAMIC')
 parser.add_argument('-o','--offset',help='Get alternate chart n away from most accurate',default=0)
 parser.add_argument('-url','--image_url',help='URL link to Player background image',default=None)
 parser.add_argument('-path','--image_path',help='Path to Player background image on local machine',default=None)
