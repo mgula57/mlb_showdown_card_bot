@@ -2412,7 +2412,7 @@ class ShowdownPlayerCardGenerator:
 
         # ADD HOLIDAY THEME
         if self.edition == sc.Edition.HOLIDAY:
-            holiday_image_path = os.path.join(os.path.dirname(__file__), 'templates', 'Holiday.png')
+            holiday_image_path = self.__template_img_path('Holiday')
             holiday_image = Image.open(holiday_image_path)
             player_image.paste(holiday_image,(0,0),holiday_image)
 
@@ -2457,7 +2457,7 @@ class ShowdownPlayerCardGenerator:
         # STYLE (IF APPLICABLE)
         if self.style != '':
             theme_suffix = '-DARK' if self.is_dark_mode else ''
-            style_img_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.style.upper()}{theme_suffix}.png')
+            style_img_path = self.__template_img_path(f'{self.style.upper()}{theme_suffix}')
             style_img = Image.open(style_img_path)
             player_image.paste(style_img,sc.IMAGE_LOCATIONS['style'][self.context_year],style_img)
 
@@ -2495,7 +2495,7 @@ class ShowdownPlayerCardGenerator:
         # BETA TAG
         # TO BE REMOVED AFTER TEST PERIOD
         # if self.context_year == '2022':
-        #     beta_img_path = os.path.join(os.path.dirname(__file__), 'templates', 'BETA.png')
+        #     beta_img_path = self.__template_img_path('BETA')
         #     beta_banner_image = Image.open(beta_img_path)
         #     player_image.paste(beta_banner_image,(0,0),beta_banner_image)
 
@@ -2578,7 +2578,7 @@ class ShowdownPlayerCardGenerator:
           Boolean for whether a background player image was applied
         """
         dark_mode_suffix = '-DARK' if self.is_dark_mode and self.context_year == '2022' else ''
-        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}{dark_mode_suffix}.png')
+        default_image_path = self.__template_img_path(f'Default Background - {self.context_year}{dark_mode_suffix}')
         is_default_image = False
         if self.player_image_path:
             # LOAD IMAGE FROM UPLOAD
@@ -2633,7 +2633,7 @@ class ShowdownPlayerCardGenerator:
         
         # GET TEAM BACKGROUND (00/01)
         dark_mode_suffix = '-DARK' if self.is_dark_mode and self.context_year == '2022' else ''
-        default_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'Default Background - {self.context_year}{dark_mode_suffix}.png')
+        default_image_path = self.__template_img_path(f'Default Background - {self.context_year}{dark_mode_suffix}')
         custom_image_path = default_image_path
         use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
         country_exists = False
@@ -2740,7 +2740,7 @@ class ShowdownPlayerCardGenerator:
         """
         # NOTE: 2004 and 2005 share image assets
         year = '2004' if self.context_year == '2005' else self.context_year
-        silhouetee_image_path = os.path.join(os.path.dirname(__file__), 'templates', f'{year}-SIL-{self.player_classification()}.png')
+        silhouetee_image_path = self.__template_img_path(f'{year}-SIL-{self.player_classification()}')
         return Image.open(silhouetee_image_path)
 
     def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=3,overlay_image_path=None):
@@ -2967,12 +2967,12 @@ class ShowdownPlayerCardGenerator:
                     self.img_loading_error = f"Country {self.nationality} not supported. Select a different Edition."
             else:
                 edition_extension = f'-{sc.TEMPLATE_COLOR_0405[type]}'
-            type_template = f'0405-{type}{edition_extension}.png'
-            template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
+            type_template = f'0405-{type}{edition_extension}'
+            template_image = Image.open(self.__template_img_path(type_template))
         else:
             dark_mode_extension = '-DARK' if self.context_year == '2022' and self.is_dark_mode else ''
-            type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}.png'
-            template_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', type_template))
+            type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}'
+            template_image = Image.open(self.__template_img_path(type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
         paste_location = sc.IMAGE_LOCATIONS['command'][self.context_year]
@@ -2983,7 +2983,7 @@ class ShowdownPlayerCardGenerator:
                 paste_location = (paste_location[0] + 15, paste_location[1])
 
             # ADD CHART ROUNDED RECT
-            container_img_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-ChartOutsContainer-{type}.png')
+            container_img_path = self.__template_img_path(f'{self.context_year}-ChartOutsContainer-{type}')
             container_img_black = Image.open(container_img_path)
             fill_color = self.__team_color_rgbs()
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
@@ -3000,7 +3000,7 @@ class ShowdownPlayerCardGenerator:
                     container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
             else:
                 container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
-            text_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-ChartOutsText-{type}.png'))
+            text_img = Image.open(self.__template_img_path(f'{self.context_year}-ChartOutsText-{type}'))
             template_image.paste(container_img, (0,0), container_img)
             template_image.paste(text_img, (0,0), text_img)
         else:
@@ -3009,7 +3009,7 @@ class ShowdownPlayerCardGenerator:
                 type = type,
                 command = str(self.chart['command'])
             )
-            command_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', command_image_name))
+            command_image = Image.open(self.__template_img_path(command_image_name))
             
         template_image.paste(command_image, paste_location, command_image)
 
@@ -3025,7 +3025,7 @@ class ShowdownPlayerCardGenerator:
                 mp = 'MULTI' if is_multi_position else 'SINGLE',
                 sl = 'LRG' if is_large_position_container else 'SML'
             )
-            positions_points_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', positions_points_template))
+            positions_points_image = Image.open(self.__template_img_path(positions_points_template))
             template_image.paste(positions_points_image, (0,0), positions_points_image)
 
         return template_image
@@ -3039,7 +3039,7 @@ class ShowdownPlayerCardGenerator:
         Returns:
           PIL image object for 2000 name background/container
         """
-        return Image.open(os.path.join(os.path.dirname(__file__), 'templates', "2000-Name.png"))
+        return Image.open(self.__template_img_path("2000-Name"))
 
     def __2000_player_set_container_image(self):
         """Gets template asset image for 2000 set box.
@@ -3050,7 +3050,7 @@ class ShowdownPlayerCardGenerator:
         Returns:
           PIL image object for 2000 set background/container
         """
-        return Image.open(os.path.join(os.path.dirname(__file__), 'templates', "2000-Set-Box.png"))
+        return Image.open(self.__template_img_path("2000-Set-Box"))
 
     def __player_name_text_image(self):
         """Creates Player name to match showdown context.
@@ -3095,7 +3095,7 @@ class ShowdownPlayerCardGenerator:
             name_color = "#D2D2D2"
             name_font_path = helvetica_neue_lt_93_path
             padding = 0
-            overlay_image_path = os.path.join(os.path.dirname(__file__), 'templates', '2000-Name-Text-Background.png')
+            overlay_image_path = self.__template_img_path('2000-Name-Text-Background')
         elif self.context == '2001':
             name_rotation = 90
             name_alignment = "left"
@@ -3103,7 +3103,7 @@ class ShowdownPlayerCardGenerator:
             name_color = "#D2D2D2"
             padding = 0
             name_font_path = futura_black_path
-            overlay_image_path = os.path.join(os.path.dirname(__file__), 'templates', '2001-Name-Text-Background.png')
+            overlay_image_path = self.__template_img_path('2001-Name-Text-Background')
         elif self.context == '2002':
             name_rotation = 90
             name_alignment = "left"
@@ -3507,7 +3507,7 @@ class ShowdownPlayerCardGenerator:
           PIL image object for card expansion logo.
         """ 
 
-        expansion_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{self.expansion}.png'))
+        expansion_image = Image.open(self.__template_img_path(f'{self.context_year}-{self.expansion}'))
         return expansion_image
 
     def __version_image(self):
@@ -3546,7 +3546,7 @@ class ShowdownPlayerCardGenerator:
         include_accolades = self.context_year not in ['2000','2001','2022']
 
         # BACKGROUND IMAGE LOGO
-        super_season_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-Super Season.png'))
+        super_season_image = Image.open(self.__template_img_path(f'{self.context_year}-Super Season'))
 
         # FONTS
         super_season_year_path = os.path.join(os.path.dirname(__file__), 'fonts', 'URW Corporate W01 Normal.ttf')
@@ -3704,7 +3704,7 @@ class ShowdownPlayerCardGenerator:
         """
 
         # BACKGROUND IMAGE LOGO
-        rookie_season_image = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-Rookie Season.png'))
+        rookie_season_image = Image.open(self.__template_img_path(f'{self.context_year}-Rookie Season'))
 
         # ADD YEAR
         first_year = str(min(self.year_list))
@@ -3745,7 +3745,7 @@ class ShowdownPlayerCardGenerator:
         for index, icon in enumerate(self.icons[0:4]):
             position = icon_positional_mapping[index]
             if int(self.context_year) < 2022:
-                icon_img_path = os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{icon}.png')
+                icon_img_path = self.__template_img_path(f'{self.context_year}-{icon}')
                 icon_image = Image.open(icon_img_path)
                 # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
                 # EX: 'LF/RF' IS LONGER STRING THAN '3B'
@@ -3859,7 +3859,7 @@ class ShowdownPlayerCardGenerator:
         images = []
         for i in range(1,24,1):
             image_updated = image.convert('RGBA')
-            foil_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'Foil-Animation-{i}.png')).convert('RGBA').resize((int(1488 / 2.75), int(2079 / 2.75)),Image.ANTIALIAS)
+            foil_img = Image.open(self.__template_img_path(f'Foil-Animation-{i}')).convert('RGBA').resize((int(1488 / 2.75), int(2079 / 2.75)),Image.ANTIALIAS)
             image_updated.paste(foil_img,(0,0),foil_img)
             images.append(image_updated)
 
@@ -3914,7 +3914,7 @@ class ShowdownPlayerCardGenerator:
         # BACKGROUND CONTAINER IMAGE
         img_type_suffix = 'Control' if self.is_pitcher else 'Onbase'
         dark_mode_suffix = '-DARK' if self.is_dark_mode else ''
-        background_img = Image.open(os.path.join(os.path.dirname(__file__), 'templates', f'{self.context_year}-{img_type_suffix}{dark_mode_suffix}.png'))
+        background_img = Image.open(self.__template_img_path(f'{self.context_year}-{img_type_suffix}{dark_mode_suffix}'))
         font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
         command = str(self.chart['command'])
         num_chars_command = len(command)
@@ -4141,7 +4141,7 @@ class ShowdownPlayerCardGenerator:
         """
 
         # LOAD CONTAINER
-        path = os.path.join(os.path.dirname(__file__), 'templates', "YEAR CONTAINER.png")
+        path = self.__template_img_path("YEAR CONTAINER")
         year_img = Image.open(path)
 
         # ADD TEXT
@@ -4162,6 +4162,18 @@ class ShowdownPlayerCardGenerator:
         year_img.paste("#272727", (4,13 + multi_year_y_adjustment), year_text)
 
         return year_img
+
+    def __template_img_path(self, img_name) -> str:
+        """ Produces full path string for the image.
+
+        Args:
+          img_name: Name of the image, excluding extension.
+
+        Returns:
+          string with full image path.
+        """
+
+        return os.path.join(os.path.dirname(__file__), 'templates', f'{img_name}.png')
 
 # ------------------------------------------------------------------------
 # IMAGE QUERIES
