@@ -2460,10 +2460,6 @@ class ShowdownPlayerCardGenerator:
             style_img_path = self.__template_img_path(f'{self.style.upper()}{theme_suffix}')
             style_img = Image.open(style_img_path)
             player_image.paste(style_img,sc.IMAGE_LOCATIONS['style'][self.context_year],style_img)
-
-        # BOT VERSION
-        version_image = self.__version_image()
-        player_image.paste("#b5b4b4", sc.IMAGE_LOCATIONS['version'][str(self.context_year)], version_image)
         
         # ICONS
         if self.has_icons:
@@ -2857,7 +2853,7 @@ class ShowdownPlayerCardGenerator:
         if is_cooperstown and is_04_05 and not is_all_star_game:
             cooperstown_logo = Image.new('RGBA', (logo_size[0] + 300, logo_size[1]))
             cooperstown_logo.paste(team_logo,(150,0),team_logo)
-            year_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'BaskervilleBoldItalicBT.ttf')
+            year_font_path = self.__font_path('BaskervilleBoldItalicBT')
             year_font = ImageFont.truetype(year_font_path, size=87)
             year_font_blurred = ImageFont.truetype(year_font_path, size=90)
             year_abbrev = f"’{self.year[2:4]}" if not self.is_multi_year else " "
@@ -3004,11 +3000,7 @@ class ShowdownPlayerCardGenerator:
             template_image.paste(container_img, (0,0), container_img)
             template_image.paste(text_img, (0,0), text_img)
         else:
-            command_image_name = '{context}-{type}-{command}.png'.format(
-                context = year,
-                type = type,
-                command = str(self.chart['command'])
-            )
+            command_image_name = f"{year}-{type}-{str(self.chart['command'])}"
             command_image = Image.open(self.__template_img_path(command_image_name))
             
         template_image.paste(command_image, paste_location, command_image)
@@ -3018,17 +3010,57 @@ class ShowdownPlayerCardGenerator:
             positions_list = list(self.positions_and_defense.keys())
             is_multi_position = len(positions_list) > 1
             is_large_position_container = 'LF/RF' in positions_list
-            positions_points_template = '{context}-{type}-{mp}-{sl}.png'.format(
-                context = year,
-                type = type,
-                command = str(self.chart['command']),
-                mp = 'MULTI' if is_multi_position else 'SINGLE',
-                sl = 'LRG' if is_large_position_container else 'SML'
-            )
+            num_positions = 'MULTI' if is_multi_position else 'SINGLE'
+            sizing = 'LRG' if is_large_position_container else 'SML'
+            positions_points_template = f"{year}-{type}-{num_positions}-{sizing}"
             positions_points_image = Image.open(self.__template_img_path(positions_points_template))
             template_image.paste(positions_points_image, (0,0), positions_points_image)
+        
+        # ADD SHOWDOWN BOT LOGO AND ERA
+        logo_img = self.__bot_logo_img()
+        logo_paste_location = sc.IMAGE_LOCATIONS['bot_logo'][self.context_year]
+        template_image.paste(logo_img, logo_paste_location, logo_img)
 
         return template_image
+
+    def __bot_logo_img(self) -> Image:
+        """ Load bot's logo to display on the bottom of the card. 
+        Add the version in the bottom right corner of the logo, as well as the Era underneath.
+
+        Returns:
+          PIL Image with Bot logo.
+        """
+
+        # CREATE NEW IMAGE FOR LOGO AND ERA TEXT
+        img_size = (620,620)
+        logo_img_with_text = Image.new('RGBA',img_size)
+
+        # LOAD LOGO IMAGE
+        bot_logo_key = 'bot_logo'
+        is_dark_mode = self.context_year == '2022' and self.is_dark_mode
+        dark_mode_extension = '-DARK' if is_dark_mode else ''
+        logo_size = sc.IMAGE_SIZES[bot_logo_key][self.context_year]
+        logo_img_name = f"BOT-LOGO{dark_mode_extension}"
+        logo_img = Image.open(self.__template_img_path(logo_img_name))
+
+        # ADD VERSION NUMBER
+        helvetica_neue_cond_bold_path = self.__font_path('HelveticaNeueCondensedBold')
+        text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=70)
+        # DATE NUMBER
+        version_text = self.__text_image(text=f"v{self.version}", size=(500, 500), font=text_font, alignment="right")
+        logo_img.paste("#b5b4b4", (-15, 400), version_text)
+
+        # ERA TEXT
+        helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
+        era_font = ImageFont.truetype(helvetica_neue_lt_path, size=80)
+        era_text = self.__text_image(text=self.era, size=(620, 100), font=era_font, alignment="center")
+
+        # PASTE TO BLANK 600x600 IMAGE
+        logo_img_with_text.paste(logo_img, (int((img_size[1] - 500) / 2), 0), logo_img)
+        era_text_color = sc.COLOR_BLACK if self.context_year == '2022' and not self.is_dark_mode else "#edebeb"
+        logo_img_with_text.paste(era_text_color, (0, 520), era_text)
+        
+        return logo_img_with_text.resize(logo_size, Image.ANTIALIAS)
 
     def __2000_player_name_container_image(self):
         """Gets template asset image for 2000 name container.
@@ -3070,10 +3102,10 @@ class ShowdownPlayerCardGenerator:
         default_chart_char_cutoff = 19 if self.context_year in ('2002') else 15
         is_name_over_char_limit =  len(name) > default_chart_char_cutoff
 
-        futura_black_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Futura Black.ttf')
-        helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
-        helvetica_neue_cond_black_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
-        helvetica_neue_lt_93_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-93-Black-Extended-Oblique.ttf')
+        futura_black_path = self.__font_path('Futura Black')
+        helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
+        helvetica_neue_cond_black_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        helvetica_neue_lt_93_path = self.__font_path('Helvetica-Neue-LT-Std-93-Black-Extended-Oblique')
 
         # DEFAULT NAME ATTRIBUTES
         name_font_path = helvetica_neue_lt_path
@@ -3196,7 +3228,7 @@ class ShowdownPlayerCardGenerator:
             # 2000 & 2001
 
             metadata_image = Image.new('RGBA', (1500, 2100), 255)
-            helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
+            helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
 
             # PITCHER AND HITTER SPECIFIC METADATA
             if self.is_pitcher:
@@ -3259,10 +3291,10 @@ class ShowdownPlayerCardGenerator:
 
             color = sc.COLOR_BLACK if self.context == '2002' else sc.COLOR_WHITE
             if self.context_year == '2002':
-                helvetica_neue_lt_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
+                helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
                 metadata_font = ImageFont.truetype(helvetica_neue_lt_path, size=120)
             else:
-                helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+                helvetica_neue_cond_bold_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
                 metadata_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=135)
 
             metadata_text = self.__text_image(
@@ -3278,7 +3310,7 @@ class ShowdownPlayerCardGenerator:
         elif self.context_year in ['2004', '2005']:
             # 2004 & 2005
 
-            metadata_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+            metadata_font_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
             metadata_font = ImageFont.truetype(metadata_font_path, size=144)
             metadata_text_string = self.__player_metadata_summary_text(is_horizontal=True)
             metadata_text = self.__text_image(
@@ -3300,7 +3332,7 @@ class ShowdownPlayerCardGenerator:
         else:
             # 2022+
             metadata_image = Image.new('RGBA', (1400, 200), 255)
-            metadata_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueCondensedBold.ttf')
+            metadata_font_path = self.__font_path('HelveticaNeueCondensedBold')
             metadata_font = ImageFont.truetype(metadata_font_path, size=170)
             metadata_font_small = ImageFont.truetype(metadata_font_path, size=150)
             metadata_text_list = self.__player_metadata_summary_text(is_horizontal=True, return_as_list=True)
@@ -3361,8 +3393,8 @@ class ShowdownPlayerCardGenerator:
         is_horizontal = self.context_year in ['2004','2005','2022']
 
         # FONT
-        chart_font_file_name = 'Helvetica Neue 77 Bold Condensed.ttf' if is_horizontal else 'HelveticaNeueCondensedMedium.ttf'
-        chart_font_path = os.path.join(os.path.dirname(__file__), 'fonts', chart_font_file_name)
+        chart_font_file_name = 'Helvetica Neue 77 Bold Condensed' if is_horizontal else 'HelveticaNeueCondensedMedium'
+        chart_font_path = self.__font_path(chart_font_file_name)
         chart_text_size = int(sc.TEXT_SIZES['chart'][self.context_year])
         chart_font = ImageFont.truetype(chart_font_path, size=chart_text_size)
 
@@ -3428,7 +3460,7 @@ class ShowdownPlayerCardGenerator:
         """
 
         # FONT FOR SET
-        helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica Neue 77 Bold Condensed.ttf')
+        helvetica_neue_cond_bold_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
         font_size = 135 if int(self.context_year) < 2022 else 180
         set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size)
 
@@ -3510,27 +3542,6 @@ class ShowdownPlayerCardGenerator:
         expansion_image = Image.open(self.__template_img_path(f'{self.context_year}-{self.expansion}'))
         return expansion_image
 
-    def __version_image(self):
-        """Adds version number licensing text.
-
-        Args:
-          None
-
-        Returns:
-          PIL image object for version number
-        """
-        helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueCondensedBold.ttf')
-        text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=50 if self.context_year not in ['2004','2005','2022'] else 35)
-        # DATE NUMBER
-        version_text = self.__text_image(
-            text = f"v{self.version}",
-            size = (450, 450),
-            font = text_font,
-            alignment = "left"
-        )
-        version_text = version_text.resize((150,150), Image.ANTIALIAS)
-        return version_text
-
     def __super_season_image(self):
         """Creates image for optional super season attributes. Add accolades for
            cards in set > 2001.
@@ -3549,8 +3560,8 @@ class ShowdownPlayerCardGenerator:
         super_season_image = Image.open(self.__template_img_path(f'{self.context_year}-Super Season'))
 
         # FONTS
-        super_season_year_path = os.path.join(os.path.dirname(__file__), 'fonts', 'URW Corporate W01 Normal.ttf')
-        super_season_accolade_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Zurich Bold Italic BT.ttf')
+        super_season_year_path = self.__font_path('URW Corporate W01 Normal')
+        super_season_accolade_path = self.__font_path('Zurich Bold Italic BT')
         super_season_year_font = ImageFont.truetype(super_season_year_path, size=225)
         super_season_accolade_font = ImageFont.truetype(super_season_accolade_path, size=150)
 
@@ -3708,7 +3719,7 @@ class ShowdownPlayerCardGenerator:
 
         # ADD YEAR
         first_year = str(min(self.year_list))
-        year_font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'SquareSlabSerif.ttf')
+        year_font_path = self.__font_path('SquareSlabSerif')
         year_font = ImageFont.truetype(year_font_path, size=70)
         for index, year_part in enumerate([first_year[0:2],first_year[2:4]]):
             is_suffix = index > 0
@@ -3788,7 +3799,7 @@ class ShowdownPlayerCardGenerator:
         draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs())
 
         # ADD TEXT
-        font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique.ttf')
+        font_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
         font = ImageFont.truetype(font_path, size=120)
         text_img = self.__text_image(text=text,size=(210,220),font=font,alignment='center',fill=text_color)
         icon_img.paste(text_img, (0,60), text_img)
@@ -3915,7 +3926,7 @@ class ShowdownPlayerCardGenerator:
         img_type_suffix = 'Control' if self.is_pitcher else 'Onbase'
         dark_mode_suffix = '-DARK' if self.is_dark_mode else ''
         background_img = Image.open(self.__template_img_path(f'{self.context_year}-{img_type_suffix}{dark_mode_suffix}'))
-        font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
+        font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
         command = str(self.chart['command'])
         num_chars_command = len(command)
         size = 170 if self.is_pitcher else 155
@@ -4145,7 +4156,7 @@ class ShowdownPlayerCardGenerator:
         year_img = Image.open(path)
 
         # ADD TEXT
-        helvetica_neue_cond_bold_path = os.path.join(os.path.dirname(__file__), 'fonts', 'HelveticaNeueLtStd107ExtraBlack.otf')
+        helvetica_neue_cond_bold_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
         is_multi_year = len(self.year_list) > 1
         set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=120 if is_multi_year else 160)
         year_end = max(self.year_list)
@@ -4174,6 +4185,19 @@ class ShowdownPlayerCardGenerator:
         """
 
         return os.path.join(os.path.dirname(__file__), 'templates', f'{img_name}.png')
+
+    def __font_path(self, name, extension:str = 'ttf') -> str:
+        """ Produces full path string for the image.
+
+        Args:
+          name: Name of the font, excluding extension.
+          extension: Font file extension (ex: ttf, otf)
+
+        Returns:
+          String with full font path.
+        """
+
+        return os.path.join(os.path.dirname(__file__), 'fonts', f'{name}.{extension}')
 
 # ------------------------------------------------------------------------
 # IMAGE QUERIES
