@@ -3054,7 +3054,7 @@ class ShowdownPlayerCardGenerator:
 
         # PASTE TO BLANK 600x600 IMAGE
         logo_img_with_text.paste(logo_img, (int((img_size[1] - 500) / 2), 0), logo_img)
-        era_text_color = sc.COLOR_BLACK if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.is_dark_mode else "#edebeb"
+        era_text_color = "#b5b4b4" if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.is_dark_mode else "#edebeb"
         logo_img_with_text.paste(era_text_color, (0, 520), era_text)
         
         return logo_img_with_text.resize(logo_size, Image.ANTIALIAS)
