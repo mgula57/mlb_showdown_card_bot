@@ -60,11 +60,12 @@ class Edition(Enum):
 """
 SET STYLES
 """
-EXPANDED_ALIAS = 'EXPANDED'
-CLASSIC_ALIAS = 'CLASSIC'
-EXPANDED_SETS = ['2002','2003','2004','2005',f'2022-{EXPANDED_ALIAS}',]
-CLASSIC_SETS = ['2000','2001',f'2022-{CLASSIC_ALIAS}',]
-SETS_HAS_ICONS = ['2003','2004','2005','2022',]
+EXPANDED_SET = 'EXPANDED'
+CLASSIC_SET = 'CLASSIC'
+EXPANDED_SETS = ['2002','2003','2004','2005',EXPANDED_SET,]
+CLASSIC_SETS = ['2000','2001',CLASSIC_SET,]
+SETS_HAS_ICONS = ['2003','2004','2005',CLASSIC_SET,EXPANDED_SET,]
+CLASSIC_AND_EXPANDED_SETS = [EXPANDED_SET, CLASSIC_SET]
 
 """
 ERAS
@@ -106,8 +107,8 @@ SB_MULTIPLIER = {
     '2003': 0.95,
     '2004': 0.98,
     '2005': 1.0,
-    f'2022-{CLASSIC_ALIAS}': 1.0,
-    f'2022-{EXPANDED_ALIAS}': 1.0,
+    CLASSIC_SET: 1.0,
+    EXPANDED_SET: 1.0,
 }
 MAX_IN_GAME_SPD = {
     '2000': 25,
@@ -116,8 +117,8 @@ MAX_IN_GAME_SPD = {
     '2003': 27,
     '2004': 27,
     '2005': 27,
-    f'2022-{CLASSIC_ALIAS}': 25,
-    f'2022-{EXPANDED_ALIAS}': 25,
+    CLASSIC_SET: 25,
+    EXPANDED_SET: 25,
 }
 
 MIN_SABER_FIELDING = {
@@ -167,8 +168,8 @@ MAX_NUMBER_OF_POSITIONS = {
     '2003': 2,
     '2004': 2,
     '2005': 2,
-    f'2022-{CLASSIC_ALIAS}': 3,
-    f'2022-{EXPANDED_ALIAS}': 3,
+    CLASSIC_SET: 3,
+    EXPANDED_SET: 3,
 }
 TEMPLATE_COLOR_0405 = {
     'Pitcher': 'BLUE',
@@ -183,8 +184,8 @@ PU_MULTIPLIER = {
     '2003': 2.2,
     '2004': 2.05,
     '2005': 2.4,
-    f'2022-{CLASSIC_ALIAS}': 2.5,
-    f'2022-{EXPANDED_ALIAS}': 2.4,
+    CLASSIC_SET: 2.5,
+    EXPANDED_SET: 2.4,
 }
 # THIS GB MULTIPLIER IS A MORE SIMPLE MODE OF ADJUSTMENT.
 # REPLACE HAVING DEFAULT GB AND FB FOR OPPONENT CHART
@@ -256,7 +257,7 @@ GB_MULTIPLIER = {
             ERA_POST_STEROID: 1.00,
             ERA_STATCAST: 1.00,
         },
-        f'2022-{CLASSIC_ALIAS}': {
+        CLASSIC_SET: {
             ERA_PRE_1900: 1.00,
             ERA_DEAD_BALL: 1.00,
             ERA_LIVE_BALL: 1.00,
@@ -267,7 +268,7 @@ GB_MULTIPLIER = {
             ERA_POST_STEROID: 1.00,
             ERA_STATCAST: 1.00,
         },
-        f'2022-{EXPANDED_ALIAS}': {
+        EXPANDED_SET: {
             ERA_PRE_1900: 1.00,
             ERA_DEAD_BALL: 1.00,
             ERA_LIVE_BALL: 1.00,
@@ -346,7 +347,7 @@ GB_MULTIPLIER = {
             ERA_POST_STEROID: 1.00,
             ERA_STATCAST: 1.00,
         },
-        f'2022-{CLASSIC_ALIAS}': {
+        CLASSIC_SET: {
             ERA_PRE_1900: 1.00,
             ERA_DEAD_BALL: 1.00,
             ERA_LIVE_BALL: 1.00,
@@ -357,7 +358,7 @@ GB_MULTIPLIER = {
             ERA_POST_STEROID: 1.00,
             ERA_STATCAST: 1.00,
         },
-        f'2022-{EXPANDED_ALIAS}': {
+        EXPANDED_SET: {
             ERA_PRE_1900: 1.00,
             ERA_DEAD_BALL: 1.00,
             ERA_LIVE_BALL: 1.00,
@@ -438,7 +439,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_POST_STEROID: 0.75,
         ERA_STATCAST: 0.75,
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         ERA_PRE_1900: 0.75,
         ERA_DEAD_BALL: 0.75,
         ERA_LIVE_BALL: 0.75,
@@ -449,7 +450,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_POST_STEROID: 0.75,
         ERA_STATCAST: 0.75,
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         ERA_PRE_1900: 0.75,
         ERA_DEAD_BALL: 0.75,
         ERA_LIVE_BALL: 0.75,
@@ -1020,7 +1021,7 @@ BASELINE_PITCHER = {
             'hr': 0.33,
         },
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         ERA_PRE_1900: {
             'command': 3.3,
             'outs': 16.0,
@@ -1122,7 +1123,7 @@ BASELINE_PITCHER = {
             'hr': 0.11,
         },
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         ERA_PRE_1900: {
             'command': 4.2,
             'outs': 16.2,
@@ -1838,7 +1839,7 @@ BASELINE_HITTER = {
             'hr': 1.4,
         },
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         ERA_PRE_1900: {
             'command': 7.5,
             'outs': 4.0,
@@ -1939,7 +1940,7 @@ BASELINE_HITTER = {
             'hr': 2.0,
         },
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         ERA_PRE_1900: {
             'command': 9.5,
             'outs': 7.4,
@@ -2113,7 +2114,7 @@ OB_COMBOS = {
         [15,6],
         [16,3],[16,6]
     ],
-    f'2022-{CLASSIC_ALIAS}': [
+    CLASSIC_SET: [
         [4,5],[4,6],
         [5,2],[5,3],[5,4],[5,5],[5,6],
         [6,2],[6,3],[6,4],[6,5],[6,6],
@@ -2124,7 +2125,7 @@ OB_COMBOS = {
         [11,2],[11,3],[11,4],
         [12,0],[12,2],[12,3]
     ],
-    f'2022-{EXPANDED_ALIAS}': [
+    EXPANDED_SET: [
         [7,7],[7,8],[7,9],
         [8,5],[8,6],[8,7],[8,8],[8,9],[8,10],[8,11],
         [9,5],[9,6],[9,7],[9,8],[9,9],[9,10],[9,11],
@@ -2188,7 +2189,7 @@ CONTROL_COMBOS = {
         [5,16],[5,17],[5,18],[5,19],
         [6,15],[6,16],[6,17],[6,18],[6,20],
     ],
-    f'2022-{CLASSIC_ALIAS}': [
+    CLASSIC_SET: [
         [0,17],[0,18],
         [1,17],[1,18],
         [1,16],[2,16],[2,17],[2,18],
@@ -2197,7 +2198,7 @@ CONTROL_COMBOS = {
         [5,14],[5,15],[5,16],[5,17],[5,18],[5,19],
         [6,14],[6,15],[6,16],[6,17],[6,18],[6,20],
     ],
-    f'2022-{EXPANDED_ALIAS}': [
+    EXPANDED_SET: [
         [1,14],[1,15],[1,16],[1,17],[1,18],
         [2,15],[2,16],[2,17],[2,18],
         [3,15],[3,16],[3,17],[3,18],
@@ -2218,8 +2219,8 @@ MAX_HITTER_SO_RESULTS = {
     '2003': 4,
     '2004': 4,
     '2005': 4,
-    f'2022-{CLASSIC_ALIAS}': 5,
-    f'2022-{EXPANDED_ALIAS}': 4,
+    CLASSIC_SET: 5,
+    EXPANDED_SET: 4,
 }
 
 """
@@ -2252,11 +2253,11 @@ HITTER_SINGLE_PLUS_DENOMINATOR_RANGE = {
         'min': 5.5,
         'max': 9.75
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'min': 3.2,
         'max': 9.6
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'min': 5.5,
         'max': 9.75
     },
@@ -2346,7 +2347,7 @@ CHART_CATEGORY_WEIGHTS = {
             'onbase_perc': 3.0,
         }
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'position_player': {
             'onbase_perc': 1.5,
             'slugging_perc': 1.0,
@@ -2360,7 +2361,7 @@ CHART_CATEGORY_WEIGHTS = {
             'onbase_perc': 2.0,
         }
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'position_player': {
             'onbase_perc': 1.5,
             'slugging_perc': 1.0,
@@ -2529,7 +2530,7 @@ POINT_CATEGORY_WEIGHTS = {
             'out_distribution': 20,
         }
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'position_player': {
             'defense': 65,
             'speed': 75,
@@ -2553,7 +2554,7 @@ POINT_CATEGORY_WEIGHTS = {
             'out_distribution': 20,
         }
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'position_player': {
             'defense': 65,
             'speed': 60,
@@ -2646,7 +2647,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'LF/RF': 1.0,
         'IF': 1.0,
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'CA': 1.4,
         '1B': 0.5,
         '2B': 1.0,
@@ -2657,7 +2658,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'LF/RF': 1.0,
         'IF': 1.0,
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'CA': 1.4,
         '1B': 0.5,
         '2B': 1.0,
@@ -2713,7 +2714,7 @@ POINTS_ICONS = {
         '20': 10,
         'CY': 15,
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'G': 10,
         'S': 10,
         'V': 15,
@@ -2806,7 +2807,7 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '5-17': 0.95,
         '6-17': 1.03,
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         '10-4': 1.05,
         '10-2': 0.96,
         '9-5': 1.05,
@@ -2826,7 +2827,7 @@ POINTS_COMMAND_OUT_MULTIPLIER = {
         '6-14': 1.05,
         '6-15': 1.05,
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         '9-5': 1.15,
         '9-6': 1.1,
         '9-7': 0.95,
@@ -2875,12 +2876,12 @@ POINTS_ALLOW_NEGATIVE = {
         'starting_pitcher': True,
         'relief_pitcher': True,
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'position_player': True,
         'starting_pitcher': False,
         'relief_pitcher': False,
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'position_player': True,
         'starting_pitcher': True,
         'relief_pitcher': True,
@@ -2922,12 +2923,12 @@ POINTS_NORMALIZE_TOWARDS_MEDIAN = {
         'starting_pitcher': True,
         'relief_pitcher': True,
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'position_player': False,
         'starting_pitcher': True,
         'relief_pitcher': True,
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'position_player': False,
         'starting_pitcher': True,
         'relief_pitcher': True,
@@ -2969,12 +2970,12 @@ POINTS_NORMALIZER_MULTIPLIER = {
         'starting_pitcher': 0.75,
         'relief_pitcher': 0.74,
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'position_player': 0.65,
         'starting_pitcher': 0.70,
         'relief_pitcher': 0.72,
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'position_player': 0.65,
         'starting_pitcher': 0.80,
         'relief_pitcher': 0.77,
@@ -2992,8 +2993,8 @@ POINTS_NORMALIZER_RELIEVER_MULTIPLIER = {
     '2003': 2.0,
     '2004': 2.0,
     '2005': 2.0,
-    f'2022-{CLASSIC_ALIAS}': 1.5,
-    f'2022-{EXPANDED_ALIAS}': 2.0,
+    CLASSIC_SET: 1.5,
+    EXPANDED_SET: 2.0,
 }
 
 """
@@ -3025,11 +3026,11 @@ POINTS_RELIEVER_IP_MULTIPLIER = {
         '2': 1.34,
         '3': 2.01,
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         '2': 1.60,
         '3': 2.10,
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         '2': 1.40,
         '3': 2.01,
     },
@@ -3126,7 +3127,7 @@ ONBASE_PCT_RANGE = {
             'max': 0.410
         }
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'starting_pitcher': {
             'min': 0.240,
             'max': 0.400
@@ -3140,7 +3141,7 @@ ONBASE_PCT_RANGE = {
             'max': 0.450
         }
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'starting_pitcher': {
             'min': 0.223,
             'max': 0.370
@@ -3240,7 +3241,7 @@ BATTING_AVG_RANGE = {
             'max': 0.330
         }
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'starting_pitcher': {
             'min': 0.210,
             'max': 0.300
@@ -3254,7 +3255,7 @@ BATTING_AVG_RANGE = {
             'max': 0.330
         }
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'starting_pitcher': {
             'min': 0.210,
             'max': 0.280
@@ -3354,7 +3355,7 @@ SLG_RANGE = {
             'max': 0.545
         }
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'starting_pitcher': {
             'min': 0.340,
             'max': 0.500
@@ -3368,7 +3369,7 @@ SLG_RANGE = {
             'max': 0.545
         }
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'starting_pitcher': {
             'min': 0.335,
             'max': 0.475
@@ -3408,11 +3409,11 @@ SPEED_RANGE = {
         'min': 10,
         'max': 20
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'min': 10,
         'max': 20
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'min': 10,
         'max': 20
     },
@@ -3452,11 +3453,11 @@ HR_RANGE = {
         'min': 10,
         'max': 35
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'min': 10,
         'max': 35
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'min': 10,
         'max': 35
     },
@@ -3548,7 +3549,7 @@ POSITION_DEFENSE_RANGE = {
         'LF/RF': 2.0,
         'DH': 0
     },
-    f'2022-{CLASSIC_ALIAS}': {
+    CLASSIC_SET: {
         'CA': 12.0,
         '1B': 1.0,
         '2B': 5.0,
@@ -3562,7 +3563,7 @@ POSITION_DEFENSE_RANGE = {
         'LF/RF': 2.0,
         'DH': 0
     },
-    f'2022-{EXPANDED_ALIAS}': {
+    EXPANDED_SET: {
         'CA': 12.0,
         '1B': 1.0,
         '2B': 5.0,
@@ -3732,8 +3733,8 @@ COLOR_BLACK = "#000000"
 COLOR_RED = "#963219"
 COLOR_GRAY = "#e4e3e3"
 
-CONTEXT_YEARS_ELIGIBLE_FOR_YEAR_CONTAINER = ['2000', '2001', '2002', '2003']
-CONTEXT_YEARS_ELIGIBLE_FOR_SET_YEAR_PLUS_ONE = ['2004', '2005']
+CONTEXTS_ELIGIBLE_FOR_YEAR_CONTAINER = ['2000', '2001', '2002', '2003']
+CONTEXTS_ELIGIBLE_FOR_SET_YEAR_PLUS_ONE = ['2004','2005']
 
 """ COORDINATES FOR IMAGE COMPONENTS """
 IMAGE_LOCATIONS = {
@@ -7516,7 +7517,7 @@ LEAGUE_AVG_PROJ_OBP = {
             "Pitcher": 0.308
         }
     },
-    "2022-CLASSIC": {
+    CLASSIC_SET: {
         "1900": {
             "Hitter": 0.335,
             "Pitcher": 0.332
@@ -8010,7 +8011,7 @@ LEAGUE_AVG_PROJ_OBP = {
             "Pitcher": 0.307
         }
     },
-    "2022-EXPANDED": {
+    EXPANDED_SET: {
         "1900": {
             "Hitter": 0.335,
             "Pitcher": 0.33
@@ -11471,7 +11472,7 @@ LEAGUE_AVG_PROJ_SLG = {
             "Pitcher": 0.349
         }
     },
-    "2022-CLASSIC": {
+    CLASSIC_SET: {
         "1900": {
             "Hitter": 0.362,
             "Pitcher": 0.358
@@ -11965,7 +11966,7 @@ LEAGUE_AVG_PROJ_SLG = {
             "Pitcher": 0.363
         }
     },
-    "2022-EXPANDED": {
+    EXPANDED_SET: {
         "1900": {
             "Hitter": 0.39,
             "Pitcher": 0.373
@@ -15426,7 +15427,7 @@ LEAGUE_AVG_COMMAND = {
             "Pitcher": 3.646
         }
     },
-    "2022-CLASSIC": {
+    CLASSIC_SET: {
         "1900": {
             "Hitter": 7.858,
             "Pitcher": 4.638
@@ -15920,7 +15921,7 @@ LEAGUE_AVG_COMMAND = {
             "Pitcher": 3.174
         }
     },
-    "2022-EXPANDED": {
+    EXPANDED_SET: {
         "1900": {
             "Hitter": 10.377,
             "Pitcher": 3.872

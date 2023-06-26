@@ -92,8 +92,8 @@
                                           <label for="setSelection" style="color:Gray;"><b>Set</b></label>
                                           <img for="setSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="2022+ Sets are split into CLASSIC AND EXPANDED. CLASSIC is compatible with '00-'01 sets, while EXPANDED works well with '02-'05. EXPANDED set increases hitter onbase values and adds results over 20+." >
                                           <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                             {% for year in ['2000','2001','2002','2003','2004','2005','2022-Classic','2022-Expanded'] %}
-                                                <option value={{ year }} {% if year == '2000' %} selected="selected" {% endif %}>{{ year | replace("2022-","")  }}</option>
+                                             {% for year in ['2000','2001','2002','2003','2004','2005','Classic','Expanded'] %}
+                                                <option value={{ year }} {% if year == '2000' %} selected="selected" {% endif %}>{{ year }}</option>
                                              {% endfor %}
                                           </select>
                                        </div>

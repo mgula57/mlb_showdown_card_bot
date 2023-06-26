@@ -511,7 +511,7 @@ $(document).ready(function() {
     if(localStorage) {
         var storedSet = localStorage.getItem("set")
         if (storedSet) {
-            document.getElementById("setSelection").value = storedSet;
+            document.getElementById("setSelection").value = storedSet.replace('2022-', '');
         }
         var storedTheme = localStorage.getItem('theme')
         if (storedTheme) {
