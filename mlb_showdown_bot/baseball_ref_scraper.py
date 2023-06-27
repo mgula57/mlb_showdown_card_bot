@@ -259,7 +259,7 @@ class BaseballReferenceScraper:
             if self.__is_pitcher_from_1901_to_1918(year=year,type=type):
                 team_id = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=[int(year)])
                 if team_id == 'TOT':
-                    team_id = self.__parse_team_after_trade(advanced_stats_soup=soup_for_homepage_stats,year=year)
+                    team_id = self.__parse_team_after_trade(soup_for_homepage_stats=soup_for_homepage_stats,year=year,type=type)
                 stats_dict['team_ID'] = team_id
 
             # FULL CAREER
@@ -775,7 +775,7 @@ class BaseballReferenceScraper:
         team_id_key = 'team_ID'
         if team_id_key in advanced_stats.keys():
             if advanced_stats[team_id_key] == 'TOT':
-                advanced_stats[team_id_key] = self.__parse_team_after_trade(advanced_stats_soup=soup_for_advanced_stats,year=year)
+                advanced_stats[team_id_key] = self.__parse_team_after_trade(soup_for_homepage_stats=soup_for_advanced_stats,year=year,type=type)
 
         # FILL IN EMPTY STATS
         current_categories = advanced_stats.keys()
@@ -972,18 +972,23 @@ class BaseballReferenceScraper:
             'IF/FB': pu_ratio
         }
 
-    def __parse_team_after_trade(self, advanced_stats_soup, year):
+    def __parse_team_after_trade(self, soup_for_homepage_stats, year, type):
         """Parse the last team a player playe dfor in the given season.
 
         Args:
-          advanced_stats_soup: BeautifulSoup object for advanced stats table.
+          soup_for_homepage_stats: BeautifulSoup object for advanced stats table.
           year: Year for Player stats
+          type: Player is Pitcher or Hitter.
 
         Returns:
           Team Id for last team the player played on in year
         """
 
-        partial_objects_list = advanced_stats_soup.find_all('tr',attrs={'class':'partial_table'})
+        header_prefix = 'batting' if type == 'Hitter' else 'pitching'
+        standard_table = soup_for_homepage_stats.find('table',attrs={'id':f'{header_prefix}_standard'})
+        if standard_table is None:
+            return 'TOT'
+        partial_objects_list = standard_table.find_all('tr',attrs={'class':'partial_table'})
         teams_list = []
         # ITERATE THROUGH PARTIAL SEASONS
         try:
@@ -991,9 +996,12 @@ class BaseballReferenceScraper:
                 # SAVE TEAMS ONLY FOR year SEASON
                 object_for_this_season = partial_object.find('th',attrs={'data-stat':'year_ID', 'csk': re.compile(str(year))})
                 if object_for_this_season:
-                    # PARSE TEAM ID 
-                    team_id = partial_object.find('td', attrs={'data-stat':'team_ID'}).get_text()
-                    if team_id not in teams_list and team_id != '':
+                    # PARSE TEAM ID
+                    team_object = partial_object.find('td', attrs={'data-stat':'team_ID'})
+                    if team_object is None:
+                        continue
+                    team_id = team_object.get_text()
+                    if team_id != '':
                         # ADD TO TEAMS LIST
                         teams_list.append(team_id)
             last_team = teams_list[-1]

@@ -1953,7 +1953,7 @@ class ShowdownPlayerCardGenerator:
         print(f"{self.name} ({self.year})")
         print("----------------------------------------")
         print(f"Team: {self.team}")
-        print(f"Set: {set} {self.expansion} (v{self.version})")
+        print(f"Set: {self.context} {self.expansion} (v{self.version})")
         print(f"Era: {self.era.title()}")
         print(f"Source: {self.source}")
 
