@@ -642,11 +642,11 @@ BASELINE_PITCHER = {
             'hr': 0.11,
         },
         ERA_STATCAST: {
-            'command': 3.0,
-            'outs': 16.0,
-            'so': 4.1,
+            'command': 3.4,
+            'outs': 16.1,
+            'so': 5.00,
             'bb': 1.35,
-            '1b': 2.0,
+            '1b': 1.82,
             '2b': 0.62,
             '3b': 0.00,
             'hr': 0.11,
@@ -1424,12 +1424,12 @@ BASELINE_HITTER = {
             'hr': 2.0,
         },
         ERA_STATCAST: {
-            'command': 7.8,
-            'outs': 3.9,
+            'command': 7.5,
+            'outs': 4.0,
             'so': 1.31,
             'bb': 4.45,
             '1b': 6.7,
-            '1b+': 0.63,
+            '1b+': 0.70,
             '2b': 1.95,
             '3b': 0.2,
             'hr': 2.0,
@@ -4529,6 +4529,13 @@ NATIONALITY_TEMPLATE_COLOR = {
     'IS': 'BLUE',
 }
 
+ALL_STAR_GAME_COLORS = {
+    '2023': {
+        'NL': (12, 44, 85, 255), # BLUE
+        'AL': (2, 112, 113, 255), # GREEN
+    },
+}
+
 G_DRIVE_PLAYER_IMAGE_FOLDERS = {
     '2000': '1InLYODKI0Fn9ddOLCv8mYPW-tiD29nPN',
     '2001': '1UmKhu_Mluj8Ijki1ruue54tqsqb40Ous',
@@ -4537,6 +4544,7 @@ G_DRIVE_PLAYER_IMAGE_FOLDERS = {
     '2004': '1fKrf4wyA9SC7h8_8JhGNdHVhx8Orix5k',
     '2005': '1fKrf4wyA9SC7h8_8JhGNdHVhx8Orix5k',
     '2022': '1dqZjl5nIdyTPs_JXJq6TXBk02ClQMpky',
+    'UNIVERSAL': '1htwN6r-9QNHJzg6Jq56dGXuJxD2QNaGv',
 }
 
 G_DRIVE_TEAM_BACKGROUND_FOLDERS = {
@@ -16415,4 +16423,89 @@ LEAGUE_AVG_COMMAND = {
             "Pitcher": 3.115
         }
     }
+}
+
+""" AUTO IMAGE COMPONENTS """
+CARD_SIZE = (1500,2100)
+IMAGE_TYPE_BACKGROUND = "BG"
+IMAGE_TYPE_CUSTOM_BACKGROUND = "CUSTOM BG"
+IMAGE_TYPE_CUSTOM_FOREGROUND = "CUSTOM FG"
+IMAGE_TYPE_SHADOW = "SHADOW"
+IMAGE_TYPE_GLOW = "GLOW"
+IMAGE_TYPE_GRADIENT = "GRADIENT"
+IMAGE_TYPE_COOPERSTOWN = "COOPERSTOWN"
+IMAGE_TYPE_SUPER_SEASON = "SUPER SEASON"
+IMAGE_TYPE_ORDERED_LIST = [
+    IMAGE_TYPE_BACKGROUND,
+    IMAGE_TYPE_CUSTOM_BACKGROUND,
+    IMAGE_TYPE_COOPERSTOWN,
+    IMAGE_TYPE_SUPER_SEASON,
+    IMAGE_TYPE_GRADIENT,
+    IMAGE_TYPE_SHADOW,
+    IMAGE_TYPE_GLOW,
+    IMAGE_TYPE_CUSTOM_FOREGROUND,
+]
+IMAGE_TYPES_LOADED_VIA_DOWNLOAD = [
+    IMAGE_TYPE_BACKGROUND,
+    IMAGE_TYPE_SHADOW,
+    IMAGE_TYPE_GLOW,
+]
+IMAGE_TYPES_IGNORE_CUSTOM_CROP = [
+    IMAGE_TYPE_CUSTOM_BACKGROUND,
+    IMAGE_TYPE_CUSTOM_FOREGROUND,
+]
+
+PLAYER_IMAGE_MODE = {
+    '2000': 'RGBA',
+    '2001': 'RGBA',
+    '2002': 'RGB',
+    '2003': 'RGB',
+    '2004': 'RGB',
+    '2005': 'RGB',
+    CLASSIC_SET: 'RGB',
+    EXPANDED_SET: 'RGB',
+}
+
+AUTO_IMAGE_COMPONENTS = {
+    '2000': [IMAGE_TYPE_GLOW],
+    '2001': [IMAGE_TYPE_GLOW],
+    '2002': [IMAGE_TYPE_BACKGROUND],
+    '2003': [IMAGE_TYPE_BACKGROUND],
+    '2004': [IMAGE_TYPE_BACKGROUND],
+    '2005': [IMAGE_TYPE_BACKGROUND],
+    CLASSIC_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
+    EXPANDED_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
+}
+
+AUTO_IMAGE_COMPONENTS_SPECIAL = {
+    '2000': [IMAGE_TYPE_GLOW],
+    '2001': [IMAGE_TYPE_GLOW],
+    '2002': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
+    '2003': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
+    '2004': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
+    '2005': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
+    CLASSIC_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
+    EXPANDED_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
+}
+
+PLAYER_IMAGE_CROP_SIZE = {
+    '2000': (1500,2100),
+    '2001': (1125,1575),
+    '2002': (1200,1680),
+    '2003': (1200,1680),
+    '2004': (1500,2100),
+    '2005': (1500,2100),
+    CLASSIC_SET: (1125,1575),
+    EXPANDED_SET: (1125,1575),
+}
+
+PLAYER_IMAGE_CROP_ADJUSTMENT = {
+    '2000': (-25,-300),
+    '2001': (-40,-485),
+    '2002': (100,-300),
+    '2003': (100,-200),
+    '2004': (0,0),
+    '2005': (0,0),
+    CLASSIC_SET: (0,int((PLAYER_IMAGE_CROP_SIZE[CLASSIC_SET][1] - 2100) / 2)),
+    EXPANDED_SET: (0,int((PLAYER_IMAGE_CROP_SIZE[EXPANDED_SET][1] - 2100) / 2)),
 }
