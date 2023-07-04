@@ -550,36 +550,47 @@ class ShowdownPlayerCardGenerator:
         pct_career_post_2015 = sum([1 if year >= 2015 else 0 for year in self.year_list]) / len(self.year_list)
         is_disqualied_career_speed = self.is_multi_year and pct_career_post_2015 < 0.35
 
-        if sprint_speed is None or math.isnan(sprint_speed) or sprint_speed == '' or sprint_speed == 0 or is_disqualied_career_speed:
-            # NO SPRINT SPEED AVAILABLE
-            sb_range = sc.MAX_STOLEN_BASES - sc.MIN_STOLEN_BASES
-            speed_percentile = sc.SB_MULTIPLIER[self.context] * (stolen_bases-sc.MIN_STOLEN_BASES) / sb_range
-            max_speed_in_game = 18.0
-        else:
-            # SPRINT SPEED IS AVAILABLE
-            sprint_speed_range = sc.MAX_SPRINT_SPEED - sc.MIN_SPRINT_SPEED
-            speed_percentile = (sprint_speed-sc.MIN_SPRINT_SPEED) / sprint_speed_range
-            max_speed_in_game = 25.0
+        # DEFINE METRICS USED TO DETERMINE IN-GAME SPEED
+        disable_sprint_speed = sprint_speed is None or math.isnan(sprint_speed) or sprint_speed == '' or sprint_speed == 0 or is_disqualied_career_speed
+        speed_elements = {sc.STOLEN_BASES_KEY: stolen_bases} 
+        if not disable_sprint_speed:
+            speed_elements.update( {sc.SPRINT_SPEED_KEY: sprint_speed} )
 
-        speed_raw = int(round(speed_percentile * max_speed_in_game))
-        # CHANGE OUTLIERS
-        speed = 8 if speed_raw < 8 else speed_raw
-        speed = sc.MAX_IN_GAME_SPD[self.context] if speed_raw > sc.MAX_IN_GAME_SPD[self.context] else speed
+        in_game_speed_for_metric = {}
+        for metric, value in speed_elements.items():
+            metric_max = sc.SPEED_METRIC_MAX[metric]
+            metric_min = sc.SPEED_METRIC_MIN[metric]
+            metric_multiplier = sc.SPEED_METRIC_MULTIPLIER[metric][self.context]
+            era_multiplier = sc.SPEED_ERA_MULTIPLIER[self.era]
+            top_percentile_speed_for_metric = sc.SPEED_METRIC_TOP_PERCENTILE[metric]
 
-        c_speeed_cutoff = 13 if self.context == '2002' else 12
-        if speed < c_speeed_cutoff:
+            speed_percentile = era_multiplier * metric_multiplier * (value-metric_min) / (metric_max - metric_min)
+            speed = int(round(speed_percentile * top_percentile_speed_for_metric))
+
+            # CHANGE OUTLIERS
+            min_in_game = sc.MIN_IN_GAME_SPD[self.context]
+            max_in_game = sc.MAX_IN_GAME_SPD[self.context]
+            final_speed_for_metric = min( max(speed, min_in_game), max_in_game )
+
+            in_game_speed_for_metric[metric] = final_speed_for_metric
+
+        # AVERAGE SPRINT SPEED WITH SB SPEED
+        num_metrics = len(in_game_speed_for_metric)
+        final_speed = int(round( sum([(sc.SPEED_METRIC_WEIGHT[metric] if num_metrics > 1 else 1.0) * in_game_spd for metric, in_game_spd in in_game_speed_for_metric.items() ]) ))
+
+        if final_speed < sc.SPEED_C_CUTOFF[self.context]:
             letter = 'C'
-        elif speed < 18:
+        elif final_speed < 18:
             letter = 'B'
         else:
             letter = 'A'
 
         # IF 2000 OR 2001, SPEED VALUES CAN ONLY BE 10,15,20
-        if self.context in ('2000', '2001') and not self.is_variable_speed_00_01:
+        if self.context in ['2000', '2001'] and not self.is_variable_speed_00_01:
             spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
-            speed = spd_letter_to_number[letter]
+            final_speed = spd_letter_to_number[letter]
 
-        return speed, letter
+        return final_speed, letter
 
     def __icons(self,awards):
         """Converts awards_summary and other metadata fields into in game icons.
