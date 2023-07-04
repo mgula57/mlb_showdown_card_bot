@@ -31,7 +31,7 @@ class ShowdownPlayerCardGenerator:
         """Initializer for ShowdownPlayerCardGenerator Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "3.4"
+        self.version = "3.5"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.bref_url = stats['bref_url'] if 'bref_url' in stats.keys() else ''
