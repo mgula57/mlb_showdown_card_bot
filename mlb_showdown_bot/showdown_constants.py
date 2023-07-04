@@ -439,7 +439,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_FREE_AGENCY: 0.75,
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
-        ERA_STATCAST: 0.75,
+        ERA_STATCAST: 0.70,
     },
     '2001': {
         ERA_PRE_1900: 0.75,
@@ -450,7 +450,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_FREE_AGENCY: 0.75,
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
-        ERA_STATCAST: 0.75,
+        ERA_STATCAST: 0.70,
     },
     '2002': {
         ERA_PRE_1900: 0.75,
@@ -461,7 +461,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_FREE_AGENCY: 0.75,
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
-        ERA_STATCAST: 0.75,
+        ERA_STATCAST: 0.70,
     },
     '2003': {
         ERA_PRE_1900: 0.75,
@@ -472,7 +472,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_FREE_AGENCY: 0.75,
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
-        ERA_STATCAST: 0.75,
+        ERA_STATCAST: 0.70,
     },
     '2004': {
         ERA_PRE_1900: 0.75,
@@ -483,7 +483,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_FREE_AGENCY: 0.75,
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
-        ERA_STATCAST: 0.75,
+        ERA_STATCAST: 0.70,
     },
     '2005': {
         ERA_PRE_1900: 0.75,
@@ -494,7 +494,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_FREE_AGENCY: 0.75,
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
-        ERA_STATCAST: 0.75,
+        ERA_STATCAST: 0.70,
     },
     CLASSIC_SET: {
         ERA_PRE_1900: 0.75,
@@ -505,7 +505,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_FREE_AGENCY: 0.75,
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
-        ERA_STATCAST: 0.75,
+        ERA_STATCAST: 0.70,
     },
     EXPANDED_SET: {
         ERA_PRE_1900: 0.75,
@@ -516,7 +516,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_FREE_AGENCY: 0.75,
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
-        ERA_STATCAST: 0.75,
+        ERA_STATCAST: 0.70,
     },
 }
 """
