@@ -1008,6 +1008,11 @@ class ShowdownPlayerCardGenerator:
         is_over_20 = sum([v for k, v in chart.items() if k not in ['command','outs', 'sb'] ]) > 20
         accuracy = 0.0 if is_over_20 else accuracy
 
+        # ADD WEIGHTING OF ACCURACY
+        # LIMITS AMOUNT OF RESULTS PER SET FOR CERTAIN COMMAND/OUT COMBINATIONS
+        weight = sc.COMMAND_ACCURACY_WEIGHTING[self.context].get(f"{command}-{outs}", 1.0)
+        accuracy = accuracy * weight
+
         return chart, accuracy, in_game_stats_for_400_pa
 
     def __out_results(self, gb_pct, popup_pct, out_slots_remaining):
