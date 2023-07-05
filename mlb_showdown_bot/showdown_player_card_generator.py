@@ -371,7 +371,7 @@ class ShowdownPlayerCardGenerator:
         # CHANGE OF TO LF/RF IF PLAYER HASNT PLAYED CF
         # EXCEPTION IS PRE-1900, WHERE 'OF' POSITIONAL BREAKOUTS ARE NOT AVAILABLE
         start_year = min(self.year_list)
-        if 'OF' in positions_set and is_of_but_hasnt_played_cf and 'OF' in positions_and_defense.keys() and start_year >= 1900:
+        if 'OF' in positions_set and is_of_but_hasnt_played_cf and 'OF' in positions_and_defense.keys() and start_year > 1900:
             positions_and_games_played['LF/RF'] = positions_and_games_played['OF']
             positions_and_defense['LF/RF'] = positions_and_defense['OF']
             del positions_and_defense['OF']
