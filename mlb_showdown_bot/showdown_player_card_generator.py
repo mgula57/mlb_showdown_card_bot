@@ -2618,6 +2618,8 @@ class ShowdownPlayerCardGenerator:
 
         if use_nationality and country_exists:
             custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, 'backgrounds', f"{self.nationality}.png")
+        elif self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023':
+            custom_image_path = self.__card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
         elif self.context in ['2000', '2001'] and not self.hide_team_logo:
             # TEAM BACKGROUNDS
             background_image_name = f"{self.team}{self.__team_logo_historical_alternate_extension()}"
@@ -2631,6 +2633,9 @@ class ShowdownPlayerCardGenerator:
             background_image = Image.open(custom_image_path)
         except:
             background_image = Image.open(default_image_path)
+
+        if background_image.size != (1500,2100):
+            background_image = self.__img_crop(background_image, (1500,2100))
 
         # IF 2000, ADD NAME CONTAINER
         if self.context == '2000':
