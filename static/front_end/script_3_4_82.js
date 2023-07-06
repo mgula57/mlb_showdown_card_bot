@@ -55,12 +55,13 @@ function cacheSet(set) {
 }
 
 // CHANGE OUTPUT VIEWS
-function checkHideForStats(statsElement) {
-    if (statsElement.checked) {
-        document.getElementById("stats_div").style.display = "initial";
-        document.getElementById("points_div").style.display = "none";
-        document.getElementById("accuracy_div").style.display = "none";
-        document.getElementById("rank_div").style.display = "none";
+function toggleBreakdownSelection() {
+    for (var option of document.getElementById('breakdownSelection').options) {
+        if (option.selected) {
+            document.getElementById(option.value + "_div").style.display = "initial";
+        } else {
+            document.getElementById(option.value + "_div").style.display = "none";
+        }
     }
 }
  
@@ -257,7 +258,7 @@ function setTheme(themeName) {
 
     var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
-    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "trend_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "rank_values_footnote", "loader_container_rectangle"]
+    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "trend_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "rank_values_footnote", "opponent_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
         var element = document.getElementById(id);
         if (element === null) {
@@ -266,7 +267,7 @@ function setTheme(themeName) {
         document.getElementById(id).className = (id + "_" + themeName);
     }
 
-    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "chartVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table","rank_table", "eraSelection"]
+    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "chartVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table","rank_table", "opponent_table", "eraSelection", "breakdownSelection", "imageTypeSelection"]
     for (const id of form_inputs_to_alter) {
         var element = document.getElementById(id);
         if (element === null) {
@@ -274,7 +275,7 @@ function setTheme(themeName) {
         }
         var current_name = element.className
         const is_text_only = ["darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel"].includes(id)
-        const is_table = ["stats_table", "points_table", "accuracy_table", "rank_table"].includes(id)
+        const is_table = ["stats_table", "points_table", "accuracy_table", "rank_table", "opponent_table"].includes(id)
         const default_suffix = (is_text_only) ? 'text-muted' : 'bg-dark text-white';
         const suffix = (is_table) ? 'table-dark' : default_suffix;
         
@@ -326,7 +327,7 @@ function showCardData(data) {
             document.getElementById("playerlink_href").href = data.bref_url;
             $("#playerlink_href_text").text(data.player_year);
             $("#player_name").text(data.player_name.toUpperCase());
-            $("#player_link").text(`Set: ${data.player_context} | Year(s):`);
+            $("#player_link").text(`Set: ${data.player_context} | ${data.era} | Year(s):`);
         }
 
         // ADD shOPS+
@@ -383,7 +384,26 @@ function showCardData(data) {
         player_points_table += '</table>';
         $("#points_table").replaceWith(player_points_table);
         
-        // PLAYER ACCURACY
+        // ERA
+        var opponent_table = "<h6 style='color: #686666; padding: 0px;'><b>Avg " + data.opponent_type + " - " + data.era + "</b></h6> <table class='" + table_class_name + "' id='opponent_table'><tr> <th> </th> <th># Chart Results</th> </tr>";
+        $.each(data.opponent, function (index, value) {
+            opponent_table += '<tr>'
+            $.each(value, function (index, value) {
+                if (index == 0) {
+                    bold_start = '<b>';
+                    bold_end = '</b>';
+                } else {
+                    bold_start = '';
+                    bold_end = '';
+                }
+                opponent_table += '<td>' + bold_start + value + bold_end + '</td>';
+            });
+            opponent_table += '</tr>';
+        });
+        opponent_table += '</table>';
+        $("#opponent_table").replaceWith(opponent_table);
+
+        // ACCURACY
         var player_accuracy_table = "<table class='" + table_class_name + "' id='accuracy_table'><tr> <th>Version</th> <th>" + data.player_command + "</th> <th>Outs</th> <th>Accuracy</th> </tr>";
         $.each(data.player_accuracy, function (index, value) {
             player_accuracy_table += '<tr>'

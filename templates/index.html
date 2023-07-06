@@ -362,16 +362,13 @@
                                           </div>
 
                                           <div class="breakdown_output_light" id="breakdown_output">
-                                          <div class="btn-group" role="group" aria-label="Basic radio toggle button group" style="padding: 10px;">
-                                             <input type="radio" class="btn-check" onchange="checkHideForStats(this)" name="category" id="stats_btn" autocomplete="off" checked>
-                                             <label class="btn btn-outline-secondary btn-sm" for="stats_btn">Stats</label>
-                                             <input type="radio" class="btn-check" onchange="checkHideForPoints(this)" name="category" id="points_btn" autocomplete="off">
-                                             <label class="btn btn-outline-secondary btn-sm" for="points_btn">Points</label>
-                                             <input type="radio" class="btn-check" onchange="checkHideForAccuracy(this)" name="category" id="accuracy_btn" autocomplete="off">
-                                             <label class="btn btn-outline-secondary btn-sm" for="accuracy_btn">Accuracy</label>
-                                             <input type="radio" class="btn-check" onchange="checkHideForRank(this)" name="category" id="rank_btn" autocomplete="off">
-                                             <label class="btn btn-outline-secondary btn-sm" for="rank_btn">Ranks</label>
-                                          </div>
+                                             <select id="breakdownSelection" class="form-select mb-3" aria-label=".form-select-lg example" onchange="toggleBreakdownSelection()">
+                                                <option value="stats" selected="selected">Stats</option>
+                                                <option value="points">Points</option>
+                                                <option value="accuracy">Accuracy</option>
+                                                <option value="rank">Ranks</option>
+                                                <option value="opponent">Opponent</option>
+                                             </select>
          
                                           <!-- STATS TABLE  -->
                                           <div id="stats_div" style="display:initial" >
@@ -446,6 +443,22 @@
                                                 {% endfor %}
                                              </table>
                                              <p class="rank_values_footnote_light" id="rank_values_footnote"><i>Rankings are calculated within top ~500-780 players that season. Rankings only available for players loaded from Showdown Library.</i></p>
+                                          </div>
+
+                                          <div id="opponent_div" style="display:none" >
+                                             <table class='table table-striped table-bordered' id="opponent_table">
+                                                <tr>
+                                                   <th> </th>
+                                                   <th># Chart Results</th>
+                                                </tr>
+                                                {% for category in ['Command','Outs','SO','BB','1B','2B','3B','HR',] -%}
+                                                <tr>
+                                                   <td><b>{{ category }}</b></td>
+                                                   <td>?</td>
+                                                </tr>
+                                                {% endfor %}
+                                             </table>
+                                             <p class="opponent_values_footnote_light" id="opponent_values_footnote"><i>This the the opponent used to create the player's chart. Represents the average opposing hitter/pitcher of that era.</i></p>
                                           </div>
                                        </div> 
                                     </div>

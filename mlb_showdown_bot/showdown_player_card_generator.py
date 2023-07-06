@@ -2245,6 +2245,20 @@ class ShowdownPlayerCardGenerator:
         ranking_data.sort()
         return ranking_data
 
+    def opponent_data_for_html_table(self):
+        """ List of attributes of the avg opponent used to create player's chart 
+        
+        Args:
+          None
+
+        Returns:
+          Multi-dimensional list of avg opponent chart results.
+        """
+
+        opponent_dict = sc.BASELINE_HITTER[self.context][self.era] if self.is_pitcher else sc.BASELINE_PITCHER[self.context][self.era]
+
+        return [[category.upper(), str(round(value,2))] for category, value in opponent_dict.items()]
+
     def __player_metadata_summary_text(self, is_horizontal=False, return_as_list=False):
         """Creates a multi line string with all player metadata for card output.
 
@@ -2669,7 +2683,7 @@ class ShowdownPlayerCardGenerator:
         # ---- IMAGE FROM GOOGLE DRIVE -----
         player_img_from_google_drive = None
         if player_img_user_uploaded is None:
-            is_universal_search = True # str(self.year) == '2023' and self.edition == sc.Edition.ALL_STAR_GAME
+            is_universal_search = str(self.year) == '2023' and self.edition == sc.Edition.ALL_STAR_GAME
             if is_universal_search:
                 folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS['UNIVERSAL']
                 img_components_dict = self.__card_components_dict()

@@ -294,13 +294,16 @@ def card_creator():
         else:
             # GENERATE THE IMAGE
             is_img_loaded_from_library = False
-            showdown.player_image()
+            showdown.card_image()
             card_image_path = os.path.join('static', 'output', showdown.image_name)
         player_command = "Control" if showdown.is_pitcher else "Onbase"
+        player_era = showdown.era.title()
         player_stats_data = showdown.player_data_for_html_table()
         player_points_data = showdown.points_data_for_html_table()
         player_accuracy_data = showdown.accuracy_data_for_html_table()
         player_ranks_data = showdown.rank_data_for_html_table()
+        opponent_data = showdown.opponent_data_for_html_table()
+        opponent_type = "Hitter" if showdown.is_pitcher else "Pitcher"
         radar_labels, radar_values = showdown.radar_chart_labels_as_values()
         radar_color = showdown.radar_chart_color()
         is_automated_image = showdown.is_automated_image
@@ -379,7 +382,10 @@ def card_creator():
             radar_color=radar_color,
             shOPS_plus=shOPS_plus,
             trends_data=trends_data,
-            trends_diff=trends_diff
+            trends_diff=trends_diff,
+            opponent=opponent_data,
+            opponent_type=opponent_type,
+            era=player_era
         )
 
     except Exception as e:
@@ -430,7 +436,10 @@ def card_creator():
             radar_color=None,
             shOPS_plus=None,
             trends_data=None,
-            trends_diff=0
+            trends_diff=0,
+            opponent=None,
+            opponent_type=None,
+            era=player_era
         )
 
 @app.route('/upload', methods=["POST","GET"])
