@@ -1001,7 +1001,7 @@ class BaseballReferenceScraper:
                     if team_object is None:
                         continue
                     team_id = team_object.get_text()
-                    if team_id != '':
+                    if team_id != '' and team_id != 'TOT':
                         # ADD TO TEAMS LIST
                         teams_list.append(team_id)
             last_team = teams_list[-1]
