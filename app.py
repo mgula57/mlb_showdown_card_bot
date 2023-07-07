@@ -439,7 +439,7 @@ def card_creator():
             trends_diff=0,
             opponent=None,
             opponent_type=None,
-            era=player_era
+            era=None,
         )
 
 @app.route('/upload', methods=["POST","GET"])

@@ -4469,7 +4469,7 @@ class ShowdownPlayerCardGenerator:
         # CHECK THAT THERE ARE MATCHES IN EACH COMPONENT
         num_matches_per_component = [len(matches) for c, matches in component_player_file_matches_dict.items()]
         if min(num_matches_per_component) < 1:
-            return None
+            return components_dict
 
         # ORDER EACH COMPONENT'S FILE LIST BY HOW WELL IT MATCHES PARAMETERS
         component_img_url_dict = {}
