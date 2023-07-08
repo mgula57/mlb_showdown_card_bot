@@ -385,9 +385,12 @@ function showCardData(data) {
         });
         player_points_table += '</table>';
         $("#points_table").replaceWith(player_points_table);
-        
+
         // ERA
-        var opponent_table = "<h6 style='color: #686666; padding: 0px;'><b>Avg " + data.opponent_type + " - " + data.era + "</b></h6> <table class='" + table_class_name + "' id='opponent_table'><tr> <th> </th> <th># Chart Results</th> </tr>";
+        var opponent_text = "<h6 style='color: #686666; padding: 0px;'><b>Avg " + data.opponent_type + " - " + data.era + "</b></h6>"
+        $("#avg_opponent_text").replaceWith(opponent_text);
+
+        var opponent_table = "<table class='" + table_class_name + "' id='opponent_table'><tr> <th> </th> <th># Chart Results</th> </tr>";
         $.each(data.opponent, function (index, value) {
             opponent_table += '<tr>'
             $.each(value, function (index, value) {
