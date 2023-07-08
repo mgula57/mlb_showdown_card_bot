@@ -218,7 +218,7 @@ PCT_OF_GAMES_DEFENSE = 0.15
 PCT_OF_GAMES_DEFENSE_MULTI_YEAR = 0.25
 STARTING_PITCHER_PCT_GAMES_STARTED = 0.40
 CLOSER_MIN_SAVES_REQUIRED = 10
-MAX_NUMBER_OF_POSITIONS = {
+NUM_POSITION_SLOTS = {
     '2000': 2,
     '2001': 2,
     '2002': 2,
@@ -227,6 +227,26 @@ MAX_NUMBER_OF_POSITIONS = {
     '2005': 2,
     CLASSIC_SET: 3,
     EXPANDED_SET: 3,
+}
+POSITIONS_ALLOWED_COMBINATIONS = {
+    '2B': ['SS','3B',],
+    '3B': ['SS','2B',],
+    'SS': ['2B','3B',]
+}
+POSITION_ORDERING = {
+    'C': 11,
+    'CA': 10,
+    '1B': 9,
+    '2B': 8,
+    '3B': 7,
+    'SS': 6,
+    'LF/RF': 5,
+    'CF': 4,
+    'OF': 3,
+    'IF': 2,
+    'STARTER': 1,
+    'RELIEVER': 1,
+    'CLOSER': 1,
 }
 TEMPLATE_COLOR_0405 = {
     'Pitcher': 'BLUE',

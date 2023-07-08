@@ -275,17 +275,8 @@ class ShowdownPlayerCardGenerator:
         # COMBINE ALIKE IN-GAME POSITIONS (LF/RF, OF, IF, ...)
         final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played,is_of_but_hasnt_played_cf=is_of_but_hasnt_played_cf)
 
-        # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
-        position_limit = sc.MAX_NUMBER_OF_POSITIONS[self.context]
-        if len(final_positions_in_game.items()) > position_limit:
-            sorted_positions = sorted(final_position_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:position_limit]
-            included_positions_list = [pos[0] for pos in sorted_positions]
-            filtered_final_positions_in_game = {}
-            for position, value in final_positions_in_game.items():
-                # ONLY ADD IF THE POSITION IS IN THE TOP N BY GAMES PLAYED.
-                if position in included_positions_list:
-                    filtered_final_positions_in_game[position] = value
-            final_positions_in_game = filtered_final_positions_in_game
+        # FILTER TO TOP POSITIONS BY GAMES PLAYED
+        final_positions_in_game = self.__filter_to_top_positions(positions_and_defense=final_positions_in_game, positions_and_games_played=final_position_games_played)
 
         # ASSIGN DH IF POSITIONS DICT IS EMPTY
         if final_positions_in_game == {}:
@@ -378,6 +369,80 @@ class ShowdownPlayerCardGenerator:
             del positions_and_games_played['OF']
 
         return positions_and_defense, positions_and_games_played
+
+    def __filter_to_top_positions(self, positions_and_defense:dict, positions_and_games_played:dict) -> dict:
+        """ Filter number of positions, find opportunities to combine positions 
+        
+        Args:
+          positions_and_defense: Dict of positions and in-game defensive ratings.
+          positions_and_games_played: Dict of positions and number of appearance at each position.
+
+        Returns:
+          Dict of positions and defense filtered to max positions.
+        """
+
+        # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
+        position_slots = sc.NUM_POSITION_SLOTS[self.context]
+
+        if len(positions_and_defense) <= position_slots:
+            # NO NEED TO FILTER, RETURN CURRENT DICT
+            return positions_and_defense
+        
+        sorted_positions = sorted(positions_and_games_played.items(), key=operator.itemgetter(1), reverse=True)[0:3]
+        included_positions_list = [pos[0] for pos in sorted_positions]
+        final_positions_and_defense = {position: value for position, value in positions_and_defense.items() if position in included_positions_list}
+
+        if self.context not in sc.CLASSIC_AND_EXPANDED_SETS and len(final_positions_and_defense) > 2:
+            positions_to_merge = self.__find_position_combination_opportunity(positions_and_defense)
+            if positions_to_merge is None:
+                # NOTHING CAN BE COMBINED, REMOVE LAST POSITION
+                final_positions_and_defense.pop(included_positions_list[-1], None)
+            else:
+                # AVERAGE DEFENSE FOR POSITIONS THAT WILL BE COMBINED
+                avg_defense = int(round(statistics.mean([defense for pos, defense in final_positions_and_defense.items() if pos in positions_to_merge])))
+                for pos in positions_to_merge:
+                    final_positions_and_defense[pos] = avg_defense
+
+        return final_positions_and_defense
+
+    def __find_position_combination_opportunity(self, positions_and_defense:dict) -> list[str]:
+        """ From dictionary of player with > 2 positions, see if there is an opportunity to combine positions together.
+
+        If no combination opportunies exist, return None.
+
+        Args:
+          positions_and_defense: Dict of positions and in-game defensive ratings.
+
+        Returns:
+          List of positions that will be combined into one.
+        """
+
+        # CREATE DICTIONARY OF POSITIONS ABLE TO BE COMBINED + DIFFERENCE IN DEFENSE
+        positions_able_to_be_combined = {}
+        position_list = list(positions_and_defense.keys())
+        for position, defense in positions_and_defense.items():
+            combinations_list_for_pos = sc.POSITIONS_ALLOWED_COMBINATIONS.get(position,[])
+            combinations_available_for_player = {p: abs(defense - positions_and_defense.get(p, 0)) for p in position_list if p != position and p in combinations_list_for_pos}
+            if len(combinations_available_for_player) > 0:
+                sorted_combinations = sorted(combinations_available_for_player.items(), key=lambda x: x[1])
+                positions_able_to_be_combined[position] = sorted_combinations[0]
+        
+        # SELECT ONE POSITION TO CHANGE
+        # FIRST SORT BASED ON DIFFERENCE IN DEFENSE, THEN BY POSITION'S ORDERING
+        sorted_positions = sorted(positions_able_to_be_combined.items(), key=lambda x: (x[1][1], -sc.POSITION_ORDERING.get(x[1], 0)))
+        if len(sorted_positions) == 0:
+            return None
+        
+        top_combo = sorted_positions[0]
+        position1 = top_combo[0]
+        position2 = top_combo[1][0]
+        difference = top_combo[1][1]
+
+        # ONLY RETURN COMBINATION IF DIFFERENCE IS < 3
+        if difference > 2:
+            return None
+        else:
+            return [position1, position2]
 
     def __position_name_in_game(self, position, num_positions, position_appearances, games_played, games_started, saves):
         """Cleans position name to conform to game standards.
@@ -478,6 +543,34 @@ class ShowdownPlayerCardGenerator:
         defense = 0 if defense < 0 and games < 50 else defense
 
         return defense
+
+    @property
+    def positions_and_defense_for_visuals(self) -> dict:
+        """ Transform the player's positions_and_defense dictionary for visuals (printing, card image)
+        
+        Args:
+          None
+
+        Returns:
+          Dictionary where key is the position, value is the defense at that position
+        """
+
+        # NO NEED TO COMBINE IF < 3 POSITIONS
+        if self.context in sc.CLASSIC_AND_EXPANDED_SETS or len(self.positions_and_defense) < 3:
+            return self.positions_and_defense
+        
+        positions_to_combine = self.__find_position_combination_opportunity(self.positions_and_defense)
+        if positions_to_combine is None:
+            return self.positions_and_defense
+        positions_to_combine_str =  "/".join(positions_to_combine)
+        
+        avg_defense = self.positions_and_defense.get(positions_to_combine[0], None)
+        if avg_defense is None:
+            return self.positions_and_defense
+        combined_positions_and_defense = {pos: df for pos, df in self.positions_and_defense.items() if pos not in positions_to_combine}
+        combined_positions_and_defense[positions_to_combine_str] = avg_defense
+
+        return combined_positions_and_defense
 
     def __handedness(self, hand):
         """Get hand of player. Format to how card will display hand.
@@ -1599,8 +1692,9 @@ class ShowdownPlayerCardGenerator:
                     position_pts = position_pts * sc.POINTS_POSITIONAL_DEFENSE_MULTIPLIER[self.context][position]
                     defense_points += position_pts
             use_avg = list(positions_and_defense.keys()) == ['CF', 'LF/RF'] or list(positions_and_defense.keys()) == ['LF/RF', 'CF']
-            num_positions = len(positions_and_defense.keys()) if len(positions_and_defense.keys()) > 0 else 1
-            avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else (4.0 / 3))
+            num_positions_w_non_zero_def = len([pos for pos, df in positions_and_defense.items() if df != 0])
+            num_positions = max(num_positions_w_non_zero_def, 1)
+            avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else ( (num_positions + 2) / 3.0))
             self.defense_points = round(avg_points_per_position,3)
 
         # CLOSER BONUS (00 ONLY)
@@ -1978,7 +2072,7 @@ class ShowdownPlayerCardGenerator:
 
         # POSITION
         positions_string = ''
-        for position,fielding in self.positions_and_defense.items():
+        for position,fielding in self.positions_and_defense_for_visuals.items():
             positions_string += f'{position}{"" if fielding < 0 else "+"}{fielding} ' if not self.is_pitcher else position
         # IP / SPEED
         ip_or_speed = 'Speed {} ({})'.format(self.speed_letter,self.speed) if not self.is_pitcher else '{} IP'.format(self.ip)
@@ -2283,10 +2377,12 @@ class ShowdownPlayerCardGenerator:
                     (ip if self.is_pitcher else positions_string),
                 ]
             else:
-                final_text = '{points} PT.   {item2}   {hand}   {item4}'.format(
+                spacing_between_hand_and_final_item = '  ' if self.context in ['2004','2005'] and not self.is_pitcher and len(positions_string) > 13 and len(self.icons) > 0 else '   '
+                final_text = '{points} PT.   {item2}   {hand}{spacing_between_hand_and_final_item}{item4}'.format(
                     points=self.points,
                     item2=positions_string if self.is_pitcher else speed,
                     hand=self.hand,
+                    spacing_between_hand_and_final_item=spacing_between_hand_and_final_item,
                     item4=ip if self.is_pitcher else positions_string
                 )
         else:
@@ -2318,17 +2414,17 @@ class ShowdownPlayerCardGenerator:
         position_num = 1
         dh_string = '–' if self.context != '2000' else 'DH'
 
-        if self.positions_and_defense == {}:
+        if self.positions_and_defense_for_visuals == {}:
             # THE PLAYER IS A DH
             positions_string = dh_string
         else:
-            for position,fielding in self.positions_and_defense.items():
+            for position,fielding in self.positions_and_defense_for_visuals.items():
                 if self.is_pitcher:
                     positions_string += position
                 elif position == 'DH':
                     positions_string += dh_string
                 else:
-                    is_last_element = position_num == len(self.positions_and_defense.keys())
+                    is_last_element = position_num == len(self.positions_and_defense_for_visuals.keys())
                     positions_separator = ' ' if is_horizontal else '\n'
                     fielding_plus = "" if fielding < 0 else "+"
                     positions_string += f'{position} {fielding_plus}{fielding}{"" if is_last_element else positions_separator}'
@@ -2998,6 +3094,19 @@ class ShowdownPlayerCardGenerator:
         # NO ALTERNATES FOUND, RETURN NONE
         return ''
 
+    @property
+    def positions_and_defense_img_order(self) -> list:
+        """ Sort the positions and defense by how they will appear on the card image.
+
+        Args:
+          None
+        
+        Returns:
+          List of positions and defense ordered by how they will appear on the card image.
+        """
+        
+        return sorted(self.positions_and_defense_for_visuals.items(), key=lambda p: sc.POSITION_ORDERING.get(p[0],0))
+
     def __template_image(self):
         """Loads showdown frame template depending on player context.
 
@@ -3071,12 +3180,9 @@ class ShowdownPlayerCardGenerator:
 
         # HANDLE MULTI POSITION TEMPLATES FOR 00/01 POSITION PLAYERS
         if year in ['2000','2001'] and not self.is_pitcher:
-            positions_list = list(self.positions_and_defense.keys())
-            is_multi_position = len(positions_list) > 1
-            is_large_position_container = 'LF/RF' in positions_list
-            num_positions = 'MULTI' if is_multi_position else 'SINGLE'
-            sizing = 'LRG' if is_large_position_container else 'SML'
-            positions_points_template = f"{year}-{type}-{num_positions}-{sizing}"
+            positions_list = [pos for pos, _ in self.positions_and_defense_img_order]
+            sizing = "-".join(['LARGE' if len(pos) > 4 else 'SMALL' for pos in positions_list])
+            positions_points_template = f"0001-{type}-{sizing}"
             positions_points_image = Image.open(self.__template_img_path(positions_points_template))
             template_image.paste(positions_points_image, (0,0), positions_points_image)
         
@@ -3331,9 +3437,8 @@ class ShowdownPlayerCardGenerator:
                     metadata_image.paste(color, (spd_number_x_position,345), speed_num_text)
                 # POSITION(S)
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)
-                ordered_by_len_position = sorted(self.positions_and_defense.items(), key=lambda l: len(l[0]), reverse=True)
                 y_position = 407
-                for position, rating in ordered_by_len_position:
+                for position, rating in self.positions_and_defense_img_order:
                     dh_string = '   —' if self.context != '2000' else '   DH'
                     position_rating_text = dh_string if position == 'DH' else '{} +{}'.format(position,str(rating))
                     position_rating_image = self.__text_image(text=position_rating_text, size=(600, 300), font=font_position)
@@ -3345,7 +3450,7 @@ class ShowdownPlayerCardGenerator:
             text_size = 48 if self.points >= 1000 else 57
             font_pts = ImageFont.truetype(helvetica_neue_lt_path, size=text_size)
             pts_text = self.__text_image(text=str(self.points), size=(300, 300), font=font_pts, alignment = "right")
-            pts_y_pos = 576 if len(self.positions_and_defense) > 1 else 492
+            pts_y_pos = 576 if len(self.positions_and_defense_for_visuals) > 1 else 492
             pts_x_pos = 969 if self.is_pitcher else 999
             metadata_image.paste(color, (pts_x_pos,pts_y_pos), pts_text)
 
@@ -3823,12 +3928,13 @@ class ShowdownPlayerCardGenerator:
                 # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
                 # EX: 'LF/RF' IS LONGER STRING THAN '3B'
                 if self.context in ['2004','2005']:
-                    positions_list = self.positions_and_defense.keys()
+                    positions_list = self.positions_and_defense_for_visuals.keys()
+                    positions_over_4_char = len([pos for pos in positions_list if len(pos) > 4])
                     offset = 0
                     if len(positions_list) > 1:
                         # SHIFT ICONS TO RIGHT
-                        offset = 165 if 'LF/RF' in positions_list else 135
-                    elif 'LF/RF' in positions_list:
+                        offset = 165 if positions_over_4_char > 0 else 135
+                    elif positions_over_4_char > 0:
                         offset = 75
                     elif 'CA' in positions_list:
                         offset = 30
