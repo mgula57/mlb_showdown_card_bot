@@ -22,13 +22,13 @@ except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
 
-class ShowdownPlayerCardGenerator:
+class ShowdownPlayerCard:
 
 # ------------------------------------------------------------------------
 # INIT
 
     def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, hide_team_logo=False, date_override=None, era="DYNAMIC", is_running_in_flask=False, source='Baseball Reference'):
-        """Initializer for ShowdownPlayerCardGenerator Class"""
+        """Initializer for ShowdownPlayerCard Class"""
 
         # ASSIGNED ATTRIBUTES
         self.version = "3.5"

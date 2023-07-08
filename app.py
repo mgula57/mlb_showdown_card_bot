@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, Response
 from mlb_showdown_bot.firebase import Firebase
-from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
+from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 import os
 import pandas as pd
@@ -263,7 +263,7 @@ def card_creator():
             error = 'Error loading player data. Make sure the player name and year are correct'
             if statline is None:
                 statline = scraper.player_statline()
-            showdown = ShowdownPlayerCardGenerator(
+            showdown = ShowdownPlayerCard(
                 name=name,
                 year=year,
                 stats=statline,

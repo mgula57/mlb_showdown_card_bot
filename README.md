@@ -60,7 +60,7 @@ showdownbot --name "Mike Piazza" --year 1997 --context 2001
 Example Python use:
 
 ```python
-from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
+from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCard
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 
 name = 'Mike Piazza'
@@ -71,7 +71,7 @@ scraper = BaseballReferenceScraper(name=name,year=year)
 statline = scraper.player_statline()
 
 # CREATE SHOWDOWN CARD 
-showdown = ShowdownPlayerCardGenerator(
+showdown = ShowdownPlayerCard(
     name=name,
     year=year,
     stats=statline,

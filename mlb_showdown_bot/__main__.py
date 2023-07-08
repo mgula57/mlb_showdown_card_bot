@@ -6,12 +6,12 @@ try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .firebase import Firebase
     from .baseball_ref_scraper import BaseballReferenceScraper
-    from .showdown_player_card_generator import ShowdownPlayerCardGenerator
+    from .showdown_player_card import ShowdownPlayerCard
 except ImportError:
     # USE LOCAL IMPORT 
     from firebase import Firebase
     from baseball_ref_scraper import BaseballReferenceScraper
-    from showdown_player_card_generator import ShowdownPlayerCardGenerator
+    from showdown_player_card import ShowdownPlayerCard
 
 parser = argparse.ArgumentParser(description="Generate a player's MLB Showdown stats in a given year")
 parser.add_argument('-n','--name', help='The first and last name of the player',required=True)
@@ -80,7 +80,7 @@ def main():
 
     else:
         statline = scraper.player_statline()
-        showdown = ShowdownPlayerCardGenerator(
+        showdown = ShowdownPlayerCard(
             name=name,
             year=year,
             stats=statline,

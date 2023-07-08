@@ -1,5 +1,5 @@
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
+from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
 import mlb_showdown_bot.showdown_constants as sc
 from termcolor import colored
 from time import sleep
@@ -45,7 +45,7 @@ if __name__ == "__main__":
             statline = scraper.player_statline()
             for set in sets:
                 # CREATE SHOWDOWN CARD 
-                showdown = ShowdownPlayerCardGenerator(
+                showdown = ShowdownPlayerCard(
                     name=name,
                     year=year,
                     stats=statline,
@@ -53,7 +53,7 @@ if __name__ == "__main__":
                     edition=edition,
                     print_to_cli=False
                 )
-                showdown.player_image()
+                showdown.card_image()
         except Exception as e:
             result = 'FAILED'
             failures += 1

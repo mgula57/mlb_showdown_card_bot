@@ -10,12 +10,12 @@ from pathlib import Path
 # MY PACKAGES
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
-    from .showdown_player_card_generator import ShowdownPlayerCardGenerator
+    from .showdown_player_card import ShowdownPlayerCard
     from . import showdown_constants as sc
     from .version import __version__
 except ImportError:
     # USE LOCAL IMPORT 
-    from showdown_player_card_generator import ShowdownPlayerCardGenerator
+    from showdown_player_card import ShowdownPlayerCard
     import showdown_constants as sc
     from version import __version__
 
@@ -197,7 +197,7 @@ class Firebase:
 # PARSING
 # ------------------------------------------------------------------------
 
-    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, date_override, is_running_in_flask) -> ShowdownPlayerCardGenerator:
+    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, date_override, is_running_in_flask) -> ShowdownPlayerCard:
         """Load cached player showdown data from database.
 
         Args:
@@ -251,7 +251,7 @@ class Firebase:
               cached_data[key] = values_updated
 
         # SET ATTRIBUTES OF THE CLASS FROM CACHE
-        showdown = ShowdownPlayerCardGenerator(
+        showdown = ShowdownPlayerCard(
             name=bref_id, 
             year=year, 
             stats={}, 
