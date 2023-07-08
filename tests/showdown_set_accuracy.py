@@ -5,7 +5,7 @@ from time import sleep
 import os
 from pathlib import Path
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
+from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
 import mlb_showdown_bot.showdown_constants as sc
 
 class ShowdownSetAccuracy:
@@ -82,7 +82,7 @@ class ShowdownSetAccuracy:
             if self.use_wotc_command_outs:
                 command_out_override = (wotc_player_card.OnbaseOrControl,wotc_player_card.OUTS)
 
-            my_player_card = ShowdownPlayerCardGenerator(wotc_player_card.Name,str(self.context-1),real_player_stats,str(self.context),test_numbers=self.command_control_combo, run_stats= self.is_pts_only==False, offset=0,command_out_override=command_out_override)
+            my_player_card = ShowdownPlayerCard(wotc_player_card.Name,str(self.context-1),real_player_stats,str(self.context),test_numbers=self.command_control_combo, run_stats= self.is_pts_only==False, offset=0,command_out_override=command_out_override)
             
             # IF CALCULATING POINTS, WE WANT TO USE ORIGINAL SET STATS
             if self.is_pts_only:

@@ -3215,21 +3215,23 @@ class ShowdownPlayerCard:
 
         # ADD VERSION NUMBER
         helvetica_neue_cond_bold_path = self.__font_path('HelveticaNeueCondensedBold')
-        text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=70)
+        text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=65)
         # DATE NUMBER
         version_text = self.__text_image(text=f"v{self.version}", size=(500, 500), font=text_font, alignment="right")
-        logo_img.paste("#b5b4b4", (-15, 400), version_text)
+        logo_img.paste("#b5b4b4", (-15, 326), version_text)
 
         # ERA TEXT
         helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
-        era_font = ImageFont.truetype(helvetica_neue_lt_path, size=80)
-        era_text = self.__text_image(text=self.era, size=(620, 100), font=era_font, alignment="center")
-
-        # PASTE TO BLANK 600x600 IMAGE
-        logo_img_with_text.paste(logo_img, (int((img_size[1] - 500) / 2), 0), logo_img)
-        era_text_color = "#b5b4b4" if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.is_dark_mode else "#edebeb"
-        logo_img_with_text.paste(era_text_color, (0, 520), era_text)
+        era_font = ImageFont.truetype(helvetica_neue_lt_path, size=70)
+        era_txt_color = "#b5b5b5" if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.is_dark_mode else "#585858"
+        era_text = self.__text_image(text=self.era.replace(' ERA', ''), size=(620, 100), font=era_font, alignment="center")
+        text_paste_location = (0, 435) 
         
+        # PASTE TO BLANK 600x600 IMAGE
+        x_centered = int((img_size[1] - 500) / 2)
+        logo_img_with_text.paste(logo_img, (x_centered, 0), logo_img)
+        logo_img_with_text.paste(era_txt_color, text_paste_location, era_text)
+
         return logo_img_with_text.resize(logo_size, Image.ANTIALIAS)
 
     def __2000_player_name_container_image(self):

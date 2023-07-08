@@ -298,10 +298,12 @@ function setTheme(themeName) {
 function showCardData(data) {
     $("#error").text(data.error);
     document.getElementById("error").style.color = "red";
+    const isError = data.error & !data.image_path
     // ADD STATS TO TABLE
-    if (!data.error) {
+    if (!isError) {
         // THEME
         var storedTheme = localStorage.getItem('theme')
+        document.getElementById("error").style.color = "orange";
 
         // CHANGE CARD IMAGE
         $("#card_image").attr('src', data.image_path);
