@@ -2784,8 +2784,8 @@ class ShowdownPlayerCard:
         # ---- IMAGE FROM GOOGLE DRIVE -----
         player_img_from_google_drive = None
         if player_img_user_uploaded is None:
-            is_universal_search = str(self.year) == '2023' and self.edition == sc.Edition.ALL_STAR_GAME
-            if is_universal_search:
+            search_for_universal_img = str(self.year) == '2023'
+            if search_for_universal_img:
                 folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS['UNIVERSAL']
                 img_components_dict = self.__card_components_dict()
                 img_components_dict = self.__query_google_drive_for_universal_image(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
@@ -2793,7 +2793,8 @@ class ShowdownPlayerCard:
                 if player_img_from_google_drive:
                     images_to_paste.append(player_img_from_google_drive)
                     self.is_automated_image = True
-            else:
+            
+            if not self.is_automated_image:
                 try:
                     use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
                     img_database_year = '2000' if use_nationality and self.context not in ['2000','2001'] else self.context_year
@@ -4702,7 +4703,7 @@ class ShowdownPlayerCard:
         # ALL STAR
         if self.edition == sc.Edition.ALL_STAR_GAME and self.context in [sc.CLASSIC_SET, sc.EXPANDED_SET]:
             components_dict = {
-                sc.IMAGE_TYPE_SHADOW: None,
+                sc.IMAGE_TYPE_GLOW: None,
                 sc.IMAGE_TYPE_CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2023-BG-{self.league}'),
                 sc.IMAGE_TYPE_CUSTOM_FOREGROUND: self.__card_art_path(f'ASG-2023-FG'),
             }
