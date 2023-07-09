@@ -39,7 +39,7 @@ function uploadImageFile() {
             alert(php_script_response);
         },
         error: function (data) {
-            console.log("error");
+            console.log("Error Uploading Image");
             console.log(data);
         }
     });
@@ -572,11 +572,19 @@ $(function () {
         
         if (is_valid || is_random_card) {
             $('#overlay').show();
-            uploadImageFile();
-            var files = $('#img_upload').prop('files');
+            
             var image_name = ""
-            if (files.length > 0) {
-                image_name = files[0].name;
+            var image_link = ""
+            
+            var imageType = $("#imageTypeSelection :selected").val();
+            if (imageType == "upload") {
+                uploadImageFile();
+                var files = $('#img_upload').prop('files');
+                if (files.length > 0) {
+                    image_name = files[0].name;
+                }
+            } else if (imageType == "link") {
+                image_link = $('input[name="url"]').val()
             }
 
             // CHART ALTERNATES
@@ -614,7 +622,7 @@ $(function () {
                 year: year,
                 set: set,
                 edition: edition,
-                url: $('input[name="url"]').val(),
+                url: image_link,
                 img_name: image_name,
                 set_num: $('input[name="setnum"]').val(),
                 offset: selectedOffset,
