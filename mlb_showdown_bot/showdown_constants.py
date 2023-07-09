@@ -41,7 +41,7 @@ class Edition(Enum):
         return f'-{self.value}' if self in [Edition.ALL_STAR_GAME, Edition.COOPERSTOWN_COLLECTION] else ''
     
     @property
-    def is_special_edition(self) -> bool:
+    def is_not_empty(self) -> bool:
         return self != Edition.NONE
 
     @property
