@@ -2861,8 +2861,11 @@ class ShowdownPlayerCard:
 
         # CARD SIZING
         card_size = (1500,2100)
-        set_crop_size = sc.PLAYER_IMAGE_CROP_SIZE[self.context]
+        player_crop_size = sc.PLAYER_IMAGE_CROP_SIZE[self.context]
         set_crop_adjustment = sc.PLAYER_IMAGE_CROP_ADJUSTMENT[self.context]
+        if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023' and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+            player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
+            set_crop_adjustment = (0,int((1785 - 2100) / 2))
         default_crop_size = sc.CARD_SIZE
         default_crop_adjustment = (0,0)
         
@@ -2884,7 +2887,7 @@ class ShowdownPlayerCard:
                 return None
             
             # CROP IMAGE
-            crop_size = default_crop_size if img_type in sc.IMAGE_TYPES_IGNORE_CUSTOM_CROP else set_crop_size
+            crop_size = default_crop_size if img_type in sc.IMAGE_TYPES_IGNORE_CUSTOM_CROP else player_crop_size
             crop_adjustment = default_crop_adjustment if img_type in sc.IMAGE_TYPES_IGNORE_CUSTOM_CROP else set_crop_adjustment
             image = self.__img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
             if crop_size != card_size:
