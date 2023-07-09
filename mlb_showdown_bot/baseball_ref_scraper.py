@@ -1,8 +1,7 @@
 
 import pandas as pd
-import requests
+import cloudscraper
 import re
-import ast
 import os
 from pathlib import Path
 import json
@@ -42,6 +41,7 @@ class BaseballReferenceScraper:
             year = [int(x.strip()) for x in years]
 
         self.name = name
+        self.error = None
         
         # PARSE MULTI YEARS
         if isinstance(year, list):
@@ -140,11 +140,13 @@ class BaseballReferenceScraper:
         
         # GOOGLE WILL BLOCK REQUESTS IF IT DETECTS THE BOT.
         if len(soup_search_name_and_year.find_all(text="Why did this happen?")) > 0:
-            raise RuntimeError('Google has an overload of requests coming from your IP Address. Wait a few minutes and try again.')
+            self.error = 'Google has an overload of requests coming from your IP Address. Wait a few minutes and try again.'
+            raise RuntimeError(self.error)
 
         # NO BASEBALL REFERENCE RESULTS FOR THAT NAME AND YEAR
         if search_results == []:
-            raise AttributeError('Cannot Find BRef Page for {} in {}'.format(name,year))
+            self.error = f'Cannot Find BRef Page for {name} in {year}'
+            raise AttributeError(self.error)
         
         top_result_url = search_results[0]["href"]
         player_b_ref_id = top_result_url.split('.shtml')[0].split('/')[-1]
@@ -178,13 +180,22 @@ class BaseballReferenceScraper:
           url: URL for the request.
 
         Raises:
-            AttributeError: Cannot find Baseball Ref Page for name/year combo.
+          TimeoutError: 502 - BAD GATEWAY
+          TimeoutError: 429 - TOO MANY REQUESTS TO BASEBALL REFERENCE
 
         Returns:
           HTML string for URL request.
         """
 
-        html = requests.get(url)
+        scraper = cloudscraper.create_scraper()
+        html = scraper.get(url)
+
+        if html.status_code == 502:
+          self.error = "502 - BAD GATEWAY"
+          raise TimeoutError(self.error)
+        if html.status_code == 429:
+          self.error = "429 - TOO MANY REQUESTS TO BASEBALL REFERENCE. PLEASE TRY AGAIN IN A FEW MINUTES."
+          raise TimeoutError(self.error)
 
         return html.text
 
@@ -430,7 +441,8 @@ class BaseballReferenceScraper:
         metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
 
         if metadata is None:
-            raise ValueError('No metadata found')
+            self.error = 'No player metadata found'
+            raise ValueError(self.error)
         # FIND THE HAND TAG IN THE METADATA LIST
         for strong_tag in metadata.find_all('strong'):
             hand_tag = 'Bats: ' if type == 'Hitter' else 'Throws: '
@@ -455,7 +467,8 @@ class BaseballReferenceScraper:
         metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
 
         if metadata is None:
-            raise ValueError('No player name found')
+            self.error = 'No player name found'
+            raise ValueError(self.error)
         # FIND THE ITEMPROP TAG
         name_object = metadata.find('h1', attrs = {'itemprop': 'name'})
         if name_object is None:
@@ -480,7 +493,8 @@ class BaseballReferenceScraper:
         # FIND METADATA DIV
         metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
         if metadata is None:
-            raise ValueError('No player nationality found')
+            self.error = "No player nationality found"
+            raise ValueError(self.error)
         
         # FIND ALL CLASSES WITH THE KEYWORD "f-i" IN THE CLASS NAME.
         #   EX: <span class="f-i f-pr" style="">pr</span>
@@ -560,7 +574,8 @@ class BaseballReferenceScraper:
             if self.is_multi_year:
                 return None
             else:
-                raise AttributeError('This Player Played 0 Games in {}. Check Player Name and Year'.format(year))
+                self.error = f'This Player Played 0 Games in {year}. Check Player Name and Year'
+                raise AttributeError(self.error)
         elif is_pitcher_override:
             return "Pitcher"
         elif is_hitter_override:

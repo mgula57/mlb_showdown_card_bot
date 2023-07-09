@@ -303,7 +303,11 @@ function showCardData(data) {
     if (!isError) {
         // THEME
         var storedTheme = localStorage.getItem('theme')
-        document.getElementById("error").style.color = "orange";
+
+        // CHANGE ERROR TO ORANGE IF WARNING
+        if (data.image_path) {
+            document.getElementById("error").style.color = "orange";
+        }
 
         // CHANGE CARD IMAGE
         $("#card_image").attr('src', data.image_path);

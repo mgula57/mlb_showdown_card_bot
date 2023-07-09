@@ -262,7 +262,11 @@ def card_creator():
             is_stats_loaded_from_library = False
             error = 'Error loading player data. Make sure the player name and year are correct'
             if statline is None:
-                statline = scraper.player_statline()
+                try:
+                    statline = scraper.player_statline()
+                except:
+                    if scraper.error:
+                        error = scraper.error
             showdown = ShowdownPlayerCard(
                 name=name,
                 year=year,
