@@ -2296,6 +2296,7 @@ COMMAND_ACCURACY_WEIGHTING = {
     CLASSIC_SET: {},
     EXPANDED_SET: {
         '3-19': 0.99,
+        '3-18': 0.99,
     },
 }
 
