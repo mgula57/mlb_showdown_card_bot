@@ -851,6 +851,15 @@ class ShowdownPlayerCard:
         
         return most_common_era_tuples_list[0][0]
 
+    @property
+    def special_edition(self) -> sc.SpecialEdition:
+        """ Special Editions are cards with unique art and characteristics """
+
+        if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023':
+            return sc.SpecialEdition.ASG_2023
+        
+        return sc.SpecialEdition.NONE
+
 # ------------------------------------------------------------------------
 # COMMAND / OUTS METHODS
 
@@ -2714,7 +2723,7 @@ class ShowdownPlayerCard:
 
         if use_nationality and country_exists:
             custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, 'backgrounds', f"{self.nationality}.png")
-        elif self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023':
+        elif self.special_edition == sc.SpecialEdition.ASG_2023:
             custom_image_path = self.__card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
         elif self.context in ['2000', '2001'] and not self.hide_team_logo:
             # TEAM BACKGROUNDS
@@ -2864,7 +2873,7 @@ class ShowdownPlayerCard:
         card_size = (1500,2100)
         player_crop_size = sc.PLAYER_IMAGE_CROP_SIZE[self.context]
         set_crop_adjustment = sc.PLAYER_IMAGE_CROP_ADJUSTMENT[self.context]
-        if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023' and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+        if self.edition == self.special_edition == sc.SpecialEdition.ASG_2023 and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
             player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
             set_crop_adjustment = (0,int((1785 - 2100) / 2))
         default_crop_size = sc.CARD_SIZE
@@ -4323,7 +4332,7 @@ class ShowdownPlayerCard:
 
         is_not_v1 = self.stats_version != 0
         has_user_uploaded_img = self.player_image_url or self.player_image_path
-        has_special_edition = self.edition.is_special_edition
+        has_special_edition = self.edition.is_not_empty
         has_expansion = self.expansion != 'FINAL'
         has_variable_spd_diff = self.is_variable_speed_00_01 and self.context in ['2000','2001']
         set_yr_plus_one_enabled = self.set_year_plus_one and self.context in ['2004','2005']
@@ -4701,7 +4710,7 @@ class ShowdownPlayerCard:
             return components_dict
         
         # ALL STAR
-        if self.edition == sc.Edition.ALL_STAR_GAME and self.context in [sc.CLASSIC_SET, sc.EXPANDED_SET]:
+        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context in [sc.CLASSIC_SET, sc.EXPANDED_SET]:
             components_dict = {
                 sc.IMAGE_TYPE_GLOW: None,
                 sc.IMAGE_TYPE_CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2023-BG-{self.league}'),

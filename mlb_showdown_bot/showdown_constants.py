@@ -6,9 +6,6 @@ from enum import Enum
 #     NEEDED TO GENERATE PLAYER CARDS
 # -------------------------------------------
 
-"""
-ENUMS
-"""
 
 class Edition(Enum):
     NONE = "NONE"
@@ -16601,3 +16598,8 @@ PLAYER_IMAGE_CROP_ADJUSTMENT = {
     CLASSIC_SET: (0,int((PLAYER_IMAGE_CROP_SIZE[CLASSIC_SET][1] - 2100) / 2)),
     EXPANDED_SET: (0,int((PLAYER_IMAGE_CROP_SIZE[EXPANDED_SET][1] - 2100) / 2)),
 }
+
+class SpecialEdition(Enum):
+    
+    ASG_2023 = "ASG 2023"
+    NONE = "NONE"
