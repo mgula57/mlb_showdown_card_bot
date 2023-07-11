@@ -3956,7 +3956,7 @@ class ShowdownPlayerCard:
                 # EX: 'LF/RF' IS LONGER STRING THAN '3B'
                 if self.context in ['2004','2005']:
                     positions_list = self.positions_and_defense_for_visuals.keys()
-                    positions_over_4_char = len([pos for pos in positions_list if len(pos) > 4])
+                    positions_over_4_char = len([pos for pos in positions_list if len(pos) > 4 and not self.is_pitcher])
                     offset = 0
                     if len(positions_list) > 1:
                         # SHIFT ICONS TO RIGHT
