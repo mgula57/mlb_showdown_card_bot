@@ -384,6 +384,24 @@ class ShowdownPlayerCard:
           Dict of positions and defense filtered to max positions.
         """
 
+        # CHECK FOR IF ELIGIBILITY
+        if_positions = ['1B','2B','SS','3B']
+        is_if_eligible = set(['1B','2B','SS','3B']) == set([pos for pos in positions_and_defense.keys() if pos in if_positions])
+        if is_if_eligible:
+            # SEE IF TOTAL DEFENSE IS ABOVE REQUIREMENT FOR +1
+            total_defense = sum([defense for pos, defense in positions_and_defense.items() if pos in if_positions])
+            total_games_played_if = sum([games_played for pos, games_played in positions_and_games_played.items() if pos in if_positions])
+            in_game_rating_if = 1 if total_defense >= sc.INFIELD_PLUS_ONE_REQUIREMENT else 0
+
+            # REMOVE OLD POSITIONS
+            for position in if_positions:
+                positions_and_defense.pop(position, None)
+                positions_and_games_played.pop(position, None)
+
+            # ADD IF DEFENSE
+            positions_and_defense['IF'] = in_game_rating_if
+            positions_and_games_played['IF'] = total_games_played_if
+
         # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
         position_slots = sc.NUM_POSITION_SLOTS[self.context]
 
@@ -3469,11 +3487,12 @@ class ShowdownPlayerCard:
                 # POSITION(S)
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)
                 y_position = 407
-                for position, rating in self.positions_and_defense_img_order:
+                for index, (position, rating) in enumerate(self.positions_and_defense_img_order):
                     dh_string = '   —' if self.context != '2000' else '   DH'
                     position_rating_text = dh_string if position == 'DH' else '{} +{}'.format(position,str(rating))
                     position_rating_image = self.__text_image(text=position_rating_text, size=(600, 300), font=font_position)
-                    x_position = 1083 if len(position) > 4 else 1161
+                    x_adjust = 10 if index == 0 and len(position) < 5 and len(self.positions_and_defense_img_order) > 1 else 0
+                    x_position = (1083 if len(position) > 4 else 1161) + x_adjust
                     x_position += 18 if position in ['C','CA'] and rating < 10 else 0 # CATCHER POSITIONING ADJUSTMENT
                     metadata_image.paste(color, (x_position,y_position), position_rating_image)
                     y_position += 84

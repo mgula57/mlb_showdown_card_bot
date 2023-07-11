@@ -230,6 +230,7 @@ POSITIONS_ALLOWED_COMBINATIONS = {
     '3B': ['SS','2B',],
     'SS': ['2B','3B',]
 }
+INFIELD_PLUS_ONE_REQUIREMENT = 6
 POSITION_ORDERING = {
     'C': 11,
     'CA': 10,
@@ -2683,6 +2684,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'CF': 1.0,
         'OF': 0.89,
         'LF/RF': 0.75,
+        'IF': 1.0,
     },
     '2001': {
         'C': 1.3,
@@ -2693,6 +2695,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'CF': 1.1,
         'OF': 1.0,
         'LF/RF': 0.65,
+        'IF': 1.0,
     },
     '2002': {
         'CA': 1.0,
@@ -2703,6 +2706,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'CF': 1.0,
         'OF': 1.0,
         'LF/RF': 0.75,
+        'IF': 1.0,
     },
     '2003': {
         'CA': 1.0,
@@ -2713,6 +2717,7 @@ POINTS_POSITIONAL_DEFENSE_MULTIPLIER = {
         'CF': 1.0,
         'OF': 1.0,
         'LF/RF': 0.75,
+        'IF': 1.0,
     },
     '2004': {
         'CA': 1.0,
@@ -3568,6 +3573,7 @@ POSITION_DEFENSE_RANGE = {
         'CF': 3.0,
         'RF': 2.0,
         'OF': 2.0,
+        'IF': 1.0,
         'LF/RF': 2.0,
         'DH': 0
     },
@@ -3581,6 +3587,7 @@ POSITION_DEFENSE_RANGE = {
         'CF': 3.0,
         'RF': 2.0,
         'OF': 2.0,
+        'IF': 1.0,
         'LF/RF': 2.0,
         'DH': 0
     },
@@ -3594,6 +3601,7 @@ POSITION_DEFENSE_RANGE = {
         'CF': 3.0,
         'RF': 2.0,
         'OF': 2.0,
+        'IF': 1.0,
         'LF/RF': 2.0,
         'DH': 0
     },
@@ -3607,6 +3615,7 @@ POSITION_DEFENSE_RANGE = {
         'CF': 3.0,
         'RF': 2.0,
         'OF': 2.0,
+        'IF': 1.0,
         'LF/RF': 2.0,
         'DH': 0
     },
@@ -3648,7 +3657,7 @@ POSITION_DEFENSE_RANGE = {
         'CF': 3.5,
         'RF': 2.0,
         'OF': 2.0,
-        'IF': 1.5,
+        'IF': 1.0,
         'LF/RF': 2.0,
         'DH': 0
     },
@@ -3662,7 +3671,7 @@ POSITION_DEFENSE_RANGE = {
         'CF': 3.5,
         'RF': 2.0,
         'OF': 2.0,
-        'IF': 1.5,
+        'IF': 1.0,
         'LF/RF': 2.0,
         'DH': 0
     },
