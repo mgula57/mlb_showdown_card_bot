@@ -98,42 +98,6 @@
                                           </select>
                                        </div>
                                        <div class="col-md-6">
-                                          <label style="color:Gray;" for="expansionSelection"> <b>Expansion</b> </label>
-                                          <select id="expansionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                             <option value="FINAL" selected="selected">Final</option>
-                                             <option value="TD">Trading Deadline</option>
-                                             <option value="PR">Pennant Run</option>
-                                          </select>
-                                       </div>
-                                    </div>   
-                                 </div>
-            
-                                 <!-- EDITION AND SET NUMBER  -->
-                                 <div class="form-group">
-                                    <div class="row">
-                                       <div class="col-md-6">
-                                          <label style="color:Gray;" for="editionSelection"> <b>Edition</b></label>
-                                          <select id="editionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                             <option value="NONE" selected="selected">None</option>
-                                             <option value="CC">Cooperstown Collection</option>
-                                             <option value="ASG">All-Star Game</option>
-                                             <option value="SS">Super Season</option>
-                                             <option value="RS">Rookie Season</option>
-                                             <option value="HOL">Holiday</option>
-                                             <option value="NAT">Nationality</option>
-                                          </select>
-                                       </div>
-                                       <div class="col-md-6" style="padding-bottom: 10px;">
-                                          <label for="setnum" style="color:Gray;"><b>Set Number</b></label>
-                                          <input type="text" name="setnum" class="form-control" id="setnum" placeholder="">
-                                       </div>
-                                    </div>   
-                                 </div>
-                                 
-                                 <!-- STATS VERSION AND MORE OPTIONS  -->
-                                 <div class="form-group">
-                                    <div class="row">
-                                       <div class="col-md-6">
                                           <label style="color:Gray;" for="eraSelection"> <b>Era</b> </label>
                                           <img for="eraSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Eras determine the average opponent used to create the player's chart." >
                                           <select id="eraSelection" class="form-select mb-3" aria-label=".form-select-lg example">
@@ -154,6 +118,38 @@
                                              {% endfor -%}
                                           </select>
                                        </div>
+                                    </div>   
+                                 </div>
+            
+                                 <!-- EDITION AND SET NUMBER  -->
+                                 <div class="form-group">
+                                    <div class="row">
+                                       <div class="col-md-6">
+                                          <label style="color:Gray;" for="expansionSelection"> <b>Expansion</b> </label>
+                                          <select id="expansionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                             <option value="FINAL" selected="selected">Final</option>
+                                             <option value="TD">Trading Deadline</option>
+                                             <option value="PR">Pennant Run</option>
+                                          </select>
+                                       </div>
+                                       <div class="col-md-6">
+                                          <label style="color:Gray;" for="editionSelection"> <b>Edition</b></label>
+                                          <select id="editionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                             <option value="NONE" selected="selected">None</option>
+                                             <option value="CC">Cooperstown Collection</option>
+                                             <option value="ASG">All-Star Game</option>
+                                             <option value="SS">Super Season</option>
+                                             <option value="RS">Rookie Season</option>
+                                             <option value="HOL">Holiday</option>
+                                             <option value="NAT">Nationality</option>
+                                          </select>
+                                       </div>
+                                    </div>   
+                                 </div>
+                                 
+                                 <!-- STATS VERSION AND MORE OPTIONS  -->
+                                 <div class="form-group">
+                                    <div class="row">
                                        <div class="col-md-6">
                                           <label for="chartVersionSelection" style="color:Gray;"><b>Chart Version</b></label>
                                           <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
@@ -164,6 +160,10 @@
                                                 <option value={{ offsetName }} {% if index == 1 %} selected="selected" {% endif %}>{{ index }}</option>
                                              {% endfor %}
                                           </select>
+                                       </div>
+                                       <div class="col-md-6" style="padding-bottom: 10px;">
+                                          <label for="setnum" style="color:Gray;"><b>Set Number</b></label>
+                                          <input type="text" name="setnum" class="form-control" id="setnum" placeholder="">
                                        </div>
                                     </div>   
                                  </div>
