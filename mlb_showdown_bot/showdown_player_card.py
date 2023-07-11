@@ -748,6 +748,10 @@ class ShowdownPlayerCard:
             if self.stats[rookie_key] == True:
                 icons.append('R')
 
+        # IF PITCHER AND MORE THAN 4 ICONS (BOB GIBSON 1968), FILTER OUT A GG
+        if len(icons) >= 5 and self.is_pitcher and 'G' in icons:
+            icons.remove('G')
+
         return icons
 
     def player_type(self):
