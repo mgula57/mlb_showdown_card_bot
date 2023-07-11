@@ -155,7 +155,7 @@
                                           <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
                                           <select id="chartVersionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              {% for index in [1,2,3,4,5] -%}
-                                                {% set offsetName = "offset" ~ (index-1) %}
+                                                {% set offsetName = (index-1) %}
                                                 {% set checkedStr = "checked" if loop.first else "" %}
                                                 <option value={{ offsetName }} {% if index == 1 %} selected="selected" {% endif %}>{{ index }}</option>
                                              {% endfor %}
