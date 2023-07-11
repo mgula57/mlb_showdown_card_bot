@@ -132,8 +132,11 @@ class ShowdownPlayerCard:
                                                       hr_per_400_pa=float(stats_for_400_pa['hr_per_400_pa']))
             self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart['command'])
 
-            self.points = self.point_value(chart=self.chart,
-                                            projected=self.projected,
+            # FOR PTS, USE STEROID ERA OPPONENT
+            _, _, projections_for_pts_per_400_pa = self.__chart_with_accuracy(command=self.chart['command'], outs=self.chart['outs'], stats_for_400_pa=stats_for_400_pa, era_override=sc.ERA_STEROID)
+            projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=self.chart['command'])
+
+            self.points = self.point_value(projected=projections_for_pts,
                                             positions_and_defense=self.positions_and_defense,
                                             speed_or_ip=self.ip if self.is_pitcher else self.speed)
             if print_to_cli:
@@ -916,22 +919,23 @@ class ShowdownPlayerCard:
 
         return combo_and_obps
 
-    def __onbase_control_outs(self, playercommand=0, playerOuts=0):
+    def __onbase_control_outs(self, playercommand=0, playerOuts=0, era_override:str = None):
         """Give information needed to perform calculations of results.
            These numbers are needed to predict obp, home_runs, ...
 
         Args:
           command: The Onbase or Control number of player.
           outs: The number of out results on the player's chart.
+          era_override: Optionally override the era used for baseline opponents.
 
         Returns:
           Dict object with onbase, control, pitcher outs, hitter outs
         """
-
-        onbase_baseline = sc.BASELINE_HITTER[self.context][self.era]['command'] if self.test_numbers is None else self.test_numbers[0]
-        hitter_outs_baseline = sc.BASELINE_HITTER[self.context][self.era]['outs'] if self.test_numbers is None else self.test_numbers[1]
-        control_baseline = sc.BASELINE_PITCHER[self.context][self.era]['command'] if self.test_numbers is None else self.test_numbers[0]
-        pitcher_outs_baseline = sc.BASELINE_PITCHER[self.context][self.era]['outs'] if self.test_numbers is None else self.test_numbers[1]
+        era = era_override if era_override else self.era
+        onbase_baseline = sc.BASELINE_HITTER[self.context][era]['command'] if self.test_numbers is None else self.test_numbers[0]
+        hitter_outs_baseline = sc.BASELINE_HITTER[self.context][era]['outs'] if self.test_numbers is None else self.test_numbers[1]
+        control_baseline = sc.BASELINE_PITCHER[self.context][era]['command'] if self.test_numbers is None else self.test_numbers[0]
+        pitcher_outs_baseline = sc.BASELINE_PITCHER[self.context][era]['outs'] if self.test_numbers is None else self.test_numbers[1]
 
         return {
             'onbase': playercommand if not self.is_pitcher else onbase_baseline,
@@ -940,7 +944,7 @@ class ShowdownPlayerCard:
             'pitcherOuts': playerOuts if self.is_pitcher else pitcher_outs_baseline
         }
 
-    def opponent_stats_for_calcs(self, command):
+    def opponent_stats_for_calcs(self, command:int, era_override:str = None):
         """Convert __onbase_control_outs info to be specific to self.
            Used to derive:
              1. opponent_chart
@@ -949,18 +953,20 @@ class ShowdownPlayerCard:
 
         Args:
           command: The Onbase or Control number of player.
+          era_override: Optionally override the era used for baseline opponents.
 
         Returns:
           Tuple with opponent_chart, my_advantages_per_20, opponent_advantages_per_20
         """
 
+        era = era_override if era_override else self.era
         if not self.is_pitcher:
-            opponent_chart = sc.BASELINE_PITCHER[self.context][self.era]
-            my_advantages_per_20 = command-self.__onbase_control_outs()['control']
+            opponent_chart = sc.BASELINE_PITCHER[self.context][era]
+            my_advantages_per_20 = command-self.__onbase_control_outs(era_override=era_override)['control']
             opponent_advantages_per_20 = 20 - my_advantages_per_20
         else:
-            opponent_chart = sc.BASELINE_HITTER[self.context][self.era]
-            opponent_advantages_per_20 = self.__onbase_control_outs()['onbase']-command
+            opponent_chart = sc.BASELINE_HITTER[self.context][era]
+            opponent_advantages_per_20 = self.__onbase_control_outs(era_override=era_override)['onbase']-command
             my_advantages_per_20 = 20 - opponent_advantages_per_20
 
         return opponent_chart, my_advantages_per_20, opponent_advantages_per_20
@@ -1017,7 +1023,7 @@ class ShowdownPlayerCard:
 
         return best_chart, projected_stats_for_best_chart
 
-    def __chart_with_accuracy(self, command, outs, stats_for_400_pa):
+    def __chart_with_accuracy(self, command, outs, stats_for_400_pa, era_override:str = None):
         """Create Player's chart and compare back to input stats.
 
         Args:
@@ -1025,6 +1031,7 @@ class ShowdownPlayerCard:
           outs: Number of Outs on the Player's chart.
           stats_per_400_pa: Dict with number of results for a given
                             category per 400 PA (ex: {'hr_per_400_pa': 23.65})
+          era_override: Optionally override the era used for baseline opponents.
 
         Returns:
           - Dictionary for Player Chart ({'so': 1, 'hr': 2, ...})
@@ -1033,7 +1040,7 @@ class ShowdownPlayerCard:
         """
 
         # NEED THE OPPONENT'S CHART TO CALCULATE NUM OF RESULTS FOR RESULT
-        opponent_chart, my_advantages_per_20, opponent_advantages_per_20 = self.opponent_stats_for_calcs(command)
+        opponent_chart, my_advantages_per_20, opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=command, era_override=era_override)
 
         # CREATE THE CHART DICTIONARY
         chart = {
@@ -1057,7 +1064,8 @@ class ShowdownPlayerCard:
                 if self.is_pitcher and key == 'hr' and chart_results < 1.0:
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
                     chart_results_decimal = chart_results % 1
-                    rounded_results = round(chart_results) if chart_results_decimal > sc.HR_ROUNDING_CUTOFF[self.context][self.era] else math.floor(chart_results)
+                    era = era_override if era_override else self.era
+                    rounded_results = round(chart_results) if chart_results_decimal > sc.HR_ROUNDING_CUTOFF[self.context][era] else math.floor(chart_results)
                 else:                    
                     rounded_results = round(chart_results)
                 # PITCHERS SHOULD ALWAYS GET 0 FOR 3B
@@ -1078,7 +1086,8 @@ class ShowdownPlayerCard:
         chart['pu'], chart['gb'], chart['fb'] = self.__out_results(
                                                     stats_for_400_pa['GO/AO'],
                                                     stats_for_400_pa['IF/FB'],
-                                                    out_slots_remaining
+                                                    out_slots_remaining,
+                                                    era_override
                                                 )
         # CALCULATE HOW MANY SPOTS ARE LEFT TO FILL 1B AND 1B+
         remaining_slots = 20
@@ -1099,7 +1108,7 @@ class ShowdownPlayerCard:
         stolen_bases = int(stats_for_400_pa['sb_per_400_pa'])
         chart['1b'], chart['1b+'] = self.__single_and_single_plus_results(remaining_slots_qa,stolen_bases,command)
         # CHECK ACCURACY COMPARED TO REAL LIFE
-        in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20)
+        in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20, era_override=era_override)
         weights = sc.CHART_CATEGORY_WEIGHTS[self.context][self.player_type()]
         accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(actuals_dict=stats_for_400_pa,
                                                                                   measurements_dict=in_game_stats_for_400_pa,
@@ -1117,24 +1126,25 @@ class ShowdownPlayerCard:
 
         return chart, accuracy, in_game_stats_for_400_pa
 
-    def __out_results(self, gb_pct, popup_pct, out_slots_remaining):
+    def __out_results(self, gb_pct, popup_pct, out_slots_remaining, era_override:str = None):
         """Determine distribution of out results for Player.
 
         Args:
           gb_pct: Percent Ground Outs vs Air Outs.
           popup_pct: Percent hitting into a popup.
           out_slots_remaining: Total # Outs - SO
+          era_override: Optionally override the era used for baseline opponents.
 
         Returns:
           Tuple of PU, GB, FB out result ints.
         """
 
-
+        era = era_override if era_override else self.era
         if out_slots_remaining > 0:
             # MULTIPLIERS SERVE TO CORRECT TOWARDS WOTC
             # REPLACE HAVING DEFAULT FOR OPPONENT CHART
             type = 'pitcher' if self.is_pitcher else 'hitter'
-            gb_multi = sc.GB_MULTIPLIER[type][self.context][self.era]
+            gb_multi = sc.GB_MULTIPLIER[type][self.context][era]
             # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
             gb_outs = round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multi)
             air_outs = out_slots_remaining - gb_outs
@@ -1474,7 +1484,7 @@ class ShowdownPlayerCard:
 
         return rate
 
-    def chart_to_results_per_400_pa(self, chart, my_advantages_per_20, opponent_chart, opponent_advantages_per_20):
+    def chart_to_results_per_400_pa(self, chart, my_advantages_per_20, opponent_chart, opponent_advantages_per_20, era_override:str = None):
         """Predict real stats given Showdown in game chart.
 
         Args:
@@ -1482,13 +1492,14 @@ class ShowdownPlayerCard:
           my_advantages_per_20: Int number of advantages my Player gets out of 20 (i.e. 5).
           opponent_chart: Dict for chart of baseline opponent.
           opponent_advantages_per_20: Int number of advantages opponent gets out of 20 (i.e. 15).
+          era_override: Optionally override the era used for baseline opponents.
 
         Returns:
           Dict with stats per 400 Plate Appearances.
         """
 
         # MATCHUP VALUES
-        command_out_matchup = self.__onbase_control_outs(chart['command'],chart['outs'])
+        command_out_matchup = self.__onbase_control_outs(chart['command'],chart['outs'],era_override=era_override)
         pitcher_chart = chart if self.is_pitcher else opponent_chart
         hitter_chart = chart if not self.is_pitcher else opponent_chart
         hits_pitcher_chart = pitcher_chart['1b'] + pitcher_chart['2b'] \
@@ -1611,11 +1622,10 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 # PLAYER VALUE METHODS
 
-    def point_value(self, chart, projected, positions_and_defense, speed_or_ip):
+    def point_value(self, projected, positions_and_defense, speed_or_ip):
         """Derive player's value. Uses constants to compare against other cards in set.
 
         Args:
-          chart: Dict containing number of results per result category ({'1b': 5, 'hr': 3}).
           projected: Dict with projected metrics (obp, ba, ...) for 650 PA (~ full season)
           positions_and_defense: Dict with all valid positions and their corresponding defensive rating.
           speed_or_ip: In game speed ability or innings pitched.
@@ -1924,7 +1934,7 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 # GENERIC METHODS
 
-    def accuracy_between_dicts(self, actuals_dict, measurements_dict, weights={}, all_or_nothing=[], only_use_weight_keys=False):
+    def accuracy_between_dicts(self, actuals_dict, measurements_dict, weights={}, all_or_nothing=[], only_use_weight_keys=False,era_override:str = None):
         """Compare two dictionaries of numbers to get overall difference
 
         Args:
@@ -1934,6 +1944,8 @@ class ShowdownPlayerCard:
           all_or_nothing: List of category names to compare as a boolean 1 or 0 instead
                           of pct difference.
           only_use_weight_keys: Bool for whether to only count an accuracy there is a weight associated
+          era_override: Optionally override the era used for baseline opponents.
+
         Returns:
           Float with accuracy and Dict with accuracy per key. Also returns categorical accuracy and differences.
         """
@@ -1955,13 +1967,13 @@ class ShowdownPlayerCard:
                     co_split = value1.split('-')
                     command = int(co_split[0])
                     outs = int(co_split[1])
-                    command_out_matchup = self.__onbase_control_outs(command, outs)
+                    command_out_matchup = self.__onbase_control_outs(command, outs, era_override)
                     value1 = self.__obp_for_command_outs(command_out_matchup)
                     # VALUE 2
                     co_split = value2.split('-')
                     command = int(co_split[0])
                     outs = int(co_split[1])
-                    command_out_matchup = self.__onbase_control_outs(command, outs)
+                    command_out_matchup = self.__onbase_control_outs(command, outs, era_override)
                     value2 = self.__obp_for_command_outs(command_out_matchup)
                 
                 if key in all_or_nothing:
