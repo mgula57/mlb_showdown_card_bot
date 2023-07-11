@@ -4652,6 +4652,10 @@ class ShowdownPlayerCard:
           PIL Image for url.
         """
 
+        # CHECK FOR EMPTY
+        if url is None:
+            return None
+
         num_tries = 1
         for try_num in range(num_tries):
             response = requests.get(url)
