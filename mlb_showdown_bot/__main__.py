@@ -6,17 +6,18 @@ try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .firebase import Firebase
     from .baseball_ref_scraper import BaseballReferenceScraper
-    from .showdown_player_card_generator import ShowdownPlayerCardGenerator
+    from .showdown_player_card import ShowdownPlayerCard
 except ImportError:
     # USE LOCAL IMPORT 
     from firebase import Firebase
     from baseball_ref_scraper import BaseballReferenceScraper
-    from showdown_player_card_generator import ShowdownPlayerCardGenerator
+    from showdown_player_card import ShowdownPlayerCard
 
 parser = argparse.ArgumentParser(description="Generate a player's MLB Showdown stats in a given year")
 parser.add_argument('-n','--name', help='The first and last name of the player',required=True)
 parser.add_argument('-y','--year', help='The year of the player',required=True)
 parser.add_argument('-c','--context',help='The showdown set meta to use (2000-2005)',default='2000')
+parser.add_argument('-e','--era',help='The baseball era to use.',default='DYNAMIC')
 parser.add_argument('-o','--offset',help='Get alternate chart n away from most accurate',default=0)
 parser.add_argument('-url','--image_url',help='URL link to Player background image',default=None)
 parser.add_argument('-path','--image_path',help='Path to Player background image on local machine',default=None)
@@ -32,6 +33,7 @@ parser.add_argument('-vs','--variable_spd', action='store_true', help='Optionall
 parser.add_argument('-foil','--is_foil', action='store_true', help='Optionally add overlay with animated foil effect. Saves images as GIF.')
 parser.add_argument('-yc','--add_year_container', action='store_true', help='Optionally add year container box. Applies to 2000-2003 only.')
 parser.add_argument('-sypls','--set_year_plus_one', action='store_true', help='Optionally add one to the set year on 04/05 set.')
+parser.add_argument('-htl','--hide_team_logo', action='store_true', help='Optionally remove all team logos and branding.')
 parser.add_argument('-isl','--ignore_showdown_library', action='store_true', help='Optionally force ignore Showdown Library, will create card live.')
 
 args = parser.parse_args()
@@ -66,6 +68,8 @@ def main():
         set_year_plus_one=args.set_year_plus_one,
         pitcher_override = scraper.pitcher_override,
         hitter_override = scraper.hitter_override,
+        hide_team_logo=args.hide_team_logo,
+        date_override=None,
         is_running_in_flask=False
     )
     db.close_session()
@@ -76,7 +80,7 @@ def main():
 
     else:
         statline = scraper.player_statline()
-        showdown = ShowdownPlayerCardGenerator(
+        showdown = ShowdownPlayerCard(
             name=name,
             year=year,
             stats=statline,
@@ -96,7 +100,9 @@ def main():
             is_variable_speed_00_01=args.variable_spd,
             is_foil=args.is_foil,
             add_year_container=args.add_year_container,
-            set_year_plus_one=args.set_year_plus_one
+            set_year_plus_one=args.set_year_plus_one,
+            hide_team_logo=args.hide_team_logo,
+            era=args.era
         )
 
 if __name__ == "__main__":

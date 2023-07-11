@@ -16,6 +16,7 @@
       <link rel="stylesheet" href="/static/front_end/style.css">
       <link rel="apple-touch-icon" href="/static/interface/ShowdownLogoSquare.png">
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/css/bootstrap-select.min.css">
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
    </head>
 
 
@@ -39,8 +40,14 @@
             <div class="col-md-8">
                   <!-- TABS -->
                   <div class="tabs">
-                     <button class="tabs_button" data-for-tab="create">Create</button>
-                     <button class="tabs_button" data-for-tab="explore">Explore</button>
+                     <button class="tabs_button" data-for-tab="create">
+                        <i class="fa-solid fa-baseball"></i>
+                        Create
+                     </button>
+                     <button class="tabs_button" data-for-tab="explore">
+                        <i class="fa-solid fa-chart-simple"></i>
+                        Explore
+                     </button>
                      <div class="form-check form-switch" style="margin-left: auto; margin-top: auto; margin-bottom: auto;">                        
                         <input class="form-check-input" type="checkbox" id="dark_theme_toggle" onchange="toggleTheme(this)">
                         <label class="form-check-label" for="dark_theme_toggle" id="darkThemeToggleLabel">Dark Theme</label>
@@ -85,17 +92,30 @@
                                           <label for="setSelection" style="color:Gray;"><b>Set</b></label>
                                           <img for="setSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="2022+ Sets are split into CLASSIC AND EXPANDED. CLASSIC is compatible with '00-'01 sets, while EXPANDED works well with '02-'05. EXPANDED set increases hitter onbase values and adds results over 20+." >
                                           <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                             {% for year in ['2000','2001','2002','2003','2004','2005','2022-Classic','2022-Expanded'] %}
-                                                <option value={{ year }} {% if year == '2000' %} selected="selected" {% endif %}>{{ year | replace("2022-","")  }}</option>
+                                             {% for year in ['2000','2001','2002','2003','2004','2005','Classic','Expanded'] %}
+                                                <option value={{ year }} {% if year == '2000' %} selected="selected" {% endif %}>{{ year }}</option>
                                              {% endfor %}
                                           </select>
                                        </div>
                                        <div class="col-md-6">
-                                          <label style="color:Gray;" for="expansionSelection"> <b>Expansion</b> </label>
-                                          <select id="expansionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
-                                             <option value="FINAL" selected="selected">Final</option>
-                                             <option value="TD">Trading Deadline</option>
-                                             <option value="PR">Pennant Run</option>
+                                          <label style="color:Gray;" for="eraSelection"> <b>Era</b> </label>
+                                          <img for="setSelection" src="static/interface/BETA ICON.png" height=15 width=30 data-toggle="tooltip" data-placement="top" title="Eras determine the average opponent used to create the player's chart. See Opponent breakdown after creating a card for more detail."  >
+                                          <select id="eraSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                             {% set era_dict = {
+                                                "DYNAMIC": "Dynamic", 
+                                                "PRE 1900 ERA": "Pre-1900 (1800-1899)",
+                                                "DEAD BALL ERA": "Dead Ball (1900-1919)",
+                                                "LIVE BALL ERA": "Live Ball (1920-1941)",
+                                                "INTEGRATION ERA": "Integration (1942-1960)",
+                                                "EXPANSION ERA": "Expansion (1961-1976)",
+                                                "FREE AGENCY ERA": "Free Agency (1977-1993)",
+                                                "STEROID ERA": "Steroid (1994-2009)",
+                                                "POST STEROID ERA": "Post-Steroid (2010-2014)",
+                                                "STATCAST ERA": "Statcast (2015-PRES)",
+                                             } %}
+                                             {% for era_value, era in era_dict.items() -%}
+                                                <option value="{{era_value}}" {% if era_value == "DYNAMIC" %} selected="selected" {% endif %}>{{era}}</option>
+                                             {% endfor -%}
                                           </select>
                                        </div>
                                     </div>   
@@ -105,8 +125,15 @@
                                  <div class="form-group">
                                     <div class="row">
                                        <div class="col-md-6">
+                                          <label style="color:Gray;" for="expansionSelection"> <b>Expansion</b> </label>
+                                          <select id="expansionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                             <option value="FINAL" selected="selected">Final</option>
+                                             <option value="TD">Trading Deadline</option>
+                                             <option value="PR">Pennant Run</option>
+                                          </select>
+                                       </div>
+                                       <div class="col-md-6">
                                           <label style="color:Gray;" for="editionSelection"> <b>Edition</b></label>
-                                          <img for="setSelection" src="static/interface/NEW.png" height=26 width=26 data-toggle="tooltip" data-placement="top" title="Try the new Nationality edition, which adds a custom background and flag from the player's birth country. Perfect for WBC cards!" >
                                           <select id="editionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              <option value="NONE" selected="selected">None</option>
                                              <option value="CC">Cooperstown Collection</option>
@@ -117,10 +144,6 @@
                                              <option value="NAT">Nationality</option>
                                           </select>
                                        </div>
-                                       <div class="col-md-6" style="padding-bottom: 10px;">
-                                          <label for="setnum" style="color:Gray;"><b>Set Number</b></label>
-                                          <input type="text" name="setnum" class="form-control" id="setnum" placeholder="">
-                                       </div>
                                     </div>   
                                  </div>
                                  
@@ -128,102 +151,148 @@
                                  <div class="form-group">
                                     <div class="row">
                                        <div class="col-md-6">
-                                          <label for="offset" style="color:Gray;"><b>Stats Version</b></label>
+                                          <label for="chartVersionSelection" style="color:Gray;"><b>Chart Version</b></label>
                                           <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
-                                          <br>
-                                          <div class="btn-group" id="statsVersionSelection" role="group" aria-label="Basic radio toggle button group" style="padding-bottom: 10px;">
+                                          <select id="chartVersionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              {% for index in [1,2,3,4,5] -%}
-                                                {% set offsetName = "offset" ~ (index-1) %}
+                                                {% set offsetName = (index-1) %}
                                                 {% set checkedStr = "checked" if loop.first else "" %}
-                                                <input type="radio" class="btn-check" name="offset" id={{offsetName}} autocomplete="off" {{ checkedStr }}>
-                                                <label class="btn btn-outline-secondary" for={{offsetName}}>{{ index }}</label>
+                                                <option value={{ offsetName }} {% if index == 1 %} selected="selected" {% endif %}>{{ index }}</option>
                                              {% endfor %}
-                                          </div>
+                                          </select>
                                        </div>
-                                       <div class="col-md-6">
+                                       <div class="col-md-6" style="padding-bottom: 10px;">
+                                          <label for="setnum" style="color:Gray;"><b>Set Number</b></label>
+                                          <input type="text" name="setnum" class="form-control" id="setnum" placeholder="">
+                                       </div>
+                                    </div>   
+                                 </div>
+
+                                 <div class="form-group">
+                                    <div class="row">
+                                       <div class="col-md-12">
                                           <div>
                                              <label style="color:Gray;"><b>More Options</b></label>
                                              <select id="moreOptionsSelect" class="selectpicker" multiple title="(Optional)" data-style="btn-outline-secondary" data-width="100%">
                                                 <optgroup label="Visual">
                                                    <option value="Border">Border</option>
-                                                   <option value="DarkMode">Dark Mode (2022)</option>
+                                                   <option value="DarkMode">Dark Mode</option>
                                                    <option value="Foil">Foil (BETA)</option>
                                                    <option value="YearContainer">Year Box ('00-'03)</option>
                                                    <option value="SetYearPlus1">Set Year +1 ('04-'05)</option>
+                                                   <option value="HideTeamBranding">Remove Team Branding</option>
                                                 </optgroup>
                                                 <optgroup label="Stats">
                                                    <option value="VariableSpeed">Variable Speed ('00-'01)</option>
                                                    <option value="IgnoreShowdownLibrary">Ignore Showdown Library</option>
                                                 </optgroup>
-                                             </select>      
-                                          </div>                              
-                                       </div>
-                                    </div>   
+                                             </select>     
+                                          </div>
+                                       </div> 
+                                    </div>
                                  </div>
             
                                  <!-- IMAGES  -->
                                  <div class="form-group" style="padding-top: 10px;">
-                                    <label><b style="color:Gray;">Image</b><a style="color:Gray;"> (Optional)</a></label>
-                                    <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="If no image is selected, the bot will check for an available pre-built player image. If no image exists, the bot will display the default silhouette." >
                                     <div class="row">
+                                       <div class="col-md-12" >
+                                          <label style="color:Gray;"><b>Image</b></label>
+                                          <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="If you select auto or no link/upload is provided, the bot will check for a curated player image. If no image exists, the bot will display a default silhouette for the player's primary position." >
+                                          <select id="imageTypeSelection" class="form-select mb-3" aria-label=".form-select-lg example" onchange="changeImageSection(this)">
+                                             {% for type in ["Auto", "Link", "Upload"] -%}
+                                                <option value={{ type | lower }} {% if type == "Auto" %} selected="selected" {% endif %}>{{ type }}</option>
+                                             {% endfor -%}
+                                          </select>
+                                       </div>
+                                    </div>
+                                    
+                                    <div class="row" id="link" style="display: none;">
                                        <div class="col-md-12" >
                                           <input type="text" name="url" class="form-control" id="url" placeholder="Paste Link">
                                        </div>
                                     </div>   
-                                    <div class="row">
+                                    <div class="row" id="upload" style="display: none;">
                                        <div class="col-md-12">
-                                          <label for="img_upload" style="color:Gray;"> <i>Or</i></label>
                                           <input class="form-control" type="file" id="img_upload" accept="image/*">
                                        </div>
                                     </div>
                                  </div>
+
+                                 <hr>
             
                                  <!-- BUTTONS  -->
                                  <div class="form-group" style="padding-top:10px; padding-bottom:20px;">
-                                    <div class="row" style="padding-top: 10px;">
-                                       <div class="col-md-7" style="padding: 8px;" >
+
+                                    <!-- CREATE BUTTON -->
+                                    <div class="row">
+                                       <div class="col-md-12" style="padding: 8px;" >
                                           <!-- CREATE CARD BUTTON  -->
                                           <a href=# id=create_card>
-                                             <button type="submit" style="border-radius: 10px; color: white; background-color: #5d82b8;" class="btn w-100">
-                                                <div style="padding: 5px;"><b>Submit</b></div>
+                                             <button type="submit" id="btn_custom" style="background-color: #4983D4; padding: 15px;" class="btn w-100">
+                                                <div class="btn_text">
+                                                   <i class="fa-solid fa-baseball fa-bounce"></i>
+                                                   Create Showdown Card
+                                                </div>
                                              </button>
                                           </a>
-                                          
-                                       </div>
-            
-                                       <div class="col-md-2" style="padding: 8px;" >
+                                       </div>                                       
+                                    </div>
+
+                                    <!-- SHUFFLE AND CLEAR BUTTONS -->
+                                    <div class="row">
+                                       <div class="col-md-6" style="padding: 8px;" >
                                           <!-- CREATE RANDOM BUTTON  -->
                                           <a href=# id=create_card_random>
-                                             <button style="border-radius: 10px;" class="btn btn-warning w-100">
-                                                <div style="padding: 5px;">
-                                                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" class="bi bi-shuffle" stroke-width="30" viewBox="0 0 20 20">
-                                                      <path fill-rule="evenodd" d="M0 3.5A.5.5 0 0 1 .5 3H1c2.202 0 3.827 1.24 4.874 2.418.49.552.865 1.102 1.126 1.532.26-.43.636-.98 1.126-1.532C9.173 4.24 10.798 3 13 3v1c-1.798 0-3.173 1.01-4.126 2.082A9.624 9.624 0 0 0 7.556 8a9.624 9.624 0 0 0 1.317 1.918C9.828 10.99 11.204 12 13 12v1c-2.202 0-3.827-1.24-4.874-2.418A10.595 10.595 0 0 1 7 9.05c-.26.43-.636.98-1.126 1.532C4.827 11.76 3.202 13 1 13H.5a.5.5 0 0 1 0-1H1c1.798 0 3.173-1.01 4.126-2.082A9.624 9.624 0 0 0 6.444 8a9.624 9.624 0 0 0-1.317-1.918C4.172 5.01 2.796 4 1 4H.5a.5.5 0 0 1-.5-.5z"></path>
-                                                      <path d="M13 5.466V1.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384l-2.36 1.966a.25.25 0 0 1-.41-.192zm0 9v-3.932a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384l-2.36 1.966a.25.25 0 0 1-.41-.192z"></path>
-                                                   </svg>
+                                             <button id="btn_custom" style="color: black;" class="btn btn-warning w-100">
+                                                <div class="btn_text">
+                                                   <i class="fa-solid fa-shuffle"></i>
+                                                   Shuffle
                                                 </div>
                                              </button>
                                           </a>
                                        </div>
       
-                                       <div class="col-md-3" style="padding: 8px;" >
+                                       <div class="col-md-6" style="padding: 8px;" >
                                           <!-- RESET CARD BUTTON  -->
-                                          <button type="reset" style="border-radius: 10px;" class="btn btn-secondary btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''">
-                                             <div style="padding: 5px;">Clear</div>
+                                          <button id="btn_custom" type="reset" class="btn btn-secondary btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''">
+                                             <div class="btn_text">
+                                                <i class="fa-solid fa-circle-xmark"></i>
+                                                Clear 
+                                             </div>
                                           </button>
                                        </div>
-      
                                     </div>
       
-                                    <!-- TWITTER LINK  -->
-                                    <div style="padding-top:10px;padding-right:10px;">
+                                    <!-- SOCIAL LINKS LINK  -->
+                                    <div class="row" style="padding-top: 30px;">
+                                       <!-- TWITTER  -->
+                                       <div class="col-md-4" style="padding: 8px;" >
+                                          <a href="https://twitter.com/mlbshowdownbot?ref_src=twsrc%5Etfw" class="a_no_style" target="_blank" rel="noopener noreferrer">
+                                             <div class="social_link" style="background-color: #1DA1F2;" >
+                                                <i class="fa-brands fa-twitter"></i>
+                                                Twitter
+                                             </div>
+                                          </a>
+                                       </div>
+                                       
+                                       <!-- GITHUB -->
+                                       <div class="col-md-4" style="padding: 8px;" >
+                                          <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" class="a_no_style" target="_blank" rel="noopener noreferrer">
+                                             <div class="social_link" style="background-color: #161B21;">
+                                                <i class="fa-brands fa-github"></i>
+                                                GitHub
+                                             </div>
+                                          </a>
+                                       </div>
+                                    </div>
+                                    
+                                    <!-- <div style="padding-top:10px;padding-right:10px;">
                                        <a href="https://twitter.com/mlbshowdownbot?ref_src=twsrc%5Etfw" class="twitter-follow-button" data-size='small' data-show-count="false">Follow</a><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
-                                    </div>
+                                    </div> -->
       
-                                    <!-- HOW DOES SHOWDOWN BOT WORK? -->
+                                    
                                     <div style="padding-top: 10px;">
-                                       <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" class="link-secondary" target="_blank" rel="noopener noreferrer">
-                                          <p>How does Showdown Bot work?</p>
-                                       </a>
+                                       
                                     </div>
                                  </div>
                                  <br>
@@ -237,8 +306,10 @@
                            <!-- OUTPUT  -->
                            <div class="output_container">
                               <!-- PLAYER NAME -->
-                              <div class="d-flex justify-content-center">
+                              <div class="d-flex justify-content-center" id="player_name_container">
                                  <h2 id="player_name" class="player_name_light"></h2>
+                                 <i id="player_trend_up_arrow" class="fa-solid fa-arrow-trend-up fa-2xl" data-toggle="tooltip" data-placement="top" title="This player's Showdown PTS has been trending up recently. See the PTS Trend graph below for more."></i>
+                                 <i id="player_trend_down_arrow" class="fa-solid fa-arrow-trend-down fa-2xl" data-toggle="tooltip" data-placement="top" title="This player's Showdown PTS has been trending down recently. See the PTS Trend graph below for more."></i>
                               </div>
                               <!-- PLAYER NAME AND HYPERLINK -->
                               <div class="d-flex justify-content-center">
@@ -282,17 +353,22 @@
                                              <canvas id="playerRadar"></canvas>
                                           </div>
 
-                                          <div class="breakdown_output_light" id="breakdown_output">
-                                          <div class="btn-group" role="group" aria-label="Basic radio toggle button group" style="padding: 10px;">
-                                             <input type="radio" class="btn-check" onchange="checkHideForStats(this)" name="category" id="stats_btn" autocomplete="off" checked>
-                                             <label class="btn btn-outline-secondary btn-sm" for="stats_btn">Stats</label>
-                                             <input type="radio" class="btn-check" onchange="checkHideForPoints(this)" name="category" id="points_btn" autocomplete="off">
-                                             <label class="btn btn-outline-secondary btn-sm" for="points_btn">Points</label>
-                                             <input type="radio" class="btn-check" onchange="checkHideForAccuracy(this)" name="category" id="accuracy_btn" autocomplete="off">
-                                             <label class="btn btn-outline-secondary btn-sm" for="accuracy_btn">Accuracy</label>
-                                             <input type="radio" class="btn-check" onchange="checkHideForRank(this)" name="category" id="rank_btn" autocomplete="off">
-                                             <label class="btn btn-outline-secondary btn-sm" for="rank_btn">Ranks</label>
+                                          <div class="trend_container_light" id="trend_container">
+                                             <label class="graph_label" for="playerTrends">
+                                                <i class="fa-solid fa-chart-line"></i>
+                                                PTS Trend
+                                             </label>
+                                             <canvas id="playerTrends"></canvas>
                                           </div>
+
+                                          <div class="breakdown_output_light" id="breakdown_output">
+                                             <select id="breakdownSelection" class="form-select mb-3" aria-label=".form-select-lg example" onchange="toggleBreakdownSelection()">
+                                                <option value="stats" selected="selected">Stats</option>
+                                                <option value="points">Points</option>
+                                                <option value="accuracy">Accuracy</option>
+                                                <option value="rank">Ranks</option>
+                                                <option value="opponent">Opponent</option>
+                                             </select>
          
                                           <!-- STATS TABLE  -->
                                           <div id="stats_div" style="display:initial" >
@@ -368,6 +444,29 @@
                                              </table>
                                              <p class="rank_values_footnote_light" id="rank_values_footnote"><i>Rankings are calculated within top ~500-780 players that season. Rankings only available for players loaded from Showdown Library.</i></p>
                                           </div>
+
+                                          <div id="opponent_div" style="display:none" >
+                                             <h6 style='color: #686666; padding: 0px;' id="avg_opponent_text">
+                                                <b> </b>
+                                             </h6> 
+                                             <table class='table table-striped table-bordered' id="opponent_table">
+                                                <tr>
+                                                   <th> </th>
+                                                   <th># Chart Results</th>
+                                                </tr>
+                                                {% for category in ['Command','Outs','SO','BB','1B','2B','3B','HR',] -%}
+                                                <tr>
+                                                   <td><b>{{ category }}</b></td>
+                                                   <td>?</td>
+                                                </tr>
+                                                {% endfor %}
+                                             </table>
+                                             <p class="opponent_values_footnote_light" id="opponent_values_footnote"><i>This is the opponent used to create the player's chart. Represents the average opposing hitter/pitcher of that era.</i>
+                                                <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md#era" id="eras_href" class="link-primary" target="_blank" rel="noopener noreferrer" style="font-size: 50%;">
+                                                   <p style="margin: 2px;" id="eras_link_text"> More Detail </p>
+                                                </a>
+                                             </p>
+                                          </div>
                                        </div> 
                                     </div>
                                  </div>
@@ -413,10 +512,11 @@
       <!-- JAVASCRIPT -->
       <script src="//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-      <script src="/static/front_end/script_3_4_82.js" charset="utf-8"></script>
+      <script src="/static/front_end/script_3_5.js" charset="utf-8"></script>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/js/bootstrap-select.min.js"></script>
       <script src="/static/front_end/tableau_3_4.js" type='text/javascript'></script>
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
    </body>
    
 </html>

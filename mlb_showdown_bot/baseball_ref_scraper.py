@@ -1,8 +1,7 @@
 
 import pandas as pd
-import requests
+import cloudscraper
 import re
-import ast
 import os
 from pathlib import Path
 import json
@@ -29,6 +28,8 @@ class BaseballReferenceScraper:
         is_full_career = year.upper() == 'CAREER'
         if is_full_career:
             year = 'CAREER'
+        elif '(' in year:
+            year = int(year[:4])
         elif '-' in year:
             # RANGE OF YEARS
             years = year.split('-')
@@ -40,6 +41,7 @@ class BaseballReferenceScraper:
             year = [int(x.strip()) for x in years]
 
         self.name = name
+        self.error = None
         
         # PARSE MULTI YEARS
         if isinstance(year, list):
@@ -75,6 +77,12 @@ class BaseballReferenceScraper:
                 self.baseball_ref_id = self.search_google_for_b_ref_id(name, year)
 
         self.first_initial = self.baseball_ref_id[:1]
+
+        # STORE BASEBALL REFERENCE ID USED FOR TRENDS DATA QUERY
+        if "ohtansh01" in self.baseball_ref_id:
+            self.baseball_ref_id_used_for_trends = f"ohtansh01 {'(Pitcher)' if self.pitcher_override else '(Hitter)'}"
+        else:
+            self.baseball_ref_id_used_for_trends = self.baseball_ref_id
 
 # ------------------------------------------------------------------------
 # SCRAPE WEBSITES
@@ -132,11 +140,13 @@ class BaseballReferenceScraper:
         
         # GOOGLE WILL BLOCK REQUESTS IF IT DETECTS THE BOT.
         if len(soup_search_name_and_year.find_all(text="Why did this happen?")) > 0:
-            raise RuntimeError('Google has an overload of requests coming from your IP Address. Wait a few minutes and try again.')
+            self.error = 'Google has an overload of requests coming from your IP Address. Wait a few minutes and try again.'
+            raise RuntimeError(self.error)
 
         # NO BASEBALL REFERENCE RESULTS FOR THAT NAME AND YEAR
         if search_results == []:
-            raise AttributeError('Cannot Find BRef Page for {} in {}'.format(name,year))
+            self.error = f'Cannot Find BRef Page for {name} in {year}'
+            raise AttributeError(self.error)
         
         top_result_url = search_results[0]["href"]
         player_b_ref_id = top_result_url.split('.shtml')[0].split('/')[-1]
@@ -170,13 +180,22 @@ class BaseballReferenceScraper:
           url: URL for the request.
 
         Raises:
-            AttributeError: Cannot find Baseball Ref Page for name/year combo.
+          TimeoutError: 502 - BAD GATEWAY
+          TimeoutError: 429 - TOO MANY REQUESTS TO BASEBALL REFERENCE
 
         Returns:
           HTML string for URL request.
         """
 
-        html = requests.get(url)
+        scraper = cloudscraper.create_scraper()
+        html = scraper.get(url)
+
+        if html.status_code == 502:
+          self.error = "502 - BAD GATEWAY"
+          raise TimeoutError(self.error)
+        if html.status_code == 429:
+          self.error = "429 - TOO MANY REQUESTS TO BASEBALL REFERENCE. PLEASE TRY AGAIN IN A FEW MINUTES."
+          raise TimeoutError(self.error)
 
         return html.text
 
@@ -211,6 +230,9 @@ class BaseballReferenceScraper:
             # NATIONALITY
             nationality = self.nationality(soup_for_homepage_stats=soup_for_homepage_stats)
 
+            # ROOKIE STATUS YEAR
+            rookie_status_year = self.rookie_status_year(soup_for_homepage_stats=soup_for_homepage_stats)
+
             # WAR
             stats_dict.update({'bWAR': self.__bWar(soup_for_homepage_stats, year, type)})
 
@@ -226,6 +248,8 @@ class BaseballReferenceScraper:
             stats_dict['name'] = name
             stats_dict['years_played'] = years_played
             stats_dict['nationality'] = nationality
+            stats_dict['rookie_status_year'] = rookie_status_year
+            stats_dict['is_rookie'] = False if is_full_career or self.is_multi_year or rookie_status_year is None else ( int(year) <= rookie_status_year )
             
             # HITTING / HITTING AGAINST
             advanced_stats = self.advanced_stats(type,year=year)
@@ -246,7 +270,7 @@ class BaseballReferenceScraper:
             if self.__is_pitcher_from_1901_to_1918(year=year,type=type):
                 team_id = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=[int(year)])
                 if team_id == 'TOT':
-                    team_id = self.__parse_team_after_trade(advanced_stats_soup=soup_for_homepage_stats,year=year)
+                    team_id = self.__parse_team_after_trade(soup_for_homepage_stats=soup_for_homepage_stats,year=year,type=type)
                 stats_dict['team_ID'] = team_id
 
             # FULL CAREER
@@ -417,7 +441,8 @@ class BaseballReferenceScraper:
         metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
 
         if metadata is None:
-            raise ValueError('No metadata found')
+            self.error = 'No player metadata found'
+            raise ValueError(self.error)
         # FIND THE HAND TAG IN THE METADATA LIST
         for strong_tag in metadata.find_all('strong'):
             hand_tag = 'Bats: ' if type == 'Hitter' else 'Throws: '
@@ -442,7 +467,8 @@ class BaseballReferenceScraper:
         metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
 
         if metadata is None:
-            raise ValueError('No player name found')
+            self.error = 'No player name found'
+            raise ValueError(self.error)
         # FIND THE ITEMPROP TAG
         name_object = metadata.find('h1', attrs = {'itemprop': 'name'})
         if name_object is None:
@@ -467,7 +493,8 @@ class BaseballReferenceScraper:
         # FIND METADATA DIV
         metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
         if metadata is None:
-            raise ValueError('No player nationality found')
+            self.error = "No player nationality found"
+            raise ValueError(self.error)
         
         # FIND ALL CLASSES WITH THE KEYWORD "f-i" IN THE CLASS NAME.
         #   EX: <span class="f-i f-pr" style="">pr</span>
@@ -478,6 +505,37 @@ class BaseballReferenceScraper:
                 return country_abbr.upper()
 
         # NO NATIONALITY WAS FOUND, RETURN NONE
+        return None
+    
+    def rookie_status_year(self, soup_for_homepage_stats) -> int:
+        """Parse the player's rookie status end year. Used for the "R" icon.
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats from homepage.
+
+        Returns:
+          Int for the last year of rookie eligibility for the player.
+        """
+
+        # FIND METADATA DIV
+        metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
+        if metadata is None:
+            return None
+
+        # FIND THE HAND TAG IN THE METADATA LIST
+        for strong_tag in metadata.find_all('strong'):
+            if strong_tag.text == 'Rookie Status:':
+                rookie_status_full_sentence = strong_tag.next_sibling.strip()
+                rookie_status_only_ints = re.sub("[^0-9]", "", rookie_status_full_sentence)
+                if len(rookie_status_only_ints) != 4:
+                    continue
+                try:
+                    rookie_status_year = int(rookie_status_only_ints)
+                    return rookie_status_year
+                except:
+                    continue
+
+        # NO ROOKIE STATUS WAS FOUND, RETURN NONE
         return None
     
     def type(self, positional_fielding, year):
@@ -516,7 +574,8 @@ class BaseballReferenceScraper:
             if self.is_multi_year:
                 return None
             else:
-                raise AttributeError('This Player Played 0 Games in {}. Check Player Name and Year'.format(year))
+                self.error = f'This Player Played 0 Games in {year}. Check Player Name and Year'
+                raise AttributeError(self.error)
         elif is_pitcher_override:
             return "Pitcher"
         elif is_hitter_override:
@@ -731,12 +790,7 @@ class BaseballReferenceScraper:
         team_id_key = 'team_ID'
         if team_id_key in advanced_stats.keys():
             if advanced_stats[team_id_key] == 'TOT':
-                advanced_stats[team_id_key] = self.__parse_team_after_trade(advanced_stats_soup=soup_for_advanced_stats,year=year)
-        
-        # ROOKIE ICON
-        if not is_full_career and not self.is_multi_year:
-            is_rookie_season = self.__is_rookie_season(table_prefix=table_prefix, advanced_stats_soup=soup_for_advanced_stats)
-            advanced_stats['is_rookie'] = is_rookie_season
+                advanced_stats[team_id_key] = self.__parse_team_after_trade(soup_for_homepage_stats=soup_for_advanced_stats,year=year,type=type)
 
         # FILL IN EMPTY STATS
         current_categories = advanced_stats.keys()
@@ -933,18 +987,23 @@ class BaseballReferenceScraper:
             'IF/FB': pu_ratio
         }
 
-    def __parse_team_after_trade(self, advanced_stats_soup, year):
+    def __parse_team_after_trade(self, soup_for_homepage_stats, year, type):
         """Parse the last team a player playe dfor in the given season.
 
         Args:
-          advanced_stats_soup: BeautifulSoup object for advanced stats table.
+          soup_for_homepage_stats: BeautifulSoup object for advanced stats table.
           year: Year for Player stats
+          type: Player is Pitcher or Hitter.
 
         Returns:
           Team Id for last team the player played on in year
         """
 
-        partial_objects_list = advanced_stats_soup.find_all('tr',attrs={'class':'partial_table'})
+        header_prefix = 'batting' if type == 'Hitter' else 'pitching'
+        standard_table = soup_for_homepage_stats.find('table',attrs={'id':f'{header_prefix}_standard'})
+        if standard_table is None:
+            return 'TOT'
+        partial_objects_list = standard_table.find_all('tr',attrs={'class':'partial_table'})
         teams_list = []
         # ITERATE THROUGH PARTIAL SEASONS
         try:
@@ -952,9 +1011,12 @@ class BaseballReferenceScraper:
                 # SAVE TEAMS ONLY FOR year SEASON
                 object_for_this_season = partial_object.find('th',attrs={'data-stat':'year_ID', 'csk': re.compile(str(year))})
                 if object_for_this_season:
-                    # PARSE TEAM ID 
-                    team_id = partial_object.find('td', attrs={'data-stat':'team_ID'}).get_text()
-                    if team_id not in teams_list and team_id != '':
+                    # PARSE TEAM ID
+                    team_object = partial_object.find('td', attrs={'data-stat':'team_ID'})
+                    if team_object is None:
+                        continue
+                    team_id = team_object.get_text()
+                    if team_id != '' and team_id != 'TOT':
                         # ADD TO TEAMS LIST
                         teams_list.append(team_id)
             last_team = teams_list[-1]
@@ -1249,23 +1311,6 @@ class BaseballReferenceScraper:
             return None
 
         return stat_list
-
-    def __is_rookie_season(self, table_prefix, advanced_stats_soup):
-        """Checks to see if the selected season is the player's rookie season
-        Args:
-          table_prefix: String for whether player is batter or pitcher
-          advanced_stats_soup: BeautifulSoup object for advanced stats table.
-        Returns:
-          TRUE or FALSE bool
-        """
-        try:
-            full_element_prefix = '{}_standard.'.format(table_prefix)
-            all_seasons_list = advanced_stats_soup.find_all('tr',attrs={'class':'full','id': re.compile(full_element_prefix)})
-            first_season = all_seasons_list[0].find('th',attrs={'class':'left','data-stat': 'year_ID'} )
-            year_of_first_season = str(first_season["csk"])
-            return year_of_first_season in self.years
-        except:
-            return False
 
     def __is_pitcher_from_1901_to_1918(self, year, type):
         """Checks to see if the player is a pitcher and the year is between 1901-1917.
