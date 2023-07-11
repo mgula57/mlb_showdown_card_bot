@@ -4722,12 +4722,13 @@ class ShowdownPlayerCard:
             return components_dict
         
         # ALL STAR
-        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context in [sc.CLASSIC_SET, sc.EXPANDED_SET]:
+        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context in ['2002','2003','2004','2005',sc.CLASSIC_SET, sc.EXPANDED_SET]:
             components_dict = {
                 sc.IMAGE_TYPE_GLOW: None,
                 sc.IMAGE_TYPE_CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2023-BG-{self.league}'),
-                sc.IMAGE_TYPE_CUSTOM_FOREGROUND: self.__card_art_path(f'ASG-2023-FG'),
             }
+            if self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET]:
+                components_dict[sc.IMAGE_TYPE_CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
             return components_dict
 
         # CLASSIC/EXPANDED
