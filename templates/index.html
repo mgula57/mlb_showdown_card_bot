@@ -99,7 +99,7 @@
                                        </div>
                                        <div class="col-md-6">
                                           <label style="color:Gray;" for="eraSelection"> <b>Era</b> </label>
-                                          <img for="eraSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Eras determine the average opponent used to create the player's chart." >
+                                          <img for="setSelection" src="static/interface/BETA ICON.png" height=15 width=30 data-toggle="tooltip" data-placement="top" title="Eras determine the average opponent used to create the player's chart. See Opponent breakdown after creating a card for more detail."  >
                                           <select id="eraSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              {% set era_dict = {
                                                 "DYNAMIC": "Dynamic", 
@@ -461,7 +461,11 @@
                                                 </tr>
                                                 {% endfor %}
                                              </table>
-                                             <p class="opponent_values_footnote_light" id="opponent_values_footnote"><i>This the the opponent used to create the player's chart. Represents the average opposing hitter/pitcher of that era.</i></p>
+                                             <p class="opponent_values_footnote_light" id="opponent_values_footnote"><i>This is the opponent used to create the player's chart. Represents the average opposing hitter/pitcher of that era.</i>
+                                                <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md#era" id="eras_href" class="link-primary" target="_blank" rel="noopener noreferrer" style="font-size: 50%;">
+                                                   <p style="margin: 2px;" id="eras_link_text"> More Detail </p>
+                                                </a>
+                                             </p>
                                           </div>
                                        </div> 
                                     </div>
