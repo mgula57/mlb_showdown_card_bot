@@ -25,6 +25,7 @@
     * [Icons](#icons)
     * [Points](#points)
     * [Multi-Year Cards](#multi-year-cards)
+    * [Eras](#eras)
     * [Negro Leagues and Pre-20th Century](#negro-leagues-and-pre-20th-century)
     * [shOPS+](#shops)
 * [Editions](#editions)
@@ -60,7 +61,7 @@ showdownbot --name "Mike Piazza" --year 1997 --context 2001
 Example Python use:
 
 ```python
-from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCardGenerator
+from mlb_showdown_bot.showdown_player_card_generator import ShowdownPlayerCard
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 
 name = 'Mike Piazza'
@@ -71,7 +72,7 @@ scraper = BaseballReferenceScraper(name=name,year=year)
 statline = scraper.player_statline()
 
 # CREATE SHOWDOWN CARD 
-showdown = ShowdownPlayerCardGenerator(
+showdown = ShowdownPlayerCard(
     name=name,
     year=year,
     stats=statline,
@@ -204,7 +205,9 @@ To display one of the other chart outputs, add the optional **offset**/ argument
 ### **Defense**
 
 #### _Hitters_
-Each player can have a maximum of **2 positions** or WOTC sets (2000-2005). That is expanded to **3 positions** for 2022 sets. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. The positions are then limited to the top by number of appearances. 
+Each player can have a maximum of **2 positions** or WOTC sets (2000-2005). That is expanded to **3 positions** for 2022 sets. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. For multi-year/career long cards, **25%** of games must be played at that position. The positions are then limited to the top 2 (3 if CLASSIC or EXPANDED set) by number of appearances. 
+
+In WOTC sets (2000-2005), 2B/3B/SS can be combined to conform to 2 position slots. When combined, the average of the 2 positions will be used as the final value.
 
 In-game defensive ratings are calculated based on either Outs Above Avg (OAA), Total Zone Rating (tzr), Defensive Runs Saved (drs), or Defensive Wins Above Replacement (dWAR). The bot will choose which metric to use depending on the year:
 
@@ -243,10 +246,10 @@ Pitchers fall under the following categories
 ### **Speed**
 
 In-game SPEED is calculated differently depending on the year. 
-* If the year is AFTER 2015, SPRINT SPEED is used. _(Sourced from Baseball Savant)_
 * If the year is BEFORE or ON 2015, STOLEN BASES (per 650 PA) is used.
+* If the year is AFTER 2015, SPRINT SPEED _(Sourced from Baseball Savant)_ is used along with STOLEN BASES (per 650 PA). A weighted avg is used where SPRINT SPEED has a 70% weighting and STOLEN BASES has a 30% weighting.
 
-Either SPRINT SPEED or STOLEN BASES is then converted to a percentile based off a range (the same way that defense is calculated). That percentile is then multiplied by the maximum in-game speed.
+The combination of SPRINT SPEED/STOLEN BASES is then converted to a percentile based off a range (the same way that defense is calculated). That percentile is then multiplied by the maximum in-game speed.
 
 For example, the range of SPRINT SPEED is from 23 ft/sec to 31 ft/sec. If a player's SPRINT SPEED was 27ft/sec, they are in the 50th percentile (0.5). If the maximum in-game speed was 25, then this player's in-game SPEED is equal to 25 * 0.5, which rounds to **13**.
 
@@ -286,7 +289,7 @@ _** Some of these thresholds are slightly different than the original game._
 * **GG**: Won Gold Glove Award.
 * **V**: Won AL or NL Most Valuable Player Award.
 * **CY**: Won AL or NL CY Young Award.
-* **R**: Selected season was player's first year in MLB.
+* **R**: Selected season was during the player's rookie eligibility.
 * **RY**: Won AL or NL Rookie of the Year Award.
 * **20**: Won 20 or more games as a Pitcher.
 * **K**: Struck out at least 215 batters.
@@ -389,6 +392,24 @@ Card methodology will slightly change if the user enters a multi-year card. Diff
 - **DEFENSE**: For each qualified position, the Bot uses the **median** defensive metric (drs/tzr/dWar) calculated across the choosen years. If outs above avg is available, it takes uses 162 game average instead of a median. The qualification for positions increases from 15% -> 25%.
 - **GB/FB**: The GO/AO ratio is averaged across choosen years.
 - **Icons**: If the player qualified for an icon in any of the choosen seasons, he is granted the icon in the multi-year variant. This is excluding the R icon, which is only available in single-year cards.
+
+### **Eras**
+
+The original MLB Showdown game was built during the steroid era. This means the card formula is based on the Steroid Era run environment, where hitting was more dominant than pitching. In the year 2023 pitching is now stronger, and hitters are more focused on hitting home runs at the cost of more strikeouts. These evolutions are common throughout baseball history, and the Bot's eras feature helps adapt cards to be normalized across these different periods.
+
+Each Era adjusts the baseline opponent to better represent the run scoring environment of that period. This means cards will produce more accurate due to them facing the average opponent of their era rather than the average opponent of the _Steroid_ era.
+
+For example, below are 2001 set baseline pitcher attributes during the _Steroid_ and _Statcast_ eras.
+
+Attribute | Steroid Era | Statcast Era
+--- | --- | --- 
+Control | 16.0 | 16.3
+Outs | 3.0 | 3.1 
+SO | 4.1 | 6.0
+
+Because the average control and outs are higher in the _Statcast_ Era, hitter charts will be improved in order to reach their expected season stats. Hitter chart strikeouts will decrease as well due to the pitchers having 1.9 more results on their charts on average.
+
+There are also slight other adjustments across eras, including reducing speed slightly for eras where stolen bases were extremely high.
 
 ### **Negro Leagues and Pre-20th Century**
 

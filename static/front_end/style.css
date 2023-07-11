@@ -72,6 +72,32 @@
     margin-bottom: 8px;
 }
 
+/* TREND: SHOWS TREND CHART FOR PLAYER PROGRESS */
+.trend_container_light {
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    padding: 8px;
+    overflow: hidden;
+    display: none;
+    margin-bottom: 8px;
+}
+.trend_container_dark {
+    background-color: #9b9b9b;
+    border-radius: 10px;
+    padding: 8px;
+    overflow: hidden;
+    display: none;
+    margin-bottom: 8px;
+}
+.graph_label {
+    font-weight: bold;
+    display: block;
+    text-align: center;
+    font-size: 12px;
+    opacity: 0.75;
+}
+
 /* BREAKDOWN: SHOWS STATS, POINTS, ACCURACY, ETC */
 .breakdown_output_light {
     background-color: #ffffff;
@@ -108,11 +134,11 @@
 }
 
 /* ESTIMATED VALUES FOOTNOTE */
-.estimated_values_footnote_light, .rank_values_footnote_light {
-    font-size:50%; 
+.estimated_values_footnote_light, .rank_values_footnote_light, .opponent_values_footnote_light {
+    font-size: 50%;
     color: #000000;
 }
-.estimated_values_footnote_dark, .rank_values_footnote_dark {
+.estimated_values_footnote_dark, .rank_values_footnote_dark, .opponent_values_footnote_dark {
     font-size:50%; 
     color: #ffffff;
 }
@@ -200,7 +226,6 @@
 .player_name_light {
     color: black;
     padding: 0px; 
-    padding-top: 20px; 
     margin: 0px; 
     font-weight: bolder; 
     font-family: Helvetica Neue;
@@ -208,7 +233,6 @@
 .player_name_dark {
     color: gray;
     padding: 0px; 
-    padding-top: 20px; 
     margin: 0px; 
     font-weight: bolder; 
     font-family: "Helvetica Neue";
@@ -230,6 +254,27 @@
     margin: 2px;
     font-weight: bolder;
     color: gray;
+}
+#player_name_container {
+    padding-top: 20px;
+}
+#player_trend_up_arrow {
+    color: green;
+    padding: 15px;
+    margin: 0px;
+    display: none;
+}
+#player_trend_down_arrow {
+    color: red;
+    padding: 15px;
+    margin: 0px; 
+    display: none;
+}
+i.fa {
+    line-height: inherit;
+}
+.fa-2x {
+    vertical-align: middle;
 }
 
 /* SWITCHES */
@@ -320,6 +365,40 @@ h1, h2, h3, h4, h5, h6 {
     font-weight:500;
     padding-top: 10px;
     padding-bottom: 10px;
+}
+
+hr {
+    height: 1px;
+    border-width: 0;
+    background-color:#4f4f4f;
+    margin-top: 20px;
+    margin-bottom: 0px;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+.btn_text {
+    font-weight: bolder;
+}
+
+#btn_custom {
+    border-radius: 20px; 
+    padding: 10px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    color: white;
+}
+
+.a_no_style {
+    color: white;
+    text-decoration: none;
+    font-weight: bolder;
+}
+
+.social_link {
+    border-radius: 20px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-left: 10px;
 }
 
 /* GENERAL */
