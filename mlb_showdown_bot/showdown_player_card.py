@@ -2902,6 +2902,12 @@ class ShowdownPlayerCard:
         Returns:
           PIL image object with formatted player image
         """
+        
+        # CHECK FOR EMPTY PLAYER IMAGE IN EXPANDED CONTEXT
+        if self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+            background_img_link = component_img_urls_dict.get(sc.IMAGE_TYPE_BACKGROUND, None)
+            if background_img_link is None:
+                return None
 
         # CARD SIZING
         card_size = (1500,2100)
