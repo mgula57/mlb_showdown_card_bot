@@ -2750,7 +2750,7 @@ class ShowdownPlayerCard:
           Boolean for whether a background player image was applied
         """
         dark_mode_suffix = '-DARK' if self.is_dark_mode and self.context in sc.CLASSIC_AND_EXPANDED_SETS else ''
-        default_image_path = self.__template_img_path(f'Default Background - {self.context_year}{dark_mode_suffix}')
+        default_image_path = self.__template_img_path(f'Default Background - {self.template_set_year}{dark_mode_suffix}')
         custom_image_path = default_image_path
         use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if use_nationality else False
@@ -2766,7 +2766,7 @@ class ShowdownPlayerCard:
                 background_image_name = 'CCC' # COOPERSTOWN
             if self.edition == sc.Edition.ALL_STAR_GAME and not self.is_multi_year:
                 background_image_name = f"ASG-{self.year}" # ALL STAR YEAR
-            custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, self.context_year, f"{background_image_name}.png")
+            custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, self.template_set_year, f"{background_image_name}.png")
         
         try:
             background_image = Image.open(custom_image_path)
@@ -2888,9 +2888,7 @@ class ShowdownPlayerCard:
         Returns:
           PIL image object for the player's positional silhouetee.
         """
-        # NOTE: 2004 and 2005 share image assets
-        year = '2004' if self.context == '2005' else self.context_year
-        silhouetee_image_path = self.__template_img_path(f'{year}-SIL-{self.player_classification()}')
+        silhouetee_image_path = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
         return Image.open(silhouetee_image_path)
 
     def __build_automated_player_image(self, component_img_urls_dict:dict) -> Image:
@@ -3170,7 +3168,7 @@ class ShowdownPlayerCard:
           PIL image object for Player's template background.
         """
 
-        year = self.context_year
+        year = self.template_set_year
 
         # GET TEMPLATE FOR PLAYER TYPE (HITTER OR PITCHER)
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
@@ -3189,7 +3187,7 @@ class ShowdownPlayerCard:
                     self.img_loading_error = f"Country {self.nationality} not supported. Select a different Edition."
             else:
                 edition_extension = f'-{sc.TEMPLATE_COLOR_0405[type]}'
-            type_template = f'0405-{type}{edition_extension}'
+            type_template = f'{year}-{type}{edition_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
         else:
             dark_mode_extension = '-DARK' if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.is_dark_mode else ''
@@ -3205,7 +3203,7 @@ class ShowdownPlayerCard:
                 paste_location = (paste_location[0] + 15, paste_location[1])
 
             # ADD CHART ROUNDED RECT
-            container_img_path = self.__template_img_path(f'{self.context_year}-ChartOutsContainer-{type}')
+            container_img_path = self.__template_img_path(f'{year}-ChartOutsContainer-{type}')
             container_img_black = Image.open(container_img_path)
             fill_color = self.__team_color_rgbs()
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
@@ -3222,7 +3220,7 @@ class ShowdownPlayerCard:
                     container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
             else:
                 container_img = self.__color_overlay_to_img(img=container_img_black,color=fill_color)
-            text_img = Image.open(self.__template_img_path(f'{self.context_year}-ChartOutsText-{type}'))
+            text_img = Image.open(self.__template_img_path(f'{year}-ChartOutsText-{type}'))
             template_image.paste(container_img, (0,0), container_img)
             template_image.paste(text_img, (0,0), text_img)
         else:
@@ -3762,7 +3760,7 @@ class ShowdownPlayerCard:
           PIL image object for card expansion logo.
         """ 
 
-        expansion_image = Image.open(self.__template_img_path(f'{self.context_year}-{self.expansion}'))
+        expansion_image = Image.open(self.__template_img_path(f'{self.template_set_year}-{self.expansion}'))
         return expansion_image
 
     def __super_season_image(self):
@@ -3780,7 +3778,7 @@ class ShowdownPlayerCard:
         include_accolades = self.context not in ['2000','2001',sc.CLASSIC_SET,sc.EXPANDED_SET]
 
         # BACKGROUND IMAGE LOGO
-        super_season_image = Image.open(self.__template_img_path(f'{self.context_year}-Super Season'))
+        super_season_image = Image.open(self.__template_img_path(f'{self.template_set_year}-Super Season'))
 
         # FONTS
         super_season_year_path = self.__font_path('URW Corporate W01 Normal')
@@ -3938,7 +3936,7 @@ class ShowdownPlayerCard:
         """
 
         # BACKGROUND IMAGE LOGO
-        rookie_season_image = Image.open(self.__template_img_path(f'{self.context_year}-Rookie Season'))
+        rookie_season_image = Image.open(self.__template_img_path(f'{self.template_set_year}-Rookie Season'))
 
         # ADD YEAR
         first_year = str(min(self.year_list))
@@ -3979,7 +3977,7 @@ class ShowdownPlayerCard:
         for index, icon in enumerate(self.icons[0:4]):
             position = icon_positional_mapping[index]
             if self.context not in sc.CLASSIC_AND_EXPANDED_SETS:
-                icon_img_path = self.__template_img_path(f'{self.context_year}-{icon}')
+                icon_img_path = self.__template_img_path(f'{self.template_set_year}-{icon}')
                 icon_image = Image.open(icon_img_path)
                 # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
                 # EX: 'LF/RF' IS LONGER STRING THAN '3B'
@@ -4165,7 +4163,7 @@ class ShowdownPlayerCard:
         # BACKGROUND CONTAINER IMAGE
         img_type_suffix = 'Control' if self.is_pitcher else 'Onbase'
         dark_mode_suffix = '-DARK' if self.is_dark_mode else ''
-        background_img = Image.open(self.__template_img_path(f'{self.context_year}-{img_type_suffix}{dark_mode_suffix}'))
+        background_img = Image.open(self.__template_img_path(f'{self.template_set_year}-{img_type_suffix}{dark_mode_suffix}'))
         font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
         command = str(self.chart['command'])
         num_chars_command = len(command)
@@ -4454,7 +4452,14 @@ class ShowdownPlayerCard:
           String with full image path.
         """
         return os.path.join(os.path.dirname(__file__), 'card_art', f'{name}.{extension}')
-    
+
+    @property
+    def template_set_year(self) -> str:
+        match self.context:
+            case sc.EXPANDED_SET | sc.CLASSIC_SET: return '2022'
+            case '2005': return '2004'
+            case _: return self.context_year
+
 # ------------------------------------------------------------------------
 # IMAGE QUERIES
 
@@ -4688,11 +4693,8 @@ class ShowdownPlayerCard:
         num_tries = 1
         for try_num in range(num_tries):
             response = requests.get(url)
-            if response.status_code == 403:
-                # 403 ERROR, TOO MANY REQUESTS
-                self.img_loading_error = "403 - Too Many Requests"
-                return None
             try:
+                response.raise_for_status()
                 img_bites = BytesIO(response.content)                    
                 image = Image.open(img_bites).convert("RGBA")
                 self.img_loading_error = None
