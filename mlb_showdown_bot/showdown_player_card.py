@@ -2806,7 +2806,7 @@ class ShowdownPlayerCard:
         if self.player_image_path:
             image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.player_image_path)
             try:
-                player_img_uploaded_raw = Image.open(image_path).convert('RGB')
+                player_img_uploaded_raw = Image.open(image_path).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_uploaded_raw, (1500,2100))
                 images_to_paste.append(player_img_user_uploaded)
             except Exception as err:
@@ -2818,7 +2818,7 @@ class ShowdownPlayerCard:
             image_url = self.player_image_url
             try:
                 response = requests.get(image_url)
-                player_img_raw = Image.open(BytesIO(response.content))
+                player_img_raw = Image.open(BytesIO(response.content)).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_raw, (1500,2100))
                 images_to_paste.append(player_img_user_uploaded)
             except Exception as err:
