@@ -213,7 +213,7 @@ class BaseballReferenceScraper:
         """
 
         # STANDARD STATS PAGE HAS MOST RELEVANT STATS NEEDED
-        url_for_homepage_stats = 'https://www.baseball-reference.com/players/{}/{}.shtml'.format(self.first_initial,self.baseball_ref_id)
+        url_for_homepage_stats = f'https://www.baseball-reference.com/players/{self.first_initial}/{self.baseball_ref_id}.shtml'
         soup_for_homepage_stats = self.__soup_for_url(url_for_homepage_stats, is_baseball_ref_page=True)
 
         master_stats_dict = {}
@@ -894,7 +894,7 @@ class BaseballReferenceScraper:
             stat = self.__convert_to_numeric(stat)
 
             if type == 'Pitcher':
-                pitching_categories = ['earned_run_avg','team_ID','G','GS','W','SV','IP','H','2B','3B','HR','BB','SO','HBP','batters_faced','award_summary']
+                pitching_categories = ['earned_run_avg','team_ID','G','GS','W','SV','IP','H','2B','3B','HR','BB','SO','HBP','whip','batters_faced','award_summary']
                 fill_zeros = ['GS','W','SV','H','2B','3B','HR','BB','SO','HBP','batters_faced']
                 if included_g_for_pitcher:
                     pitching_categories.append('G')

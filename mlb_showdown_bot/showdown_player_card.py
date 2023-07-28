@@ -414,7 +414,7 @@ class ShowdownPlayerCard:
         final_positions_and_defense = {position: value for position, value in positions_and_defense.items() if position in included_positions_list}
 
         if self.context not in sc.CLASSIC_AND_EXPANDED_SETS and len(final_positions_and_defense) > 2:
-            positions_to_merge = self.__find_position_combination_opportunity(positions_and_defense)
+            positions_to_merge = self.__find_position_combination_opportunity(final_positions_and_defense)
             if positions_to_merge is None:
                 # NOTHING CAN BE COMBINED, REMOVE LAST POSITION
                 final_positions_and_defense.pop(included_positions_list[-1], None)
@@ -447,7 +447,7 @@ class ShowdownPlayerCard:
             if len(combinations_available_for_player) > 0:
                 sorted_combinations = sorted(combinations_available_for_player.items(), key=lambda x: x[1])
                 positions_able_to_be_combined[position] = sorted_combinations[0]
-        
+
         # SELECT ONE POSITION TO CHANGE
         # FIRST SORT BASED ON DIFFERENCE IN DEFENSE, THEN BY POSITION'S ORDERING
         sorted_positions = sorted(positions_able_to_be_combined.items(), key=lambda x: (x[1][1], -sc.POSITION_ORDERING.get(x[1], 0)))
@@ -2235,7 +2235,7 @@ class ShowdownPlayerCard:
             final_player_data.append([f'{prefix}{cleaned_category}',actual,in_game])
         
         # NON COMPARABLE STATS
-        category_list = ['earned_run_avg', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
+        category_list = ['earned_run_avg', 'whip', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
         rounded_metrics_list = ['SB', 'onbase_plus_slugging_plus']
         for category in category_list:
             if category in self.stats.keys():
@@ -2243,6 +2243,7 @@ class ShowdownPlayerCard:
                 stat = str(stat_cleaned) if self.stats[category] else 'N/A'
                 short_name_map = {
                     'onbase_plus_slugging_plus': 'OPS+',
+                    'whip': 'WHIP',
                     'bWAR': 'bWAR',
                     'dWAR': 'dWAR',
                     'SB': f'{category_prefix}SB',
