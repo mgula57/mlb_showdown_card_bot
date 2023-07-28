@@ -2902,7 +2902,7 @@ class ShowdownPlayerCard:
         """
         
         # CHECK FOR EMPTY PLAYER IMAGE IN EXPANDED CONTEXT
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+        if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.special_edition == sc.SpecialEdition.NONE:
             background_img_link = component_img_urls_dict.get(sc.IMAGE_TYPE_BACKGROUND, None)
             if background_img_link is None:
                 return None
@@ -2911,7 +2911,7 @@ class ShowdownPlayerCard:
         card_size = (1500,2100)
         player_crop_size = sc.PLAYER_IMAGE_CROP_SIZE[self.context]
         set_crop_adjustment = sc.PLAYER_IMAGE_CROP_ADJUSTMENT[self.context]
-        if self.edition == self.special_edition == sc.SpecialEdition.ASG_2023 and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
             player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
             set_crop_adjustment = (0,int((1785 - 2100) / 2))
         default_crop_size = sc.CARD_SIZE

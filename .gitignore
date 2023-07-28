@@ -45,5 +45,8 @@ static/output/
 mlb_showdown_bot/uploads/
 mlb_showdown_bot/output/
 
+# FRONTEND
+frontend/node_modules/
+
 # CREDS
 firebase_creds.json
