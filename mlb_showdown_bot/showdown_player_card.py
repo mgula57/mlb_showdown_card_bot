@@ -13,7 +13,7 @@ from collections import Counter
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from prettytable import PrettyTable
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
@@ -882,6 +882,12 @@ class ShowdownPlayerCard:
 
         if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023':
             return sc.SpecialEdition.ASG_2023
+        
+        if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005',]:
+            return sc.SpecialEdition.SUPER_SEASON
+        
+        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
+            return sc.SpecialEdition.COOPERSTOWN_COLLECTION
         
         return sc.SpecialEdition.NONE
 
@@ -2935,6 +2941,14 @@ class ShowdownPlayerCard:
                 self.img_loading_error = 'Error: Auto image download does not exist.'
                 return None
             
+            # ADJUST SATURATION
+            special_edition_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, None)
+            if special_edition_adjustment:
+                component_adjustment_factor = special_edition_adjustment.get(img_type, None)
+                if component_adjustment_factor:
+                    img_enhance = ImageEnhance.Color(image)
+                    image = img_enhance.enhance(component_adjustment_factor)
+            
             # CROP IMAGE
             crop_size = default_crop_size if img_type in sc.IMAGE_TYPES_IGNORE_CUSTOM_CROP else player_crop_size
             crop_adjustment = default_crop_adjustment if img_type in sc.IMAGE_TYPES_IGNORE_CUSTOM_CROP else set_crop_adjustment
@@ -4746,6 +4760,10 @@ class ShowdownPlayerCard:
         default_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
         special_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
 
+        if self.is_foil:
+            special_components_for_context[sc.IMAGE_TYPE_FOIL] = self.__card_art_path('FOIL')
+            default_components_for_context = special_components_for_context
+
         if is_cooperstown and self.context not in ['2000','2001']:
             components_dict = special_components_for_context
             components_dict[sc.IMAGE_TYPE_COOPERSTOWN] = self.__card_art_path('RADIAL' if self.context in ['2002','2003'] else 'COOPERSTOWN')
@@ -4758,7 +4776,7 @@ class ShowdownPlayerCard:
             return components_dict
         
         # ALL STAR
-        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context in ['2002','2003','2004','2005',sc.CLASSIC_SET, sc.EXPANDED_SET]:
+        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context not in ['2000','2001']:
             components_dict = {
                 sc.IMAGE_TYPE_GLOW: None,
                 sc.IMAGE_TYPE_CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2023-BG-{self.league}'),
