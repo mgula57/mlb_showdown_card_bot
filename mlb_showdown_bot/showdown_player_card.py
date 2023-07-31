@@ -415,7 +415,7 @@ class ShowdownPlayerCard:
         final_positions_and_defense = {position: value for position, value in positions_and_defense.items() if position in included_positions_list}
 
         if self.context not in sc.CLASSIC_AND_EXPANDED_SETS and len(final_positions_and_defense) > 2:
-            positions_to_merge = self.__find_position_combination_opportunity(positions_and_defense)
+            positions_to_merge = self.__find_position_combination_opportunity(final_positions_and_defense)
             if positions_to_merge is None:
                 # NOTHING CAN BE COMBINED, REMOVE LAST POSITION
                 final_positions_and_defense.pop(included_positions_list[-1], None)
