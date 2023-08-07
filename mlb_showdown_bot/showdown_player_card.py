@@ -1702,10 +1702,7 @@ class ShowdownPlayerCard:
                             * pts_multiplier
                             , 3
                         )
-        print(self.slg_points, self.stat_percentile(stat=projected['slugging_perc'],
-                                                    min_max_dict=sc.SLG_RANGE[self.context][player_category],
-                                                    is_desc=self.is_pitcher,
-                                                    allow_negative=allow_negatives), projected['slugging_perc'])
+        
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
         spd_ip_category = 'ip' if self.is_pitcher else 'speed'
         if self.is_pitcher:
@@ -2839,7 +2836,7 @@ class ShowdownPlayerCard:
         # ---- IMAGE FROM GOOGLE DRIVE -----
         player_img_from_google_drive = None
         if player_img_user_uploaded is None:
-            search_for_universal_img = str(self.year) == '2023'
+            search_for_universal_img = True #str(self.year) == '2023'
             if search_for_universal_img:
                 folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS['UNIVERSAL']
                 img_components_dict = self.__card_components_dict()
@@ -2930,9 +2927,12 @@ class ShowdownPlayerCard:
         default_crop_adjustment = (0,0)
         
         player_img = None
+        img_and_coordinates_pasted_at_end = []
+        ellipse_paste_coords = {}
         for img_type in sc.IMAGE_TYPE_ORDERED_LIST:
 
             # CHECK FOR IMAGE TYPE
+            is_delayed_img_paste = False
             img_url = component_img_urls_dict.get(img_type, None)
             if img_url is None:
                 continue
@@ -2960,13 +2960,50 @@ class ShowdownPlayerCard:
             image = self.__img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
             if crop_size != card_size:
                 image = image.resize(size=card_size, resample=Image.ANTIALIAS)
+
+            # SUPER SEASON: FIND LOCATIONS FOR ELLIPSES
+            is_super_season_glow = img_type == sc.IMAGE_TYPE_GLOW and self.special_edition == sc.SpecialEdition.SUPER_SEASON
+            if is_super_season_glow:
+                # DELAYED IMAGE
+                is_delayed_img_paste = True
+                img_and_coordinates_pasted_at_end.append((image, (0,0)))
+
+                # CALCULATE COORDINATES OF ELLIPSES
+                y_cords = {
+                    sc.IMAGE_TYPE_ELLIPSE_LARGE: 235,
+                    sc.IMAGE_TYPE_ELLIPSE_MEDIUM: 750,
+                    sc.IMAGE_TYPE_ELLIPSE_SMALL: 1400,
+                }
+                transparent_pixel = (255, 255, 255, 0)
+                img_width, img_height = image.size
+                for ellipse_type, ycord in y_cords.items():
+                    is_reversed = ellipse_type == sc.IMAGE_TYPE_ELLIPSE_SMALL
+                    for x_index in range(1, img_width):
+                        x_cord = img_width - x_index if is_reversed else x_index
+                        coordinates = (x_cord, ycord)
+                        try:
+                            pixel = image.getpixel(coordinates)
+                        except:
+                            print(f"ERROR PASTING ELLIPSE: {coordinates}")
+                            break
+                        if pixel != transparent_pixel:
+                            coordinates_from_center = (int(x_cord - (img_width/2)), int(ycord - (img_height/2)))
+                            ellipse_paste_coords[ellipse_type] = coordinates_from_center
+                            break
             
             # PASTE IMAGE
             if player_img is None:
                 player_img = image
                 continue
-            coordinates = (0,0) # TODO: ADD CUSTOMER COORDS IF NEEDED
-            player_img.paste(image, coordinates, image)
+
+            if not is_delayed_img_paste:
+                coordinates = (0,0) if img_type not in sc.ELLIPSE_IMAGE_TYPES else ellipse_paste_coords.get(img_type, (0,0))
+                player_img.paste(image, coordinates, image)
+
+        # DELAYED PASTES
+        for img_and_coordinates in img_and_coordinates_pasted_at_end:
+            img, coords = img_and_coordinates
+            player_img.paste(img, coords, img)
 
         return player_img
 
@@ -4778,6 +4815,8 @@ class ShowdownPlayerCard:
         if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005']:
             components_dict = special_components_for_context
             components_dict[sc.IMAGE_TYPE_SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
+            for ellipse_type in [sc.IMAGE_TYPE_ELLIPSE_LARGE, sc.IMAGE_TYPE_ELLIPSE_MEDIUM, sc.IMAGE_TYPE_ELLIPSE_SMALL]:
+                components_dict[ellipse_type] = self.__card_art_path(ellipse_type)
             return components_dict
         
         # ALL STAR
