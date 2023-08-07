@@ -133,7 +133,8 @@ class ShowdownPlayerCard:
             self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart['command'])
 
             # FOR PTS, USE STEROID ERA OPPONENT
-            _, _, projections_for_pts_per_400_pa = self.__chart_with_accuracy(command=self.chart['command'], outs=self.chart['outs'], stats_for_400_pa=stats_for_400_pa, era_override=sc.ERA_STEROID)
+            proj_opponent_chart, proj_my_advantages_per_20, proj_opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=self.chart['command'], era_override=sc.ERA_STEROID)
+            projections_for_pts_per_400_pa = self.chart_to_results_per_400_pa(self.chart,proj_my_advantages_per_20,proj_opponent_chart,proj_opponent_advantages_per_20, era_override=sc.ERA_STEROID)
             projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=self.chart['command'])
 
             self.points = self.point_value(projected=projections_for_pts,
@@ -1701,6 +1702,10 @@ class ShowdownPlayerCard:
                             * pts_multiplier
                             , 3
                         )
+        print(self.slg_points, self.stat_percentile(stat=projected['slugging_perc'],
+                                                    min_max_dict=sc.SLG_RANGE[self.context][player_category],
+                                                    is_desc=self.is_pitcher,
+                                                    allow_negative=allow_negatives), projected['slugging_perc'])
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
         spd_ip_category = 'ip' if self.is_pitcher else 'speed'
         if self.is_pitcher:
