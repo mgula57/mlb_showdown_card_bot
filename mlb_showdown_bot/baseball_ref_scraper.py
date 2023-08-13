@@ -233,6 +233,9 @@ class BaseballReferenceScraper:
             # ROOKIE STATUS YEAR
             rookie_status_year = self.rookie_status_year(soup_for_homepage_stats=soup_for_homepage_stats)
 
+            # IF HALL OF FAME?
+            is_hof = self.is_hof(soup_for_homepage_stats=soup_for_homepage_stats)
+
             # WAR
             stats_dict.update({'bWAR': self.__bWar(soup_for_homepage_stats, year, type)})
 
@@ -249,6 +252,7 @@ class BaseballReferenceScraper:
             stats_dict['years_played'] = years_played
             stats_dict['nationality'] = nationality
             stats_dict['rookie_status_year'] = rookie_status_year
+            stats_dict['is_hof'] = is_hof
             stats_dict['is_rookie'] = False if is_full_career or self.is_multi_year or rookie_status_year is None else ( int(year) <= rookie_status_year )
             
             # HITTING / HITTING AGAINST
@@ -537,6 +541,29 @@ class BaseballReferenceScraper:
 
         # NO ROOKIE STATUS WAS FOUND, RETURN NONE
         return None
+
+    def is_hof(self, soup_for_homepage_stats) -> bool:
+        """Parse the player's metadata and check if they are in the HOF
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats from homepage.
+
+        Returns:
+          Boolean for whether the are in the Hall of Fame or not.
+        """
+
+        # FIND METADATA DIV
+        metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
+        if metadata is None:
+            return None
+
+        # FIND THE HAND TAG IN THE METADATA LIST
+        for strong_tag in metadata.find_all('strong'):
+            if strong_tag.text == 'Hall of Fame:':
+                return True
+
+        # NO ROOKIE STATUS WAS FOUND, RETURN NONE
+        return False
     
     def type(self, positional_fielding, year):
         """Guess Player Type (Pitcher or Hitter) based on games played at each position.
