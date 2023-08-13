@@ -1702,7 +1702,7 @@ class ShowdownPlayerCard:
                             * pts_multiplier
                             , 3
                         )
-        
+
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
         spd_ip_category = 'ip' if self.is_pitcher else 'speed'
         if self.is_pitcher:
@@ -2846,18 +2846,18 @@ class ShowdownPlayerCard:
                     images_to_paste.append(player_img_from_google_drive)
                     self.is_automated_image = True
             
-            if not self.is_automated_image:
-                try:
-                    use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
-                    img_database_year = '2000' if use_nationality and self.context not in ['2000','2001'] else self.context_year
-                    folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[img_database_year]
-                    player_img_url = self.__query_google_drive_for_image_url(folder_id=folder_id, substring_search=self.bref_id, year=self.year)
-                    player_img_from_google_drive = self.__download_image(url=player_img_url, num_tries=1)
-                    if player_img_from_google_drive:
-                        images_to_paste.append(player_img_from_google_drive)
-                        self.is_automated_image = True
-                except Exception as err:
-                    self.img_loading_error = str(err)
+            # if not self.is_automated_image:
+            #     try:
+            #         use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
+            #         img_database_year = '2000' if use_nationality and self.context not in ['2000','2001'] else self.context_year
+            #         folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[img_database_year]
+            #         player_img_url = self.__query_google_drive_for_image_url(folder_id=folder_id, substring_search=self.bref_id, year=self.year)
+            #         player_img_from_google_drive = self.__download_image(url=player_img_url, num_tries=1)
+            #         if player_img_from_google_drive:
+            #             images_to_paste.append(player_img_from_google_drive)
+            #             self.is_automated_image = True
+            #     except Exception as err:
+            #         self.img_loading_error = str(err)
 
         # ---- PLAYER SILHOUETTE IMAGE -----
         use_silhouette = player_img_from_google_drive is None and player_img_user_uploaded is None
@@ -2987,7 +2987,8 @@ class ShowdownPlayerCard:
                             print(f"ERROR PASTING ELLIPSE: {coordinates}")
                             break
                         if pixel != transparent_pixel:
-                            coordinates_from_center = (int(x_cord - (img_width/2)), int(ycord - (img_height/2)))
+                            x_adjustment = 50 * (-1 if is_reversed else 1)
+                            coordinates_from_center = (int(x_cord - (img_width/2) + x_adjustment), int(ycord - (img_height/2)))
                             ellipse_paste_coords[ellipse_type] = coordinates_from_center
                             break
             
