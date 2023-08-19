@@ -4044,7 +4044,8 @@ class ShowdownPlayerCard:
                     offset = 0
                     if len(positions_list) > 1:
                         # SHIFT ICONS TO RIGHT
-                        offset = 165 if positions_over_4_char > 0 else 135
+                        additional_padding = 40 * positions_over_4_char if positions_over_4_char > 0 else 0
+                        offset = 135 + additional_padding
                     elif positions_over_4_char > 0:
                         offset = 75
                     elif 'CA' in positions_list:
@@ -4159,17 +4160,6 @@ class ShowdownPlayerCard:
 
         # CROP THE CENTER OF THE IMAGE
         return image.crop((left, top, right, bottom))
-
-    def __foil_effect_images(self, image):
-
-        images = []
-        for i in range(1,24,1):
-            image_updated = image.convert('RGBA')
-            foil_img = Image.open(self.__template_img_path(f'Foil-Animation-{i}')).convert('RGBA').resize((int(1488 / 2.75), int(2079 / 2.75)),Image.ANTIALIAS)
-            image_updated.paste(foil_img,(0,0),foil_img)
-            images.append(image_updated)
-
-        return images
 
     def __clean_images_directory(self):
         """Removes all images from output folder that are not the current card. Leaves
