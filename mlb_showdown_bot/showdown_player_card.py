@@ -2940,7 +2940,7 @@ class ShowdownPlayerCard:
             if img_type in sc.IMAGE_TYPES_LOADED_VIA_DOWNLOAD:
                 image = self.__download_image(img_url)
             else:
-                image = Image.open(img_url)
+                image = Image.open(img_url).convert('RGBA')
             if image is None:
                 self.img_loading_error = 'Error: Auto image download does not exist.'
                 return None
@@ -4798,8 +4798,14 @@ class ShowdownPlayerCard:
         default_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
         special_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
 
-        if len(self.image_parallel.special_components_dict) > 0:
-            special_components_for_context.update({img_type: self.__card_art_path(relative_path) for img_type, relative_path in self.image_parallel.special_components_dict.items()})
+        if self.image_parallel != sc.ImageParallel.NONE:
+            # ADD ADDITIONAL COMPONENTS
+            if len(self.image_parallel.special_component_additions) > 0:
+                special_components_for_context.update({img_type: self.__card_art_path(relative_path) for img_type, relative_path in self.image_parallel.special_component_additions.items()})
+            # EDITING EXISTING COMPONENTS
+            for old_component, new_component in self.image_parallel.special_components_replacements.items():
+                special_components_for_context.pop(old_component, None)
+                special_components_for_context[new_component] = None
             default_components_for_context = special_components_for_context
 
         if is_cooperstown and self.context not in ['2000','2001']:

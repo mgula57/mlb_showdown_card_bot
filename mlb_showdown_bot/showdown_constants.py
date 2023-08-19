@@ -16548,6 +16548,7 @@ IMAGE_TYPE_ELLIPSE_MEDIUM = "ELLIPSE-MEDIUM"
 IMAGE_TYPE_ELLIPSE_SMALL = "ELLIPSE-SMALL"
 IMAGE_TYPE_SUPER_SEASON = "SUPER SEASON"
 IMAGE_TYPE_RAINBOW_FOIL = "RAINBOW FOIL"
+IMAGE_TYPE_SAPPHIRE = "SAPPHIRE"
 IMAGE_TYPE_ORDERED_LIST = [
     IMAGE_TYPE_BACKGROUND,
     IMAGE_TYPE_CUSTOM_BACKGROUND,
@@ -16555,6 +16556,7 @@ IMAGE_TYPE_ORDERED_LIST = [
     IMAGE_TYPE_SUPER_SEASON,
     IMAGE_TYPE_GRADIENT,
     IMAGE_TYPE_RAINBOW_FOIL,
+    IMAGE_TYPE_SAPPHIRE,
     IMAGE_TYPE_SHADOW,
     IMAGE_TYPE_GLOW,
     IMAGE_TYPE_CUSTOM_FOREGROUND,
@@ -16578,6 +16580,7 @@ ELLIPSE_IMAGE_TYPES = [
 ]
 OPACITY_FOR_IMG_TYPE = {
     IMAGE_TYPE_RAINBOW_FOIL: 0.5,
+    IMAGE_TYPE_SAPPHIRE: 0.65,
 }
 
 PLAYER_IMAGE_MODE = {
@@ -16654,11 +16657,18 @@ SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT = {
 class ImageParallel(Enum):
     
     RAINBOW_FOIL = "RF"
+    SAPPHIRE = "SPH"
     BLACK_AND_WHITE = "B&W"
     NONE = "NONE"
 
     @property
-    def special_components_dict(self) -> dict[str,str]:
+    def special_component_additions(self) -> dict[str,str]:
         match self.name:
             case "RAINBOW_FOIL": return { IMAGE_TYPE_RAINBOW_FOIL: "RAINBOW-FOIL" }
+            case "SAPPHIRE": return { IMAGE_TYPE_SAPPHIRE: "SAPPHIRE" }
+            case _: return {}
+    @property
+    def special_components_replacements(self) -> dict[str,str]:
+        match self.name:
+            case "SAPPHIRE": return { IMAGE_TYPE_GLOW: IMAGE_TYPE_SHADOW }
             case _: return {}
