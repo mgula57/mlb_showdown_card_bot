@@ -2733,23 +2733,11 @@ class ShowdownPlayerCard:
             image = image_border
 
         save_img_path = os.path.join(self.card_img_output_folder_path, self.image_name)
-        if self.is_foil:
-            image = image.resize((int(1488 / 2.75), int(2079 / 2.75)), Image.ANTIALIAS)
-            foil_images = self.__foil_effect_images(image=image)
-            foil_images[0].save(save_img_path,
-               save_all = True, append_images = foil_images[1:], 
-               optimize = True, duration = 8, loop=0, format="PNG")
-        else:
-            image.save(save_img_path, dpi=(300, 300), quality=100)
+        image.save(save_img_path, dpi=(300, 300), quality=100)
         
         if self.is_running_in_flask:
             flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name)
-            if self.is_foil:
-                foil_images[0].save(flask_img_path,
-                    save_all = True, append_images = foil_images[1:], 
-                    optimize = True, duration = 8, loop=0, format="PNG")
-            else:
-                image.save(flask_img_path, dpi=(300, 300), quality=100)
+            image.save(flask_img_path, dpi=(300, 300), quality=100)
 
         # OPEN THE IMAGE LOCALLY
         if show:
