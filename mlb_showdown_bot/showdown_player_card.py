@@ -675,7 +675,8 @@ class ShowdownPlayerCard:
         for metric, value in speed_elements.items():
             metric_max = sc.SPEED_METRIC_MAX[metric]
             metric_min = sc.SPEED_METRIC_MIN[metric]
-            metric_multiplier = sc.SPEED_METRIC_MULTIPLIER[metric][self.context]
+            ignore_multiplier = self.context in ['2000', '2001'] and self.is_variable_speed_00_01
+            metric_multiplier = 1.05 if ignore_multiplier else sc.SPEED_METRIC_MULTIPLIER[metric][self.context]
             era_multiplier = sc.SPEED_ERA_MULTIPLIER[self.era]
             top_percentile_speed_for_metric = sc.SPEED_METRIC_TOP_PERCENTILE[metric]
 
@@ -685,6 +686,15 @@ class ShowdownPlayerCard:
             # CHANGE OUTLIERS
             min_in_game = sc.MIN_IN_GAME_SPD[self.context]
             max_in_game = sc.MAX_IN_GAME_SPD[self.context]
+
+            cutoff_for_sub_percentile_sb = 20
+            if metric == sc.STOLEN_BASES_KEY and speed > cutoff_for_sub_percentile_sb:
+                sb_cap = sc.STOLEN_BASES_PER_650_PA_THRESHOLD_MAX[self.context] * metric_multiplier
+                sub_percentile = (value - metric_max) / (sb_cap - metric_max)
+                remaining_slots_over_cutoff = max_in_game - cutoff_for_sub_percentile_sb
+                additional_speed_over_cutoff = sub_percentile * remaining_slots_over_cutoff
+                speed = int(additional_speed_over_cutoff + cutoff_for_sub_percentile_sb)
+            
             final_speed_for_metric = min( max(speed, min_in_game), max_in_game )
 
             in_game_speed_for_metric[metric] = final_speed_for_metric
@@ -2157,6 +2167,7 @@ class ShowdownPlayerCard:
             'HR': 'hr_per_650_pa',
             'BB': 'bb_per_650_pa',
             'SO': 'so_per_650_pa',
+            'SB': 'SB',
         }
 
         statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))

@@ -129,6 +129,16 @@ SPEED_METRIC_MULTIPLIER = {
         EXPANDED_SET: 1.0,
     },
 }
+STOLEN_BASES_PER_650_PA_THRESHOLD_MAX = {
+    '2000': 100,
+    '2001': 100,
+    '2002': 100,
+    '2003': 100,
+    '2004': 100,
+    '2005': 100,
+    CLASSIC_SET: 100,
+    EXPANDED_SET: 100,
+}
 SPEED_ERA_MULTIPLIER = {
     ERA_PRE_1900: 0.80,
     ERA_DEAD_BALL: 0.80,
@@ -145,14 +155,14 @@ SPEED_METRIC_TOP_PERCENTILE = {
     STOLEN_BASES_KEY: 18.0,
 }
 MAX_IN_GAME_SPD = {
-    '2000': 25,
-    '2001': 25,
-    '2002': 27,
-    '2003': 27,
-    '2004': 27,
-    '2005': 27,
-    CLASSIC_SET: 25,
-    EXPANDED_SET: 25,
+    '2000': 28,
+    '2001': 28,
+    '2002': 28,
+    '2003': 28,
+    '2004': 28,
+    '2005': 28,
+    CLASSIC_SET: 28,
+    EXPANDED_SET: 28,
 }
 MIN_IN_GAME_SPD = {
     '2000': 8,
@@ -4343,6 +4353,7 @@ TEAM_COLOR_PRIMARY = {
     'SLR': (200, 16, 46, 255),
     'SL2': (214, 0, 36, 255),
     'SL3': (214, 0, 36, 255),
+    'SLS': (214, 0, 36, 255),
     'SNS': (214, 0, 36, 255),
     'STL': (196, 30, 58, 255),
     'STP': (20, 52, 141, 255),

@@ -240,7 +240,7 @@ If the multi-year card spans across available metrics (ex: a card using 2014-202
 #### _Pitchers_
 Pitchers fall under the following categories
 1. STARTER: >40% of pitcher's appearances were starts
-2. RELIEVER: <=40 % of pitcher's appearances were in relief
+2. RELIEVER: <=60 % of pitcher's appearances were in relief
 3. CLOSER: pitcher had at least 10 saves
 
 ### **Speed**
@@ -253,6 +253,34 @@ The combination of SPRINT SPEED/STOLEN BASES is then converted to a percentile b
 
 For example, the range of SPRINT SPEED is from 23 ft/sec to 31 ft/sec. If a player's SPRINT SPEED was 27ft/sec, they are in the 50th percentile (0.5). If the maximum in-game speed was 25, then this player's in-game SPEED is equal to 25 * 0.5, which rounds to **13**.
 
+Eras can also effect speed. In Eras with a high average speed (ex: Dead Ball Era) speed will be slightly reduced compared to modern eras. The purpose of this is to maintain a balance of speed across time periods where SB numbers fluctuated.
+
+When the card is using SB, a set based multiplier is used to match the original WOTC values. Ex: For a player with 26 SB per 650 PA, 31.72 would instead be used in the 2001 se (1.22x). For 2000/2001 sets, if variable speed is enabled the multiplier is changed to 1.05
+
+```
+2000: 1.21
+2001: 1.22
+2002: 1.2
+2003: 0.95
+2004: 0.98
+2005: 1.0
+CLASSIC: 1.0
+EXPANDED: 1.0
+```
+
+If the card uses SB and the player's speed is over 20, an separate linear scale is applied for values over 20. This results in a more evenly distributed set of players with 21-28 speed than the traditional 8-20 scale allows for. 
+
+The formula for 21+ speed works as follows: **20 + (elite_spd_percentile * remaining_slots_over_20)**. The percentile uses **26 SB** as the minimum (that's the required SB to get to 20 SPD) and uses **100 SB** as the maximum. That means if you stole 100+ bases per 650 PA, you will get the maximum speed (28). 28 is the maximum speed, so if a player has over 100 SB/650 PA (ex: Rickey Henderson 1982) they will stay at 28 SPEED.
+
+Here is an example using **Scott Podsednik's** 2004 stats in the 2005 set (63.8 SB/650 PA):
+```
+SPEED = 20 + (elite_spd_percentile * remaining_slots_over_20)
+SPEED = 20 + ( (SB - 26) / (100 - 26) * (28 - 20) )
+SPEED = 20 + ( (63.8 - 26) / (100 - 26) * (28 - 20) )
+SPEED = 20 + ( 0.5108 * 8 )
+SPEED = 20 + 4.086
+SPEED = 24
+```
 
 _** Pitchers are automatically given a SPEED of 10._
 
