@@ -27,7 +27,7 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, hide_team_logo=False, date_override=None, era="DYNAMIC", is_running_in_flask=False, source='Baseball Reference'):
+    def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, image_parallel = "NONE", add_year_container = False, set_year_plus_one = False, hide_team_logo=False, date_override=None, era="DYNAMIC", is_running_in_flask=False, source='Baseball Reference'):
         """Initializer for ShowdownPlayerCard Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -96,7 +96,7 @@ class ShowdownPlayerCard:
         self.add_image_border = add_image_border
         self.is_dark_mode = is_dark_mode
         self.is_variable_speed_00_01 = is_variable_speed_00_01
-        self.is_foil = is_foil
+        self.image_parallel = sc.ImageParallel(image_parallel)
         self.img_loading_error = None
         self.img_id = None
         self.img_bordered_id = None
@@ -2945,6 +2945,12 @@ class ShowdownPlayerCard:
                 self.img_loading_error = 'Error: Auto image download does not exist.'
                 return None
             
+            # ADJUST OPACITY
+            opacity = sc.OPACITY_FOR_IMG_TYPE.get(img_type, 1.0)
+            if opacity < 1.0:
+                opacity_255_scale = int(255 * opacity)
+                image.putalpha(opacity_255_scale)
+            
             # ADJUST SATURATION
             special_edition_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, None)
             if special_edition_adjustment:
@@ -4422,7 +4428,7 @@ class ShowdownPlayerCard:
         has_expansion = self.expansion != 'FINAL'
         has_variable_spd_diff = self.is_variable_speed_00_01 and self.context in ['2000','2001']
         set_yr_plus_one_enabled = self.set_year_plus_one and self.context in ['2004','2005']
-        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or self.is_foil or has_variable_spd_diff or self.has_custom_set_number or set_yr_plus_one_enabled or self.hide_team_logo
+        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or has_variable_spd_diff or self.has_custom_set_number or set_yr_plus_one_enabled or self.hide_team_logo
 
     def __year_container_add_on(self) -> Image:
         """User can optionally add a box dedicated to showing years used for the card.
@@ -4792,8 +4798,8 @@ class ShowdownPlayerCard:
         default_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
         special_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
 
-        if self.is_foil:
-            special_components_for_context[sc.IMAGE_TYPE_FOIL] = self.__card_art_path('FOIL')
+        if len(self.image_parallel.special_components_dict) > 0:
+            special_components_for_context.update({img_type: self.__card_art_path(relative_path) for img_type, relative_path in self.image_parallel.special_components_dict.items()})
             default_components_for_context = special_components_for_context
 
         if is_cooperstown and self.context not in ['2000','2001']:

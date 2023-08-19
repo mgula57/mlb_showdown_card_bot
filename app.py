@@ -54,8 +54,9 @@ class CardLog(db.Model):
     hide_team_logo = db.Column(db.Boolean)
     date_override = db.Column(db.String(256))
     era = db.Column(db.String(64))
+    image_parallel = db.Column(db.String(64))
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -86,8 +87,9 @@ class CardLog(db.Model):
         self.hide_team_logo = hide_team_logo
         self.date_override = date_override
         self.era = era
+        self.image_parallel = image_parallel
 
-def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era):
+def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -118,7 +120,8 @@ def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansi
             edition=edition,
             hide_team_logo=hide_team_logo,
             date_override=date_override,
-            era=era
+            era=era,
+            image_parallel=image_parallel
         )
         db.session.add(card_log)
         db.session.commit()
@@ -152,7 +155,7 @@ def card_creator():
     is_dark_mode = None
     is_variable_spd_00_01 = None
     is_random = None
-    is_foil = None
+    is_foil = False
     is_stats_loaded_from_library = None
     is_img_loaded_from_library = None
     add_year_container = None
@@ -162,6 +165,7 @@ def card_creator():
     edition = None
     date_override = None
     era = None
+    image_parallel = None
 
     try:
         # PARSE INPUTS
@@ -185,10 +189,10 @@ def card_creator():
         expansion_raw = str(request.args.get('expansion'))
         edition_raw = str(request.args.get('edition'))
         era_raw = str(request.args.get('era'))
+        img_parallel_raw = str(request.args.get('img_parallel', 'NONE'))
         is_border = request.args.get('addBorder').lower() == 'true' if request.args.get('addBorder') else False
         dark_mode = request.args.get('is_dark_mode').lower() == 'true' if request.args.get('is_dark_mode') else False
         is_variable_spd_00_01 = request.args.get('is_variable_spd_00_01').lower() == 'true' if request.args.get('is_variable_spd_00_01') else False
-        foil = request.args.get('is_foil').lower() == 'true' if request.args.get('is_foil') else False
         year_container = request.args.get('add_year_container').lower() == 'true' if request.args.get('add_year_container') else False
         set_yr_p1 = request.args.get('set_year_plus_one').lower() == 'true' if request.args.get('set_year_plus_one') else False
         hide_team = request.args.get('hide_team_logo').lower() == 'true' if request.args.get('hide_team_logo') else False
@@ -210,7 +214,8 @@ def card_creator():
         add_img_border = is_border if is_border else False
         is_dark_mode = dark_mode if dark_mode else False
         is_variable_speed_00_01 = is_variable_spd_00_01 if is_variable_spd_00_01 else False
-        is_foil = foil if foil else False
+        is_foil = False
+        image_parallel = img_parallel_raw
         add_year_container = year_container if year_container else False
         set_year_plus_one = set_yr_p1 if set_yr_p1 else False
         hide_team_logo = hide_team if hide_team else False
@@ -243,7 +248,7 @@ def card_creator():
                 add_image_border=add_img_border,
                 is_dark_mode=is_dark_mode,
                 is_variable_speed_00_01=is_variable_speed_00_01,
-                is_foil=is_foil,
+                image_parallel=image_parallel,
                 team_override=scraper.team_override,
                 set_year_plus_one=set_year_plus_one,
                 pitcher_override=scraper.pitcher_override,
@@ -281,7 +286,7 @@ def card_creator():
                 add_image_border=add_img_border,
                 is_dark_mode=is_dark_mode,
                 is_variable_speed_00_01=is_variable_speed_00_01,
-                is_foil=is_foil,
+                image_parallel=image_parallel,
                 add_year_container=add_year_container,
                 set_year_plus_one=set_year_plus_one,
                 hide_team_logo=hide_team_logo,
@@ -364,7 +369,8 @@ def card_creator():
             edition=edition,
             hide_team_logo=hide_team_logo,
             date_override=date_override,
-            era=era
+            era=era,
+            image_parallel=image_parallel
         )
         return jsonify(
             image_path=card_image_path,
@@ -389,7 +395,8 @@ def card_creator():
             trends_diff=trends_diff,
             opponent=opponent_data,
             opponent_type=opponent_type,
-            era=player_era
+            era=player_era,
+            image_parallel=image_parallel
         )
 
     except Exception as e:
@@ -418,7 +425,8 @@ def card_creator():
             edition=edition,
             hide_team_logo=hide_team_logo,
             date_override=date_override,
-            era=era
+            era=era,
+            image_parallel=image_parallel
         )
         return jsonify(
             image_path=None,
@@ -444,6 +452,7 @@ def card_creator():
             opponent=None,
             opponent_type=None,
             era=None,
+            image_parallel=None,
         )
 
 @app.route('/upload', methods=["POST","GET"])

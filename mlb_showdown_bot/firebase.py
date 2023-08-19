@@ -197,7 +197,7 @@ class Firebase:
 # PARSING
 # ------------------------------------------------------------------------
 
-    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, is_foil, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, date_override, is_running_in_flask) -> ShowdownPlayerCard:
+    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, image_parallel, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, date_override, is_running_in_flask) -> ShowdownPlayerCard:
         """Load cached player showdown data from database.
 
         Args:
@@ -266,7 +266,7 @@ class Firebase:
             add_image_border=add_image_border,
             is_dark_mode=is_dark_mode,
             is_variable_speed_00_01=is_variable_speed_00_01,
-            is_foil=is_foil,
+            image_parallel=image_parallel,
             set_year_plus_one=set_year_plus_one,
             date_override=date_override,
             is_running_in_flask=is_running_in_flask,
@@ -404,7 +404,7 @@ class Firebase:
             "is_classic": "clsc",
             "is_cooperstown": "cc",
             "is_expanded": "exd",
-            "is_foil": 'fl',
+            "image_parallel": 'imgpl',
             "is_full_career": "fc",
             "is_holiday": "hol",
             "is_img": "img",
