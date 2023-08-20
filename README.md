@@ -81,7 +81,7 @@ showdown = ShowdownPlayerCard(
 )
 
 # CREATE SHOWDOWN CARD IMAGE
-showdown.player_image(show=True)
+showdown.card_image(show=True)
 ```
 
 ----
