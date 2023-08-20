@@ -4728,7 +4728,7 @@ class ShowdownPlayerCard:
         page_token = None
         while True:
             try:
-                query = f"parents = '{folder_id}'"
+                query = f"parents = '{folder_id}' and name contains '({bref_id})'"
                 files = service.files()
                 response = files.list(q=query,pageSize=1000,pageToken=page_token).execute()
                 new_files_list = response.get('files')
