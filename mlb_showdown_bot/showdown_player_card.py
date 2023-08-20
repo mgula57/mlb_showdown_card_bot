@@ -2791,6 +2791,9 @@ class ShowdownPlayerCard:
             name_container = self.__2000_player_name_container_image()
             background_image.paste(name_container, (0,0), name_container)
 
+        if self.image_parallel.is_team_background_black_and_white:
+            background_image = self.__change_image_saturation(image=background_image, saturation=0.10)
+
         return background_image
 
     def __player_image(self):
@@ -3253,6 +3256,9 @@ class ShowdownPlayerCard:
                     self.img_loading_error = f"Country {self.nationality} not supported. Select a different Edition."
             else:
                 edition_extension = f'-{sc.TEMPLATE_COLOR_0405[type]}'
+
+            if self.image_parallel.color_override_04_05_chart:
+                edition_extension = f"-{self.image_parallel.color_override_04_05_chart}"
             type_template = f'{year}-{type}{edition_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
         else:
