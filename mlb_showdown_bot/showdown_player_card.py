@@ -2886,10 +2886,6 @@ class ShowdownPlayerCard:
             coordinates = (0,0) # TODO: ADD CUSTOMER COORDS IF NEEDED
             total_player_image.paste(image, coordinates, image)
 
-        # CONVERT MODE TO ENSURE PROPER TRANSPARENCY LEVEL
-        player_img_mode = 'RGBA' if use_silhouette else sc.PLAYER_IMAGE_MODE[self.context]
-        total_player_image = total_player_image.convert(player_img_mode)
-
         return total_player_image
 
     def __player_silhouetee_image(self):
@@ -2931,6 +2927,7 @@ class ShowdownPlayerCard:
         default_crop_adjustment = (0,0)
         
         player_img = None
+        add_player_silhouette = True
         img_and_coordinates_pasted_at_end = []
         ellipse_paste_coords = {}
         for img_type in sc.IMAGE_TYPE_ORDERED_LIST:
@@ -2942,13 +2939,16 @@ class ShowdownPlayerCard:
                 continue
 
             # DOWNLOAD IMAGE
-            if img_type in sc.IMAGE_TYPES_LOADED_VIA_DOWNLOAD:
+            is_loaded_via_google_drive = img_type in sc.IMAGE_TYPES_LOADED_VIA_DOWNLOAD
+            if is_loaded_via_google_drive:
                 image = self.__download_image(img_url)
             else:
                 image = Image.open(img_url).convert('RGBA')
             if image is None:
                 self.img_loading_error = 'Error: Auto image download does not exist.'
                 return None
+            elif is_loaded_via_google_drive:
+                add_player_silhouette = False
             
             # ADJUST OPACITY
             opacity = sc.OPACITY_FOR_IMG_TYPE.get(img_type, 1.0)
@@ -3010,6 +3010,11 @@ class ShowdownPlayerCard:
             if not is_delayed_img_paste:
                 coordinates = (0,0) if img_type not in sc.ELLIPSE_IMAGE_TYPES else ellipse_paste_coords.get(img_type, (0,0))
                 player_img.paste(image, coordinates, image)
+
+        # SILHOUETTE
+        if add_player_silhouette and player_img is not None:
+            silhouette = self.__player_silhouetee_image()
+            player_img.paste(silhouette,(0,0),silhouette)
 
         # DELAYED PASTES
         for img_and_coordinates in img_and_coordinates_pasted_at_end:
