@@ -2949,9 +2949,11 @@ class ShowdownPlayerCard:
                 image.putalpha(opacity_255_scale)
             
             # ADJUST SATURATION
-            special_edition_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, None)
-            if special_edition_adjustment:
-                component_adjustment_factor = special_edition_adjustment.get(img_type, None)
+            saturation_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, None)
+            img_type_for_bw = sc.IMAGE_TYPE_CUT if self.context in ['2000','2001'] else sc.IMAGE_TYPE_BACKGROUND
+            saturation_adjustment = {img_type_for_bw: 0.05} if self.image_parallel == sc.ImageParallel.BLACK_AND_WHITE and img_type == img_type_for_bw else saturation_adjustment
+            if saturation_adjustment:
+                component_adjustment_factor = saturation_adjustment.get(img_type, None)
                 if component_adjustment_factor:
                     img_enhance = ImageEnhance.Color(image)
                     image = img_enhance.enhance(component_adjustment_factor)
