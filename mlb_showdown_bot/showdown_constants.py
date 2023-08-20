@@ -53,6 +53,9 @@ class Edition(Enum):
     def ignore_showdown_library(self) -> bool:
         return self in [Edition.NATIONALITY] # TODO: NATIONALITY DATA CURRENTLY NOT IN SL, REMOVE AFTER ADDING
 
+    @property
+    def has_additional_logo_00_01(self) -> bool:
+        return self.name in ['COOPERSTOWN_COLLECTION', 'ALL_STAR_GAME', 'SUPER_SEASON', 'ROOKIE_SEASON']
 
 """
 SET STYLES

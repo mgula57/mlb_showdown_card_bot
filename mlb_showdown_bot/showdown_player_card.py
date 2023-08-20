@@ -2632,11 +2632,8 @@ class ShowdownPlayerCard:
             team_logo, team_logo_coords = self.__team_logo_image()
             card_image.paste(team_logo, team_logo_coords, team_logo)
 
-        # IF 2001 ROOKIE SEASON, ADD ADDITIONAL LOGO
-        if self.edition == sc.Edition.ROOKIE_SEASON and self.context == '2001':
-            rs_logo = self.__rookie_season_image()
-            logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
-            card_image.paste(rs_logo, logo_paste_coordinates, rs_logo)
+        # 00/01 ADDITIONAL LOGO
+        self.__add_additional_logos_00_01(image=card_image)
 
         # METADATA
         metadata_image, color = self.__metadata_image()
@@ -3087,11 +3084,12 @@ class ShowdownPlayerCard:
         logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
         logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context_year)]
         is_04_05 = self.context in ['2004','2005']
+        is_00_01 = self.context in ['2000','2001']
         is_cooperstown = self.edition == sc.Edition.COOPERSTOWN_COLLECTION
         is_all_star_game = self.edition == sc.Edition.ALL_STAR_GAME
         is_rookie_season = self.edition == sc.Edition.ROOKIE_SEASON
 
-        if self.edition.has_static_logo:
+        if self.edition.has_static_logo and not is_00_01:
             # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
             logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
             is_wide_logo = logo_name == 'ASG-2022'
@@ -3106,7 +3104,7 @@ class ShowdownPlayerCard:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
             historical_alternate_ext = self.__team_logo_historical_alternate_extension()
             alternate_logo_ext = '-A' if self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET] and not self.edition.has_static_logo else ''
-            team_logo_path = os.path.join(os.path.dirname(__file__), 'team_logos', f'{logo_name}{alternate_logo_ext}{historical_alternate_ext}.png')
+            team_logo_path = self.__team_logo_path(name = f"{logo_name}{alternate_logo_ext}{historical_alternate_ext}")
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_COLORS.keys():
                     team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
@@ -3119,7 +3117,7 @@ class ShowdownPlayerCard:
         team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and self.edition.rotate_team_logo_2002 else team_logo
 
         # OVERRIDE IF SUPER SEASON
-        if self.edition == sc.Edition.SUPER_SEASON:
+        if self.edition == sc.Edition.SUPER_SEASON and not is_00_01:
             team_logo = self.__super_season_image()
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context_year)]
 
@@ -3153,7 +3151,7 @@ class ShowdownPlayerCard:
             team_logo = cooperstown_logo
 
         # OVERRIDE IF ROOKIE SEASON
-        if is_rookie_season and self.context != '2001':
+        if is_rookie_season and not is_00_01:
             team_logo = self.__rookie_season_image()
             team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
@@ -3838,7 +3836,7 @@ class ShowdownPlayerCard:
         """
 
         is_after_03 = self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET]
-        include_accolades = self.context not in ['2000','2001',sc.CLASSIC_SET,sc.EXPANDED_SET]
+        include_accolades = self.context not in [sc.CLASSIC_SET,sc.EXPANDED_SET]
 
         # BACKGROUND IMAGE LOGO
         super_season_image = Image.open(self.__template_img_path(f'{self.template_set_year}-Super Season'))
@@ -4062,6 +4060,53 @@ class ShowdownPlayerCard:
             player_image.paste(icon_image, position, icon_image)
 
         return player_image
+
+    def __add_additional_logos_00_01(self, image:Image) -> Image:
+        """Add CC/RS/SS logo to existing player_image object.
+           Only for 2000/2001 sets.
+
+        Args:
+          image: Current PIL image object for Showdown card.
+
+        Returns:
+          Updated PIL Image with logos added above the chart.
+        """
+        
+        # ONLY FOR 00/01 SETS
+        if self.context not in ['2000','2001']:
+            return image
+        
+        # DEFINE COORDINATES, START WITH ROOKIE SEASON DESTINATION AND EDIT FOR OTHERS
+        paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
+        if self.edition != sc.Edition.ROOKIE_SEASON and self.context == '2001':
+            # MOVE LOGO TO THE RIGHT
+            paste_coordinates = (paste_coordinates[0] + 30, paste_coordinates[1])
+        if self.context == '2000':
+            # MOVE LOGO ABOVE TEAM LOGO AND SLIGHTLY TO THE LEFT
+            _, team_logo_height = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
+            paste_coordinates = (paste_coordinates[0] - 25, paste_coordinates[1] - team_logo_height - 20)
+
+        # ADD LOGO
+        match self.edition:
+            case sc.Edition.ALL_STAR_GAME | sc.Edition.COOPERSTOWN_COLLECTION:
+                logo_name = 'CCC' if self.edition == sc.Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
+                logo_size_x, logo_size_y = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
+                logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name == 'ASG-2022' else (logo_size_x, logo_size_y)
+                logo_path = self.__team_logo_path(name=logo_name)
+                logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.ANTIALIAS)
+                image.paste(logo, paste_coordinates, logo)
+            case sc.Edition.SUPER_SEASON:
+                super_season_img = self.__super_season_image()
+                paste_coordinates_x, paste_coordinates_y = paste_coordinates
+                paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 150)
+                image.paste(super_season_img, paste_coordinates, super_season_img)
+            case sc.Edition.ROOKIE_SEASON:
+                rs_logo = self.__rookie_season_image()
+                image.paste(rs_logo, paste_coordinates, rs_logo)
+            case _:
+                return image
+            
+        return image
 
     def __icon_image_circle(self, text):
         """For CLASSIC and EXPANDED sets, generate a circle image with text for the icons.
@@ -4506,6 +4551,18 @@ class ShowdownPlayerCard:
         """
         return os.path.join(os.path.dirname(__file__), 'card_art', f'{name}.{extension}')
 
+    def __team_logo_path(self, name, extension:str = 'png') -> str:
+        """ Produces full path string for the logo image.
+
+        Args:
+          name: Name of the image without the extension
+          extension: Image file extension (ex: png, jpg)
+
+        Returns:
+          String with full image path.
+        """
+        return os.path.join(os.path.dirname(__file__), 'team_logos', f'{name}.{extension}')
+    
     @property
     def template_set_year(self) -> str:
         match self.context:
