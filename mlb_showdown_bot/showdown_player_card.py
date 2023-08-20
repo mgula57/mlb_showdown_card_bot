@@ -2692,6 +2692,11 @@ class ShowdownPlayerCard:
         # CROP TO 63mmx88mm
         card_image = self.__center_and_crop(card_image,(1488,2079))
         card_image = self.__round_corners(card_image, 60)
+
+        # MAKE IMAGE BLACK AND WHITE IF PARALLEL IS SELECTED
+        if self.image_parallel == sc.ImageParallel.BLACK_AND_WHITE:
+            card_image = self.__change_image_saturation(image=card_image, saturation=0.05)
+
         self.save_image(image=card_image, show=show, img_name_suffix=img_name_suffix)
 
     def save_image(self, image, show=False, disable_add_border=False, img_name_suffix=''):
@@ -2949,14 +2954,12 @@ class ShowdownPlayerCard:
                 image.putalpha(opacity_255_scale)
             
             # ADJUST SATURATION
-            saturation_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, None)
-            img_type_for_bw = sc.IMAGE_TYPE_CUT if self.context in ['2000','2001'] else sc.IMAGE_TYPE_BACKGROUND
-            saturation_adjustment = {img_type_for_bw: 0.05} if self.image_parallel == sc.ImageParallel.BLACK_AND_WHITE and img_type == img_type_for_bw else saturation_adjustment
-            if saturation_adjustment:
+            saturation_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, {})
+            saturation_adjustment.update(self.image_parallel.image_type_saturations_dict)
+            if len(saturation_adjustment) > 0:
                 component_adjustment_factor = saturation_adjustment.get(img_type, None)
                 if component_adjustment_factor:
-                    img_enhance = ImageEnhance.Color(image)
-                    image = img_enhance.enhance(component_adjustment_factor)
+                    image = self.__change_image_saturation(image=image, saturation=component_adjustment_factor)
             
             # CROP IMAGE
             crop_size = default_crop_size if img_type in sc.IMAGE_TYPES_IGNORE_CUSTOM_CROP else player_crop_size
@@ -4371,6 +4374,25 @@ class ShowdownPlayerCard:
 
         return final_image
 
+    def __change_image_saturation(self, image:Image, saturation:float) -> Image:
+        """Adjust an image's saturation.
+
+        Args:
+          image: PIL Image to update saturation for.
+          saturation: Float from 0.0-1.0 where 1.0 is full color, 0.0 is greyscale.
+
+        Returns:
+          Updated PIL Image with changed saturation.
+        """
+
+        if saturation == 1.0:
+            return image
+        
+        img_enhance = ImageEnhance.Color(image)
+        image = img_enhance.enhance(saturation)
+
+        return image
+
     def __team_color_rgbs(self):
         """RGB colors for player team
 
@@ -4857,7 +4879,7 @@ class ShowdownPlayerCard:
         default_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
         special_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
 
-        if self.image_parallel != sc.ImageParallel.NONE:
+        if self.image_parallel.has_special_components:
             # ADD ADDITIONAL COMPONENTS
             if len(self.image_parallel.special_component_additions) > 0:
                 special_components_for_context.update({img_type: self.__card_art_path(relative_path) for img_type, relative_path in self.image_parallel.special_component_additions.items()})

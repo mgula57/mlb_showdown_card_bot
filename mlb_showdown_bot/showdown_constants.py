@@ -16554,6 +16554,7 @@ IMAGE_TYPE_SUPER_SEASON = "SUPER SEASON"
 IMAGE_TYPE_RAINBOW_FOIL = "RAINBOW FOIL"
 IMAGE_TYPE_SAPPHIRE = "SAPPHIRE"
 IMAGE_TYPE_RADIAL = "RADIAL"
+IMAGE_TYPE_COMIC_BOOK_LINES = "COMIC-BOOK-HERO"
 IMAGE_TYPE_ORDERED_LIST = [
     IMAGE_TYPE_BACKGROUND,
     IMAGE_TYPE_CUSTOM_BACKGROUND,
@@ -16563,6 +16564,7 @@ IMAGE_TYPE_ORDERED_LIST = [
     IMAGE_TYPE_RAINBOW_FOIL,
     IMAGE_TYPE_SAPPHIRE,
     IMAGE_TYPE_RADIAL,
+    IMAGE_TYPE_COMIC_BOOK_LINES,
     IMAGE_TYPE_SHADOW,
     IMAGE_TYPE_GLOW,
     IMAGE_TYPE_CUT,
@@ -16580,6 +16582,11 @@ IMAGE_TYPES_LOADED_VIA_DOWNLOAD = [
 IMAGE_TYPES_IGNORE_CUSTOM_CROP = [
     IMAGE_TYPE_CUSTOM_BACKGROUND,
     IMAGE_TYPE_CUSTOM_FOREGROUND,
+    IMAGE_TYPE_GRADIENT,
+    IMAGE_TYPE_RAINBOW_FOIL,
+    IMAGE_TYPE_SAPPHIRE,
+    IMAGE_TYPE_RADIAL,
+    IMAGE_TYPE_COMIC_BOOK_LINES,
 ]
 ELLIPSE_IMAGE_TYPES = [
     IMAGE_TYPE_ELLIPSE_LARGE,
@@ -16668,7 +16675,12 @@ class ImageParallel(Enum):
     SAPPHIRE = "SPH"
     BLACK_AND_WHITE = "B&W"
     RADIAL = "RAD"
+    COMIC_BOOK_HERO = "CB"
     NONE = "NONE"
+
+    @property
+    def has_special_components(self) -> bool:
+        return self.name not in ['NONE', 'BLACK_AND_WHITE']
 
     @property
     def special_component_additions(self) -> dict[str,str]:
@@ -16676,10 +16688,16 @@ class ImageParallel(Enum):
             case "RAINBOW_FOIL": return { IMAGE_TYPE_RAINBOW_FOIL: "RAINBOW-FOIL" }
             case "SAPPHIRE": return { IMAGE_TYPE_SAPPHIRE: "SAPPHIRE" }
             case "RADIAL": return { IMAGE_TYPE_RADIAL: "RADIAL" }
+            case "COMIC_BOOK_HERO": return { IMAGE_TYPE_COMIC_BOOK_LINES: IMAGE_TYPE_COMIC_BOOK_LINES }
             case _: return {}
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
             case "SAPPHIRE": return { IMAGE_TYPE_GLOW: IMAGE_TYPE_SHADOW }
-            case "BLACK_AND_WHITE": return { IMAGE_TYPE_GLOW: IMAGE_TYPE_CUT }
+            case _: return {}
+    
+    @property
+    def image_type_saturations_dict(self) -> dict[str,float]:
+        match self.name:
+            case "COMIC_BOOK_HERO": return { IMAGE_TYPE_BACKGROUND: 0.05 }
             case _: return {}
