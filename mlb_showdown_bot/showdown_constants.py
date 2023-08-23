@@ -16684,6 +16684,7 @@ class ImageParallel(Enum):
     COMIC_BOOK_HERO = "CB"
     GOLD_RUSH = "GOLDRUSH"
     GOLD = "GOLD"
+    MYSTERY = "MYSTERY"
     NONE = "NONE"
 
     @property

@@ -2619,7 +2619,7 @@ class ShowdownPlayerCard:
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
         small_name_cutoff = 18 if self.context == '2000' else 19
-        location_key = 'player_name_small' if len(self.name) >= small_name_cutoff else 'player_name'
+        location_key = 'player_name_small' if len(self.name) >= small_name_cutoff and self.image_parallel != sc.ImageParallel.MYSTERY else 'player_name'
         name_paste_location = sc.IMAGE_LOCATIONS[location_key][str(self.context_year)]
         if self.context in ['2000', '2001']:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
@@ -2840,7 +2840,7 @@ class ShowdownPlayerCard:
         # ---- IMAGE FROM GOOGLE DRIVE -----
         player_img_from_google_drive = None
         if player_img_user_uploaded is None:
-            search_for_universal_img = True #str(self.year) == '2023'
+            search_for_universal_img = self.image_parallel != sc.ImageParallel.MYSTERY
             if search_for_universal_img:
                 folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS['UNIVERSAL']
                 img_components_dict = self.__card_components_dict()
@@ -3397,8 +3397,9 @@ class ShowdownPlayerCard:
         """
 
         # PARSE NAME STRING
-        first, last = self.name.upper().split(" ", 1)
-        name = self.name.upper() if self.context != '2001' else first
+        name_upper = "????? ?????" if self.image_parallel == sc.ImageParallel.MYSTERY else self.name.upper()
+        first, last = name_upper.split(" ", 1)
+        name = name_upper if self.context != '2001' else first
         default_chart_char_cutoff = 19 if self.context == '2002' else 15
         is_name_over_char_limit =  len(name) > default_chart_char_cutoff
 
