@@ -2628,7 +2628,8 @@ class ShowdownPlayerCard:
         card_image.paste(color, name_paste_location,  name_text)
 
         # ADD TEAM LOGO
-        if not self.hide_team_logo:
+        disable_team_logo = self.hide_team_logo or (self.edition.has_additional_logo_00_01 and self.context == '2000')
+        if not disable_team_logo:
             team_logo, team_logo_coords = self.__team_logo_image()
             card_image.paste(team_logo, team_logo_coords, team_logo)
 
@@ -4105,8 +4106,8 @@ class ShowdownPlayerCard:
             paste_coordinates = (paste_coordinates[0] + 30, paste_coordinates[1])
         if self.context == '2000':
             # MOVE LOGO ABOVE TEAM LOGO AND SLIGHTLY TO THE LEFT
-            _, team_logo_height = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
-            paste_coordinates = (paste_coordinates[0] - 25, paste_coordinates[1] - team_logo_height - 20)
+            y_movement = -35 if self.edition == sc.Edition.SUPER_SEASON else 0
+            paste_coordinates = (paste_coordinates[0] - 25, paste_coordinates[1] + y_movement)
 
         # ADD LOGO
         match self.edition:
