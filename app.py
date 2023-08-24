@@ -197,6 +197,7 @@ def card_creator():
         set_yr_p1 = request.args.get('set_year_plus_one').lower() == 'true' if request.args.get('set_year_plus_one') else False
         hide_team = request.args.get('hide_team_logo').lower() == 'true' if request.args.get('hide_team_logo') else False
         ignore_sl = request.args.get('ignore_showdown_library').lower() == 'true' if request.args.get('ignore_showdown_library') else False
+        image_parallel_txt = str(request.args.get('parallel', 'NONE'))
         is_random = name.upper() == '((RANDOM))'
         if is_random:
             # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
@@ -215,7 +216,7 @@ def card_creator():
         is_dark_mode = dark_mode if dark_mode else False
         is_variable_speed_00_01 = is_variable_spd_00_01 if is_variable_spd_00_01 else False
         is_foil = False
-        image_parallel = img_parallel_raw
+        image_parallel = "NONE" if image_parallel_txt == '' else  image_parallel_txt
         add_year_container = year_container if year_container else False
         set_year_plus_one = set_yr_p1 if set_yr_p1 else False
         hide_team_logo = hide_team if hide_team else False

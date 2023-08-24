@@ -94,7 +94,7 @@ function checkHideForRank(rankElement) {
 
 function changeImageSection(imageSelectObject) {
     var selection = imageSelectObject.value;
-    for (const section of ['link', 'upload']) { 
+    for (const section of ['auto', 'link', 'upload']) { 
         console.log(section)
         if (section == selection) {
             $("#" + section).show();
@@ -579,6 +579,7 @@ $(function () {
             
             var image_name = ""
             var image_link = ""
+            var image_parallel = "NONE"
             
             var imageType = $("#imageTypeSelection :selected").val();
             if (imageType == "upload") {
@@ -589,6 +590,8 @@ $(function () {
                 }
             } else if (imageType == "link") {
                 image_link = $('input[name="url"]').val()
+            } else if (imageType == "auto") {
+                image_parallel = $("#parallelSelection :selected").val();
             }
 
             // CHART ALTERNATES
@@ -640,6 +643,7 @@ $(function () {
                 hide_team_logo: hide_team_branding,
                 ignore_showdown_library: ignore_showdown_library,
                 era: era,
+                parallel: image_parallel,
             }, function (data) {
                 showCardData(data)
             });
