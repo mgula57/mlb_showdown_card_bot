@@ -2980,14 +2980,19 @@ class ShowdownPlayerCard:
 
                 # CALCULATE COORDINATES OF ELLIPSES
                 y_cords = {
-                    sc.IMAGE_TYPE_ELLIPSE_LARGE: 235,
-                    sc.IMAGE_TYPE_ELLIPSE_MEDIUM: 750,
-                    sc.IMAGE_TYPE_ELLIPSE_SMALL: 1400,
+                    sc.IMAGE_TYPE_ELLIPSE_LARGE: 1400 if self.is_pitcher else 800,
+                    sc.IMAGE_TYPE_ELLIPSE_MEDIUM: 750 if self.is_pitcher else 300,
+                    sc.IMAGE_TYPE_ELLIPSE_SMALL: 235 if self.is_pitcher else 1300,
+                }
+                is_reversed_map = {
+                    sc.IMAGE_TYPE_ELLIPSE_LARGE: self.is_pitcher,
+                    sc.IMAGE_TYPE_ELLIPSE_MEDIUM: not self.is_pitcher,
+                    sc.IMAGE_TYPE_ELLIPSE_SMALL: self.is_pitcher,
                 }
                 transparent_pixel = (255, 255, 255, 0)
                 img_width, img_height = image.size
                 for ellipse_type, ycord in y_cords.items():
-                    is_reversed = ellipse_type == sc.IMAGE_TYPE_ELLIPSE_SMALL
+                    is_reversed = is_reversed_map.get(ellipse_type, False)
                     for x_index in range(1, img_width):
                         x_cord = img_width - x_index if is_reversed else x_index
                         coordinates = (x_cord, ycord)
@@ -2997,7 +3002,7 @@ class ShowdownPlayerCard:
                             print(f"ERROR PASTING ELLIPSE: {coordinates}")
                             break
                         if pixel != transparent_pixel:
-                            x_adjustment = 50 * (-1 if is_reversed else 1)
+                            x_adjustment = 75 * (-1 if is_reversed else 1)
                             coordinates_from_center = (int(x_cord - (img_width/2) + x_adjustment), int(ycord - (img_height/2)))
                             ellipse_paste_coords[ellipse_type] = coordinates_from_center
                             break
