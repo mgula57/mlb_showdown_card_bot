@@ -1185,17 +1185,17 @@ class ShowdownPlayerCard:
             type = 'pitcher' if self.is_pitcher else 'hitter'
             gb_multi = sc.GB_MULTIPLIER[type][self.context][era]
             # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
-            gb_outs = round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multi)
+            gb_outs = int(round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multi))
             air_outs = out_slots_remaining - gb_outs
             # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
             pu_multiplier = sc.PU_MULTIPLIER[self.context]
-            pu_outs = 0.0 if not self.is_pitcher else math.ceil(air_outs*popup_pct*pu_multiplier)
+            pu_outs = 0 if not self.is_pitcher else int(math.ceil(air_outs*popup_pct*pu_multiplier))
             pu_outs = air_outs if pu_outs > air_outs else pu_outs
-            fb_outs = air_outs-pu_outs
+            fb_outs = int(air_outs-pu_outs)
         else:
-            fb_outs = 0.0
-            pu_outs = 0.0
-            gb_outs = 0.0
+            fb_outs = 0
+            pu_outs = 0
+            gb_outs = 0
 
         return pu_outs, gb_outs, fb_outs
 
