@@ -73,22 +73,26 @@
                                  
                                  <!-- NAME  -->
                                  <div class="form-group" style="padding-bottom: 10px; padding-top: 15px;">
-                                    <label for="name" style="color:Gray;"><b>Player Name</b></label>
-                                    <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Bot not finding your card? Try inputting the baseball reference id (ex: troutmi01). Apply a card override! Examples include 2-way players (ex: Shohei Ohtani (Pitcher)) and partial team seasons (Ex: Max Scherzer (LAD)). Partial team seasons only available post 1918." >
-                                    <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" autofocus required>
-                                 </div>
-                                 
-                                 <!-- YEAR  -->
-                                 <div class="form-group" style="padding-bottom: 10px;">
-                                    <label for="year" style="color:Gray;"><b>Year</b></label>
-                                    <img for="year" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Looking to use multiple years? You can enter a range of years using '-' (ex: 2012-2020) or collection of years using '+' (ex: 2012+2015+2019). Alternatively you can use a player's entire career by entering CAREER" >
-                                    <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" required>
+                                    <div class="row">
+                                       <!-- NAME  -->
+                                       <div class="col-6 col-md-6">
+                                          <label for="name" style="color:Gray;"><b>Player Name</b></label>
+                                          <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Bot not finding your card? Try inputting the baseball reference id (ex: troutmi01). Apply a card override! Examples include 2-way players (ex: Shohei Ohtani (Pitcher)) and partial team seasons (Ex: Max Scherzer (LAD)). Partial team seasons only available post 1918." >
+                                          <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" autofocus required>
+                                       </div>
+                                       <!-- YEAR  -->
+                                       <div class="col-6 col-md-6">
+                                          <label for="year" style="color:Gray;"><b>Year</b></label>
+                                          <img for="year" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Looking to use multiple years? You can enter a range of years using '-' (ex: 2012-2020) or collection of years using '+' (ex: 2012+2015+2019). Alternatively you can use a player's entire career by entering CAREER" >
+                                          <input type="text" name="year" class="form-control" id="year" placeholder="Ex: 2019" required>
+                                       </div>
+                                    </div>
                                  </div>
             
                                  <!-- SET AND EXPANSION  -->
                                  <div class="form-group">
                                     <div class="row">
-                                       <div class="col-md-6">
+                                       <div class="col-6 col-md-6">
                                           <label for="setSelection" style="color:Gray;"><b>Set</b></label>
                                           <img for="setSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="2022+ Sets are split into CLASSIC AND EXPANDED. CLASSIC is compatible with '00-'01 sets, while EXPANDED works well with '02-'05. EXPANDED set increases hitter onbase values and adds results over 20+." >
                                           <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
@@ -97,9 +101,9 @@
                                              {% endfor %}
                                           </select>
                                        </div>
-                                       <div class="col-md-6">
+                                       <div class="col-6 col-md-6">
                                           <label style="color:Gray;" for="eraSelection"> <b>Era</b> </label>
-                                          <img for="setSelection" src="static/interface/BETA ICON.png" height=15 width=30 data-toggle="tooltip" data-placement="top" title="Eras determine the average opponent used to create the player's chart. See Opponent breakdown after creating a card for more detail."  >
+                                          <img for="setSelection" src="static/interface/InfoButton.png" height=15 width=15 data-toggle="tooltip" data-placement="top" title="Eras determine the average opponent used to create the player's chart. See Opponent breakdown after creating a card for more detail."  >
                                           <select id="eraSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              {% set era_dict = {
                                                 "DYNAMIC": "Dynamic", 
@@ -124,7 +128,7 @@
                                  <!-- EDITION AND SET NUMBER  -->
                                  <div class="form-group">
                                     <div class="row">
-                                       <div class="col-md-6">
+                                       <div class="col-6 col-md-6">
                                           <label style="color:Gray;" for="expansionSelection"> <b>Expansion</b> </label>
                                           <select id="expansionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              <option value="FINAL" selected="selected">Final</option>
@@ -132,7 +136,7 @@
                                              <option value="PR">Pennant Run</option>
                                           </select>
                                        </div>
-                                       <div class="col-md-6">
+                                       <div class="col-6 col-md-6">
                                           <label style="color:Gray;" for="editionSelection"> <b>Edition</b></label>
                                           <select id="editionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              <option value="NONE" selected="selected">None</option>
@@ -150,7 +154,7 @@
                                  <!-- STATS VERSION AND MORE OPTIONS  -->
                                  <div class="form-group">
                                     <div class="row">
-                                       <div class="col-md-6">
+                                       <div class="col-6 col-md-6">
                                           <label for="chartVersionSelection" style="color:Gray;"><b>Chart Version</b></label>
                                           <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title='Select any of the Top 5 most accurate charts for a given player. 1 is most accurate, 5 is least accurate. See "Accuracy" breakdown for available versions after submitting the card!' >
                                           <select id="chartVersionSelection" class="form-select mb-3" aria-label=".form-select-lg example">
@@ -161,7 +165,7 @@
                                              {% endfor %}
                                           </select>
                                        </div>
-                                       <div class="col-md-6" style="padding-bottom: 10px;">
+                                       <div class="col-6 col-md-6" style="padding-bottom: 10px;">
                                           <label for="setnum" style="color:Gray;"><b>Set Number</b></label>
                                           <input type="text" name="setnum" class="form-control" id="setnum" placeholder="">
                                        </div>
@@ -261,7 +265,7 @@
 
                                     <!-- SHUFFLE AND CLEAR BUTTONS -->
                                     <div class="row">
-                                       <div class="col-md-6" style="padding: 8px;" >
+                                       <div class="col-6 col-md-6" style="padding: 8px;" >
                                           <!-- CREATE RANDOM BUTTON  -->
                                           <a href=# id=create_card_random>
                                              <button id="btn_custom" style="color: black;" class="btn btn-warning w-100">
@@ -273,7 +277,7 @@
                                           </a>
                                        </div>
       
-                                       <div class="col-md-6" style="padding: 8px;" >
+                                       <div class="col-6 col-md-6" style="padding: 8px;" >
                                           <!-- RESET CARD BUTTON  -->
                                           <button id="btn_custom" type="reset" class="btn btn-secondary btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''">
                                              <div class="btn_text">
@@ -287,7 +291,7 @@
                                     <!-- SOCIAL LINKS LINK  -->
                                     <div class="row" style="padding-top: 30px;">
                                        <!-- TWITTER  -->
-                                       <div class="col-md-4" style="padding: 8px;" >
+                                       <div class="col-6 col-md-4" style="padding: 8px;" >
                                           <a href="https://twitter.com/mlbshowdownbot?ref_src=twsrc%5Etfw" class="a_no_style" target="_blank" rel="noopener noreferrer">
                                              <div class="social_link" style="background-color: #1DA1F2;" >
                                                 <i class="fa-brands fa-twitter"></i>
@@ -297,7 +301,7 @@
                                        </div>
                                        
                                        <!-- GITHUB -->
-                                       <div class="col-md-4" style="padding: 8px;" >
+                                       <div class="col-6 col-md-4" style="padding: 8px;" >
                                           <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" class="a_no_style" target="_blank" rel="noopener noreferrer">
                                              <div class="social_link" style="background-color: #161B21;">
                                                 <i class="fa-brands fa-github"></i>

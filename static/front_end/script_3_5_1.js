@@ -267,7 +267,7 @@ function setTheme(themeName) {
         document.getElementById(id).className = (id + "_" + themeName);
     }
 
-    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "chartVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table","rank_table", "opponent_table", "eraSelection", "breakdownSelection", "imageTypeSelection"]
+    form_inputs_to_alter = ["name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", "setnum", "chartVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", "points_table", "accuracy_table","rank_table", "opponent_table", "eraSelection", "breakdownSelection", "imageTypeSelection", "parallelSelection"]
     for (const id of form_inputs_to_alter) {
         var element = document.getElementById(id);
         if (element === null) {
