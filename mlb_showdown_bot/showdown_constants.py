@@ -16558,6 +16558,7 @@ IMAGE_TYPE_COMIC_BOOK_LINES = "COMIC-BOOK-HERO"
 IMAGE_TYPE_GOLD_RUSH = "GOLD-BEAMS"
 IMAGE_TYPE_GOLD = "GOLD"
 IMAGE_TYPE_WHITE_SMOKE = "WHITE_SMOKE"
+IMAGE_TYPE_FLAMES = "FLAMES"
 IMAGE_TYPE_ORDERED_LIST = [
     IMAGE_TYPE_BACKGROUND,
     IMAGE_TYPE_CUSTOM_BACKGROUND,
@@ -16571,6 +16572,7 @@ IMAGE_TYPE_ORDERED_LIST = [
     IMAGE_TYPE_GOLD_RUSH,
     IMAGE_TYPE_GOLD,
     IMAGE_TYPE_WHITE_SMOKE,
+    IMAGE_TYPE_FLAMES,
     IMAGE_TYPE_SHADOW,
     IMAGE_TYPE_GLOW,
     IMAGE_TYPE_CUT,
@@ -16596,6 +16598,7 @@ IMAGE_TYPES_IGNORE_CUSTOM_CROP = [
     IMAGE_TYPE_GOLD_RUSH,
     IMAGE_TYPE_GOLD,
     IMAGE_TYPE_WHITE_SMOKE,
+    IMAGE_TYPE_FLAMES,
 ]
 ELLIPSE_IMAGE_TYPES = [
     IMAGE_TYPE_ELLIPSE_LARGE,
@@ -16689,6 +16692,7 @@ class ImageParallel(Enum):
     GOLD = "GOLD"
     MYSTERY = "MYSTERY"
     WHITE_SMOKE = "WS"
+    FLAMES = "FLAMES"
     NONE = "NONE"
 
     @property
@@ -16705,11 +16709,12 @@ class ImageParallel(Enum):
             case "GOLD_RUSH": return { IMAGE_TYPE_GOLD_RUSH: IMAGE_TYPE_GOLD_RUSH }
             case "GOLD": return { IMAGE_TYPE_GOLD: IMAGE_TYPE_GOLD }
             case "WHITE_SMOKE": return { IMAGE_TYPE_WHITE_SMOKE: IMAGE_TYPE_WHITE_SMOKE, IMAGE_TYPE_BACKGROUND: None }
+            case "FLAMES": return { IMAGE_TYPE_FLAMES: IMAGE_TYPE_FLAMES }
             case _: return {}
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
-            case "SAPPHIRE" | "WHITE_SMOKE": return { IMAGE_TYPE_GLOW: IMAGE_TYPE_SHADOW }
+            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES": return { IMAGE_TYPE_GLOW: IMAGE_TYPE_SHADOW }
             case _: return {}
     
     @property
@@ -16728,4 +16733,5 @@ class ImageParallel(Enum):
         match self.name:
             case 'GOLD_RUSH': return 'YELLOW'
             case 'GOLD': return 'YELLOW'
+            case 'FLAMES': return 'RED'
             case _: return None
