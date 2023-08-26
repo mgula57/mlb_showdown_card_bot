@@ -16557,6 +16557,7 @@ IMAGE_TYPE_RADIAL = "RADIAL"
 IMAGE_TYPE_COMIC_BOOK_LINES = "COMIC-BOOK-HERO"
 IMAGE_TYPE_GOLD_RUSH = "GOLD-BEAMS"
 IMAGE_TYPE_GOLD = "GOLD"
+IMAGE_TYPE_WHITE_SMOKE = "WHITE_SMOKE"
 IMAGE_TYPE_ORDERED_LIST = [
     IMAGE_TYPE_BACKGROUND,
     IMAGE_TYPE_CUSTOM_BACKGROUND,
@@ -16569,6 +16570,7 @@ IMAGE_TYPE_ORDERED_LIST = [
     IMAGE_TYPE_COMIC_BOOK_LINES,
     IMAGE_TYPE_GOLD_RUSH,
     IMAGE_TYPE_GOLD,
+    IMAGE_TYPE_WHITE_SMOKE,
     IMAGE_TYPE_SHADOW,
     IMAGE_TYPE_GLOW,
     IMAGE_TYPE_CUT,
@@ -16593,6 +16595,7 @@ IMAGE_TYPES_IGNORE_CUSTOM_CROP = [
     IMAGE_TYPE_COMIC_BOOK_LINES,
     IMAGE_TYPE_GOLD_RUSH,
     IMAGE_TYPE_GOLD,
+    IMAGE_TYPE_WHITE_SMOKE,
 ]
 ELLIPSE_IMAGE_TYPES = [
     IMAGE_TYPE_ELLIPSE_LARGE,
@@ -16685,6 +16688,7 @@ class ImageParallel(Enum):
     GOLD_RUSH = "GOLDRUSH"
     GOLD = "GOLD"
     MYSTERY = "MYSTERY"
+    WHITE_SMOKE = "WS"
     NONE = "NONE"
 
     @property
@@ -16700,23 +16704,24 @@ class ImageParallel(Enum):
             case "COMIC_BOOK_HERO": return { IMAGE_TYPE_COMIC_BOOK_LINES: IMAGE_TYPE_COMIC_BOOK_LINES }
             case "GOLD_RUSH": return { IMAGE_TYPE_GOLD_RUSH: IMAGE_TYPE_GOLD_RUSH }
             case "GOLD": return { IMAGE_TYPE_GOLD: IMAGE_TYPE_GOLD }
+            case "WHITE_SMOKE": return { IMAGE_TYPE_WHITE_SMOKE: IMAGE_TYPE_WHITE_SMOKE, IMAGE_TYPE_BACKGROUND: None }
             case _: return {}
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
-            case "SAPPHIRE": return { IMAGE_TYPE_GLOW: IMAGE_TYPE_SHADOW }
+            case "SAPPHIRE" | "WHITE_SMOKE": return { IMAGE_TYPE_GLOW: IMAGE_TYPE_SHADOW }
             case _: return {}
     
     @property
     def image_type_saturations_dict(self) -> dict[str,float]:
         match self.name:
-            case "COMIC_BOOK_HERO": return { IMAGE_TYPE_BACKGROUND: 0.05 }
+            case "COMIC_BOOK_HERO" | "WHITE_SMOKE": return { IMAGE_TYPE_BACKGROUND: 0.05 }
             case "GOLD_RUSH" | "GOLD": return { IMAGE_TYPE_BACKGROUND: 0.40 }
             case _: return {}
 
     @property
     def is_team_background_black_and_white(self) -> bool:
-        return self.name in ['COMIC_BOOK_HERO', 'GOLD_RUSH', 'GOLD']
+        return self.name in ['COMIC_BOOK_HERO', 'GOLD_RUSH', 'GOLD', 'WHITE_SMOKE']
     
     @property
     def color_override_04_05_chart(self) -> str:
