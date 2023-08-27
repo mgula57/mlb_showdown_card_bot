@@ -594,6 +594,27 @@ class ShowdownPlayerCard:
 
         return combined_positions_and_defense
 
+    @property
+    def num_positions_playable(self) -> int:
+        """Count how many positions the player is eligible to play. 
+           Pitchers (not named Ohtani) default to 1 position.
+        
+        Args:
+          None
+
+        Returns:
+          Integer with number of unique playable positions for the player.
+        """
+
+        num_positions = 0
+        for position in self.positions_and_defense.keys():
+            match position:
+                case "LF/RF": num_positions += 2
+                case "IF": num_positions += 4
+                case "OF": num_positions += 3
+                case _: num_positions += 1 # DEFAULT
+        return num_positions
+
     def __handedness(self, hand):
         """Get hand of player. Format to how card will display hand.
 
