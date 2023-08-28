@@ -2874,9 +2874,9 @@ class ShowdownPlayerCard:
                 img_components_dict = self.__query_google_drive_for_universal_image(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
             
             # ADD SILHOUETTE IF NECESSARY
-            non_empty_components = [typ for typ in sc.IMAGE_TYPES_LOADED_VIA_DOWNLOAD if img_components_dict.get(typ, None) is not None]
+            non_empty_components = [typ for typ in sc.IMAGE_COMPONENT_ORDERED_LIST if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
             if len(non_empty_components) == 0:
-                img_components_dict[sc.IMAGE_TYPE_SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
+                img_components_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
             
             player_imgs = self.__build_automated_player_image(img_components_dict)
             if len(player_imgs) > 0:
@@ -2905,7 +2905,7 @@ class ShowdownPlayerCard:
         
         # CHECK FOR EMPTY PLAYER IMAGE IN EXPANDED CONTEXT
         if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.special_edition == sc.SpecialEdition.NONE:
-            background_img_link = component_img_urls_dict.get(sc.IMAGE_TYPE_BACKGROUND, None)
+            background_img_link = component_img_urls_dict.get(sc.ImageComponent.BACKGROUND, None)
             if background_img_link is None:
                 return None
 
@@ -2920,18 +2920,18 @@ class ShowdownPlayerCard:
         default_crop_adjustment = (0,0)
         
         player_img_components = []
-        for img_type in sc.IMAGE_TYPE_ORDERED_LIST:
+        for img_component in sc.IMAGE_COMPONENT_ORDERED_LIST:
 
             # CHECK FOR IMAGE TYPE
-            img_url = component_img_urls_dict.get(img_type, None)
+            img_url = component_img_urls_dict.get(img_component, None)
             if img_url is None:
                 continue
 
             # DOWNLOAD IMAGE
-            is_loaded_via_google_drive = img_type in sc.IMAGE_TYPES_LOADED_VIA_DOWNLOAD
+            is_loaded_via_google_drive = img_component.is_loaded_via_download
             if is_loaded_via_google_drive:
                 # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
-                cached_image_filename = f"{img_type}-{self.year}-({self.bref_id})-({self.team}).png"
+                cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team}){self.type_override}.png"
                 cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
                 try:
                     image = Image.open(cached_image_path)
@@ -2952,40 +2952,39 @@ class ShowdownPlayerCard:
                 return []
             
             # ADJUST OPACITY
-            opacity = sc.OPACITY_FOR_IMG_TYPE.get(img_type, 1.0)
-            if opacity < 1.0:
-                opacity_255_scale = int(255 * opacity)
+            if img_component.opacity < 1.0:
+                opacity_255_scale = int(255 * img_component.opacity)
                 image.putalpha(opacity_255_scale)
             
             # ADJUST SATURATION
             saturation_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, {})
             saturation_adjustment.update(self.image_parallel.image_type_saturations_dict)
             if len(saturation_adjustment) > 0:
-                component_adjustment_factor = saturation_adjustment.get(img_type, None)
+                component_adjustment_factor = saturation_adjustment.get(img_component, None)
                 if component_adjustment_factor:
                     image = self.__change_image_saturation(image=image, saturation=component_adjustment_factor)
             
             # CROP IMAGE
-            crop_size = default_crop_size if img_type in sc.IMAGE_TYPES_IGNORE_CUSTOM_CROP else player_crop_size
-            crop_adjustment = default_crop_adjustment if img_type in sc.IMAGE_TYPES_IGNORE_CUSTOM_CROP else set_crop_adjustment
+            crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
+            crop_adjustment = default_crop_adjustment if img_component.ignores_custom_crop else set_crop_adjustment
             image = self.__img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
             if crop_size != card_size:
                 image = image.resize(size=card_size, resample=Image.ANTIALIAS)
 
             # SUPER SEASON: FIND LOCATIONS FOR ELLIPSES
-            is_super_season_glow = img_type in [sc.IMAGE_TYPE_GLOW, sc.IMAGE_TYPE_SILHOUETTE] and self.special_edition == sc.SpecialEdition.SUPER_SEASON
+            is_super_season_glow = img_component in [sc.ImageComponent.GLOW, sc.ImageComponent.SILHOUETTE] and self.special_edition == sc.SpecialEdition.SUPER_SEASON
             if is_super_season_glow:
 
                 # CALCULATE COORDINATES OF ELLIPSES
                 y_cords = {
-                    sc.IMAGE_TYPE_ELLIPSE_LARGE: 1200 if self.is_pitcher else 800,
-                    sc.IMAGE_TYPE_ELLIPSE_MEDIUM: 750 if self.is_pitcher else 300,
-                    sc.IMAGE_TYPE_ELLIPSE_SMALL: 235 if self.is_pitcher else 1300,
+                    sc.ImageComponent.ELLIPSE_LARGE: 1200 if self.is_pitcher else 800,
+                    sc.ImageComponent.ELLIPSE_MEDIUM: 750 if self.is_pitcher else 300,
+                    sc.ImageComponent.ELLIPSE_SMALL: 235 if self.is_pitcher else 1300,
                 }
                 is_reversed_map = {
-                    sc.IMAGE_TYPE_ELLIPSE_LARGE: self.is_pitcher,
-                    sc.IMAGE_TYPE_ELLIPSE_MEDIUM: not self.is_pitcher,
-                    sc.IMAGE_TYPE_ELLIPSE_SMALL: self.is_pitcher,
+                    sc.ImageComponent.ELLIPSE_LARGE: self.is_pitcher,
+                    sc.ImageComponent.ELLIPSE_MEDIUM: not self.is_pitcher,
+                    sc.ImageComponent.ELLIPSE_SMALL: self.is_pitcher,
                 }
                 transparent_pixel = (255, 255, 255, 0)
                 img_width, _ = image.size
@@ -2999,7 +2998,7 @@ class ShowdownPlayerCard:
                         except:
                             break
                         if pixel != transparent_pixel:
-                            ellipse_circle_image = Image.open(self.__card_art_path(ellipse_type)).convert('RGBA')
+                            ellipse_circle_image = Image.open(self.__card_art_path(ellipse_type.value)).convert('RGBA')
                             x_adjustment = 80 * (-1 if is_reversed else 1)
                             coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
                             player_img_components.append((ellipse_circle_image, coordinates_adjusted))
@@ -4665,22 +4664,23 @@ class ShowdownPlayerCard:
         """
 
         # FILTER LIST TO ONLY BREF ID MATCHES FOR IMG COMPONENT TYPE
-        component_player_file_matches_dict = {component: [] for component in components_dict.keys() if component in sc.IMAGE_TYPES_LOADED_VIA_DOWNLOAD}
+        component_player_file_matches_dict = {component: [] for component in components_dict.keys() if component.is_loaded_via_download}
         for img_file in files_metadata:
             file_name_key = 'name'
             if file_name_key not in img_file.keys():
                 continue
             # LOOK FOR SUBSTRING MATCH
             file_name = img_file[file_name_key]
-            num_components_in_filename = len([c for c in components_dict.keys() if f'{c}-' in file_name])
+            num_components_in_filename = len([c for c in components_dict.keys() if f'{c.value}-' in file_name])
             if bref_id in file_name and num_components_in_filename > 0:
-                component = file_name.split('-')[0].upper()
+                component_name = file_name.split('-')[0].upper()
+                component = sc.ImageComponent(component_name)
                 current_files_for_component = component_player_file_matches_dict.get(component, [])
                 current_files_for_component.append(img_file)
                 component_player_file_matches_dict[component] = current_files_for_component
 
         # CHECK THAT THERE ARE MATCHES IN EACH COMPONENT
-        num_matches_per_component = [len(matches) for c, matches in component_player_file_matches_dict.items()]
+        num_matches_per_component = [len(matches) for _, matches in component_player_file_matches_dict.items()]
         if min(num_matches_per_component) < 1:
             return components_dict
 
@@ -4794,7 +4794,7 @@ class ShowdownPlayerCard:
         if self.image_parallel.has_special_components:
             # ADD ADDITIONAL COMPONENTS
             if len(self.image_parallel.special_component_additions) > 0:
-                special_components_for_context.update({img_type: self.__card_art_path(relative_path) for img_type, relative_path in self.image_parallel.special_component_additions.items()})
+                special_components_for_context.update({img_component: self.__card_art_path(relative_path) for img_component, relative_path in self.image_parallel.special_component_additions.items()})
             # EDITING EXISTING COMPONENTS
             for old_component, new_component in self.image_parallel.special_components_replacements.items():
                 special_components_for_context.pop(old_component, None)
@@ -4803,31 +4803,32 @@ class ShowdownPlayerCard:
 
         if is_cooperstown and self.context not in ['2000','2001']:
             components_dict = special_components_for_context
-            components_dict[sc.IMAGE_TYPE_COOPERSTOWN] = self.__card_art_path('RADIAL' if self.context in ['2002','2003'] else 'COOPERSTOWN')
+            components_dict[sc.ImageComponent.COOPERSTOWN] = self.__card_art_path('RADIAL' if self.context in ['2002','2003'] else 'COOPERSTOWN')
             return components_dict
 
         # SUPER SEASON
         if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005']:
             components_dict = special_components_for_context
-            components_dict[sc.IMAGE_TYPE_SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
+            components_dict[sc.ImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
         
         # ALL STAR
         if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context not in ['2000','2001']:
-            components_dict = {
-                sc.IMAGE_TYPE_GLOW: None,
-                sc.IMAGE_TYPE_CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2023-BG-{self.league}'),
-            }
+            components_dict = { c:v for c, v in special_components_for_context.items() if not c.is_loaded_via_download }
+            components_dict.update({
+                sc.ImageComponent.GLOW: None,
+                sc.ImageComponent.CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2023-BG-{self.league}'),
+            })
             if self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET]:
-                components_dict[sc.IMAGE_TYPE_CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
+                components_dict[sc.ImageComponent.CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
             return components_dict
 
         # CLASSIC/EXPANDED
         if self.context in sc.CLASSIC_AND_EXPANDED_SETS and not is_cooperstown:
             components_dict = default_components_for_context
-            components_dict[sc.IMAGE_TYPE_GRADIENT] = self.__card_art_path(f"{'DARK' if self.is_dark_mode else 'LIGHT'}-GRADIENT")
+            components_dict[sc.ImageComponent.GRADIENT] = self.__card_art_path(f"{'DARK' if self.is_dark_mode else 'LIGHT'}-GRADIENT")
             return components_dict
-        
+
         return default_components_for_context
 
     def __cache_downloaded_image(self, image: Image, path:str) -> None:

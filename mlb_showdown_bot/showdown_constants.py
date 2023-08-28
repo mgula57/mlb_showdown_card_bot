@@ -16546,79 +16546,99 @@ LEAGUE_AVG_COMMAND = {
     }
 }
 
-""" AUTO IMAGE COMPONENTS """
+""" IMAGE COMPONENTS """
 CARD_SIZE = (1500,2100)
-IMAGE_TYPE_BACKGROUND = "BG"
-IMAGE_TYPE_CUSTOM_BACKGROUND = "CUSTOM BG"
-IMAGE_TYPE_CUSTOM_FOREGROUND = "CUSTOM FG"
-IMAGE_TYPE_SHADOW = "SHADOW"
-IMAGE_TYPE_GLOW = "GLOW"
-IMAGE_TYPE_CUT = "CUT"
-IMAGE_TYPE_GRADIENT = "GRADIENT"
-IMAGE_TYPE_COOPERSTOWN = "COOPERSTOWN"
-IMAGE_TYPE_ELLIPSE_LARGE = "ELLIPSE-LARGE"
-IMAGE_TYPE_ELLIPSE_MEDIUM = "ELLIPSE-MEDIUM"
-IMAGE_TYPE_ELLIPSE_SMALL = "ELLIPSE-SMALL"
-IMAGE_TYPE_SUPER_SEASON = "SUPER SEASON"
-IMAGE_TYPE_RAINBOW_FOIL = "RAINBOW FOIL"
-IMAGE_TYPE_SILHOUETTE = "SILHOUETTE"
-IMAGE_TYPE_SAPPHIRE = "SAPPHIRE"
-IMAGE_TYPE_RADIAL = "RADIAL"
-IMAGE_TYPE_COMIC_BOOK_LINES = "COMIC-BOOK-HERO"
-IMAGE_TYPE_GOLD_RUSH = "GOLD-BEAMS"
-IMAGE_TYPE_GOLD = "GOLD"
-IMAGE_TYPE_WHITE_SMOKE = "WHITE_SMOKE"
-IMAGE_TYPE_FLAMES = "FLAMES"
-IMAGE_TYPE_ORDERED_LIST = [
-    IMAGE_TYPE_BACKGROUND,
-    IMAGE_TYPE_CUSTOM_BACKGROUND,
-    IMAGE_TYPE_COOPERSTOWN,
-    IMAGE_TYPE_SUPER_SEASON,
-    IMAGE_TYPE_GRADIENT,
-    IMAGE_TYPE_RAINBOW_FOIL,
-    IMAGE_TYPE_SAPPHIRE,
-    IMAGE_TYPE_RADIAL,
-    IMAGE_TYPE_COMIC_BOOK_LINES,
-    IMAGE_TYPE_GOLD_RUSH,
-    IMAGE_TYPE_GOLD,
-    IMAGE_TYPE_WHITE_SMOKE,
-    IMAGE_TYPE_FLAMES,
-    IMAGE_TYPE_SHADOW,
-    IMAGE_TYPE_GLOW,
-    IMAGE_TYPE_CUT,
-    IMAGE_TYPE_CUSTOM_FOREGROUND,
-    IMAGE_TYPE_SILHOUETTE,
+
+class ImageComponent(Enum):
+
+    BACKGROUND = "BG"
+    CUSTOM_BACKGROUND = "CUSTOM BG"
+    CUSTOM_FOREGROUND = "CUSTOM FG"
+    SHADOW = "SHADOW"
+    GLOW = "GLOW"
+    CUT = "CUT"
+    GRADIENT = "GRADIENT"
+    COOPERSTOWN = "COOPERSTOWN"
+    ELLIPSE_LARGE = "ELLIPSE-LARGE"
+    ELLIPSE_MEDIUM = "ELLIPSE-MEDIUM"
+    ELLIPSE_SMALL = "ELLIPSE-SMALL"
+    SUPER_SEASON = "SUPER SEASON"
+    RAINBOW_FOIL = "RAINBOW FOIL"
+    SILHOUETTE = "SILHOUETTE"
+    SAPPHIRE = "SAPPHIRE"
+    RADIAL = "RADIAL"
+    COMIC_BOOK_LINES = "COMIC-BOOK-HERO"
+    GOLD_RUSH = "GOLD-BEAMS"
+    GOLD = "GOLD"
+    WHITE_SMOKE = "WHITE_SMOKE"
+    FLAMES = "FLAMES"
+    WHITE_CIRCLE = "WHITE_CIRCLE"
+    BLACK_CIRCLE = "BLACK_CIRCLE"
+    TEAM_COLOR = "TEAM_COLOR"
+    TEAM_LOGO = "TEAM_LOGO"
+
+    @property
+    def is_loaded_via_download(self) -> bool:
+        return self.name in ["BACKGROUND","SHADOW","GLOW","CUT",]
+    
+    @property
+    def ignores_custom_crop(self) -> bool:
+        return self.name in [
+            "SUPER_SEASON",
+            "CUSTOM_BACKGROUND",
+            "CUSTOM_FOREGROUND",
+            "GRADIENT",
+            "RAINBOW_FOIL",
+            "SAPPHIRE",
+            "RADIAL",
+            "COMIC_BOOK_LINES",
+            "GOLD_RUSH",
+            "GOLD",
+            "WHITE_SMOKE",
+            "FLAMES",
+            "WHITE_CIRCLE",
+            "BLACK_CIRCLE",
+            "TEAM_COLOR",
+            "TEAM_LOGO",
+            "SILHOUETTE",
+        ]
+
+    @property
+    def opacity(self) -> float:
+        match self.name:
+            case "RAINBOW_FOIL" | "SAPPHIRE": return 0.65
+            case _: return 1.0
+
+IMAGE_COMPONENT_ORDERED_LIST = [
+    ImageComponent.BACKGROUND,
+    ImageComponent.CUSTOM_BACKGROUND,
+    ImageComponent.COOPERSTOWN,
+    ImageComponent.SUPER_SEASON,
+    ImageComponent.GRADIENT,
+    ImageComponent.RAINBOW_FOIL,
+    ImageComponent.SAPPHIRE,
+    ImageComponent.RADIAL,
+    ImageComponent.COMIC_BOOK_LINES,
+    ImageComponent.GOLD_RUSH,
+    ImageComponent.GOLD,
+    ImageComponent.WHITE_SMOKE,
+    ImageComponent.FLAMES,
+    ImageComponent.TEAM_LOGO,
+    ImageComponent.TEAM_COLOR,
+    ImageComponent.WHITE_CIRCLE,
+    ImageComponent.BLACK_CIRCLE,
+    ImageComponent.SHADOW,
+    ImageComponent.GLOW,
+    ImageComponent.CUT,
+    ImageComponent.CUSTOM_FOREGROUND,
+    ImageComponent.SILHOUETTE,
 ]
-IMAGE_TYPES_LOADED_VIA_DOWNLOAD = [
-    IMAGE_TYPE_BACKGROUND,
-    IMAGE_TYPE_SHADOW,
-    IMAGE_TYPE_GLOW,
-    IMAGE_TYPE_CUT,
+
+ELLIPSE_IMAGE_COMPONENTS = [
+    ImageComponent.ELLIPSE_LARGE,
+    ImageComponent.ELLIPSE_MEDIUM,
+    ImageComponent.ELLIPSE_SMALL,
 ]
-IMAGE_TYPES_IGNORE_CUSTOM_CROP = [
-    IMAGE_TYPE_SUPER_SEASON,
-    IMAGE_TYPE_CUSTOM_BACKGROUND,
-    IMAGE_TYPE_CUSTOM_FOREGROUND,
-    IMAGE_TYPE_GRADIENT,
-    IMAGE_TYPE_RAINBOW_FOIL,
-    IMAGE_TYPE_SAPPHIRE,
-    IMAGE_TYPE_RADIAL,
-    IMAGE_TYPE_COMIC_BOOK_LINES,
-    IMAGE_TYPE_GOLD_RUSH,
-    IMAGE_TYPE_GOLD,
-    IMAGE_TYPE_WHITE_SMOKE,
-    IMAGE_TYPE_FLAMES,
-    IMAGE_TYPE_SILHOUETTE,
-]
-ELLIPSE_IMAGE_TYPES = [
-    IMAGE_TYPE_ELLIPSE_LARGE,
-    IMAGE_TYPE_ELLIPSE_MEDIUM,
-    IMAGE_TYPE_ELLIPSE_SMALL,
-]
-OPACITY_FOR_IMG_TYPE = {
-    IMAGE_TYPE_RAINBOW_FOIL: 0.65,
-    IMAGE_TYPE_SAPPHIRE: 0.65,
-}
 
 PLAYER_IMAGE_MODE = {
     '2000': 'RGBA',
@@ -16632,25 +16652,25 @@ PLAYER_IMAGE_MODE = {
 }
 
 AUTO_IMAGE_COMPONENTS = {
-    '2000': [IMAGE_TYPE_GLOW],
-    '2001': [IMAGE_TYPE_GLOW],
-    '2002': [IMAGE_TYPE_BACKGROUND],
-    '2003': [IMAGE_TYPE_BACKGROUND],
-    '2004': [IMAGE_TYPE_BACKGROUND],
-    '2005': [IMAGE_TYPE_BACKGROUND],
-    CLASSIC_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
-    EXPANDED_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
+    '2000': [ImageComponent.GLOW],
+    '2001': [ImageComponent.GLOW],
+    '2002': [ImageComponent.BACKGROUND],
+    '2003': [ImageComponent.BACKGROUND],
+    '2004': [ImageComponent.BACKGROUND],
+    '2005': [ImageComponent.BACKGROUND],
+    CLASSIC_SET: [ImageComponent.BACKGROUND,ImageComponent.SHADOW],
+    EXPANDED_SET: [ImageComponent.BACKGROUND,ImageComponent.SHADOW],
 }
 
 AUTO_IMAGE_COMPONENTS_SPECIAL = {
-    '2000': [IMAGE_TYPE_GLOW],
-    '2001': [IMAGE_TYPE_GLOW],
-    '2002': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
-    '2003': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
-    '2004': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
-    '2005': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
-    CLASSIC_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
-    EXPANDED_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
+    '2000': [ImageComponent.GLOW],
+    '2001': [ImageComponent.GLOW],
+    '2002': [ImageComponent.BACKGROUND,ImageComponent.GLOW],
+    '2003': [ImageComponent.BACKGROUND,ImageComponent.GLOW],
+    '2004': [ImageComponent.BACKGROUND,ImageComponent.GLOW],
+    '2005': [ImageComponent.BACKGROUND,ImageComponent.GLOW],
+    CLASSIC_SET: [ImageComponent.BACKGROUND,ImageComponent.SHADOW],
+    EXPANDED_SET: [ImageComponent.BACKGROUND,ImageComponent.SHADOW],
 }
 
 PLAYER_IMAGE_CROP_SIZE = {
@@ -16684,10 +16704,10 @@ class SpecialEdition(Enum):
 
 SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT = {
     SpecialEdition.COOPERSTOWN_COLLECTION: {
-        IMAGE_TYPE_BACKGROUND: 0.33,
+        ImageComponent.BACKGROUND: 0.33,
     },
     SpecialEdition.SUPER_SEASON: {
-        IMAGE_TYPE_BACKGROUND: 0.75,
+        ImageComponent.BACKGROUND: 0.75,
     },
 }
 
@@ -16712,27 +16732,27 @@ class ImageParallel(Enum):
     @property
     def special_component_additions(self) -> dict[str,str]:
         match self.name:
-            case "RAINBOW_FOIL": return { IMAGE_TYPE_RAINBOW_FOIL: "RAINBOW-FOIL" }
-            case "SAPPHIRE": return { IMAGE_TYPE_SAPPHIRE: "SAPPHIRE" }
-            case "RADIAL": return { IMAGE_TYPE_RADIAL: "RADIAL" }
-            case "COMIC_BOOK_HERO": return { IMAGE_TYPE_COMIC_BOOK_LINES: IMAGE_TYPE_COMIC_BOOK_LINES }
-            case "GOLD_RUSH": return { IMAGE_TYPE_GOLD_RUSH: IMAGE_TYPE_GOLD_RUSH }
-            case "GOLD": return { IMAGE_TYPE_GOLD: IMAGE_TYPE_GOLD }
-            case "WHITE_SMOKE": return { IMAGE_TYPE_WHITE_SMOKE: IMAGE_TYPE_WHITE_SMOKE, IMAGE_TYPE_BACKGROUND: None }
-            case "FLAMES": return { IMAGE_TYPE_FLAMES: IMAGE_TYPE_FLAMES }
+            case "RAINBOW_FOIL": return { ImageComponent.RAINBOW_FOIL: "RAINBOW-FOIL" }
+            case "SAPPHIRE": return { ImageComponent.SAPPHIRE: "SAPPHIRE" }
+            case "RADIAL": return { ImageComponent.RADIAL: "RADIAL" }
+            case "COMIC_BOOK_HERO": return { ImageComponent.COMIC_BOOK_LINES: ImageComponent.COMIC_BOOK_LINES.name }
+            case "GOLD_RUSH": return { ImageComponent.GOLD_RUSH: ImageComponent.GOLD_RUSH.name }
+            case "GOLD": return { ImageComponent.GOLD: ImageComponent.GOLD.name }
+            case "WHITE_SMOKE": return { ImageComponent.WHITE_SMOKE: ImageComponent.WHITE_SMOKE.name, ImageComponent.BACKGROUND: None }
+            case "FLAMES": return { ImageComponent.FLAMES: ImageComponent.FLAMES.name }
             case _: return {}
 
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
-            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES": return { IMAGE_TYPE_GLOW: IMAGE_TYPE_SHADOW }
+            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES": return { ImageComponent.GLOW: ImageComponent.SHADOW }
             case _: return {}
     
     @property
     def image_type_saturations_dict(self) -> dict[str,float]:
         match self.name:
-            case "COMIC_BOOK_HERO" | "WHITE_SMOKE": return { IMAGE_TYPE_BACKGROUND: 0.05 }
-            case "GOLD_RUSH" | "GOLD": return { IMAGE_TYPE_BACKGROUND: 0.40 }
+            case "COMIC_BOOK_HERO" | "WHITE_SMOKE": return { ImageComponent.BACKGROUND: 0.05 }
+            case "GOLD_RUSH" | "GOLD": return { ImageComponent.BACKGROUND: 0.40 }
             case _: return {}
 
     @property
