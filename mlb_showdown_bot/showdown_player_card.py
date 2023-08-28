@@ -2606,8 +2606,6 @@ class ShowdownPlayerCard:
           None
         """
 
-        card_image = Image.new('RGB', (1500, 2100))
-
         # CHECK IF IMAGE EXISTS ALREADY IN CACHE
         cached_img_link = self.cached_img_link()
         if cached_img_link:
@@ -2618,14 +2616,12 @@ class ShowdownPlayerCard:
             return
         
         # BACKGROUND IMAGE
-        background_image = self.__background_image()
-        mask = background_image if background_image.mode == 'RGBA' else None
-        card_image.paste(background_image, (0,0), mask)
-
+        card_image = self.__background_image()
+        
         # PLAYER IMAGE
-        player_image = self.__player_image()
-        mask = player_image if player_image.mode == 'RGBA' else None
-        card_image.paste(player_image, (0,0), mask)
+        player_image_components = self.__player_image_components()
+        for img, coordinates in player_image_components:
+            card_image.paste(img, coordinates, img)
 
         # ADD HOLIDAY THEME
         if self.edition == sc.Edition.HOLIDAY:
@@ -2719,6 +2715,9 @@ class ShowdownPlayerCard:
         if self.image_parallel == sc.ImageParallel.BLACK_AND_WHITE:
             card_image = self.__change_image_saturation(image=card_image, saturation=0.05)
 
+        if self.img_loading_error:
+            print(self.img_loading_error)
+
         self.save_image(image=card_image, show=show, img_name_suffix=img_name_suffix)
 
     def save_image(self, image, show=False, disable_add_border=False, img_name_suffix=''):
@@ -2770,7 +2769,7 @@ class ShowdownPlayerCard:
 
         self.__clean_images_directory()
 
-    def __background_image(self):
+    def __background_image(self) -> Image:
         """Loads background image for card. Either loads from upload, url, or default
            background.
 
@@ -2818,7 +2817,7 @@ class ShowdownPlayerCard:
 
         return background_image
 
-    def __player_image(self):
+    def __player_image_components(self) -> tuple:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -2827,9 +2826,10 @@ class ShowdownPlayerCard:
           uploaded_player_image: Optional image to use instead of searching. 
 
         Returns:
-          Tupple of:
-            PIL image object for the player background.
-            Boolean for whether the background will be needed.
+          List of tuples.
+          Tuple contains:
+            PIL image object for each component of the player's image.
+            Coordinates for pasting to background image.
         """
         
         # DEFINE FINAL IMAGE
@@ -2843,7 +2843,7 @@ class ShowdownPlayerCard:
             try:
                 player_img_uploaded_raw = Image.open(image_path).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_uploaded_raw, (1500,2100))
-                images_to_paste.append(player_img_user_uploaded)
+                images_to_paste.append((player_img_user_uploaded, (0,0)))
             except Exception as err:
                 self.img_loading_error = str(err)
         
@@ -2855,81 +2855,46 @@ class ShowdownPlayerCard:
                 response = requests.get(image_url)
                 player_img_raw = Image.open(BytesIO(response.content)).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_raw, (1500,2100))
-                images_to_paste.append(player_img_user_uploaded)
+                images_to_paste.append((player_img_user_uploaded, (0,0)))
             except Exception as err:
                 self.img_loading_error = str(err)
 
         # ---- IMAGE FROM GOOGLE DRIVE -----
-        player_img_from_google_drive = None
         if player_img_user_uploaded is None:
             search_for_universal_img = self.image_parallel != sc.ImageParallel.MYSTERY
+            img_components_dict = self.__card_components_dict()
             if search_for_universal_img:
                 folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS['UNIVERSAL']
-                img_components_dict = self.__card_components_dict()
                 img_components_dict = self.__query_google_drive_for_universal_image(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
-                player_img_from_google_drive = self.__build_automated_player_image(img_components_dict)
-                if player_img_from_google_drive:
-                    images_to_paste.append(player_img_from_google_drive)
-                    self.is_automated_image = True
             
-            # if not self.is_automated_image:
-            #     try:
-            #         use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
-            #         img_database_year = '2000' if use_nationality and self.context not in ['2000','2001'] else self.context_year
-            #         folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[img_database_year]
-            #         player_img_url = self.__query_google_drive_for_image_url(folder_id=folder_id, substring_search=self.bref_id, year=self.year)
-            #         player_img_from_google_drive = self.__download_image(url=player_img_url, num_tries=1)
-            #         if player_img_from_google_drive:
-            #             images_to_paste.append(player_img_from_google_drive)
-            #             self.is_automated_image = True
-            #     except Exception as err:
-            #         self.img_loading_error = str(err)
-
-        # ---- PLAYER SILHOUETTE IMAGE -----
-        use_silhouette = player_img_from_google_drive is None and player_img_user_uploaded is None
-        if use_silhouette:
-            player_img_silhouette = self.__player_silhouetee_image()
-            images_to_paste.append(player_img_silhouette)
+            # ADD SILHOUETTE IF NECESSARY
+            non_empty_components = [typ for typ in sc.IMAGE_TYPES_LOADED_VIA_DOWNLOAD if img_components_dict.get(typ, None) is not None]
+            if len(non_empty_components) == 0:
+                img_components_dict[sc.IMAGE_TYPE_SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
+            
+            player_imgs = self.__build_automated_player_image(img_components_dict)
+            if len(player_imgs) > 0:
+                images_to_paste += player_imgs
+                self.is_automated_image = True
 
         # IF 2000, ADD SET CONTAINER AND NAME CONTAINER IF USER UPLOADED IMAGE
         if self.context == '2000':
             if player_img_user_uploaded:
                 name_container = self.__2000_player_name_container_image()
-                images_to_paste.append(name_container)
+                images_to_paste.append((name_container, (0,0)))
             set_container = self.__2000_player_set_container_image()
-            images_to_paste.append(set_container)
+            images_to_paste.append((set_container, (0,0)))
 
-        # PASTE COMPONENTS TOGETHER
-        total_player_image = None
-        for image in images_to_paste:
-            if total_player_image is None:
-                total_player_image = image
-                continue
-            coordinates = (0,0) # TODO: ADD CUSTOMER COORDS IF NEEDED
-            total_player_image.paste(image, coordinates, image)
+        return images_to_paste
 
-        return total_player_image
-
-    def __player_silhouetee_image(self):
-        """Loads the image used for a player's silhouette in the case an image does not exist.
-
-        Args:
-          None
-
-        Returns:
-          PIL image object for the player's positional silhouetee.
-        """
-        silhouetee_image_path = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
-        return Image.open(silhouetee_image_path)
-
-    def __build_automated_player_image(self, component_img_urls_dict:dict) -> Image:
+    def __build_automated_player_image(self, component_img_urls_dict:dict) -> tuple:
         """ Download and manipulate player image asset(s) to fit the current set's style.
 
         Args:
           component_img_urls_dict: Dict of image urls per component.
 
         Returns:
-          PIL image object with formatted player image
+          List of tuples that contain a PIL image objects and coordinates to paste them
         """
         
         # CHECK FOR EMPTY PLAYER IMAGE IN EXPANDED CONTEXT
@@ -2948,14 +2913,10 @@ class ShowdownPlayerCard:
         default_crop_size = sc.CARD_SIZE
         default_crop_adjustment = (0,0)
         
-        player_img = None
-        add_player_silhouette = True
-        img_and_coordinates_pasted_at_end = []
-        ellipse_paste_coords = {}
+        player_img_components = []
         for img_type in sc.IMAGE_TYPE_ORDERED_LIST:
 
             # CHECK FOR IMAGE TYPE
-            is_delayed_img_paste = False
             img_url = component_img_urls_dict.get(img_type, None)
             if img_url is None:
                 continue
@@ -2967,10 +2928,7 @@ class ShowdownPlayerCard:
             else:
                 image = Image.open(img_url).convert('RGBA')
             if image is None:
-                self.img_loading_error = 'Error: Auto image download does not exist.'
-                return None
-            elif is_loaded_via_google_drive:
-                add_player_silhouette = False
+                return []
             
             # ADJUST OPACITY
             opacity = sc.OPACITY_FOR_IMG_TYPE.get(img_type, 1.0)
@@ -2994,15 +2952,12 @@ class ShowdownPlayerCard:
                 image = image.resize(size=card_size, resample=Image.ANTIALIAS)
 
             # SUPER SEASON: FIND LOCATIONS FOR ELLIPSES
-            is_super_season_glow = img_type == sc.IMAGE_TYPE_GLOW and self.special_edition == sc.SpecialEdition.SUPER_SEASON
+            is_super_season_glow = img_type in [sc.IMAGE_TYPE_GLOW, sc.IMAGE_TYPE_SILHOUETTE] and self.special_edition == sc.SpecialEdition.SUPER_SEASON
             if is_super_season_glow:
-                # DELAYED IMAGE
-                is_delayed_img_paste = True
-                img_and_coordinates_pasted_at_end.append((image, (0,0)))
 
                 # CALCULATE COORDINATES OF ELLIPSES
                 y_cords = {
-                    sc.IMAGE_TYPE_ELLIPSE_LARGE: 1400 if self.is_pitcher else 800,
+                    sc.IMAGE_TYPE_ELLIPSE_LARGE: 1200 if self.is_pitcher else 800,
                     sc.IMAGE_TYPE_ELLIPSE_MEDIUM: 750 if self.is_pitcher else 300,
                     sc.IMAGE_TYPE_ELLIPSE_SMALL: 235 if self.is_pitcher else 1300,
                 }
@@ -3012,7 +2967,7 @@ class ShowdownPlayerCard:
                     sc.IMAGE_TYPE_ELLIPSE_SMALL: self.is_pitcher,
                 }
                 transparent_pixel = (255, 255, 255, 0)
-                img_width, img_height = image.size
+                img_width, _ = image.size
                 for ellipse_type, ycord in y_cords.items():
                     is_reversed = is_reversed_map.get(ellipse_type, False)
                     for x_index in range(1, img_width):
@@ -3021,34 +2976,18 @@ class ShowdownPlayerCard:
                         try:
                             pixel = image.getpixel(coordinates)
                         except:
-                            print(f"ERROR PASTING ELLIPSE: {coordinates}")
                             break
                         if pixel != transparent_pixel:
-                            x_adjustment = 75 * (-1 if is_reversed else 1)
-                            coordinates_from_center = (int(x_cord - (img_width/2) + x_adjustment), int(ycord - (img_height/2)))
-                            ellipse_paste_coords[ellipse_type] = coordinates_from_center
+                            ellipse_circle_image = Image.open(self.__card_art_path(ellipse_type)).convert('RGBA')
+                            x_adjustment = 80 * (-1 if is_reversed else 1)
+                            coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
+                            player_img_components.append((ellipse_circle_image, coordinates_adjusted))
                             break
             
             # PASTE IMAGE
-            if player_img is None:
-                player_img = image
-                continue
+            player_img_components.append((image, (0,0)))
 
-            if not is_delayed_img_paste:
-                coordinates = (0,0) if img_type not in sc.ELLIPSE_IMAGE_TYPES else ellipse_paste_coords.get(img_type, (0,0))
-                player_img.paste(image, coordinates, image)
-
-        # SILHOUETTE
-        if add_player_silhouette and player_img is not None:
-            silhouette = self.__player_silhouetee_image()
-            player_img.paste(silhouette,(0,0),silhouette)
-
-        # DELAYED PASTES
-        for img_and_coordinates in img_and_coordinates_pasted_at_end:
-            img, coords = img_and_coordinates
-            player_img.paste(img, coords, img)
-
-        return player_img
+        return player_img_components
 
     def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=3,overlay_image_path=None):
         """Generates a new PIL image object with text.
@@ -4656,7 +4595,8 @@ class ShowdownPlayerCard:
         GOOGLE_CREDENTIALS_STR = os.getenv('GOOGLE_CREDENTIALS')
         if not GOOGLE_CREDENTIALS_STR:
             # IF NO CREDS, RETURN NONE
-            return None
+            return components_dict
+        
         # CREDS FILE FOUND, PROCEED
         GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
         GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
@@ -4678,8 +4618,10 @@ class ShowdownPlayerCard:
                 files_metadata = files_metadata + new_files_list
                 if not page_token:
                     break
-            except:
-                break        
+            except Exception as err:
+                # IMAGE MAY FAIL TO LOAD SOMETIMES
+                self.img_loading_error = str(err)
+                continue
         
         # LOOK FOR SUBSTRING IN FILE NAMES
         file_matches_metadata_dict = self.__img_file_matches_dict(files_service = files, files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
@@ -4846,8 +4788,6 @@ class ShowdownPlayerCard:
         if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005']:
             components_dict = special_components_for_context
             components_dict[sc.IMAGE_TYPE_SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
-            for ellipse_type in [sc.IMAGE_TYPE_ELLIPSE_LARGE, sc.IMAGE_TYPE_ELLIPSE_MEDIUM, sc.IMAGE_TYPE_ELLIPSE_SMALL]:
-                components_dict[ellipse_type] = self.__card_art_path(ellipse_type)
             return components_dict
         
         # ALL STAR
