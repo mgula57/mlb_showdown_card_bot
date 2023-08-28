@@ -91,6 +91,7 @@ class ShowdownPlayerCard:
         self.command_out_override = command_out_override
         self.is_running_in_flask = is_running_in_flask
         self.is_automated_image = False
+        self.player_image_source = None
         self.is_img_part_of_a_set = is_img_part_of_a_set
         self.is_stats_estimate = stats['is_stats_estimate'] == True if 'is_stats_estimate' in stats.keys() else False
         self.add_image_border = add_image_border
@@ -140,11 +141,12 @@ class ShowdownPlayerCard:
             self.points = self.point_value(projected=projections_for_pts,
                                             positions_and_defense=self.positions_and_defense,
                                             speed_or_ip=self.ip if self.is_pitcher else self.speed)
-            if print_to_cli:
-                self.print_player()
 
             if show_player_card_image or len(card_img_output_folder_path) > 0:
                 self.card_image(show=True if show_player_card_image else False)
+            
+            if print_to_cli:
+                self.print_player()
 
 # ------------------------------------------------------------------------
 # METADATA METHODS
@@ -2148,7 +2150,9 @@ class ShowdownPlayerCard:
         print(f"Team: {self.team}")
         print(f"Set: {self.context} {self.expansion} (v{self.version})")
         print(f"Era: {self.era.title()}")
-        print(f"Source: {self.source}")
+        print(f"Data Source: {self.source}")
+        if self.player_image_source:
+            print(f"Img Source: {self.player_image_source}")
 
         # ----- POSITION AND ICONS  ----- #
 
@@ -2844,6 +2848,7 @@ class ShowdownPlayerCard:
                 player_img_uploaded_raw = Image.open(image_path).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_uploaded_raw, (1500,2100))
                 images_to_paste.append((player_img_user_uploaded, (0,0)))
+                self.player_image_source = 'Upload'
             except Exception as err:
                 self.img_loading_error = str(err)
         
@@ -2856,6 +2861,7 @@ class ShowdownPlayerCard:
                 player_img_raw = Image.open(BytesIO(response.content)).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_raw, (1500,2100))
                 images_to_paste.append((player_img_user_uploaded, (0,0)))
+                self.player_image_source = 'Link'
             except Exception as err:
                 self.img_loading_error = str(err)
 
@@ -2924,9 +2930,24 @@ class ShowdownPlayerCard:
             # DOWNLOAD IMAGE
             is_loaded_via_google_drive = img_type in sc.IMAGE_TYPES_LOADED_VIA_DOWNLOAD
             if is_loaded_via_google_drive:
-                image = self.__download_image(img_url)
+                # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
+                cached_image_filename = f"{img_type}-{self.year}-({self.bref_id})-({self.team}).png"
+                cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
+                try:
+                    image = Image.open(cached_image_path)
+                    self.player_image_source = 'Local Cache'
+                except:
+                    image = None
+
+                # 2. DOWNLOAD FROM GOOGLE DRIVE IF IMAGE IS NOT FOUND FROM CACHE.
+                if image is None:
+                    image = self.__download_image(img_url)
+                    if image:
+                        self.__cache_downloaded_image(image=image, path=cached_image_path)
+                        self.player_image_source = 'Google Drive'
             else:
                 image = Image.open(img_url).convert('RGBA')
+            
             if image is None:
                 return []
             
@@ -4216,7 +4237,7 @@ class ShowdownPlayerCard:
             for item in os.listdir(folder_path):
                 if item != self.image_name and item != '.gitkeep':
                     item_path = os.path.join(folder_path, item)
-                    is_file_stale = self.__is_file_over_5_mins_old(item_path)
+                    is_file_stale = self.__is_file_over_mins_threshold(path=item_path, mins=5)
                     if is_file_stale:
                         # DELETE IF UPLOADED/MODIFIED OVER 5 MINS AGO
                         os.remove(item_path)
@@ -4226,9 +4247,9 @@ class ShowdownPlayerCard:
             if item != '.gitkeep':
                 # CHECK TO SEE IF ITEM WAS MODIFIED MORE THAN 5 MINS AGO.
                 item_path = os.path.join(os.path.dirname(__file__), 'uploads', item)
-                is_file_stale = self.__is_file_over_5_mins_old(item_path)
+                is_file_stale = self.__is_file_over_mins_threshold(path=item_path, mins=20)
                 if is_file_stale:
-                    # DELETE IF UPLOADED/MODIFIED OVER 5 MINS AGO
+                    # DELETE IF UPLOADED/MODIFIED OVER 20 MINS AGO
                     os.remove(item_path)
 
     def __command_image(self):
@@ -4269,12 +4290,13 @@ class ShowdownPlayerCard:
 
         return background_img
 
-    def __is_file_over_5_mins_old(self, path):
+    def __is_file_over_mins_threshold(self, path, mins:float = 5.0):
         """Checks modified date of file to see if it is older than 5 mins.
            Used for cleaning output directory and image uploads.
 
         Args:
           path: String path to file in os.
+          mins: Number of minutes to check for
 
         Returns:
             True if file in path is older than 5 mins, false if not.
@@ -4284,7 +4306,7 @@ class ShowdownPlayerCard:
         datetime_uploaded = datetime.fromtimestamp(os.path.getmtime(path))
         file_age_mins = (datetime_current - datetime_uploaded).total_seconds() / 60.0
 
-        return file_age_mins >= 5.0
+        return file_age_mins >= mins
 
     def __add_alpha_mask(self, img, mask_img):
         """Adds mask to image
@@ -4807,3 +4829,15 @@ class ShowdownPlayerCard:
             return components_dict
         
         return default_components_for_context
+
+    def __cache_downloaded_image(self, image: Image, path:str) -> None:
+        """Store downloaded image to the uploads folder in order to cache it
+        
+        Args:
+          image: PIL Image to cache in uploads folder.
+          path: Path for storing the image.
+
+        Returns:
+          None
+        """
+        image.save(path, quality=100)

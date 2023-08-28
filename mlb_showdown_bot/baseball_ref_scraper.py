@@ -42,6 +42,7 @@ class BaseballReferenceScraper:
 
         self.name = name
         self.error = None
+        self.source = None
         
         # PARSE MULTI YEARS
         if isinstance(year, list):
@@ -202,7 +203,7 @@ class BaseballReferenceScraper:
 # ------------------------------------------------------------------------
 # PARSING HTML
 
-    def player_statline(self):
+    def player_statline(self) -> dict:
         """Scrape baseball-reference.com to get all relevant stats
 
         Args:
@@ -212,12 +213,22 @@ class BaseballReferenceScraper:
           Dict with all categories and stats.
         """
 
+        # CHECK IN LOCAL CACHE
+        years_as_str = '-'.join(self.years)
+        overrides = f"{f'-{self.pitcher_override}' if self.pitcher_override else ''}{f'-{self.hitter_override}' if self.hitter_override else ''}"
+        cached_filename = f"{years_as_str}-{self.baseball_ref_id}{overrides}.json"
+        cached_data = self.load_cached_data(cached_filename)
+        if cached_data:
+            self.source = 'Local Cache'
+            return cached_data
+        
         # STANDARD STATS PAGE HAS MOST RELEVANT STATS NEEDED
         url_for_homepage_stats = f'https://www.baseball-reference.com/players/{self.first_initial}/{self.baseball_ref_id}.shtml'
         soup_for_homepage_stats = self.__soup_for_url(url_for_homepage_stats, is_baseball_ref_page=True)
 
         master_stats_dict = {}
         is_full_career = self.years == ['CAREER']
+        is_data_from_statcast = False
         for year in self.years:
             # DEFENSE
             stats_dict = {'bref_id': self.baseball_ref_id, 'bref_url': url_for_homepage_stats}
@@ -291,12 +302,14 @@ class BaseballReferenceScraper:
                     stats_dict['sprint_speed'] = None
             else:
                 stats_dict['sprint_speed'] = self.statcast_sprint_speed(name=name, year=year)
+            is_data_from_statcast = stats_dict.get('sprint_speed', None) is not None
 
             # OUTS ABOVE AVERAGE (2016+)
             if 'outs_above_avg' not in stats_dict.keys(): # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
                 years_list = years_played if is_full_career else self.years
                 years_as_ints = [int(y) for y in years_list]
                 stats_dict['outs_above_avg'] = self.statcast_outs_above_average_dict(name=name, years=years_as_ints)
+                is_data_from_statcast = len(stats_dict['outs_above_avg']) > 0 if stats_dict['outs_above_avg'] else False
             
             # DERIVE 1B 
             triples = 0 if '3B' not in stats_dict.keys() else int(stats_dict['3B'])
@@ -308,9 +321,11 @@ class BaseballReferenceScraper:
             # COMBINE INDIVIDUAL YEAR DATA
             stats_dict.update(self.__combine_multi_year_dict(master_stats_dict))
             stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=self.years)
-            return stats_dict
-        else:
-            return stats_dict
+
+        # SAVE DATA        
+        self.source = f"Baseball Reference{'/Baseball Savant' if is_data_from_statcast else ''}"
+        self.__cache_data_locally(data=stats_dict, filename=cached_filename)
+        return stats_dict
 
     def positional_fielding(self, soup_for_homepage_stats, year):
         """Parse standard fielding metrics (tzr, games_played).
@@ -1387,6 +1402,81 @@ class BaseballReferenceScraper:
 # ------------------------------------------------------------------------
 # HELPER METHODS
 
+    def load_cached_data(self, filename:str) -> dict:
+        """Check if data file exists in local storage, load and return JSON converted to a dict
+        
+        Args:
+          data: Dictionary of transformed player data.
+          filename: Name of the JSON file.
+
+        Returns:
+          Dictionary of locally cached player data.
+        """
+
+        folder_path = os.path.join(Path(os.path.dirname(__file__)), 'cache_data')
+        full_path = os.path.join(folder_path, filename)
+
+        # RETURN NONE IF FILE DOES NOT EXIST
+        if not os.path.isfile(full_path):
+            return None
+        
+        # RETURN NONE IF FILE IS OVER 10 MINS OLD
+        mins_since_modification = self.__file_mins_since_modification(path=full_path)
+        if mins_since_modification > 10.0:
+            return None
+
+        file = open(full_path, 'r')
+        data = json.loads(file.read())
+
+        # REMOVE STALE FILES
+        self.__remove_old_files(folder_path=folder_path)
+        
+        return data
+
+    def __cache_data_locally(self, data:dict, filename:str) -> None:
+        """Store player data dictionary locally to cache as JSON.
+
+        Args:
+          data: Dictionary of transformed player data.
+          filename: Name of the JSON file.
+
+        Returns:
+          None
+        """
+        folder_path = os.path.join(Path(os.path.dirname(__file__)), 'cache_data')
+        full_path = os.path.join(folder_path, filename)
+        with open(full_path, "w", encoding="utf-8") as file:
+            json.dump(data, file, indent=2, ensure_ascii=False)
+
+        # REMOVE STALE FILES
+        self.__remove_old_files(folder_path=folder_path)
+    
+    def __remove_old_files(self, folder_path:str, mins_cutoff:float = 10.0) -> None:
+        # CLEAR OUT OLD FILES
+        for item in os.listdir(folder_path):
+            if item != '.gitkeep':
+                item_path = os.path.join(folder_path, item)
+                is_file_stale = self.__file_mins_since_modification(item_path) >= mins_cutoff
+                if is_file_stale:
+                    os.remove(item_path)
+
+    def __file_mins_since_modification(self, path:str):
+        """Checks modified date of file.
+           Used for cleaning and reading from cache.
+
+        Args:
+          path: String path to file in os.
+
+        Returns:
+            Float with time in mins since modification.
+        """
+
+        datetime_current = datetime.now()
+        datetime_uploaded = datetime.fromtimestamp(os.path.getmtime(path))
+        file_age_mins = (datetime_current - datetime_uploaded).total_seconds() / 60.0
+
+        return file_age_mins
+    
     def __name_last_initial(self, name):
         """Parse first initial of Player's last name.
 

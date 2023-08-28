@@ -47,7 +47,8 @@ def main():
     command_out_override = None if args.co_override == '' else tuple([int(x) for x in args.co_override.split('-')])
 
     scraper = BaseballReferenceScraper(name=name,year=year)
-    # CHECK FOR CACHED STATS
+
+    # CHECK FOR STATS IN SHOWDOWN LIBRARY
     db = Firebase()
     cached_player_card = db.load_showdown_card(
         ignore_showdown_library=args.ignore_showdown_library,
@@ -102,7 +103,8 @@ def main():
             add_year_container=args.add_year_container,
             set_year_plus_one=args.set_year_plus_one,
             hide_team_logo=args.hide_team_logo,
-            era=args.era
+            era=args.era,
+            source = scraper.source
         )
 
 if __name__ == "__main__":
