@@ -923,6 +923,9 @@ class ShowdownPlayerCard:
         if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
             return sc.SpecialEdition.COOPERSTOWN_COLLECTION
         
+        if self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+            return sc.SpecialEdition.TEAM_COLOR_BLAST_DARK
+        
         return sc.SpecialEdition.NONE
 
 # ------------------------------------------------------------------------
@@ -2913,7 +2916,7 @@ class ShowdownPlayerCard:
         card_size = (1500,2100)
         player_crop_size = sc.PLAYER_IMAGE_CROP_SIZE[self.context]
         set_crop_adjustment = sc.PLAYER_IMAGE_CROP_ADJUSTMENT[self.context]
-        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+        if self.context in sc.CLASSIC_AND_EXPANDED_SETS and (self.special_edition == sc.SpecialEdition.ASG_2023 or self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST):
             player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
             set_crop_adjustment = (0,int((1785 - 2100) / 2))
         default_crop_size = sc.CARD_SIZE
@@ -2924,37 +2927,40 @@ class ShowdownPlayerCard:
 
             # CHECK FOR IMAGE TYPE
             img_url = component_img_urls_dict.get(img_component, None)
+            paste_coordinates = (0,0)
             if img_url is None:
                 continue
 
             # DOWNLOAD IMAGE
-            is_loaded_via_google_drive = img_component.is_loaded_via_download
-            if is_loaded_via_google_drive:
-                # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
-                cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team}){self.type_override}.png"
-                cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
-                try:
-                    image = Image.open(cached_image_path)
-                    self.player_image_source = 'Local Cache'
-                except:
-                    image = None
+            image = None
+            match img_component.load_source:
+                case "DOWNLOAD":
+                    # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
+                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team}){self.type_override}.png"
+                    cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
+                    try:
+                        image = Image.open(cached_image_path)
+                        self.player_image_source = 'Local Cache'
+                    except:
+                        image = None
 
-                # 2. DOWNLOAD FROM GOOGLE DRIVE IF IMAGE IS NOT FOUND FROM CACHE.
-                if image is None:
-                    image = self.__download_image(img_url)
-                    if image:
-                        self.__cache_downloaded_image(image=image, path=cached_image_path)
-                        self.player_image_source = 'Google Drive'
-            else:
-                image = Image.open(img_url).convert('RGBA')
-            
+                    # 2. DOWNLOAD FROM GOOGLE DRIVE IF IMAGE IS NOT FOUND FROM CACHE.
+                    if image is None:
+                        image = self.__download_image(img_url)
+                        if image:
+                            self.__cache_downloaded_image(image=image, path=cached_image_path)
+                            self.player_image_source = 'Google Drive'
+                case "COLOR":
+                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs())
+                case "CARD_ART":
+                    image = Image.open(img_url).convert('RGBA')
+                case "TEAM_LOGOS":
+                    image = Image.open(img_url).convert('RGBA').resize((1200,1200), resample=Image.ANTIALIAS)
+                case _: 
+                    break
+
             if image is None:
                 return []
-            
-            # ADJUST OPACITY
-            if img_component.opacity < 1.0:
-                opacity_255_scale = int(255 * img_component.opacity)
-                image.putalpha(opacity_255_scale)
             
             # ADJUST SATURATION
             saturation_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, {})
@@ -2963,6 +2969,11 @@ class ShowdownPlayerCard:
                 component_adjustment_factor = saturation_adjustment.get(img_component, None)
                 if component_adjustment_factor:
                     image = self.__change_image_saturation(image=image, saturation=component_adjustment_factor)
+
+            # ADJUST OPACITY
+            if img_component.opacity < 1.0:
+                opacity_255_scale = int(255 * img_component.opacity)
+                image.putalpha(opacity_255_scale)
             
             # CROP IMAGE
             crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
@@ -3005,7 +3016,7 @@ class ShowdownPlayerCard:
                             break
             
             # PASTE IMAGE
-            player_img_components.append((image, (0,0)))
+            player_img_components.append((image, paste_coordinates))
 
         return player_img_components
 
@@ -4794,11 +4805,16 @@ class ShowdownPlayerCard:
         if self.image_parallel.has_special_components:
             # ADD ADDITIONAL COMPONENTS
             if len(self.image_parallel.special_component_additions) > 0:
-                special_components_for_context.update({img_component: self.__card_art_path(relative_path) for img_component, relative_path in self.image_parallel.special_component_additions.items()})
+                team_logo_name = f"{self.team}{self.__team_logo_historical_alternate_extension()}"
+                special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == sc.ImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image_parallel.special_component_additions.items()})
             # EDITING EXISTING COMPONENTS
-            for old_component, new_component in self.image_parallel.special_components_replacements.items():
+            replacements_dict = self.image_parallel.special_components_replacements
+            for old_component, new_component in replacements_dict.items():
                 special_components_for_context.pop(old_component, None)
                 special_components_for_context[new_component] = None
+            if self.special_edition == sc.SpecialEdition.TEAM_COLOR_BLAST_DARK:
+                special_components_for_context.pop(sc.ImageComponent.WHITE_CIRCLE, None)
+                special_components_for_context[sc.ImageComponent.BLACK_CIRCLE] = self.__card_art_path(sc.ImageComponent.BLACK_CIRCLE.name)
             default_components_for_context = special_components_for_context
 
         if is_cooperstown and self.context not in ['2000','2001']:
@@ -4824,7 +4840,7 @@ class ShowdownPlayerCard:
             return components_dict
 
         # CLASSIC/EXPANDED
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS and not is_cooperstown:
+        if self.context in sc.CLASSIC_AND_EXPANDED_SETS and not is_cooperstown and self.image_parallel == sc.ImageParallel.NONE:
             components_dict = default_components_for_context
             components_dict[sc.ImageComponent.GRADIENT] = self.__card_art_path(f"{'DARK' if self.is_dark_mode else 'LIGHT'}-GRADIENT")
             return components_dict

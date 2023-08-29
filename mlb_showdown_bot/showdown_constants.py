@@ -16578,8 +16578,16 @@ class ImageComponent(Enum):
     TEAM_LOGO = "TEAM_LOGO"
 
     @property
+    def load_source(self) -> str:
+        match self.name:
+            case "BACKGROUND" | "SHADOW" | "GLOW" | "CUT": return "DOWNLOAD"
+            case "TEAM_COLOR": return "COLOR"
+            case "TEAM_LOGO": return "TEAM_LOGOS"
+            case _: return "CARD_ART"
+
+    @property
     def is_loaded_via_download(self) -> bool:
-        return self.name in ["BACKGROUND","SHADOW","GLOW","CUT",]
+        return self.load_source == "DOWNLOAD"
     
     @property
     def ignores_custom_crop(self) -> bool:
@@ -16607,6 +16615,7 @@ class ImageComponent(Enum):
     def opacity(self) -> float:
         match self.name:
             case "RAINBOW_FOIL" | "SAPPHIRE": return 0.65
+            case "TEAM_COLOR": return 0.60
             case _: return 1.0
 
 IMAGE_COMPONENT_ORDERED_LIST = [
@@ -16680,15 +16689,15 @@ PLAYER_IMAGE_CROP_SIZE = {
     '2003': (1200,1680),
     '2004': (1500,2100),
     '2005': (1500,2100),
-    CLASSIC_SET: (1125,1575),
-    EXPANDED_SET: (1125,1575),
+    CLASSIC_SET: (1200, 1680),
+    EXPANDED_SET: (1200, 1680),
 }
 
 PLAYER_IMAGE_CROP_ADJUSTMENT = {
     '2000': (-25,-300),
     '2001': (-35,-460),
-    '2002': (100,-300),
-    '2003': (100,-200),
+    '2002': (75,-300),
+    '2003': (75,-200),
     '2004': (0,0),
     '2005': (0,0),
     CLASSIC_SET: (0,int((PLAYER_IMAGE_CROP_SIZE[CLASSIC_SET][1] - 2100) / 2)),
@@ -16700,6 +16709,7 @@ class SpecialEdition(Enum):
     ASG_2023 = "ASG 2023"
     COOPERSTOWN_COLLECTION = "CC"
     SUPER_SEASON = "SS"
+    TEAM_COLOR_BLAST_DARK = "TCBD"
     NONE = "NONE"
 
 SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT = {
@@ -16720,9 +16730,10 @@ class ImageParallel(Enum):
     COMIC_BOOK_HERO = "CB"
     GOLD_RUSH = "GOLDRUSH"
     GOLD = "GOLD"
-    MYSTERY = "MYSTERY"
     WHITE_SMOKE = "WS"
     FLAMES = "FLAMES"
+    TEAM_COLOR_BLAST = "TCB"
+    MYSTERY = "MYSTERY"
     NONE = "NONE"
 
     @property
@@ -16740,12 +16751,13 @@ class ImageParallel(Enum):
             case "GOLD": return { ImageComponent.GOLD: ImageComponent.GOLD.name }
             case "WHITE_SMOKE": return { ImageComponent.WHITE_SMOKE: ImageComponent.WHITE_SMOKE.name, ImageComponent.BACKGROUND: None }
             case "FLAMES": return { ImageComponent.FLAMES: ImageComponent.FLAMES.name }
+            case "TEAM_COLOR_BLAST": return { ImageComponent.WHITE_CIRCLE: ImageComponent.WHITE_CIRCLE.name, ImageComponent.TEAM_LOGO: None, ImageComponent.TEAM_COLOR: None, ImageComponent.BACKGROUND: None }
             case _: return {}
 
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
-            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES": return { ImageComponent.GLOW: ImageComponent.SHADOW }
+            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST": return { ImageComponent.GLOW: ImageComponent.SHADOW }
             case _: return {}
     
     @property
@@ -16753,6 +16765,7 @@ class ImageParallel(Enum):
         match self.name:
             case "COMIC_BOOK_HERO" | "WHITE_SMOKE": return { ImageComponent.BACKGROUND: 0.05 }
             case "GOLD_RUSH" | "GOLD": return { ImageComponent.BACKGROUND: 0.40 }
+            case "TEAM_COLOR_BLAST": return { ImageComponent.TEAM_LOGO: 0.10 }
             case _: return {}
 
     @property
