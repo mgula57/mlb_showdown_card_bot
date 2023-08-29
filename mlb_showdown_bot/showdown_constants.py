@@ -2162,7 +2162,8 @@ OB_COMBOS = {
         [16,3],[16,4],[16,5],[16,6]
     ],
     '2004':[
-        [8,7],[8,8],[8,9],[8,10],
+        [7,8],[7,9],[7,10],[7,11],
+        [8,7],[8,8],[8,9],[8,10],[8,11],
         [9,5],[9,6],[9,7],[9,8],[9,9],[9,10],[9,11],
         [10,5],[10,6],[10,7],
         [11,5],[11,6],[11,7],
@@ -2173,6 +2174,7 @@ OB_COMBOS = {
         [16,3],[16,4],[16,5],[16,6]
     ],
     '2005':[
+        [7,8],[7,9],[7,10],[7,11],
         [8,7],[8,8],[8,9],[8,10],
         [9,5],[9,6],[9,7],[9,8],[9,9],[9,10],[9,11],
         [10,5],[10,6],[10,7],
@@ -16548,6 +16550,10 @@ LEAGUE_AVG_COMMAND = {
 
 """ IMAGE COMPONENTS """
 CARD_SIZE = (1500,2100)
+CARD_SIZE_FINAL = (1488,2079)
+CARD_BORDER_PADDING = 72
+CARD_SIZE_BORDERED = (CARD_SIZE[0] + int(CARD_BORDER_PADDING*2), CARD_SIZE[1] + int(CARD_BORDER_PADDING*2))
+CARD_SIZE_BORDERED_FINAL = (CARD_SIZE_FINAL[0] + int(CARD_BORDER_PADDING*2), CARD_SIZE_FINAL[1] + int(CARD_BORDER_PADDING*2))
 
 class ImageComponent(Enum):
 
@@ -16585,11 +16591,16 @@ class ImageComponent(Enum):
             case "TEAM_COLOR": return "COLOR"
             case "TEAM_LOGO": return "TEAM_LOGOS"
             case "NAME_CONTAINER_2000": return "NAME_CONTAINER"
+            case "SILHOUETTE": return "SILHOUETTE"
             case _: return "CARD_ART"
 
     @property
     def is_loaded_via_download(self) -> bool:
         return self.load_source == "DOWNLOAD"
+    
+    @property
+    def adjust_paste_coordinates_for_bordered(self) -> bool:
+        return self.name in ["NAME_CONTAINER_2000", "SILHOUETTE"]
     
     @property
     def ignores_custom_crop(self) -> bool:
@@ -16601,6 +16612,7 @@ class ImageComponent(Enum):
             "RAINBOW_FOIL",
             "SAPPHIRE",
             "RADIAL",
+            "COOPERSTOWN",
             "COMIC_BOOK_LINES",
             "GOLD_RUSH",
             "GOLD",
@@ -16613,12 +16625,18 @@ class ImageComponent(Enum):
             "SILHOUETTE",
             "NAME_CONTAINER_2000",
         ]
+    
+    @property
+    def crop_adjustment_02_03(self) -> tuple[int, int]:
+        match self.name:
+            case "WHITE_CIRCLE" | "BLACK_CIRCLE" | "TEAM_COLOR" | "TEAM_LOGO": return (75,0)
+            case _: return None
 
     @property
     def opacity(self) -> float:
         match self.name:
             case "RAINBOW_FOIL" | "SAPPHIRE": return 0.65
-            case "TEAM_COLOR": return 0.60
+            case "TEAM_COLOR": return 0.75
             case _: return 1.0
 
 IMAGE_COMPONENT_ORDERED_LIST = [
@@ -16708,6 +16726,8 @@ PLAYER_IMAGE_CROP_ADJUSTMENT = {
     EXPANDED_SET: (0,int((PLAYER_IMAGE_CROP_SIZE[EXPANDED_SET][1] - 2100) / 2)),
 }
 
+""" SPECIAL EDITIONS """
+
 class SpecialEdition(Enum):
     
     ASG_2023 = "ASG 2023"
@@ -16724,6 +16744,8 @@ SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT = {
         ImageComponent.BACKGROUND: 0.75,
     },
 }
+
+""" IMAGE PARALLELS """
 
 class ImageParallel(Enum):
     
@@ -16761,7 +16783,7 @@ class ImageParallel(Enum):
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
-            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST": return { ImageComponent.GLOW: ImageComponent.SHADOW }
+            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD": return { ImageComponent.GLOW: ImageComponent.SHADOW }
             case _: return {}
     
     @property

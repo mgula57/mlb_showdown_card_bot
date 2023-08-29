@@ -2634,11 +2634,11 @@ class ShowdownPlayerCard:
         if self.edition == sc.Edition.HOLIDAY:
             holiday_image_path = self.__template_img_path('Holiday')
             holiday_image = Image.open(holiday_image_path)
-            card_image.paste(holiday_image,(0,0),holiday_image)
+            card_image.paste(holiday_image,self.__coordinates_adjusted_for_bordering(coordinates=(0,0)),holiday_image)
 
         # LOAD SHOWDOWN TEMPLATE
         showdown_template_frame_image = self.__template_image()
-        card_image.paste(showdown_template_frame_image,(0,0),showdown_template_frame_image)
+        card_image.paste(showdown_template_frame_image,self.__coordinates_adjusted_for_bordering(coordinates=(0,0)),showdown_template_frame_image)
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
@@ -2648,21 +2648,23 @@ class ShowdownPlayerCard:
         if self.context in ['2000', '2001']:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
-            card_image.paste(sc.COLOR_BLACK, (name_paste_location[0] + 6, name_paste_location[1] + 6), name_text_blurred)
-        card_image.paste(color, name_paste_location,  name_text)
+            shadow_paste_coordinates = (name_paste_location[0] + 6, name_paste_location[1] + 6)
+            card_image.paste(sc.COLOR_BLACK, self.__coordinates_adjusted_for_bordering(shadow_paste_coordinates), name_text_blurred)
+        card_image.paste(color, self.__coordinates_adjusted_for_bordering(name_paste_location),  name_text)
 
         # ADD TEAM LOGO
         disable_team_logo = self.hide_team_logo or (self.edition.has_additional_logo_00_01 and self.context == '2000')
         if not disable_team_logo:
             team_logo, team_logo_coords = self.__team_logo_image()
-            card_image.paste(team_logo, team_logo_coords, team_logo)
+            card_image.paste(team_logo, self.__coordinates_adjusted_for_bordering(team_logo_coords), team_logo)
 
         # 00/01 ADDITIONAL LOGO
-        self.__add_additional_logos_00_01(image=card_image)
+        card_image = self.__add_additional_logos_00_01(image=card_image)
 
         # METADATA
         metadata_image, color = self.__metadata_image()
-        card_image.paste(color, sc.IMAGE_LOCATIONS['metadata'][str(self.context_year)], metadata_image)
+        metadata_paste_coordinates = self.__coordinates_adjusted_for_bordering(sc.IMAGE_LOCATIONS['metadata'][str(self.context_year)])
+        card_image.paste(color, metadata_paste_coordinates, metadata_image)
 
         # CHART
         chart_image, color = self.__chart_image()
@@ -2670,14 +2672,15 @@ class ShowdownPlayerCard:
             chart_cords = sc.IMAGE_LOCATIONS['chart'][f"{self.context_year}{'p' if self.is_pitcher else 'h'}"]
         else:
             chart_cords = sc.IMAGE_LOCATIONS['chart'][f'{self.context_year}']
-        card_image.paste(color, chart_cords, chart_image)
+        card_image.paste(color, self.__coordinates_adjusted_for_bordering(chart_cords), chart_image)
 
         # STYLE (IF APPLICABLE)
         if self.context in sc.CLASSIC_AND_EXPANDED_SETS:
             theme_suffix = '-DARK' if self.is_dark_mode else ''
             style_img_path = self.__template_img_path(f'{self.context}{theme_suffix}')
             style_img = Image.open(style_img_path)
-            card_image.paste(style_img,sc.IMAGE_LOCATIONS['style'][self.context_year],style_img)
+            style_coordinates = self.__coordinates_adjusted_for_bordering(sc.IMAGE_LOCATIONS['style'][self.context_year])
+            card_image.paste(style_img, style_coordinates, style_img)
         
         # ICONS
         if self.has_icons:
@@ -2685,13 +2688,13 @@ class ShowdownPlayerCard:
 
         # SET
         set_image = self.__card_set_image()
-        card_image.paste(set_image, (0,0), set_image)
+        card_image.paste(set_image, self.__coordinates_adjusted_for_bordering((0,0)), set_image)
 
         # YEAR CONTAINER
         if self.add_year_container:
             paste_location = sc.IMAGE_LOCATIONS['year_container'][str(self.context_year)]
             year_container_img = self.__year_container_add_on()
-            card_image.paste(year_container_img, paste_location, year_container_img)
+            card_image.paste(year_container_img, self.__coordinates_adjusted_for_bordering(paste_location), year_container_img)
 
         # EXPANSION
         if self.expansion != 'FINAL':
@@ -2704,7 +2707,7 @@ class ShowdownPlayerCard:
                 expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
             elif self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.expansion == 'TD':
                 expansion_location = (expansion_location[0],expansion_location[1] - 12)
-            card_image.paste(expansion_image, expansion_location, expansion_image)
+            card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
 
         # BETA TAG
         # TO BE REMOVED AFTER TEST PERIOD
@@ -2714,8 +2717,9 @@ class ShowdownPlayerCard:
         #     card_image.paste(beta_banner_image,(0,0),beta_banner_image)
 
         # SAVE AND SHOW IMAGE
-        # CROP TO 63mmx88mm
-        card_image = self.__center_and_crop(card_image,(1488,2079))
+        # CROP TO 63mmx88mm or bordered
+        final_size = sc.CARD_SIZE_BORDERED_FINAL if self.add_image_border else sc.CARD_SIZE_FINAL
+        card_image = self.__center_and_crop(card_image,final_size)
         card_image = self.__round_corners(card_image, 60)
 
         # MAKE IMAGE BLACK AND WHITE IF PARALLEL IS SELECTED
@@ -2727,7 +2731,7 @@ class ShowdownPlayerCard:
 
         self.save_image(image=card_image, show=show, img_name_suffix=img_name_suffix)
 
-    def save_image(self, image, show=False, disable_add_border=False, img_name_suffix=''):
+    def save_image(self, image, show=False, img_name_suffix=''):
         """Stores image in proper folder depending on the context of the run.
 
         Args:
@@ -2745,22 +2749,7 @@ class ShowdownPlayerCard:
             self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
         
         if self.context in ['2002','2004','2005',sc.CLASSIC_SET, sc.EXPANDED_SET]:
-            # TODO: SOLVE HTML PNG ISSUES
             image = image.convert('RGB')
-
-        # ADD BORDER TO IMAGE
-        if self.add_image_border and not disable_add_border:
-            if self.context in ['2000','2001']:
-                # SAMPLE THE BACKGROUND TO GRAB THE BORDER COLOR
-                pix = image.load()
-                background_rgb = pix[30,30] # SAMPLE AT 30x 30y FROM TOP LEFT CORNER OF IMAGE
-                border_color = self.__rbgs_to_hex(rgbs=background_rgb)
-            else:
-                # USE WHITE OR BLACK
-                border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
-            image_border = Image.new('RGBA', (1632,2220), color=border_color)
-            image_border.paste(image.convert("RGBA"),(72,72),image.convert("RGBA"))
-            image = image_border
 
         save_img_path = os.path.join(self.card_img_output_folder_path, self.image_name)
         image.save(save_img_path, dpi=(300, 300), quality=100)
@@ -2822,6 +2811,19 @@ class ShowdownPlayerCard:
         if self.image_parallel.is_team_background_black_and_white:
             background_image = self.__change_image_saturation(image=background_image, saturation=0.10)
 
+        if self.add_image_border:
+            if self.context in ['2000','2001']:
+                # SAMPLE THE BACKGROUND TO GRAB THE BORDER COLOR
+                pix = background_image.load()
+                background_rgb = pix[30,30] # SAMPLE AT 30x 30y FROM TOP LEFT CORNER OF IMAGE
+                border_color = self.__rbgs_to_hex(rgbs=background_rgb)
+            else:
+                # USE WHITE OR BLACK
+                border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
+            image_border = Image.new('RGBA', sc.CARD_SIZE_BORDERED, color=border_color)
+            image_border.paste(background_image.convert("RGBA"),(sc.CARD_BORDER_PADDING,sc.CARD_BORDER_PADDING),background_image.convert("RGBA"))
+            return image_border
+
         return background_image
 
     def __player_image_components(self) -> tuple:
@@ -2841,6 +2843,7 @@ class ShowdownPlayerCard:
         
         # DEFINE FINAL IMAGE
         images_to_paste = []
+        default_img_paste_coordinates = self.__coordinates_adjusted_for_bordering((0,0))
 
         # CHECK FOR USER UPLOADED IMAGE
         player_img_user_uploaded = None
@@ -2850,7 +2853,7 @@ class ShowdownPlayerCard:
             try:
                 player_img_uploaded_raw = Image.open(image_path).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_uploaded_raw, (1500,2100))
-                images_to_paste.append((player_img_user_uploaded, (0,0)))
+                images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
                 self.player_image_source = 'Upload'
             except Exception as err:
                 self.img_loading_error = str(err)
@@ -2863,7 +2866,7 @@ class ShowdownPlayerCard:
                 response = requests.get(image_url)
                 player_img_raw = Image.open(BytesIO(response.content)).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_raw, (1500,2100))
-                images_to_paste.append((player_img_user_uploaded, (0,0)))
+                images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
                 self.player_image_source = 'Link'
             except Exception as err:
                 self.img_loading_error = str(err)
@@ -2890,9 +2893,9 @@ class ShowdownPlayerCard:
         if self.context == '2000':
             if player_img_user_uploaded:
                 name_container = self.__2000_player_name_container_image()
-                images_to_paste.append((name_container, (0,0)))
+                images_to_paste.append((name_container, default_img_paste_coordinates))
             set_container = self.__2000_player_set_container_image()
-            images_to_paste.append((set_container, (0,0)))
+            images_to_paste.append((set_container, default_img_paste_coordinates))
 
         return images_to_paste
 
@@ -2911,25 +2914,29 @@ class ShowdownPlayerCard:
             background_img_link = component_img_urls_dict.get(sc.ImageComponent.BACKGROUND, None)
             if background_img_link is None:
                 return None
-
-        # CARD SIZING
-        card_size = (1500,2100)
-        player_crop_size = sc.PLAYER_IMAGE_CROP_SIZE[self.context]
-        set_crop_adjustment = sc.PLAYER_IMAGE_CROP_ADJUSTMENT[self.context]
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS and (self.special_edition == sc.SpecialEdition.ASG_2023 or self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST):
-            player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
-            set_crop_adjustment = (0,int((1785 - 2100) / 2))
-        default_crop_size = sc.CARD_SIZE
-        default_crop_adjustment = (0,0)
         
         player_img_components = []
         for img_component in sc.IMAGE_COMPONENT_ORDERED_LIST:
 
             # CHECK FOR IMAGE TYPE
             img_url = component_img_urls_dict.get(img_component, None)
-            paste_coordinates = (0,0)
-            if img_url is None:
+            paste_coordinates = self.__coordinates_adjusted_for_bordering(coordinates=(0,0),is_disabled=not img_component.adjust_paste_coordinates_for_bordered)
+            if img_url is None and not (img_component.load_source == 'COLOR' and img_component in component_img_urls_dict.keys()):
                 continue
+
+            # CARD SIZING
+            card_size = sc.CARD_SIZE_BORDERED if self.add_image_border and not img_component.adjust_paste_coordinates_for_bordered else sc.CARD_SIZE
+            size_growth_multiplier = ( card_size[0] / sc.CARD_SIZE[0], card_size[1] / sc.CARD_SIZE[1])
+            original_crop_size = sc.PLAYER_IMAGE_CROP_SIZE[self.context]
+            player_crop_size = (int(original_crop_size[0] * size_growth_multiplier[0]), int(original_crop_size[1] * size_growth_multiplier[1])) if self.add_image_border else original_crop_size
+            special_crop_adjustment = sc.PLAYER_IMAGE_CROP_ADJUSTMENT[self.context]
+            if self.context in sc.CLASSIC_AND_EXPANDED_SETS and (self.special_edition == sc.SpecialEdition.ASG_2023 or self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST):
+                player_crop_size = self.__coordinates_adjusted_for_bordering((1275, 1785), is_disabled=img_component.adjust_paste_coordinates_for_bordered) #TODO: MAKE THIS DYNAMIC
+                special_crop_adjustment = self.__coordinates_adjusted_for_bordering((0,int((1785 - 2100) / 2)),is_disabled=img_component.adjust_paste_coordinates_for_bordered)
+            default_crop_size = card_size
+            default_crop_adjustment = (0,0)
+            if self.context in ['2002','2003'] and img_component.crop_adjustment_02_03 is not None:
+                default_crop_adjustment = img_component.crop_adjustment_02_03
 
             # DOWNLOAD IMAGE
             image = None
@@ -2952,7 +2959,7 @@ class ShowdownPlayerCard:
                             self.player_image_source = 'Google Drive'
                 case "COLOR":
                     image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(ignore_team_overrides=True))
-                case "CARD_ART":
+                case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
                     image = Image.open(img_url).convert('RGBA').resize((1200,1200), resample=Image.ANTIALIAS)
@@ -2979,7 +2986,7 @@ class ShowdownPlayerCard:
             
             # CROP IMAGE
             crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
-            crop_adjustment = default_crop_adjustment if img_component.ignores_custom_crop else set_crop_adjustment
+            crop_adjustment = default_crop_adjustment if img_component.ignores_custom_crop else special_crop_adjustment
             image = self.__img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
             if crop_size != card_size:
                 image = image.resize(size=card_size, resample=Image.ANTIALIAS)
@@ -4038,7 +4045,7 @@ class ShowdownPlayerCard:
 
         return rookie_season_image
 
-    def __add_icons_to_image(self, player_image):
+    def __add_icons_to_image(self, player_image:Image) -> Image:
         """Add icon images (if player has icons) to existing player_image object.
            Only for >= 2003 sets.
 
@@ -4073,7 +4080,7 @@ class ShowdownPlayerCard:
                     position = (position[0] + offset, position[1])
             else:
                 icon_image = self.__icon_image_circle(text=icon)
-            player_image.paste(icon_image, position, icon_image)
+            player_image.paste(icon_image, self.__coordinates_adjusted_for_bordering(position), icon_image)
 
         return player_image
 
@@ -4110,15 +4117,15 @@ class ShowdownPlayerCard:
                 logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name == 'ASG-2022' else (logo_size_x, logo_size_y)
                 logo_path = self.__team_logo_path(name=logo_name)
                 logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.ANTIALIAS)
-                image.paste(logo, paste_coordinates, logo)
+                image.paste(logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), logo)
             case sc.Edition.SUPER_SEASON:
                 super_season_img = self.__super_season_image()
                 paste_coordinates_x, paste_coordinates_y = paste_coordinates
                 paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 150)
-                image.paste(super_season_img, paste_coordinates, super_season_img)
+                image.paste(super_season_img, self.__coordinates_adjusted_for_bordering(paste_coordinates), super_season_img)
             case sc.Edition.ROOKIE_SEASON:
                 rs_logo = self.__rookie_season_image()
-                image.paste(rs_logo, paste_coordinates, rs_logo)
+                image.paste(rs_logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), rs_logo)
             case _:
                 return image
             
@@ -4263,6 +4270,22 @@ class ShowdownPlayerCard:
                 if is_file_stale:
                     # DELETE IF UPLOADED/MODIFIED OVER 20 MINS AGO
                     os.remove(item_path)
+
+    def __coordinates_adjusted_for_bordering(self, coordinates:tuple[int,int], is_disabled:bool = False) -> tuple[int,int]:
+        """Add padding to paste coordinates to account for a border on the image.
+         
+        Args:
+          coordinates: Tuple for original coordinates (ex: (0,0))
+          is_disabled: Return coordinates without an update
+
+        Returns:
+          Updated tuple for adjusted coordinates.
+        """
+
+        if not self.add_image_border or is_disabled:
+            return coordinates
+        
+        return (coordinates[0] + sc.CARD_BORDER_PADDING, coordinates[1] + sc.CARD_BORDER_PADDING)
 
     def __command_image(self):
         """For CLASSIC and EXPANDED sets, create onbase/control image asset dynamically
@@ -4585,6 +4608,10 @@ class ShowdownPlayerCard:
         Returns:
           String with full image path.
         """
+
+        if name is None:
+            return None
+        
         return os.path.join(os.path.dirname(__file__), 'card_art', f'{name}.{extension}')
 
     def __team_logo_path(self, name, extension:str = 'png') -> str:
