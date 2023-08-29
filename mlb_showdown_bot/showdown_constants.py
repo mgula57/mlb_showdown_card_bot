@@ -16576,6 +16576,7 @@ class ImageComponent(Enum):
     BLACK_CIRCLE = "BLACK_CIRCLE"
     TEAM_COLOR = "TEAM_COLOR"
     TEAM_LOGO = "TEAM_LOGO"
+    NAME_CONTAINER_2000 = "NAME_CONTAINER_2000"
 
     @property
     def load_source(self) -> str:
@@ -16583,6 +16584,7 @@ class ImageComponent(Enum):
             case "BACKGROUND" | "SHADOW" | "GLOW" | "CUT": return "DOWNLOAD"
             case "TEAM_COLOR": return "COLOR"
             case "TEAM_LOGO": return "TEAM_LOGOS"
+            case "NAME_CONTAINER_2000": return "NAME_CONTAINER"
             case _: return "CARD_ART"
 
     @property
@@ -16609,6 +16611,7 @@ class ImageComponent(Enum):
             "TEAM_COLOR",
             "TEAM_LOGO",
             "SILHOUETTE",
+            "NAME_CONTAINER_2000",
         ]
 
     @property
@@ -16636,6 +16639,7 @@ IMAGE_COMPONENT_ORDERED_LIST = [
     ImageComponent.TEAM_COLOR,
     ImageComponent.WHITE_CIRCLE,
     ImageComponent.BLACK_CIRCLE,
+    ImageComponent.NAME_CONTAINER_2000,
     ImageComponent.SHADOW,
     ImageComponent.GLOW,
     ImageComponent.CUT,
@@ -16661,7 +16665,7 @@ PLAYER_IMAGE_MODE = {
 }
 
 AUTO_IMAGE_COMPONENTS = {
-    '2000': [ImageComponent.GLOW],
+    '2000': [ImageComponent.NAME_CONTAINER_2000,ImageComponent.GLOW],
     '2001': [ImageComponent.GLOW],
     '2002': [ImageComponent.BACKGROUND],
     '2003': [ImageComponent.BACKGROUND],
@@ -16672,7 +16676,7 @@ AUTO_IMAGE_COMPONENTS = {
 }
 
 AUTO_IMAGE_COMPONENTS_SPECIAL = {
-    '2000': [ImageComponent.GLOW],
+    '2000': [ImageComponent.NAME_CONTAINER_2000,ImageComponent.GLOW],
     '2001': [ImageComponent.GLOW],
     '2002': [ImageComponent.BACKGROUND,ImageComponent.GLOW],
     '2003': [ImageComponent.BACKGROUND,ImageComponent.GLOW],

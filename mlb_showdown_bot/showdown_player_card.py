@@ -2951,11 +2951,13 @@ class ShowdownPlayerCard:
                             self.__cache_downloaded_image(image=image, path=cached_image_path)
                             self.player_image_source = 'Google Drive'
                 case "COLOR":
-                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs())
+                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(ignore_team_overrides=True))
                 case "CARD_ART":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
                     image = Image.open(img_url).convert('RGBA').resize((1200,1200), resample=Image.ANTIALIAS)
+                case "NAME_CONTAINER":
+                    image = self.__2000_player_name_container_image()
                 case _: 
                     break
 
@@ -4403,11 +4405,11 @@ class ShowdownPlayerCard:
 
         return image
 
-    def __team_color_rgbs(self):
+    def __team_color_rgbs(self, ignore_team_overrides:bool = False):
         """RGB colors for player team
 
         Args:
-          None
+          ignore_team_overrides: Boolean to optionally skip overrides.
 
         Returns:
             Tuple with RGB team colors
@@ -4416,11 +4418,11 @@ class ShowdownPlayerCard:
         default_color = (55, 55, 55, 255)
         team_index = self.__team_logo_historical_alternate_extension(include_dash=False)
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if self.nationality else False
-        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION:
+        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and not ignore_team_overrides:
             return sc.TEAM_COLOR_PRIMARY['CCC']
-        elif self.edition == sc.Edition.NATIONALITY and self.nationality and country_exists:
+        elif self.edition == sc.Edition.NATIONALITY and self.nationality and country_exists and not ignore_team_overrides:
             return sc.NATIONALITY_COLORS[self.nationality][0]
-        elif self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys():
+        elif self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys() and not ignore_team_overrides:
             color_for_league = sc.ALL_STAR_GAME_COLORS[str(self.year)].get(self.league, None)
             if color_for_league:
                 return color_for_league
@@ -4799,8 +4801,8 @@ class ShowdownPlayerCard:
 
         # COOPERSTOWN
         is_cooperstown = self.edition == sc.Edition.COOPERSTOWN_COLLECTION
-        default_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
-        special_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
+        default_components_for_context = {c: self.__template_img_path("2000-Name") if c == sc.ImageComponent.NAME_CONTAINER_2000 else None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
+        special_components_for_context = {c: self.__template_img_path("2000-Name") if c == sc.ImageComponent.NAME_CONTAINER_2000 else None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
 
         if self.image_parallel.has_special_components:
             # ADD ADDITIONAL COMPONENTS
