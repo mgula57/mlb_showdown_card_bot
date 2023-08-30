@@ -53,6 +53,9 @@ class Edition(Enum):
     def ignore_showdown_library(self) -> bool:
         return self in [Edition.NATIONALITY] # TODO: NATIONALITY DATA CURRENTLY NOT IN SL, REMOVE AFTER ADDING
 
+    @property
+    def has_additional_logo_00_01(self) -> bool:
+        return self.name in ['COOPERSTOWN_COLLECTION', 'ALL_STAR_GAME', 'SUPER_SEASON', 'ROOKIE_SEASON']
 
 """
 SET STYLES
@@ -129,6 +132,16 @@ SPEED_METRIC_MULTIPLIER = {
         EXPANDED_SET: 1.0,
     },
 }
+STOLEN_BASES_PER_650_PA_THRESHOLD_MAX = {
+    '2000': 100,
+    '2001': 100,
+    '2002': 100,
+    '2003': 100,
+    '2004': 100,
+    '2005': 100,
+    CLASSIC_SET: 100,
+    EXPANDED_SET: 100,
+}
 SPEED_ERA_MULTIPLIER = {
     ERA_PRE_1900: 0.80,
     ERA_DEAD_BALL: 0.80,
@@ -145,14 +158,14 @@ SPEED_METRIC_TOP_PERCENTILE = {
     STOLEN_BASES_KEY: 18.0,
 }
 MAX_IN_GAME_SPD = {
-    '2000': 25,
-    '2001': 25,
-    '2002': 27,
-    '2003': 27,
-    '2004': 27,
-    '2005': 27,
-    CLASSIC_SET: 25,
-    EXPANDED_SET: 25,
+    '2000': 28,
+    '2001': 28,
+    '2002': 28,
+    '2003': 28,
+    '2004': 28,
+    '2005': 28,
+    CLASSIC_SET: 28,
+    EXPANDED_SET: 28,
 }
 MIN_IN_GAME_SPD = {
     '2000': 8,
@@ -2106,9 +2119,9 @@ OB_COMBOS = {
         [4,5],
         [5,2],[5,3],[5,4],[5,5],
         [6,2],[6,3],[6,4],[6,5],
-        [7,3],[7,4],[7,5],
-        [8,3],[8,4],[8,5],
-        [9,3],[9,4],[9,5],
+        [7,2],[7,3],[7,4],[7,5],
+        [8,2],[8,3],[8,4],[8,5],
+        [9,2],[9,3],[9,4],[9,5],
         [10,2],[10,3],[10,4],[10,5],
         [11,2],[11,3],
         [12,0],[12,2],[12,3]
@@ -2117,9 +2130,9 @@ OB_COMBOS = {
         [4,5],[4,6],
         [5,2],[5,3],[5,4],[5,5],[5,6],
         [6,2],[6,3],[6,4],[6,5],[6,6],
-        [7,3],[7,4],[7,5],[7,6],
-        [8,3],[8,4],[8,5],
-        [9,3],[9,4],[9,5],
+        [7,2],[7,3],[7,4],[7,5],[7,6],
+        [8,2],[8,3],[8,4],[8,5],
+        [9,2],[9,3],[9,4],[9,5],
         [10,2],[10,3],[10,4],
         [11,2],[11,3],
         [12,0],[12,2],[12,3]
@@ -2149,7 +2162,8 @@ OB_COMBOS = {
         [16,3],[16,4],[16,5],[16,6]
     ],
     '2004':[
-        [8,7],[8,8],[8,9],[8,10],
+        [7,8],[7,9],[7,10],[7,11],
+        [8,7],[8,8],[8,9],[8,10],[8,11],
         [9,5],[9,6],[9,7],[9,8],[9,9],[9,10],[9,11],
         [10,5],[10,6],[10,7],
         [11,5],[11,6],[11,7],
@@ -2160,6 +2174,7 @@ OB_COMBOS = {
         [16,3],[16,4],[16,5],[16,6]
     ],
     '2005':[
+        [7,8],[7,9],[7,10],[7,11],
         [8,7],[8,8],[8,9],[8,10],
         [9,5],[9,6],[9,7],[9,8],[9,9],[9,10],[9,11],
         [10,5],[10,6],[10,7],
@@ -2265,8 +2280,16 @@ CONTROL_COMBOS = {
 }
 
 COMMAND_ACCURACY_WEIGHTING = {
-    '2000': {},
-    '2001': {},
+    '2000': {
+        '7-2': 0.999,
+        '8-2': 0.999,
+        '9-2': 0.999,
+    },
+    '2001': {
+        '7-2': 0.999,
+        '8-2': 0.999,
+        '9-2': 0.999,
+    },
     '2002': {},
     '2003': {
         '1-18': 0.99,
@@ -2426,7 +2449,8 @@ CHART_CATEGORY_WEIGHTS = {
     },
     '2005': {
         'position_player': {
-            'onbase_perc': 1.0,
+            'slugging_perc': 1.0,
+            'onbase_perc': 2.5,
         },
         'starting_pitcher': {
             'slugging_perc': 1.0,
@@ -4343,6 +4367,7 @@ TEAM_COLOR_PRIMARY = {
     'SLR': (200, 16, 46, 255),
     'SL2': (214, 0, 36, 255),
     'SL3': (214, 0, 36, 255),
+    'SLS': (214, 0, 36, 255),
     'SNS': (214, 0, 36, 255),
     'STL': (196, 30, 58, 255),
     'STP': (20, 52, 141, 255),
@@ -16523,34 +16548,127 @@ LEAGUE_AVG_COMMAND = {
     }
 }
 
-""" AUTO IMAGE COMPONENTS """
+""" IMAGE COMPONENTS """
 CARD_SIZE = (1500,2100)
-IMAGE_TYPE_BACKGROUND = "BG"
-IMAGE_TYPE_CUSTOM_BACKGROUND = "CUSTOM BG"
-IMAGE_TYPE_CUSTOM_FOREGROUND = "CUSTOM FG"
-IMAGE_TYPE_SHADOW = "SHADOW"
-IMAGE_TYPE_GLOW = "GLOW"
-IMAGE_TYPE_GRADIENT = "GRADIENT"
-IMAGE_TYPE_COOPERSTOWN = "COOPERSTOWN"
-IMAGE_TYPE_SUPER_SEASON = "SUPER SEASON"
-IMAGE_TYPE_ORDERED_LIST = [
-    IMAGE_TYPE_BACKGROUND,
-    IMAGE_TYPE_CUSTOM_BACKGROUND,
-    IMAGE_TYPE_COOPERSTOWN,
-    IMAGE_TYPE_SUPER_SEASON,
-    IMAGE_TYPE_GRADIENT,
-    IMAGE_TYPE_SHADOW,
-    IMAGE_TYPE_GLOW,
-    IMAGE_TYPE_CUSTOM_FOREGROUND,
+CARD_SIZE_FINAL = (1488,2079)
+CARD_BORDER_PADDING = 72
+CARD_SIZE_BORDERED = (CARD_SIZE[0] + int(CARD_BORDER_PADDING*2), CARD_SIZE[1] + int(CARD_BORDER_PADDING*2))
+CARD_SIZE_BORDERED_FINAL = (CARD_SIZE_FINAL[0] + int(CARD_BORDER_PADDING*2), CARD_SIZE_FINAL[1] + int(CARD_BORDER_PADDING*2))
+
+class ImageComponent(Enum):
+
+    BACKGROUND = "BG"
+    CUSTOM_BACKGROUND = "CUSTOM BG"
+    CUSTOM_FOREGROUND = "CUSTOM FG"
+    SHADOW = "SHADOW"
+    GLOW = "GLOW"
+    CUT = "CUT"
+    GRADIENT = "GRADIENT"
+    COOPERSTOWN = "COOPERSTOWN"
+    ELLIPSE_LARGE = "ELLIPSE-LARGE"
+    ELLIPSE_MEDIUM = "ELLIPSE-MEDIUM"
+    ELLIPSE_SMALL = "ELLIPSE-SMALL"
+    SUPER_SEASON = "SUPER SEASON"
+    RAINBOW_FOIL = "RAINBOW FOIL"
+    SILHOUETTE = "SILHOUETTE"
+    SAPPHIRE = "SAPPHIRE"
+    RADIAL = "RADIAL"
+    COMIC_BOOK_LINES = "COMIC-BOOK-HERO"
+    GOLD_RUSH = "GOLD-BEAMS"
+    GOLD = "GOLD"
+    WHITE_SMOKE = "WHITE_SMOKE"
+    FLAMES = "FLAMES"
+    WHITE_CIRCLE = "WHITE_CIRCLE"
+    BLACK_CIRCLE = "BLACK_CIRCLE"
+    TEAM_COLOR = "TEAM_COLOR"
+    TEAM_LOGO = "TEAM_LOGO"
+    NAME_CONTAINER_2000 = "NAME_CONTAINER_2000"
+
+    @property
+    def load_source(self) -> str:
+        match self.name:
+            case "BACKGROUND" | "SHADOW" | "GLOW" | "CUT": return "DOWNLOAD"
+            case "TEAM_COLOR": return "COLOR"
+            case "TEAM_LOGO": return "TEAM_LOGOS"
+            case "NAME_CONTAINER_2000": return "NAME_CONTAINER"
+            case "SILHOUETTE": return "SILHOUETTE"
+            case _: return "CARD_ART"
+
+    @property
+    def is_loaded_via_download(self) -> bool:
+        return self.load_source == "DOWNLOAD"
+    
+    @property
+    def adjust_paste_coordinates_for_bordered(self) -> bool:
+        return self.name in ["NAME_CONTAINER_2000", "SILHOUETTE"]
+    
+    @property
+    def ignores_custom_crop(self) -> bool:
+        return self.name in [
+            "SUPER_SEASON",
+            "CUSTOM_BACKGROUND",
+            "CUSTOM_FOREGROUND",
+            "GRADIENT",
+            "RAINBOW_FOIL",
+            "SAPPHIRE",
+            "RADIAL",
+            "COOPERSTOWN",
+            "COMIC_BOOK_LINES",
+            "GOLD_RUSH",
+            "GOLD",
+            "WHITE_SMOKE",
+            "FLAMES",
+            "WHITE_CIRCLE",
+            "BLACK_CIRCLE",
+            "TEAM_COLOR",
+            "TEAM_LOGO",
+            "SILHOUETTE",
+            "NAME_CONTAINER_2000",
+        ]
+    
+    @property
+    def crop_adjustment_02_03(self) -> tuple[int, int]:
+        match self.name:
+            case "WHITE_CIRCLE" | "BLACK_CIRCLE" | "TEAM_COLOR" | "TEAM_LOGO": return (75,0)
+            case _: return None
+
+    @property
+    def opacity(self) -> float:
+        match self.name:
+            case "RAINBOW_FOIL" | "SAPPHIRE": return 0.65
+            case "TEAM_COLOR": return 0.75
+            case _: return 1.0
+
+IMAGE_COMPONENT_ORDERED_LIST = [
+    ImageComponent.BACKGROUND,
+    ImageComponent.CUSTOM_BACKGROUND,
+    ImageComponent.COOPERSTOWN,
+    ImageComponent.SUPER_SEASON,
+    ImageComponent.GRADIENT,
+    ImageComponent.RAINBOW_FOIL,
+    ImageComponent.SAPPHIRE,
+    ImageComponent.RADIAL,
+    ImageComponent.COMIC_BOOK_LINES,
+    ImageComponent.GOLD_RUSH,
+    ImageComponent.GOLD,
+    ImageComponent.WHITE_SMOKE,
+    ImageComponent.FLAMES,
+    ImageComponent.TEAM_LOGO,
+    ImageComponent.TEAM_COLOR,
+    ImageComponent.WHITE_CIRCLE,
+    ImageComponent.BLACK_CIRCLE,
+    ImageComponent.NAME_CONTAINER_2000,
+    ImageComponent.SHADOW,
+    ImageComponent.GLOW,
+    ImageComponent.CUT,
+    ImageComponent.CUSTOM_FOREGROUND,
+    ImageComponent.SILHOUETTE,
 ]
-IMAGE_TYPES_LOADED_VIA_DOWNLOAD = [
-    IMAGE_TYPE_BACKGROUND,
-    IMAGE_TYPE_SHADOW,
-    IMAGE_TYPE_GLOW,
-]
-IMAGE_TYPES_IGNORE_CUSTOM_CROP = [
-    IMAGE_TYPE_CUSTOM_BACKGROUND,
-    IMAGE_TYPE_CUSTOM_FOREGROUND,
+
+ELLIPSE_IMAGE_COMPONENTS = [
+    ImageComponent.ELLIPSE_LARGE,
+    ImageComponent.ELLIPSE_MEDIUM,
+    ImageComponent.ELLIPSE_SMALL,
 ]
 
 PLAYER_IMAGE_MODE = {
@@ -16565,50 +16683,125 @@ PLAYER_IMAGE_MODE = {
 }
 
 AUTO_IMAGE_COMPONENTS = {
-    '2000': [IMAGE_TYPE_GLOW],
-    '2001': [IMAGE_TYPE_GLOW],
-    '2002': [IMAGE_TYPE_BACKGROUND],
-    '2003': [IMAGE_TYPE_BACKGROUND],
-    '2004': [IMAGE_TYPE_BACKGROUND],
-    '2005': [IMAGE_TYPE_BACKGROUND],
-    CLASSIC_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
-    EXPANDED_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
+    '2000': [ImageComponent.NAME_CONTAINER_2000,ImageComponent.GLOW],
+    '2001': [ImageComponent.GLOW],
+    '2002': [ImageComponent.BACKGROUND],
+    '2003': [ImageComponent.BACKGROUND],
+    '2004': [ImageComponent.BACKGROUND],
+    '2005': [ImageComponent.BACKGROUND],
+    CLASSIC_SET: [ImageComponent.BACKGROUND,ImageComponent.SHADOW],
+    EXPANDED_SET: [ImageComponent.BACKGROUND,ImageComponent.SHADOW],
 }
 
 AUTO_IMAGE_COMPONENTS_SPECIAL = {
-    '2000': [IMAGE_TYPE_GLOW],
-    '2001': [IMAGE_TYPE_GLOW],
-    '2002': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
-    '2003': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
-    '2004': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
-    '2005': [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_GLOW],
-    CLASSIC_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
-    EXPANDED_SET: [IMAGE_TYPE_BACKGROUND,IMAGE_TYPE_SHADOW],
+    '2000': [ImageComponent.NAME_CONTAINER_2000,ImageComponent.GLOW],
+    '2001': [ImageComponent.GLOW],
+    '2002': [ImageComponent.BACKGROUND,ImageComponent.GLOW],
+    '2003': [ImageComponent.BACKGROUND,ImageComponent.GLOW],
+    '2004': [ImageComponent.BACKGROUND,ImageComponent.GLOW],
+    '2005': [ImageComponent.BACKGROUND,ImageComponent.GLOW],
+    CLASSIC_SET: [ImageComponent.BACKGROUND,ImageComponent.SHADOW],
+    EXPANDED_SET: [ImageComponent.BACKGROUND,ImageComponent.SHADOW],
 }
 
 PLAYER_IMAGE_CROP_SIZE = {
     '2000': (1500,2100),
-    '2001': (1125,1575),
+    '2001': (1200,1680),
     '2002': (1200,1680),
     '2003': (1200,1680),
     '2004': (1500,2100),
     '2005': (1500,2100),
-    CLASSIC_SET: (1125,1575),
-    EXPANDED_SET: (1125,1575),
+    CLASSIC_SET: (1200, 1680),
+    EXPANDED_SET: (1200, 1680),
 }
 
 PLAYER_IMAGE_CROP_ADJUSTMENT = {
     '2000': (-25,-300),
-    '2001': (-40,-485),
-    '2002': (100,-300),
-    '2003': (100,-200),
+    '2001': (-35,-460),
+    '2002': (75,-300),
+    '2003': (75,-200),
     '2004': (0,0),
     '2005': (0,0),
     CLASSIC_SET: (0,int((PLAYER_IMAGE_CROP_SIZE[CLASSIC_SET][1] - 2100) / 2)),
     EXPANDED_SET: (0,int((PLAYER_IMAGE_CROP_SIZE[EXPANDED_SET][1] - 2100) / 2)),
 }
 
+""" SPECIAL EDITIONS """
+
 class SpecialEdition(Enum):
     
     ASG_2023 = "ASG 2023"
+    COOPERSTOWN_COLLECTION = "CC"
+    SUPER_SEASON = "SS"
+    TEAM_COLOR_BLAST_DARK = "TCBD"
     NONE = "NONE"
+
+SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT = {
+    SpecialEdition.COOPERSTOWN_COLLECTION: {
+        ImageComponent.BACKGROUND: 0.33,
+    },
+    SpecialEdition.SUPER_SEASON: {
+        ImageComponent.BACKGROUND: 0.75,
+    },
+}
+
+""" IMAGE PARALLELS """
+
+class ImageParallel(Enum):
+    
+    RAINBOW_FOIL = "RF"
+    SAPPHIRE = "SPH"
+    BLACK_AND_WHITE = "B&W"
+    RADIAL = "RAD"
+    COMIC_BOOK_HERO = "CB"
+    GOLD_RUSH = "GOLDRUSH"
+    GOLD = "GOLD"
+    WHITE_SMOKE = "WS"
+    FLAMES = "FLAMES"
+    TEAM_COLOR_BLAST = "TCB"
+    MYSTERY = "MYSTERY"
+    NONE = "NONE"
+
+    @property
+    def has_special_components(self) -> bool:
+        return self.name not in ['NONE', 'BLACK_AND_WHITE']
+
+    @property
+    def special_component_additions(self) -> dict[str,str]:
+        match self.name:
+            case "RAINBOW_FOIL": return { ImageComponent.RAINBOW_FOIL: "RAINBOW-FOIL" }
+            case "SAPPHIRE": return { ImageComponent.SAPPHIRE: "SAPPHIRE" }
+            case "RADIAL": return { ImageComponent.RADIAL: "RADIAL" }
+            case "COMIC_BOOK_HERO": return { ImageComponent.COMIC_BOOK_LINES: ImageComponent.COMIC_BOOK_LINES.name }
+            case "GOLD_RUSH": return { ImageComponent.GOLD_RUSH: ImageComponent.GOLD_RUSH.name }
+            case "GOLD": return { ImageComponent.GOLD: ImageComponent.GOLD.name }
+            case "WHITE_SMOKE": return { ImageComponent.WHITE_SMOKE: ImageComponent.WHITE_SMOKE.name, ImageComponent.BACKGROUND: None }
+            case "FLAMES": return { ImageComponent.FLAMES: ImageComponent.FLAMES.name }
+            case "TEAM_COLOR_BLAST": return { ImageComponent.WHITE_CIRCLE: ImageComponent.WHITE_CIRCLE.name, ImageComponent.TEAM_LOGO: None, ImageComponent.TEAM_COLOR: None, ImageComponent.BACKGROUND: None }
+            case _: return {}
+
+    @property
+    def special_components_replacements(self) -> dict[str,str]:
+        match self.name:
+            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD": return { ImageComponent.GLOW: ImageComponent.SHADOW }
+            case _: return {}
+    
+    @property
+    def image_type_saturations_dict(self) -> dict[str,float]:
+        match self.name:
+            case "COMIC_BOOK_HERO" | "WHITE_SMOKE": return { ImageComponent.BACKGROUND: 0.05 }
+            case "GOLD_RUSH" | "GOLD": return { ImageComponent.BACKGROUND: 0.40 }
+            case "TEAM_COLOR_BLAST": return { ImageComponent.TEAM_LOGO: 0.10 }
+            case _: return {}
+
+    @property
+    def is_team_background_black_and_white(self) -> bool:
+        return self.name in ['COMIC_BOOK_HERO', 'GOLD_RUSH', 'GOLD', 'WHITE_SMOKE']
+    
+    @property
+    def color_override_04_05_chart(self) -> str:
+        match self.name:
+            case 'GOLD_RUSH': return 'YELLOW'
+            case 'GOLD': return 'YELLOW'
+            case 'FLAMES': return 'RED'
+            case _: return None

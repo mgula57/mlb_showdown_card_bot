@@ -44,8 +44,8 @@ def analyze_baseline_weights(context,type,is_testing_current_baseline=False,igno
     # TEST EITHER CURRENT BASELINE, OR TEST MULTIPLE BASELINE COMBINATIONS
     if is_testing_current_baseline:
         baseline_opponent_dict = sc.BASELINE_PITCHER if type.lower() == 'hitter' else sc.BASELINE_HITTER
-        command = baseline_opponent_dict[str(context)]['command']
-        outs = baseline_opponent_dict[str(context)]['outs']
+        command = baseline_opponent_dict[str(context)][sc.ERA_STEROID]['command']
+        outs = baseline_opponent_dict[str(context)][sc.ERA_STEROID]['outs']
         combinations = [(command,outs)]
     else:
         command_range_dict = sc.TEST_COMMAND_RANGE_PITCHER if type.lower() == 'hitter' else sc.TEST_COMMAND_RANGE_HITTER

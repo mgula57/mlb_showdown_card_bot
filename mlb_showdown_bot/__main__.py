@@ -30,7 +30,7 @@ parser.add_argument('-ed','--edition',help='Add optional edition (Values: None, 
 parser.add_argument('-bor','--add_border', action='store_true', help='Optionally add border to player image')
 parser.add_argument('-dark','--dark_mode', action='store_true', help='Optionally toggle dark mode (2022+ sets only)')
 parser.add_argument('-vs','--variable_spd', action='store_true', help='Optionally toggle variable speed (2000 + 2001 sets only)')
-parser.add_argument('-foil','--is_foil', action='store_true', help='Optionally add overlay with animated foil effect. Saves images as GIF.')
+parser.add_argument('-pl','--parallel', help='Optionally add image parallel design like Rainbow Foil, Black & White, Sparkle, etc.', default='NONE', type=str)
 parser.add_argument('-yc','--add_year_container', action='store_true', help='Optionally add year container box. Applies to 2000-2003 only.')
 parser.add_argument('-sypls','--set_year_plus_one', action='store_true', help='Optionally add one to the set year on 04/05 set.')
 parser.add_argument('-htl','--hide_team_logo', action='store_true', help='Optionally remove all team logos and branding.')
@@ -47,7 +47,8 @@ def main():
     command_out_override = None if args.co_override == '' else tuple([int(x) for x in args.co_override.split('-')])
 
     scraper = BaseballReferenceScraper(name=name,year=year)
-    # CHECK FOR CACHED STATS
+
+    # CHECK FOR STATS IN SHOWDOWN LIBRARY
     db = Firebase()
     cached_player_card = db.load_showdown_card(
         ignore_showdown_library=args.ignore_showdown_library,
@@ -63,7 +64,7 @@ def main():
         add_image_border=args.add_border,
         is_dark_mode=args.dark_mode,
         is_variable_speed_00_01=args.variable_spd,
-        is_foil=args.is_foil,
+        image_parallel=args.parallel,
         team_override=scraper.team_override,
         set_year_plus_one=args.set_year_plus_one,
         pitcher_override = scraper.pitcher_override,
@@ -98,11 +99,12 @@ def main():
             add_image_border=args.add_border,
             is_dark_mode=args.dark_mode,
             is_variable_speed_00_01=args.variable_spd,
-            is_foil=args.is_foil,
+            image_parallel=args.parallel,
             add_year_container=args.add_year_container,
             set_year_plus_one=args.set_year_plus_one,
             hide_team_logo=args.hide_team_logo,
-            era=args.era
+            era=args.era,
+            source = scraper.source
         )
 
 if __name__ == "__main__":
