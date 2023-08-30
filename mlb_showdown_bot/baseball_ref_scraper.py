@@ -214,7 +214,7 @@ class BaseballReferenceScraper:
         """
 
         # CHECK IN LOCAL CACHE
-        years_as_str = '-'.join(self.years)
+        years_as_str = '-'.join([str(y) for y in self.years])
         overrides = f"{f'-{self.pitcher_override}' if self.pitcher_override else ''}{f'-{self.hitter_override}' if self.hitter_override else ''}"
         cached_filename = f"{years_as_str}-{self.baseball_ref_id}{overrides}.json"
         cached_data = self.load_cached_data(cached_filename)

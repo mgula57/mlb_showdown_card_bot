@@ -30,6 +30,7 @@
     * [shOPS+](#shops)
 * [Editions](#editions)
 * [2022 Sets](#2022-sets)
+* [Parallels](#parallels)
 * [Showdown Library](#showdown-library)
 * [Showdown Explorer](#showdown-explorer)
 * [Running Locally](#running-locally)
@@ -200,14 +201,14 @@ The player's **Command** and chart values are used to estimate the player's _in-
 
 **The chart with the highest aggregate accuracy is chosen as the final chart returned by the bot.**
 
-To display one of the other chart outputs, add the optional **offset**/ argument on the CLI or the **Stats Version** option on the website. It allows the user to use any of the other charts from the Top 5 most accurate list. Use the `--offset` argument if in the CLI or choose an **Stats Version** > 1 in the _Stats Version_ section of the website.
+To display one of the other chart outputs, add the optional **offset**/ argument on the CLI or the **Version** option on the website. It allows the user to use any of the other charts from the Top 5 most accurate list. Use the `--offset` argument if in the CLI or choose an **Version** > 1 in the _Stats Version_ section of the website.
 
 ### **Defense**
 
 #### _Hitters_
 Each player can have a maximum of **2 positions** or WOTC sets (2000-2005). That is expanded to **3 positions** for 2022 sets. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. For multi-year/career long cards, **25%** of games must be played at that position. The positions are then limited to the top 2 (3 if CLASSIC or EXPANDED set) by number of appearances. 
 
-In WOTC sets (2000-2005), 2B/3B/SS can be combined to conform to 2 position slots. When combined, the average of the 2 positions will be used as the final value.
+In WOTC sets (2000-2005), 2B/3B/SS can be combined to conform to 2 position slots. When combined, the average of the 2 positions will be used as the final value. Positions will be combined only if their in-game defensive ratings have a difference of 2 or less. For example if the player has SS+4 and 3B+1, they will stay separated.
 
 In-game defensive ratings are calculated based on either Outs Above Avg (OAA), Total Zone Rating (tzr), Defensive Runs Saved (drs), or Defensive Wins Above Replacement (dWAR). The bot will choose which metric to use depending on the year:
 
@@ -255,7 +256,7 @@ For example, the range of SPRINT SPEED is from 23 ft/sec to 31 ft/sec. If a play
 
 Eras can also effect speed. In Eras with a high average speed (ex: Dead Ball Era) speed will be slightly reduced compared to modern eras. The purpose of this is to maintain a balance of speed across time periods where SB numbers fluctuated.
 
-When the card is using SB, a set based multiplier is used to match the original WOTC values. Ex: For a player with 26 SB per 650 PA, 31.72 would instead be used in the 2001 se (1.22x). For 2000/2001 sets, if variable speed is enabled the multiplier is changed to 1.05
+When the card is using SB, a set based multiplier is used to match the original WOTC values. Ex: For a player with 26 SB per 650 PA, 31.72 would instead be used in the 2001 se (1.22x). For 2000/2001 sets, if variable speed is enabled the multiplier is changed to 1.05.
 
 ```
 2000: 1.21
@@ -635,6 +636,27 @@ There is now an additional option for **Dark Mode**, available on 2022 Classic a
 
 
 <img align="right" src="./static/interface/ShowdownLibraryLogo.png" width="90">
+
+## Parallels
+
+![Image](./static/interface/Parallels.png)
+
+**Image Parallels** add unique and bold designs to make Showdown cards pop! They work on all automated images and across all sets.
+
+Available Parallels:
+- Rainbow Foil
+- Team Color Blast
+- Gold
+- Gold Rush
+- Sapphire
+- Black and White
+- Radial
+- Comic Book Hero
+- White Smoke
+- Flames
+- Mystery
+
+Stay tuned for more image parallels coming soon!
 
 ## Showdown Library 
 

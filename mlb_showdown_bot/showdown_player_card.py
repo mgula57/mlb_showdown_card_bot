@@ -8,6 +8,7 @@ import os
 import json
 import statistics
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 from oauth2client.service_account import ServiceAccountCredentials
 from collections import Counter
 from pathlib import Path
@@ -31,7 +32,7 @@ class ShowdownPlayerCard:
         """Initializer for ShowdownPlayerCard Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "3.5"
+        self.version = "3.6"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.bref_url = stats['bref_url'] if 'bref_url' in stats.keys() else ''
@@ -2872,22 +2873,24 @@ class ShowdownPlayerCard:
                 self.img_loading_error = str(err)
 
         # ---- IMAGE FROM GOOGLE DRIVE -----
+        file_service = None
         if player_img_user_uploaded is None:
             search_for_universal_img = self.image_parallel != sc.ImageParallel.MYSTERY
             img_components_dict = self.__card_components_dict()
             if search_for_universal_img:
                 folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS['UNIVERSAL']
-                img_components_dict = self.__query_google_drive_for_universal_image(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
+                file_service, img_components_dict = self.__query_google_drive_for_universal_image(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
             
             # ADD SILHOUETTE IF NECESSARY
             non_empty_components = [typ for typ in sc.IMAGE_COMPONENT_ORDERED_LIST if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
             if len(non_empty_components) == 0:
                 img_components_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
             
-            player_imgs = self.__build_automated_player_image(img_components_dict)
+            player_imgs = self.__build_automated_player_image(component_img_urls_dict=img_components_dict, file_service=file_service)
             if len(player_imgs) > 0:
                 images_to_paste += player_imgs
-                self.is_automated_image = True
+                if self.player_image_source is not None:
+                    self.is_automated_image = True
 
         # IF 2000, ADD SET CONTAINER AND NAME CONTAINER IF USER UPLOADED IMAGE
         if self.context == '2000':
@@ -2899,7 +2902,7 @@ class ShowdownPlayerCard:
 
         return images_to_paste
 
-    def __build_automated_player_image(self, component_img_urls_dict:dict) -> tuple:
+    def __build_automated_player_image(self, file_service, component_img_urls_dict:dict) -> list[tuple]:
         """ Download and manipulate player image asset(s) to fit the current set's style.
 
         Args:
@@ -2909,15 +2912,14 @@ class ShowdownPlayerCard:
           List of tuples that contain a PIL image objects and coordinates to paste them
         """
         
-        # CHECK FOR EMPTY PLAYER IMAGE IN EXPANDED CONTEXT
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.special_edition == sc.SpecialEdition.NONE:
-            background_img_link = component_img_urls_dict.get(sc.ImageComponent.BACKGROUND, None)
-            if background_img_link is None:
-                return None
-        
         player_img_components = []
+        is_img_download_error = False
         for img_component in sc.IMAGE_COMPONENT_ORDERED_LIST:
-
+            
+            # ADD SILHOUETTE IF NECESSARY
+            if img_component == sc.ImageComponent.SILHOUETTE and is_img_download_error:
+                component_img_urls_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
+            
             # CHECK FOR IMAGE TYPE
             img_url = component_img_urls_dict.get(img_component, None)
             paste_coordinates = self.__coordinates_adjusted_for_bordering(coordinates=(0,0),is_disabled=not img_component.adjust_paste_coordinates_for_bordered)
@@ -2931,8 +2933,10 @@ class ShowdownPlayerCard:
             player_crop_size = (int(original_crop_size[0] * size_growth_multiplier[0]), int(original_crop_size[1] * size_growth_multiplier[1])) if self.add_image_border else original_crop_size
             special_crop_adjustment = sc.PLAYER_IMAGE_CROP_ADJUSTMENT[self.context]
             if self.context in sc.CLASSIC_AND_EXPANDED_SETS and (self.special_edition == sc.SpecialEdition.ASG_2023 or self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST):
-                player_crop_size = self.__coordinates_adjusted_for_bordering((1275, 1785), is_disabled=img_component.adjust_paste_coordinates_for_bordered) #TODO: MAKE THIS DYNAMIC
-                special_crop_adjustment = self.__coordinates_adjusted_for_bordering((0,int((1785 - 2100) / 2)),is_disabled=img_component.adjust_paste_coordinates_for_bordered)
+                player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
+                special_crop_adjustment = (0,int((1785 - 2100) / 2))
+                if self.add_image_border:
+                    player_crop_size = (int(player_crop_size[0] * size_growth_multiplier[0]), int(player_crop_size[1] * size_growth_multiplier[1]))
             default_crop_size = card_size
             default_crop_adjustment = (0,0)
             if self.context in ['2002','2003'] and img_component.crop_adjustment_02_03 is not None:
@@ -2953,7 +2957,7 @@ class ShowdownPlayerCard:
 
                     # 2. DOWNLOAD FROM GOOGLE DRIVE IF IMAGE IS NOT FOUND FROM CACHE.
                     if image is None:
-                        image = self.__download_image(img_url)
+                        image = self.__download_google_drive_image(file_service=file_service,file_id=img_url)
                         if image:
                             self.__cache_downloaded_image(image=image, path=cached_image_path)
                             self.player_image_source = 'Google Drive'
@@ -2969,7 +2973,9 @@ class ShowdownPlayerCard:
                     break
 
             if image is None:
-                return []
+                if img_component.load_source == "DOWNLOAD":
+                    is_img_download_error = True
+                continue
             
             # ADJUST SATURATION
             saturation_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, {})
@@ -2997,12 +3003,12 @@ class ShowdownPlayerCard:
 
                 # CALCULATE COORDINATES OF ELLIPSES
                 y_cords = {
-                    sc.ImageComponent.ELLIPSE_LARGE: 1200 if self.is_pitcher else 800,
-                    sc.ImageComponent.ELLIPSE_MEDIUM: 750 if self.is_pitcher else 300,
-                    sc.ImageComponent.ELLIPSE_SMALL: 235 if self.is_pitcher else 1300,
+                    sc.ImageComponent.ELLIPSE_LARGE: 850 if self.is_pitcher else 800,
+                    sc.ImageComponent.ELLIPSE_MEDIUM: 400 if self.is_pitcher else 300,
+                    sc.ImageComponent.ELLIPSE_SMALL: 1200 if self.is_pitcher else 1300,
                 }
                 is_reversed_map = {
-                    sc.ImageComponent.ELLIPSE_LARGE: self.is_pitcher,
+                    sc.ImageComponent.ELLIPSE_LARGE: False,
                     sc.ImageComponent.ELLIPSE_MEDIUM: not self.is_pitcher,
                     sc.ImageComponent.ELLIPSE_SMALL: self.is_pitcher,
                 }
@@ -3019,7 +3025,7 @@ class ShowdownPlayerCard:
                             break
                         if pixel != transparent_pixel:
                             ellipse_circle_image = Image.open(self.__card_art_path(ellipse_type.value)).convert('RGBA')
-                            x_adjustment = 80 * (-1 if is_reversed else 1)
+                            x_adjustment = -75
                             coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
                             player_img_components.append((ellipse_circle_image, coordinates_adjusted))
                             break
@@ -4636,7 +4642,7 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 # IMAGE QUERIES
 
-    def __query_google_drive_for_universal_image(self, folder_id, components_dict:dict, bref_id:str, year:int = None) -> list[str]:
+    def __query_google_drive_for_universal_image(self, folder_id, components_dict:dict, bref_id:str, year:int = None) -> tuple:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -4648,15 +4654,18 @@ class ShowdownPlayerCard:
           year: Year(s) of card.
 
         Returns:
-          Dict of image urls per component.
+          Tuple with the following:
+            Google Drive file service object
+            Dict of image urls per component.
         """
         
         # GAIN ACCESS TO GOOGLE DRIVE
+        file_service = None
         SCOPES = ['https://www.googleapis.com/auth/drive']
         GOOGLE_CREDENTIALS_STR = os.getenv('GOOGLE_CREDENTIALS')
         if not GOOGLE_CREDENTIALS_STR:
             # IF NO CREDS, RETURN NONE
-            return components_dict
+            return (file_service, components_dict)
         
         # CREDS FILE FOUND, PROCEED
         GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
@@ -4672,8 +4681,8 @@ class ShowdownPlayerCard:
         while True:
             try:
                 query = f"parents = '{folder_id}' and name contains '({bref_id})'"
-                files = service.files()
-                response = files.list(q=query,pageSize=1000,pageToken=page_token).execute()
+                file_service = service.files()
+                response = file_service.list(q=query,pageSize=1000,pageToken=page_token).execute()
                 new_files_list = response.get('files')
                 page_token = response.get('nextPageToken', None)
                 files_metadata = files_metadata + new_files_list
@@ -4685,22 +4694,21 @@ class ShowdownPlayerCard:
                 continue
         
         # LOOK FOR SUBSTRING IN FILE NAMES
-        file_matches_metadata_dict = self.__img_file_matches_dict(files_service = files, files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
+        file_matches_metadata_dict = self.__img_file_matches_dict(files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
         
-        return file_matches_metadata_dict
+        return (file_service, file_matches_metadata_dict)
     
-    def __img_file_matches_dict(self, files_service, files_metadata:list[dict], components_dict:dict, bref_id:str, year:int) -> dict:
+    def __img_file_matches_dict(self, files_metadata:list[dict], components_dict:dict, bref_id:str, year:int) -> dict:
         """ Iterate through gdrive files and find matches to the player and other settings defined by user.
          
         Args:
-          files_service: Google Drive service to query file information.
           files_metadata: List of file metadata dicts from google drive.
           components_dict: Dict of all the image types to included in the image.
           bref_id: Unique ID for the player.
           year: Year(s) of card.
 
         Returns:
-          Dict where the key represents the component type and the value is the download URL.
+          Dict where the key represents the component type and the value is the file id for download.
         """
 
         # FILTER LIST TO ONLY BREF ID MATCHES FOR IMG COMPONENT TYPE
@@ -4753,36 +4761,39 @@ class ShowdownPlayerCard:
             # GET BEST MATCH
             sorted_matches = sorted(match_rates.items(), key=operator.itemgetter(1), reverse=True)
             file_id = sorted_matches[0][0]
-            img_url = files_service.get(fileId=file_id, fields="webContentLink").execute()['webContentLink']
-            component_img_url_dict[component] = img_url
+            component_img_url_dict[component] = file_id
 
         # UPDATE EXISTING DICT
         components_dict.update(component_img_url_dict)
 
         return components_dict
     
-    def __download_image(self, url:str, num_tries:int = 1) -> Image:
+    def __download_google_drive_image(self, file_service, file_id:str, num_tries:int = 1) -> Image:
         """ Attempt a download of the google drive image for url.
          
         Args:
-          url: Download url for the image from google drive.
+          file_service: Google file service that executes the download for the file.
+          file_id: Unique file id for the image.
           num_tries: Number of tries before returning download failure.
 
         Returns:
           PIL Image for url.
         """
 
-        # CHECK FOR EMPTY
-        if url is None:
+        # CHECK FOR EMPTY VARIABLES
+        if file_id is None or file_service is None:
             return None
 
         num_tries = 1
         for try_num in range(num_tries):
-            response = requests.get(url)
             try:
-                response.raise_for_status()
-                img_bites = BytesIO(response.content)                    
-                image = Image.open(img_bites).convert("RGBA")
+                request = file_service.get_media(fileId=file_id)
+                file = BytesIO()
+                downloader = MediaIoBaseDownload(file, request)
+                done = False
+                while done is False:
+                    status, done = downloader.next_chunk()
+                image = Image.open(file).convert("RGBA")
                 self.img_loading_error = None
                 return image
             except Exception as err:
