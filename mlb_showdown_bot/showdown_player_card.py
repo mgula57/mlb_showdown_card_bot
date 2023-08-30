@@ -8,12 +8,13 @@ import os
 import json
 import statistics
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 from oauth2client.service_account import ServiceAccountCredentials
 from collections import Counter
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from prettytable import PrettyTable
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
@@ -27,11 +28,11 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, is_foil = False, add_year_container = False, set_year_plus_one = False, hide_team_logo=False, date_override=None, era="DYNAMIC", is_running_in_flask=False, source='Baseball Reference'):
+    def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, image_parallel = "NONE", add_year_container = False, set_year_plus_one = False, hide_team_logo=False, date_override=None, era="DYNAMIC", is_running_in_flask=False, source='Baseball Reference'):
         """Initializer for ShowdownPlayerCard Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "3.5"
+        self.version = "3.6"
         self.name = stats['name'] if 'name' in stats.keys() else name
         self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
         self.bref_url = stats['bref_url'] if 'bref_url' in stats.keys() else ''
@@ -91,12 +92,13 @@ class ShowdownPlayerCard:
         self.command_out_override = command_out_override
         self.is_running_in_flask = is_running_in_flask
         self.is_automated_image = False
+        self.player_image_source = None
         self.is_img_part_of_a_set = is_img_part_of_a_set
         self.is_stats_estimate = stats['is_stats_estimate'] == True if 'is_stats_estimate' in stats.keys() else False
         self.add_image_border = add_image_border
         self.is_dark_mode = is_dark_mode
         self.is_variable_speed_00_01 = is_variable_speed_00_01
-        self.is_foil = is_foil
+        self.image_parallel = sc.ImageParallel(image_parallel)
         self.img_loading_error = None
         self.img_id = None
         self.img_bordered_id = None
@@ -140,11 +142,12 @@ class ShowdownPlayerCard:
             self.points = self.point_value(projected=projections_for_pts,
                                             positions_and_defense=self.positions_and_defense,
                                             speed_or_ip=self.ip if self.is_pitcher else self.speed)
-            if print_to_cli:
-                self.print_player()
 
             if show_player_card_image or len(card_img_output_folder_path) > 0:
                 self.card_image(show=True if show_player_card_image else False)
+            
+            if print_to_cli:
+                self.print_player()
 
 # ------------------------------------------------------------------------
 # METADATA METHODS
@@ -448,7 +451,7 @@ class ShowdownPlayerCard:
             if len(combinations_available_for_player) > 0:
                 sorted_combinations = sorted(combinations_available_for_player.items(), key=lambda x: x[1])
                 positions_able_to_be_combined[position] = sorted_combinations[0]
-        
+
         # SELECT ONE POSITION TO CHANGE
         # FIRST SORT BASED ON DIFFERENCE IN DEFENSE, THEN BY POSITION'S ORDERING
         sorted_positions = sorted(positions_able_to_be_combined.items(), key=lambda x: (x[1][1], -sc.POSITION_ORDERING.get(x[1], 0)))
@@ -594,6 +597,27 @@ class ShowdownPlayerCard:
 
         return combined_positions_and_defense
 
+    @property
+    def num_positions_playable(self) -> int:
+        """Count how many positions the player is eligible to play. 
+           Pitchers (not named Ohtani) default to 1 position.
+        
+        Args:
+          None
+
+        Returns:
+          Integer with number of unique playable positions for the player.
+        """
+
+        num_positions = 0
+        for position in self.positions_and_defense.keys():
+            match position:
+                case "LF/RF": num_positions += 2
+                case "IF": num_positions += 4
+                case "OF": num_positions += 3
+                case _: num_positions += 1 # DEFAULT
+        return num_positions
+
     def __handedness(self, hand):
         """Get hand of player. Format to how card will display hand.
 
@@ -675,7 +699,8 @@ class ShowdownPlayerCard:
         for metric, value in speed_elements.items():
             metric_max = sc.SPEED_METRIC_MAX[metric]
             metric_min = sc.SPEED_METRIC_MIN[metric]
-            metric_multiplier = sc.SPEED_METRIC_MULTIPLIER[metric][self.context]
+            ignore_multiplier = self.context in ['2000', '2001'] and self.is_variable_speed_00_01
+            metric_multiplier = 1.05 if ignore_multiplier else sc.SPEED_METRIC_MULTIPLIER[metric][self.context]
             era_multiplier = sc.SPEED_ERA_MULTIPLIER[self.era]
             top_percentile_speed_for_metric = sc.SPEED_METRIC_TOP_PERCENTILE[metric]
 
@@ -685,6 +710,15 @@ class ShowdownPlayerCard:
             # CHANGE OUTLIERS
             min_in_game = sc.MIN_IN_GAME_SPD[self.context]
             max_in_game = sc.MAX_IN_GAME_SPD[self.context]
+
+            cutoff_for_sub_percentile_sb = 20
+            if metric == sc.STOLEN_BASES_KEY and speed > cutoff_for_sub_percentile_sb:
+                sb_cap = sc.STOLEN_BASES_PER_650_PA_THRESHOLD_MAX[self.context] * metric_multiplier
+                sub_percentile = (value - metric_max) / (sb_cap - metric_max)
+                remaining_slots_over_cutoff = max_in_game - cutoff_for_sub_percentile_sb
+                additional_speed_over_cutoff = sub_percentile * remaining_slots_over_cutoff
+                speed = int(additional_speed_over_cutoff + cutoff_for_sub_percentile_sb)
+            
             final_speed_for_metric = min( max(speed, min_in_game), max_in_game )
 
             in_game_speed_for_metric[metric] = final_speed_for_metric
@@ -883,6 +917,15 @@ class ShowdownPlayerCard:
 
         if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023':
             return sc.SpecialEdition.ASG_2023
+        
+        if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005',]:
+            return sc.SpecialEdition.SUPER_SEASON
+        
+        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
+            return sc.SpecialEdition.COOPERSTOWN_COLLECTION
+        
+        if self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+            return sc.SpecialEdition.TEAM_COLOR_BLAST_DARK
         
         return sc.SpecialEdition.NONE
 
@@ -1169,17 +1212,17 @@ class ShowdownPlayerCard:
             type = 'pitcher' if self.is_pitcher else 'hitter'
             gb_multi = sc.GB_MULTIPLIER[type][self.context][era]
             # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
-            gb_outs = round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multi)
+            gb_outs = int(round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multi))
             air_outs = out_slots_remaining - gb_outs
             # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
             pu_multiplier = sc.PU_MULTIPLIER[self.context]
-            pu_outs = 0.0 if not self.is_pitcher else math.ceil(air_outs*popup_pct*pu_multiplier)
+            pu_outs = 0 if not self.is_pitcher else int(math.ceil(air_outs*popup_pct*pu_multiplier))
             pu_outs = air_outs if pu_outs > air_outs else pu_outs
-            fb_outs = air_outs-pu_outs
+            fb_outs = int(air_outs-pu_outs)
         else:
-            fb_outs = 0.0
-            pu_outs = 0.0
-            gb_outs = 0.0
+            fb_outs = 0
+            pu_outs = 0
+            gb_outs = 0
 
         return pu_outs, gb_outs, fb_outs
 
@@ -1696,10 +1739,7 @@ class ShowdownPlayerCard:
                             * pts_multiplier
                             , 3
                         )
-        print(self.slg_points, self.stat_percentile(stat=projected['slugging_perc'],
-                                                    min_max_dict=sc.SLG_RANGE[self.context][player_category],
-                                                    is_desc=self.is_pitcher,
-                                                    allow_negative=allow_negatives), projected['slugging_perc'])
+
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
         spd_ip_category = 'ip' if self.is_pitcher else 'speed'
         if self.is_pitcher:
@@ -2114,7 +2154,9 @@ class ShowdownPlayerCard:
         print(f"Team: {self.team}")
         print(f"Set: {self.context} {self.expansion} (v{self.version})")
         print(f"Era: {self.era.title()}")
-        print(f"Source: {self.source}")
+        print(f"Data Source: {self.source}")
+        if self.player_image_source:
+            print(f"Img Source: {self.player_image_source}")
 
         # ----- POSITION AND ICONS  ----- #
 
@@ -2154,6 +2196,7 @@ class ShowdownPlayerCard:
             'HR': 'hr_per_650_pa',
             'BB': 'bb_per_650_pa',
             'SO': 'so_per_650_pa',
+            'SB': 'SB',
         }
 
         statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))
@@ -2240,7 +2283,7 @@ class ShowdownPlayerCard:
             final_player_data.append([f'{prefix}{cleaned_category}',actual,in_game])
         
         # NON COMPARABLE STATS
-        category_list = ['earned_run_avg', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
+        category_list = ['earned_run_avg', 'whip', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
         rounded_metrics_list = ['SB', 'onbase_plus_slugging_plus']
         for category in category_list:
             if category in self.stats.keys():
@@ -2248,6 +2291,7 @@ class ShowdownPlayerCard:
                 stat = str(stat_cleaned) if self.stats[category] else 'N/A'
                 short_name_map = {
                     'onbase_plus_slugging_plus': 'OPS+',
+                    'whip': 'WHIP',
                     'bWAR': 'bWAR',
                     'dWAR': 'dWAR',
                     'SB': f'{category_prefix}SB',
@@ -2570,8 +2614,6 @@ class ShowdownPlayerCard:
           None
         """
 
-        card_image = Image.new('RGB', (1500, 2100))
-
         # CHECK IF IMAGE EXISTS ALREADY IN CACHE
         cached_img_link = self.cached_img_link()
         if cached_img_link:
@@ -2582,50 +2624,48 @@ class ShowdownPlayerCard:
             return
         
         # BACKGROUND IMAGE
-        background_image = self.__background_image()
-        mask = background_image if background_image.mode == 'RGBA' else None
-        card_image.paste(background_image, (0,0), mask)
-
+        card_image = self.__background_image()
+        
         # PLAYER IMAGE
-        player_image = self.__player_image()
-        mask = player_image if player_image.mode == 'RGBA' else None
-        card_image.paste(player_image, (0,0), mask)
+        player_image_components = self.__player_image_components()
+        for img, coordinates in player_image_components:
+            card_image.paste(img, coordinates, img)
 
         # ADD HOLIDAY THEME
         if self.edition == sc.Edition.HOLIDAY:
             holiday_image_path = self.__template_img_path('Holiday')
             holiday_image = Image.open(holiday_image_path)
-            card_image.paste(holiday_image,(0,0),holiday_image)
+            card_image.paste(holiday_image,self.__coordinates_adjusted_for_bordering(coordinates=(0,0)),holiday_image)
 
         # LOAD SHOWDOWN TEMPLATE
         showdown_template_frame_image = self.__template_image()
-        card_image.paste(showdown_template_frame_image,(0,0),showdown_template_frame_image)
+        card_image.paste(showdown_template_frame_image,self.__coordinates_adjusted_for_bordering(coordinates=(0,0)),showdown_template_frame_image)
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
         small_name_cutoff = 18 if self.context == '2000' else 19
-        location_key = 'player_name_small' if len(self.name) >= small_name_cutoff else 'player_name'
+        location_key = 'player_name_small' if len(self.name) >= small_name_cutoff and self.image_parallel != sc.ImageParallel.MYSTERY else 'player_name'
         name_paste_location = sc.IMAGE_LOCATIONS[location_key][str(self.context_year)]
         if self.context in ['2000', '2001']:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
-            card_image.paste(sc.COLOR_BLACK, (name_paste_location[0] + 6, name_paste_location[1] + 6), name_text_blurred)
-        card_image.paste(color, name_paste_location,  name_text)
+            shadow_paste_coordinates = (name_paste_location[0] + 6, name_paste_location[1] + 6)
+            card_image.paste(sc.COLOR_BLACK, self.__coordinates_adjusted_for_bordering(shadow_paste_coordinates), name_text_blurred)
+        card_image.paste(color, self.__coordinates_adjusted_for_bordering(name_paste_location),  name_text)
 
         # ADD TEAM LOGO
-        if not self.hide_team_logo:
+        disable_team_logo = self.hide_team_logo or (self.edition.has_additional_logo_00_01 and self.context == '2000')
+        if not disable_team_logo:
             team_logo, team_logo_coords = self.__team_logo_image()
-            card_image.paste(team_logo, team_logo_coords, team_logo)
+            card_image.paste(team_logo, self.__coordinates_adjusted_for_bordering(team_logo_coords), team_logo)
 
-        # IF 2001 ROOKIE SEASON, ADD ADDITIONAL LOGO
-        if self.edition == sc.Edition.ROOKIE_SEASON and self.context == '2001':
-            rs_logo = self.__rookie_season_image()
-            logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
-            card_image.paste(rs_logo, logo_paste_coordinates, rs_logo)
+        # 00/01 ADDITIONAL LOGO
+        card_image = self.__add_additional_logos_00_01(image=card_image)
 
         # METADATA
         metadata_image, color = self.__metadata_image()
-        card_image.paste(color, sc.IMAGE_LOCATIONS['metadata'][str(self.context_year)], metadata_image)
+        metadata_paste_coordinates = self.__coordinates_adjusted_for_bordering(sc.IMAGE_LOCATIONS['metadata'][str(self.context_year)])
+        card_image.paste(color, metadata_paste_coordinates, metadata_image)
 
         # CHART
         chart_image, color = self.__chart_image()
@@ -2633,14 +2673,15 @@ class ShowdownPlayerCard:
             chart_cords = sc.IMAGE_LOCATIONS['chart'][f"{self.context_year}{'p' if self.is_pitcher else 'h'}"]
         else:
             chart_cords = sc.IMAGE_LOCATIONS['chart'][f'{self.context_year}']
-        card_image.paste(color, chart_cords, chart_image)
+        card_image.paste(color, self.__coordinates_adjusted_for_bordering(chart_cords), chart_image)
 
         # STYLE (IF APPLICABLE)
         if self.context in sc.CLASSIC_AND_EXPANDED_SETS:
             theme_suffix = '-DARK' if self.is_dark_mode else ''
             style_img_path = self.__template_img_path(f'{self.context}{theme_suffix}')
             style_img = Image.open(style_img_path)
-            card_image.paste(style_img,sc.IMAGE_LOCATIONS['style'][self.context_year],style_img)
+            style_coordinates = self.__coordinates_adjusted_for_bordering(sc.IMAGE_LOCATIONS['style'][self.context_year])
+            card_image.paste(style_img, style_coordinates, style_img)
         
         # ICONS
         if self.has_icons:
@@ -2648,13 +2689,13 @@ class ShowdownPlayerCard:
 
         # SET
         set_image = self.__card_set_image()
-        card_image.paste(set_image, (0,0), set_image)
+        card_image.paste(set_image, self.__coordinates_adjusted_for_bordering((0,0)), set_image)
 
         # YEAR CONTAINER
         if self.add_year_container:
             paste_location = sc.IMAGE_LOCATIONS['year_container'][str(self.context_year)]
             year_container_img = self.__year_container_add_on()
-            card_image.paste(year_container_img, paste_location, year_container_img)
+            card_image.paste(year_container_img, self.__coordinates_adjusted_for_bordering(paste_location), year_container_img)
 
         # EXPANSION
         if self.expansion != 'FINAL':
@@ -2667,7 +2708,7 @@ class ShowdownPlayerCard:
                 expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
             elif self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.expansion == 'TD':
                 expansion_location = (expansion_location[0],expansion_location[1] - 12)
-            card_image.paste(expansion_image, expansion_location, expansion_image)
+            card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
 
         # BETA TAG
         # TO BE REMOVED AFTER TEST PERIOD
@@ -2677,12 +2718,21 @@ class ShowdownPlayerCard:
         #     card_image.paste(beta_banner_image,(0,0),beta_banner_image)
 
         # SAVE AND SHOW IMAGE
-        # CROP TO 63mmx88mm
-        card_image = self.__center_and_crop(card_image,(1488,2079))
+        # CROP TO 63mmx88mm or bordered
+        final_size = sc.CARD_SIZE_BORDERED_FINAL if self.add_image_border else sc.CARD_SIZE_FINAL
+        card_image = self.__center_and_crop(card_image,final_size)
         card_image = self.__round_corners(card_image, 60)
+
+        # MAKE IMAGE BLACK AND WHITE IF PARALLEL IS SELECTED
+        if self.image_parallel == sc.ImageParallel.BLACK_AND_WHITE:
+            card_image = self.__change_image_saturation(image=card_image, saturation=0.05)
+
+        if self.img_loading_error:
+            print(self.img_loading_error)
+
         self.save_image(image=card_image, show=show, img_name_suffix=img_name_suffix)
 
-    def save_image(self, image, show=False, disable_add_border=False, img_name_suffix=''):
+    def save_image(self, image, show=False, img_name_suffix=''):
         """Stores image in proper folder depending on the context of the run.
 
         Args:
@@ -2700,41 +2750,14 @@ class ShowdownPlayerCard:
             self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
         
         if self.context in ['2002','2004','2005',sc.CLASSIC_SET, sc.EXPANDED_SET]:
-            # TODO: SOLVE HTML PNG ISSUES
             image = image.convert('RGB')
 
-        # ADD BORDER TO IMAGE
-        if self.add_image_border and not disable_add_border:
-            if self.context in ['2000','2001']:
-                # SAMPLE THE BACKGROUND TO GRAB THE BORDER COLOR
-                pix = image.load()
-                background_rgb = pix[30,30] # SAMPLE AT 30x 30y FROM TOP LEFT CORNER OF IMAGE
-                border_color = self.__rbgs_to_hex(rgbs=background_rgb)
-            else:
-                # USE WHITE OR BLACK
-                border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
-            image_border = Image.new('RGBA', (1632,2220), color=border_color)
-            image_border.paste(image.convert("RGBA"),(72,72),image.convert("RGBA"))
-            image = image_border
-
         save_img_path = os.path.join(self.card_img_output_folder_path, self.image_name)
-        if self.is_foil:
-            image = image.resize((int(1488 / 2.75), int(2079 / 2.75)), Image.ANTIALIAS)
-            foil_images = self.__foil_effect_images(image=image)
-            foil_images[0].save(save_img_path,
-               save_all = True, append_images = foil_images[1:], 
-               optimize = True, duration = 8, loop=0, format="PNG")
-        else:
-            image.save(save_img_path, dpi=(300, 300), quality=100)
+        image.save(save_img_path, dpi=(300, 300), quality=100)
         
         if self.is_running_in_flask:
             flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name)
-            if self.is_foil:
-                foil_images[0].save(flask_img_path,
-                    save_all = True, append_images = foil_images[1:], 
-                    optimize = True, duration = 8, loop=0, format="PNG")
-            else:
-                image.save(flask_img_path, dpi=(300, 300), quality=100)
+            image.save(flask_img_path, dpi=(300, 300), quality=100)
 
         # OPEN THE IMAGE LOCALLY
         if show:
@@ -2743,7 +2766,7 @@ class ShowdownPlayerCard:
 
         self.__clean_images_directory()
 
-    def __background_image(self):
+    def __background_image(self) -> Image:
         """Loads background image for card. Either loads from upload, url, or default
            background.
 
@@ -2786,9 +2809,25 @@ class ShowdownPlayerCard:
             name_container = self.__2000_player_name_container_image()
             background_image.paste(name_container, (0,0), name_container)
 
+        if self.image_parallel.is_team_background_black_and_white:
+            background_image = self.__change_image_saturation(image=background_image, saturation=0.10)
+
+        if self.add_image_border:
+            if self.context in ['2000','2001']:
+                # SAMPLE THE BACKGROUND TO GRAB THE BORDER COLOR
+                pix = background_image.load()
+                background_rgb = pix[30,30] # SAMPLE AT 30x 30y FROM TOP LEFT CORNER OF IMAGE
+                border_color = self.__rbgs_to_hex(rgbs=background_rgb)
+            else:
+                # USE WHITE OR BLACK
+                border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
+            image_border = Image.new('RGBA', sc.CARD_SIZE_BORDERED, color=border_color)
+            image_border.paste(background_image.convert("RGBA"),(sc.CARD_BORDER_PADDING,sc.CARD_BORDER_PADDING),background_image.convert("RGBA"))
+            return image_border
+
         return background_image
 
-    def __player_image(self):
+    def __player_image_components(self) -> tuple:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -2797,13 +2836,15 @@ class ShowdownPlayerCard:
           uploaded_player_image: Optional image to use instead of searching. 
 
         Returns:
-          Tupple of:
-            PIL image object for the player background.
-            Boolean for whether the background will be needed.
+          List of tuples.
+          Tuple contains:
+            PIL image object for each component of the player's image.
+            Coordinates for pasting to background image.
         """
         
         # DEFINE FINAL IMAGE
         images_to_paste = []
+        default_img_paste_coordinates = self.__coordinates_adjusted_for_bordering((0,0))
 
         # CHECK FOR USER UPLOADED IMAGE
         player_img_user_uploaded = None
@@ -2813,7 +2854,8 @@ class ShowdownPlayerCard:
             try:
                 player_img_uploaded_raw = Image.open(image_path).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_uploaded_raw, (1500,2100))
-                images_to_paste.append(player_img_user_uploaded)
+                images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
+                self.player_image_source = 'Upload'
             except Exception as err:
                 self.img_loading_error = str(err)
         
@@ -2825,135 +2867,173 @@ class ShowdownPlayerCard:
                 response = requests.get(image_url)
                 player_img_raw = Image.open(BytesIO(response.content)).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_raw, (1500,2100))
-                images_to_paste.append(player_img_user_uploaded)
+                images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
+                self.player_image_source = 'Link'
             except Exception as err:
                 self.img_loading_error = str(err)
 
         # ---- IMAGE FROM GOOGLE DRIVE -----
-        player_img_from_google_drive = None
+        file_service = None
         if player_img_user_uploaded is None:
-            search_for_universal_img = str(self.year) == '2023'
+            search_for_universal_img = self.image_parallel != sc.ImageParallel.MYSTERY
+            img_components_dict = self.__card_components_dict()
             if search_for_universal_img:
                 folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS['UNIVERSAL']
-                img_components_dict = self.__card_components_dict()
-                img_components_dict = self.__query_google_drive_for_universal_image(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
-                player_img_from_google_drive = self.__build_automated_player_image(img_components_dict)
-                if player_img_from_google_drive:
-                    images_to_paste.append(player_img_from_google_drive)
-                    self.is_automated_image = True
+                file_service, img_components_dict = self.__query_google_drive_for_universal_image(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
             
-            if not self.is_automated_image:
-                try:
-                    use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
-                    img_database_year = '2000' if use_nationality and self.context not in ['2000','2001'] else self.context_year
-                    folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS[img_database_year]
-                    player_img_url = self.__query_google_drive_for_image_url(folder_id=folder_id, substring_search=self.bref_id, year=self.year)
-                    player_img_from_google_drive = self.__download_image(url=player_img_url, num_tries=1)
-                    if player_img_from_google_drive:
-                        images_to_paste.append(player_img_from_google_drive)
-                        self.is_automated_image = True
-                except Exception as err:
-                    self.img_loading_error = str(err)
-
-        # ---- PLAYER SILHOUETTE IMAGE -----
-        use_silhouette = player_img_from_google_drive is None and player_img_user_uploaded is None
-        if use_silhouette:
-            player_img_silhouette = self.__player_silhouetee_image()
-            images_to_paste.append(player_img_silhouette)
+            # ADD SILHOUETTE IF NECESSARY
+            non_empty_components = [typ for typ in sc.IMAGE_COMPONENT_ORDERED_LIST if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
+            if len(non_empty_components) == 0:
+                img_components_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
+            
+            player_imgs = self.__build_automated_player_image(component_img_urls_dict=img_components_dict, file_service=file_service)
+            if len(player_imgs) > 0:
+                images_to_paste += player_imgs
+                if self.player_image_source is not None:
+                    self.is_automated_image = True
 
         # IF 2000, ADD SET CONTAINER AND NAME CONTAINER IF USER UPLOADED IMAGE
         if self.context == '2000':
             if player_img_user_uploaded:
                 name_container = self.__2000_player_name_container_image()
-                images_to_paste.append(name_container)
+                images_to_paste.append((name_container, default_img_paste_coordinates))
             set_container = self.__2000_player_set_container_image()
-            images_to_paste.append(set_container)
+            images_to_paste.append((set_container, default_img_paste_coordinates))
 
-        # PASTE COMPONENTS TOGETHER
-        total_player_image = None
-        for image in images_to_paste:
-            if total_player_image is None:
-                total_player_image = image
-                continue
-            coordinates = (0,0) # TODO: ADD CUSTOMER COORDS IF NEEDED
-            total_player_image.paste(image, coordinates, image)
+        return images_to_paste
 
-        # CONVERT MODE TO ENSURE PROPER TRANSPARENCY LEVEL
-        player_img_mode = 'RGBA' if use_silhouette else sc.PLAYER_IMAGE_MODE[self.context]
-        total_player_image = total_player_image.convert(player_img_mode)
-
-        return total_player_image
-
-    def __player_silhouetee_image(self):
-        """Loads the image used for a player's silhouette in the case an image does not exist.
-
-        Args:
-          None
-
-        Returns:
-          PIL image object for the player's positional silhouetee.
-        """
-        silhouetee_image_path = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
-        return Image.open(silhouetee_image_path)
-
-    def __build_automated_player_image(self, component_img_urls_dict:dict) -> Image:
+    def __build_automated_player_image(self, file_service, component_img_urls_dict:dict) -> list[tuple]:
         """ Download and manipulate player image asset(s) to fit the current set's style.
 
         Args:
           component_img_urls_dict: Dict of image urls per component.
 
         Returns:
-          PIL image object with formatted player image
+          List of tuples that contain a PIL image objects and coordinates to paste them
         """
         
-        # CHECK FOR EMPTY PLAYER IMAGE IN EXPANDED CONTEXT
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.special_edition == sc.SpecialEdition.NONE:
-            background_img_link = component_img_urls_dict.get(sc.IMAGE_TYPE_BACKGROUND, None)
-            if background_img_link is None:
-                return None
-
-        # CARD SIZING
-        card_size = (1500,2100)
-        player_crop_size = sc.PLAYER_IMAGE_CROP_SIZE[self.context]
-        set_crop_adjustment = sc.PLAYER_IMAGE_CROP_ADJUSTMENT[self.context]
-        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
-            player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
-            set_crop_adjustment = (0,int((1785 - 2100) / 2))
-        default_crop_size = sc.CARD_SIZE
-        default_crop_adjustment = (0,0)
-        
-        player_img = None
-        for img_type in sc.IMAGE_TYPE_ORDERED_LIST:
-
+        player_img_components = []
+        is_img_download_error = False
+        for img_component in sc.IMAGE_COMPONENT_ORDERED_LIST:
+            
+            # ADD SILHOUETTE IF NECESSARY
+            if img_component == sc.ImageComponent.SILHOUETTE and is_img_download_error:
+                component_img_urls_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
+            
             # CHECK FOR IMAGE TYPE
-            img_url = component_img_urls_dict.get(img_type, None)
-            if img_url is None:
+            img_url = component_img_urls_dict.get(img_component, None)
+            paste_coordinates = self.__coordinates_adjusted_for_bordering(coordinates=(0,0),is_disabled=not img_component.adjust_paste_coordinates_for_bordered)
+            if img_url is None and not (img_component.load_source == 'COLOR' and img_component in component_img_urls_dict.keys()):
                 continue
 
+            # CARD SIZING
+            card_size = sc.CARD_SIZE_BORDERED if self.add_image_border and not img_component.adjust_paste_coordinates_for_bordered else sc.CARD_SIZE
+            size_growth_multiplier = ( card_size[0] / sc.CARD_SIZE[0], card_size[1] / sc.CARD_SIZE[1])
+            original_crop_size = sc.PLAYER_IMAGE_CROP_SIZE[self.context]
+            player_crop_size = (int(original_crop_size[0] * size_growth_multiplier[0]), int(original_crop_size[1] * size_growth_multiplier[1])) if self.add_image_border else original_crop_size
+            special_crop_adjustment = sc.PLAYER_IMAGE_CROP_ADJUSTMENT[self.context]
+            if self.context in sc.CLASSIC_AND_EXPANDED_SETS and (self.special_edition == sc.SpecialEdition.ASG_2023 or self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST):
+                player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
+                special_crop_adjustment = (0,int((1785 - 2100) / 2))
+                if self.add_image_border:
+                    player_crop_size = (int(player_crop_size[0] * size_growth_multiplier[0]), int(player_crop_size[1] * size_growth_multiplier[1]))
+            default_crop_size = card_size
+            default_crop_adjustment = (0,0)
+            if self.context in ['2002','2003'] and img_component.crop_adjustment_02_03 is not None:
+                default_crop_adjustment = img_component.crop_adjustment_02_03
+
             # DOWNLOAD IMAGE
-            if img_type in sc.IMAGE_TYPES_LOADED_VIA_DOWNLOAD:
-                image = self.__download_image(img_url)
-            else:
-                image = Image.open(img_url)
+            image = None
+            match img_component.load_source:
+                case "DOWNLOAD":
+                    # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
+                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team}){self.type_override}.png"
+                    cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
+                    try:
+                        image = Image.open(cached_image_path)
+                        self.player_image_source = 'Local Cache'
+                    except:
+                        image = None
+
+                    # 2. DOWNLOAD FROM GOOGLE DRIVE IF IMAGE IS NOT FOUND FROM CACHE.
+                    if image is None:
+                        image = self.__download_google_drive_image(file_service=file_service,file_id=img_url)
+                        if image:
+                            self.__cache_downloaded_image(image=image, path=cached_image_path)
+                            self.player_image_source = 'Google Drive'
+                case "COLOR":
+                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(ignore_team_overrides=True))
+                case "CARD_ART" | "SILHOUETTE":
+                    image = Image.open(img_url).convert('RGBA')
+                case "TEAM_LOGOS":
+                    image = Image.open(img_url).convert('RGBA').resize((1200,1200), resample=Image.ANTIALIAS)
+                case "NAME_CONTAINER":
+                    image = self.__2000_player_name_container_image()
+                case _: 
+                    break
+
             if image is None:
-                self.img_loading_error = 'Error: Auto image download does not exist.'
-                return None
+                if img_component.load_source == "DOWNLOAD":
+                    is_img_download_error = True
+                continue
+            
+            # ADJUST SATURATION
+            saturation_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, {})
+            saturation_adjustment.update(self.image_parallel.image_type_saturations_dict)
+            if len(saturation_adjustment) > 0:
+                component_adjustment_factor = saturation_adjustment.get(img_component, None)
+                if component_adjustment_factor:
+                    image = self.__change_image_saturation(image=image, saturation=component_adjustment_factor)
+
+            # ADJUST OPACITY
+            if img_component.opacity < 1.0:
+                opacity_255_scale = int(255 * img_component.opacity)
+                image.putalpha(opacity_255_scale)
             
             # CROP IMAGE
-            crop_size = default_crop_size if img_type in sc.IMAGE_TYPES_IGNORE_CUSTOM_CROP else player_crop_size
-            crop_adjustment = default_crop_adjustment if img_type in sc.IMAGE_TYPES_IGNORE_CUSTOM_CROP else set_crop_adjustment
+            crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
+            crop_adjustment = default_crop_adjustment if img_component.ignores_custom_crop else special_crop_adjustment
             image = self.__img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
             if crop_size != card_size:
                 image = image.resize(size=card_size, resample=Image.ANTIALIAS)
+
+            # SUPER SEASON: FIND LOCATIONS FOR ELLIPSES
+            is_super_season_glow = img_component in [sc.ImageComponent.GLOW, sc.ImageComponent.SILHOUETTE] and self.special_edition == sc.SpecialEdition.SUPER_SEASON
+            if is_super_season_glow:
+
+                # CALCULATE COORDINATES OF ELLIPSES
+                y_cords = {
+                    sc.ImageComponent.ELLIPSE_LARGE: 850 if self.is_pitcher else 800,
+                    sc.ImageComponent.ELLIPSE_MEDIUM: 400 if self.is_pitcher else 300,
+                    sc.ImageComponent.ELLIPSE_SMALL: 1200 if self.is_pitcher else 1300,
+                }
+                is_reversed_map = {
+                    sc.ImageComponent.ELLIPSE_LARGE: False,
+                    sc.ImageComponent.ELLIPSE_MEDIUM: not self.is_pitcher,
+                    sc.ImageComponent.ELLIPSE_SMALL: self.is_pitcher,
+                }
+                transparent_pixel = (255, 255, 255, 0)
+                img_width, _ = image.size
+                for ellipse_type, ycord in y_cords.items():
+                    is_reversed = is_reversed_map.get(ellipse_type, False)
+                    for x_index in range(1, img_width):
+                        x_cord = img_width - x_index if is_reversed else x_index
+                        coordinates = (x_cord, ycord)
+                        try:
+                            pixel = image.getpixel(coordinates)
+                        except:
+                            break
+                        if pixel != transparent_pixel:
+                            ellipse_circle_image = Image.open(self.__card_art_path(ellipse_type.value)).convert('RGBA')
+                            x_adjustment = -75
+                            coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
+                            player_img_components.append((ellipse_circle_image, coordinates_adjusted))
+                            break
             
             # PASTE IMAGE
-            if player_img is None:
-                player_img = image
-                continue
-            coordinates = (0,0) # TODO: ADD CUSTOMER COORDS IF NEEDED
-            player_img.paste(image, coordinates, image)
+            player_img_components.append((image, paste_coordinates))
 
-        return player_img
+        return player_img_components
 
     def __text_image(self,text,size,font,fill=255,rotation=0,alignment='left',padding=0,spacing=3,opacity=1,has_border=False,border_color=None,border_size=3,overlay_image_path=None):
         """Generates a new PIL image object with text.
@@ -3029,11 +3109,12 @@ class ShowdownPlayerCard:
         logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
         logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context_year)]
         is_04_05 = self.context in ['2004','2005']
+        is_00_01 = self.context in ['2000','2001']
         is_cooperstown = self.edition == sc.Edition.COOPERSTOWN_COLLECTION
         is_all_star_game = self.edition == sc.Edition.ALL_STAR_GAME
         is_rookie_season = self.edition == sc.Edition.ROOKIE_SEASON
 
-        if self.edition.has_static_logo:
+        if self.edition.has_static_logo and not is_00_01:
             # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
             logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
             is_wide_logo = logo_name == 'ASG-2022'
@@ -3048,7 +3129,7 @@ class ShowdownPlayerCard:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
             historical_alternate_ext = self.__team_logo_historical_alternate_extension()
             alternate_logo_ext = '-A' if self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET] and not self.edition.has_static_logo else ''
-            team_logo_path = os.path.join(os.path.dirname(__file__), 'team_logos', f'{logo_name}{alternate_logo_ext}{historical_alternate_ext}.png')
+            team_logo_path = self.__team_logo_path(name = f"{logo_name}{alternate_logo_ext}{historical_alternate_ext}")
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_COLORS.keys():
                     team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
@@ -3061,7 +3142,7 @@ class ShowdownPlayerCard:
         team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and self.edition.rotate_team_logo_2002 else team_logo
 
         # OVERRIDE IF SUPER SEASON
-        if self.edition == sc.Edition.SUPER_SEASON:
+        if self.edition == sc.Edition.SUPER_SEASON and not is_00_01:
             team_logo = self.__super_season_image()
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context_year)]
 
@@ -3095,7 +3176,7 @@ class ShowdownPlayerCard:
             team_logo = cooperstown_logo
 
         # OVERRIDE IF ROOKIE SEASON
-        if is_rookie_season and self.context != '2001':
+        if is_rookie_season and not is_00_01:
             team_logo = self.__rookie_season_image()
             team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
@@ -3192,6 +3273,9 @@ class ShowdownPlayerCard:
                     self.img_loading_error = f"Country {self.nationality} not supported. Select a different Edition."
             else:
                 edition_extension = f'-{sc.TEMPLATE_COLOR_0405[type]}'
+
+            if self.image_parallel.color_override_04_05_chart:
+                edition_extension = f"-{self.image_parallel.color_override_04_05_chart}"
             type_template = f'{year}-{type}{edition_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
         else:
@@ -3325,8 +3409,9 @@ class ShowdownPlayerCard:
         """
 
         # PARSE NAME STRING
-        first, last = self.name.upper().split(" ", 1)
-        name = self.name.upper() if self.context != '2001' else first
+        name_upper = "????? ?????" if self.image_parallel == sc.ImageParallel.MYSTERY else self.name.upper()
+        first, last = name_upper.split(" ", 1)
+        name = name_upper if self.context != '2001' else first
         default_chart_char_cutoff = 19 if self.context == '2002' else 15
         is_name_over_char_limit =  len(name) > default_chart_char_cutoff
 
@@ -3780,7 +3865,7 @@ class ShowdownPlayerCard:
         """
 
         is_after_03 = self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET]
-        include_accolades = self.context not in ['2000','2001',sc.CLASSIC_SET,sc.EXPANDED_SET]
+        include_accolades = self.context not in [sc.CLASSIC_SET,sc.EXPANDED_SET]
 
         # BACKGROUND IMAGE LOGO
         super_season_image = Image.open(self.__template_img_path(f'{self.template_set_year}-Super Season'))
@@ -3966,7 +4051,7 @@ class ShowdownPlayerCard:
 
         return rookie_season_image
 
-    def __add_icons_to_image(self, player_image):
+    def __add_icons_to_image(self, player_image:Image) -> Image:
         """Add icon images (if player has icons) to existing player_image object.
            Only for >= 2003 sets.
 
@@ -3992,7 +4077,8 @@ class ShowdownPlayerCard:
                     offset = 0
                     if len(positions_list) > 1:
                         # SHIFT ICONS TO RIGHT
-                        offset = 165 if positions_over_4_char > 0 else 135
+                        additional_padding = 40 * positions_over_4_char if positions_over_4_char > 0 else 0
+                        offset = 135 + additional_padding
                     elif positions_over_4_char > 0:
                         offset = 75
                     elif 'CA' in positions_list:
@@ -4000,9 +4086,56 @@ class ShowdownPlayerCard:
                     position = (position[0] + offset, position[1])
             else:
                 icon_image = self.__icon_image_circle(text=icon)
-            player_image.paste(icon_image, position, icon_image)
+            player_image.paste(icon_image, self.__coordinates_adjusted_for_bordering(position), icon_image)
 
         return player_image
+
+    def __add_additional_logos_00_01(self, image:Image) -> Image:
+        """Add CC/RS/SS logo to existing player_image object.
+           Only for 2000/2001 sets.
+
+        Args:
+          image: Current PIL image object for Showdown card.
+
+        Returns:
+          Updated PIL Image with logos added above the chart.
+        """
+        
+        # ONLY FOR 00/01 SETS
+        if self.context not in ['2000','2001']:
+            return image
+        
+        # DEFINE COORDINATES, START WITH ROOKIE SEASON DESTINATION AND EDIT FOR OTHERS
+        paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
+        if self.edition != sc.Edition.ROOKIE_SEASON and self.context == '2001':
+            # MOVE LOGO TO THE RIGHT
+            paste_coordinates = (paste_coordinates[0] + 30, paste_coordinates[1])
+        if self.context == '2000':
+            # MOVE LOGO ABOVE TEAM LOGO AND SLIGHTLY TO THE LEFT
+            y_movement = -35 if self.edition == sc.Edition.SUPER_SEASON else 0
+            paste_coordinates = (paste_coordinates[0] - 25, paste_coordinates[1] + y_movement)
+
+        # ADD LOGO
+        match self.edition:
+            case sc.Edition.ALL_STAR_GAME | sc.Edition.COOPERSTOWN_COLLECTION:
+                logo_name = 'CCC' if self.edition == sc.Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
+                logo_size_x, logo_size_y = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
+                logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name == 'ASG-2022' else (logo_size_x, logo_size_y)
+                logo_path = self.__team_logo_path(name=logo_name)
+                logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.ANTIALIAS)
+                image.paste(logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), logo)
+            case sc.Edition.SUPER_SEASON:
+                super_season_img = self.__super_season_image()
+                paste_coordinates_x, paste_coordinates_y = paste_coordinates
+                paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 150)
+                image.paste(super_season_img, self.__coordinates_adjusted_for_bordering(paste_coordinates), super_season_img)
+            case sc.Edition.ROOKIE_SEASON:
+                rs_logo = self.__rookie_season_image()
+                image.paste(rs_logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), rs_logo)
+            case _:
+                return image
+            
+        return image
 
     def __icon_image_circle(self, text):
         """For CLASSIC and EXPANDED sets, generate a circle image with text for the icons.
@@ -4108,17 +4241,6 @@ class ShowdownPlayerCard:
         # CROP THE CENTER OF THE IMAGE
         return image.crop((left, top, right, bottom))
 
-    def __foil_effect_images(self, image):
-
-        images = []
-        for i in range(1,24,1):
-            image_updated = image.convert('RGBA')
-            foil_img = Image.open(self.__template_img_path(f'Foil-Animation-{i}')).convert('RGBA').resize((int(1488 / 2.75), int(2079 / 2.75)),Image.ANTIALIAS)
-            image_updated.paste(foil_img,(0,0),foil_img)
-            images.append(image_updated)
-
-        return images
-
     def __clean_images_directory(self):
         """Removes all images from output folder that are not the current card. Leaves
            photos that are less than 5 mins old to prevent errors from simultaneous uploads.
@@ -4140,7 +4262,7 @@ class ShowdownPlayerCard:
             for item in os.listdir(folder_path):
                 if item != self.image_name and item != '.gitkeep':
                     item_path = os.path.join(folder_path, item)
-                    is_file_stale = self.__is_file_over_5_mins_old(item_path)
+                    is_file_stale = self.__is_file_over_mins_threshold(path=item_path, mins=5)
                     if is_file_stale:
                         # DELETE IF UPLOADED/MODIFIED OVER 5 MINS AGO
                         os.remove(item_path)
@@ -4150,10 +4272,26 @@ class ShowdownPlayerCard:
             if item != '.gitkeep':
                 # CHECK TO SEE IF ITEM WAS MODIFIED MORE THAN 5 MINS AGO.
                 item_path = os.path.join(os.path.dirname(__file__), 'uploads', item)
-                is_file_stale = self.__is_file_over_5_mins_old(item_path)
+                is_file_stale = self.__is_file_over_mins_threshold(path=item_path, mins=20)
                 if is_file_stale:
-                    # DELETE IF UPLOADED/MODIFIED OVER 5 MINS AGO
+                    # DELETE IF UPLOADED/MODIFIED OVER 20 MINS AGO
                     os.remove(item_path)
+
+    def __coordinates_adjusted_for_bordering(self, coordinates:tuple[int,int], is_disabled:bool = False) -> tuple[int,int]:
+        """Add padding to paste coordinates to account for a border on the image.
+         
+        Args:
+          coordinates: Tuple for original coordinates (ex: (0,0))
+          is_disabled: Return coordinates without an update
+
+        Returns:
+          Updated tuple for adjusted coordinates.
+        """
+
+        if not self.add_image_border or is_disabled:
+            return coordinates
+        
+        return (coordinates[0] + sc.CARD_BORDER_PADDING, coordinates[1] + sc.CARD_BORDER_PADDING)
 
     def __command_image(self):
         """For CLASSIC and EXPANDED sets, create onbase/control image asset dynamically
@@ -4193,12 +4331,13 @@ class ShowdownPlayerCard:
 
         return background_img
 
-    def __is_file_over_5_mins_old(self, path):
+    def __is_file_over_mins_threshold(self, path, mins:float = 5.0):
         """Checks modified date of file to see if it is older than 5 mins.
            Used for cleaning output directory and image uploads.
 
         Args:
           path: String path to file in os.
+          mins: Number of minutes to check for
 
         Returns:
             True if file in path is older than 5 mins, false if not.
@@ -4208,7 +4347,7 @@ class ShowdownPlayerCard:
         datetime_uploaded = datetime.fromtimestamp(os.path.getmtime(path))
         file_age_mins = (datetime_current - datetime_uploaded).total_seconds() / 60.0
 
-        return file_age_mins >= 5.0
+        return file_age_mins >= mins
 
     def __add_alpha_mask(self, img, mask_img):
         """Adds mask to image
@@ -4276,11 +4415,30 @@ class ShowdownPlayerCard:
 
         return final_image
 
-    def __team_color_rgbs(self):
+    def __change_image_saturation(self, image:Image, saturation:float) -> Image:
+        """Adjust an image's saturation.
+
+        Args:
+          image: PIL Image to update saturation for.
+          saturation: Float from 0.0-1.0 where 1.0 is full color, 0.0 is greyscale.
+
+        Returns:
+          Updated PIL Image with changed saturation.
+        """
+
+        if saturation == 1.0:
+            return image
+        
+        img_enhance = ImageEnhance.Color(image)
+        image = img_enhance.enhance(saturation)
+
+        return image
+
+    def __team_color_rgbs(self, ignore_team_overrides:bool = False):
         """RGB colors for player team
 
         Args:
-          None
+          ignore_team_overrides: Boolean to optionally skip overrides.
 
         Returns:
             Tuple with RGB team colors
@@ -4289,11 +4447,11 @@ class ShowdownPlayerCard:
         default_color = (55, 55, 55, 255)
         team_index = self.__team_logo_historical_alternate_extension(include_dash=False)
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if self.nationality else False
-        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION:
+        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and not ignore_team_overrides:
             return sc.TEAM_COLOR_PRIMARY['CCC']
-        elif self.edition == sc.Edition.NATIONALITY and self.nationality and country_exists:
+        elif self.edition == sc.Edition.NATIONALITY and self.nationality and country_exists and not ignore_team_overrides:
             return sc.NATIONALITY_COLORS[self.nationality][0]
-        elif self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys():
+        elif self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys() and not ignore_team_overrides:
             color_for_league = sc.ALL_STAR_GAME_COLORS[str(self.year)].get(self.league, None)
             if color_for_league:
                 return color_for_league
@@ -4380,7 +4538,7 @@ class ShowdownPlayerCard:
         has_expansion = self.expansion != 'FINAL'
         has_variable_spd_diff = self.is_variable_speed_00_01 and self.context in ['2000','2001']
         set_yr_plus_one_enabled = self.set_year_plus_one and self.context in ['2004','2005']
-        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or self.is_foil or has_variable_spd_diff or self.has_custom_set_number or set_yr_plus_one_enabled or self.hide_team_logo
+        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or has_variable_spd_diff or self.has_custom_set_number or set_yr_plus_one_enabled or self.hide_team_logo
 
     def __year_container_add_on(self) -> Image:
         """User can optionally add a box dedicated to showing years used for the card.
@@ -4456,8 +4614,24 @@ class ShowdownPlayerCard:
         Returns:
           String with full image path.
         """
+
+        if name is None:
+            return None
+        
         return os.path.join(os.path.dirname(__file__), 'card_art', f'{name}.{extension}')
 
+    def __team_logo_path(self, name, extension:str = 'png') -> str:
+        """ Produces full path string for the logo image.
+
+        Args:
+          name: Name of the image without the extension
+          extension: Image file extension (ex: png, jpg)
+
+        Returns:
+          String with full image path.
+        """
+        return os.path.join(os.path.dirname(__file__), 'team_logos', f'{name}.{extension}')
+    
     @property
     def template_set_year(self) -> str:
         match self.context:
@@ -4468,98 +4642,7 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 # IMAGE QUERIES
 
-    def __query_google_drive_for_image_url(self, folder_id, substring_search, year=None):
-        """Attempts to query google drive for a player image, if 
-        it does not exist use siloutte background.
-
-        Args:
-          folder_id: Unique ID for folder in drive (found in URL)
-          substring_search: string used to filter results 
-          year: Year(s) of card.
-
-        Returns:
-          List of dicts with file metadata
-        """
-        
-        # GAIN ACCESS TO GOOGLE DRIVE
-        SCOPES = ['https://www.googleapis.com/auth/drive']
-        GOOGLE_CREDENTIALS_STR = os.getenv('GOOGLE_CREDENTIALS')
-        if not GOOGLE_CREDENTIALS_STR:
-            # IF NO CREDS, RETURN NONE
-            return None
-        # CREDS FILE FOUND, PROCEED
-        GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
-        GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, SCOPES)
-
-        # BUILD THE SERVICE OBJECT.
-        service = build('drive', 'v3', credentials=creds)
-
-        # GET LIST OF FILE METADATA FROM CORRECT FOLDER
-        files_metadata = []
-        page_token = None
-        while True:
-            try:
-                query = f"parents = '{folder_id}'"
-                files = service.files()
-                response = files.list(q=query,pageSize=1000,pageToken=page_token).execute()
-                new_files_list = response.get('files')
-                page_token = response.get('nextPageToken', None)
-                files_metadata = files_metadata + new_files_list
-                if not page_token:
-                    break
-            except:
-                break
-        
-        # LOOK FOR SUBSTRING IN FILE NAMES
-        player_matched_image_files = []
-        for img_file in files_metadata:
-            file_name_key = 'name'
-            if file_name_key in img_file.keys():
-                # LOOK FOR SUBSTRING MATCH
-                if substring_search in img_file[file_name_key]:
-                    player_matched_image_files.append(img_file)
-
-        # IF MULTIPLE IMAGES, LOOK INTO ADDITIONAL QUERY
-        num_files = len(player_matched_image_files)
-        additional_substring_search_list = self.__img_match_keyword_list()
-        if num_files == 0:
-            return None
-        elif num_files > 1:
-            player_matched_image_files = sorted(player_matched_image_files, key = lambda i: len(i['name']), reverse=False)
-            match_rates = {}
-            for img_metadata in player_matched_image_files:
-                img_name = img_metadata['name']
-                img_id = img_metadata['id']
-                match_rate = sum(val in img_name for val in additional_substring_search_list)
-
-                # ADD DISTANCE FROM YEAR                
-                year_from_img_name = img_name.split(" ")[0]
-                is_img_multi_year = len(year_from_img_name) > 4
-                if year_from_img_name == year:
-                    # EXACT YEAR MATCH
-                    match_rate += 1
-                elif is_img_multi_year == False and self.is_multi_year == False:
-                    year_img = float(year_from_img_name)
-                    year_self = float(year)
-                    pct_diff = 1 - (abs(year_img - year_self) / year_self)
-                    match_rate += pct_diff
-                
-                # ADD MATCH RATE SCORE
-                match_rates[img_id] = match_rate
-            
-            # GET BEST MATCH
-            sorted_matches = sorted(match_rates.items(), key=operator.itemgetter(1), reverse=True)
-            file_id = sorted_matches[0][0]
-        else:
-            file_id = player_matched_image_files[0]['id']
-        
-        # GET WEB CONTENT URL
-        img_url = files.get(fileId=file_id, fields="webContentLink").execute()['webContentLink']
-
-        return img_url
-
-    def __query_google_drive_for_universal_image(self, folder_id, components_dict:dict, bref_id:str, year:int = None) -> list[str]:
+    def __query_google_drive_for_universal_image(self, folder_id, components_dict:dict, bref_id:str, year:int = None) -> tuple:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -4571,15 +4654,19 @@ class ShowdownPlayerCard:
           year: Year(s) of card.
 
         Returns:
-          Dict of image urls per component.
+          Tuple with the following:
+            Google Drive file service object
+            Dict of image urls per component.
         """
         
         # GAIN ACCESS TO GOOGLE DRIVE
+        file_service = None
         SCOPES = ['https://www.googleapis.com/auth/drive']
         GOOGLE_CREDENTIALS_STR = os.getenv('GOOGLE_CREDENTIALS')
         if not GOOGLE_CREDENTIALS_STR:
             # IF NO CREDS, RETURN NONE
-            return None
+            return (file_service, components_dict)
+        
         # CREDS FILE FOUND, PROCEED
         GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
         GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
@@ -4593,53 +4680,55 @@ class ShowdownPlayerCard:
         page_token = None
         while True:
             try:
-                query = f"parents = '{folder_id}'"
-                files = service.files()
-                response = files.list(q=query,pageSize=1000,pageToken=page_token).execute()
+                query = f"parents = '{folder_id}' and name contains '({bref_id})'"
+                file_service = service.files()
+                response = file_service.list(q=query,pageSize=1000,pageToken=page_token).execute()
                 new_files_list = response.get('files')
                 page_token = response.get('nextPageToken', None)
                 files_metadata = files_metadata + new_files_list
                 if not page_token:
                     break
-            except:
-                break        
+            except Exception as err:
+                # IMAGE MAY FAIL TO LOAD SOMETIMES
+                self.img_loading_error = str(err)
+                continue
         
         # LOOK FOR SUBSTRING IN FILE NAMES
-        file_matches_metadata_dict = self.__img_file_matches_dict(files_service = files, files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
+        file_matches_metadata_dict = self.__img_file_matches_dict(files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
         
-        return file_matches_metadata_dict
+        return (file_service, file_matches_metadata_dict)
     
-    def __img_file_matches_dict(self, files_service, files_metadata:list[dict], components_dict:dict, bref_id:str, year:int) -> dict:
+    def __img_file_matches_dict(self, files_metadata:list[dict], components_dict:dict, bref_id:str, year:int) -> dict:
         """ Iterate through gdrive files and find matches to the player and other settings defined by user.
          
         Args:
-          files_service: Google Drive service to query file information.
           files_metadata: List of file metadata dicts from google drive.
           components_dict: Dict of all the image types to included in the image.
           bref_id: Unique ID for the player.
           year: Year(s) of card.
 
         Returns:
-          Dict where the key represents the component type and the value is the download URL.
+          Dict where the key represents the component type and the value is the file id for download.
         """
 
         # FILTER LIST TO ONLY BREF ID MATCHES FOR IMG COMPONENT TYPE
-        component_player_file_matches_dict = {component: [] for component in components_dict.keys() if component in sc.IMAGE_TYPES_LOADED_VIA_DOWNLOAD}
+        component_player_file_matches_dict = {component: [] for component in components_dict.keys() if component.is_loaded_via_download}
         for img_file in files_metadata:
             file_name_key = 'name'
             if file_name_key not in img_file.keys():
                 continue
             # LOOK FOR SUBSTRING MATCH
             file_name = img_file[file_name_key]
-            num_components_in_filename = len([c for c in components_dict.keys() if f'{c}-' in file_name])
+            num_components_in_filename = len([c for c in components_dict.keys() if f'{c.value}-' in file_name])
             if bref_id in file_name and num_components_in_filename > 0:
-                component = file_name.split('-')[0].upper()
+                component_name = file_name.split('-')[0].upper()
+                component = sc.ImageComponent(component_name)
                 current_files_for_component = component_player_file_matches_dict.get(component, [])
                 current_files_for_component.append(img_file)
                 component_player_file_matches_dict[component] = current_files_for_component
 
         # CHECK THAT THERE ARE MATCHES IN EACH COMPONENT
-        num_matches_per_component = [len(matches) for c, matches in component_player_file_matches_dict.items()]
+        num_matches_per_component = [len(matches) for _, matches in component_player_file_matches_dict.items()]
         if min(num_matches_per_component) < 1:
             return components_dict
 
@@ -4672,36 +4761,39 @@ class ShowdownPlayerCard:
             # GET BEST MATCH
             sorted_matches = sorted(match_rates.items(), key=operator.itemgetter(1), reverse=True)
             file_id = sorted_matches[0][0]
-            img_url = files_service.get(fileId=file_id, fields="webContentLink").execute()['webContentLink']
-            component_img_url_dict[component] = img_url
+            component_img_url_dict[component] = file_id
 
         # UPDATE EXISTING DICT
         components_dict.update(component_img_url_dict)
 
         return components_dict
     
-    def __download_image(self, url:str, num_tries:int = 1) -> Image:
+    def __download_google_drive_image(self, file_service, file_id:str, num_tries:int = 1) -> Image:
         """ Attempt a download of the google drive image for url.
          
         Args:
-          url: Download url for the image from google drive.
+          file_service: Google file service that executes the download for the file.
+          file_id: Unique file id for the image.
           num_tries: Number of tries before returning download failure.
 
         Returns:
           PIL Image for url.
         """
 
-        # CHECK FOR EMPTY
-        if url is None:
+        # CHECK FOR EMPTY VARIABLES
+        if file_id is None or file_service is None:
             return None
 
         num_tries = 1
         for try_num in range(num_tries):
-            response = requests.get(url)
             try:
-                response.raise_for_status()
-                img_bites = BytesIO(response.content)                    
-                image = Image.open(img_bites).convert("RGBA")
+                request = file_service.get_media(fileId=file_id)
+                file = BytesIO()
+                downloader = MediaIoBaseDownload(file, request)
+                done = False
+                while done is False:
+                    status, done = downloader.next_chunk()
+                image = Image.open(file).convert("RGBA")
                 self.img_loading_error = None
                 return image
             except Exception as err:
@@ -4747,34 +4839,62 @@ class ShowdownPlayerCard:
 
         # COOPERSTOWN
         is_cooperstown = self.edition == sc.Edition.COOPERSTOWN_COLLECTION
-        default_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
-        special_components_for_context = {c: None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
+        default_components_for_context = {c: self.__template_img_path("2000-Name") if c == sc.ImageComponent.NAME_CONTAINER_2000 else None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
+        special_components_for_context = {c: self.__template_img_path("2000-Name") if c == sc.ImageComponent.NAME_CONTAINER_2000 else None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
+
+        if self.image_parallel.has_special_components:
+            # ADD ADDITIONAL COMPONENTS
+            if len(self.image_parallel.special_component_additions) > 0:
+                team_logo_name = f"{self.team}{self.__team_logo_historical_alternate_extension()}"
+                special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == sc.ImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image_parallel.special_component_additions.items()})
+            # EDITING EXISTING COMPONENTS
+            replacements_dict = self.image_parallel.special_components_replacements
+            for old_component, new_component in replacements_dict.items():
+                special_components_for_context.pop(old_component, None)
+                special_components_for_context[new_component] = None
+            if self.special_edition == sc.SpecialEdition.TEAM_COLOR_BLAST_DARK:
+                special_components_for_context.pop(sc.ImageComponent.WHITE_CIRCLE, None)
+                special_components_for_context[sc.ImageComponent.BLACK_CIRCLE] = self.__card_art_path(sc.ImageComponent.BLACK_CIRCLE.name)
+            default_components_for_context = special_components_for_context
 
         if is_cooperstown and self.context not in ['2000','2001']:
             components_dict = special_components_for_context
-            components_dict[sc.IMAGE_TYPE_COOPERSTOWN] = self.__card_art_path('RADIAL' if self.context in ['2002','2003'] else 'COOPERSTOWN')
+            components_dict[sc.ImageComponent.COOPERSTOWN] = self.__card_art_path('RADIAL' if self.context in ['2002','2003'] else 'COOPERSTOWN')
             return components_dict
 
         # SUPER SEASON
         if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005']:
             components_dict = special_components_for_context
-            components_dict[sc.IMAGE_TYPE_SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
+            components_dict[sc.ImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
         
         # ALL STAR
-        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context in ['2002','2003','2004','2005',sc.CLASSIC_SET, sc.EXPANDED_SET]:
-            components_dict = {
-                sc.IMAGE_TYPE_GLOW: None,
-                sc.IMAGE_TYPE_CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2023-BG-{self.league}'),
-            }
+        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context not in ['2000','2001']:
+            components_dict = { c:v for c, v in special_components_for_context.items() if not c.is_loaded_via_download }
+            components_dict.update({
+                sc.ImageComponent.GLOW: None,
+                sc.ImageComponent.CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2023-BG-{self.league}'),
+            })
             if self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET]:
-                components_dict[sc.IMAGE_TYPE_CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
+                components_dict[sc.ImageComponent.CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
             return components_dict
 
         # CLASSIC/EXPANDED
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS and not is_cooperstown:
+        if self.context in sc.CLASSIC_AND_EXPANDED_SETS and not is_cooperstown and self.image_parallel == sc.ImageParallel.NONE:
             components_dict = default_components_for_context
-            components_dict[sc.IMAGE_TYPE_GRADIENT] = self.__card_art_path(f"{'DARK' if self.is_dark_mode else 'LIGHT'}-GRADIENT")
+            components_dict[sc.ImageComponent.GRADIENT] = self.__card_art_path(f"{'DARK' if self.is_dark_mode else 'LIGHT'}-GRADIENT")
             return components_dict
-        
+
         return default_components_for_context
+
+    def __cache_downloaded_image(self, image: Image, path:str) -> None:
+        """Store downloaded image to the uploads folder in order to cache it
+        
+        Args:
+          image: PIL Image to cache in uploads folder.
+          path: Path for storing the image.
+
+        Returns:
+          None
+        """
+        image.save(path, quality=100)
