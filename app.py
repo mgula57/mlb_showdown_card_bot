@@ -55,8 +55,12 @@ class CardLog(db.Model):
     date_override = db.Column(db.String(256))
     era = db.Column(db.String(64))
     image_parallel = db.Column(db.String(64))
+    bref_id = db.Column(db.String(64))
+    team = db.Column(db.String(32))
+    data_source = db.Column(db.String(64))
+    image_source = db.Column(db.String(64))
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -88,8 +92,12 @@ class CardLog(db.Model):
         self.date_override = date_override
         self.era = era
         self.image_parallel = image_parallel
+        self.bref_id = bref_id
+        self.team = team
+        self.data_source = data_source
+        self.image_source = image_source
 
-def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel):
+def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -121,7 +129,11 @@ def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansi
             hide_team_logo=hide_team_logo,
             date_override=date_override,
             era=era,
-            image_parallel=image_parallel
+            image_parallel=image_parallel,
+            bref_id = bref_id,
+            team = team,
+            data_source = data_source,
+            image_source = image_source
         )
         db.session.add(card_log)
         db.session.commit()
@@ -166,6 +178,10 @@ def card_creator():
     date_override = None
     era = None
     image_parallel = None
+    bref_id = None
+    team = None
+    data_source = None
+    image_source = None
 
     try:
         # PARSE INPUTS
@@ -293,7 +309,8 @@ def card_creator():
                 hide_team_logo=hide_team_logo,
                 date_override=date_override,
                 era=era,
-                is_running_in_flask=True
+                is_running_in_flask=True,
+                source=scraper.source
             )
         error = "Error - Unable to create Showdown Card Image."
         cached_img_link = showdown.cached_img_link()
@@ -321,6 +338,10 @@ def card_creator():
         player_year = showdown.year
         player_context = showdown.context
         bref_url = showdown.bref_url
+        bref_id = showdown.bref_id
+        team = showdown.team
+        data_source = showdown.source
+        image_source = showdown.player_image_source
         shOPS_plus = showdown.projected['onbase_plus_slugging_plus'] if 'onbase_plus_slugging_plus' in showdown.projected else None
         name = player_name if is_random else name # LOG ACTUAL NAME IF IS RANDOMIZED PLAYER
 
@@ -371,7 +392,11 @@ def card_creator():
             hide_team_logo=hide_team_logo,
             date_override=date_override,
             era=era,
-            image_parallel=image_parallel
+            image_parallel=image_parallel,
+            bref_id=bref_id,
+            team=team,
+            data_source=data_source,
+            image_source=image_source
         )
         return jsonify(
             image_path=card_image_path,
@@ -427,7 +452,11 @@ def card_creator():
             hide_team_logo=hide_team_logo,
             date_override=date_override,
             era=era,
-            image_parallel=image_parallel
+            image_parallel=image_parallel,
+            bref_id=bref_id,
+            team=team,
+            data_source=data_source,
+            image_source=image_source
         )
         return jsonify(
             image_path=None,
