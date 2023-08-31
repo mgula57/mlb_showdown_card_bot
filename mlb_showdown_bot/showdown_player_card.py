@@ -3195,7 +3195,7 @@ class ShowdownPlayerCard:
 
         logo_historical_alternates = sc.TEAM_LOGO_ALTERNATES
 
-        # DONT APPLY IF COOPERSTOWN, SUPER SEASON, OR ALL-STAR GAME
+        # DONT APPLY IF COOPERSTOWN OR ALL-STAR GAME
         if self.edition.ignore_historical_team_logo:
             return ''
 

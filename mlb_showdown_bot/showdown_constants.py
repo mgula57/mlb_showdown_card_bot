@@ -18,7 +18,7 @@ class Edition(Enum):
 
     @property
     def ignore_historical_team_logo(self) -> bool:
-        return self in [Edition.ALL_STAR_GAME, Edition.SUPER_SEASON, Edition.COOPERSTOWN_COLLECTION]
+        return self in [Edition.ALL_STAR_GAME, Edition.COOPERSTOWN_COLLECTION]
     
     @property
     def template_color_0405(self) -> str:
