@@ -25,6 +25,8 @@ class BaseballReferenceScraper:
 # INIT
 
     def __init__(self, name, year):
+
+        self.year_input = year.upper()
         is_full_career = year.upper() == 'CAREER'
         if is_full_career:
             year = 'CAREER'
@@ -289,23 +291,25 @@ class BaseballReferenceScraper:
                 stats_dict['team_ID'] = team_id
 
             # FULL CAREER
+            is_hitter = type == 'Hitter'
             if is_full_career:
                 stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats)
                 sprint_speed_list = []
-                for year in years_played:
-                    sprint_speed = self.statcast_sprint_speed(name=name, year=year)
-                    if sprint_speed:
-                        sprint_speed_list.append(sprint_speed)
+                if is_hitter:
+                    for year in years_played:
+                        sprint_speed = self.statcast_sprint_speed(name=name, year=year)
+                        if sprint_speed:
+                            sprint_speed_list.append(sprint_speed)
                 if len(sprint_speed_list) > 0:
                     stats_dict['sprint_speed'] = sum(sprint_speed_list) / len(sprint_speed_list)
                 else:
                     stats_dict['sprint_speed'] = None
-            else:
+            elif is_hitter:
                 stats_dict['sprint_speed'] = self.statcast_sprint_speed(name=name, year=year)
             is_data_from_statcast = stats_dict.get('sprint_speed', None) is not None
 
             # OUTS ABOVE AVERAGE (2016+)
-            if 'outs_above_avg' not in stats_dict.keys(): # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
+            if 'outs_above_avg' not in stats_dict.keys() and is_hitter: # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
                 years_list = years_played if is_full_career else self.years
                 years_as_ints = [int(y) for y in years_list]
                 stats_dict['outs_above_avg'] = self.statcast_outs_above_average_dict(name=name, years=years_as_ints)
@@ -321,6 +325,9 @@ class BaseballReferenceScraper:
             # COMBINE INDIVIDUAL YEAR DATA
             stats_dict.update(self.__combine_multi_year_dict(master_stats_dict))
             stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=self.years)
+        
+        # PARSE ACCOLADES IN TOTAL
+        stats_dict['accolades'] = self.__accolades_dict(soup_for_homepage_stats=soup_for_homepage_stats, years_included=self.years)
 
         # SAVE DATA        
         self.source = f"Baseball Reference{'/Baseball Savant' if is_data_from_statcast else ''}"
@@ -580,6 +587,41 @@ class BaseballReferenceScraper:
         # NO ROOKIE STATUS WAS FOUND, RETURN NONE
         return False
     
+    def __accolades_dict(self, soup_for_homepage_stats: BeautifulSoup, years_included: list[str]) -> dict:
+        """Parse the "Leaderboards, Awards, Honors" section of bref.
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats from homepage.
+          years_included: List of years to filter for stats
+
+        Returns:
+          Boolean for whether the are in the Hall of Fame or not.
+        """
+        leaderboard_table_divs_list = soup_for_homepage_stats.find_all('div', attrs={'id': re.compile(f'leaderboard_')})
+
+        # RETURN EMPTY DICT IF NO LEADERBOARDS
+        if leaderboard_table_divs_list is None:
+            return {}
+
+        awards_and_accolades_dict = {}
+        for leaderboard_div in leaderboard_table_divs_list:
+            td_list_accolades = leaderboard_div.find_all('td')
+            category = leaderboard_div['id'].replace('leaderboard_','')
+            categories_included_list = [accolade.value for accolade in sc.Accolade]
+            if td_list_accolades is None or category not in categories_included_list:
+                continue
+            accolades_list_for_category = []
+            for td_row in td_list_accolades:
+                accolade_text = td_row.get_text().replace(u'\xa0', u' ').replace('  ', ' ').replace(u'\n','').replace(' *','').upper().strip()
+                is_year_match = len([year for year in years_included if str(year).upper() in accolade_text or str(year) == 'CAREER']) > 0
+                if is_year_match:
+                    accolades_list_for_category.append(accolade_text)
+            
+            if len(accolades_list_for_category) > 0:
+                awards_and_accolades_dict[category] = accolades_list_for_category
+
+        return awards_and_accolades_dict
+
     def type(self, positional_fielding, year):
         """Guess Player Type (Pitcher or Hitter) based on games played at each position.
 
