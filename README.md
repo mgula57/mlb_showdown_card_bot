@@ -506,30 +506,109 @@ Custom player art is available in 2003, 2004, and 2005 sets. 2022 sets will use 
 
 ![Image](./static/interface/SuperSeasonPlayers.png)
 
-Super Seasons highlight outstanding single season performances throughout baseball history. A custom super season logo will replace the player's team logo, and certain years add a list of 3 accolades as well.
+Super Seasons highlight outstanding single season performances throughout baseball history. A custom super season logo may replace the player's team logo, and certain years add a list of up to 3 accolades. 2004 and 2005 sets feature a special red template, as well as a grid pattern in the background of all showdown library sourced player images.
 
-Here are the available accolade categories, ordered by priority:
- - MVP
- - SILVER SLUGGER
- - GOLD GLOVE
- - CY YOUNG
- - RoY
- - HR
- - CYA FINALIST
- - MVP FINALIST
- - RoY FINALIST
- - ALL-STAR
- - ERA
- - W
- - SV
- - BA
- - RBI
- - H
- - dWAR
- - OPS+
- - bWAR
+Here are the possible accolades, ordered by priority. 
 
-2004 and 2005 sets feature a special red template, as well as a grid pattern in the background of select players.
+** _Note if the accolade's text is too long and does not fit within the image, it will excluded._
+
+**1. AWARD WINNER**: If the player won any of the following awards, they will show up first in the accolades. The exception is sets that include icons (03,04,05), where awards are deprioritized to the end.
+
+- CY YOUNG
+- MVP
+- ROOKIE OF THE YEAR
+- GOLD GLOVE
+- SILVER SLUGGER
+- ALL STAR
+
+**2. AWARD PLACEMENT**: If the player was in the Top 3 for MVP or Cy Young voting, it is prioritized second.
+ 
+**3. LEAGUE RANKING**: Prioritized third is league rankings within the metrics below. These are ranked first based on placement, then based on the ordering below.
+
+HITTERS
+
+1. HR
+2. BA
+3. OBP
+4. SLG
+5. OPS
+6. DOUBLES
+7. TRIPLES
+8. RBI
+9. SB
+10. WALKS
+11. HITS
+12. RUNS
+13. TOTAL BASES
+14. WAR
+15. XBH
+
+PITCHERS
+
+1. ERA
+2. SAVES
+3. SO
+4. WHIP
+5. WINS
+6. IP
+7. OPS PLUS
+8. ERA PLUS
+9. WAR
+10. SHUTOUTS
+11. CG
+12. W/L%
+13. SO/9
+14. FIP
+
+**4. STATS**: If the player does not have enough awards and accolades, their stats will be used. See below for ordering and minimum requirements.
+
+HITTERS
+
+1. HR (min 30)
+2. RBI (min 100)
+3. HITS (min 175)
+4. BA (min .300)
+5. OBP (min .400)
+6. SLG (min .550)
+7. dWAR (min 2.5)
+8. OPS+ (no min req)
+9. bWAR (no min req)
+
+PITCHERS
+
+1. WINS (min 14)
+2. SAVES (min 20)
+3. ERA (no min req)
+4. WHIP (no min req)
+5. bWAR (no min req)
+
+Here is an example of how the Bot ranks accolades for 1999 Chipper Jones:
+
+![Image](./static/interface/SuperSeasonAccolades.png)
+
+Rank | 2000-2002 Sets | 2003-2005 Sets
+--- | --- | --- 
+1  | NL MVP | 2ND IN NL OPS+ 
+2  | SILVER SLUGGER | 3RD IN NL HR 
+3  | 2ND IN NL OPS+ | 3RD IN NL OPS 
+4  | 3RD IN NL HR | 3RD IN NL WALKS 
+5  | 3RD IN NL OPS | NL MVP 
+6  | 3RD IN NL WALKS | 4TH IN NL OBP 
+7  | 4TH IN NL OBP | 4TH IN NL SLG 
+8  | 4TH IN NL SLG | 4TH IN NL TOTAL BASES 
+9  | 4TH IN NL TOTAL BASES | 5TH IN NL WAR 
+10 | 5TH IN NL WAR |  7TH IN NL 2B 
+11 | 7TH IN NL 2B |  7TH IN NL RUNS 
+12 | 7TH IN NL RUNS |  SILVER SLUGGER 
+13 | 10TH IN NL BA |  10TH IN NL BA 
+14 | 45 HOME RUNS |  45 HR 
+15 | 110 RBI |  110 RBI 
+16 | 181 HITS |  181 HITS 
+17 | .319 BATTING AVG |  .319 BA 
+18 | .441 OBP |  .441 OBP 
+19 | .633 SLG% |  .633 SLG% 
+
+Note that in the final version for the 2004 set, _NL MVP_ is shown despite it being ranked 5th. This is because the prior accolades would have been cut-off in the image!
 
 ### **Nationality**
 
