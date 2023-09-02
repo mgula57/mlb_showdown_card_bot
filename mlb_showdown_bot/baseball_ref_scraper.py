@@ -1047,11 +1047,11 @@ class BaseballReferenceScraper:
         """
 
         # SET DEFAULTS FOR EMPTY DATA, BASED ON SLG
-        slg_percentile = self.__percentile(minValue=0.230, maxValue=0.500, value=slg)
+        slg_percentile = self.__percentile(minValue=0.250, maxValue=0.500, value=slg)
         multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
         default_gb_ao_ratio = round(1.5 * max(multiplier, 0.5),3)
         default_pu_ratio = round(0.16 * max(multiplier, 0.5),3)
-        
+
         if ratio_row is None:
             # USE DEFAULTS
             gb_ao_ratio = default_gb_ao_ratio
