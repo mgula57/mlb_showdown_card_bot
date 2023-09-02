@@ -66,7 +66,9 @@ class ShowdownPlayerCard:
         # ADD OPS IF NOT IN DICT (< 1900 CARDS)
         if 'onbase_plus_slugging' not in stats.keys() and 'slugging_perc' in stats.keys() and 'onbase_perc' in stats.keys():
             stats['onbase_plus_slugging'] = stats['slugging_perc'] + stats['onbase_perc']
-            
+        # REDUCE IF/FB FOR 1988
+        if 'IF/FB' in stats.keys() and year == '1988':
+            stats['IF/FB'] = stats.get('IF/FB', 0.0) * sc.PU_MULTIPLIER_1988
         self.stats = stats
         self.source = source
         self.league = stats.get('lg_ID', 'MLB')
@@ -842,6 +844,10 @@ class ShowdownPlayerCard:
             if len(accolade_list) == 0:
                 continue
 
+            # DOES NOT MATCH PLAYER TYPE
+            if (accolade_class.is_hitter_exclusive and self.is_pitcher) or (accolade_class.is_pitcher_exclusive and not self.is_pitcher):
+                continue
+
             league_and_stat = f"{self.league} {accolade_class.title}"
             match accolade_class.value_type:
                 case "AWARD (PLACEMENT, PCT)":
@@ -883,6 +889,10 @@ class ShowdownPlayerCard:
 
         # -- PART 2: STAT NUMBERS --
 
+        # CREATE LIST OF CURRENT ACCOLADES
+        # USED TO FILTER OUT REDUNDANCIES
+        current_accolades = [at[0] for at in accolades_rank_and_priority_tuples]
+
         # PITCHERS ----
         if self.is_pitcher:
             
@@ -890,63 +900,65 @@ class ShowdownPlayerCard:
             if is_starter:
                 # WINS
                 wins = self.stats.get('W', 0)
-                if wins > 14:
+                if wins > 14 and not self.is_substring_in_list('WINS',current_accolades):
                     accolades_rank_and_priority_tuples.append( (f"{wins} WINS", 50, 10) )
             else:
                 # SAVES
                 saves = self.stats.get('SV', 0)
-                if saves > 20:
+                if saves > 20 and not self.is_substring_in_list('SAVES',current_accolades):
                     accolades_rank_and_priority_tuples.append( (f"{saves} SAVES", 51, 10) )
             
             # ERA
             era_2_decimals = '%.2f' % self.stats.get('earned_run_avg', 0.0)
-            accolades_rank_and_priority_tuples.append( (f"{era_2_decimals} ERA", 52, 10) )
+            if not self.is_substring_in_list('ERA',current_accolades):
+                accolades_rank_and_priority_tuples.append( (f"{era_2_decimals} ERA", 52, 10) )
 
             # WHIP
             whip = self.stats.get('whip', 0.000)
-            accolades_rank_and_priority_tuples.append( (f"{whip} WHIP", 53, 10) )
+            if not self.is_substring_in_list('WHIP',current_accolades):
+                accolades_rank_and_priority_tuples.append( (f"{whip} WHIP", 53, 10) )
         
         else:
         # HITTERS ----
             # HOME RUNS
             hr = self.stats.get('HR', 0)
-            if hr >= (15 if self.year == 2020 else 30):
+            if hr >= (15 if self.year == 2020 else 30) and not self.is_substring_in_list('HR',current_accolades):
                 hr_suffix = "HR" if self.context in ['2004','2005'] else 'HOME RUNS'
                 accolades_rank_and_priority_tuples.append( (f"{hr} {hr_suffix}", 50, 10) )
             # RBI
             rbi = self.stats.get('RBI', 0)
-            if rbi >= 100:
+            if rbi >= 100 and not self.is_substring_in_list('RBI',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{rbi} RBI", 51, 10) )
             # HITS
             hits = self.stats.get('H', 0)
-            if hits >= 175:
+            if hits >= 175 and not self.is_substring_in_list('HITS',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{hits} HITS", 52, 10) )
             # BATTING AVG
             ba = self.stats.get('batting_avg', 0.00)
-            if ba >= 0.300:
+            if ba >= 0.300 and not self.is_substring_in_list('BA',current_accolades):
                 ba_3_decimals = ('%.3f' % ba).replace('0.','.')
                 ba_suffix = "BA" if self.context in ['2004','2005'] else 'BATTING AVG'
                 accolades_rank_and_priority_tuples.append( (f"{ba_3_decimals} {ba_suffix}", 53, 10) )
             # OBP
             obp = self.stats.get('onbase_perc', 0.00)
-            if obp >= 0.400:
+            if obp >= 0.400 and not self.is_substring_in_list('OBP',current_accolades):
                 obp_3_decimals = ('%.3f' % obp).replace('0.','.')
                 accolades_rank_and_priority_tuples.append( (f"{obp_3_decimals} OBP", 54, 10) )
             # SLG
             slg = self.stats.get('slugging_perc', 0.00)
-            if slg >= 0.550:
+            if slg >= 0.550 and not self.is_substring_in_list('SLG',current_accolades):
                 slg_3_decimals = ('%.3f' % slg).replace('0.','.')
                 accolades_rank_and_priority_tuples.append( (f"{slg_3_decimals} SLG%", 55, 10) )
             # dWAR
             dWAR = self.stats.get('dWAR', 0.00)
-            if float(dWAR) >= 2.5:
+            if float(dWAR) >= 2.5 and not self.is_substring_in_list('DWAR',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{dWAR} dWAR", 56, 10) )
         
         # GENERIC, ONLY IF EMPTY ----
         if len(accolades_rank_and_priority_tuples) < 2:
             # OPS+
             ops_plus = self.stats.get('onbase_plus_slugging_plus', None)
-            if ops_plus and not self.is_pitcher:
+            if ops_plus and not self.is_pitcher and not self.is_substring_in_list('OPS+',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{int(ops_plus)} OPS+", 57, 10) )
             # bWAR
             bWAR = self.stats.get('bWAR', None)
@@ -1240,7 +1252,7 @@ class ShowdownPlayerCard:
 
         return best_chart, projected_stats_for_best_chart
 
-    def __chart_with_accuracy(self, command, outs, stats_for_400_pa, era_override:str = None):
+    def __chart_with_accuracy(self, command, outs, stats_for_400_pa:dict, era_override:str = None):
         """Create Player's chart and compare back to input stats.
 
         Args:
@@ -1301,8 +1313,8 @@ class ShowdownPlayerCard:
         chart['so'] = max_hitter_so if not self.is_pitcher and chart['so'] > max_hitter_so else chart['so']
         out_slots_remaining = outs - float(chart['so'])
         chart['pu'], chart['gb'], chart['fb'] = self.__out_results(
-                                                    stats_for_400_pa['GO/AO'],
-                                                    stats_for_400_pa['IF/FB'],
+                                                    stats_for_400_pa.get('GO/AO', 1.0),
+                                                    stats_for_400_pa.get('IF/FB', 0.2),
                                                     out_slots_remaining,
                                                     era_override
                                                 )
@@ -1632,7 +1644,7 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
 
-    def __stats_per_n_pa(self,plate_appearances,stats):
+    def __stats_per_n_pa(self,plate_appearances,stats:dict):
         """Season stats per every n Plate Appearances.
 
         Args:
@@ -1646,12 +1658,6 @@ class ShowdownPlayerCard:
         # SUBTRACT SACRIFICES?
         sh = float(stats['SH'] if stats['SH'] != '' else 0)
         pct_of_n_pa = (float(stats['PA']) - sh) / plate_appearances
-        # GO/AO
-        try:
-            go_ao = float(stats['GO/AO'])
-        except:
-            # DEFAULT TO 1.0 FOR UNAVAILABLE YEARS
-            go_ao = 1.0
 
         # POPULATE DICT WITH VALUES UNCHANGED BY SHIFT IN PA
         stats_for_n_pa = {
@@ -1660,8 +1666,8 @@ class ShowdownPlayerCard:
             'slugging_perc': float(stats['slugging_perc']) if len(str(stats['slugging_perc'])) > 0 else 1.0,
             'onbase_perc': float(stats['onbase_perc']) if len(str(stats['onbase_perc'])) > 0 else 1.0,
             'batting_avg': float(stats['batting_avg']) if len(str(stats['batting_avg'])) > 0 else 1.0,
-            'IF/FB': float(stats['IF/FB']),
-            'GO/AO': go_ao
+            'IF/FB': stats.get('IF/FB', 0.2),
+            'GO/AO': stats.get('GO/AO', 1.0),
         }
 
         # ADD RESULT OCCURANCES PER N PA
@@ -2280,6 +2286,14 @@ class ShowdownPlayerCard:
           String representation of hex color code
         """
         return '#' + ''.join(f'{i:02X}' for i in rgbs[0:3])
+
+    def is_substring_in_list(self, substring:str, str_list: list[str]) -> bool:
+        """Check to see if the substring is in ANY of the list of strings"""
+        for string in str_list:
+            if substring in string:
+                return True
+        
+        return False
 
 # ------------------------------------------------------------------------
 # OUTPUT PLAYER METHODS
@@ -4030,14 +4044,14 @@ class ShowdownPlayerCard:
             # SLOT MAX CHARACTERS
             slot_max_characters_dict = {
                 '1': (15 if is_after_03 else 19),
-                '2': (14 if is_after_03 else 19),
+                '2': (15 if is_after_03 else 19),
                 '3': (10 if is_after_03 else 19),
             }
 
             # ACCOLADES
             accolades_list = self.__accolades()
             x_position = 18 if is_after_03 else 9
-            x_incremental = 8 if is_after_03 else 6
+            x_incremental = 8 if is_after_03 else 3
             y_position = 338 if is_after_03 else 324
             accolade_rotation = 15 if is_after_03 else 13
             accolade_spacing = 41 if is_after_03 else 72

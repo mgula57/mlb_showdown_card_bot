@@ -275,6 +275,7 @@ PU_MULTIPLIER = {
     CLASSIC_SET: 2.5,
     EXPANDED_SET: 2.4,
 }
+PU_MULTIPLIER_1988 = 0.5 # PU WERE SKEWED IN 1988, REDUCE THEIR % BY 40%
 # THIS GB MULTIPLIER IS A MORE SIMPLE MODE OF ADJUSTMENT.
 # REPLACE HAVING DEFAULT GB AND FB FOR OPPONENT CHART
 GB_MULTIPLIER = {
@@ -16893,6 +16894,14 @@ class Accolade(Enum):
            "SHUTOUTS","CG","WIN_LOSS_PERC","SO9","FIP",
            "ALL_STAR",
         ]
+    
+    @property
+    def is_pitcher_exclusive(self) -> bool:
+        return self.name in ["CY_YOUNG","ERA","SAVES","SO","WHIP","WINS","IP","ERA_PLUS","SHUTOUTS","CG","WIN_LOSS_PERC","SO9","FIP",]
+    
+    @property
+    def is_hitter_exclusive(self) -> bool:
+        return self.name in ["SILVER_SLUGGER","GOLD_GLOVE","HR","BA","OBP","SLG","OPS","DOUBLES","TRIPLES","RBI","SB","WALKS","HITS","RUNS","TOTAL_BASES","OPS_PLUS",]
 
     @property 
     def rank(self) -> int:

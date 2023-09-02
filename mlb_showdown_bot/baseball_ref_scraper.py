@@ -1046,26 +1046,29 @@ class BaseballReferenceScraper:
           Dict with ratio statistics.
         """
 
+        # SET DEFAULTS FOR EMPTY DATA, BASED ON SLG
+        slg_percentile = self.__percentile(minValue=0.230, maxValue=0.500, value=slg)
+        multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
+        default_gb_ao_ratio = round(1.5 * max(multiplier, 0.5),3)
+        default_pu_ratio = round(0.16 * max(multiplier, 0.5),3)
+        
         if ratio_row is None:
-            # DEFAULT TO 50 / 50 SPLIT
-            slg_percentile = self.__percentile(minValue=0.3, maxValue=0.5, value=slg)
-            multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
-            gb_ao_ratio = 1.5 * max(multiplier, 0.5)
-            pu_ratio = 0.16 * max(multiplier, 0.5)
+            # USE DEFAULTS
+            gb_ao_ratio = default_gb_ao_ratio
+            pu_ratio = default_pu_ratio
         else:
             gb_ao_ratio_raw = ratio_row.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
             try:
                 gb_ao_ratio = float(gb_ao_ratio_raw)
             except:
-                gb_ao_ratio = 1.0
+                gb_ao_ratio = default_gb_ao_ratio
             pu_ratio_raw = ratio_row.find('td',attrs={'class':'right','data-stat': 'infield_fb_perc'})
             if pu_ratio_raw:
                 # PU RATIO DATA AVAILABLE AFTER 1988
                 pu_ratio_text = pu_ratio_raw.get_text()
-                pu_ratio_text_cleaned = '20' if pu_ratio_text == '' else pu_ratio_text
-                pu_ratio = int(pu_ratio_text_cleaned.replace('%','')) / 100.0
+                pu_ratio = default_pu_ratio if pu_ratio_text == '' else round(int(pu_ratio_text.replace('%','')) / 100.0, 3)
             else:
-                pu_ratio = 0.20
+                pu_ratio = default_pu_ratio
 
         return {
             'GO/AO': gb_ao_ratio,
