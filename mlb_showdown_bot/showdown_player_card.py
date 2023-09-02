@@ -4201,7 +4201,8 @@ class ShowdownPlayerCard:
         if self.context == '2000':
             # MOVE LOGO ABOVE TEAM LOGO AND SLIGHTLY TO THE LEFT
             y_movement = -35 if self.edition == sc.Edition.SUPER_SEASON else 0
-            paste_coordinates = (paste_coordinates[0] - 25, paste_coordinates[1] + y_movement)
+            x_movement = -35 if self.edition == sc.Edition.SUPER_SEASON else 0
+            paste_coordinates = (paste_coordinates[0] - 25 + x_movement, paste_coordinates[1] + y_movement)
 
         # ADD LOGO
         match self.edition:
@@ -4215,7 +4216,7 @@ class ShowdownPlayerCard:
             case sc.Edition.SUPER_SEASON:
                 super_season_img = self.__super_season_image()
                 paste_coordinates_x, paste_coordinates_y = paste_coordinates
-                paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 150)
+                paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 220)
                 image.paste(super_season_img, self.__coordinates_adjusted_for_bordering(paste_coordinates), super_season_img)
             case sc.Edition.ROOKIE_SEASON:
                 rs_logo = self.__rookie_season_image()

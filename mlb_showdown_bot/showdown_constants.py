@@ -3930,7 +3930,7 @@ IMAGE_LOCATIONS = {
         '2022': (1000,2020),
     },
     'super_season': {
-        '2000': (1200,1035),
+        '2000': (1200,900),
         '2001': (78,1584),
         '2002': (45,1113),
         '2003': (1041,786),
@@ -4026,8 +4026,8 @@ IMAGE_SIZES = {
         '2022': (900, 300),
     },
     'super_season': {
-        '2000': (273,420),
-        '2001': (273,420),
+        '2000': (312,480),
+        '2001': (312,480),
         '2002': (468,720),
         '2003': (390,600),
         '2004': (339,522),
@@ -16873,7 +16873,7 @@ class Accolade(Enum):
     @property
     def awards_to_keep(self) -> list[str]:
         """Defines which award substrings to keep when looking at the AWARDS element"""
-        return ["CY YOUNG", "MVP", "ROOKIE OF THE YEAR", ]
+        return ["CY YOUNG", "NL MVP", "AL MVP", "ROOKIE OF THE YEAR", ]
     
     @property
     def title(self) -> str:
