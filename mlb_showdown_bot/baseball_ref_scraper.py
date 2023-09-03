@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import json
 import string
+import math
 import statistics
 import operator
 from bs4 import BeautifulSoup
@@ -24,7 +25,7 @@ class BaseballReferenceScraper:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year):
+    def __init__(self, name, year, ignore_cache:bool=False):
 
         self.year_input = year.upper()
         is_full_career = year.upper() == 'CAREER'
@@ -45,6 +46,7 @@ class BaseballReferenceScraper:
         self.name = name
         self.error = None
         self.source = None
+        self.ignore_cache = ignore_cache
         
         # PARSE MULTI YEARS
         if isinstance(year, list):
@@ -1046,29 +1048,21 @@ class BaseballReferenceScraper:
           Dict with ratio statistics.
         """
 
-        # SET DEFAULTS FOR EMPTY DATA, BASED ON SLG
-        slg_percentile = self.__percentile(minValue=0.250, maxValue=0.500, value=slg)
-        multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
-        default_gb_ao_ratio = round(1.5 * max(multiplier, 0.5),3)
-        default_pu_ratio = round(0.16 * max(multiplier, 0.5),3)
-
-        if ratio_row is None:
-            # USE DEFAULTS
-            gb_ao_ratio = default_gb_ao_ratio
-            pu_ratio = default_pu_ratio
-        else:
+        gb_ao_ratio = None
+        pu_ratio = None
+        if ratio_row is not None:
+            # GB/AO
             gb_ao_ratio_raw = ratio_row.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
             try:
                 gb_ao_ratio = float(gb_ao_ratio_raw)
             except:
-                gb_ao_ratio = default_gb_ao_ratio
+                gb_ao_ratio = None
+            # PU/FB
             pu_ratio_raw = ratio_row.find('td',attrs={'class':'right','data-stat': 'infield_fb_perc'})
             if pu_ratio_raw:
                 # PU RATIO DATA AVAILABLE AFTER 1988
                 pu_ratio_text = pu_ratio_raw.get_text()
-                pu_ratio = default_pu_ratio if pu_ratio_text == '' else round(int(pu_ratio_text.replace('%','')) / 100.0, 3)
-            else:
-                pu_ratio = default_pu_ratio
+                pu_ratio = None if pu_ratio_text == '' else round(int(pu_ratio_text.replace('%','')) / 100.0, 3)
 
         return {
             'GO/AO': gb_ao_ratio,
@@ -1230,14 +1224,15 @@ class BaseballReferenceScraper:
         columns_to_remove = list(set(column_aggs.keys()) - set(yearPd.columns))
         if max(self.years) < 2015:
             columns_to_remove.append('sprint_speed')
-        [column_aggs.pop(key) for key in columns_to_remove]
-
+        [column_aggs.pop(key) for key in columns_to_remove if key in column_aggs.keys()]
         avg_year = yearPd.groupby(by='name',as_index=False).agg(column_aggs)
         # CALCULATE RATES
         avg_year["batting_avg"] = round(avg_year['H'] / float(avg_year['AB']),3)
         avg_year["onbase_perc"] = round((avg_year['H'] + avg_year['BB'] + avg_year['HBP']) / float(avg_year['AB'] + avg_year['BB'] + avg_year['HBP'] + avg_year['SF']),3)
         avg_year["slugging_perc"] = round(avg_year['TB'] / avg_year['AB'],3)
         avg_year["onbase_plus_slugging"] = round(avg_year["onbase_perc"] + avg_year["slugging_perc"],3)
+        avg_year['IF/FB'] = None if math.isnan(avg_year['IF/FB']) else avg_year['IF/FB']
+        avg_year['GO/AO'] = None if math.isnan(avg_year['GO/AO']) else avg_year['GO/AO']
 
         avg_year_dict = avg_year.iloc[0].to_dict()
 
@@ -1463,7 +1458,7 @@ class BaseballReferenceScraper:
         full_path = os.path.join(folder_path, filename)
 
         # RETURN NONE IF FILE DOES NOT EXIST
-        if not os.path.isfile(full_path):
+        if not os.path.isfile(full_path) or self.ignore_cache:
             return None
         
         # RETURN NONE IF FILE IS OVER 10 MINS OLD

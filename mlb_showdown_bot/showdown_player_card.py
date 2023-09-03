@@ -1313,10 +1313,11 @@ class ShowdownPlayerCard:
         chart['so'] = max_hitter_so if not self.is_pitcher and chart['so'] > max_hitter_so else chart['so']
         out_slots_remaining = outs - float(chart['so'])
         chart['pu'], chart['gb'], chart['fb'] = self.__out_results(
-                                                    stats_for_400_pa.get('GO/AO', 1.0),
-                                                    stats_for_400_pa.get('IF/FB', 0.2),
-                                                    out_slots_remaining,
-                                                    era_override
+                                                    gb_pct=stats_for_400_pa.get('GO/AO', None),
+                                                    popup_pct=stats_for_400_pa.get('IF/FB', None),
+                                                    out_slots_remaining=out_slots_remaining,
+                                                    slg=stats_for_400_pa.get('slugging_perc', None),
+                                                    era_override=era_override
                                                 )
         # CALCULATE HOW MANY SPOTS ARE LEFT TO FILL 1B AND 1B+
         remaining_slots = 20
@@ -1355,18 +1356,26 @@ class ShowdownPlayerCard:
 
         return chart, accuracy, in_game_stats_for_400_pa
 
-    def __out_results(self, gb_pct, popup_pct, out_slots_remaining, era_override:str = None):
+    def __out_results(self, gb_pct, popup_pct, out_slots_remaining, slg:float, era_override:str = None):
         """Determine distribution of out results for Player.
 
         Args:
           gb_pct: Percent Ground Outs vs Air Outs.
           popup_pct: Percent hitting into a popup.
           out_slots_remaining: Total # Outs - SO
+          slg: Real-life stats slugging percent.
           era_override: Optionally override the era used for baseline opponents.
 
         Returns:
           Tuple of PU, GB, FB out result ints.
         """
+
+        # SET DEFAULTS FOR EMPTY DATA, BASED ON SLG
+        if gb_pct is None or popup_pct is None:
+            slg_percentile = self.stat_percentile(stat=slg, min_max_dict={'min': 0.250, 'max': 0.500})
+            multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
+            gb_pct = gb_pct if gb_pct else round(1.5 * max(multiplier, 0.5),3)
+            popup_pct = popup_pct if popup_pct else round(0.16 * max(multiplier, 0.5),3)
 
         era = era_override if era_override else self.era
         if out_slots_remaining > 0:
