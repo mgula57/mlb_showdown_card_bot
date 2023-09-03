@@ -213,6 +213,7 @@ def card_creator():
         set_yr_p1 = request.args.get('set_year_plus_one').lower() == 'true' if request.args.get('set_year_plus_one') else False
         hide_team = request.args.get('hide_team_logo').lower() == 'true' if request.args.get('hide_team_logo') else False
         ignore_sl = request.args.get('ignore_showdown_library').lower() == 'true' if request.args.get('ignore_showdown_library') else False
+        ignore_cache = request.args.get('ignore_cache').lower() == 'true' if request.args.get('ignore_cache') else False
         image_parallel_txt = str(request.args.get('parallel', 'NONE'))
         is_random = name.upper() == '((RANDOM))'
         if is_random:
@@ -221,7 +222,7 @@ def card_creator():
 
         # LOAD PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
-        scraper = BaseballReferenceScraper(name=name,year=year)
+        scraper = BaseballReferenceScraper(name=name,year=year,ignore_cache=ignore_cache)
         img_url = None if url == '' else url
         img_name = None if img == '' else img
         set_number = set_num

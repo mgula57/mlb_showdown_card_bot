@@ -35,6 +35,7 @@ parser.add_argument('-yc','--add_year_container', action='store_true', help='Opt
 parser.add_argument('-sypls','--set_year_plus_one', action='store_true', help='Optionally add one to the set year on 04/05 set.')
 parser.add_argument('-htl','--hide_team_logo', action='store_true', help='Optionally remove all team logos and branding.')
 parser.add_argument('-isl','--ignore_showdown_library', action='store_true', help='Optionally force ignore Showdown Library, will create card live.')
+parser.add_argument('-ic','--ignore_cache', action='store_true', help='Ignore local cache')
 
 args = parser.parse_args()
 
@@ -46,7 +47,7 @@ def main():
     context = args.context
     command_out_override = None if args.co_override == '' else tuple([int(x) for x in args.co_override.split('-')])
 
-    scraper = BaseballReferenceScraper(name=name,year=year)
+    scraper = BaseballReferenceScraper(name=name,year=year,ignore_cache=args.ignore_cache)
 
     # CHECK FOR STATS IN SHOWDOWN LIBRARY
     db = Firebase()
