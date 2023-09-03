@@ -54,6 +54,10 @@ if __name__ == "__main__":
                     print_to_cli=False
                 )
                 showdown.card_image()
+                if showdown.img_loading_error:
+                    result = 'FAILED'
+                    failures += 1
+                    error_messages.append(f'{name}-{set}: {showdown.img_loading_error}')
         except Exception as e:
             result = 'FAILED'
             failures += 1
