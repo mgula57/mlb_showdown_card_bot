@@ -970,9 +970,8 @@ class ShowdownPlayerCard:
                 except:
                     continue
                 ordinal_rank = self.ordinal(award_placement_int).upper()
-                year = f"{self.year} " if num_seasons > 1 else ''
                 league = f"{self.league} " if self.league != 'MLB' else ''
-                accolade_str = f"{ordinal_rank} IN {year}{league}ROY"
+                accolade_str = f"{ordinal_rank} IN {league}ROY"
                 accolades_rank_and_priority_tuples.append( (accolade_str, sc.Accolade.AWARDS.rank, award_placement_int) )
                     
         # CREATE LIST OF CURRENT ACCOLADES
@@ -4135,7 +4134,7 @@ class ShowdownPlayerCard:
         expansion_image = Image.open(self.__template_img_path(f'{self.template_set_year}-{self.expansion}'))
         return expansion_image
 
-    def __super_season_image(self) -> tuple[Image, int]:
+    def __super_season_image(self) -> tuple:
         """Creates image for optional super season attributes. Add accolades for
            cards in set > 2001.
 
