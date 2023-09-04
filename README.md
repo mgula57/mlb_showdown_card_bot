@@ -508,7 +508,7 @@ Custom player art is available in 2003, 2004, and 2005 sets. 2022 sets will use 
 
 Super Seasons highlight outstanding single season performances throughout baseball history. A custom super season logo may replace the player's team logo, and certain years add a list of up to 3 accolades. 2004 and 2005 sets feature a special red template, as well as a grid pattern in the background of all showdown library sourced player images.
 
-Here are the possible accolades, ordered by priority. 
+Below are the possible accolades, ordered by priority. Multi-year cards follow a similar pattern, however will aggregate cross-year accolades together (ex: 7X ALL STAR).
 
 ** _Note if the accolade's text is too long and does not fit within the image, it will excluded._
 
@@ -601,12 +601,8 @@ Rank | 2000-2002 Sets | 2003-2005 Sets
 11 | 7TH IN NL 2B |  7TH IN NL RUNS 
 12 | 7TH IN NL RUNS |  SILVER SLUGGER 
 13 | 10TH IN NL BA |  10TH IN NL BA 
-14 | 45 HOME RUNS |  45 HR 
-15 | 110 RBI |  110 RBI 
-16 | 181 HITS |  181 HITS 
-17 | .319 BATTING AVG |  .319 BA 
-18 | .441 OBP |  .441 OBP 
-19 | .633 SLG% |  .633 SLG% 
+14 | 110 RBI |  110 RBI 
+15 | 181 HITS |  181 HITS 
 
 Note that in the final version for the 2004 set, _NL MVP_ is shown despite it being ranked 5th. This is because the prior accolades would have been cut-off in the image!
 
