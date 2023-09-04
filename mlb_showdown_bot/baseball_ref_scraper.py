@@ -47,6 +47,7 @@ class BaseballReferenceScraper:
         self.error = None
         self.source = None
         self.ignore_cache = ignore_cache
+        self.load_time = None
         
         # PARSE MULTI YEARS
         if isinstance(year, list):
@@ -217,6 +218,8 @@ class BaseballReferenceScraper:
           Dict with all categories and stats.
         """
 
+        start_time = datetime.now()
+
         # CHECK IN LOCAL CACHE
         years_as_str = '-'.join([str(y) for y in self.years])
         override_type = f"{f'-{self.pitcher_override}' if self.pitcher_override else ''}{f'-{self.hitter_override}' if self.hitter_override else ''}"
@@ -225,6 +228,8 @@ class BaseballReferenceScraper:
         cached_data = self.load_cached_data(cached_filename)
         if cached_data:
             self.source = 'Local Cache'
+            end_time = datetime.now()
+            self.load_time = round((end_time - start_time).total_seconds(),2)
             return cached_data
         
         # STANDARD STATS PAGE HAS MOST RELEVANT STATS NEEDED
@@ -335,6 +340,11 @@ class BaseballReferenceScraper:
         # SAVE DATA        
         self.source = f"Baseball Reference{'/Baseball Savant' if is_data_from_statcast else ''}"
         self.__cache_data_locally(data=stats_dict, filename=cached_filename)
+        
+        # CALC LOAD TIME
+        end_time = datetime.now()
+        self.load_time = round((end_time - start_time).total_seconds(),2)
+        
         return stats_dict
 
     def positional_fielding(self, soup_for_homepage_stats, year):

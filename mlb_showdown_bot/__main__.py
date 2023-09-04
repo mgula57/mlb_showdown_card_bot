@@ -107,6 +107,8 @@ def main():
             era=args.era,
             source = scraper.source
         )
+        total_load_time = (scraper.load_time if scraper.load_time else 0.00) + (showdown.load_time if showdown.load_time else 0.00)
+        print(f"LOAD TIME: {total_load_time}s")
 
 if __name__ == "__main__":
     main()

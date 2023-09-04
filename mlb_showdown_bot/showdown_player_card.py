@@ -110,8 +110,10 @@ class ShowdownPlayerCard:
         self.stats_version = int(offset)
         self.rank = {}
         self.pct_rank = {}
+        self.load_time = None
 
         if run_stats:
+
             # DERIVED ATTRIBUTES
             self.is_pitcher = True if stats['type'] == 'Pitcher' else False
             self.team = stats['team_ID']
@@ -1047,8 +1049,6 @@ class ShowdownPlayerCard:
 
         sorted_tuples = sorted(accolades_rank_and_priority_tuples, key=lambda t: (t[2],t[1]))
         sorted_accolades = [tup[0] for tup in sorted_tuples]
-
-        pprint(sorted_tuples)
 
         return sorted_accolades[0:maximum] if maximum else sorted_accolades
 
@@ -2870,13 +2870,15 @@ class ShowdownPlayerCard:
           None
         """
 
+        start_time = datetime.now()
+
         # CHECK IF IMAGE EXISTS ALREADY IN CACHE
         cached_img_link = self.cached_img_link()
         if cached_img_link:
             # LOAD DIRECTLY FROM GOOGLE DRIVE
             response = requests.get(cached_img_link)
             card_image = Image.open(BytesIO(response.content))
-            self.save_image(image=card_image, show=show, disable_add_border=True)
+            self.save_image(image=card_image, start_time=start_time, show=show, disable_add_border=True)
             return
         
         # BACKGROUND IMAGE
@@ -2986,13 +2988,14 @@ class ShowdownPlayerCard:
         if self.img_loading_error:
             print(self.img_loading_error)
 
-        self.save_image(image=card_image, show=show, img_name_suffix=img_name_suffix)
+        self.save_image(image=card_image, start_time=start_time, show=show, img_name_suffix=img_name_suffix)
 
-    def save_image(self, image, show=False, img_name_suffix=''):
+    def save_image(self, image, start_time:datetime, show=False, img_name_suffix=''):
         """Stores image in proper folder depending on the context of the run.
 
         Args:
           image: PIL image object
+          start_time: Datetime in which card image processing began.
           show: Boolean flag for whether to open the final image after creation.
           disable_add_border: Optional flag to skip border addition.
           img_name_suffix: Optional suffix added to the image name.
@@ -3021,6 +3024,10 @@ class ShowdownPlayerCard:
             image.show(title=image_title)
 
         self.__clean_images_directory()
+
+        # CALCULATE LOAD TIME
+        end_time = datetime.now()
+        self.load_time = round((end_time - start_time).total_seconds(),2)
 
     def __background_image(self) -> Image:
         """Loads background image for card. Either loads from upload, url, or default
@@ -4142,7 +4149,7 @@ class ShowdownPlayerCard:
             # ACCOLADES
             accolades_list = self.__accolades()
             x_position = 18 if is_after_03 else 9
-            x_incremental = 10 if is_after_03 else 3
+            x_incremental = 10 if is_after_03 else 1
             y_position = 338 if is_after_03 else 324
             accolade_rotation = 15 if is_after_03 else 13
             accolade_spacing = 41 if is_after_03 else 72
