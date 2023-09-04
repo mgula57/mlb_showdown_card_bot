@@ -3406,7 +3406,7 @@ class ShowdownPlayerCard:
 
         # OVERRIDE IF SUPER SEASON
         if self.edition == sc.Edition.SUPER_SEASON and not is_00_01:
-            team_logo = self.__super_season_image()
+            team_logo, _ = self.__super_season_image()
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context_year)]
 
         # ADD YEAR TEXT IF COOPERSTOWN
@@ -4116,7 +4116,7 @@ class ShowdownPlayerCard:
         expansion_image = Image.open(self.__template_img_path(f'{self.template_set_year}-{self.expansion}'))
         return expansion_image
 
-    def __super_season_image(self):
+    def __super_season_image(self) -> tuple[Image, int]:
         """Creates image for optional super season attributes. Add accolades for
            cards in set > 2001.
 
@@ -4124,7 +4124,9 @@ class ShowdownPlayerCard:
           None
 
         Returns:
-          PIL image object for super season logo + text.
+          Tuple with:
+            PIL image object for super season logo + text.
+            Y Adjustment for paste coordinates (applies to 00/01)
         """
 
         is_after_03 = self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET]
@@ -4221,9 +4223,12 @@ class ShowdownPlayerCard:
         year_color = "#ffffff" if self.context in sc.CLASSIC_AND_EXPANDED_SETS else "#982319"
         super_season_image.paste(year_color,year_paste_coords,year_text)
 
+        # ADJUSTMENTS TO 00/01 Y COORDINATES
+        y_coord_adjustment = ( (3 - num_accolades) * 55 ) if self.context in ['2000','2001'] and num_accolades < 3 else 0
+
         # RESIZE
         super_season_image = super_season_image.resize(sc.IMAGE_SIZES['super_season'][self.context_year], Image.ANTIALIAS)
-        return super_season_image
+        return super_season_image, y_coord_adjustment
 
     def __rookie_season_image(self):
         """Creates image for optional rookie season logo.
@@ -4336,9 +4341,9 @@ class ShowdownPlayerCard:
                 logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.ANTIALIAS)
                 image.paste(logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), logo)
             case sc.Edition.SUPER_SEASON:
-                super_season_img = self.__super_season_image()
+                super_season_img, y_adjustment = self.__super_season_image()
                 paste_coordinates_x, paste_coordinates_y = paste_coordinates
-                paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 220)
+                paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 220 + y_adjustment)
                 image.paste(super_season_img, self.__coordinates_adjusted_for_bordering(paste_coordinates), super_season_img)
             case sc.Edition.ROOKIE_SEASON:
                 rs_logo = self.__rookie_season_image()
