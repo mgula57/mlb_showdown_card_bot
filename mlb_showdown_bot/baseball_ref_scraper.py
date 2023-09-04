@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import json
 import string
+import math
 import statistics
 import operator
 from bs4 import BeautifulSoup
@@ -24,7 +25,9 @@ class BaseballReferenceScraper:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year):
+    def __init__(self, name, year, ignore_cache:bool=False):
+
+        self.year_input = year.upper()
         is_full_career = year.upper() == 'CAREER'
         if is_full_career:
             year = 'CAREER'
@@ -43,6 +46,8 @@ class BaseballReferenceScraper:
         self.name = name
         self.error = None
         self.source = None
+        self.ignore_cache = ignore_cache
+        self.load_time = None
         
         # PARSE MULTI YEARS
         if isinstance(year, list):
@@ -213,6 +218,8 @@ class BaseballReferenceScraper:
           Dict with all categories and stats.
         """
 
+        start_time = datetime.now()
+
         # CHECK IN LOCAL CACHE
         years_as_str = '-'.join([str(y) for y in self.years])
         override_type = f"{f'-{self.pitcher_override}' if self.pitcher_override else ''}{f'-{self.hitter_override}' if self.hitter_override else ''}"
@@ -221,6 +228,8 @@ class BaseballReferenceScraper:
         cached_data = self.load_cached_data(cached_filename)
         if cached_data:
             self.source = 'Local Cache'
+            end_time = datetime.now()
+            self.load_time = round((end_time - start_time).total_seconds(),2)
             return cached_data
         
         # STANDARD STATS PAGE HAS MOST RELEVANT STATS NEEDED
@@ -290,23 +299,25 @@ class BaseballReferenceScraper:
                 stats_dict['team_ID'] = team_id
 
             # FULL CAREER
+            is_hitter = type == 'Hitter'
             if is_full_career:
                 stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats)
                 sprint_speed_list = []
-                for year in years_played:
-                    sprint_speed = self.statcast_sprint_speed(name=name, year=year)
-                    if sprint_speed:
-                        sprint_speed_list.append(sprint_speed)
+                if is_hitter:
+                    for year in years_played:
+                        sprint_speed = self.statcast_sprint_speed(name=name, year=year)
+                        if sprint_speed:
+                            sprint_speed_list.append(sprint_speed)
                 if len(sprint_speed_list) > 0:
                     stats_dict['sprint_speed'] = sum(sprint_speed_list) / len(sprint_speed_list)
                 else:
                     stats_dict['sprint_speed'] = None
-            else:
+            elif is_hitter:
                 stats_dict['sprint_speed'] = self.statcast_sprint_speed(name=name, year=year)
             is_data_from_statcast = stats_dict.get('sprint_speed', None) is not None
 
             # OUTS ABOVE AVERAGE (2016+)
-            if 'outs_above_avg' not in stats_dict.keys(): # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
+            if 'outs_above_avg' not in stats_dict.keys() and is_hitter: # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
                 years_list = years_played if is_full_career else self.years
                 years_as_ints = [int(y) for y in years_list]
                 stats_dict['outs_above_avg'] = self.statcast_outs_above_average_dict(name=name, years=years_as_ints)
@@ -322,10 +333,18 @@ class BaseballReferenceScraper:
             # COMBINE INDIVIDUAL YEAR DATA
             stats_dict.update(self.__combine_multi_year_dict(master_stats_dict))
             stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=self.years)
+        
+        # PARSE ACCOLADES IN TOTAL
+        stats_dict['accolades'] = self.__accolades_dict(soup_for_homepage_stats=soup_for_homepage_stats, years_included=self.years)
 
         # SAVE DATA        
         self.source = f"Baseball Reference{'/Baseball Savant' if is_data_from_statcast else ''}"
         self.__cache_data_locally(data=stats_dict, filename=cached_filename)
+        
+        # CALC LOAD TIME
+        end_time = datetime.now()
+        self.load_time = round((end_time - start_time).total_seconds(),2)
+        
         return stats_dict
 
     def positional_fielding(self, soup_for_homepage_stats, year):
@@ -581,6 +600,41 @@ class BaseballReferenceScraper:
         # NO ROOKIE STATUS WAS FOUND, RETURN NONE
         return False
     
+    def __accolades_dict(self, soup_for_homepage_stats: BeautifulSoup, years_included: list[str]) -> dict:
+        """Parse the "Leaderboards, Awards, Honors" section of bref.
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats from homepage.
+          years_included: List of years to filter for stats
+
+        Returns:
+          Boolean for whether the are in the Hall of Fame or not.
+        """
+        leaderboard_table_divs_list = soup_for_homepage_stats.find_all('div', attrs={'id': re.compile(f'leaderboard_')})
+
+        # RETURN EMPTY DICT IF NO LEADERBOARDS
+        if leaderboard_table_divs_list is None:
+            return {}
+
+        awards_and_accolades_dict = {}
+        for leaderboard_div in leaderboard_table_divs_list:
+            td_list_accolades = leaderboard_div.find_all('td')
+            category = leaderboard_div['id'].replace('leaderboard_','')
+            categories_included_list = [accolade.value for accolade in sc.Accolade]
+            if td_list_accolades is None or category not in categories_included_list:
+                continue
+            accolades_list_for_category = []
+            for td_row in td_list_accolades:
+                accolade_text = td_row.get_text().replace(u'\xa0', u' ').replace('  ', ' ').replace(u'\n','').replace(' *','').upper().strip()
+                is_year_match = len([year for year in years_included if str(year).upper() in accolade_text or str(year) == 'CAREER']) > 0
+                if is_year_match:
+                    accolades_list_for_category.append(accolade_text)
+            
+            if len(accolades_list_for_category) > 0:
+                awards_and_accolades_dict[category] = accolades_list_for_category
+
+        return awards_and_accolades_dict
+
     def type(self, positional_fielding, year):
         """Guess Player Type (Pitcher or Hitter) based on games played at each position.
 
@@ -1004,26 +1058,21 @@ class BaseballReferenceScraper:
           Dict with ratio statistics.
         """
 
-        if ratio_row is None:
-            # DEFAULT TO 50 / 50 SPLIT
-            slg_percentile = self.__percentile(minValue=0.3, maxValue=0.5, value=slg)
-            multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
-            gb_ao_ratio = 1.5 * max(multiplier, 0.5)
-            pu_ratio = 0.16 * max(multiplier, 0.5)
-        else:
+        gb_ao_ratio = None
+        pu_ratio = None
+        if ratio_row is not None:
+            # GB/AO
             gb_ao_ratio_raw = ratio_row.find('td',attrs={'class':'right','data-stat': 'go_ao_ratio'}).get_text()
             try:
                 gb_ao_ratio = float(gb_ao_ratio_raw)
             except:
-                gb_ao_ratio = 1.0
+                gb_ao_ratio = None
+            # PU/FB
             pu_ratio_raw = ratio_row.find('td',attrs={'class':'right','data-stat': 'infield_fb_perc'})
             if pu_ratio_raw:
                 # PU RATIO DATA AVAILABLE AFTER 1988
                 pu_ratio_text = pu_ratio_raw.get_text()
-                pu_ratio_text_cleaned = '20' if pu_ratio_text == '' else pu_ratio_text
-                pu_ratio = int(pu_ratio_text_cleaned.replace('%','')) / 100.0
-            else:
-                pu_ratio = 0.20
+                pu_ratio = None if pu_ratio_text == '' else round(int(pu_ratio_text.replace('%','')) / 100.0, 3)
 
         return {
             'GO/AO': gb_ao_ratio,
@@ -1185,14 +1234,15 @@ class BaseballReferenceScraper:
         columns_to_remove = list(set(column_aggs.keys()) - set(yearPd.columns))
         if max(self.years) < 2015:
             columns_to_remove.append('sprint_speed')
-        [column_aggs.pop(key) for key in columns_to_remove]
-
+        [column_aggs.pop(key) for key in columns_to_remove if key in column_aggs.keys()]
         avg_year = yearPd.groupby(by='name',as_index=False).agg(column_aggs)
         # CALCULATE RATES
         avg_year["batting_avg"] = round(avg_year['H'] / float(avg_year['AB']),3)
         avg_year["onbase_perc"] = round((avg_year['H'] + avg_year['BB'] + avg_year['HBP']) / float(avg_year['AB'] + avg_year['BB'] + avg_year['HBP'] + avg_year['SF']),3)
         avg_year["slugging_perc"] = round(avg_year['TB'] / avg_year['AB'],3)
         avg_year["onbase_plus_slugging"] = round(avg_year["onbase_perc"] + avg_year["slugging_perc"],3)
+        avg_year['IF/FB'] = None if math.isnan(avg_year['IF/FB']) else avg_year['IF/FB']
+        avg_year['GO/AO'] = None if math.isnan(avg_year['GO/AO']) else avg_year['GO/AO']
 
         avg_year_dict = avg_year.iloc[0].to_dict()
 
@@ -1418,7 +1468,7 @@ class BaseballReferenceScraper:
         full_path = os.path.join(folder_path, filename)
 
         # RETURN NONE IF FILE DOES NOT EXIST
-        if not os.path.isfile(full_path):
+        if not os.path.isfile(full_path) or self.ignore_cache:
             return None
         
         # RETURN NONE IF FILE IS OVER 10 MINS OLD

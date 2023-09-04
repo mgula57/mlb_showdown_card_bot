@@ -59,8 +59,10 @@ class CardLog(db.Model):
     team = db.Column(db.String(32))
     data_source = db.Column(db.String(64))
     image_source = db.Column(db.String(64))
+    scraper_load_time = db.Column(db.Numeric(10,2))
+    card_load_time = db.Column(db.Numeric(10,2))
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -96,8 +98,10 @@ class CardLog(db.Model):
         self.team = team
         self.data_source = data_source
         self.image_source = image_source
+        self.scraper_load_time = scraper_load_time
+        self.card_load_time = card_load_time
 
-def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source):
+def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -133,7 +137,9 @@ def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansi
             bref_id = bref_id,
             team = team,
             data_source = data_source,
-            image_source = image_source
+            image_source = image_source,
+            scraper_load_time=scraper_load_time,
+            card_load_time=card_load_time
         )
         db.session.add(card_log)
         db.session.commit()
@@ -182,6 +188,8 @@ def card_creator():
     team = None
     data_source = None
     image_source = None
+    scraper_load_time = None
+    card_load_time = None
 
     try:
         # PARSE INPUTS
@@ -213,6 +221,7 @@ def card_creator():
         set_yr_p1 = request.args.get('set_year_plus_one').lower() == 'true' if request.args.get('set_year_plus_one') else False
         hide_team = request.args.get('hide_team_logo').lower() == 'true' if request.args.get('hide_team_logo') else False
         ignore_sl = request.args.get('ignore_showdown_library').lower() == 'true' if request.args.get('ignore_showdown_library') else False
+        ignore_cache = request.args.get('ignore_cache').lower() == 'true' if request.args.get('ignore_cache') else False
         image_parallel_txt = str(request.args.get('parallel', 'NONE'))
         is_random = name.upper() == '((RANDOM))'
         if is_random:
@@ -221,7 +230,7 @@ def card_creator():
 
         # LOAD PLAYER DATA
         error = 'Error loading player data. Make sure the player name and year are correct'
-        scraper = BaseballReferenceScraper(name=name,year=year)
+        scraper = BaseballReferenceScraper(name=name,year=year,ignore_cache=ignore_cache)
         img_url = None if url == '' else url
         img_name = None if img == '' else img
         set_number = set_num
@@ -342,6 +351,8 @@ def card_creator():
         team = showdown.team
         data_source = showdown.source
         image_source = showdown.player_image_source
+        scraper_load_time = scraper.load_time
+        card_load_time = showdown.load_time
         shOPS_plus = showdown.projected['onbase_plus_slugging_plus'] if 'onbase_plus_slugging_plus' in showdown.projected else None
         name = player_name if is_random else name # LOG ACTUAL NAME IF IS RANDOMIZED PLAYER
 
@@ -396,7 +407,9 @@ def card_creator():
             bref_id=bref_id,
             team=team,
             data_source=data_source,
-            image_source=image_source
+            image_source=image_source,
+            scraper_load_time=scraper_load_time,
+            card_load_time=card_load_time
         )
         return jsonify(
             image_path=card_image_path,
@@ -456,7 +469,9 @@ def card_creator():
             bref_id=bref_id,
             team=team,
             data_source=data_source,
-            image_source=image_source
+            image_source=image_source,
+            scraper_load_time=scraper_load_time,
+            card_load_time=card_load_time
         )
         return jsonify(
             image_path=None,
