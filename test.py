@@ -13,7 +13,7 @@ if __name__ == "__main__":
         {'name': 'Manny Ramirez (LAD)', 'year': '2008', 'edition': sc.Edition.NONE.value},
         {'name': 'Mike Piazza (FLA)', 'year': '1997', 'edition': sc.Edition.NONE.value},
         {'name': 'Aroldis Chapman (NYY)', 'year': '2016', 'edition': sc.Edition.NONE.value},
-        {'name': 'Derek Jeter', 'year': '2006+2014+2008', 'edition': sc.Edition.NONE.value},
+        {'name': 'Derek Jeter', 'year': '2006+2014+2008', 'edition': sc.Edition.SUPER_SEASON.value},
         {'name': 'Old Hoss Radbourn', 'year': '1885-1889', 'edition': sc.Edition.NONE.value},
         {'name': 'Gary Carter', 'year': '1981+1988', 'edition': sc.Edition.NONE.value},
         {'name': 'Bartolo Colon (Hitter)', 'year': '2016', 'edition': sc.Edition.NONE.value},
