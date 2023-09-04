@@ -871,7 +871,7 @@ class ShowdownPlayerCard:
                         year_parsed = accolade.split(' ', 1)[0]
                         year_str = f"{year_parsed} " if num_seasons > 1 else ''
                         final_string = f"{ordinal_rank} IN {year_str}{league_and_stat}"
-                        priority = 1 if rank_int <= 3 else rank_int
+                        priority = 1 if rank_int <= 2 else rank_int
                         awards_tuple.append( (final_string, accolade_class.rank, priority) )
                     accolades_rank_and_priority_tuples += awards_tuple
                 case "AWARD (NO VOTING)":
@@ -895,7 +895,7 @@ class ShowdownPlayerCard:
                     for accolade in accolade_list_cleaned:
                         accolade_split_first_space = accolade.split(' ',1)
                         accolade = accolade.split(' ',1)[1] if num_seasons == 1 and len(accolade_split_first_space) > 1 else accolade
-                        priority = 0 if not is_icons else (4 if 'MVP' in accolade else 2)
+                        priority = 0 if not is_icons or num_seasons > 1 else (4 if 'MVP' in accolade else 2)
                         awards_accolades.append( (accolade, accolade_class.rank, priority) )
 
                     if num_seasons > 1:
@@ -1047,6 +1047,8 @@ class ShowdownPlayerCard:
 
         sorted_tuples = sorted(accolades_rank_and_priority_tuples, key=lambda t: (t[2],t[1]))
         sorted_accolades = [tup[0] for tup in sorted_tuples]
+
+        pprint(sorted_tuples)
 
         return sorted_accolades[0:maximum] if maximum else sorted_accolades
 
@@ -4132,7 +4134,7 @@ class ShowdownPlayerCard:
             
             # SLOT MAX CHARACTERS
             slot_max_characters_dict = {
-                1: (15 if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
+                1: (16 if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
                 2: (15 if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
                 3: (sc.SUPER_SEASON_04_05_MIN_TEXT_LENGTH if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
             }
