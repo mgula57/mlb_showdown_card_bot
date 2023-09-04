@@ -830,6 +830,13 @@ class ShowdownPlayerCard:
           Sorted list of accolades converted to lists.
         """
 
+        # HELPER ATTRIBUTES 
+        num_seasons = len(self.year_list)
+        is_pre_2004 = self.context in ['2000','2001','2002','2003']
+        is_icons = self.context not in ['2000','2001','2002',]
+        ba_champ_text = 'BATTING TITLE'
+        is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
+
         # -- PART 1: AWARDS AND RANKINGS --
         accolades_dict = self.stats.get('accolades', {})
         accolades_rank_and_priority_tuples = []
@@ -848,64 +855,135 @@ class ShowdownPlayerCard:
             if (accolade_class.is_hitter_exclusive and self.is_pitcher) or (accolade_class.is_pitcher_exclusive and not self.is_pitcher):
                 continue
 
-            league_and_stat = f"{self.league} {accolade_class.title}"
+            league_and_stat = (f"{self.league} " if self.league != 'MLB' else "") + accolade_class.title
             match accolade_class.value_type:
                 case "AWARD (PLACEMENT, PCT)":
+                    # MVP, CY YOUNG PLACEMENTS
                     # EX: "2004 NL (1, 91%)""
-                    accolade_list_cleaned = [a for a in accolade_list if '(1,' not in a] # REMOVE ANY TOP FINISHES, THOSE WILL SHOW UP IN AWARDS
+                    accolade_list_cleaned = [a for a in accolade_list if '(1,' not in a and ', ' in a] # REMOVE ANY TOP FINISHES, THOSE WILL SHOW UP IN AWARDS
+                    awards_tuple = []
                     for accolade in accolade_list_cleaned:
-                        rank_int = int(accolade.split('(',1)[1].split(',')[0])
+                        try:
+                            rank_int = int(accolade.split('(',1)[1].split(',')[0])
+                        except:
+                            continue
                         ordinal_rank = self.ordinal(rank_int).upper()
-                        final_string = f"{ordinal_rank} IN {league_and_stat}"
+                        year_parsed = accolade.split(' ', 1)[0]
+                        year_str = f"{year_parsed} " if num_seasons > 1 else ''
+                        final_string = f"{ordinal_rank} IN {year_str}{league_and_stat}"
                         priority = 1 if rank_int <= 3 else rank_int
-                        accolades_rank_and_priority_tuples.append( (final_string, accolade_class.rank, priority) )
+                        awards_tuple.append( (final_string, accolade_class.rank, priority) )
+                    accolades_rank_and_priority_tuples += awards_tuple
                 case "AWARD (NO VOTING)":
+                    # GOLD GLOVE, SILVER SLUGGER, ALL STAR
                     # EX: "2001 AL (OF)"
-                    num_awards = len(accolade_list)
-                    final_string = f"{num_awards}X {accolade_class.title}" if num_awards > 1 else accolade_class.title
-                    priority = 0 if self.context in ['2000','2001','2002',] else 10 
+                    accolade_list_cleaned = [a for a in accolade_list if a not in ['ALL MULTIPLE WINNERS']]
+                    num_awards = len(accolade_list_cleaned)
+                    year_parsed = accolade_list_cleaned[0].split(' ', 1)[0]
+                    award_title = accolade_class.title if is_pre_2004 else accolade_class.title.replace('SLUGGER', 'SLG')
+                    final_string = f"{num_awards}X {award_title}" if num_awards > 1 else award_title
+                    if num_awards == 1 and num_seasons > 1 and is_pre_2004:
+                        final_string = f"{year_parsed} {final_string}"
+                    priority = 0 if not is_icons or num_awards > 1 else 10 
                     accolades_rank_and_priority_tuples.append( (final_string, accolade_class.rank, priority) )
                 case "AWARDS (LIST)":
                     # EX: "2014 NL ROOKIE OF THE YEAR"
+
+                    # KEEP ONLY CYA, MVP, ROY
                     accolade_list_cleaned = [a for a in accolade_list if len([aw for aw in accolade_class.awards_to_keep if aw in a]) > 0]
+                    awards_accolades = []
                     for accolade in accolade_list_cleaned:
-                        accolade_without_year = accolade.split(' ',1)[1]
-                        priority = 0 if self.context in ['2000','2001','2002',] else (4 if 'MVP' in accolade else 2)
-                        accolades_rank_and_priority_tuples.append( (accolade_without_year, accolade_class.rank, priority) )
+                        accolade_split_first_space = accolade.split(' ',1)
+                        accolade = accolade.split(' ',1)[1] if num_seasons == 1 and len(accolade_split_first_space) > 1 else accolade
+                        priority = 0 if not is_icons else (4 if 'MVP' in accolade else 2)
+                        awards_accolades.append( (accolade, accolade_class.rank, priority) )
+
+                    if num_seasons > 1:
+                        # SORT INTO LIST FOR EACH AWARD TYPE
+                        awards_dict = {}
+                        awards_list = ["CY YOUNG", "MVP", "ROOKIE OF THE YEAR"]
+                        for award_type in awards_list:
+                            awards_dict[award_type] = [a for a in awards_accolades if award_type in a[0]]
+                        
+                        new_awards_accolades = []
+                        for award_type, awards_list in awards_dict.items():
+                            num_awards = len(awards_list)
+                            if num_awards > 1:
+                                new_awards_accolades += [(f"{num_awards}X {award_type}", accolade_class.rank, 0)]
+                            else:
+                                new_awards_accolades += awards_list
+                        awards_accolades = new_awards_accolades
+
+                    accolades_rank_and_priority_tuples += awards_accolades
                 case "ORDINAL":
-                    # EX: "2001 NL 73 (1ST)"
-                    accolade_list_cleaned = [a for a in accolade_list if '(' in a and ')' in a]
-                    if len(accolade_list_cleaned) == 1:
-                        first_value = accolade_list_cleaned[0]
-                        split_1 = first_value.split('(',1)[1]
-                        ordinal_rank = split_1.split(')')[0]
-                        ordinal_rank_int = int(re.sub('[^0-9]','', ordinal_rank))
+
+                    # SKIP IF SAVES AND STARTING PITCHER
+                    if is_starting_pitcher and accolade_class == sc.Accolade.SAVES:
+                        continue
+
+                    def parse_ordinal(value:str, keep_year:bool=False) -> tuple[str, int, int]:
+                        year_parsed = value.split(' ', 1)[0]
+                        year_str = f"{year_parsed} " if keep_year else ''
+                        rank_split_1 = value.split('(',1)[1]
+                        rank_str = rank_split_1.split(')')[0]
+                        ordinal_rank_int = int(re.sub('[^0-9]','', rank_str))
                         is_leader = ordinal_rank_int == 1
-                        final_string = f"{league_and_stat} LEADER" if is_leader else f"{ordinal_rank} IN {league_and_stat}"
+                        final_string = f"{year_str}{league_and_stat} LEADER" if is_leader else f"{rank_str} IN {year_str}{league_and_stat}"
                         if accolade_class == sc.Accolade.BA and is_leader:
-                            final_string = final_string.replace('BA LEADER', 'BATTING CHAMP')
+                            final_string = final_string.replace('BA LEADER', ba_champ_text)
                         priority = ordinal_rank_int
-                        accolades_rank_and_priority_tuples.append( (final_string, accolade_class.rank, priority) )
+                        return (final_string, accolade_class.rank, priority)
+                    
+                    # EX: "2001 NL 73 (1ST)"
+                    accolade_list_cleaned = [a for a in accolade_list if '(' in a and ')' in a and 'CAREER' not in a]
+                    ordinal_accolades = []
+                    for accolade in accolade_list_cleaned:
+                        ordinal_parsed = parse_ordinal(accolade, keep_year=num_seasons > 1)
+                        ordinal_accolades.append( ordinal_parsed )
+                    
+                    if num_seasons > 1:
+                        # REPLACE INDIVIDUAL PLACEMENTS WITH COUNTS ACROSS SEASONS
+                        # EX: ['07 NL OPS LEADER, '08 NL OPS LEADER, '11 AL OPS LEADER] -> [3X OPS LEADER]
+                        leader_list = []
+                        leader_text = ba_champ_text if accolade_class == sc.Accolade.BA else f'{accolade_class.title} LEADER'
+                        for accolade_tuple in ordinal_accolades:
+                            accolade = accolade_tuple[0]
+                            if leader_text in accolade:
+                                leader_list.append(accolade)
+                        if len(leader_list) > 1:
+                            ordinal_accolades = [(f"{len(leader_list)}X {leader_text}" ,accolade_class.rank, 0)]                            
 
-        # -- PART 2: STAT NUMBERS --
-
+                    accolades_rank_and_priority_tuples += ordinal_accolades
+                    
         # CREATE LIST OF CURRENT ACCOLADES
         # USED TO FILTER OUT REDUNDANCIES
         current_accolades = [at[0] for at in accolades_rank_and_priority_tuples]
 
+        # CHECK FOR TRIPLE CROWN
+        substrings_triple_crown = [ba_champ_text, 'HR LEADER', 'RBI LEADER']
+        num_triple_crown_leading = len([cat for cat in substrings_triple_crown if self.is_substring_in_list(cat, current_accolades)])
+        if num_seasons == 1 and not self.is_pitcher and num_triple_crown_leading == 3:
+            accolades_rank_and_priority_tuples.append( (f'{self.league} TRIPLE CROWN', 0, 0) )
+            accolades_to_remove = []
+            for accolade_tuple in accolades_rank_and_priority_tuples:
+                for substring in substrings_triple_crown:
+                    if substring in accolade_tuple[0]:
+                        accolades_to_remove.append(accolade_tuple)
+            accolades_rank_and_priority_tuples = [a for a in accolades_rank_and_priority_tuples if a not in accolades_to_remove]
+
+        # -- PART 2: STAT NUMBERS --
+
         # PITCHERS ----
         if self.is_pitcher:
-            
-            is_starter = 'STARTER' in self.positions_and_defense.keys()
-            if is_starter:
+            if is_starting_pitcher:
                 # WINS
                 wins = self.stats.get('W', 0)
-                if wins > 14 and not self.is_substring_in_list('WINS',current_accolades):
+                if ( (wins / num_seasons) > 14 and not self.is_substring_in_list('WINS',current_accolades) ) or wins >= 300:
                     accolades_rank_and_priority_tuples.append( (f"{wins} WINS", 50, 10) )
             else:
                 # SAVES
                 saves = self.stats.get('SV', 0)
-                if saves > 20 and not self.is_substring_in_list('SAVES',current_accolades):
+                if (saves / num_seasons) > 20 and not self.is_substring_in_list('SAVES',current_accolades):
                     accolades_rank_and_priority_tuples.append( (f"{saves} SAVES", 51, 10) )
             
             # ERA
@@ -922,16 +1000,16 @@ class ShowdownPlayerCard:
         # HITTERS ----
             # HOME RUNS
             hr = self.stats.get('HR', 0)
-            if hr >= (15 if self.year == 2020 else 30) and not self.is_substring_in_list('HR',current_accolades):
+            if ( (hr / num_seasons) >= (15 if self.year == 2020 else 30) and not self.is_substring_in_list('HR',current_accolades) ) or hr >= 500:
                 hr_suffix = "HR" if self.context in ['2004','2005'] else 'HOME RUNS'
                 accolades_rank_and_priority_tuples.append( (f"{hr} {hr_suffix}", 50, 10) )
             # RBI
             rbi = self.stats.get('RBI', 0)
-            if rbi >= 100 and not self.is_substring_in_list('RBI',current_accolades):
+            if (rbi / num_seasons) >= 100 and not self.is_substring_in_list('RBI',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{rbi} RBI", 51, 10) )
             # HITS
             hits = self.stats.get('H', 0)
-            if hits >= 175 and not self.is_substring_in_list('HITS',current_accolades):
+            if ( (hits / num_seasons) >= 175 and not self.is_substring_in_list('HITS',current_accolades) ) or hits >= 3000:
                 accolades_rank_and_priority_tuples.append( (f"{hits} HITS", 52, 10) )
             # BATTING AVG
             ba = self.stats.get('batting_avg', 0.00)
@@ -951,11 +1029,13 @@ class ShowdownPlayerCard:
                 accolades_rank_and_priority_tuples.append( (f"{slg_3_decimals} SLG%", 55, 10) )
             # dWAR
             dWAR = self.stats.get('dWAR', 0.00)
-            if float(dWAR) >= 2.5 and not self.is_substring_in_list('DWAR',current_accolades):
+            if float(dWAR) >= (2.5 * num_seasons) and not self.is_substring_in_list('DWAR',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{dWAR} dWAR", 56, 10) )
         
         # GENERIC, ONLY IF EMPTY ----
-        if len(accolades_rank_and_priority_tuples) < 2:
+        length_req = sc.SUPER_SEASON_PRE_04_TEXT_LENGTH if is_pre_2004 else sc.SUPER_SEASON_04_05_MIN_TEXT_LENGTH
+        usable_accolades = [a for a in accolades_rank_and_priority_tuples if len(a[0]) <= length_req]
+        if len(usable_accolades) < 2:
             # OPS+
             ops_plus = self.stats.get('onbase_plus_slugging_plus', None)
             if ops_plus and not self.is_pitcher and not self.is_substring_in_list('OPS+',current_accolades):
@@ -4052,24 +4132,31 @@ class ShowdownPlayerCard:
             
             # SLOT MAX CHARACTERS
             slot_max_characters_dict = {
-                '1': (15 if is_after_03 else 19),
-                '2': (15 if is_after_03 else 19),
-                '3': (10 if is_after_03 else 19),
+                1: (15 if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
+                2: (15 if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
+                3: (sc.SUPER_SEASON_04_05_MIN_TEXT_LENGTH if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
             }
 
             # ACCOLADES
             accolades_list = self.__accolades()
             x_position = 18 if is_after_03 else 9
-            x_incremental = 8 if is_after_03 else 3
+            x_incremental = 10 if is_after_03 else 3
             y_position = 338 if is_after_03 else 324
             accolade_rotation = 15 if is_after_03 else 13
             accolade_spacing = 41 if is_after_03 else 72
             accolades_used = []
-            for _, max_characters in slot_max_characters_dict.items():
-                accolades_available = [a for a in accolades_list if (a not in accolades_used and len(a) <= max_characters)]
-                if len(accolades_available) == 0:
+            for index, max_characters in slot_max_characters_dict.items():
+                accolades_available = [a for a in accolades_list if (a not in accolades_used and len(a) <= max_characters)]                
+                num_available = len(accolades_available)
+
+                if num_available == 0:
                     continue
+                
+                # IF ACCOLADE IS SHORT AND CAN FIT IN SLOT 3 FOR 04/05, POSTPONE IT
                 accolade = accolades_available[0]
+                if index < 3 and is_after_03 and len(accolade) <= slot_max_characters_dict.get(3, 0) and num_available > 2:
+                    accolade = accolades_available[1]
+
                 accolades_used.append(accolade)
                 accolade_text = self.__text_image(
                     text = accolade,
@@ -4079,7 +4166,7 @@ class ShowdownPlayerCard:
                     rotation = accolade_rotation
                 )
                 accolade_text = accolade_text.resize((375,150), Image.ANTIALIAS)
-                accolade_text_images.append( (accolade_text, (x_position, y_position)) )
+                accolade_text_images.append( (accolade_text, (x_position, y_position), accolade) )
                 x_position += x_incremental
                 y_position += accolade_spacing
 
@@ -4089,17 +4176,20 @@ class ShowdownPlayerCard:
         ss_type_index = sc.SUPER_SEASON_IMG_INDEX.get(self.context, '1')
         super_season_image = Image.open(self.__template_img_path(f'Super Season-{ss_type_index}{num_accolades_str}'))
 
+        # ORDER 04/05 ACCOLADES BY TEXT LENGTH
+        if is_after_03:
+            coordinates = [tup[1] for tup in accolade_text_images]
+            sorted_accolade_img_and_text = sorted([(tup[0], tup[2]) for tup in accolade_text_images], key=lambda a: len(a[1]), reverse=True)
+            accolade_text_images = [(sorted_accolade_img_and_text[index][0], coordinates[index], sorted_accolade_img_and_text[index][1]) for index in range(0, len(accolade_text_images))]
+
         # PASTE ACCOLADES
-        for accolade_img, paste_coordinates in accolade_text_images:
+        for accolade_img, paste_coordinates, _ in accolade_text_images:
             super_season_image.paste(sc.COLOR_BLACK, paste_coordinates, accolade_img)
 
         # YEAR
         if self.is_multi_year:
             font_scaling = 0 if is_after_03 else 40
-            if self.is_full_career:
-                year_string = 'CAREER'
-                font_size = 110 + font_scaling
-            else:
+            if self.is_multi_year:
                 year_string = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
                 font_size = 130 + font_scaling
             super_season_year_font = ImageFont.truetype(super_season_year_path, size=font_size)
