@@ -619,6 +619,7 @@ $(function () {
             var hide_team_branding = moreOptionsSelected.includes("HideTeamBranding");
             var is_variable_spd = moreOptionsSelected.includes("VariableSpeed");
             var ignore_showdown_library = moreOptionsSelected.includes("IgnoreShowdownLibrary");
+            var ignore_cache = moreOptionsSelected.includes("IgnoreCache");
             
             // CACHE SET VALUE
             var set = $("#setSelection :selected").val()
@@ -644,6 +645,7 @@ $(function () {
                 ignore_showdown_library: ignore_showdown_library,
                 era: era,
                 parallel: image_parallel,
+                ignore_cache: ignore_cache,
             }, function (data) {
                 showCardData(data)
             });

@@ -1,10 +1,10 @@
 from posixpath import join
-import pandas as pd
 import numpy as np
 import math
 import requests
 import operator
 import os
+import re
 import json
 import statistics
 from googleapiclient.discovery import build
@@ -16,6 +16,7 @@ from io import BytesIO
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from prettytable import PrettyTable
+from pprint import pprint
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
@@ -65,7 +66,9 @@ class ShowdownPlayerCard:
         # ADD OPS IF NOT IN DICT (< 1900 CARDS)
         if 'onbase_plus_slugging' not in stats.keys() and 'slugging_perc' in stats.keys() and 'onbase_perc' in stats.keys():
             stats['onbase_plus_slugging'] = stats['slugging_perc'] + stats['onbase_perc']
-            
+        # REDUCE IF/FB FOR 1988
+        if 'IF/FB' in stats.keys() and year == '1988':
+            stats['IF/FB'] = stats.get('IF/FB', 0.0) * sc.PU_MULTIPLIER_1988
         self.stats = stats
         self.source = source
         self.league = stats.get('lg_ID', 'MLB')
@@ -107,8 +110,10 @@ class ShowdownPlayerCard:
         self.stats_version = int(offset)
         self.rank = {}
         self.pct_rank = {}
+        self.load_time = None
 
         if run_stats:
+
             # DERIVED ATTRIBUTES
             self.is_pitcher = True if stats['type'] == 'Pitcher' else False
             self.team = stats['team_ID']
@@ -807,6 +812,264 @@ class ShowdownPlayerCard:
 
         return icons
 
+    def __accolades(self, maximum:int = None):
+        """Generates array of player highlights for season.
+
+        Args:
+          maximum: Maximum accolades to include.
+
+        Returns:
+          Array with 3 string elements showing accolades for season
+        """
+
+        # HANDLES CASE OF NO AWARDS
+        """Parse, clean, and sort player accolades.
+
+        Args:
+          None
+
+        Returns:
+          Sorted list of accolades converted to lists.
+        """
+
+        # HELPER ATTRIBUTES 
+        num_seasons = len(self.year_list)
+        is_pre_2004 = self.context in ['2000','2001','2002','2003']
+        is_icons = self.context not in ['2000','2001','2002',]
+        ba_champ_text = 'BATTING TITLE'
+        is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
+
+        # -- PART 1: AWARDS AND RANKINGS --
+        accolades_dict = self.stats.get('accolades', {})
+        accolades_rank_and_priority_tuples = []
+        for accolade_type, accolade_list in accolades_dict.items():
+
+            try:
+                accolade_class = sc.Accolade(accolade_type)
+            except ValueError:
+                continue
+            
+            # CONTINUE IF THERE ARE NO 
+            if len(accolade_list) == 0:
+                continue
+
+            # DOES NOT MATCH PLAYER TYPE
+            if (accolade_class.is_hitter_exclusive and self.is_pitcher) or (accolade_class.is_pitcher_exclusive and not self.is_pitcher):
+                continue
+
+            league_and_stat = (f"{self.league} " if self.league != 'MLB' else "") + accolade_class.title
+            match accolade_class.value_type:
+                case "AWARD (PLACEMENT, PCT)":
+                    # MVP, CY YOUNG PLACEMENTS
+                    # EX: "2004 NL (1, 91%)""
+                    accolade_list_cleaned = [a for a in accolade_list if '(1,' not in a and ', ' in a] # REMOVE ANY TOP FINISHES, THOSE WILL SHOW UP IN AWARDS
+                    awards_tuple = []
+                    for accolade in accolade_list_cleaned:
+                        try:
+                            rank_int = int(accolade.split('(',1)[1].split(',')[0])
+                        except:
+                            continue
+                        ordinal_rank = self.ordinal(rank_int).upper()
+                        year_parsed = accolade.split(' ', 1)[0]
+                        year_str = f"{year_parsed} " if num_seasons > 1 else ''
+                        final_string = f"{ordinal_rank} IN {year_str}{league_and_stat}"
+                        priority = 1 if rank_int <= 2 else rank_int
+                        awards_tuple.append( (final_string, accolade_class.rank, priority) )
+                    accolades_rank_and_priority_tuples += awards_tuple
+                case "AWARD (NO VOTING)":
+                    # GOLD GLOVE, SILVER SLUGGER, ALL STAR
+                    # EX: "2001 AL (OF)"
+                    accolade_list_cleaned = [a for a in accolade_list if a not in ['ALL MULTIPLE WINNERS']]
+                    num_awards = len(accolade_list_cleaned)
+                    year_parsed = accolade_list_cleaned[0].split(' ', 1)[0]
+                    award_title = accolade_class.title if is_pre_2004 else accolade_class.title.replace('SLUGGER', 'SLG')
+                    final_string = f"{num_awards}X {award_title}" if num_awards > 1 else award_title
+                    if num_awards == 1 and num_seasons > 1 and is_pre_2004:
+                        final_string = f"{year_parsed} {final_string}"
+                    priority = 0 if not is_icons or num_awards > 1 else 10 
+                    accolades_rank_and_priority_tuples.append( (final_string, accolade_class.rank, priority) )
+                case "AWARDS (LIST)":
+                    # EX: "2014 NL ROOKIE OF THE YEAR"
+
+                    # KEEP ONLY CYA, MVP, ROY
+                    accolade_list_cleaned = [a for a in accolade_list if len([aw for aw in accolade_class.awards_to_keep if aw in a]) > 0]
+                    awards_accolades = []
+                    for accolade in accolade_list_cleaned:
+                        accolade_split_first_space = accolade.split(' ',1)
+                        accolade = accolade.split(' ',1)[1] if num_seasons == 1 and len(accolade_split_first_space) > 1 else accolade
+                        priority = 0 if not is_icons or num_seasons > 1 else (4 if 'MVP' in accolade else 2)
+                        awards_accolades.append( (accolade, accolade_class.rank, priority) )
+
+                    if num_seasons > 1:
+                        # SORT INTO LIST FOR EACH AWARD TYPE
+                        awards_dict = {}
+                        awards_list = ["CY YOUNG", "MVP", "ROOKIE OF THE YEAR"]
+                        for award_type in awards_list:
+                            awards_dict[award_type] = [a for a in awards_accolades if award_type in a[0]]
+                        
+                        new_awards_accolades = []
+                        for award_type, awards_list in awards_dict.items():
+                            num_awards = len(awards_list)
+                            if num_awards > 1:
+                                new_awards_accolades += [(f"{num_awards}X {award_type}", accolade_class.rank, 0)]
+                            else:
+                                new_awards_accolades += awards_list
+                        awards_accolades = new_awards_accolades
+
+                    accolades_rank_and_priority_tuples += awards_accolades
+                case "ORDINAL":
+
+                    # SKIP IF SAVES AND STARTING PITCHER
+                    if is_starting_pitcher and accolade_class == sc.Accolade.SAVES:
+                        continue
+
+                    def parse_ordinal(value:str, keep_year:bool=False) -> tuple[str, int, int]:
+                        year_parsed = value.split(' ', 1)[0]
+                        year_str = f"{year_parsed} " if keep_year else ''
+                        rank_split_1 = value.split('(',1)[1]
+                        rank_str = rank_split_1.split(')')[0]
+                        ordinal_rank_int = int(re.sub('[^0-9]','', rank_str))
+                        is_leader = ordinal_rank_int == 1
+                        final_string = f"{year_str}{league_and_stat} LEADER" if is_leader else f"{rank_str} IN {year_str}{league_and_stat}"
+                        if accolade_class == sc.Accolade.BA and is_leader:
+                            final_string = final_string.replace('BA LEADER', ba_champ_text)
+                        priority = ordinal_rank_int
+                        return (final_string, accolade_class.rank, priority)
+                    
+                    # EX: "2001 NL 73 (1ST)"
+                    accolade_list_cleaned = [a for a in accolade_list if '(' in a and ')' in a and 'CAREER' not in a]
+                    ordinal_accolades = []
+                    for accolade in accolade_list_cleaned:
+                        ordinal_parsed = parse_ordinal(accolade, keep_year=num_seasons > 1)
+                        ordinal_accolades.append( ordinal_parsed )
+                    
+                    if num_seasons > 1:
+                        # REPLACE INDIVIDUAL PLACEMENTS WITH COUNTS ACROSS SEASONS
+                        # EX: ['07 NL OPS LEADER, '08 NL OPS LEADER, '11 AL OPS LEADER] -> [3X OPS LEADER]
+                        leader_list = []
+                        leader_text = ba_champ_text if accolade_class == sc.Accolade.BA else f'{accolade_class.title} LEADER'
+                        for accolade_tuple in ordinal_accolades:
+                            accolade = accolade_tuple[0]
+                            if leader_text in accolade:
+                                leader_list.append(accolade)
+                        if len(leader_list) > 1:
+                            ordinal_accolades = [(f"{len(leader_list)}X {leader_text}" ,accolade_class.rank, 0)]                            
+
+                    accolades_rank_and_priority_tuples += ordinal_accolades
+        
+        # ADD ROOKIE OF THE YEAR VOTING, NOT INCLUDED IN BREF ACCOLADES SECTION
+        awards_summary_list = self.stats.get('award_summary', '').upper().split(',')
+        for award in awards_summary_list:
+            if 'ROY-' not in award:
+                continue
+            award_split = award.split('-')
+            if len(award_split) > 1:
+                award_placement_str = award_split[-1]
+                try:
+                    award_placement_int = int(award_placement_str)
+                except:
+                    continue
+                ordinal_rank = self.ordinal(award_placement_int).upper()
+                league = f"{self.league} " if self.league != 'MLB' else ''
+                accolade_str = f"{ordinal_rank} IN {league}ROY"
+                accolades_rank_and_priority_tuples.append( (accolade_str, sc.Accolade.AWARDS.rank, award_placement_int) )
+                    
+        # CREATE LIST OF CURRENT ACCOLADES
+        # USED TO FILTER OUT REDUNDANCIES
+        current_accolades = [at[0] for at in accolades_rank_and_priority_tuples]
+
+        # CHECK FOR TRIPLE CROWN
+        substrings_triple_crown = [ba_champ_text, 'HR LEADER', 'RBI LEADER']
+        num_triple_crown_leading = len([cat for cat in substrings_triple_crown if self.is_substring_in_list(cat, current_accolades)])
+        if num_seasons == 1 and not self.is_pitcher and num_triple_crown_leading == 3:
+            accolades_rank_and_priority_tuples.append( (f'{self.league} TRIPLE CROWN', 0, 0) )
+            accolades_to_remove = []
+            for accolade_tuple in accolades_rank_and_priority_tuples:
+                for substring in substrings_triple_crown:
+                    if substring in accolade_tuple[0]:
+                        accolades_to_remove.append(accolade_tuple)
+            accolades_rank_and_priority_tuples = [a for a in accolades_rank_and_priority_tuples if a not in accolades_to_remove]
+
+        # -- PART 2: STAT NUMBERS --
+
+        default_stat_priority = 20
+        # PITCHERS ----
+        if self.is_pitcher:
+            if is_starting_pitcher:
+                # WINS
+                wins = self.stats.get('W', 0)
+                if ( (wins / num_seasons) > 14 and not self.is_substring_in_list('WINS',current_accolades) ) or wins >= 300:
+                    accolades_rank_and_priority_tuples.append( (f"{wins} WINS", 50, default_stat_priority) )
+            else:
+                # SAVES
+                saves = self.stats.get('SV', 0)
+                if (saves / num_seasons) > 20 and not self.is_substring_in_list('SAVES',current_accolades):
+                    accolades_rank_and_priority_tuples.append( (f"{saves} SAVES", 51, default_stat_priority) )
+            
+            # ERA
+            era_2_decimals = '%.2f' % self.stats.get('earned_run_avg', 0.0)
+            if not self.is_substring_in_list('ERA',current_accolades):
+                accolades_rank_and_priority_tuples.append( (f"{era_2_decimals} ERA", 52, default_stat_priority) )
+
+            # WHIP
+            whip = self.stats.get('whip', 0.000)
+            if not self.is_substring_in_list('WHIP',current_accolades):
+                accolades_rank_and_priority_tuples.append( (f"{whip} WHIP", 53, default_stat_priority) )
+        
+        else:
+        # HITTERS ----
+            # HOME RUNS
+            hr = self.stats.get('HR', 0)
+            if ( (hr / num_seasons) >= (15 if self.year == 2020 else 30) and not self.is_substring_in_list('HR',current_accolades) ) or hr >= 500:
+                hr_suffix = "HR" if self.context in ['2004','2005'] else 'HOME RUNS'
+                accolades_rank_and_priority_tuples.append( (f"{hr} {hr_suffix}", 50, default_stat_priority) )
+            # RBI
+            rbi = self.stats.get('RBI', 0)
+            if (rbi / num_seasons) >= 100 and not self.is_substring_in_list('RBI',current_accolades):
+                accolades_rank_and_priority_tuples.append( (f"{rbi} RBI", 51, default_stat_priority) )
+            # HITS
+            hits = self.stats.get('H', 0)
+            if ( (hits / num_seasons) >= 175 and not self.is_substring_in_list('HITS',current_accolades) ) or hits >= 3000:
+                accolades_rank_and_priority_tuples.append( (f"{hits} HITS", 52, default_stat_priority) )
+            # BATTING AVG
+            ba = self.stats.get('batting_avg', 0.00)
+            if ba >= 0.300 and not self.is_substring_in_list('BA',current_accolades):
+                ba_3_decimals = ('%.3f' % ba).replace('0.','.')
+                ba_suffix = "BA" if self.context in ['2004','2005'] else 'BATTING AVG'
+                accolades_rank_and_priority_tuples.append( (f"{ba_3_decimals} {ba_suffix}", 53, default_stat_priority) )
+            # OBP
+            obp = self.stats.get('onbase_perc', 0.00)
+            if obp >= 0.400 and not self.is_substring_in_list('OBP',current_accolades):
+                obp_3_decimals = ('%.3f' % obp).replace('0.','.')
+                accolades_rank_and_priority_tuples.append( (f"{obp_3_decimals} OBP", 54, default_stat_priority) )
+            # SLG
+            slg = self.stats.get('slugging_perc', 0.00)
+            if slg >= 0.550 and not self.is_substring_in_list('SLG',current_accolades):
+                slg_3_decimals = ('%.3f' % slg).replace('0.','.')
+                accolades_rank_and_priority_tuples.append( (f"{slg_3_decimals} SLG%", 55, default_stat_priority) )
+            # dWAR
+            dWAR = self.stats.get('dWAR', 0.00)
+            if float(dWAR) >= (2.5 * num_seasons) and not self.is_substring_in_list('DWAR',current_accolades):
+                accolades_rank_and_priority_tuples.append( (f"{dWAR} dWAR", 56, 10) )
+        
+        # GENERIC, ONLY IF EMPTY ----
+        length_req = sc.SUPER_SEASON_PRE_04_TEXT_LENGTH if is_pre_2004 else sc.SUPER_SEASON_04_05_MIN_TEXT_LENGTH
+        usable_accolades = [a for a in accolades_rank_and_priority_tuples if len(a[0]) <= length_req]
+        if len(usable_accolades) < 2:
+            # OPS+
+            ops_plus = self.stats.get('onbase_plus_slugging_plus', None)
+            if ops_plus and not self.is_pitcher and not self.is_substring_in_list('OPS+',current_accolades):
+                accolades_rank_and_priority_tuples.append( (f"{int(ops_plus)} OPS+", 57, default_stat_priority) )
+            # bWAR
+            bWAR = self.stats.get('bWAR', None)
+            if bWAR:
+                accolades_rank_and_priority_tuples.append( (f"{bWAR} WAR", 58, default_stat_priority) )
+
+        sorted_tuples = sorted(accolades_rank_and_priority_tuples, key=lambda t: (t[2],t[1]))
+        sorted_accolades = [tup[0] for tup in sorted_tuples]
+
+        return sorted_accolades[0:maximum] if maximum else sorted_accolades
+
     def player_type(self):
         """Gets full player type (position_player, starting_pitcher, relief_pitcher).
            Used for applying weights
@@ -1089,7 +1352,7 @@ class ShowdownPlayerCard:
 
         return best_chart, projected_stats_for_best_chart
 
-    def __chart_with_accuracy(self, command, outs, stats_for_400_pa, era_override:str = None):
+    def __chart_with_accuracy(self, command, outs, stats_for_400_pa:dict, era_override:str = None):
         """Create Player's chart and compare back to input stats.
 
         Args:
@@ -1150,10 +1413,11 @@ class ShowdownPlayerCard:
         chart['so'] = max_hitter_so if not self.is_pitcher and chart['so'] > max_hitter_so else chart['so']
         out_slots_remaining = outs - float(chart['so'])
         chart['pu'], chart['gb'], chart['fb'] = self.__out_results(
-                                                    stats_for_400_pa['GO/AO'],
-                                                    stats_for_400_pa['IF/FB'],
-                                                    out_slots_remaining,
-                                                    era_override
+                                                    gb_pct=stats_for_400_pa.get('GO/AO', None),
+                                                    popup_pct=stats_for_400_pa.get('IF/FB', None),
+                                                    out_slots_remaining=out_slots_remaining,
+                                                    slg=stats_for_400_pa.get('slugging_perc', None),
+                                                    era_override=era_override
                                                 )
         # CALCULATE HOW MANY SPOTS ARE LEFT TO FILL 1B AND 1B+
         remaining_slots = 20
@@ -1192,18 +1456,26 @@ class ShowdownPlayerCard:
 
         return chart, accuracy, in_game_stats_for_400_pa
 
-    def __out_results(self, gb_pct, popup_pct, out_slots_remaining, era_override:str = None):
+    def __out_results(self, gb_pct, popup_pct, out_slots_remaining, slg:float, era_override:str = None):
         """Determine distribution of out results for Player.
 
         Args:
           gb_pct: Percent Ground Outs vs Air Outs.
           popup_pct: Percent hitting into a popup.
           out_slots_remaining: Total # Outs - SO
+          slg: Real-life stats slugging percent.
           era_override: Optionally override the era used for baseline opponents.
 
         Returns:
           Tuple of PU, GB, FB out result ints.
         """
+
+        # SET DEFAULTS FOR EMPTY DATA, BASED ON SLG
+        if gb_pct is None or popup_pct is None:
+            slg_percentile = self.stat_percentile(stat=slg, min_max_dict={'min': 0.250, 'max': 0.500})
+            multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
+            gb_pct = gb_pct if gb_pct else round(1.5 * max(multiplier, 0.5),3)
+            popup_pct = popup_pct if popup_pct else round(0.16 * max(multiplier, 0.5),3)
 
         era = era_override if era_override else self.era
         if out_slots_remaining > 0:
@@ -1481,7 +1753,7 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
 
-    def __stats_per_n_pa(self,plate_appearances,stats):
+    def __stats_per_n_pa(self,plate_appearances,stats:dict):
         """Season stats per every n Plate Appearances.
 
         Args:
@@ -1495,12 +1767,6 @@ class ShowdownPlayerCard:
         # SUBTRACT SACRIFICES?
         sh = float(stats['SH'] if stats['SH'] != '' else 0)
         pct_of_n_pa = (float(stats['PA']) - sh) / plate_appearances
-        # GO/AO
-        try:
-            go_ao = float(stats['GO/AO'])
-        except:
-            # DEFAULT TO 1.0 FOR UNAVAILABLE YEARS
-            go_ao = 1.0
 
         # POPULATE DICT WITH VALUES UNCHANGED BY SHIFT IN PA
         stats_for_n_pa = {
@@ -1509,8 +1775,8 @@ class ShowdownPlayerCard:
             'slugging_perc': float(stats['slugging_perc']) if len(str(stats['slugging_perc'])) > 0 else 1.0,
             'onbase_perc': float(stats['onbase_perc']) if len(str(stats['onbase_perc'])) > 0 else 1.0,
             'batting_avg': float(stats['batting_avg']) if len(str(stats['batting_avg'])) > 0 else 1.0,
-            'IF/FB': float(stats['IF/FB']),
-            'GO/AO': go_ao
+            'IF/FB': stats.get('IF/FB', 0.2),
+            'GO/AO': stats.get('GO/AO', 1.0),
         }
 
         # ADD RESULT OCCURANCES PER N PA
@@ -2130,6 +2396,14 @@ class ShowdownPlayerCard:
         """
         return '#' + ''.join(f'{i:02X}' for i in rgbs[0:3])
 
+    def is_substring_in_list(self, substring:str, str_list: list[str]) -> bool:
+        """Check to see if the substring is in ANY of the list of strings"""
+        for string in str_list:
+            if substring in string:
+                return True
+        
+        return False
+
 # ------------------------------------------------------------------------
 # OUTPUT PLAYER METHODS
 
@@ -2614,13 +2888,15 @@ class ShowdownPlayerCard:
           None
         """
 
+        start_time = datetime.now()
+
         # CHECK IF IMAGE EXISTS ALREADY IN CACHE
         cached_img_link = self.cached_img_link()
         if cached_img_link:
             # LOAD DIRECTLY FROM GOOGLE DRIVE
             response = requests.get(cached_img_link)
             card_image = Image.open(BytesIO(response.content))
-            self.save_image(image=card_image, show=show, disable_add_border=True)
+            self.save_image(image=card_image, start_time=start_time, show=show, disable_add_border=True)
             return
         
         # BACKGROUND IMAGE
@@ -2730,13 +3006,14 @@ class ShowdownPlayerCard:
         if self.img_loading_error:
             print(self.img_loading_error)
 
-        self.save_image(image=card_image, show=show, img_name_suffix=img_name_suffix)
+        self.save_image(image=card_image, start_time=start_time, show=show, img_name_suffix=img_name_suffix)
 
-    def save_image(self, image, show=False, img_name_suffix=''):
+    def save_image(self, image, start_time:datetime, show=False, img_name_suffix=''):
         """Stores image in proper folder depending on the context of the run.
 
         Args:
           image: PIL image object
+          start_time: Datetime in which card image processing began.
           show: Boolean flag for whether to open the final image after creation.
           disable_add_border: Optional flag to skip border addition.
           img_name_suffix: Optional suffix added to the image name.
@@ -2765,6 +3042,10 @@ class ShowdownPlayerCard:
             image.show(title=image_title)
 
         self.__clean_images_directory()
+
+        # CALCULATE LOAD TIME
+        end_time = datetime.now()
+        self.load_time = round((end_time - start_time).total_seconds(),2)
 
     def __background_image(self) -> Image:
         """Loads background image for card. Either loads from upload, url, or default
@@ -3143,7 +3424,7 @@ class ShowdownPlayerCard:
 
         # OVERRIDE IF SUPER SEASON
         if self.edition == sc.Edition.SUPER_SEASON and not is_00_01:
-            team_logo = self.__super_season_image()
+            team_logo, _ = self.__super_season_image()
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context_year)]
 
         # ADD YEAR TEXT IF COOPERSTOWN
@@ -3853,7 +4134,7 @@ class ShowdownPlayerCard:
         expansion_image = Image.open(self.__template_img_path(f'{self.template_set_year}-{self.expansion}'))
         return expansion_image
 
-    def __super_season_image(self):
+    def __super_season_image(self) -> tuple:
         """Creates image for optional super season attributes. Add accolades for
            cards in set > 2001.
 
@@ -3861,14 +4142,13 @@ class ShowdownPlayerCard:
           None
 
         Returns:
-          PIL image object for super season logo + text.
+          Tuple with:
+            PIL image object for super season logo + text.
+            Y Adjustment for paste coordinates (applies to 00/01)
         """
 
         is_after_03 = self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET]
         include_accolades = self.context not in [sc.CLASSIC_SET,sc.EXPANDED_SET]
-
-        # BACKGROUND IMAGE LOGO
-        super_season_image = Image.open(self.__template_img_path(f'{self.template_set_year}-Super Season'))
 
         # FONTS
         super_season_year_path = self.__font_path('URW Corporate W01 Normal')
@@ -3876,13 +4156,69 @@ class ShowdownPlayerCard:
         super_season_year_font = ImageFont.truetype(super_season_year_path, size=225)
         super_season_accolade_font = ImageFont.truetype(super_season_accolade_path, size=150)
 
+        accolade_text_images = []
+        if include_accolades:
+            
+            # SLOT MAX CHARACTERS
+            slot_max_characters_dict = {
+                1: (16 if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
+                2: (15 if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
+                3: (sc.SUPER_SEASON_04_05_MIN_TEXT_LENGTH if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
+            }
+
+            # ACCOLADES
+            accolades_list = self.__accolades()
+            x_position = 18 if is_after_03 else 9
+            x_incremental = 10 if is_after_03 else 1
+            y_position = 338 if is_after_03 else 324
+            accolade_rotation = 15 if is_after_03 else 13
+            accolade_spacing = 41 if is_after_03 else 72
+            accolades_used = []
+            for index, max_characters in slot_max_characters_dict.items():
+                accolades_available = [a for a in accolades_list if (a not in accolades_used and len(a) <= max_characters)]                
+                num_available = len(accolades_available)
+
+                if num_available == 0:
+                    continue
+                
+                # IF ACCOLADE IS SHORT AND CAN FIT IN SLOT 3 FOR 04/05, POSTPONE IT
+                accolade = accolades_available[0]
+                if index < 3 and is_after_03 and len(accolade) <= slot_max_characters_dict.get(3, 0) and num_available > 2:
+                    accolade = accolades_available[1]
+
+                accolades_used.append(accolade)
+                accolade_text = self.__text_image(
+                    text = accolade,
+                    size = (1800,480),
+                    font = super_season_accolade_font,
+                    alignment = "center",
+                    rotation = accolade_rotation
+                )
+                accolade_text = accolade_text.resize((375,150), Image.ANTIALIAS)
+                accolade_text_images.append( (accolade_text, (x_position, y_position), accolade) )
+                x_position += x_incremental
+                y_position += accolade_spacing
+
+        # BACKGROUND IMAGE LOGO
+        num_accolades = max(len(accolade_text_images),1)
+        num_accolades_str = "" if is_after_03 else f"-{num_accolades}"
+        ss_type_index = sc.SUPER_SEASON_IMG_INDEX.get(self.context, '1')
+        super_season_image = Image.open(self.__template_img_path(f'Super Season-{ss_type_index}{num_accolades_str}'))
+
+        # ORDER 04/05 ACCOLADES BY TEXT LENGTH
+        if is_after_03:
+            coordinates = [tup[1] for tup in accolade_text_images]
+            sorted_accolade_img_and_text = sorted([(tup[0], tup[2]) for tup in accolade_text_images], key=lambda a: len(a[1]), reverse=True)
+            accolade_text_images = [(sorted_accolade_img_and_text[index][0], coordinates[index], sorted_accolade_img_and_text[index][1]) for index in range(0, len(accolade_text_images))]
+
+        # PASTE ACCOLADES
+        for accolade_img, paste_coordinates, _ in accolade_text_images:
+            super_season_image.paste(sc.COLOR_BLACK, paste_coordinates, accolade_img)
+
         # YEAR
         if self.is_multi_year:
             font_scaling = 0 if is_after_03 else 40
-            if self.is_full_career:
-                year_string = 'CAREER'
-                font_size = 110 + font_scaling
-            else:
+            if self.is_multi_year:
                 year_string = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
                 font_size = 130 + font_scaling
             super_season_year_font = ImageFont.truetype(super_season_year_path, size=font_size)
@@ -3905,115 +4241,12 @@ class ShowdownPlayerCard:
         year_color = "#ffffff" if self.context in sc.CLASSIC_AND_EXPANDED_SETS else "#982319"
         super_season_image.paste(year_color,year_paste_coords,year_text)
 
-        if include_accolades:
-            # ACCOLADES
-            accolades_list = sorted(self.__super_season_accolades(),key=len,reverse=True)
-            x_position = 18 if is_after_03 else 9
-            y_position = 342 if is_after_03 else 324
-            accolade_rotation = 15 if is_after_03 else 13
-            accolade_spacing = 45 if is_after_03 else 72
-            for accolade in accolades_list:
-                accolade_text = self.__text_image(
-                    text = accolade,
-                    size = (1800,480),
-                    font = super_season_accolade_font,
-                    alignment = "center",
-                    rotation = accolade_rotation
-                )
-                accolade_text = accolade_text.resize((375,150), Image.ANTIALIAS)
-                super_season_image.paste(sc.COLOR_BLACK, (x_position, y_position), accolade_text)
-                x_position += 6
-                y_position += accolade_spacing
+        # ADJUSTMENTS TO 00/01 Y COORDINATES
+        y_coord_adjustment = ( (3 - num_accolades) * 55 ) if self.context in ['2000','2001'] and num_accolades < 3 else 0
 
         # RESIZE
         super_season_image = super_season_image.resize(sc.IMAGE_SIZES['super_season'][self.context_year], Image.ANTIALIAS)
-        return super_season_image
-
-    def __super_season_accolades(self):
-        """Generates array of 3 highlights for season.
-
-        Args:
-          None
-
-        Returns:
-          Array with 3 string elements showing accolades for season
-        """
-
-        # FIRST LOOK AT ICONS
-        accolades_list = []
-
-        # AWARDS ----
-        for icon in self.icons:
-            icons_full_description = {
-                'V': 'MVP',
-                'S': 'SILVER SLUGGER',
-                'G': 'GOLD GLOVE',
-                'CY': 'CY YOUNG',
-                'RY': 'ROY',
-                'HR': str(int(self.stats['HR'])) + ' HR',
-            }
-            if icon in icons_full_description.keys():
-                accolades_list.append(icons_full_description[icon])
-
-        # LOOK FOR AWARD PLACEMENT
-        awards_summary_list = self.stats['award_summary'].split(',') if 'award_summary' in self.stats.keys() else []
-        for award in awards_summary_list:
-            award_split = award.split('-')
-            if len(award_split) > 1:
-                award_mapping = {'CYA': 'CY YOUNG', 'MVP': 'MVP', 'RoY': 'RoY'}
-                award_short = award_split[0]
-                if award_short in award_mapping.keys():
-                    award_full = award_mapping[award_short]
-                    award_placement = award_split[-1]
-                    if award_placement != '1':
-                        accolades_list.append(f'{self.ordinal(int(award_placement))} in {award_full}'.upper())
-            elif award == 'AS':
-                accolades_list.append('ALL-STAR')
-        # DEFAULT ACCOLADES
-        # HANDLES CASE OF NO AWARDS
-
-        # PITCHERS ----
-        if self.is_pitcher:
-            # ERA
-            era_2_decimals = '%.2f' % self.stats['earned_run_avg']
-            accolades_list.append(str(era_2_decimals) + ' ERA')
-            is_starter = 'STARTER' in self.positions_and_defense.keys()
-            if is_starter:
-                # WINS
-                if self.stats['W'] > 14:
-                    accolades_list.append(str(self.stats['W']) + ' WINS')
-            else:
-                if self.stats['SV'] > 20:
-                    # SAVES
-                    accolades_list.append(str(self.stats['SV']) + ' SAVES')
-
-        else:
-        # HITTERS ----
-            # BATTING AVG
-            if self.stats['batting_avg'] >= 0.30:
-                ba_3_decimals = '%.3f' % self.stats['batting_avg']
-                accolades_list.append(str(ba_3_decimals).replace('0.','.') + ' BA')
-            # RBI
-            if self.stats['RBI'] >= 100:
-                accolades_list.append(str(int(self.stats['RBI'])) + ' RBI')
-            # HOME RUNS
-            if self.stats['HR'] >= (15 if self.year == 2020 else 30):
-                accolades_list.append(f"{str(int(self.stats['HR']))} HOMERS")
-            # HITS
-            if self.stats['H'] >= 175:
-                accolades_list.append(str(int(self.stats['H'])) + ' HITS')
-            # dWAR
-            if float(self.stats['dWAR']) >= 2.5:
-                accolades_list.append(str(self.stats['dWAR']) + ' dWAR')
-            # OPS+
-            if 'onbase_plus_slugging_plus' in self.stats.keys():
-                accolades_list.append(str(int(self.stats['onbase_plus_slugging_plus'])) + ' OPS+')           
-
-        # GENERIC ----
-        if 'bWAR' in self.stats.keys():
-            accolades_list.append(str(self.stats['bWAR']) + ' WAR')
-
-        return accolades_list[0:3]
+        return super_season_image, y_coord_adjustment
 
     def __rookie_season_image(self):
         """Creates image for optional rookie season logo.
@@ -4113,7 +4346,8 @@ class ShowdownPlayerCard:
         if self.context == '2000':
             # MOVE LOGO ABOVE TEAM LOGO AND SLIGHTLY TO THE LEFT
             y_movement = -35 if self.edition == sc.Edition.SUPER_SEASON else 0
-            paste_coordinates = (paste_coordinates[0] - 25, paste_coordinates[1] + y_movement)
+            x_movement = -35 if self.edition == sc.Edition.SUPER_SEASON else 0
+            paste_coordinates = (paste_coordinates[0] - 25 + x_movement, paste_coordinates[1] + y_movement)
 
         # ADD LOGO
         match self.edition:
@@ -4125,9 +4359,9 @@ class ShowdownPlayerCard:
                 logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.ANTIALIAS)
                 image.paste(logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), logo)
             case sc.Edition.SUPER_SEASON:
-                super_season_img = self.__super_season_image()
+                super_season_img, y_adjustment = self.__super_season_image()
                 paste_coordinates_x, paste_coordinates_y = paste_coordinates
-                paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 150)
+                paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 220 + y_adjustment)
                 image.paste(super_season_img, self.__coordinates_adjusted_for_bordering(paste_coordinates), super_season_img)
             case sc.Edition.ROOKIE_SEASON:
                 rs_logo = self.__rookie_season_image()
@@ -4678,9 +4912,11 @@ class ShowdownPlayerCard:
         # GET LIST OF FILE METADATA FROM CORRECT FOLDER
         files_metadata = []
         page_token = None
-        while True:
+        failure_number = 0
+        while True and failure_number < 3:
             try:
-                query = f"parents = '{folder_id}' and name contains '({bref_id})'"
+                bref_id_cleaned = bref_id.replace("'",'')
+                query = f"parents = '{folder_id}' and name contains '({bref_id_cleaned})'"
                 file_service = service.files()
                 response = file_service.list(q=query,pageSize=1000,pageToken=page_token).execute()
                 new_files_list = response.get('files')
@@ -4691,7 +4927,9 @@ class ShowdownPlayerCard:
             except Exception as err:
                 # IMAGE MAY FAIL TO LOAD SOMETIMES
                 self.img_loading_error = str(err)
+                failure_number += 1
                 continue
+            
         
         # LOOK FOR SUBSTRING IN FILE NAMES
         file_matches_metadata_dict = self.__img_file_matches_dict(files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)

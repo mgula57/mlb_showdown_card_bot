@@ -107,8 +107,8 @@ SPEED_METRIC_MIN = {
     STOLEN_BASES_KEY: -25,
 }
 SPEED_METRIC_WEIGHT = {
-    SPRINT_SPEED_KEY: 0.70,
-    STOLEN_BASES_KEY: 0.30,
+    SPRINT_SPEED_KEY: 0.60,
+    STOLEN_BASES_KEY: 0.40,
 }
 SPEED_METRIC_MULTIPLIER = {
     SPRINT_SPEED_KEY: {
@@ -275,6 +275,7 @@ PU_MULTIPLIER = {
     CLASSIC_SET: 2.5,
     EXPANDED_SET: 2.4,
 }
+PU_MULTIPLIER_1988 = 0.5 # PU WERE SKEWED IN 1988, REDUCE THEIR % BY 40%
 # THIS GB MULTIPLIER IS A MORE SIMPLE MODE OF ADJUSTMENT.
 # REPLACE HAVING DEFAULT GB AND FB FOR OPPONENT CHART
 GB_MULTIPLIER = {
@@ -3930,7 +3931,7 @@ IMAGE_LOCATIONS = {
         '2022': (1000,2020),
     },
     'super_season': {
-        '2000': (1200,1035),
+        '2000': (1200,900),
         '2001': (78,1584),
         '2002': (45,1113),
         '2003': (1041,786),
@@ -4026,8 +4027,8 @@ IMAGE_SIZES = {
         '2022': (900, 300),
     },
     'super_season': {
-        '2000': (273,420),
-        '2001': (273,420),
+        '2000': (312,480),
+        '2001': (312,480),
         '2002': (468,720),
         '2003': (390,600),
         '2004': (339,522),
@@ -16745,6 +16746,20 @@ SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT = {
     },
 }
 
+SUPER_SEASON_IMG_INDEX = {
+    '2000': '1',
+    '2001': '1',
+    '2002': '1',
+    '2003': '1',
+    '2004': '2',
+    '2005': '2',
+    CLASSIC_SET: '3',
+    EXPANDED_SET: '3',
+}
+
+SUPER_SEASON_04_05_MIN_TEXT_LENGTH = 11
+SUPER_SEASON_PRE_04_TEXT_LENGTH = 19
+
 """ IMAGE PARALLELS """
 
 class ImageParallel(Enum):
@@ -16805,3 +16820,93 @@ class ImageParallel(Enum):
             case 'GOLD': return 'YELLOW'
             case 'FLAMES': return 'RED'
             case _: return None
+
+
+""" ACCOLADES """
+class Accolade(Enum):
+
+    # COUNTING STATS
+    HITS = 'H'
+    DOUBLES = '2B'
+    TRIPLES = '3B'
+    HR = 'HR'
+    WALKS = 'BB'
+    RUNS = 'R'
+    RBI = 'RBI'
+    SB = 'SB'
+    SO = 'SO'
+    WINS = 'W'
+    SHUTOUTS = 'SHO'
+    IP = 'IP'
+    CG = 'CG'
+    SAVES = 'SV'
+    TOTAL_BASES = 'TB'
+
+    # RATE STATS
+    BA = 'batting_avg'
+    OBP = 'onbase_perc'
+    SLG = 'slugging_perc'
+    OPS = 'onbase_plus_slugging'
+    WHIP = 'whip'
+    WIN_LOSS_PERC = 'win_loss_perc'
+    SO9 = 'strikeouts_per_nine'
+    ERA = 'earned_run_avg'
+
+    # ADVANCED STATS
+    OPS_PLUS = 'onbase_plus_slugging_plus'
+    WAR = 'WAR'
+    FIP = 'fip'
+    ERA_PLUS = 'earned_run_avg_plus'
+
+    # AWARDS
+    ALL_STAR = 'allstar'
+    AWARDS = 'awards'
+    SILVER_SLUGGER = 'silver_sluggers'
+    GOLD_GLOVE = 'gold_gloves'
+    MVP = 'mvp'
+    CY_YOUNG = 'cyyoung'
+
+    @property 
+    def value_type(self) -> str:
+        match self.name:
+            case "MVP" | "CY_YOUNG": return "AWARD (PLACEMENT, PCT)"
+            case "SILVER_SLUGGER" | "ALL_STAR" | "GOLD_GLOVE" : return "AWARD (NO VOTING)"
+            case "AWARDS": return "AWARDS (LIST)"
+            case _: return "ORDINAL"
+
+    @property
+    def awards_to_keep(self) -> list[str]:
+        """Defines which award substrings to keep when looking at the AWARDS element"""
+        return ["CY YOUNG", "NL MVP", "AL MVP", "ROOKIE OF THE YEAR", ]
+    
+    @property
+    def title(self) -> str:
+        """Cleaned up name for use in super season accolades"""
+        match self.name:
+            case "DOUBLES" | "TRIPLES": return self.value
+            case "SO9": return "SO/9"
+            case "WIN_LOSS_PERC": return "W/L%"
+            case _: return self.name.replace('_PLUS','+').replace('_',' ')
+    
+    @property
+    def rank_list(self) -> list[str]:
+        return [
+           "AWARDS","GOLD_GLOVE","SILVER_SLUGGER","CY_YOUNG","MVP",
+           "HR","BA","OBP","SLG","OPS","DOUBLES","TRIPLES","RBI","SB","WALKS","HITS","RUNS","TOTAL_BASES",
+           "ERA","SAVES","SO","WHIP","WINS","IP","OPS_PLUS","ERA_PLUS","WAR",
+           "SHUTOUTS","CG","WIN_LOSS_PERC","SO9","FIP",
+           "ALL_STAR",
+        ]
+    
+    @property
+    def is_pitcher_exclusive(self) -> bool:
+        return self.name in ["CY_YOUNG","ERA","SAVES","SO","WHIP","WINS","IP","ERA_PLUS","SHUTOUTS","CG","WIN_LOSS_PERC","SO9","FIP",]
+    
+    @property
+    def is_hitter_exclusive(self) -> bool:
+        return self.name in ["SILVER_SLUGGER","GOLD_GLOVE","HR","BA","OBP","SLG","OPS","DOUBLES","TRIPLES","RBI","SB","WALKS","HITS","RUNS","TOTAL_BASES","OPS_PLUS",]
+
+    @property 
+    def rank(self) -> int:
+        return self.rank_list.index(self.name) + 1
+            
