@@ -4912,9 +4912,11 @@ class ShowdownPlayerCard:
         # GET LIST OF FILE METADATA FROM CORRECT FOLDER
         files_metadata = []
         page_token = None
-        while True:
+        failure_number = 0
+        while True and failure_number < 3:
             try:
-                query = f"parents = '{folder_id}' and name contains '({bref_id})'"
+                bref_id_cleaned = bref_id.replace("'",'')
+                query = f"parents = '{folder_id}' and name contains '({bref_id_cleaned})'"
                 file_service = service.files()
                 response = file_service.list(q=query,pageSize=1000,pageToken=page_token).execute()
                 new_files_list = response.get('files')
@@ -4925,7 +4927,9 @@ class ShowdownPlayerCard:
             except Exception as err:
                 # IMAGE MAY FAIL TO LOAD SOMETIMES
                 self.img_loading_error = str(err)
+                failure_number += 1
                 continue
+            
         
         # LOOK FOR SUBSTRING IN FILE NAMES
         file_matches_metadata_dict = self.__img_file_matches_dict(files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
