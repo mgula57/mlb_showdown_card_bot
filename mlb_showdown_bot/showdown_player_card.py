@@ -956,6 +956,23 @@ class ShowdownPlayerCard:
                             ordinal_accolades = [(f"{len(leader_list)}X {leader_text}" ,accolade_class.rank, 0)]                            
 
                     accolades_rank_and_priority_tuples += ordinal_accolades
+        
+        # ADD ROOKIE OF THE YEAR VOTING, NOT INCLUDED IN BREF ACCOLADES SECTION
+        awards_summary_list = self.stats.get('award_summary', '').upper().split(',')
+        for award in awards_summary_list:
+            if 'ROY-' not in award:
+                continue
+            award_split = award.split('-')
+            if len(award_split) > 1:
+                award_placement_str = award_split[-1]
+                try:
+                    award_placement_int = int(award_placement_str)
+                except:
+                    continue
+                ordinal_rank = self.ordinal(award_placement_int).upper()
+                league = f"{self.league} " if self.league != 'MLB' else ''
+                accolade_str = f"{ordinal_rank} IN {league}ROY"
+                accolades_rank_and_priority_tuples.append( (accolade_str, sc.Accolade.AWARDS.rank, award_placement_int) )
                     
         # CREATE LIST OF CURRENT ACCOLADES
         # USED TO FILTER OUT REDUNDANCIES
@@ -975,28 +992,29 @@ class ShowdownPlayerCard:
 
         # -- PART 2: STAT NUMBERS --
 
+        default_stat_priority = 20
         # PITCHERS ----
         if self.is_pitcher:
             if is_starting_pitcher:
                 # WINS
                 wins = self.stats.get('W', 0)
                 if ( (wins / num_seasons) > 14 and not self.is_substring_in_list('WINS',current_accolades) ) or wins >= 300:
-                    accolades_rank_and_priority_tuples.append( (f"{wins} WINS", 50, 10) )
+                    accolades_rank_and_priority_tuples.append( (f"{wins} WINS", 50, default_stat_priority) )
             else:
                 # SAVES
                 saves = self.stats.get('SV', 0)
                 if (saves / num_seasons) > 20 and not self.is_substring_in_list('SAVES',current_accolades):
-                    accolades_rank_and_priority_tuples.append( (f"{saves} SAVES", 51, 10) )
+                    accolades_rank_and_priority_tuples.append( (f"{saves} SAVES", 51, default_stat_priority) )
             
             # ERA
             era_2_decimals = '%.2f' % self.stats.get('earned_run_avg', 0.0)
             if not self.is_substring_in_list('ERA',current_accolades):
-                accolades_rank_and_priority_tuples.append( (f"{era_2_decimals} ERA", 52, 10) )
+                accolades_rank_and_priority_tuples.append( (f"{era_2_decimals} ERA", 52, default_stat_priority) )
 
             # WHIP
             whip = self.stats.get('whip', 0.000)
             if not self.is_substring_in_list('WHIP',current_accolades):
-                accolades_rank_and_priority_tuples.append( (f"{whip} WHIP", 53, 10) )
+                accolades_rank_and_priority_tuples.append( (f"{whip} WHIP", 53, default_stat_priority) )
         
         else:
         # HITTERS ----
@@ -1004,31 +1022,31 @@ class ShowdownPlayerCard:
             hr = self.stats.get('HR', 0)
             if ( (hr / num_seasons) >= (15 if self.year == 2020 else 30) and not self.is_substring_in_list('HR',current_accolades) ) or hr >= 500:
                 hr_suffix = "HR" if self.context in ['2004','2005'] else 'HOME RUNS'
-                accolades_rank_and_priority_tuples.append( (f"{hr} {hr_suffix}", 50, 10) )
+                accolades_rank_and_priority_tuples.append( (f"{hr} {hr_suffix}", 50, default_stat_priority) )
             # RBI
             rbi = self.stats.get('RBI', 0)
             if (rbi / num_seasons) >= 100 and not self.is_substring_in_list('RBI',current_accolades):
-                accolades_rank_and_priority_tuples.append( (f"{rbi} RBI", 51, 10) )
+                accolades_rank_and_priority_tuples.append( (f"{rbi} RBI", 51, default_stat_priority) )
             # HITS
             hits = self.stats.get('H', 0)
             if ( (hits / num_seasons) >= 175 and not self.is_substring_in_list('HITS',current_accolades) ) or hits >= 3000:
-                accolades_rank_and_priority_tuples.append( (f"{hits} HITS", 52, 10) )
+                accolades_rank_and_priority_tuples.append( (f"{hits} HITS", 52, default_stat_priority) )
             # BATTING AVG
             ba = self.stats.get('batting_avg', 0.00)
             if ba >= 0.300 and not self.is_substring_in_list('BA',current_accolades):
                 ba_3_decimals = ('%.3f' % ba).replace('0.','.')
                 ba_suffix = "BA" if self.context in ['2004','2005'] else 'BATTING AVG'
-                accolades_rank_and_priority_tuples.append( (f"{ba_3_decimals} {ba_suffix}", 53, 10) )
+                accolades_rank_and_priority_tuples.append( (f"{ba_3_decimals} {ba_suffix}", 53, default_stat_priority) )
             # OBP
             obp = self.stats.get('onbase_perc', 0.00)
             if obp >= 0.400 and not self.is_substring_in_list('OBP',current_accolades):
                 obp_3_decimals = ('%.3f' % obp).replace('0.','.')
-                accolades_rank_and_priority_tuples.append( (f"{obp_3_decimals} OBP", 54, 10) )
+                accolades_rank_and_priority_tuples.append( (f"{obp_3_decimals} OBP", 54, default_stat_priority) )
             # SLG
             slg = self.stats.get('slugging_perc', 0.00)
             if slg >= 0.550 and not self.is_substring_in_list('SLG',current_accolades):
                 slg_3_decimals = ('%.3f' % slg).replace('0.','.')
-                accolades_rank_and_priority_tuples.append( (f"{slg_3_decimals} SLG%", 55, 10) )
+                accolades_rank_and_priority_tuples.append( (f"{slg_3_decimals} SLG%", 55, default_stat_priority) )
             # dWAR
             dWAR = self.stats.get('dWAR', 0.00)
             if float(dWAR) >= (2.5 * num_seasons) and not self.is_substring_in_list('DWAR',current_accolades):
@@ -1041,11 +1059,11 @@ class ShowdownPlayerCard:
             # OPS+
             ops_plus = self.stats.get('onbase_plus_slugging_plus', None)
             if ops_plus and not self.is_pitcher and not self.is_substring_in_list('OPS+',current_accolades):
-                accolades_rank_and_priority_tuples.append( (f"{int(ops_plus)} OPS+", 57, 10) )
+                accolades_rank_and_priority_tuples.append( (f"{int(ops_plus)} OPS+", 57, default_stat_priority) )
             # bWAR
             bWAR = self.stats.get('bWAR', None)
             if bWAR:
-                accolades_rank_and_priority_tuples.append( (f"{bWAR} WAR", 58, 10) )
+                accolades_rank_and_priority_tuples.append( (f"{bWAR} WAR", 58, default_stat_priority) )
 
         sorted_tuples = sorted(accolades_rank_and_priority_tuples, key=lambda t: (t[2],t[1]))
         sorted_accolades = [tup[0] for tup in sorted_tuples]
@@ -4116,7 +4134,7 @@ class ShowdownPlayerCard:
         expansion_image = Image.open(self.__template_img_path(f'{self.template_set_year}-{self.expansion}'))
         return expansion_image
 
-    def __super_season_image(self) -> tuple[Image, int]:
+    def __super_season_image(self) -> tuple:
         """Creates image for optional super season attributes. Add accolades for
            cards in set > 2001.
 
@@ -4894,9 +4912,11 @@ class ShowdownPlayerCard:
         # GET LIST OF FILE METADATA FROM CORRECT FOLDER
         files_metadata = []
         page_token = None
-        while True:
+        failure_number = 0
+        while True and failure_number < 3:
             try:
-                query = f"parents = '{folder_id}' and name contains '({bref_id})'"
+                bref_id_cleaned = bref_id.replace("'",'')
+                query = f"parents = '{folder_id}' and name contains '({bref_id_cleaned})'"
                 file_service = service.files()
                 response = file_service.list(q=query,pageSize=1000,pageToken=page_token).execute()
                 new_files_list = response.get('files')
@@ -4907,7 +4927,9 @@ class ShowdownPlayerCard:
             except Exception as err:
                 # IMAGE MAY FAIL TO LOAD SOMETIMES
                 self.img_loading_error = str(err)
+                failure_number += 1
                 continue
+            
         
         # LOOK FOR SUBSTRING IN FILE NAMES
         file_matches_metadata_dict = self.__img_file_matches_dict(files_metadata=files_metadata, components_dict=components_dict, bref_id=bref_id, year=year)
