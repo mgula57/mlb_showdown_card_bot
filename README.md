@@ -541,7 +541,7 @@ HITTERS
 12. RUNS
 13. TOTAL BASES
 14. WAR
-15. XBH
+15. OPS PLUS
 
 PITCHERS
 
@@ -551,58 +551,66 @@ PITCHERS
 4. WHIP
 5. WINS
 6. IP
-7. OPS PLUS
-8. ERA PLUS
-9. WAR
-10. SHUTOUTS
-11. CG
-12. W/L%
-13. SO/9
-14. FIP
+7. ERA PLUS
+8. WAR
+9. SHUTOUTS
+10. CG
+11. W/L%
+12. SO/9
+13. FIP
 
 **4. STATS**: If the player does not have enough awards and accolades, their stats will be used. See below for ordering and minimum requirements.
 
-HITTERS
+Some stats include a historical cutoff, meaning if the player's stat is greater or equal to that number it will be included.
 
-1. HR (min 30)
-2. RBI (min 100)
-3. HITS (min 175)
-4. BA (min .300)
-5. OBP (min .400)
-6. SLG (min .550)
-7. dWAR (min 2.5)
-8. OPS+ (no min req)
-9. bWAR (no min req)
+**HITTERS**
 
-PITCHERS
+Stat | Season Min. | Season Historical | Career Historical
+---  | -------     | -------------     | ----------------- 
+HR   | 30          |      60           |   500 
+RBI  | 100         |      -            |    -
+HITS | 175         |     240           |   3000
+BA   | .300        |     .390          |    -
+OBP  | .400        |      -            |    - 
+SLG  | .550        |      -            |    - 
+dWAR | 2.5         |      -            |    -
+OPS+ | -           |      -            |    -
+bWAR | -           |      -            |    -
 
-1. WINS (min 14)
-2. SAVES (min 20)
-3. ERA (no min req)
-4. WHIP (no min req)
-5. bWAR (no min req)
+
+**PITCHERS**
+
+
+Stat   | Season Min. | Season Historical | Career Historical
+---    | -------     | -------------     | ----------------- 
+WINS   | 14          |     -             |    - 
+SAVES  | 20          |     -             |    -
+ERA    | -           |     -             |    -
+WHIP   | -           |     -             |    -
+bWAR   | -           |     -             |    - 
+
 
 Here is an example of how the Bot ranks accolades for 1999 Chipper Jones:
 
 ![Image](./static/interface/SuperSeasonAccolades.png)
 
-Rank | 2000-2002 Sets | 2003-2005 Sets
---- | --- | --- 
-1  | NL MVP | 2ND IN NL OPS+ 
-2  | SILVER SLUGGER | 3RD IN NL HR 
-3  | 2ND IN NL OPS+ | 3RD IN NL OPS 
-4  | 3RD IN NL HR | 3RD IN NL WALKS 
-5  | 3RD IN NL OPS | NL MVP 
-6  | 3RD IN NL WALKS | 4TH IN NL OBP 
-7  | 4TH IN NL OBP | 4TH IN NL SLG 
-8  | 4TH IN NL SLG | 4TH IN NL TOTAL BASES 
-9  | 4TH IN NL TOTAL BASES | 5TH IN NL WAR 
-10 | 5TH IN NL WAR |  7TH IN NL 2B 
-11 | 7TH IN NL 2B |  7TH IN NL RUNS 
-12 | 7TH IN NL RUNS |  SILVER SLUGGER 
-13 | 10TH IN NL BA |  10TH IN NL BA 
-14 | 110 RBI |  110 RBI 
-15 | 181 HITS |  181 HITS 
+Rank | 2000-2002 Sets        | 2003-2005 Sets
+---  | ----------------------| --------------
+1    | NL MVP                | 3RD IN NL HR
+2    | SILVER SLUGGER        | 3RD IN NL OPS
+3    | 3RD IN NL HR          | 3RD IN NL WALKS
+4    | 3RD IN NL OPS         | NL MVP
+5    | 3RD IN NL WALKS       | 4TH IN NL OBP
+6    | 4TH IN NL OBP         | 4TH IN NL SLG
+7    | 4TH IN NL SLG         | 4TH IN NL TOTAL BASES
+8    | 4TH IN NL TOTAL BASES | 5TH IN NL WAR
+9    | 5TH IN NL WAR         | 2ND IN NL OPS+
+10   | 2ND IN NL OPS+        |  7TH IN NL 2B 
+11   | 7TH IN NL 2B          |  7TH IN NL RUNS 
+12   | 7TH IN NL RUNS        |  SILVER SLUGGER 
+13   | 10TH IN NL BA         |  10TH IN NL BA 
+14   | 110 RBI               |  110 RBI 
+15   | 181 HITS              |  181 HITS 
 
 Note that in the final version for the 2004 set, _NL MVP_ is shown despite it being ranked 5th. This is because the prior accolades would have been cut-off in the image!
 
