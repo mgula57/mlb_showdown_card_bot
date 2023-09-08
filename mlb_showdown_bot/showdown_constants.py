@@ -16901,7 +16901,7 @@ class Accolade(Enum):
     @property
     def priority_multiplier(self) -> float:
         match self.name:
-            case "OPS_PLUS" | "FIP": return 3.0
+            case "OPS_PLUS" | "FIP" | "ERA_PLUS": return 3.0
             case "MVP" | "CY_YOUNG": return 0.5
             case _: return 1.0
     
