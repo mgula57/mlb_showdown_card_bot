@@ -16899,6 +16899,13 @@ class Accolade(Enum):
         ]
     
     @property
+    def priority_multiplier(self) -> float:
+        match self.name:
+            case "OPS_PLUS" | "FIP" | "ERA_PLUS": return 3.0
+            case "MVP" | "CY_YOUNG": return 0.5
+            case _: return 1.0
+    
+    @property
     def is_pitcher_exclusive(self) -> bool:
         return self.name in ["CY_YOUNG","ERA","SAVES","SO","WHIP","WINS","IP","ERA_PLUS","SHUTOUTS","CG","WIN_LOSS_PERC","SO9","FIP",]
     
