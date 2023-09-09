@@ -890,7 +890,7 @@ class ShowdownPlayerCard:
                     num_awards = len(accolade_list_cleaned)
                     year_parsed = accolade_list_cleaned[0].split(' ', 1)[0]
                     award_title = accolade_class.title if is_pre_2004 else accolade_class.title.replace('SLUGGER', 'SLG')
-                    final_string = f"{num_awards}X {award_title}" if num_awards > 1 else award_title
+                    final_string = f"{num_awards}X {award_title}" if num_awards > 1 and num_seasons > 1 else award_title
                     if num_awards == 1 and num_seasons > 1 and is_pre_2004:
                         final_string = f"{year_parsed} {final_string}"
                     priority = (1 if accolade_class == sc.Accolade.ALL_STAR else 0) if not is_icons or num_awards > 1 else 10 
