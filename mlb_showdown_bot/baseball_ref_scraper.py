@@ -795,18 +795,26 @@ class BaseballReferenceScraper:
         """
 
         # REMOVE SPECIAL CHARACTERS FROM THE NAME
-        first_name_cleaned = unidecode.unidecode(bref_name.split(' ')[0].replace(".", ""))
-        last_name = unidecode.unidecode(bref_name.split(' ')[1])
-        full_name_baseball_savant = unidecode.unidecode(statcast_name)
+        bref_name = unidecode.unidecode(bref_name.replace(".", ""))
+        bref_name_split_list = bref_name.split(' ')
+        first_name_cleaned = bref_name_split_list[0]
+        last_name = bref_name_split_list[1]
+
+        # PARSE BASEBALL SAVANT NAME
+        savant_name_raw = unidecode.unidecode(statcast_name)
+        savant_name_split_list = savant_name_raw.split(', ', 1)
 
         # REPLACE DECIMAL POINTS WITH EMPTY STRING
         try:
-            full_name_baseball_savant = full_name_baseball_savant.replace(".",'')
+            full_name_baseball_savant = f"{savant_name_split_list[1]} {savant_name_split_list[0]}".replace(".","")
         except:
             return False
         
-        return first_name_cleaned in full_name_baseball_savant \
-                and last_name in full_name_baseball_savant
+        is_first_and_last_matches = first_name_cleaned in full_name_baseball_savant and last_name in full_name_baseball_savant
+        is_exact_name_match = bref_name.lower() == full_name_baseball_savant.lower()
+        is_match = is_first_and_last_matches or is_exact_name_match
+        
+        return is_match
 
     def advanced_stats(self, type, year):
         """Parse advanced stats page from baseball reference.
