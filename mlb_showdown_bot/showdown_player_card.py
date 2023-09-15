@@ -28,22 +28,28 @@ class ShowdownPlayerCard:
 
 # ------------------------------------------------------------------------
 # INIT
+# ------------------------------------------------------------------------
 
-    def __init__(self, name, year, stats, context, expansion='FINAL', edition="NONE", offset=0, player_image_url=None, player_image_path=None, card_img_output_folder_path='', set_number='', test_numbers=None, run_stats=True, command_out_override=None, print_to_cli=False, show_player_card_image=False, is_img_part_of_a_set=False, add_image_border = False, is_dark_mode = False, is_variable_speed_00_01 = False, image_parallel = "NONE", add_year_container = False, set_year_plus_one = False, hide_team_logo=False, date_override=None, era="DYNAMIC", is_running_in_flask=False, source='Baseball Reference'):
+    def __init__(self, name:str, year:str, stats:dict, context:str, expansion:str='FINAL', edition:str="NONE", offset:int=0, player_image_url:str=None, player_image_path:str=None, card_img_output_folder_path:str='', set_number:str='', test_numbers:tuple[int,int]=None, run_stats:bool=True, command_out_override:tuple[int,int]=None, print_to_cli:bool=False, show_player_card_image:bool=False, is_img_part_of_a_set:bool=False, add_image_border:bool=False, is_dark_mode:bool=False, is_variable_speed_00_01:bool=False, image_parallel:str="NONE", add_year_container:bool=False, set_year_plus_one:bool=False, hide_team_logo:bool=False, date_override:str=None, era:str="DYNAMIC", is_running_in_flask:bool=False, source:str='Baseball Reference'):
         """Initializer for ShowdownPlayerCard Class"""
 
         # ASSIGNED ATTRIBUTES
-        self.version = "3.6"
-        self.name = stats['name'] if 'name' in stats.keys() else name
-        self.bref_id = stats['bref_id'] if 'bref_id' in stats.keys() else ''
-        self.bref_url = stats['bref_url'] if 'bref_url' in stats.keys() else ''
+        self.version: str = "3.6"
+        self.name: str = stats.get('name', name)
+        self.bref_id: str = stats.get('bref_id', '')
+        self.bref_url = stats.get('bref_url', '')
         self.year = str(year).upper()
-        self.is_full_career = self.year == "CAREER"
-        self.is_multi_year = len(self.year) > 4
-        self.type_override = ''
+        self.is_full_career: bool = self.year == "CAREER"
+        self.is_multi_year: bool = len(self.year) > 4
+
+        # TYPE OVERRIDE
+        self.type_override: str = ''
         for type_str in ['(Pitcher)','(Hitter)']:
             if type_str in name:
                 self.type_override = type_str
+        
+        # DEFINE LIST OF YEARS
+        self.year_list: list[int] = []
         if year.upper() == 'CAREER':
             self.year_list = [int(year) for year in stats['years_played']]
         elif '-' in year:
@@ -57,71 +63,84 @@ class ShowdownPlayerCard:
             self.year_list = [int(x.strip()) for x in years]
         else:
             self.year_list = [int(year)]
-        self.context = context.upper()
-        self.context_year = '2022' if self.context in sc.CLASSIC_AND_EXPANDED_SETS else context
-        self.expansion = expansion
-        self.is_expanded = self.context in sc.EXPANDED_SETS
-        self.is_classic = self.context in sc.CLASSIC_SETS
-        self.has_icons = self.context in sc.SETS_HAS_ICONS
+
+        # SET INFO
+        self.context: str = context.upper()
+        self.context_year: str = '2022' if self.context in sc.CLASSIC_AND_EXPANDED_SETS else context
+        self.expansion: str = expansion
+        self.era = self.era_dynamic if era == "DYNAMIC" else era
+        self.is_expanded: bool = self.context in sc.EXPANDED_SETS
+        self.is_classic: bool = self.context in sc.CLASSIC_SETS
+        self.has_icons: bool = self.context in sc.SETS_HAS_ICONS
+
+        # STATS
         # ADD OPS IF NOT IN DICT (< 1900 CARDS)
         if 'onbase_plus_slugging' not in stats.keys() and 'slugging_perc' in stats.keys() and 'onbase_perc' in stats.keys():
             stats['onbase_plus_slugging'] = stats['slugging_perc'] + stats['onbase_perc']
         # REDUCE IF/FB FOR 1988
         if 'IF/FB' in stats.keys() and year == '1988':
             stats['IF/FB'] = stats.get('IF/FB', 0.0) * sc.PU_MULTIPLIER_1988
-        self.stats = stats
-        self.source = source
-        self.league = stats.get('lg_ID', 'MLB')
         # COMBINE BB AND HBP
-        if 'HBP' in self.stats.keys():
+        if 'HBP' in stats.keys():
             try:
-                self.stats['BB'] = self.stats['BB'] + self.stats['HBP']
+                stats['BB'] = stats['BB'] + stats['HBP']
             except:
                 print("ERROR COMBINING BB AND HBP")
-        self.edition = sc.Edition(edition)
-        self.era = self.__dynamic_era() if era == "DYNAMIC" else era
-        self.nationality = stats['nationality'] if 'nationality' in stats.keys() else None
-        self.player_image_url = player_image_url
-        self.player_image_path = player_image_path
-        self.card_img_output_folder_path = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
-        default_set_number = '—' if self.context in ['2003',sc.EXPANDED_SET, sc.CLASSIC_SET] else year
-        self.has_custom_set_number = set_number != ''
-        self.set_number = set_number if self.has_custom_set_number else default_set_number
-        self.add_year_container = add_year_container and self.context in sc.CONTEXTS_ELIGIBLE_FOR_YEAR_CONTAINER
-        self.set_year_plus_one = set_year_plus_one and self.context in sc.CONTEXTS_ELIGIBLE_FOR_SET_YEAR_PLUS_ONE
-        self.hide_team_logo = hide_team_logo
-        self.date_override = date_override
-        self.test_numbers = test_numbers
-        self.command_out_override = command_out_override
-        self.is_running_in_flask = is_running_in_flask
-        self.is_automated_image = False
-        self.player_image_source = None
-        self.is_img_part_of_a_set = is_img_part_of_a_set
-        self.is_stats_estimate = stats['is_stats_estimate'] == True if 'is_stats_estimate' in stats.keys() else False
-        self.add_image_border = add_image_border
-        self.is_dark_mode = is_dark_mode
-        self.is_variable_speed_00_01 = is_variable_speed_00_01
-        self.image_parallel = sc.ImageParallel(image_parallel)
-        self.img_loading_error = None
-        self.img_id = None
-        self.img_bordered_id = None
-        self.img_dark_id = None
-        self.img_dark_bordered_id = None
-        self.stats_version = int(offset)
-        self.rank = {}
-        self.pct_rank = {}
-        self.load_time = None
+        self.stats: dict = stats
+        self.source: str = source
+        self.is_stats_estimate = stats.get('is_stats_estimate', False)
+        self.stats_version:int = int(offset)
 
-        if run_stats:
+        # METADATA
+        self.is_pitcher: bool = stats.get('type', '') == 'Pitcher'
+        self.league: str = stats.get('lg_ID', 'MLB')
+        self.team: str = stats.get('team_ID', '')
+        self.edition: sc.Edition = sc.Edition(edition)
+        self.nationality: str = stats.get('nationality', None)
 
-            # DERIVED ATTRIBUTES
-            self.is_pitcher = True if stats['type'] == 'Pitcher' else False
-            self.team = stats['team_ID']
+        # IMAGE
+        self.image_parallel: sc.ImageParallel = sc.ImageParallel(image_parallel)
+        self.player_image_url: str = player_image_url
+        self.player_image_path: str = player_image_path
+        self.card_img_output_folder_path: str = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
+        self.is_automated_image: bool = False
+        self.player_image_source: str = None
+        self.is_img_part_of_a_set: bool = is_img_part_of_a_set
+        self.add_image_border: bool = add_image_border
+        self.is_dark_mode: bool = is_dark_mode
+        self.img_loading_error: str = None
+        self.img_id: str = None
+        self.img_bordered_id: str = None
+        self.img_dark_id: str = None
+        self.img_dark_bordered_id: str = None
+        
+        # CUSTOMIZATIONS
+        default_set_number: str = '—' if self.context in ['2003',sc.EXPANDED_SET, sc.CLASSIC_SET] else year
+        self.has_custom_set_number: bool = set_number != ''
+        self.set_number: str = set_number if self.has_custom_set_number else default_set_number
+        self.add_year_container: bool = add_year_container and self.context in sc.CONTEXTS_ELIGIBLE_FOR_YEAR_CONTAINER
+        self.set_year_plus_one: bool = set_year_plus_one and self.context in sc.CONTEXTS_ELIGIBLE_FOR_SET_YEAR_PLUS_ONE
+        self.hide_team_logo: bool = hide_team_logo
+        self.date_override: str = date_override
+        self.test_numbers: tuple[int,int] = test_numbers
+        self.command_out_override: tuple[int,int] = command_out_override
+        self.is_variable_speed_00_01: bool = is_variable_speed_00_01
 
-            # METADATA IS SET IN ANOTHER METHOD
+        # RANKS
+        self.rank: dict = {}
+        self.pct_rank: dict = {}
+        
+        # RUNTIME
+        self.is_running_in_flask: bool = is_running_in_flask
+        self.load_time: float = None
+        
+        if run_stats:            
+
             # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
             self.__player_metadata(stats=stats)
 
+            # CONVERT STATS TO PER 400 PA
+            # MAKES MATH EASIER (20 SIDED DICE)
             stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=stats)
 
             if command_out_override is None:
@@ -155,9 +174,188 @@ class ShowdownPlayerCard:
                 self.print_player()
 
 # ------------------------------------------------------------------------
-# METADATA METHODS
+# STATIC PROPERTIES
+# ------------------------------------------------------------------------
 
-    def __player_metadata(self, stats):
+    @property
+    def player_type(self) -> str:
+        """Gets full player type (position_player, starting_pitcher, relief_pitcher).
+           Used for applying weights
+
+        Args:
+          None
+
+        Returns:
+          String for full player type ('position_player', 'tarting_pitcher', 'relief_pitcher').
+        """
+        # PARSE PLAYER TYPE
+        if self.is_pitcher:
+            is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
+            player_category = 'starting_pitcher' if is_starting_pitcher else 'relief_pitcher'
+        else:
+            player_category = 'position_player'
+
+        return player_category
+
+    @property
+    def player_classification(self) -> str:
+        """Gives the player a classification based on their stats, hand, and position. 
+          Used to inform which silhouette is given to a player.
+
+        Args:
+          None
+
+        Returns:
+          String with player's classification (ex: "LHH", "LHH-OF", "RHP-CL")
+        """
+
+        positions = self.positions_and_defense.keys()
+        is_catcher = any(pos in positions for pos in ['C','CA'])
+        is_middle_infield = any(pos in positions for pos in ['IF','2B','SS'])
+        is_outfield = any(pos in positions for pos in ['OF','CF','LF/RF'])
+        is_1b = '1B' in positions
+        is_multi_position = len(positions) > 1
+        hitter_hand = "LHH" if self.hand[-1] == "S" else f"{self.hand[-1]}HH"
+        hand_prefix = self.hand if self.is_pitcher else hitter_hand
+        hand_throwing = self.stats['hand_throw']
+        throwing_hand_prefix = f"{hand_throwing[0].upper()}H"
+
+        # CATCHERS
+        if is_catcher:
+            return "CA"
+
+        # MIDDLE INFIELDERS
+        if is_middle_infield and not is_outfield:
+            return "MIF"
+
+        # OLD TIMERS
+        if min(self.year_list) < 1950:
+            # IF YEAR IS LESS THAN 1950, ASSIGN OLD TIMER SILHOUETTES
+            return f"{hand_prefix}-OT"
+
+        # PITCHERS
+        if self.is_pitcher:
+            # PITCHERS ARE CLASSIFIED AS SP, RP, CL
+            if 'RELIEVER' in positions:
+                return f"{hand_prefix}-RP"
+            elif 'CLOSER' in positions:
+                return f"{hand_prefix}-CL"
+            else:
+                return f"{hand_prefix}-SP"
+        # HITTERS
+        else:
+            is_slg_above_threshold = self.stats['slugging_perc'] >= 0.475
+            # FOR HITTERS CHECK FOR POSITIONS
+            # 1. LHH OUTFIELDER
+            if is_outfield and hand_throwing == "Left" and not is_slg_above_threshold:
+                return f"LH-OF"
+
+            # 2. CHECK FOR 1B
+            if is_1b and not is_multi_position:
+                return f"{throwing_hand_prefix}-1B"
+
+            # 3. CHECK FOR POWER HITTER
+            if is_slg_above_threshold:
+                return f"{hand_prefix}-POW"
+
+        # RETURN STANDARD CUTOUT
+        return hand_prefix
+    
+    @property
+    def era_dynamic(self) -> str:
+        """Returns the era that best fits the player's season.
+        If multi-season, return the era with the most years in it.
+
+        Returns:
+            Era name string.
+        """
+
+        eras = []
+        for year in self.year_list:
+            for era, year_range in sc.ERA_YEAR_RANGE.items():
+                if year in year_range:
+                    eras.append(era)
+        
+        # FILTER TO MOST
+        most_common_era_tuples_list = Counter(eras).most_common(1)
+
+        if len(most_common_era_tuples_list) == 0:
+            return sc.ERA_STEROID
+        
+        return most_common_era_tuples_list[0][0]
+
+    @property
+    def special_edition(self) -> sc.SpecialEdition:
+        """ Special Editions are cards with unique art and characteristics """
+
+        if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023':
+            return sc.SpecialEdition.ASG_2023
+        
+        if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005',]:
+            return sc.SpecialEdition.SUPER_SEASON
+        
+        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
+            return sc.SpecialEdition.COOPERSTOWN_COLLECTION
+        
+        if self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+            return sc.SpecialEdition.TEAM_COLOR_BLAST_DARK
+        
+        return sc.SpecialEdition.NONE
+    
+    @property
+    def num_positions_playable(self) -> int:
+        """Count how many positions the player is eligible to play. 
+           Pitchers (not named Ohtani) default to 1 position.
+        
+        Args:
+          None
+
+        Returns:
+          Integer with number of unique playable positions for the player.
+        """
+
+        num_positions = 0
+        for position in self.positions_and_defense.keys():
+            match position:
+                case "LF/RF": num_positions += 2
+                case "IF": num_positions += 4
+                case "OF": num_positions += 3
+                case _: num_positions += 1 # DEFAULT
+        return num_positions
+    
+    @property
+    def positions_and_defense_for_visuals(self) -> dict:
+        """ Transform the player's positions_and_defense dictionary for visuals (printing, card image)
+        
+        Args:
+          None
+
+        Returns:
+          Dictionary where key is the position, value is the defense at that position
+        """
+
+        # NO NEED TO COMBINE IF < 3 POSITIONS
+        if self.context in sc.CLASSIC_AND_EXPANDED_SETS or len(self.positions_and_defense) < 3:
+            return self.positions_and_defense
+        
+        positions_to_combine = self.__find_position_combination_opportunity(self.positions_and_defense)
+        if positions_to_combine is None:
+            return self.positions_and_defense
+        positions_to_combine_str =  "/".join(positions_to_combine)
+        
+        avg_defense = self.positions_and_defense.get(positions_to_combine[0], None)
+        if avg_defense is None:
+            return self.positions_and_defense
+        combined_positions_and_defense = {pos: df for pos, df in self.positions_and_defense.items() if pos not in positions_to_combine}
+        combined_positions_and_defense[positions_to_combine_str] = avg_defense
+
+        return combined_positions_and_defense
+
+# ------------------------------------------------------------------------
+# METADATA METHODS
+# ------------------------------------------------------------------------
+
+    def __player_metadata(self, stats:dict) -> None:
         """Parse all metadata (positions, hand, speed, ...) and assign to self.
 
         Args:
@@ -193,7 +391,7 @@ class ShowdownPlayerCard:
         self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
         self.icons = self.__icons(awards=stats['award_summary'] if 'award_summary' in stats.keys() else '')
 
-    def __positions_and_defense(self, defensive_stats, games_played, games_started, saves):
+    def __positions_and_defense(self, defensive_stats:dict, games_played:int, games_started:int, saves:int) -> dict:
         """Get in-game defensive positions and ratings
 
         Args:
@@ -299,7 +497,7 @@ class ShowdownPlayerCard:
 
         return final_positions_in_game
 
-    def __combine_like_positions(self, positions_and_defense, positions_and_games_played, is_of_but_hasnt_played_cf=False):
+    def __combine_like_positions(self, positions_and_defense:dict, positions_and_games_played:dict, is_of_but_hasnt_played_cf=False) -> tuple[dict,dict]:
         """Limit and combine positions (ex: combine LF and RF -> LF/RF)
 
         Args:
@@ -574,55 +772,6 @@ class ShowdownPlayerCard:
 
         return defense
 
-    @property
-    def positions_and_defense_for_visuals(self) -> dict:
-        """ Transform the player's positions_and_defense dictionary for visuals (printing, card image)
-        
-        Args:
-          None
-
-        Returns:
-          Dictionary where key is the position, value is the defense at that position
-        """
-
-        # NO NEED TO COMBINE IF < 3 POSITIONS
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS or len(self.positions_and_defense) < 3:
-            return self.positions_and_defense
-        
-        positions_to_combine = self.__find_position_combination_opportunity(self.positions_and_defense)
-        if positions_to_combine is None:
-            return self.positions_and_defense
-        positions_to_combine_str =  "/".join(positions_to_combine)
-        
-        avg_defense = self.positions_and_defense.get(positions_to_combine[0], None)
-        if avg_defense is None:
-            return self.positions_and_defense
-        combined_positions_and_defense = {pos: df for pos, df in self.positions_and_defense.items() if pos not in positions_to_combine}
-        combined_positions_and_defense[positions_to_combine_str] = avg_defense
-
-        return combined_positions_and_defense
-
-    @property
-    def num_positions_playable(self) -> int:
-        """Count how many positions the player is eligible to play. 
-           Pitchers (not named Ohtani) default to 1 position.
-        
-        Args:
-          None
-
-        Returns:
-          Integer with number of unique playable positions for the player.
-        """
-
-        num_positions = 0
-        for position in self.positions_and_defense.keys():
-            match position:
-                case "LF/RF": num_positions += 2
-                case "IF": num_positions += 4
-                case "OF": num_positions += 3
-                case _: num_positions += 1 # DEFAULT
-        return num_positions
-
     def __handedness(self, hand):
         """Get hand of player. Format to how card will display hand.
 
@@ -638,7 +787,7 @@ class ShowdownPlayerCard:
 
         return hand_formatted_for_position
 
-    def __innings_pitched(self, innings_pitched, games, games_started, ip_per_start):
+    def __innings_pitched(self, innings_pitched:float, games:int, games_started:int, ip_per_start:float) -> int:
         """In game stamina for a pitcher. Position Player defaults to 0.
 
         Args:
@@ -651,7 +800,7 @@ class ShowdownPlayerCard:
           In game innings pitched ability.
         """
         # ACCOUNT FOR HYBRID STARTER/RELIEVERS
-        type = self.player_type()
+        type = self.player_type
         is_reliever = type == 'relief_pitcher'
         if is_reliever:
             # REMOVE STARTER INNINGS AND GAMES STARTED
@@ -746,7 +895,7 @@ class ShowdownPlayerCard:
 
         return final_speed, letter
 
-    def __icons(self,awards):
+    def __icons(self, awards):
         """Converts awards_summary and other metadata fields into in game icons.
 
         Args:
@@ -1102,128 +1251,6 @@ class ShowdownPlayerCard:
 
         return sorted_accolades[0:maximum] if maximum else sorted_accolades
 
-    def player_type(self):
-        """Gets full player type (position_player, starting_pitcher, relief_pitcher).
-           Used for applying weights
-
-        Args:
-          None
-
-        Returns:
-          String for full player type ('position_player', 'tarting_pitcher', 'relief_pitcher').
-        """
-        # PARSE PLAYER TYPE
-        if self.is_pitcher:
-            is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
-            player_category = 'starting_pitcher' if is_starting_pitcher else 'relief_pitcher'
-        else:
-            player_category = 'position_player'
-
-        return player_category
-
-    def player_classification(self):
-        """Gives the player a classification based on their stats, hand, and position. 
-          Used to inform which silhouette is given to a player.
-
-        Args:
-          None
-
-        Returns:
-          String with player's classification (ex: "LHH", "LHH-OF", "RHP-CL")
-        """
-
-        positions = self.positions_and_defense.keys()
-        is_catcher = any(pos in positions for pos in ['C','CA'])
-        is_middle_infield = any(pos in positions for pos in ['IF','2B','SS'])
-        is_outfield = any(pos in positions for pos in ['OF','CF','LF/RF'])
-        is_1b = '1B' in positions
-        is_multi_position = len(positions) > 1
-        hitter_hand = "LHH" if self.hand[-1] == "S" else f"{self.hand[-1]}HH"
-        hand_prefix = self.hand if self.is_pitcher else hitter_hand
-        hand_throwing = self.stats['hand_throw']
-        throwing_hand_prefix = f"{hand_throwing[0].upper()}H"
-
-        # CATCHERS
-        if is_catcher:
-            return "CA"
-
-        # MIDDLE INFIELDERS
-        if is_middle_infield and not is_outfield:
-            return "MIF"
-
-        # OLD TIMERS
-        if min(self.year_list) < 1950:
-            # IF YEAR IS LESS THAN 1950, ASSIGN OLD TIMER SILHOUETTES
-            return f"{hand_prefix}-OT"
-
-        # PITCHERS
-        if self.is_pitcher:
-            # PITCHERS ARE CLASSIFIED AS SP, RP, CL
-            if 'RELIEVER' in positions:
-                return f"{hand_prefix}-RP"
-            elif 'CLOSER' in positions:
-                return f"{hand_prefix}-CL"
-            else:
-                return f"{hand_prefix}-SP"
-        # HITTERS
-        else:
-            is_slg_above_threshold = self.stats['slugging_perc'] >= 0.475
-            # FOR HITTERS CHECK FOR POSITIONS
-            # 1. LHH OUTFIELDER
-            if is_outfield and hand_throwing == "Left" and not is_slg_above_threshold:
-                return f"LH-OF"
-
-            # 2. CHECK FOR 1B
-            if is_1b and not is_multi_position:
-                return f"{throwing_hand_prefix}-1B"
-
-            # 3. CHECK FOR POWER HITTER
-            if is_slg_above_threshold:
-                return f"{hand_prefix}-POW"
-
-        # RETURN STANDARD CUTOUT
-        return hand_prefix
-
-    def __dynamic_era(self) -> str:
-        """Returns the era that best fits the player's season.
-        If multi-season, return the era with the most years in it.
-
-        Returns:
-            Era name string.
-        """
-
-        eras = []
-        for year in self.year_list:
-            for era, year_range in sc.ERA_YEAR_RANGE.items():
-                if year in year_range:
-                    eras.append(era)
-        
-        # FILTER TO MOST
-        most_common_era_tuples_list = Counter(eras).most_common(1)
-
-        if len(most_common_era_tuples_list) == 0:
-            return sc.ERA_STEROID
-        
-        return most_common_era_tuples_list[0][0]
-
-    @property
-    def special_edition(self) -> sc.SpecialEdition:
-        """ Special Editions are cards with unique art and characteristics """
-
-        if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023':
-            return sc.SpecialEdition.ASG_2023
-        
-        if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005',]:
-            return sc.SpecialEdition.SUPER_SEASON
-        
-        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
-            return sc.SpecialEdition.COOPERSTOWN_COLLECTION
-        
-        if self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
-            return sc.SpecialEdition.TEAM_COLOR_BLAST_DARK
-        
-        return sc.SpecialEdition.NONE
-
 # ------------------------------------------------------------------------
 # COMMAND / OUTS METHODS
 
@@ -1471,7 +1498,7 @@ class ShowdownPlayerCard:
         chart['1b'], chart['1b+'] = self.__single_and_single_plus_results(remaining_slots_qa,stolen_bases,command)
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20, era_override=era_override)
-        weights = sc.CHART_CATEGORY_WEIGHTS[self.context][self.player_type()]
+        weights = sc.CHART_CATEGORY_WEIGHTS[self.context][self.player_type]
         accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(actuals_dict=stats_for_400_pa,
                                                                                   measurements_dict=in_game_stats_for_400_pa,
                                                                                   weights=weights,
@@ -2000,7 +2027,7 @@ class ShowdownPlayerCard:
 
         points = 0
 
-        player_category = self.player_type()
+        player_category = self.player_type
 
         # PARSE POSITION MULTIPLIER
         command_outs = f"{str(self.chart['command'])}-{str(self.chart['outs'])}"
@@ -2181,8 +2208,8 @@ class ShowdownPlayerCard:
         """
 
         # NORMALIZE SCORE ACROSS MEDIAN
-        is_starting_pitcher = self.player_type() == 'starting_pitcher'
-        is_relief_pitcher = self.player_type() == 'relief_pitcher'
+        is_starting_pitcher = self.player_type == 'starting_pitcher'
+        is_relief_pitcher = self.player_type == 'relief_pitcher'
         reliever_normalizer = sc.POINTS_NORMALIZER_RELIEVER_MULTIPLIER[self.context] if is_relief_pitcher else 1.0
         median = 310 / reliever_normalizer
         upper_limit = 800 if self.is_classic else 800
@@ -2212,7 +2239,7 @@ class ShowdownPlayerCard:
                 is_desc = True
             )
             upper_multiplier = 1.0
-            lower_multiplier = sc.POINTS_NORMALIZER_MULTIPLIER[self.context][self.player_type()]
+            lower_multiplier = sc.POINTS_NORMALIZER_MULTIPLIER[self.context][self.player_type]
             multiplier = percentile * (upper_multiplier - lower_multiplier) + lower_multiplier
 
             # APPLY THIS TO OFFENSIVE STATS
@@ -2624,7 +2651,7 @@ class ShowdownPlayerCard:
           Multi-Dimensional list where each row is a list of a pts category, stat and value.
         """
         
-        if self.player_type() == 'relief_pitcher' and self.ip > 1:
+        if self.player_type == 'relief_pitcher' and self.ip > 1:
             spd_or_ip = ['IP', str(self.ip), f"{self.multi_inning_points_multiplier}x"]
         else:
             spd_or_ip = [
@@ -3197,7 +3224,7 @@ class ShowdownPlayerCard:
             # ADD SILHOUETTE IF NECESSARY
             non_empty_components = [typ for typ in sc.IMAGE_COMPONENT_ORDERED_LIST if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
             if len(non_empty_components) == 0:
-                img_components_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
+                img_components_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification}')
             
             player_imgs = self.__build_automated_player_image(component_img_urls_dict=img_components_dict, file_service=file_service)
             if len(player_imgs) > 0:
@@ -3231,7 +3258,7 @@ class ShowdownPlayerCard:
             
             # ADD SILHOUETTE IF NECESSARY
             if img_component == sc.ImageComponent.SILHOUETTE and is_img_download_error:
-                component_img_urls_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification()}')
+                component_img_urls_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification}')
             
             # CHECK FOR IMAGE TYPE
             img_url = component_img_urls_dict.get(img_component, None)
@@ -3613,7 +3640,7 @@ class ShowdownPlayerCard:
                 if self.nationality in sc.NATIONALITY_COLORS.keys():
                     colors = sc.NATIONALITY_COLORS[self.nationality]
                     if len(colors) >= 2:
-                        gradient_img_width = 475 if self.player_type() == 'position_player' else 680
+                        gradient_img_width = 475 if self.player_type == 'position_player' else 680
                         gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=colors)
                         container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
                         container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
