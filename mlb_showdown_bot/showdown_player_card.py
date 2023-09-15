@@ -39,30 +39,15 @@ class ShowdownPlayerCard:
         self.bref_id: str = stats.get('bref_id', '')
         self.bref_url = stats.get('bref_url', '')
         self.year = str(year).upper()
-        self.is_full_career: bool = self.year == "CAREER"
+        self.is_full_career: bool = self.year.upper() == "CAREER"
         self.is_multi_year: bool = len(self.year) > 4
+        self.year_list: list[int] = self.__convert_year_str_to_list(year=year, all_years_played=stats.get('years_played', []))
 
         # TYPE OVERRIDE
         self.type_override: str = ''
         for type_str in ['(Pitcher)','(Hitter)']:
             if type_str in name:
-                self.type_override = type_str
-        
-        # DEFINE LIST OF YEARS
-        self.year_list: list[int] = []
-        if year.upper() == 'CAREER':
-            self.year_list = [int(year) for year in stats['years_played']]
-        elif '-' in year:
-            # RANGE OF YEARS
-            years = year.split('-')
-            year_start = int(years[0].strip())
-            year_end = int(years[1].strip())
-            self.year_list = list(range(year_start,year_end+1))
-        elif '+' in year:
-            years = year.split('+')
-            self.year_list = [int(x.strip()) for x in years]
-        else:
-            self.year_list = [int(year)]
+                self.type_override = type_str        
 
         # SET INFO
         self.context: str = context.upper()
@@ -971,16 +956,6 @@ class ShowdownPlayerCard:
           Array with 3 string elements showing accolades for season
         """
 
-        # HANDLES CASE OF NO AWARDS
-        """Parse, clean, and sort player accolades.
-
-        Args:
-          None
-
-        Returns:
-          Sorted list of accolades converted to lists.
-        """
-
         # HELPER ATTRIBUTES 
         num_seasons = len(self.year_list)
         is_pre_2004 = self.context in ['2000','2001','2002','2003']
@@ -1251,8 +1226,36 @@ class ShowdownPlayerCard:
 
         return sorted_accolades[0:maximum] if maximum else sorted_accolades
 
+    def __convert_year_str_to_list(self, year:str, all_years_played:list[str]) -> list[int]:
+        """Convert user input year string to a list of year integers.
+
+        Ex: "2020-2022" -> [2020, 2021, 2022]
+        
+        Args:
+          year: Year string input by the user.
+          all_years_played: List of all years played by the player. Used if year input is CAREER.
+
+        Returns:
+          List of years converted to integers.
+        """
+
+        if year.upper() == 'CAREER':
+            return [int(year) for year in all_years_played]
+        elif '-' in year:
+            # RANGE OF YEARS
+            years = year.split('-')
+            year_start = int(years[0].strip())
+            year_end = int(years[1].strip())
+            return list(range(year_start,year_end+1))
+        elif '+' in year:
+            years = year.split('+')
+            return [int(x.strip()) for x in years]
+        else:
+            return [int(year)]
+
 # ------------------------------------------------------------------------
 # COMMAND / OUTS METHODS
+# ------------------------------------------------------------------------
 
     def __top_accurate_command_out_combos(self, obp, num_results):
         """Finds most accurate combinations of command/out compared to real onbase pct.
