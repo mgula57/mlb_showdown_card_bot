@@ -1380,6 +1380,7 @@ class ShowdownPlayerCard:
 
 # ------------------------------------------------------------------------
 # CHART METHODS
+# ------------------------------------------------------------------------
 
     @property
     def chart_categories(self) -> list[str]:
@@ -1816,8 +1817,9 @@ class ShowdownPlayerCard:
 
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
+# ------------------------------------------------------------------------
 
-    def __stats_per_n_pa(self,plate_appearances,stats:dict):
+    def __stats_per_n_pa(self, plate_appearances:int, stats:dict) -> dict:
         """Season stats per every n Plate Appearances.
 
         Args:
@@ -1852,7 +1854,7 @@ class ShowdownPlayerCard:
 
         return stats_for_n_pa
 
-    def __pct_rate_for_result(self, onbase, control, num_results_hitter_chart, num_results_pitcher_chart, hitter_denom_adjust=0.0,pitch_denom_adjust=0.0):
+    def __pct_rate_for_result(self, onbase:float, control:float, num_results_hitter_chart:float, num_results_pitcher_chart:float, hitter_denom_adjust:float=0.0,pitch_denom_adjust:float=0.0) -> float:
         """Percent chance a result will happen.
 
         Args:
@@ -1862,6 +1864,7 @@ class ShowdownPlayerCard:
           num_results_pitcher_chart: Number of results for the outcome located on pitcher's chart.
           hitter_denom_adjust: Adjust denominator for hitter calcs by subtraction.
           pitch_denom_adjust: Adjust denominator for pitcher calcs by subtraction.
+        
         Returns:
           Percent change a given result will occur.
         """
@@ -1880,14 +1883,14 @@ class ShowdownPlayerCard:
 
         return rate
 
-    def chart_to_results_per_400_pa(self, chart, my_advantages_per_20, opponent_chart, opponent_advantages_per_20, era_override:str = None):
+    def chart_to_results_per_400_pa(self, chart:dict[str, int], my_advantages_per_20:float, opponent_chart:dict[str, float], opponent_advantages_per_20:float, era_override:str = None) -> dict:
         """Predict real stats given Showdown in game chart.
 
         Args:
           chart: Dict for chart of Player.
-          my_advantages_per_20: Int number of advantages my Player gets out of 20 (i.e. 5).
+          my_advantages_per_20: Number of advantages my Player gets out of 20 (i.e. 5). Can be a float.
           opponent_chart: Dict for chart of baseline opponent.
-          opponent_advantages_per_20: Int number of advantages opponent gets out of 20 (i.e. 15).
+          opponent_advantages_per_20: Number of advantages opponent gets out of 20 (i.e. 15). Can be a float.
           era_override: Optionally override the era used for baseline opponents.
 
         Returns:
@@ -1962,7 +1965,7 @@ class ShowdownPlayerCard:
 
         return results_per_400_pa
 
-    def __result_occurances_per_400_pa(self, my_results, opponent_results, my_advantages_per_20, opponent_advantages_per_20):
+    def __result_occurances_per_400_pa(self, my_results:float, opponent_results:float, my_advantages_per_20:float, opponent_advantages_per_20:float) -> float:
         """Predict real stats given Showdown in game chart.
 
         Args:
@@ -1976,11 +1979,11 @@ class ShowdownPlayerCard:
         """
         return ((my_results * my_advantages_per_20) + (opponent_results * opponent_advantages_per_20))
 
-    def __slugging_pct(self,ab,singles,doubles,triples,homers):
-        """Calculate Slugging Pct"""
+    def __slugging_pct(self, ab:float, singles:float, doubles:float, triples:float, homers:float)  -> float:
+        """ Calculate Slugging Pct"""
         return (singles + (2 * doubles) + (3 * triples) + (4 * homers)) / ab
 
-    def projected_statline(self, stats_per_400_pa, command: str) -> dict:
+    def projected_statline(self, stats_per_400_pa:dict, command: int) -> dict:
         """Predicted season stats (650 PA)
 
         Args:
