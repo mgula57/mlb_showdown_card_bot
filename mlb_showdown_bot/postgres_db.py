@@ -21,7 +21,7 @@ class PostgresDB:
         If no environment variable for DATABASE_URL exists, None is stored.
         
         """
-        DATABASE_URL = os.environ['DATABASE_URL']
+        DATABASE_URL = os.getenv('DATABASE_URL')
 
         try:
             self.connection = psycopg2.connect(DATABASE_URL, sslmode='require')
