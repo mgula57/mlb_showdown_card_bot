@@ -886,7 +886,14 @@ class ShowdownPlayerCard:
 
         # AVERAGE SPRINT SPEED WITH SB SPEED
         num_metrics = len(in_game_speed_for_metric)
-        final_speed = int(round( sum([(sc.SPEED_METRIC_WEIGHT[metric] if num_metrics > 1 else 1.0) * in_game_spd for metric, in_game_spd in in_game_speed_for_metric.items() ]) ))
+        metric_weights = sc.SPEED_METRIC_WEIGHT
+        sb_speed = in_game_speed_for_metric.get(sc.STOLEN_BASES_KEY, 0)
+        ss_speed = in_game_speed_for_metric.get(sc.SPRINT_SPEED_KEY, 0)
+        if num_metrics > 1 and sb_speed > sc.SB_OUTLIER_SPEED_CUTOFF and sb_speed > ss_speed:
+            # CHANGE WEIGHTS TO EMPHASIZE STOLEN BASES OVER SPRINT SPEED
+            metric_weights = sc.SPEED_METRIC_WEIGHT_SB_OUTLIERS
+        
+        final_speed = int(round( sum([(metric_weights.get(metric, 1.0) if num_metrics > 1 else 1.0) * in_game_spd for metric, in_game_spd in in_game_speed_for_metric.items() ]) ))
 
         if final_speed < sc.SPEED_C_CUTOFF[self.context]:
             letter = 'C'
