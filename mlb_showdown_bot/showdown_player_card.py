@@ -3440,7 +3440,7 @@ class ShowdownPlayerCard:
                 logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
         try:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
-            historical_alternate_ext = self.__team_logo_historical_alternate_extension()
+            historical_alternate_ext = self.__team_logo_historical_alternate_extension(override_historical_logo_ignore = self.context == '2001')
             alternate_logo_ext = '-A' if self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET] and not self.edition.has_static_logo else ''
             team_logo_path = self.__team_logo_path(name = f"{logo_name}{alternate_logo_ext}{historical_alternate_ext}")
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
@@ -3496,11 +3496,12 @@ class ShowdownPlayerCard:
 
         return team_logo, logo_paste_coordinates
 
-    def __team_logo_historical_alternate_extension(self, include_dash=True):
+    def __team_logo_historical_alternate_extension(self, include_dash:bool = True, override_historical_logo_ignore:bool = False) -> str:
         """Check to see if there is an alternate team logo to use for the given team + year
 
         Args:
           include_dash: Boolean for whether to include prefix of "-". Default is True
+          override_historical_logo_ignore: Boolean for whether to include the historical extension even if the edition ignores it. 
 
         Returns:
           Index of alternate logo for team. If none exists, fn will return empty string
@@ -3509,7 +3510,7 @@ class ShowdownPlayerCard:
         logo_historical_alternates = sc.TEAM_LOGO_ALTERNATES
 
         # DONT APPLY IF COOPERSTOWN OR ALL-STAR GAME
-        if self.edition.ignore_historical_team_logo:
+        if self.edition.ignore_historical_team_logo and not override_historical_logo_ignore:
             return ''
 
         # CHECK TO SEE IF THERE ARE ANY ALTERNATE LOGOS FOR TEAM
