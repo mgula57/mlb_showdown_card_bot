@@ -2582,9 +2582,8 @@ class ShowdownPlayerCard:
         print('\nPROJECTED STATS')
         print(statline_tbl)
 
-    def player_data_for_html_table(self):
-        """ Provides data needed to populate the statline shown on the
-            showdownbot.com webpage.
+    def player_data_for_html_table(self) -> list[list[str]]:
+        """Provides data needed to populate the statline shown on the showdownbot.com webpage.
 
         Args:
           None
@@ -2654,9 +2653,8 @@ class ShowdownPlayerCard:
 
         return final_player_data
 
-    def points_data_for_html_table(self):
-        """Provides data needed to populate the points breakdown shown on the
-           showdownbot.com webpage.
+    def points_data_for_html_table(self) -> list[list[str]]:
+        """Provides data needed to populate the points breakdown shown on the showdownbot.com webpage.
 
         Args:
           None
@@ -2706,9 +2704,8 @@ class ShowdownPlayerCard:
 
         return pts_data
 
-    def accuracy_data_for_html_table(self):
-        """Provides data needed to populate the accuracy breakdown shown on the
-           showdownbot.com webpage.
+    def accuracy_data_for_html_table(self) -> list[list[str]]:
+        """Provides data needed to populate the accuracy breakdown shown on the showdownbot.com webpage.
 
         Args:
           None
@@ -2716,7 +2713,7 @@ class ShowdownPlayerCard:
         Returns:
           Multi-Dimensional list where each row is a list of a offset and accuracy value.
         """
-        accuracy_data = []
+        accuracy_data: list[list[str]] = []
         for index, co_accuracy_tuple in enumerate(self.top_command_out_combinations):
             command_out_tuple = co_accuracy_tuple[0]
             command = command_out_tuple[0]
@@ -2726,9 +2723,10 @@ class ShowdownPlayerCard:
 
         return accuracy_data
 
-    def rank_data_for_html_table(self):
-        """Provides data needed to populate the rank breakdown shown on the
-           showdownbot.com webpage. Only for cards loaded via the Showdown Library
+    def rank_data_for_html_table(self) -> list[list[str]]:
+        """Provides data needed to populate the rank breakdown shown on the showdownbot.com webpage. 
+        
+        Only applies to cards loaded via the Showdown Library.
 
         Args:
           None
@@ -2776,9 +2774,10 @@ class ShowdownPlayerCard:
                 ranking_data.append([category_cleaned, f"{value}", f"{rank}", f"{pct_rank}"])
         
         ranking_data.sort()
+        
         return ranking_data
 
-    def opponent_data_for_html_table(self):
+    def opponent_data_for_html_table(self) -> list[list[str]]:
         """ List of attributes of the avg opponent used to create player's chart 
         
         Args:
@@ -2792,7 +2791,7 @@ class ShowdownPlayerCard:
 
         return [[category.upper(), str(round(value,2))] for category, value in opponent_dict.items()]
 
-    def __player_metadata_summary_text(self, is_horizontal=False, return_as_list=False):
+    def __player_metadata_summary_text(self, is_horizontal:bool=False, return_as_list:bool=False) -> str:
         """Creates a multi line string with all player metadata for card output.
 
         Args:
@@ -2840,7 +2839,7 @@ class ShowdownPlayerCard:
         final_text = final_text.upper() if self.context in ['2002','2004','2005'] else final_text
         return final_text
 
-    def __position_and_defense_as_string(self, is_horizontal=False):
+    def __position_and_defense_as_string(self, is_horizontal:bool=False) -> str:
         """Creates a single line string with positions and defense.
 
         Args:
@@ -2871,7 +2870,7 @@ class ShowdownPlayerCard:
         
         return positions_string
 
-    def radar_chart_labels_as_values(self):
+    def radar_chart_labels_as_values(self) -> tuple[list[str], list[float]]:
         """Defines the labels and values used in the radar chart shown on the front end.
 
         Args:
@@ -2910,8 +2909,8 @@ class ShowdownPlayerCard:
         }
         all_labels = all_labels_pitcher if self.is_pitcher else all_labels_hitter
 
-        labels = []
-        values = []
+        labels: list[str] = []
+        values: list[float] = []
         for category, label in all_labels.items():
             if category in self.pct_rank.keys():
                 percentile_value = self.pct_rank[category]
@@ -2933,7 +2932,7 @@ class ShowdownPlayerCard:
 
         return f'rgb({tm_colors[0]}, {tm_colors[1]}, {tm_colors[2]})'
 
-    def __format_slash_pct(self, value) -> str:
+    def __format_slash_pct(self, value:float) -> str:
         """Converts a float value into a rounded decimal string without the leading 0.
 
         Args:
