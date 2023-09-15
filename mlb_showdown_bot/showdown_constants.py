@@ -2384,7 +2384,8 @@ CHART CATEGORY WEIGHTS
 CHART_CATEGORY_WEIGHTS = {
     '2000': {
         'position_player': {
-            'onbase_perc': 1.0,
+            'onbase_perc': 3.0,
+            'slugging_perc': 1.0,
         },
         'starting_pitcher': {
             'slugging_perc': 1.0,
@@ -2397,7 +2398,8 @@ CHART_CATEGORY_WEIGHTS = {
     },
     '2001': {
         'position_player': {
-            'onbase_perc': 1.0,
+            'onbase_perc': 3.0,
+            'slugging_perc': 1.0,
         },
         'starting_pitcher': {
             'slugging_perc': 1.0,
