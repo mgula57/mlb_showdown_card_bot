@@ -2335,7 +2335,7 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 # GENERIC METHODS
 
-    def accuracy_between_dicts(self, actuals_dict, measurements_dict, weights={}, all_or_nothing=[], only_use_weight_keys=False,era_override:str = None):
+    def accuracy_between_dicts(self, actuals_dict:dict, measurements_dict:dict, weights:dict={}, all_or_nothing:list[str]=[], only_use_weight_keys:bool=False, era_override:str = None) -> tuple[float, dict, dict]:
         """Compare two dictionaries of numbers to get overall difference
 
         Args:
@@ -2348,7 +2348,10 @@ class ShowdownPlayerCard:
           era_override: Optionally override the era used for baseline opponents.
 
         Returns:
-          Float with accuracy and Dict with accuracy per key. Also returns categorical accuracy and differences.
+          Tuple:
+           - Float for overall accuracy
+           - Dict with accuracy per key
+           - Dict with categorical accuracy and differences.
         """
 
         denominator = len((weights if only_use_weight_keys else actuals_dict).keys())
@@ -2398,31 +2401,18 @@ class ShowdownPlayerCard:
 
         return overall_accuracy, categorical_accuracy_dict, categorical_above_below_dict
 
-    def __relative_pct_accuracy(self, actual, measurement):
-        """ CALCULATE ACCURACY BETWEEN 2 NUMBERS"""
-
-        denominator = actual
-
-        # ACCURACY IS 100% IF BOTH ARE EQUAL (IF STATEMENT TO AVOID 0'S)
-        if actual == measurement:
-            return 1
-
-        # CAN'T DIVIDE BY 0, SO USE OTHER VALUE AS BENCHMARK
-        if actual == 0:
-            denominator = measurement
-
-        return (actual - abs(actual - measurement) ) / denominator
-
-    def accuracy_against_wotc(self, wotc_card_dict, is_pts_only=False):
+    def accuracy_against_wotc(self, wotc_card_dict:dict, is_pts_only:bool=False) -> tuple[float, dict, dict]:
         """Compare My card output against official WOTC card.
 
         Args:
           wotc_card_dict: Dictionary with stats per category from wizards output.
-          ignore_volatile_categories: If True, ignore individual out result categories and single+
           is_pts_only: Boolean flag to enabled testing for only point value.
 
         Returns:
-          Float with overall accuracy and Dict with accuracy per stat category.
+          Tuple:
+           - Float for overall accuracy
+           - Dict with accuracy per key
+           - Dict with categorical accuracy and differences.
         """
 
         chart_w_combined_command_outs = self.chart
@@ -2442,7 +2432,22 @@ class ShowdownPlayerCard:
                                            weights={},
                                            all_or_nothing=['command-outs'])
 
-    def ordinal(self, number):
+    def __relative_pct_accuracy(self, actual:float, measurement:float) -> float:
+        """ CALCULATE ACCURACY BETWEEN 2 NUMBERS"""
+
+        denominator = actual
+
+        # ACCURACY IS 100% IF BOTH ARE EQUAL (IF STATEMENT TO AVOID 0'S)
+        if actual == measurement:
+            return 1
+
+        # CAN'T DIVIDE BY 0, SO USE OTHER VALUE AS BENCHMARK
+        if actual == 0:
+            denominator = measurement
+
+        return (actual - abs(actual - measurement) ) / denominator
+    
+    def ordinal(self, number:int) -> str:
         """Convert int to string with ordinal (ex: 1 -> 1st, 13 -> 13th)
 
         Args:
@@ -2453,7 +2458,7 @@ class ShowdownPlayerCard:
         """
         return "%d%s" % (number,"tsnrhtdd"[(number//10%10!=1)*(number%10<4)*number%10::4])
 
-    def __rbgs_to_hex(self, rgbs):
+    def __rbgs_to_hex(self, rgbs:tuple[int, int, int, int]) -> str:
         """Convert RGB tuples to hex string (Ex: (255, 255, 255, 0) -> "#fffffff")
 
         Args:
@@ -2466,10 +2471,10 @@ class ShowdownPlayerCard:
 
     def is_substring_in_list(self, substring:str, str_list: list[str]) -> bool:
         """Check to see if the substring is in ANY of the list of strings"""
+
         for string in str_list:
             if substring in string:
                 return True
-        
         return False
 
 # ------------------------------------------------------------------------
