@@ -657,7 +657,7 @@ class ShowdownPlayerCard:
         else:
             return [position1, position2]
 
-    def __position_name_in_game(self, position, num_positions, position_appearances, games_played, games_started, saves):
+    def __position_name_in_game(self, position:str, num_positions:int, position_appearances:int, games_played:int, games_started:int, saves:int) -> str:
         """Cleans position name to conform to game standards.
 
         Args:
@@ -695,7 +695,7 @@ class ShowdownPlayerCard:
             # RETURN BASEBALL REFERENCE STRING VALUE
             return position
 
-    def __convert_to_in_game_defense(self, position, rating, metric, games):
+    def __convert_to_in_game_defense(self, position:str, rating:float, metric:str, games:int) -> int:
         """Converts the best available fielding metric to in game defense at a position.
            Uses DRS for 2003+, TZR for 1953-2002, dWAR for <1953.
            More modern defensive metrics (like DRS) are not available for historical
@@ -757,7 +757,7 @@ class ShowdownPlayerCard:
 
         return defense
 
-    def __handedness(self, hand):
+    def __handedness(self, hand:str) -> str:
         """Get hand of player. Format to how card will display hand.
 
         Args:
@@ -802,7 +802,7 @@ class ShowdownPlayerCard:
         
         return ip
 
-    def __speed(self, sprint_speed, stolen_bases, is_sb_empty):
+    def __speed(self, sprint_speed:float, stolen_bases:int, is_sb_empty:bool) -> tuple[int, str]:
         """In game speed for a position player. Will use pure sprint speed
            if year is >= 2015, otherwise uses stolen bases. Pitcher defaults to 10.
 
@@ -813,7 +813,7 @@ class ShowdownPlayerCard:
           is_sb_empty: Bool for whether SB are unavailable for the player.
 
         Returns:
-          In game speed ability, in game letter grade
+          Tuple with in game speed ability, in game letter grade
         """
 
         if self.is_pitcher:
@@ -880,7 +880,7 @@ class ShowdownPlayerCard:
 
         return final_speed, letter
 
-    def __icons(self, awards):
+    def __icons(self, awards:str) -> list[str]:
         """Converts awards_summary and other metadata fields into in game icons.
 
         Args:
@@ -946,7 +946,7 @@ class ShowdownPlayerCard:
 
         return icons
 
-    def __accolades(self, maximum:int = None):
+    def __accolades(self, maximum:int = None) -> list[str]:
         """Generates array of player highlights for season.
 
         Args:
@@ -1257,7 +1257,7 @@ class ShowdownPlayerCard:
 # COMMAND / OUTS METHODS
 # ------------------------------------------------------------------------
 
-    def __top_accurate_command_out_combos(self, obp, num_results):
+    def __top_accurate_command_out_combos(self, obp:float, num_results:int):
         """Finds most accurate combinations of command/out compared to real onbase pct.
 
         Args:
@@ -1310,7 +1310,7 @@ class ShowdownPlayerCard:
 
         return combo_and_obps
 
-    def __onbase_control_outs(self, playercommand=0, playerOuts=0, era_override:str = None):
+    def __onbase_control_outs(self, command:int=0, outs:int=0, era_override:str = None):
         """Give information needed to perform calculations of results.
            These numbers are needed to predict obp, home_runs, ...
 
@@ -1329,10 +1329,10 @@ class ShowdownPlayerCard:
         pitcher_outs_baseline = sc.BASELINE_PITCHER[self.context][era]['outs'] if self.test_numbers is None else self.test_numbers[1]
 
         return {
-            'onbase': playercommand if not self.is_pitcher else onbase_baseline,
-            'hitterOuts': playerOuts if not self.is_pitcher else hitter_outs_baseline,
-            'control': playercommand if self.is_pitcher else control_baseline,
-            'pitcherOuts': playerOuts if self.is_pitcher else pitcher_outs_baseline
+            'onbase': command if not self.is_pitcher else onbase_baseline,
+            'hitterOuts': outs if not self.is_pitcher else hitter_outs_baseline,
+            'control': command if self.is_pitcher else control_baseline,
+            'pitcherOuts': outs if self.is_pitcher else pitcher_outs_baseline
         }
 
     def opponent_stats_for_calcs(self, command:int, era_override:str = None):
