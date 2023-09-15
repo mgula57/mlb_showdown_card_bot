@@ -1257,7 +1257,7 @@ class ShowdownPlayerCard:
 # COMMAND / OUTS METHODS
 # ------------------------------------------------------------------------
 
-    def __top_accurate_command_out_combos(self, obp:float, num_results:int):
+    def __top_accurate_command_out_combos(self, obp:float, num_results:int) -> list[tuple[int, int]]:
         """Finds most accurate combinations of command/out compared to real onbase pct.
 
         Args:
@@ -1310,7 +1310,7 @@ class ShowdownPlayerCard:
 
         return combo_and_obps
 
-    def __onbase_control_outs(self, command:int=0, outs:int=0, era_override:str = None):
+    def __onbase_control_outs(self, command:int=0, outs:int=0, era_override:str = None) -> dict[str, int]:
         """Give information needed to perform calculations of results.
            These numbers are needed to predict obp, home_runs, ...
 
@@ -1335,7 +1335,7 @@ class ShowdownPlayerCard:
             'pitcherOuts': outs if self.is_pitcher else pitcher_outs_baseline
         }
 
-    def opponent_stats_for_calcs(self, command:int, era_override:str = None):
+    def opponent_stats_for_calcs(self, command:int, era_override:str = None) -> tuple[dict[str, float], float, float]:
         """Convert __onbase_control_outs info to be specific to self.
            Used to derive:
              1. opponent_chart
@@ -1362,14 +1362,14 @@ class ShowdownPlayerCard:
 
         return opponent_chart, my_advantages_per_20, opponent_advantages_per_20
 
-    def __obp_for_command_outs(self, command_out_matchup):
+    def __obp_for_command_outs(self, command_out_matchup:dict[str, float]) -> float:
         """Calc OBP for command out matchup
 
         Args:
           command_out_matchup: Dictionary of onbase, control, outs from hitter and pitcher
 
         Returns:
-          Tuple with opponent_chart, my_advantages_per_20, opponent_advantages_per_20
+          Float with obp for given command out matchup.
         """
         return self.__pct_rate_for_result(
             onbase = command_out_matchup['onbase'],
