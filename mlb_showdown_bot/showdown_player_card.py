@@ -2020,8 +2020,9 @@ class ShowdownPlayerCard:
 
 # ------------------------------------------------------------------------
 # PLAYER VALUE METHODS
+# ------------------------------------------------------------------------
 
-    def point_value(self, projected, positions_and_defense, speed_or_ip):
+    def point_value(self, projected:dict, positions_and_defense:dict, speed_or_ip:int) -> int:
         """Derive player's value. Uses constants to compare against other cards in set.
 
         Args:
@@ -2175,7 +2176,7 @@ class ShowdownPlayerCard:
 
         return points_final
 
-    def stat_percentile(self, stat, min_max_dict, is_desc=False, allow_negative=False):
+    def stat_percentile(self, stat:float, min_max_dict:dict, is_desc:bool=False, allow_negative:bool=False) -> float:
         """Get the percentile for a particular stat.
 
         Args:
@@ -2205,7 +2206,7 @@ class ShowdownPlayerCard:
 
         return percentile_adjusted
 
-    def __normalize_points_towards_median(self, points):
+    def __normalize_points_towards_median(self, points:float) -> float:
         """Normalize points for subset on players towards the median.
 
         Args:
@@ -2264,7 +2265,7 @@ class ShowdownPlayerCard:
             self.points_normalizer = 1.0
             return points
 
-    def calculate_shOPS_plus(self, command: int, proj_obp: float, proj_slg: float) -> float:
+    def calculate_shOPS_plus(self, command:int, proj_obp:float, proj_slg:float) -> float:
         """Calculates shoOPS+ metric.
 
         shOPS+ provides context around projected OPS numbers accounting for Command adjustments.
