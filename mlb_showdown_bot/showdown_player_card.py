@@ -1381,13 +1381,38 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 # CHART METHODS
 
-    def __most_accurate_chart(self, command_out_combos, stats_per_400_pa, offset):
-        """Compare accuracy of all the command/outs combinations
+    @property
+    def chart_categories(self) -> list[str]:
+        """List of all chart categories depending on player type.
+
+        Note: 2000 set pitchers starts with SO instead PU.
+
+        Args:
+          None
+
+        Returns:
+          List of chart categories lowercased.
+        """
+
+        if self.is_pitcher:
+            # 2000 HAS 'SO' FIRST, ALL OTHER YEARS HAVE 'PU' FIRST
+            firstCategory = 'so' if self.context == '2000' else 'pu'
+            secondCategory = 'pu' if self.context == '2000' else 'so'
+            categories = [firstCategory,secondCategory,'gb','fb','bb','1b','2b','hr']
+        else:
+            # HITTER CATEGORIES
+            categories = ['so','gb','fb','bb','1b','1b+','2b','3b','hr']
+
+        return categories
+
+    def __most_accurate_chart(self, command_out_combos: list[tuple[int, int]], stats_per_400_pa:dict, offset:int) -> tuple[dict, dict]:
+        """Compare accuracy of all the command/outs combinations.
 
         Args:
           command_out_combos: List of command/out tuples to test.
           stats_per_400_pa: Dict with number of results for a given
                             category per 400 PA (ex: {'hr_per_400_pa': 23.65})
+          offset: Index of chart accuracy selected.
 
         Returns:
           The dictionary containing stats for the most accurate command/out
@@ -1414,7 +1439,7 @@ class ShowdownPlayerCard:
 
         return best_chart, projected_stats_for_best_chart
 
-    def __chart_with_accuracy(self, command, outs, stats_for_400_pa:dict, era_override:str = None):
+    def __chart_with_accuracy(self, command:int, outs:int, stats_for_400_pa:dict, era_override:str = None) -> tuple[dict[str, int], float, dict]:
         """Create Player's chart and compare back to input stats.
 
         Args:
@@ -1518,7 +1543,7 @@ class ShowdownPlayerCard:
 
         return chart, accuracy, in_game_stats_for_400_pa
 
-    def __out_results(self, gb_pct, popup_pct, out_slots_remaining, slg:float, era_override:str = None):
+    def __out_results(self, gb_pct:float, popup_pct:float, out_slots_remaining:int, slg:float, era_override:str = None) -> tuple[int, int, int]:
         """Determine distribution of out results for Player.
 
         Args:
@@ -1560,7 +1585,7 @@ class ShowdownPlayerCard:
 
         return pu_outs, gb_outs, fb_outs
 
-    def __single_and_single_plus_results(self, remaining_slots, sb, command):
+    def __single_and_single_plus_results(self, remaining_slots:int, sb:int, command:int) -> tuple[int, int]:
         """Fill 1B and 1B+ categories on chart.
 
         Args:
@@ -1592,29 +1617,7 @@ class ShowdownPlayerCard:
 
         return single_results, single_plus_results
 
-    def __chart_categories(self):
-        """Fill 1B and 1B+ categories on chart.
-
-        Args:
-          remaining_slots: Remaining slots out of 20.
-          sb: Stolen bases per 400 PA
-
-        Returns:
-          Tuple of 1B, 1B+ result ints.
-        """
-
-        if self.is_pitcher:
-            # 2000 HAS 'SO' FIRST, ALL OTHER YEARS HAVE 'PU' FIRST
-            firstCategory = 'so' if self.context == '2000' else 'pu'
-            secondCategory = 'pu' if self.context == '2000' else 'so'
-            categories = [firstCategory,secondCategory,'gb','fb','bb','1b','2b','hr']
-        else:
-            # HITTER CATEGORIES
-            categories = ['so','gb','fb','bb','1b','1b+','2b','3b','hr']
-
-        return categories
-
-    def ranges_for_chart(self, chart, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa):
+    def ranges_for_chart(self, chart: dict[str, int], dbl_per_400_pa:float, trpl_per_400_pa:float, hr_per_400_pa:float) -> dict[str, str]:
         """Converts chart integers to Range Strings ({1B: 3} -> {'1B': '11-13'})
 
         Args:
@@ -1627,10 +1630,9 @@ class ShowdownPlayerCard:
           Dict of ranges for each result category.
         """
 
-        categories = self.__chart_categories()
         current_chart_index = 1
-        chart_ranges = {}
-        for category in categories:
+        chart_ranges: dict[str, str] = {}
+        for category in self.chart_categories:
             category_results = int(chart[category])
             range_end = current_chart_index + category_results - 1
 
@@ -1673,7 +1675,7 @@ class ShowdownPlayerCard:
 
         return chart_ranges
 
-    def __calculate_ranges_over_20(self, dbl_per_400_pa, hr_per_400_pa):
+    def __calculate_ranges_over_20(self, dbl_per_400_pa:float, hr_per_400_pa:float) -> tuple[int, int]:
         """Calculates starting points of 2B and HR ranges for post 2001 cards
            whose charts expand past 20.
 
@@ -1718,7 +1720,7 @@ class ShowdownPlayerCard:
 
         return add_to_1b, num_of_results_2b
 
-    def __hitter_chart_above_20(self, chart, chart_ranges, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa):
+    def __hitter_chart_above_20(self, chart:dict[str, int], chart_ranges:dict[str, str], dbl_per_400_pa:float, trpl_per_400_pa:float, hr_per_400_pa:float) -> dict[str, str]:
         """If a hitter has remaining result categories above 20, populate them.
         Only for sets > 2001.
 
@@ -2511,7 +2513,7 @@ class ShowdownPlayerCard:
 
         print(f"{self.chart['command']} {'CONTROL' if self.is_pitcher else 'ONBASE'}")
 
-        chart_columns = self.__chart_categories()
+        chart_columns = self.chart_categories
         chart_ranges = [self.chart_ranges[f'{category} Range'] for category in chart_columns]
         chart_tbl = PrettyTable(field_names=[col.upper() for col in chart_columns])
         chart_tbl.add_row(chart_ranges)
@@ -4059,7 +4061,7 @@ class ShowdownPlayerCard:
         chart_text = Image.new('RGBA',(6300,720))
         chart_text_addition = -20 if self.context in sc.CLASSIC_AND_EXPANDED_SETS else 0
         chart_text_x = 150 + chart_text_addition if self.is_pitcher else 141
-        for category in self.__chart_categories():
+        for category in self.chart_categories:
             is_out_category = category.lower() in ['pu','so','gb','fb']
             range = self.chart_ranges['{} Range'.format(category)]
             # 2004/2005 CHART IS HORIZONTAL. PASTE TEXT ONTO IMAGE INSTEAD OF STRING OBJECT.
