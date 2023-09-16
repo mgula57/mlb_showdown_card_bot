@@ -315,17 +315,17 @@ This is the list of available icons and how a player is eligible:
 
 _** Some of these thresholds are slightly different than the original game._
 
-* **SS**: Won Silver Slugger Award.
-* **GG**: Won Gold Glove Award.
+* **S**: Won Silver Slugger Award.
+* **G**: Won Gold Glove Award.
 * **V**: Won AL or NL Most Valuable Player Award.
 * **CY**: Won AL or NL CY Young Award.
 * **R**: Selected season was during the player's rookie eligibility.
 * **RY**: Won AL or NL Rookie of the Year Award.
 * **20**: Won 20 or more games as a Pitcher.
-* **K**: Struck out at least 215 batters.
-* **HR**: Hit at least 40 Home Runs or led either league in Home Runs.
-* **SB**: Stole at least 40 bases or led either league in Steals.
-* **RP**: Led AL or NL in Saves.
+* **K**: Was Top 2 in their league in SO.
+* **HR**: Was Top 2 in their league in HR.
+* **SB**: Was Top 2 in their league in SB.
+* **RP**: Was Top 2 in their league in SAVES.
 
 ### **Points**
 

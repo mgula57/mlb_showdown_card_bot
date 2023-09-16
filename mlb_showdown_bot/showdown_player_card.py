@@ -396,7 +396,7 @@ class ShowdownPlayerCard:
         self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw, games_started=games_started_raw, ip_per_start=ip_per_start)
         self.hand = self.__handedness(hand=hand_raw)
         self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
-        self.icons = self.__icons(awards=stats['award_summary'] if 'award_summary' in stats.keys() else '')
+        self.icons = self.__icons(awards=stats.get('award_summary',''))
 
     def __positions_and_defense(self, defensive_stats:dict, games_played:int, games_started:int, saves:int) -> dict:
         """Get in-game defensive positions and ratings
@@ -909,7 +909,7 @@ class ShowdownPlayerCard:
 
         return final_speed, letter
 
-    def __icons(self, awards:str) -> list[str]:
+    def __icons(self, awards:str) -> list[sc.Icon]:
         """Converts awards_summary and other metadata fields into in game icons.
 
         Args:
@@ -922,56 +922,49 @@ class ShowdownPlayerCard:
         # ICONS ONLY APPLY TO 2003+
         if not self.has_icons:
             return []
-
+        
+        # PARSE PLAYER'S AWARDS
         awards_string = '' if awards is None else str(awards).upper()
         awards_list = awards_string.split(',')
-        # ICONS FROM BREF AWARDS FIELD
-        awards_to_icon_map = {
-            'SS': 'S',
-            'GG': 'G',
-            'MVP-1': 'V',
-            'CYA-1': 'CY',
-            'ROY-1': 'RY'
-        }
+        
         icons = []
-        for award, icon in awards_to_icon_map.items():
-            if award in awards_list:
-                if not (self.is_pitcher and award == 'SS'):
+        available_icons = [icon for icon in sc.Icon if icon.is_available(is_pitcher=self.is_pitcher)]
+        for icon in available_icons:
+
+            # ROOKIE
+            if icon == sc.Icon.R and self.stats.get('is_rookie', False):
+                icons.append(icon)
+                continue
+
+            # ATTRIBUTES
+            stat_category = icon.stat_category
+            stat_value_requirement = icon.stat_value_requirement
+
+            # AWARDS
+            if icon.is_award_based:
+                if icon.award_str in awards_list:
                     icons.append(icon)
+                    continue
+            
+            # THRESHOLDS
+            if stat_value_requirement and stat_category:
+                if self.stats.get(f"is_above_{stat_category.lower()}_threshold", False):
+                    icons.append(icon)
+                    continue
+            
+            # LEADER
+            if stat_category:
+                accolades = self.__accolades()
+                is_top_2 = len([a for a in accolades if ("2ND" in a or "LEADER" in a) and (f" {icon.accolade_search_term}" in a and 'SO/9' not in a)]) > 0
+                is_leader = self.stats.get(f"is_{stat_category.lower()}_leader", False)
+                if is_top_2 or is_leader:
+                    icons.append(icon)
+                    continue
 
-        # DATA DRIVEN ICONS
-        if self.is_pitcher:
-            # 20, K
-            for stat, icon in {"W": "20", "SO": "K"}.items():
-                key = f"is_above_{stat.lower()}_threshold"
-                if key in self.stats.keys():
-                    if self.stats[key] == True:
-                        icons.append(icon)
-            # RP
-            if 'is_sv_leader' in self.stats.keys():
-                if self.stats['is_sv_leader'] == True:
-                    icons.append('RP')
-        else:
-            # HR, SB
-            for stat in ['HR', 'SB']:
-                is_eligible_for_icon = False
-                qualification_categories = [f"is_above_{stat.lower()}_threshold",f'is_{stat.lower()}_leader']
-                for category in qualification_categories:
-                    if category in self.stats.keys():
-                        if self.stats[category] == True:
-                            is_eligible_for_icon = True
-                if is_eligible_for_icon:
-                    icons.append(stat.upper())
 
-        # ROOKIE ICON
-        rookie_key = 'is_rookie'
-        if rookie_key in self.stats.keys():
-            if self.stats[rookie_key] == True:
-                icons.append('R')
-
-        # IF PITCHER AND MORE THAN 4 ICONS (BOB GIBSON 1968), FILTER OUT A GG
-        if len(icons) >= 5 and self.is_pitcher and 'G' in icons:
-            icons.remove('G')
+        # IF PITCHER AND MORE THAN 4 ICONS (EX: BOB GIBSON 1968), FILTER OUT A G
+        if len(icons) >= 5 and self.is_pitcher and sc.Icon.G in icons:
+            icons.remove(sc.Icon.G)
 
         return icons
 
@@ -1195,8 +1188,8 @@ class ShowdownPlayerCard:
             if ( hr_per_year >= (15 if self.year == 2020 else 30) and not self.is_substring_in_list('HR',current_accolades) ) or is_hr_all_time:
                 hr_suffix = "HOME RUNS" if is_pre_2004 else 'HR'
                 if is_hr_all_time:
-                    # REMOVE ANY HR LEADERS
-                    accolades_rank_and_priority_tuples = [at for at in accolades_rank_and_priority_tuples if 'HR' not in at[0]]
+                    # MOVE DOWN PRIORITY OF LEADERS
+                    accolades_rank_and_priority_tuples = [( (at[0], at[1], default_stat_priority) if 'HR' in at[0] else at) for at in accolades_rank_and_priority_tuples]
                 hr_priority = 0 if is_hr_all_time else default_stat_priority
                 accolades_rank_and_priority_tuples.append( (f"{hr} {hr_suffix}", 50, hr_priority) )
                 
@@ -1209,9 +1202,9 @@ class ShowdownPlayerCard:
             hits_per_year = hits / num_seasons
             is_hits_all_time = (hits >= 3000 or hits_per_year >= 240)
             if ( hits_per_year >= 175 and not self.is_substring_in_list('HITS',current_accolades) ) or is_hits_all_time:
-                if hits_per_year:
-                    # REMOVE ANY HITS LEADERS
-                    accolades_rank_and_priority_tuples = [at for at in accolades_rank_and_priority_tuples if 'HITS' not in at[0]]
+                if is_hits_all_time:
+                    # MOVE DOWN PRIORITY OF LEADERS
+                    accolades_rank_and_priority_tuples = [( (at[0], at[1], default_stat_priority) if 'HITS' in at[0] else at) for at in accolades_rank_and_priority_tuples]
                 hits_priority = 0 if is_hits_all_time else default_stat_priority
                 accolades_rank_and_priority_tuples.append( (f"{hits} HITS", 52, hits_priority) )
             # BATTING AVG
@@ -2158,7 +2151,7 @@ class ShowdownPlayerCard:
         icon_pts = 0
         if self.context in ['2003','2004','2005'] and len(self.icons) > 0:
             for icon in self.icons:
-                icon_pts += sc.POINTS_ICONS[self.context][str(icon)]
+                icon_pts += sc.POINTS_ICONS[self.context][icon.value]
         self.icon_points = round(icon_pts,3)
 
         # COMBINE POINT VALUES
@@ -2553,7 +2546,7 @@ class ShowdownPlayerCard:
         # ICON(S)
         icon_string = ''
         for index, icon in enumerate(self.icons):
-            icon_string += f"{'|' if index == 0 else ''} {icon} "
+            icon_string += f"{'|' if index == 0 else ''} {icon.value} "
 
         print(f"\n{self.points} PTS | {positions_string}| {ip_or_speed} {icon_string}")
 
@@ -2729,7 +2722,7 @@ class ShowdownPlayerCard:
         if self.points_bonus > 0:
             pts_data.append(['BONUS', 'N/A', str(round(self.points_bonus))])
         if self.icon_points > 0:
-            pts_data.append(['ICONS', ','.join(self.icons), str(round(self.icon_points))])
+            pts_data.append(['ICONS', ','.join([i.value for i in self.icons]), str(round(self.icon_points))])
         if self.points_normalizer < 1.0:
             pts_data.append(['NORMALIZER', 'N/A', str(round(self.points_normalizer,2))])
         if self.points_command_out_multiplier != 1.0:

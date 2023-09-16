@@ -987,10 +987,10 @@ class BaseballReferenceScraper:
         for category in soup_row:
             stat_category = category['data-stat']
             # LEAGUE LEADER?
-            is_league_leader = '<strong>' in str(category) # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD TEXT
+            is_league_leader = '<strong>' in str(category) or '<em>' in str(category) # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD OR ITALIC TEXT
 
             if stat_category in ('SV','HR','SB'):
-                # SAVE THIS INFO FOR RP, HR, OR SB ICONS
+                # SAVE THIS INFO FOR RP, HR, L, OR SB ICONS
                 standard_stats_dict[f'is_{stat_category.lower()}_leader'] = is_league_leader
              
             stat = category.get_text()
