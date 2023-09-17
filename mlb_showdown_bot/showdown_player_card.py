@@ -283,7 +283,7 @@ class ShowdownPlayerCard:
         if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
             return sc.SpecialEdition.COOPERSTOWN_COLLECTION
         
-        if self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+        if self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
             return sc.SpecialEdition.TEAM_COLOR_BLAST_DARK
         
         return sc.SpecialEdition.NONE
@@ -4036,7 +4036,7 @@ class ShowdownPlayerCard:
         for index, icon in enumerate(self.icons[0:4]):
             position = icon_positional_mapping[index]
             if self.context not in sc.CLASSIC_AND_EXPANDED_SETS:
-                icon_img_path = self.__template_img_path(f'{self.template_set_year}-{icon}')
+                icon_img_path = self.__template_img_path(f'{self.template_set_year}-{icon.value}')
                 icon_image = Image.open(icon_img_path)
                 # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
                 # EX: 'LF/RF' IS LONGER STRING THAN '3B'
@@ -4054,7 +4054,7 @@ class ShowdownPlayerCard:
                         offset = 30
                     position = (position[0] + offset, position[1])
             else:
-                icon_image = self.__icon_image_circle(text=icon)
+                icon_image = self.__icon_image_circle(text=icon.value)
             player_image.paste(icon_image, self.__coordinates_adjusted_for_bordering(position), icon_image)
 
         return player_image
@@ -4606,7 +4606,8 @@ class ShowdownPlayerCard:
             for old_component, new_component in replacements_dict.items():
                 special_components_for_context.pop(old_component, None)
                 special_components_for_context[new_component] = None
-            if self.special_edition == sc.SpecialEdition.TEAM_COLOR_BLAST_DARK:
+            is_asg_and_team_color_blast_dark = ( self.special_edition == sc.SpecialEdition.ASG_2023 and self.is_dark_mode and self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST )
+            if self.special_edition == sc.SpecialEdition.TEAM_COLOR_BLAST_DARK or is_asg_and_team_color_blast_dark:
                 special_components_for_context.pop(sc.ImageComponent.WHITE_CIRCLE, None)
                 special_components_for_context[sc.ImageComponent.BLACK_CIRCLE] = self.__card_art_path(sc.ImageComponent.BLACK_CIRCLE.name)
             default_components_for_context = special_components_for_context
