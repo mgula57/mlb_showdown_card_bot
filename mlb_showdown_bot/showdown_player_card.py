@@ -396,6 +396,7 @@ class ShowdownPlayerCard:
         self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw, games_started=games_started_raw, ip_per_start=ip_per_start)
         self.hand = self.__handedness(hand=hand_raw)
         self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
+        self.accolades = self.__accolades()
         self.icons = self.__icons(awards=stats.get('award_summary',''))
 
     def __positions_and_defense(self, defensive_stats:dict, games_played:int, games_started:int, saves:int) -> dict:
@@ -954,8 +955,7 @@ class ShowdownPlayerCard:
             
             # LEADER
             if stat_category:
-                accolades = self.__accolades()
-                is_top_2 = len([a for a in accolades if ("2ND" in a or "LEADER" in a) and (f" {icon.accolade_search_term}" in a and 'SO/9' not in a)]) > 0
+                is_top_2 = len([a for a in self.accolades if ("2ND" in a or "LEADER" in a) and (f" {icon.accolade_search_term}" in a and 'SO/9' not in a)]) > 0
                 is_leader = self.stats.get(f"is_{stat_category.lower()}_leader", False)
                 if is_top_2 or is_leader:
                     icons.append(icon)
@@ -3904,7 +3904,6 @@ class ShowdownPlayerCard:
             }
 
             # ACCOLADES
-            accolades_list = self.__accolades()
             x_position = 18 if is_after_03 else 9
             x_incremental = 10 if is_after_03 else 1
             y_position = 338 if is_after_03 else 324
@@ -3912,7 +3911,7 @@ class ShowdownPlayerCard:
             accolade_spacing = 41 if is_after_03 else 72
             accolades_used = []
             for index, max_characters in slot_max_characters_dict.items():
-                accolades_available = [a for a in accolades_list if (a not in accolades_used and len(a) <= max_characters)]                
+                accolades_available = [a for a in self.accolades if (a not in accolades_used and len(a) <= max_characters)]                
                 num_available = len(accolades_available)
 
                 if num_available == 0:
