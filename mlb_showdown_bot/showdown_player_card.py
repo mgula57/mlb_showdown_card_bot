@@ -20,9 +20,11 @@ from pprint import pprint
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
+    from .enums.team import Team
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
+    from enums.team import Team
 
 class ShowdownPlayerCard:
 
@@ -79,7 +81,10 @@ class ShowdownPlayerCard:
         # METADATA
         self.is_pitcher: bool = stats.get('type', '') == 'Pitcher'
         self.league: str = stats.get('lg_ID', 'MLB')
-        self.team: str = stats.get('team_ID', '')
+        try:
+            self.team: Team = Team(stats.get('team_ID', 'MLB'))
+        except:
+            self.team = Team.MLB
         self.edition: sc.Edition = sc.Edition(edition)
         self.nationality: str = stats.get('nationality', None)
 
@@ -357,6 +362,31 @@ class ShowdownPlayerCard:
             case '2005': return '2004'
             case _: return self.context_year
 
+    @property 
+    def median_year(self) -> int:
+        """ Median of all player seasons used. """
+        # CHECK IF PLAYER FITS IN ANY ALTERNATE RANGE
+        if self.is_multi_year:
+            if self.is_full_career:
+                # USE MEDIAN YEAR OF YEARS PLAYED
+                years_played_ints = [int(year) for year in self.stats['years_played']]
+            elif '-' in self.year:
+                # RANGE OF YEARS
+                years = self.year.split('-')
+                year_start = int(years[0].strip())
+                year_end = int(years[1].strip())
+                years_played_ints = list(range(year_start,year_end+1))
+            elif '+' in self.year:
+                years = self.year.split('+')
+                years_played_ints = [int(x.strip()) for x in years]
+            return int(round(statistics.median(years_played_ints)))
+        else:
+            return int(self.year)
+
+    @property
+    def use_alternate_logo(self) -> bool:
+        """ Alternate logos are used in 2004+ sets """
+        return self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET] and not self.edition.use_edition_logo_as_team_logo
 
 # ------------------------------------------------------------------------
 # METADATA METHODS
@@ -2528,7 +2558,7 @@ class ShowdownPlayerCard:
         print("----------------------------------------")
         print(f"{self.name} ({self.year})")
         print("----------------------------------------")
-        print(f"Team: {self.team}")
+        print(f"Team: {self.team.value}")
         print(f"Set: {self.context} {self.expansion} (v{self.version})")
         print(f"Era: {self.era.title()}")
         print(f"Data Source: {self.source}")
@@ -3121,61 +3151,116 @@ class ShowdownPlayerCard:
         Returns:
           PIL image object for the player background.
         """
+
+        is_00_01_set = self.context in ['2000','2001']        
         dark_mode_suffix = '-DARK' if self.is_dark_mode and self.context in sc.CLASSIC_AND_EXPANDED_SETS else ''
         default_image_path = self.__template_img_path(f'Default Background - {self.template_set_year}{dark_mode_suffix}')
-        custom_image_path = default_image_path
+        
+        # CHECK FOR CUSTOM LOCAL IMAGE ASSET (EX: NATIONALITY, ASG)
         use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if use_nationality else False
-
+        custom_image_path = None
+        background_image = None
         if use_nationality and country_exists:
             custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, 'backgrounds', f"{self.nationality}.png")
         elif self.special_edition == sc.SpecialEdition.ASG_2023:
             custom_image_path = self.__card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
-        elif self.context in ['2000', '2001'] and not self.hide_team_logo:
-            # TEAM BACKGROUNDS
-            background_image_name = f"{self.team}{self.__team_logo_historical_alternate_extension()}"
-            if self.edition == sc.Edition.COOPERSTOWN_COLLECTION:
-                background_image_name = 'CCC' # COOPERSTOWN
-            if self.edition == sc.Edition.ALL_STAR_GAME and not self.is_multi_year:
-                background_image_name = f"ASG-{self.year}" # ALL STAR YEAR
-            custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, self.template_set_year, f"{background_image_name}.png")
+
+        # CUSTOM BACKGROUND 
+        if custom_image_path:
+            try:
+                background_image = Image.open(custom_image_path)
+            except:
+                background_image = None
+
+            if background_image:
+                if background_image.size != (1500, 2100):
+                    background_image = self.__img_crop(background_image, (1500, 2100))
         
-        try:
-            background_image = Image.open(custom_image_path)
-        except:
+        # 2000/2001: CREATE TEAM LOGO BACKGROUND IMAGE
+        if background_image is None and is_00_01_set:
+            background_image = self.__team_background_image()
+
+        # DEFAULT IMAGE
+        if background_image is None:
             background_image = Image.open(default_image_path)
 
-        if background_image.size != (1500,2100):
-            background_image = self.__img_crop(background_image, (1500,2100))
+        has_border_already = background_image.size == sc.CARD_SIZE_BORDERED
 
         # IF 2000, ADD NAME CONTAINER
         if self.context == '2000':
             name_container = self.__2000_player_name_container_image()
-            background_image.paste(name_container, (0,0), name_container)
+            paste_coordinates = self.__coordinates_adjusted_for_bordering((0,0), is_disabled = not has_border_already)
+            background_image.paste(name_container, paste_coordinates, name_container)
 
         if self.image_parallel.is_team_background_black_and_white:
             background_image = self.__change_image_saturation(image=background_image, saturation=0.10)
-
-        if self.add_image_border:
-            if self.context in ['2000','2001']:
-                # SAMPLE THE BACKGROUND TO GRAB THE BORDER COLOR
-                pix = background_image.load()
-                background_rgb = pix[30,30] # SAMPLE AT 30x 30y FROM TOP LEFT CORNER OF IMAGE
-                border_color = self.__rbgs_to_hex(rgbs=background_rgb)
-            else:
-                # USE WHITE OR BLACK
-                border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
+        
+        if self.add_image_border and not has_border_already:
+            # USE WHITE OR BLACK
+            border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
             image_border = Image.new('RGBA', sc.CARD_SIZE_BORDERED, color=border_color)
             image_border.paste(background_image.convert("RGBA"),(sc.CARD_BORDER_PADDING,sc.CARD_BORDER_PADDING),background_image.convert("RGBA"))
-            return image_border
+            background_image = image_border
 
         return background_image
 
-    def __team_logo_image(self) -> tuple[Image.Image, tuple[int,int]]:
+    def __team_background_image(self) -> Image.Image:
+        """Create team background image dynamically for 2000/2001 sets
+        
+        Args:
+          None
+        
+        Returns:
+          PIL Image for team background art.
+        """
+        
+        is_2001_set = self.context == '2001'
+        image_size = sc.CARD_SIZE_BORDERED if self.add_image_border else sc.CARD_SIZE
+        background_color = self.__team_color_rgbs()
+        team_background_image = Image.new('RGB', image_size, color=background_color)
+        
+        # ADD 2001 SET ADDITIONS
+        if is_2001_set:
+            # BLACK OVERLAY
+            color_overlay_image = Image.new('RGBA', image_size, color=sc.COLOR_BLACK)
+            opacity_rgb = int(255 * 0.25)
+            color_overlay_image.putalpha(opacity_rgb)
+            team_background_image.paste(color_overlay_image, (0,0), color_overlay_image)
+
+            # ADD LINES
+            line_colors = ['BLACK','WHITE']
+            for color in line_colors:
+                image_path = self.__card_art_path(f"2001-{color}-LINES")
+                color_image = Image.open(image_path)
+                if color_image.size != image_size:
+                    color_image = self.__img_crop(color_image, image_size)
+                team_background_image.paste(color_image, (0,0), color_image)
+
+        # ADD TEAM LOGO
+        logo_rotation = self.team.background_logo_rotation(self.context)
+        logo_size = self.team.background_logo_size(self.context)
+        logo_opacity = self.team.background_logo_opacity(self.context)
+        paste_location = self.__coordinates_adjusted_for_bordering(self.team.background_logo_paste_location(year=self.median_year, is_alternate=self.use_alternate_logo, set=self.context, image_size=sc.CARD_SIZE))
+        team_logo_image, _ = self.__team_logo_image(ignore_dynamic_elements=True, size=logo_size, rotation=logo_rotation)
+
+        # 2000: MAKE LOGO BLACK AND WHITE
+        if self.context == '2000':
+            team_logo_image = self.__change_image_saturation(image=team_logo_image, saturation=0.1)
+
+        # CHANGE OPACITY
+        team_logo_image = self.__update_image_opacity(image=team_logo_image, opacity=logo_opacity)
+        team_background_image.paste(team_logo_image, paste_location, team_logo_image)
+
+        return team_background_image
+        
+    def __team_logo_image(self, ignore_dynamic_elements:bool=False, size:tuple[int,int]=None, rotation:int=0) -> tuple[Image.Image, tuple[int,int]]:
         """Generates a new PIL image object with logo of player team.
 
         Args:
-          None
+          ignore_dynamic_elements: Ignore Super Season, Cooperstown Year, Rookie Season overrides.
+          size: Tuple of ints used for sizing the team logo. If no size is provided, method will use set defaults.
+          rotation: Degrees of rotation. If no rotation is provided, method will use set defaults.
 
         Returns:
           Tuple:
@@ -3184,8 +3269,9 @@ class ShowdownPlayerCard:
         """
 
         # SETUP IMAGE METADATA
-        logo_name = self.team
+        logo_name = self.team.logo_name(year=self.median_year)
         logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
+        logo_rotation = rotation if rotation else (10 if self.context == '2002' and self.edition.rotate_team_logo_2002 and not ignore_dynamic_elements else 0 )
         logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context_year)]
         is_04_05 = self.context in ['2004','2005']
         is_00_01 = self.context in ['2000','2001']
@@ -3193,7 +3279,7 @@ class ShowdownPlayerCard:
         is_all_star_game = self.edition == sc.Edition.ALL_STAR_GAME
         is_rookie_season = self.edition == sc.Edition.ROOKIE_SEASON
 
-        if self.edition.has_static_logo and not is_00_01:
+        if self.edition.use_edition_logo_as_team_logo and not is_00_01:
             # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
             logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
             is_wide_logo = logo_name == 'ASG-2022'
@@ -3204,11 +3290,15 @@ class ShowdownPlayerCard:
                 logo_size = (logo_size[0] + 85, logo_size[1] + 85)
                 x_movement = -40 if self.context in ['2000','2001'] else -85
                 logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
+
+        # USE INPUT SIZE IF THEY EXISTS
+        if size:
+            logo_size = size
+    
         try:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
-            historical_alternate_ext = self.__team_logo_historical_alternate_extension(override_historical_logo_ignore = self.context == '2001')
-            alternate_logo_ext = '-A' if self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET] and not self.edition.has_static_logo else ''
-            team_logo_path = self.__team_logo_path(name = f"{logo_name}{alternate_logo_ext}{historical_alternate_ext}")
+            logo_name = self.team.logo_name(year=self.median_year, is_alternate=self.use_alternate_logo)
+            team_logo_path = self.__team_logo_path(name=logo_name)
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_COLORS.keys():
                     team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
@@ -3216,9 +3306,17 @@ class ShowdownPlayerCard:
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
         except:
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
-            team_logo = Image.open(os.path.join(os.path.dirname(__file__), 'team_logos', 'MLB.png')).convert("RGBA")
+            team_logo = Image.open(self.__team_logo_path(name=Team.MLB.logo_name(year=2023))).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
-        team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' and self.edition.rotate_team_logo_2002 else team_logo
+
+        # ROTATE LOGO IF APPLICABLE
+        if logo_rotation != 0:
+            team_logo = team_logo.rotate(logo_rotation, resample=Image.BICUBIC)
+
+        # RETURN STATIC LOGO IF IGNORE_DYNAMIC_ELEMENTS IS ENABLED
+        # IGNORES ROOKIE SEASON, SUPER SEASON
+        if ignore_dynamic_elements:
+            return team_logo, logo_paste_coordinates
 
         # OVERRIDE IF SUPER SEASON
         if self.edition == sc.Edition.SUPER_SEASON and not is_00_01:
@@ -4339,7 +4437,7 @@ class ShowdownPlayerCard:
             match img_component.load_source:
                 case "DOWNLOAD":
                     # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
-                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team}){self.type_override}.png"
+                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team.value}){self.type_override}.png"
                     cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
                     try:
                         image = Image.open(cached_image_path)
@@ -4567,7 +4665,7 @@ class ShowdownPlayerCard:
           List of keywords to match image fit with card.
         """
         # SEARCH FOR PLAYER IMAGE
-        additional_substring_filters = [self.year, f'({self.team})',f'({self.team})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
+        additional_substring_filters = [self.year, f'({self.team.value})',f'({self.team.value})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
         use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
         if self.edition != sc.Edition.NONE:
             for _ in range(0,3): # ADD 3X VALUE
@@ -4599,7 +4697,7 @@ class ShowdownPlayerCard:
         if self.image_parallel.has_special_components:
             # ADD ADDITIONAL COMPONENTS
             if len(self.image_parallel.special_component_additions) > 0:
-                team_logo_name = f"{self.team}{self.__team_logo_historical_alternate_extension()}"
+                team_logo_name = self.team.logo_name(year=self.median_year)
                 special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == sc.ImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image_parallel.special_component_additions.items()})
             # EDITING EXISTING COMPONENTS
             replacements_dict = self.image_parallel.special_components_replacements
@@ -4712,55 +4810,6 @@ class ShowdownPlayerCard:
         """
         return os.path.join(os.path.dirname(__file__), 'team_logos', f'{name}.{extension}')
 
-    def __team_logo_historical_alternate_extension(self, include_dash:bool = True, override_historical_logo_ignore:bool = False) -> str:
-        """Check to see if there is an alternate team logo to use for the given team + year
-
-        Args:
-          include_dash: Boolean for whether to include prefix of "-". Default is True
-          override_historical_logo_ignore: Boolean for whether to include the historical extension even if the edition ignores it. 
-
-        Returns:
-          Index of alternate logo for team. If none exists, fn will return empty string
-        """
-
-        logo_historical_alternates = sc.TEAM_LOGO_ALTERNATES
-
-        # DONT APPLY IF COOPERSTOWN OR ALL-STAR GAME
-        if self.edition.ignore_historical_team_logo and not override_historical_logo_ignore:
-            return ''
-
-        # CHECK TO SEE IF THERE ARE ANY ALTERNATE LOGOS FOR TEAM
-        if self.team not in logo_historical_alternates.keys():
-            return ''
-
-        # CHECK IF PLAYER FITS IN ANY ALTERNATE RANGE
-        if self.is_multi_year:
-            if self.is_full_career:
-                # USE MEDIAN YEAR OF YEARS PLAYED
-                years_played_ints = [int(year) for year in self.stats['years_played']]
-            elif '-' in self.year:
-                # RANGE OF YEARS
-                years = self.year.split('-')
-                year_start = int(years[0].strip())
-                year_end = int(years[1].strip())
-                years_played_ints = list(range(year_start,year_end+1))
-            elif '+' in self.year:
-                years = self.year.split('+')
-                years_played_ints = [int(x.strip()) for x in years]
-            year_for_team_logo = int(round(statistics.median(years_played_ints)))
-
-        else:
-            year_for_team_logo = int(self.year)
-        for index, year_range in logo_historical_alternates[self.team].items():
-            if year_for_team_logo in year_range:
-                if include_dash:
-                    return f'-{index}'
-                else:
-                    return str(index)
-
-        # NO ALTERNATES FOUND, RETURN NONE
-        return ''
-
     def __coordinates_adjusted_for_bordering(self, coordinates:tuple[int,int], is_disabled:bool = False) -> tuple[int,int]:
         """Add padding to paste coordinates to account for a border on the image.
          
@@ -4788,25 +4837,20 @@ class ShowdownPlayerCard:
         """
 
         default_color = (55, 55, 55, 255)
-        team_index = self.__team_logo_historical_alternate_extension(include_dash=False)
+
+        # NATIONALITY COLOR
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if self.nationality else False
-        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and not ignore_team_overrides:
-            return sc.TEAM_COLOR_PRIMARY['CCC']
-        elif self.edition == sc.Edition.NATIONALITY and self.nationality and country_exists and not ignore_team_overrides:
+        if self.edition == sc.Edition.NATIONALITY and self.nationality and country_exists and not ignore_team_overrides:
             return sc.NATIONALITY_COLORS[self.nationality][0]
-        elif self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys() and not ignore_team_overrides:
+        
+        # ASG COLOR
+        if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys() and not ignore_team_overrides:
             color_for_league = sc.ALL_STAR_GAME_COLORS[str(self.year)].get(self.league, None)
             if color_for_league:
                 return color_for_league
-        elif len(team_index) > 0:
-            # GRAB FROM ALT/HISTORICAL TEAM COLORS
-            try:
-                return sc.TEAM_COLOR_PRIMARY_ALT[self.team][team_index]
-            except:
-                return default_color
         
         # GRAB FROM CURRENT TEAM COLORS
-        return sc.TEAM_COLOR_PRIMARY[self.team] if self.team in sc.TEAM_COLOR_PRIMARY.keys() else default_color
+        return self.team.primary_color_for_year(year=self.median_year)
 
 
 # ------------------------------------------------------------------------
@@ -5066,6 +5110,30 @@ class ShowdownPlayerCard:
         
         return None
 
+    def __update_image_opacity(self, image:Image.Image, opacity: float) -> Image.Image:
+        """ Apply new opacity value to each pixel in the image.
+        Only changes opacity of non-transparent pixels.
+
+        Args:
+          image: PIL Image to change the opacity for.
+          opacity: Updated image opacity. Using 0.0 -> 1.0 scale.
+
+        Returns:
+          PIL Image updated for new opacity value.
+        """
+        opacity_for_rgb = int(255 * opacity)
+        color_data = image.getdata()
+        new_color_data = []
+        for color_tuple in color_data:
+            current_opacity = color_tuple[3]
+            new_opacity = current_opacity if current_opacity == 0 else opacity_for_rgb
+            color_tuple = color_tuple[:3]
+            color_tuple = color_tuple + (new_opacity, ) #change the 100 to any transparency number you like between (0,255)
+            new_color_data.append(color_tuple)
+        
+        image.putdata(new_color_data)
+        return image
+    
 
 # ------------------------------------------------------------------------
 # SHOWDOWN IMAGE LIBRARY IMPORT

@@ -348,7 +348,7 @@ def card_creator():
         player_context = showdown.context
         bref_url = showdown.bref_url
         bref_id = showdown.bref_id
-        team = showdown.team
+        team = showdown.team.value
         data_source = showdown.source
         image_source = showdown.player_image_source
         scraper_load_time = scraper.load_time

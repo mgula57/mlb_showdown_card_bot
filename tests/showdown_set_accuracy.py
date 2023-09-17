@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
+from mlb_showdown_bot.enums.team import Team
 import mlb_showdown_bot.showdown_constants as sc
 
 class ShowdownSetAccuracy:
@@ -286,7 +287,7 @@ class ShowdownSetAccuracy:
         """
 
         # ADD CLASS ATTRIBUTES NEEDED TO CALCULATE POINTS
-        my_player_card.team = wotc_player_card.Team
+        my_player_card.team = Team(wotc_player_card.Team)
         my_player_card.is_pitcher = wotc_player_card.Type == 'Pitcher'
         my_player_card.hand = wotc_player_card.Hand
         my_player_card.chart = {
