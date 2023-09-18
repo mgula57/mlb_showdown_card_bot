@@ -624,23 +624,37 @@ class Team(Enum):
 # TEAM BACKGROUND (00/01)
 # ------------------------------------------------------------------------
 
-    def is_background_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
-        logo_name = self.logo_name(year=year, is_alternate=is_alternate)
-        return logo_name in [
+    @property
+    def use_alternate_for_2000_background(self) -> bool:
+        return self.value in [
             'ATL'
         ]
 
+    def is_background_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
+        logo_name = self.logo_name(year=year, is_alternate=is_alternate)
+        return logo_name in [
+            'ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
+            'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
+            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','SDP-2','SDP-A-2','SEP-A','SEP',
+            'SFG-2','SFG-3','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TOR-3','TOR-A-3'
+        ]
+
     def background_logo_opacity(self, set:str) -> int:
-        return 0.20 if set == '2001' else 0.15
+        return 0.20 if set == '2001' else 0.19
     
     def background_logo_rotation(self, set:str) -> int:
         return 20 if set == '2001' else 0
     
-    def background_logo_size(self, set:str) -> int:
-        return (800, 800) if set == '2001' else (2200, 2200)
-    
+    def background_logo_size(self, year:int, set:str, is_alternate:bool=False) -> int:
+        match set:
+            case '2000':
+                return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
+            case '2001': (800, 800)
+            case _: return (800, 800)
+
     def background_logo_paste_location(self, year:int, is_alternate:bool, set:str, image_size:tuple[int,int]) -> int:
         image_width, image_height = image_size
-        logo_width, logo_height = self.background_logo_size(set)
-        wide_logo_adjustment_01 = -100 if self.is_background_logo_wide(year=year, is_alternate=is_alternate) else 0
-        return (45, 25 + wide_logo_adjustment_01) if set == '2001' else ( int( (image_width - logo_width) / 2 ), int( (image_height - logo_height) / 2 ) )
+        logo_width, logo_height = self.background_logo_size(year=year, set=set, is_alternate=is_alternate)
+        x_wide_logo_adjustment_01 = -100 if self.is_background_logo_wide(year=year, is_alternate=is_alternate) else 0
+        y_wide_logo_adjustment_01 = -50 if self.is_background_logo_wide(year=year, is_alternate=is_alternate) else 0
+        return (45 + y_wide_logo_adjustment_01, 25 + x_wide_logo_adjustment_01) if set == '2001' else ( int( (image_width - logo_width) / 2 ), int( (image_height - logo_height) / 2 ) )

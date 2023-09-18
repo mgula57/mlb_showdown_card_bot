@@ -3238,15 +3238,16 @@ class ShowdownPlayerCard:
                 team_background_image.paste(color_image, (0,0), color_image)
 
         # ADD TEAM LOGO
+        force_alternate = self.context == '2000' and self.team.use_alternate_for_2000_background
         logo_rotation = self.team.background_logo_rotation(self.context)
-        logo_size = self.team.background_logo_size(self.context)
+        logo_size = self.team.background_logo_size(year=self.median_year, set=self.context, is_alternate=self.use_alternate_logo or force_alternate)
         logo_opacity = self.team.background_logo_opacity(self.context)
-        paste_location = self.__coordinates_adjusted_for_bordering(self.team.background_logo_paste_location(year=self.median_year, is_alternate=self.use_alternate_logo, set=self.context, image_size=sc.CARD_SIZE))
-        team_logo_image, _ = self.__team_logo_image(ignore_dynamic_elements=True, size=logo_size, rotation=logo_rotation)
-
+        paste_location = self.__coordinates_adjusted_for_bordering(self.team.background_logo_paste_location(year=self.median_year, is_alternate=self.use_alternate_logo or force_alternate, set=self.context, image_size=sc.CARD_SIZE))
+        team_logo_image, _ = self.__team_logo_image(ignore_dynamic_elements=True, size=logo_size, rotation=logo_rotation, force_use_alternate=force_alternate)
+        team_logo_image.show()
         # 2000: MAKE LOGO BLACK AND WHITE
         if self.context == '2000':
-            team_logo_image = self.__change_image_saturation(image=team_logo_image, saturation=0.1)
+            team_logo_image = self.__change_image_saturation(image=team_logo_image, saturation=0.2)
 
         # CHANGE OPACITY
         team_logo_image = self.__update_image_opacity(image=team_logo_image, opacity=logo_opacity)
@@ -3254,13 +3255,14 @@ class ShowdownPlayerCard:
 
         return team_background_image
         
-    def __team_logo_image(self, ignore_dynamic_elements:bool=False, size:tuple[int,int]=None, rotation:int=0) -> tuple[Image.Image, tuple[int,int]]:
+    def __team_logo_image(self, ignore_dynamic_elements:bool=False, size:tuple[int,int]=None, rotation:int=0, force_use_alternate:bool=False) -> tuple[Image.Image, tuple[int,int]]:
         """Generates a new PIL image object with logo of player team.
 
         Args:
           ignore_dynamic_elements: Ignore Super Season, Cooperstown Year, Rookie Season overrides.
           size: Tuple of ints used for sizing the team logo. If no size is provided, method will use set defaults.
           rotation: Degrees of rotation. If no rotation is provided, method will use set defaults.
+          force_use_alternate: Use alternate logo, for cases where there are 2 different logos in the image (ex: 00 ATL)
 
         Returns:
           Tuple:
@@ -3269,7 +3271,7 @@ class ShowdownPlayerCard:
         """
 
         # SETUP IMAGE METADATA
-        logo_name = self.team.logo_name(year=self.median_year)
+        logo_name = self.team.logo_name(year=self.median_year, is_alternate=self.use_alternate_logo or force_use_alternate)
         logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
         logo_rotation = rotation if rotation else (10 if self.context == '2002' and self.edition.rotate_team_logo_2002 and not ignore_dynamic_elements else 0 )
         logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context_year)]
@@ -3297,7 +3299,7 @@ class ShowdownPlayerCard:
     
         try:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
-            logo_name = self.team.logo_name(year=self.median_year, is_alternate=self.use_alternate_logo)
+            logo_name = self.team.logo_name(year=self.median_year, is_alternate=self.use_alternate_logo or force_use_alternate)
             team_logo_path = self.__team_logo_path(name=logo_name)
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_COLORS.keys():
