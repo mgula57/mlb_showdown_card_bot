@@ -620,6 +620,7 @@ $(function () {
             var is_variable_spd = moreOptionsSelected.includes("VariableSpeed");
             var ignore_showdown_library = moreOptionsSelected.includes("IgnoreShowdownLibrary");
             var ignore_cache = moreOptionsSelected.includes("IgnoreCache");
+            var is_secondary_color = moreOptionsSelected.includes("SecondaryColor");
             
             // CACHE SET VALUE
             var set = $("#setSelection :selected").val()
@@ -646,6 +647,7 @@ $(function () {
                 era: era,
                 parallel: image_parallel,
                 ignore_cache: ignore_cache,
+                is_secondary_color: is_secondary_color,
             }, function (data) {
                 showCardData(data)
             });

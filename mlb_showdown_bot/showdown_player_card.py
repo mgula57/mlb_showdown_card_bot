@@ -32,7 +32,7 @@ class ShowdownPlayerCard:
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, name:str, year:str, stats:dict, context:str, expansion:str='FINAL', edition:str="NONE", offset:int=0, player_image_url:str=None, player_image_path:str=None, card_img_output_folder_path:str='', set_number:str='', test_numbers:tuple[int,int]=None, run_stats:bool=True, command_out_override:tuple[int,int]=None, print_to_cli:bool=False, show_player_card_image:bool=False, is_img_part_of_a_set:bool=False, add_image_border:bool=False, is_dark_mode:bool=False, is_variable_speed_00_01:bool=False, image_parallel:str="NONE", add_year_container:bool=False, set_year_plus_one:bool=False, hide_team_logo:bool=False, date_override:str=None, era:str="DYNAMIC", is_running_in_flask:bool=False, source:str='Baseball Reference') -> None:
+    def __init__(self, name:str, year:str, stats:dict, context:str, expansion:str='FINAL', edition:str="NONE", offset:int=0, player_image_url:str=None, player_image_path:str=None, card_img_output_folder_path:str='', set_number:str='', test_numbers:tuple[int,int]=None, run_stats:bool=True, command_out_override:tuple[int,int]=None, print_to_cli:bool=False, show_player_card_image:bool=False, is_img_part_of_a_set:bool=False, add_image_border:bool=False, is_dark_mode:bool=False, is_variable_speed_00_01:bool=False, image_parallel:str="NONE", add_year_container:bool=False, set_year_plus_one:bool=False, hide_team_logo:bool=False, date_override:str=None, era:str="DYNAMIC", use_secondary_color:bool=False, is_running_in_flask:bool=False, source:str='Baseball Reference') -> None:
         """Initializer for ShowdownPlayerCard Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -87,6 +87,7 @@ class ShowdownPlayerCard:
             self.team = Team.MLB
         self.edition: sc.Edition = sc.Edition(edition)
         self.nationality: str = stats.get('nationality', None)
+        self.use_secondary_color = use_secondary_color
 
         # IMAGE
         self.image_parallel: sc.ImageParallel = sc.ImageParallel(image_parallel)
@@ -2988,7 +2989,7 @@ class ShowdownPlayerCard:
         Returns:
           String with RGB codes (ex: "rgba(255, 50, 25, 1.0)")
         """
-        tm_colors = self.__team_color_rgbs()
+        tm_colors = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
 
         return f'rgb({tm_colors[0]}, {tm_colors[1]}, {tm_colors[2]})'
 
@@ -3217,7 +3218,7 @@ class ShowdownPlayerCard:
         
         is_2001_set = self.context == '2001'
         image_size = sc.CARD_SIZE_BORDERED if self.add_image_border else sc.CARD_SIZE
-        background_color = self.__team_color_rgbs()
+        background_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
         team_background_image = Image.new('RGB', image_size, color=background_color)
         
         # ADD 2001 SET ADDITIONS
@@ -3440,7 +3441,7 @@ class ShowdownPlayerCard:
             # ADD CHART ROUNDED RECT
             container_img_path = self.__template_img_path(f'{year}-ChartOutsContainer-{type}')
             container_img_black = Image.open(container_img_path)
-            fill_color = self.__team_color_rgbs()
+            fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
             if self.edition == sc.Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_COLORS.keys():
                     colors = sc.NATIONALITY_COLORS[self.nationality]
@@ -4206,7 +4207,7 @@ class ShowdownPlayerCard:
         x2 = 190
         y2 = 190       
         draw.ellipse((x1-border_size, y1-border_size, x2+border_size, y2+border_size), fill=text_color)
-        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs())
+        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color))
 
         # ADD TEXT
         font_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
@@ -4286,7 +4287,7 @@ class ShowdownPlayerCard:
         font = ImageFont.truetype(font_path, size=size)
 
         # ADD TEXT
-        fill_color = self.__team_color_rgbs()
+        fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
         fill_color_hex = self.__rbgs_to_hex(rgbs=fill_color)
         # SEPARATE 
         for index, char in enumerate(command):
@@ -4482,7 +4483,7 @@ class ShowdownPlayerCard:
                             self.__cache_downloaded_image(image=image, path=cached_image_path)
                             self.player_image_source = 'Google Drive'
                 case "COLOR":
-                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(ignore_team_overrides=True))
+                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, ignore_team_overrides=True))
                 case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
@@ -4856,17 +4857,16 @@ class ShowdownPlayerCard:
         
         return (coordinates[0] + sc.CARD_BORDER_PADDING, coordinates[1] + sc.CARD_BORDER_PADDING)
 
-    def __team_color_rgbs(self, ignore_team_overrides:bool = False) -> tuple[int,int,int,int]:
+    def __team_color_rgbs(self, is_secondary_color:bool=False, ignore_team_overrides:bool = False) -> tuple[int,int,int,int]:
         """RGB colors for player team
 
         Args:
+          is_secondary_color: Optionally use secondary color instead of primary.
           ignore_team_overrides: Boolean to optionally skip overrides.
 
         Returns:
             Tuple with RGB team colors
         """
-
-        default_color = (55, 55, 55, 255)
 
         # NATIONALITY COLOR
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if self.nationality else False
@@ -4880,7 +4880,7 @@ class ShowdownPlayerCard:
                 return color_for_league
         
         # GRAB FROM CURRENT TEAM COLORS
-        return self.team.primary_color_for_year(year=self.median_year)
+        return self.team.color(year=self.median_year, is_secondary=is_secondary_color)
 
 
 # ------------------------------------------------------------------------

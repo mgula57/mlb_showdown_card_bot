@@ -38,6 +38,7 @@ parser.add_argument('-sypls','--set_year_plus_one', action='store_true', help='O
 parser.add_argument('-htl','--hide_team_logo', action='store_true', help='Optionally remove all team logos and branding.')
 parser.add_argument('-isl','--ignore_showdown_library', action='store_true', help='Optionally force ignore Showdown Library, will create card live.')
 parser.add_argument('-ic','--ignore_cache', action='store_true', help='Ignore local cache')
+parser.add_argument('-sc','--secondary_color', action='store_true', help='Used secondary team color.')
 
 args = parser.parse_args()
 
@@ -122,6 +123,7 @@ def main():
         set_year_plus_one=args.set_year_plus_one,
         hide_team_logo=args.hide_team_logo,
         era=args.era,
+        use_secondary_color=args.secondary_color,
         source=data_source
     )
 

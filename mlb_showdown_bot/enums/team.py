@@ -251,7 +251,7 @@ class Team(Enum):
             case 'NLG': return (17, 36, 55, 255)
             case 'NYC': return (162, 0, 45, 255)
             case 'NYG': return (227, 82, 5, 255)
-            case 'NYM': return (252, 89, 16, 255)
+            case 'NYM': return (0, 45, 114, 255)
             case 'NYU': return (7, 91, 72, 255)
             case 'NYY': return (12, 35, 64, 255)
             case 'OAK': return (0, 56, 49, 255)
@@ -306,7 +306,7 @@ class Team(Enum):
             case _: return (55, 55, 55, 255)
 
     @property
-    def primary_logo_historical(self) -> tuple[int,int,int,int]:
+    def primary_color_historical(self) -> tuple[int,int,int,int]:
         match self.value:
             case 'ANA': return {
                 '1': (186,0,33,255),
@@ -390,9 +390,9 @@ class Team(Enum):
                 '2': (190, 15, 52, 255),
             }
             case 'NYM': return {
-                '1': (252, 89, 16, 255),
-                '2': (252, 89, 16, 255),
-                '3': (252, 89, 16, 255),
+                '1': self.primary_color,
+                '2': self.primary_color,
+                '3': self.primary_color,
             }
             case 'NYY': return {
                 '1': (12, 35, 64, 255),
@@ -451,11 +451,28 @@ class Team(Enum):
             }
             case _: return {}
 
-    def primary_color_for_year(self, year:int) -> tuple[int,int,int,int]:
+    @property
+    def secondary_color(self) -> tuple[int,int,int,int]:
+        match self.value:
+            case 'NYM': return (252, 89, 16, 255)
+            case _: return self.primary_color
+    
+    @property
+    def secondary_color_historical(self) -> tuple[int,int,int,int]:
+        match self.value:
+            case 'NYM': return {
+                '1': self.secondary_color,
+                '2': self.secondary_color,
+                '3': self.secondary_color,
+            }
+            case _: return {}
+            
+    def color(self, year:int, is_secondary:bool=False) -> tuple[int,int,int,int]:        
         logo_historical_index = self.logo_historical_index(year)
-        primary_color_historical = self.primary_logo_historical.get(logo_historical_index, None)
-        return primary_color_historical if primary_color_historical else self.primary_color
-
+        default_color = self.secondary_color if is_secondary else self.primary_color
+        historical_color_map = self.secondary_color_historical if is_secondary else self.primary_color_historical
+        color_historical = historical_color_map.get(logo_historical_index, default_color)
+        return color_historical
 
 # ------------------------------------------------------------------------
 # LOGO
