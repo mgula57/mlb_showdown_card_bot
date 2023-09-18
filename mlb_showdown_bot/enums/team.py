@@ -315,7 +315,7 @@ class Team(Enum):
                 '1': (95, 37, 159, 255),
             }
             case 'ATL': return {
-                '1': (1, 51, 172, 255),
+                '1': (24, 48, 135, 255),
                 '2': (213, 0, 50, 255),
                 '3': (213, 0, 50, 255),
             }
@@ -464,6 +464,11 @@ class Team(Enum):
         match self.value:
             case 'ARI': return {
                 '1': (0,95,97,255),
+            }
+            case 'ATL': return {
+                '1': (186,22,46,255),
+                '2': (0,51,160,255),
+                '3': (0,51,160,255),
             }
             case 'NYM': return {
                 '1': self.secondary_color,
@@ -672,7 +677,7 @@ class Team(Enum):
         match set:
             case '2000': 
                 match logo_name:
-                    case 'ATL-A': return (1950, 1950)
+                    case 'ATL-A' | 'ATL-1': return (1950, 1950)
                     case 'ARI-1': return (2300, 2300)
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
@@ -689,13 +694,15 @@ class Team(Enum):
                 match logo_name:
                     case 'ARI': return (-100, 0)
                     case 'ARI-1': return (-50, 0)
-                    case 'ATL-A': return (-100,0)
+                    case 'ATL-A' | 'ATL-1': return (-100,0)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
                     case 'ARI': return (-75, 0)
                     case 'ARI-1': return (-180, -130)
                     case 'ATL': return (-90,-250)
+                    case 'ATL-1': return (-100,0)
+                    case 'ATL-3': return (-75,0)
                     case _: return (0,0)
             case _: return (0, 0) 
 
