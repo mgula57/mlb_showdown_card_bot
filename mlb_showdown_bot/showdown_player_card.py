@@ -3238,19 +3238,7 @@ class ShowdownPlayerCard:
                 team_background_image.paste(color_image, (0,0), color_image)
 
         # ADD TEAM LOGO
-        force_alternate = self.context == '2000' and self.team.use_alternate_for_2000_background
-        logo_rotation = self.team.background_logo_rotation(self.context)
-        logo_size = self.team.background_logo_size(year=self.median_year, set=self.context, is_alternate=self.use_alternate_logo or force_alternate)
-        logo_opacity = self.team.background_logo_opacity(self.context)
-        paste_location = self.__coordinates_adjusted_for_bordering(self.team.background_logo_paste_location(year=self.median_year, is_alternate=self.use_alternate_logo or force_alternate, set=self.context, image_size=sc.CARD_SIZE))
-        team_logo_image, _ = self.__team_logo_image(ignore_dynamic_elements=True, size=logo_size, rotation=logo_rotation, force_use_alternate=force_alternate)
-        team_logo_image.show()
-        # 2000: MAKE LOGO BLACK AND WHITE
-        if self.context == '2000':
-            team_logo_image = self.__change_image_saturation(image=team_logo_image, saturation=0.2)
-
-        # CHANGE OPACITY
-        team_logo_image = self.__update_image_opacity(image=team_logo_image, opacity=logo_opacity)
+        team_logo_image, paste_location = self.team_logo_for_background()
         team_background_image.paste(team_logo_image, paste_location, team_logo_image)
 
         return team_background_image
@@ -3361,6 +3349,46 @@ class ShowdownPlayerCard:
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
 
         return team_logo, logo_paste_coordinates
+
+    def team_logo_for_background(self) -> tuple[Image.Image, tuple[int,int]]:
+        """Open and manipulate the team logo used for 2000/2001 team backgrounds.
+        
+        Args:
+          None
+
+        Returns:
+          Tuple with:
+            PIL Image object with edited team logo.
+            Coordinates to paste logo.
+        """
+
+        # ATTRIBUTES FOR THE LOGO
+        force_alternate = self.context == '2000' and self.team.use_alternate_for_2000_background
+        use_alternate = self.use_alternate_logo or force_alternate
+        logo_name = self.team.logo_name(year=self.median_year, is_alternate=use_alternate)
+
+        # OPACITY
+        opacity = self.team.background_logo_opacity(set=self.context)
+        team_logo = Image.open(self.__team_logo_path(logo_name))
+        team_logo_copy = team_logo.copy()
+        team_logo_copy.putalpha(int(255 * opacity))
+        team_logo.paste(team_logo_copy, team_logo)
+
+        # SATURATION
+        if self.context == '2000':
+            team_logo = self.__change_image_saturation(image=team_logo, saturation=0.2)
+
+        # SIZE
+        size = self.team.background_logo_size(year=self.median_year, set=self.context, is_alternate=use_alternate)
+        team_logo = team_logo.resize(size=size, resample=Image.ANTIALIAS)
+
+        # ROTATION
+        rotation = self.team.background_logo_rotation(set=self.context)
+        if rotation != 0:
+            team_logo = team_logo.rotate(rotation, resample=Image.BICUBIC)
+
+        paste_location = self.__coordinates_adjusted_for_bordering(self.team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.context, image_size=sc.CARD_SIZE))
+        return team_logo, paste_location
 
     def __template_image(self) -> Image.Image:
         """Loads showdown frame template depending on player context.

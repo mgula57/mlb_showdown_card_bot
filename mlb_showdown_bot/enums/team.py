@@ -639,22 +639,41 @@ class Team(Enum):
             'SFG-2','SFG-3','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TOR-3','TOR-A-3'
         ]
 
-    def background_logo_opacity(self, set:str) -> int:
+    def background_logo_opacity(self, set:str) -> float:
         return 0.20 if set == '2001' else 0.19
     
     def background_logo_rotation(self, set:str) -> int:
-        return 20 if set == '2001' else 0
+        return 18 if set == '2001' else 0
     
-    def background_logo_size(self, year:int, set:str, is_alternate:bool=False) -> int:
+    def background_logo_size(self, year:int, set:str, is_alternate:bool=False) -> tuple[int,int]:
+        logo_name = self.logo_name(year=year, is_alternate=is_alternate)
         match set:
-            case '2000':
-                return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
-            case '2001': (800, 800)
-            case _: return (800, 800)
+            case '2000': 
+                match logo_name:
+                    case 'ATL-A': return (1950, 1950)
+                    case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
+            case '2001': 
+                match logo_name:
+                    case 'ATL': return (1000, 1000)
+                    case _: return (735, 735)
+            case _: return (750, 750)
 
-    def background_logo_paste_location(self, year:int, is_alternate:bool, set:str, image_size:tuple[int,int]) -> int:
+    def background_image_paste_adjustment(self, year:int, set:str, is_alternate:bool=False) -> tuple[int,int]:
+        logo_name = self.logo_name(year=year, is_alternate=is_alternate)
+        match set:
+            case '2000': 
+                match logo_name:
+                    case 'ATL-A': return (-100,0)
+                    case _: return (0,0)
+            case '2001': 
+                match logo_name:
+                    case 'ATL': return (-90,-250)
+                    case _: return (0,0)
+            case _: return (0, 0) 
+
+    def background_logo_paste_location(self, year:int, is_alternate:bool, set:str, image_size:tuple[int,int]) -> tuple[int,int]:
         image_width, image_height = image_size
         logo_width, logo_height = self.background_logo_size(year=year, set=set, is_alternate=is_alternate)
-        x_wide_logo_adjustment_01 = -100 if self.is_background_logo_wide(year=year, is_alternate=is_alternate) else 0
-        y_wide_logo_adjustment_01 = -50 if self.is_background_logo_wide(year=year, is_alternate=is_alternate) else 0
-        return (45 + y_wide_logo_adjustment_01, 25 + x_wide_logo_adjustment_01) if set == '2001' else ( int( (image_width - logo_width) / 2 ), int( (image_height - logo_height) / 2 ) )
+        x_adjustment, y_adjustment = self.background_image_paste_adjustment(year=year, set=set, is_alternate=is_alternate)
+        x_standard, y_standard = (50, 25) if set == '2001' else ( int( (image_width - logo_width) / 2 ), int( (image_height - logo_height) / 2 ) )
+        return (x_standard + x_adjustment, y_standard + y_adjustment)
