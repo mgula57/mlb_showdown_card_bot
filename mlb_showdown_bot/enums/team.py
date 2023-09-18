@@ -312,7 +312,7 @@ class Team(Enum):
                 '1': (186,0,33,255),
             }
             case 'ARI': return {
-                '1': (0,96,86,255),
+                '1': (95, 37, 159, 255),
             }
             case 'ATL': return {
                 '1': (1, 51, 172, 255),
@@ -454,12 +454,17 @@ class Team(Enum):
     @property
     def secondary_color(self) -> tuple[int,int,int,int]:
         match self.value:
+            case 'ARI': return (227, 212, 173, 255)
+            case 'ATL': return (19, 39, 79, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
     @property
     def secondary_color_historical(self) -> tuple[int,int,int,int]:
         match self.value:
+            case 'ARI': return {
+                '1': (0,95,97,255),
+            }
             case 'NYM': return {
                 '1': self.secondary_color,
                 '2': self.secondary_color,
@@ -668,10 +673,12 @@ class Team(Enum):
             case '2000': 
                 match logo_name:
                     case 'ATL-A': return (1950, 1950)
+                    case 'ARI-1': return (2300, 2300)
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
                     case 'ATL': return (1000, 1000)
+                    case 'ARI-1': return (1000, 1000)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -680,10 +687,14 @@ class Team(Enum):
         match set:
             case '2000': 
                 match logo_name:
+                    case 'ARI': return (-100, 0)
+                    case 'ARI-1': return (-50, 0)
                     case 'ATL-A': return (-100,0)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
+                    case 'ARI': return (-75, 0)
+                    case 'ARI-1': return (-180, -130)
                     case 'ATL': return (-90,-250)
                     case _: return (0,0)
             case _: return (0, 0) 
