@@ -675,5 +675,5 @@ class Team(Enum):
         image_width, image_height = image_size
         logo_width, logo_height = self.background_logo_size(year=year, set=set, is_alternate=is_alternate)
         x_adjustment, y_adjustment = self.background_image_paste_adjustment(year=year, set=set, is_alternate=is_alternate)
-        x_standard, y_standard = (50, 25) if set == '2001' else ( int( (image_width - logo_width) / 2 ), int( (image_height - logo_height) / 2 ) )
+        x_standard, y_standard = (-40, -70) if set == '2001' else ( int( (image_width - logo_width) / 2 ), int( (image_height - logo_height) / 2 ) )
         return (x_standard + x_adjustment, y_standard + y_adjustment)

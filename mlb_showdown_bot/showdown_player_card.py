@@ -3179,7 +3179,7 @@ class ShowdownPlayerCard:
         
         # 2000/2001: CREATE TEAM LOGO BACKGROUND IMAGE
         if background_image is None and is_00_01_set:
-            background_image = self.__team_background_image()
+            background_image = self.team_background_image()
 
         # DEFAULT IMAGE
         if background_image is None:
@@ -3205,7 +3205,7 @@ class ShowdownPlayerCard:
 
         return background_image
 
-    def __team_background_image(self) -> Image.Image:
+    def team_background_image(self) -> Image.Image:
         """Create team background image dynamically for 2000/2001 sets
         
         Args:
@@ -3301,7 +3301,7 @@ class ShowdownPlayerCard:
 
         # ROTATE LOGO IF APPLICABLE
         if logo_rotation != 0:
-            team_logo = team_logo.rotate(logo_rotation, resample=Image.BICUBIC)
+            team_logo = team_logo.rotate(logo_rotation, resample=Image.BICUBIC, expand=True)
 
         # RETURN STATIC LOGO IF IGNORE_DYNAMIC_ELEMENTS IS ENABLED
         # IGNORES ROOKIE SEASON, SUPER SEASON
@@ -3345,7 +3345,7 @@ class ShowdownPlayerCard:
         # OVERRIDE IF ROOKIE SEASON
         if is_rookie_season and not is_00_01:
             team_logo = self.__rookie_season_image()
-            team_logo = team_logo.rotate(10,resample=Image.BICUBIC) if self.context == '2002' else team_logo
+            team_logo = team_logo.rotate(10, resample=Image.BICUBIC, expand=True) if self.context == '2002' else team_logo
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
 
         return team_logo, logo_paste_coordinates
@@ -3385,7 +3385,7 @@ class ShowdownPlayerCard:
         # ROTATION
         rotation = self.team.background_logo_rotation(set=self.context)
         if rotation != 0:
-            team_logo = team_logo.rotate(rotation, resample=Image.BICUBIC)
+            team_logo = team_logo.rotate(rotation, resample=Image.BICUBIC, expand=True)
 
         paste_location = self.__coordinates_adjusted_for_bordering(self.team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.context, image_size=sc.CARD_SIZE))
         return team_logo, paste_location
