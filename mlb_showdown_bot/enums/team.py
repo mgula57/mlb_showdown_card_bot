@@ -467,6 +467,7 @@ class Team(Enum):
             case 'CIN': return (25, 25, 25, 255)
             case 'CLE': return (0, 56, 93, 255)
             case 'COL': return (196, 206, 212, 255)
+            case 'DET': return (250, 70, 22, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
@@ -488,12 +489,17 @@ class Team(Enum):
                 '1': (12,35,64,255),
             }
             case 'CHW': return {
-                '2': (204, 9, 47,255),
-                '3': (204, 9, 47,255),
-                '4': (204, 9, 47,255),
+                '2': (204,9,47,255),
+                '3': (204,9,47,255),
+                '4': (204,9,47,255),
             }
             case 'CLE': return {
                 '6': (26, 46, 90, 255),
+            }
+            case 'DET': return {
+                '1': (240,240,240,255),
+                '2': (250,70,22,255),
+                '3': (250,70,22,255),
             }
             case 'NYM': return {
                 '1': self.secondary_color,
@@ -723,6 +729,7 @@ class Team(Enum):
                     case 'CLE': return (850, 850)
                     case 'CLE-3' | 'CLE-5': return (900, 900)
                     case 'COL': return (900, 900)
+                    case 'DET-3': return (825, 825)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -764,6 +771,8 @@ class Team(Enum):
                     case 'CLE-3' | 'CLE-5': return (-175, -220)
                     case 'CLE-6': return (-40, 0)
                     case 'COL': return (-100, -175)
+                    case 'DET-3': return (-120, -100)
+                    case 'DET' : return (-80, -60)
                     case _: return (0,0)
             case _: return (0, 0) 
 
