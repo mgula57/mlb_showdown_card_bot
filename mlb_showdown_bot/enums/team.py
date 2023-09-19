@@ -473,6 +473,7 @@ class Team(Enum):
             case 'KCR': return (189, 155, 96, 255)
             case 'NYM': return (252, 89, 16, 255)
             case 'LAA': return (0, 50, 99, 255)
+            case 'LAD': return (239, 62, 66, 255)
             case _: return self.primary_color
     
     @property
@@ -604,6 +605,9 @@ class Team(Enum):
                 '2': list(range(1986,1993)),
                 '3': list(range(1993,2002)),
             }
+            case 'LAD': return {
+                '1': list(range(1999,2007)),
+            }
             case 'MIA': return {
                 '1': list(range(2012,2019)),
             }
@@ -696,11 +700,18 @@ class Team(Enum):
 # TEAM BACKGROUND (00/01)
 # ------------------------------------------------------------------------
 
-    @property
-    def use_alternate_for_2000_background(self) -> bool:
-        return self.value in [
-            'ATL'
-        ]
+    def use_alternate_for_background(self, set:str) -> bool:
+        match set:
+            case '2000':
+                return self.value in [
+                    'ATL', 'LAD',
+                ]
+            case '2001':
+                return self.value in [
+                    'LAD',
+                ]
+            case _: return False
+
 
     def is_background_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
         logo_name = self.logo_name(year=year, is_alternate=is_alternate)
@@ -749,6 +760,7 @@ class Team(Enum):
                     case 'HOU-3' : return (950, 950)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (850, 850)
                     case 'LAA': return (775, 775)
+                    case 'LAD-A' | 'LAD-A-1': return (800, 800)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -799,6 +811,7 @@ class Team(Enum):
                     case 'HOU-3' : return (-130, -160)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (-100, -100)
                     case 'LAA': return (-60, -50)
+                    case 'LAD-A' | 'LAD-A-1': return (-40, -60)
                     case _: return (0,0)
             case _: return (0, 0) 
 

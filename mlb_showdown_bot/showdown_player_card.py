@@ -3364,7 +3364,7 @@ class ShowdownPlayerCard:
         """
 
         # ATTRIBUTES FOR THE LOGO
-        force_alternate = self.context == '2000' and self.team.use_alternate_for_2000_background
+        force_alternate = self.team.use_alternate_for_background(set=self.context)
         use_alternate = self.use_alternate_logo or force_alternate
         logo_name = self.team.logo_name(year=self.median_year, is_alternate=use_alternate)
 
