@@ -4839,7 +4839,14 @@ class ShowdownPlayerCard:
         Returns:
           String with full image path.
         """
-        return os.path.join(os.path.dirname(__file__), 'team_logos', f'{name}.{extension}')
+
+        alternate_substring = '-A'
+        is_alternate = alternate_substring in name
+        path = os.path.join(os.path.dirname(__file__), 'team_logos', f'{name}.{extension}')
+        if not os.path.isfile(path) and is_alternate:
+            path = path.replace(alternate_substring, '')
+
+        return path
 
     def __coordinates_adjusted_for_bordering(self, coordinates:tuple[int,int], is_disabled:bool = False) -> tuple[int,int]:
         """Add padding to paste coordinates to account for a border on the image.
