@@ -458,6 +458,7 @@ class Team(Enum):
             case 'ATL': return (19, 39, 79, 255)
             case 'BAL': return (39, 37, 31, 255)
             case 'BOS': return (12, 35, 64, 255)
+            case 'BRO': return (191, 192, 191, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
@@ -682,6 +683,7 @@ class Team(Enum):
                 match logo_name:
                     case 'ATL-A' | 'ATL-1' | 'BOS-2': return (1950, 1950)
                     case 'ARI-1': return (2300, 2300)
+                    case 'BRO': return (1800, 1800)
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
@@ -689,6 +691,7 @@ class Team(Enum):
                     case 'ARI-1': return (1000, 1000)
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (775, 775)
                     case 'BOS-2': return (1000, 1000)
+                    case 'BRO': return (950, 950)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -711,6 +714,7 @@ class Team(Enum):
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (-60, -50)
                     case 'BOS-2': return (-90,-250)
                     case 'BOS-3': return (-20, 0)
+                    case 'BRO': return (-90,-220)
                     case _: return (0,0)
             case _: return (0, 0) 
 
