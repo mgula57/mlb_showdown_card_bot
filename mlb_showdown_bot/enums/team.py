@@ -398,8 +398,8 @@ class Team(Enum):
                 '1': (12, 35, 64, 255),
             }
             case 'OAK': return {
-                '1': (0, 56, 49, 255),
-                '2': (0, 56, 49, 255),
+                '1': (17, 87, 64, 255),
+                '2': (17, 87, 64, 255),
             }
             case 'PHI': return {
                 '1': (232, 24, 40, 255),
@@ -480,6 +480,7 @@ class Team(Enum):
             case 'NYG': return (45, 45, 45, 255)
             case 'NYM': return (252, 89, 16, 255)
             case 'NYY': return (196, 206, 211, 255)
+            case 'OAK': return (239, 178, 30, 255)
             case _: return self.primary_color
     
     @property
@@ -534,6 +535,10 @@ class Team(Enum):
             case 'MIN': return {
                 '1': (12, 35, 64, 255),
                 '2': (34, 68, 179, 255),
+            }
+            case 'OAK': return {
+                '1': (255, 205, 0, 255),
+                '2': (255, 205, 0, 255),
             }
             case 'NYM': return {}
             case _: return {}
