@@ -475,6 +475,7 @@ class Team(Enum):
             case 'LAA': return (0, 50, 99, 255)
             case 'LAD': return (239, 62, 66, 255)
             case 'MIA': return (239, 51, 64, 255)
+            case 'MIL': return (255, 197, 47, 255)
             case _: return self.primary_color
     
     @property
@@ -519,6 +520,12 @@ class Team(Enum):
             }
             case 'MIA': return {
                 '1': (0, 119, 200, 255),
+            }
+            case 'MIL': return {
+                '1': (255, 212, 81, 255),
+                '2': (255, 212, 81, 255),
+                '3': (10, 105, 78, 255),
+                '4': (182, 146, 46, 255),
             }
             case 'NYM': return {}
             case _: return {}
@@ -712,7 +719,6 @@ class Team(Enum):
                 ]
             case _: return False
 
-
     def is_background_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
         logo_name = self.logo_name(year=year, is_alternate=is_alternate)
         return logo_name in [
@@ -761,6 +767,8 @@ class Team(Enum):
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (850, 850)
                     case 'LAA': return (775, 775)
                     case 'LAD-A' | 'LAD-A-1': return (800, 800)
+                    case 'MIL-3': return (800, 800)
+                    case 'MIL-4': return (950, 950)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -815,6 +823,9 @@ class Team(Enum):
                     case 'LAD-A' | 'LAD-A-1': return (-40, -60)
                     case 'MIA-A': return (-40, -75)
                     case 'MIA-A-1': return (-40, -100)
+                    case 'MIL': return (-20, 0)
+                    case 'MIL-3': return (-50, -40)
+                    case 'MIL-4': return (-100, -240)
                     case _: return (0,0)
             case _: return (0, 0) 
 
