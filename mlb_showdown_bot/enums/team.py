@@ -387,7 +387,7 @@ class Team(Enum):
             }
             case 'MIN': return {
                 '1': (190, 15, 52, 255),
-                '2': (190, 15, 52, 255),
+                '2': (186, 12, 47, 255),
             }
             case 'NYM': return {
                 '1': self.primary_color,
@@ -476,6 +476,7 @@ class Team(Enum):
             case 'LAD': return (239, 62, 66, 255)
             case 'MIA': return (239, 51, 64, 255)
             case 'MIL': return (255, 197, 47, 255)
+            case 'MIN': return (0, 43, 92, 255)
             case _: return self.primary_color
     
     @property
@@ -526,6 +527,10 @@ class Team(Enum):
                 '2': (255, 212, 81, 255),
                 '3': (10, 105, 78, 255),
                 '4': (182, 146, 46, 255),
+            }
+            case 'MIN': return {
+                '1': (12, 35, 64, 255),
+                '2': (34, 68, 179, 255),
             }
             case 'NYM': return {}
             case _: return {}
@@ -743,6 +748,7 @@ class Team(Enum):
                     case 'ARI-1': return (2300, 2300)
                     case 'BRO': return (1800, 1800)
                     case 'FLA': return (2300, 2300)
+                    case 'MIN-2': return (2400, 2400)
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
@@ -769,6 +775,7 @@ class Team(Enum):
                     case 'LAD-A' | 'LAD-A-1': return (800, 800)
                     case 'MIL-3': return (800, 800)
                     case 'MIL-4': return (950, 950)
+                    case 'MIN-2': return (875, 875)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -826,6 +833,8 @@ class Team(Enum):
                     case 'MIL': return (-20, 0)
                     case 'MIL-3': return (-50, -40)
                     case 'MIL-4': return (-100, -240)
+                    case 'MIN-1': return (-40, -40)
+                    case 'MIN-2': return (-85, -85)
                     case _: return (0,0)
             case _: return (0, 0) 
 
