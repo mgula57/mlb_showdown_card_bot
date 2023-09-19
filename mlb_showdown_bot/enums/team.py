@@ -270,7 +270,7 @@ class Team(Enum):
             case 'RIC': return (250, 138, 49, 255)
             case 'ROC': return (101, 55, 19, 255)
             case 'ROK': return (17, 111, 59, 255)
-            case 'SDP': return (249, 182, 1, 255)
+            case 'SDP': return (47, 36, 29, 255)
             case 'SEA': return (0, 92, 92, 255)
             case 'SEP': return (0, 79, 157, 255)
             case 'SFG': return (253, 90, 30, 255)
@@ -413,10 +413,11 @@ class Team(Enum):
                 '3': (255, 199, 44, 255),
             }
             case 'SDP': return {
-                '1': (97, 55, 30, 255),
+                '1': (105, 63, 34, 255),
                 '2': (70, 36, 37, 255),
-                '3': (10, 35, 67, 255),
-                '4': (183, 166, 109, 255),
+                '3': (4, 30, 66, 255),
+                '4': (0, 45, 98, 255),
+                '5': (0, 45, 98, 255),
             }
             case 'SEA': return {
                 '1': (0, 40, 120, 255),
@@ -483,6 +484,7 @@ class Team(Enum):
             case 'OAK': return (239, 178, 30, 255)
             case 'PHI': return (0, 45, 114, 255)
             case 'PIT': return (39, 37, 31, 255)
+            case 'SDP': return (255, 196, 37, 255)
             case _: return self.primary_color
     
     @property
@@ -551,6 +553,13 @@ class Team(Enum):
                 '1': (39, 37, 31, 255),
                 '2': (39, 37, 31, 255),
                 '3': (39, 37, 31, 255),
+            }
+            case 'SDP': return {
+                '1': (255, 205, 5, 255),
+                '2': (227, 86, 37, 255),
+                '3': (227, 82, 5, 255),
+                '4': (162, 170, 173, 255),
+                '5': (162, 170, 173, 255),
             }
             case _: return {}
             
@@ -681,6 +690,7 @@ class Team(Enum):
                 '2': list(range(1985,1992)),
                 '3': list(range(1992,2004)),
                 '4': list(range(2004,2012)),
+                '5': list(range(2012,2020)),
             }
             case 'SEA': return {
                 '1': list(range(1977,1981)),
@@ -804,6 +814,8 @@ class Team(Enum):
                     case 'PIT-1': return (775, 775)
                     case 'PIT-4': return (875, 875)
                     case 'PIT' | 'PIT-2' | 'PIT-3': return (775, 775)
+                    case 'SDP-1': return (950, 950)
+                    case 'SDP-2' | 'SDP-3' | 'SDP-4': return (850, 850)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -871,6 +883,8 @@ class Team(Enum):
                     case 'PIT-1': return (-40, -40)
                     case 'PIT-4': return (-60, -75)
                     case 'PIT' | 'PIT-2' | 'PIT-3': return (-30, -30)
+                    case 'SDP-1': return (-40, -190)
+                    case 'SDP-2' | 'SDP-3' | 'SDP-4': return (-50, -90)
                     case _: return (0,0)
             case _: return (0, 0) 
 
