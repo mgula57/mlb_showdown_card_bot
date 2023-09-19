@@ -408,9 +408,9 @@ class Team(Enum):
                 '4': (232, 24, 40, 255),
             }
             case 'PIT': return {
-                '1': (253, 184, 39, 255),
-                '2': (253, 184, 39, 255),
-                '3': (253, 184, 39, 255),
+                '1': (255, 199, 44, 255),
+                '2': (255, 199, 44, 255),
+                '3': (255, 199, 44, 255),
             }
             case 'SDP': return {
                 '1': (97, 55, 30, 255),
@@ -482,6 +482,7 @@ class Team(Enum):
             case 'NYY': return (196, 206, 211, 255)
             case 'OAK': return (239, 178, 30, 255)
             case 'PHI': return (0, 45, 114, 255)
+            case 'PIT': return (39, 37, 31, 255)
             case _: return self.primary_color
     
     @property
@@ -545,6 +546,11 @@ class Team(Enum):
                 '2': (40, 72, 152, 255),
                 '3': (107, 172, 228, 255),
                 '4': (40, 72, 152, 255),
+            }
+            case 'PIT': return {
+                '1': (39, 37, 31, 255),
+                '2': (39, 37, 31, 255),
+                '3': (39, 37, 31, 255),
             }
             case _: return {}
             
@@ -667,7 +673,8 @@ class Team(Enum):
             case 'PIT': return {
                 '1': list(range(1900,1948)),
                 '2': list(range(1948,1970)),
-                '3': list(range(1970,2009)),
+                '3': list(range(1970,1997)),
+                '4': list(range(1997,2014)),
             }
             case 'SDP': return {
                 '1': list(range(1969,1985)),
@@ -794,6 +801,9 @@ class Team(Enum):
                     case 'NYG': return (850, 850)
                     case 'PHI-2': return (950, 950)
                     case 'PHI' | 'PHI-4': return (800, 800)
+                    case 'PIT-1': return (775, 775)
+                    case 'PIT-4': return (875, 875)
+                    case 'PIT' | 'PIT-2' | 'PIT-3': return (775, 775)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -813,6 +823,7 @@ class Team(Enum):
                     case 'FLA': return (0, 150)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (50, 0)
                     case 'MIA-1': return (0, -100)
+                    case 'PIT-4': return (0, -60)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
@@ -857,6 +868,9 @@ class Team(Enum):
                     case 'PHI-2': return (-125, -180)
                     case 'PHI-3': return (-40, 0)
                     case 'PHI' | 'PHI-4': return (-40, -50)
+                    case 'PIT-1': return (-40, -40)
+                    case 'PIT-4': return (-60, -75)
+                    case 'PIT' | 'PIT-2' | 'PIT-3': return (-30, -30)
                     case _: return (0,0)
             case _: return (0, 0) 
 
