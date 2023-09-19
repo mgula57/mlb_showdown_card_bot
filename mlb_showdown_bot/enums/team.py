@@ -323,7 +323,7 @@ class Team(Enum):
                 '1': (21, 10, 106, 255),
                 '2': (243, 105, 22, 255),
                 '3': (220, 72, 20, 255),
-                '4': (220, 72, 20, 255),
+                '4': (252, 76, 2, 255),
                 '5': (220, 72, 20, 255),
                 '6': (220, 72, 20, 255),
                 '7': (220, 72, 20, 255),
@@ -456,6 +456,7 @@ class Team(Enum):
         match self.value:
             case 'ARI': return (227, 212, 173, 255)
             case 'ATL': return (19, 39, 79, 255)
+            case 'BAL': return (39, 37, 31, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
@@ -470,6 +471,7 @@ class Team(Enum):
                 '2': (0,51,160,255),
                 '3': (0,51,160,255),
             }
+            case 'BAL': return {}
             case 'NYM': return {
                 '1': self.secondary_color,
                 '2': self.secondary_color,
@@ -684,6 +686,7 @@ class Team(Enum):
                 match logo_name:
                     case 'ATL': return (1000, 1000)
                     case 'ARI-1': return (1000, 1000)
+                    case 'BAL-5' | 'BAL-6' | 'BAL-7': return (775, 775)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -703,6 +706,7 @@ class Team(Enum):
                     case 'ATL': return (-90,-250)
                     case 'ATL-1': return (-100,0)
                     case 'ATL-3': return (-75,0)
+                    case 'BAL-5' | 'BAL-6' | 'BAL-7': return (-60, -50)
                     case _: return (0,0)
             case _: return (0, 0) 
 
