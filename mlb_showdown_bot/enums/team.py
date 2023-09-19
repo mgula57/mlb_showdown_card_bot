@@ -404,7 +404,7 @@ class Team(Enum):
             case 'PHI': return {
                 '1': (232, 24, 40, 255),
                 '2': (232, 24, 40, 255),
-                '3': (232, 24, 40, 255),
+                '3': (111, 38, 61, 255),
                 '4': (232, 24, 40, 255),
             }
             case 'PIT': return {
@@ -481,6 +481,7 @@ class Team(Enum):
             case 'NYM': return (252, 89, 16, 255)
             case 'NYY': return (196, 206, 211, 255)
             case 'OAK': return (239, 178, 30, 255)
+            case 'PHI': return (0, 45, 114, 255)
             case _: return self.primary_color
     
     @property
@@ -540,7 +541,11 @@ class Team(Enum):
                 '1': (255, 205, 0, 255),
                 '2': (255, 205, 0, 255),
             }
-            case 'NYM': return {}
+            case 'PHI': return {
+                '2': (40, 72, 152, 255),
+                '3': (107, 172, 228, 255),
+                '4': (40, 72, 152, 255),
+            }
             case _: return {}
             
     def color(self, year:int, is_secondary:bool=False) -> tuple[int,int,int,int]:        
@@ -758,6 +763,7 @@ class Team(Enum):
                     case 'FLA': return (2300, 2300)
                     case 'MIN-2': return (2400, 2400)
                     case 'NYG': return (1800, 1800)
+                    case 'PHI-2': return (1800, 1800)
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
@@ -786,6 +792,8 @@ class Team(Enum):
                     case 'MIL-4': return (950, 950)
                     case 'MIN-2': return (875, 875)
                     case 'NYG': return (850, 850)
+                    case 'PHI-2': return (950, 950)
+                    case 'PHI' | 'PHI-4': return (800, 800)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -846,6 +854,9 @@ class Team(Enum):
                     case 'MIN-1': return (-40, -40)
                     case 'MIN-2': return (-85, -85)
                     case 'NYG': return (-85, -50)
+                    case 'PHI-2': return (-125, -180)
+                    case 'PHI-3': return (-40, 0)
+                    case 'PHI' | 'PHI-4': return (-40, -50)
                     case _: return (0,0)
             case _: return (0, 0) 
 
