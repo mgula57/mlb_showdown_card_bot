@@ -454,6 +454,7 @@ class Team(Enum):
     @property
     def secondary_color(self) -> tuple[int,int,int,int]:
         match self.value:
+            case 'ANA': return (92, 136, 218, 255)
             case 'ARI': return (227, 212, 173, 255)
             case 'ATL': return (19, 39, 79, 255)
             case 'BAL': return (39, 37, 31, 255)
@@ -466,6 +467,9 @@ class Team(Enum):
     @property
     def secondary_color_historical(self) -> tuple[int,int,int,int]:
         match self.value:
+            case 'ANA': return {
+                '1': (0,50,99,255),
+            }
             case 'ARI': return {
                 '1': (0,95,97,255),
             }
@@ -665,7 +669,7 @@ class Team(Enum):
     def is_background_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
         logo_name = self.logo_name(year=year, is_alternate=is_alternate)
         return logo_name in [
-            'ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
+            'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
             'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
             'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','SDP-2','SDP-A-2','SEP-A','SEP',
             'SFG-2','SFG-3','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TOR-3','TOR-A-3'
@@ -688,6 +692,8 @@ class Team(Enum):
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
+                    case 'ANA': return (1000, 1000)
+                    case 'ANA-1': return (775, 775)
                     case 'ATL': return (1000, 1000)
                     case 'ARI-1': return (1000, 1000)
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (775, 775)
@@ -701,12 +707,15 @@ class Team(Enum):
         match set:
             case '2000': 
                 match logo_name:
+                    case 'ANA': return (-100, 0)
                     case 'ARI': return (-100, 0)
                     case 'ARI-1': return (-50, 0)
                     case 'ATL-A' | 'ATL-1': return (-100,0)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
+                    case 'ANA': return (-175,-170)
+                    case 'ANA-1': return (-60, -50)
                     case 'ARI': return (-75, 0)
                     case 'ARI-1': return (-180, -130)
                     case 'ATL': return (-90,-250)
