@@ -215,7 +215,7 @@ class Team(Enum):
             case 'DS': return (193, 44, 56, 255)
             case 'DTS': return (193, 44, 56, 255)
             case 'DW': return (189, 47, 45, 255)
-            case 'FLA': return (2, 159, 171, 255)
+            case 'FLA': return (0, 156, 166, 255)
             case 'HAR': return (5, 0, 51, 255)
             case 'HBG': return (5, 0, 51, 255)
             case 'HG': return (2, 2, 2, 255)
@@ -468,6 +468,7 @@ class Team(Enum):
             case 'CLE': return (0, 56, 93, 255)
             case 'COL': return (196, 206, 212, 255)
             case 'DET': return (250, 70, 22, 255)
+            case 'FLA': return (250, 70, 22, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
@@ -698,7 +699,7 @@ class Team(Enum):
         ]
 
     def background_logo_opacity(self, set:str) -> float:
-        return 0.20 if set == '2001' else 0.19
+        return 0.30 if set == '2001' else 0.19
     
     def background_logo_rotation(self, set:str) -> int:
         return 18 if set == '2001' else 0
@@ -711,6 +712,7 @@ class Team(Enum):
                     case 'ATL-A' | 'ATL-1' | 'BOS-2': return (1950, 1950)
                     case 'ARI-1': return (2300, 2300)
                     case 'BRO': return (1800, 1800)
+                    case 'FLA': return (2300, 2300)
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
@@ -730,6 +732,7 @@ class Team(Enum):
                     case 'CLE-3' | 'CLE-5': return (900, 900)
                     case 'COL': return (900, 900)
                     case 'DET-3': return (825, 825)
+                    case 'FLA' : return (850, 850)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -746,6 +749,7 @@ class Team(Enum):
                     case 'CHW-2': return (250, 0)
                     case 'CLE-3' | 'CLE-5': return (0, -75)
                     case 'COL': return (0, -50)
+                    case 'FLA': return (0, 150)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
@@ -773,6 +777,7 @@ class Team(Enum):
                     case 'COL': return (-100, -175)
                     case 'DET-3': return (-120, -100)
                     case 'DET' : return (-80, -60)
+                    case 'FLA' : return (-60, -30)
                     case _: return (0,0)
             case _: return (0, 0) 
 
