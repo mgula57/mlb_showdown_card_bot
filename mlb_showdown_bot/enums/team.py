@@ -471,7 +471,6 @@ class Team(Enum):
             case 'FLA': return (250, 70, 22, 255)
             case 'HOU': return (0, 45, 98, 255)
             case 'KCR': return (189, 155, 96, 255)
-            case 'NYM': return (252, 89, 16, 255)
             case 'LAA': return (0, 50, 99, 255)
             case 'LAD': return (239, 62, 66, 255)
             case 'MIA': return (239, 51, 64, 255)
@@ -479,6 +478,8 @@ class Team(Enum):
             case 'MIN': return (0, 43, 92, 255)
             case 'MON': return (228, 0, 43, 255)
             case 'NYG': return (45, 45, 45, 255)
+            case 'NYM': return (252, 89, 16, 255)
+            case 'NYY': return (196, 206, 211, 255)
             case _: return self.primary_color
     
     @property
