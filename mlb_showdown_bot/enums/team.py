@@ -486,6 +486,7 @@ class Team(Enum):
             case 'PIT': return (39, 37, 31, 255)
             case 'SDP': return (255, 196, 37, 255)
             case 'SEA': return (0, 92, 92, 255)
+            case 'SFG': return (39, 37, 31, 255)
             case _: return self.primary_color
     
     @property
@@ -566,6 +567,11 @@ class Team(Enum):
                 '1': (255, 204, 0, 255),
                 '2': (255, 204, 0, 255),
                 '3': (255, 204, 0, 255),
+            }
+            case 'SFG': return {
+                '1': (39, 37, 31, 255),
+                '2': (39, 37, 31, 255),
+                '3': (39, 37, 31, 255),
             }
             case _: return {}
             
@@ -787,6 +793,7 @@ class Team(Enum):
                     case 'MIN-2': return (2400, 2400)
                     case 'NYG': return (1800, 1800)
                     case 'PHI-2': return (1800, 1800)
+                    case 'SFG-1': return (1800, 1800)
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
@@ -823,6 +830,9 @@ class Team(Enum):
                     case 'SDP-1': return (950, 950)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (850, 850)
                     case 'SEA-2': return (850, 850)
+                    case 'SFG-1': return (850, 850)
+                    case 'SFG-2': return (850, 850)
+                    case 'SFG' | 'SFG-3': return (950, 950)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -893,6 +903,9 @@ class Team(Enum):
                     case 'SDP-1': return (-40, -190)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (-50, -90)
                     case 'SEA-2': return (-80, -125)
+                    case 'SFG-1': return (-85, -50)
+                    case 'SFG-2': return (-40, -80)
+                    case 'SFG' | 'SFG-3': return (-65, -190)
                     case _: return (0,0)
             case _: return (0, 0) 
 
