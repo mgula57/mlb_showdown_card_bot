@@ -474,6 +474,7 @@ class Team(Enum):
             case 'NYM': return (252, 89, 16, 255)
             case 'LAA': return (0, 50, 99, 255)
             case 'LAD': return (239, 62, 66, 255)
+            case 'MIA': return (239, 51, 64, 255)
             case _: return self.primary_color
     
     @property
@@ -516,11 +517,10 @@ class Team(Enum):
                 '2': (192, 154, 91, 255),
                 '3': (192, 154, 91, 255),
             }
-            case 'NYM': return {
-                '1': self.secondary_color,
-                '2': self.secondary_color,
-                '3': self.secondary_color,
+            case 'MIA': return {
+                '1': (0, 119, 200, 255),
             }
+            case 'NYM': return {}
             case _: return {}
             
     def color(self, year:int, is_secondary:bool=False) -> tuple[int,int,int,int]:        
@@ -708,7 +708,7 @@ class Team(Enum):
                 ]
             case '2001':
                 return self.value in [
-                    'LAD',
+                    'LAD', 'MIA'
                 ]
             case _: return False
 
@@ -779,6 +779,7 @@ class Team(Enum):
                     case 'COL': return (0, -50)
                     case 'FLA': return (0, 150)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (50, 0)
+                    case 'MIA-1': return (0, -100)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
@@ -812,6 +813,8 @@ class Team(Enum):
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (-100, -100)
                     case 'LAA': return (-60, -50)
                     case 'LAD-A' | 'LAD-A-1': return (-40, -60)
+                    case 'MIA-A': return (-40, -75)
+                    case 'MIA-A-1': return (-40, -100)
                     case _: return (0,0)
             case _: return (0, 0) 
 
