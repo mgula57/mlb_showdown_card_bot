@@ -203,7 +203,7 @@ class Team(Enum):
             case 'CLE': return (229, 0, 34, 255)
             case 'CKK': return (209, 9, 47, 255)
             case 'CLV': return (14, 0, 119, 255)
-            case 'COL': return (51,0,111,255)
+            case 'COL': return (51, 51, 102, 255)
             case 'COR': return (198,1,31,255)
             case 'CRS': return (14, 0, 119, 255)
             case 'CSE': return (10, 34, 64, 255)
@@ -466,6 +466,7 @@ class Team(Enum):
             case 'CHW': return (196, 206, 212, 255)
             case 'CIN': return (25, 25, 25, 255)
             case 'CLE': return (0, 56, 93, 255)
+            case 'COL': return (196, 206, 212, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
@@ -721,6 +722,7 @@ class Team(Enum):
                     case 'CIN-2': return (775, 775)
                     case 'CLE': return (850, 850)
                     case 'CLE-3' | 'CLE-5': return (900, 900)
+                    case 'COL': return (900, 900)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -736,6 +738,7 @@ class Team(Enum):
                     case 'CHC-1': return (-50, 0)
                     case 'CHW-2': return (250, 0)
                     case 'CLE-3' | 'CLE-5': return (0, -75)
+                    case 'COL': return (0, -50)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
@@ -760,6 +763,7 @@ class Team(Enum):
                     case 'CLE': return (-125, -100)
                     case 'CLE-3' | 'CLE-5': return (-175, -220)
                     case 'CLE-6': return (-40, 0)
+                    case 'COL': return (-100, -175)
                     case _: return (0,0)
             case _: return (0, 0) 
 
