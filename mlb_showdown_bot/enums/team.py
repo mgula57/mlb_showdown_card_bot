@@ -271,7 +271,7 @@ class Team(Enum):
             case 'ROC': return (101, 55, 19, 255)
             case 'ROK': return (17, 111, 59, 255)
             case 'SDP': return (47, 36, 29, 255)
-            case 'SEA': return (0, 92, 92, 255)
+            case 'SEA': return (12, 44, 86, 255)
             case 'SEP': return (0, 79, 157, 255)
             case 'SFG': return (253, 90, 30, 255)
             case 'SLB': return (227, 73, 18, 255)
@@ -485,6 +485,7 @@ class Team(Enum):
             case 'PHI': return (0, 45, 114, 255)
             case 'PIT': return (39, 37, 31, 255)
             case 'SDP': return (255, 196, 37, 255)
+            case 'SEA': return (0, 92, 92, 255)
             case _: return self.primary_color
     
     @property
@@ -560,6 +561,11 @@ class Team(Enum):
                 '3': (227, 82, 5, 255),
                 '4': (162, 170, 173, 255),
                 '5': (162, 170, 173, 255),
+            }
+            case 'SEA': return {
+                '1': (255, 204, 0, 255),
+                '2': (255, 204, 0, 255),
+                '3': (255, 204, 0, 255),
             }
             case _: return {}
             
@@ -816,6 +822,7 @@ class Team(Enum):
                     case 'PIT' | 'PIT-2' | 'PIT-3': return (775, 775)
                     case 'SDP-1': return (950, 950)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (850, 850)
+                    case 'SEA-2': return (850, 850)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -885,6 +892,7 @@ class Team(Enum):
                     case 'PIT' | 'PIT-2' | 'PIT-3': return (-30, -30)
                     case 'SDP-1': return (-40, -190)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (-50, -90)
+                    case 'SEA-2': return (-80, -125)
                     case _: return (0,0)
             case _: return (0, 0) 
 
