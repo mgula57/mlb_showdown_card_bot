@@ -470,6 +470,7 @@ class Team(Enum):
             case 'DET': return (250, 70, 22, 255)
             case 'FLA': return (250, 70, 22, 255)
             case 'HOU': return (0, 45, 98, 255)
+            case 'KCR': return (189, 155, 96, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
@@ -507,6 +508,11 @@ class Team(Enum):
                 '1': (250, 70, 22, 255),
                 '2': (137, 115, 75, 255),
                 '3': (211, 188, 141, 255),
+            }
+            case 'KCR': return {
+                '1': (192, 154, 91, 255),
+                '2': (192, 154, 91, 255),
+                '3': (192, 154, 91, 255),
             }
             case 'NYM': return {
                 '1': self.secondary_color,
@@ -740,6 +746,7 @@ class Team(Enum):
                     case 'DET-3': return (825, 825)
                     case 'FLA' : return (850, 850)
                     case 'HOU-3' : return (950, 950)
+                    case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (850, 850)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -757,6 +764,7 @@ class Team(Enum):
                     case 'CLE-3' | 'CLE-5': return (0, -75)
                     case 'COL': return (0, -50)
                     case 'FLA': return (0, 150)
+                    case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (50, 0)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
@@ -787,6 +795,7 @@ class Team(Enum):
                     case 'FLA' : return (-60, -30)
                     case 'HOU-2' : return (-60, -15)
                     case 'HOU-3' : return (-130, -160)
+                    case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (-100, -100)
                     case _: return (0,0)
             case _: return (0, 0) 
 
