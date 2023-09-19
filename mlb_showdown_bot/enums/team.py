@@ -367,9 +367,9 @@ class Team(Enum):
                 '3': (0,33,68,255),
             }
             case 'HOU': return {
-                '1': (255, 72, 25, 255),
-                '2': (114, 116, 74, 255),
-                '3': (157, 48, 34, 255),
+                '1': (4, 30, 66, 255),
+                '2': (12, 35, 64, 255),
+                '3': (154, 51, 36, 255),
             }
             case 'KCR': return {
                 '1': (0, 70, 135, 255),
@@ -469,6 +469,7 @@ class Team(Enum):
             case 'COL': return (196, 206, 212, 255)
             case 'DET': return (250, 70, 22, 255)
             case 'FLA': return (250, 70, 22, 255)
+            case 'HOU': return (0, 45, 98, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
@@ -501,6 +502,11 @@ class Team(Enum):
                 '1': (240,240,240,255),
                 '2': (250,70,22,255),
                 '3': (250,70,22,255),
+            }
+            case 'HOU': return {
+                '1': (250, 70, 22, 255),
+                '2': (137, 115, 75, 255),
+                '3': (211, 188, 141, 255),
             }
             case 'NYM': return {
                 '1': self.secondary_color,
@@ -733,6 +739,7 @@ class Team(Enum):
                     case 'COL': return (900, 900)
                     case 'DET-3': return (825, 825)
                     case 'FLA' : return (850, 850)
+                    case 'HOU-3' : return (950, 950)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -778,6 +785,8 @@ class Team(Enum):
                     case 'DET-3': return (-120, -100)
                     case 'DET' : return (-80, -60)
                     case 'FLA' : return (-60, -30)
+                    case 'HOU-2' : return (-60, -15)
+                    case 'HOU-3' : return (-130, -160)
                     case _: return (0,0)
             case _: return (0, 0) 
 
