@@ -463,6 +463,7 @@ class Team(Enum):
             case 'CAL': return (4, 28, 44, 255)
             case 'CCC': return (13, 30, 66, 255)
             case 'CHC': return (204, 52, 51, 255)
+            case 'CHW': return (196, 206, 212, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
@@ -483,7 +484,11 @@ class Team(Enum):
             case 'CHC': return {
                 '1': (12,35,64,255),
             }
-            case 'BAL': return {}
+            case 'CHW': return {
+                '2': (204, 9, 47,255),
+                '3': (204, 9, 47,255),
+                '4': (204, 9, 47,255),
+            }
             case 'NYM': return {
                 '1': self.secondary_color,
                 '2': self.secondary_color,
@@ -705,6 +710,8 @@ class Team(Enum):
                     case 'BOS-2': return (1000, 1000)
                     case 'BRO': return (950, 950)
                     case 'CHC-1': return (850, 850)
+                    case 'CHW': return (775, 775)
+                    case 'CHW-2': return (950, 950)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -718,6 +725,7 @@ class Team(Enum):
                     case 'ARI-1': return (-50, 0)
                     case 'ATL-A' | 'ATL-1': return (-100,0)
                     case 'CHC-1': return (-50, 0)
+                    case 'CHW-2': return (250, 0)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
@@ -733,6 +741,10 @@ class Team(Enum):
                     case 'BOS-3': return (-20, 0)
                     case 'BRO': return (-90,-220)
                     case 'CHC-1': return (-60,-125)
+                    case 'CHW': return (-60, -50)
+                    case 'CHW-1': return (-60,-50)
+                    case 'CHW-2': return (-90,-220)
+                    case 'CHW-4': return (-25,0)
                     case _: return (0,0)
             case _: return (0, 0) 
 
