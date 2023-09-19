@@ -199,8 +199,8 @@ class Team(Enum):
             case 'CHI': return (1, 31, 105, 255)
             case 'CHT': return (14, 0, 119, 255)
             case 'CHW': return (39, 37, 31, 255)
-            case 'CIN': return (198,1,31,255)
-            case 'CLE': return (227,25,55,255)
+            case 'CIN': return (198, 1, 31, 255)
+            case 'CLE': return (229, 0, 34, 255)
             case 'CKK': return (209, 9, 47, 255)
             case 'CLV': return (14, 0, 119, 255)
             case 'COL': return (51,0,111,255)
@@ -359,7 +359,7 @@ class Team(Enum):
                 '3': (215,0,44,255),
                 '4': (215,0,44,255),
                 '5': (215,0,44,255),
-                '6': (237,23,79,255),
+                '6': (226,29,56,255),
             }
             case 'DET': return {
                 '1': (0,33,68,255),
@@ -465,6 +465,7 @@ class Team(Enum):
             case 'CHC': return (204, 52, 51, 255)
             case 'CHW': return (196, 206, 212, 255)
             case 'CIN': return (25, 25, 25, 255)
+            case 'CLE': return (0, 56, 93, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
@@ -489,6 +490,9 @@ class Team(Enum):
                 '2': (204, 9, 47,255),
                 '3': (204, 9, 47,255),
                 '4': (204, 9, 47,255),
+            }
+            case 'CLE': return {
+                '6': (26, 46, 90, 255),
             }
             case 'NYM': return {
                 '1': self.secondary_color,
@@ -715,6 +719,8 @@ class Team(Enum):
                     case 'CHW-2': return (950, 950)
                     case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4': return (900, 900)
                     case 'CIN-2': return (775, 775)
+                    case 'CLE': return (850, 850)
+                    case 'CLE-3' | 'CLE-5': return (900, 900)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -729,6 +735,7 @@ class Team(Enum):
                     case 'ATL-A' | 'ATL-1': return (-100,0)
                     case 'CHC-1': return (-50, 0)
                     case 'CHW-2': return (250, 0)
+                    case 'CLE-3' | 'CLE-5': return (0, -75)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
@@ -750,6 +757,9 @@ class Team(Enum):
                     case 'CHW-4': return (-25,0)
                     case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4': return (-120,-170)
                     case 'CIN-2': return (-60, -50)
+                    case 'CLE': return (-125, -100)
+                    case 'CLE-3' | 'CLE-5': return (-175, -220)
+                    case 'CLE-6': return (-40, 0)
                     case _: return (0,0)
             case _: return (0, 0) 
 
