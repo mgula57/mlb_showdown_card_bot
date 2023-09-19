@@ -478,6 +478,7 @@ class Team(Enum):
             case 'MIL': return (255, 197, 47, 255)
             case 'MIN': return (0, 43, 92, 255)
             case 'MON': return (228, 0, 43, 255)
+            case 'NYG': return (45, 45, 45, 255)
             case _: return self.primary_color
     
     @property
@@ -750,6 +751,7 @@ class Team(Enum):
                     case 'BRO': return (1800, 1800)
                     case 'FLA': return (2300, 2300)
                     case 'MIN-2': return (2400, 2400)
+                    case 'NYG': return (1800, 1800)
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
@@ -777,6 +779,7 @@ class Team(Enum):
                     case 'MIL-3': return (800, 800)
                     case 'MIL-4': return (950, 950)
                     case 'MIN-2': return (875, 875)
+                    case 'NYG': return (850, 850)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -836,6 +839,7 @@ class Team(Enum):
                     case 'MIL-4': return (-100, -240)
                     case 'MIN-1': return (-40, -40)
                     case 'MIN-2': return (-85, -85)
+                    case 'NYG': return (-85, -50)
                     case _: return (0,0)
             case _: return (0, 0) 
 
