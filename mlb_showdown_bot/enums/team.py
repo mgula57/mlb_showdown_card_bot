@@ -243,7 +243,7 @@ class Team(Enum):
             case 'MIL': return (18, 40, 75, 255)
             case 'MIN': return (211,17,69,255)
             case 'MLA': return (0, 33, 68, 255)
-            case 'MON': return (228, 0, 43, 255)
+            case 'MON': return (0, 48, 135, 255)
             case 'MRS': return (181, 0, 51, 255)
             case 'NE': return (12, 35, 64, 255)
             case 'NBY': return (25, 37, 62, 255)
@@ -477,6 +477,7 @@ class Team(Enum):
             case 'MIA': return (239, 51, 64, 255)
             case 'MIL': return (255, 197, 47, 255)
             case 'MIN': return (0, 43, 92, 255)
+            case 'MON': return (228, 0, 43, 255)
             case _: return self.primary_color
     
     @property
