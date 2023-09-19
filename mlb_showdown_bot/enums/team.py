@@ -464,6 +464,7 @@ class Team(Enum):
             case 'CCC': return (13, 30, 66, 255)
             case 'CHC': return (204, 52, 51, 255)
             case 'CHW': return (196, 206, 212, 255)
+            case 'CIN': return (25, 25, 25, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
@@ -712,6 +713,8 @@ class Team(Enum):
                     case 'CHC-1': return (850, 850)
                     case 'CHW': return (775, 775)
                     case 'CHW-2': return (950, 950)
+                    case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4': return (900, 900)
+                    case 'CIN-2': return (775, 775)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -745,6 +748,8 @@ class Team(Enum):
                     case 'CHW-1': return (-60,-50)
                     case 'CHW-2': return (-90,-220)
                     case 'CHW-4': return (-25,0)
+                    case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4': return (-120,-170)
+                    case 'CIN-2': return (-60, -50)
                     case _: return (0,0)
             case _: return (0, 0) 
 
