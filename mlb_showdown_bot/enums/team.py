@@ -472,6 +472,7 @@ class Team(Enum):
             case 'HOU': return (0, 45, 98, 255)
             case 'KCR': return (189, 155, 96, 255)
             case 'NYM': return (252, 89, 16, 255)
+            case 'LAA': return (0, 50, 99, 255)
             case _: return self.primary_color
     
     @property
@@ -747,6 +748,7 @@ class Team(Enum):
                     case 'FLA' : return (850, 850)
                     case 'HOU-3' : return (950, 950)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (850, 850)
+                    case 'LAA': return (775, 775)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -796,6 +798,7 @@ class Team(Enum):
                     case 'HOU-2' : return (-60, -15)
                     case 'HOU-3' : return (-130, -160)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (-100, -100)
+                    case 'LAA': return (-60, -50)
                     case _: return (0,0)
             case _: return (0, 0) 
 
