@@ -459,6 +459,7 @@ class Team(Enum):
             case 'BAL': return (39, 37, 31, 255)
             case 'BOS': return (12, 35, 64, 255)
             case 'BRO': return (191, 192, 191, 255)
+            case 'CAL': return (4, 28, 44, 255)
             case 'NYM': return (252, 89, 16, 255)
             case _: return self.primary_color
     
