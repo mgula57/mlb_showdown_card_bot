@@ -42,10 +42,6 @@ class Edition(Enum):
         return self != Edition.NONE
 
     @property
-    def background_folder_name(self) -> str:
-        return 'countries' if self in [Edition.NATIONALITY] else 'team_backgrounds'
-
-    @property
     def rotate_team_logo_2002(self) -> bool:
         return self not in [Edition.COOPERSTOWN_COLLECTION, Edition.NATIONALITY]
     

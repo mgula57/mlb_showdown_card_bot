@@ -3163,7 +3163,7 @@ class ShowdownPlayerCard:
         custom_image_path = None
         background_image = None
         if use_nationality and country_exists:
-            custom_image_path = os.path.join(os.path.dirname(__file__), self.edition.background_folder_name, 'backgrounds', f"{self.nationality}.png")
+            custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality}.png")
         elif self.special_edition == sc.SpecialEdition.ASG_2023:
             custom_image_path = self.__card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
 
