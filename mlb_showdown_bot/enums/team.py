@@ -286,7 +286,7 @@ class Team(Enum):
             case 'STP': return (20, 52, 141, 255)
             case 'TC': return (158, 25, 23, 255)
             case 'TC2': return (158, 25, 23, 255)
-            case 'TBD': return (0, 70, 55, 255)
+            case 'TBD': return (0, 43, 115, 255)
             case 'TBR': return (70, 188, 230, 255)
             case 'TEX': return (192,17,31, 255)
             case 'TOL': return (64, 62, 98, 255)
@@ -488,6 +488,7 @@ class Team(Enum):
             case 'SEA': return (0, 92, 92, 255)
             case 'SFG': return (39, 37, 31, 255)
             case 'STL': return (12, 35, 64, 255)
+            case 'TBD': return (0, 70, 55, 255)
             case _: return self.primary_color
     
     @property
@@ -578,6 +579,9 @@ class Team(Enum):
                 '1': (12, 35, 64, 255),
                 '2': (12, 35, 64, 255),
                 '3': (12, 35, 64, 255),
+            }
+            case 'TBD': return {
+                '1': (35, 21, 80, 255),
             }
             case _: return {}
             
@@ -800,6 +804,7 @@ class Team(Enum):
                     case 'NYG': return (1800, 1800)
                     case 'PHI-2': return (1800, 1800)
                     case 'SFG-1': return (1800, 1800)
+                    case 'TBD' | 'TBD-1': return (1800, 1800)
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
@@ -840,6 +845,7 @@ class Team(Enum):
                     case 'SFG-2': return (850, 850)
                     case 'SFG' | 'SFG-3': return (950, 950)
                     case 'STL' | 'STL-2': return (850, 850)
+                    case 'TBD' | 'TBD-1': return (1000, 1000)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -860,6 +866,7 @@ class Team(Enum):
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (50, 0)
                     case 'MIA-1': return (0, -100)
                     case 'PIT-4': return (0, -60)
+                    case 'TBD' | 'TBD-1': return (-150, 0)
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
@@ -914,6 +921,7 @@ class Team(Enum):
                     case 'SFG-2': return (-40, -80)
                     case 'SFG' | 'SFG-3': return (-65, -190)
                     case 'STL' | 'STL-2': return (-95, -120)
+                    case 'TBD' | 'TBD-1': return (-160, -190)
                     case _: return (0,0)
             case _: return (0, 0) 
 
