@@ -492,6 +492,7 @@ class Team(Enum):
             case 'TBR': return (143, 188, 230, 255)
             case 'TEX': return (0, 50, 120, 255)
             case 'TOR': return (232, 41, 28, 255)
+            case 'WSN': return (20, 34, 90, 255)
             case _: return self.primary_color
     
     @property
@@ -863,6 +864,7 @@ class Team(Enum):
                     case 'TEX-1': return (900, 900)
                     case 'TEX-2' | 'TEX-3': return (800, 800)
                     case 'TOR-3': return (1000, 1000)
+                    case 'WSN-1': return (825, 825)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -944,6 +946,7 @@ class Team(Enum):
                     case 'TEX-1': return (-80, -120)
                     case 'TOR-2': return (-30, -50)
                     case 'TOR-3': return (-130, -200)
+                    case 'WSN-1': return (-30, -80)
                     case _: return (0,0)
             case _: return (0, 0) 
 
