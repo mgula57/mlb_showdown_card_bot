@@ -487,6 +487,7 @@ class Team(Enum):
             case 'SDP': return (255, 196, 37, 255)
             case 'SEA': return (0, 92, 92, 255)
             case 'SFG': return (39, 37, 31, 255)
+            case 'STL': return (12, 35, 64, 255)
             case _: return self.primary_color
     
     @property
@@ -572,6 +573,11 @@ class Team(Enum):
                 '1': (39, 37, 31, 255),
                 '2': (39, 37, 31, 255),
                 '3': (39, 37, 31, 255),
+            }
+            case 'STL': return {
+                '1': (12, 35, 64, 255),
+                '2': (12, 35, 64, 255),
+                '3': (12, 35, 64, 255),
             }
             case _: return {}
             
@@ -833,6 +839,7 @@ class Team(Enum):
                     case 'SFG-1': return (850, 850)
                     case 'SFG-2': return (850, 850)
                     case 'SFG' | 'SFG-3': return (950, 950)
+                    case 'STL' | 'STL-2': return (850, 850)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -906,6 +913,7 @@ class Team(Enum):
                     case 'SFG-1': return (-85, -50)
                     case 'SFG-2': return (-40, -80)
                     case 'SFG' | 'SFG-3': return (-65, -190)
+                    case 'STL' | 'STL-2': return (-95, -120)
                     case _: return (0,0)
             case _: return (0, 0) 
 
