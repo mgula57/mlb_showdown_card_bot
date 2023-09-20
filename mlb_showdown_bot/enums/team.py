@@ -287,7 +287,7 @@ class Team(Enum):
             case 'TC': return (158, 25, 23, 255)
             case 'TC2': return (158, 25, 23, 255)
             case 'TBD': return (0, 43, 115, 255)
-            case 'TBR': return (70, 188, 230, 255)
+            case 'TBR': return (9, 44, 92, 255)
             case 'TEX': return (192,17,31, 255)
             case 'TOL': return (64, 62, 98, 255)
             case 'TOR': return (19, 74, 142, 255)
@@ -489,6 +489,7 @@ class Team(Enum):
             case 'SFG': return (39, 37, 31, 255)
             case 'STL': return (12, 35, 64, 255)
             case 'TBD': return (0, 70, 55, 255)
+            case 'TBR': return (143, 188, 230, 255)
             case _: return self.primary_color
     
     @property
@@ -846,6 +847,7 @@ class Team(Enum):
                     case 'SFG' | 'SFG-3': return (950, 950)
                     case 'STL' | 'STL-2': return (850, 850)
                     case 'TBD' | 'TBD-1': return (1000, 1000)
+                    case 'TBR': return (800, 800)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -922,6 +924,7 @@ class Team(Enum):
                     case 'SFG' | 'SFG-3': return (-65, -190)
                     case 'STL' | 'STL-2': return (-95, -120)
                     case 'TBD' | 'TBD-1': return (-160, -190)
+                    case 'TBR': return (-50, -60)
                     case _: return (0,0)
             case _: return (0, 0) 
 
