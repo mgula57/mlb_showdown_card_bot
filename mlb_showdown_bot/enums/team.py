@@ -5,6 +5,7 @@ class Team(Enum):
     AB2 = 'AB2'
     AB3 = 'AB3'
     ABC = 'ABC'
+    AC = 'AC'
     AG = 'AG'
     ALT = 'ALT'
     ANA = 'ANA'
@@ -40,6 +41,7 @@ class Team(Enum):
     CEG = 'CEG'
     CEL = 'CEL'
     CEN = 'CEN'
+    CG = 'CG'
     CHC = 'CHC'
     CHI = 'CHI'
     CHT = 'CHT'
@@ -57,6 +59,7 @@ class Team(Enum):
     CT = 'CT'
     CTG = 'CTG'
     DET = 'DET'
+    DM = 'DM'
     DS = 'DS'
     DTS = 'DTS'
     DW = 'DW'
@@ -88,8 +91,10 @@ class Team(Enum):
     MIL = 'MIL'
     MIN = 'MIN'
     MLA = 'MLA'
+    MLN = 'MLN'
     MON = 'MON'
     MRS = 'MRS'
+    MRM = 'MRM'
     NE = 'NE'
     NBY = 'NBY'
     NEG = 'NEG'
@@ -195,6 +200,7 @@ class Team(Enum):
             case 'CEG': return (0, 4, 42, 255)
             case 'CEL': return (37, 76, 139, 255)
             case 'CEN': return (192, 0, 49, 255)
+            case 'CG': return (249, 106, 0, 255)
             case 'CHC': return (14, 51, 134, 255)
             case 'CHI': return (1, 31, 105, 255)
             case 'CHT': return (14, 0, 119, 255)
@@ -212,6 +218,7 @@ class Team(Enum):
             case 'CT': return (198,1,31,255)
             case 'CTG': return (198,1,31,255)
             case 'DET': return (12, 35, 64, 255)
+            case 'DM': return (252, 209, 22, 255)
             case 'DS': return (193, 44, 56, 255)
             case 'DTS': return (193, 44, 56, 255)
             case 'DW': return (189, 47, 45, 255)
@@ -243,7 +250,9 @@ class Team(Enum):
             case 'MIL': return (18, 40, 75, 255)
             case 'MIN': return (211,17,69,255)
             case 'MLA': return (0, 33, 68, 255)
+            case 'MLN': return (0, 33, 68, 255)
             case 'MON': return (0, 48, 135, 255)
+            case 'MRM': return (189, 47, 45, 255)
             case 'MRS': return (181, 0, 51, 255)
             case 'NE': return (12, 35, 64, 255)
             case 'NBY': return (25, 37, 62, 255)
@@ -471,12 +480,14 @@ class Team(Enum):
             case 'DET': return (250, 70, 22, 255)
             case 'FLA': return (250, 70, 22, 255)
             case 'HOU': return (0, 45, 98, 255)
+            case 'KCA': return (255, 204, 0, 255)
             case 'KCR': return (189, 155, 96, 255)
             case 'LAA': return (0, 50, 99, 255)
             case 'LAD': return (239, 62, 66, 255)
             case 'MIA': return (239, 51, 64, 255)
             case 'MIL': return (255, 197, 47, 255)
             case 'MIN': return (0, 43, 92, 255)
+            case 'MLN': return (204, 9, 47, 255)
             case 'MON': return (228, 0, 43, 255)
             case 'NYG': return (45, 45, 45, 255)
             case 'NYM': return (252, 89, 16, 255)
@@ -493,6 +504,28 @@ class Team(Enum):
             case 'TEX': return (0, 50, 120, 255)
             case 'TOR': return (232, 41, 28, 255)
             case 'WSN': return (20, 34, 90, 255)
+
+            # OLD TEAMS
+            case 'BBB': return (251, 221, 0, 255)
+            case 'BEG' | 'CEG' | 'NEG' | 'WEG': return (176, 0, 0, 255)
+            case 'BRG': return (0, 21, 123, 255)
+            case 'BSN': return (255, 204, 0, 255)
+            case 'CBE' | 'CCB': return (0, 45, 114, 255)
+            case 'CEN': return (10, 34, 63, 255)
+            case 'DM': return (45, 68, 146, 255)
+            case 'HG': return (45, 45, 45, 255)
+            case 'KCM': return (16, 0, 55, 255)
+            case 'MGS': return (125, 181, 231, 255)
+            case 'MRS': return (3, 139, 184, 255)
+            case 'NE': return (255, 253, 207, 255)
+            case 'NYC': return (0, 21, 60, 255)
+            case 'SEP': return (255, 212, 81, 255)
+            case 'SL2' | 'SL3': return (15, 52, 167, 255)
+            case 'SLB': return (92, 43, 46, 255)
+            case 'WAP': return (20, 20, 20, 255)
+            case 'WMP' | 'WP': return (10, 33, 63, 255)
+            case 'WSH': return (204, 9, 47, 255)
+
             case _: return self.primary_color
     
     @property
@@ -818,7 +851,12 @@ class Team(Enum):
                     case 'NYG': return (1800, 1800)
                     case 'PHI-2': return (1800, 1800)
                     case 'SFG-1': return (1800, 1800)
-                    case 'TBD' | 'TBD-1': return (1800, 1800)
+                    case 'TBD' | 'TBD-1': return (1950, 1950)
+
+                    # OLD TEAMS
+                    case 'CRS' | 'IA' | 'LOU' | 'MLA': return (1800, 1800)
+                    case 'MLN': return (1900, 1900)
+
                     case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
@@ -840,6 +878,7 @@ class Team(Enum):
                     case 'DET-3': return (825, 825)
                     case 'FLA' : return (850, 850)
                     case 'HOU-3' : return (950, 950)
+                    case 'KCA' : return (800, 800)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (850, 850)
                     case 'LAA': return (775, 775)
                     case 'LAD-A' | 'LAD-A-1': return (800, 800)
@@ -865,6 +904,20 @@ class Team(Enum):
                     case 'TEX-2' | 'TEX-3': return (800, 800)
                     case 'TOR-3': return (1000, 1000)
                     case 'WSN-1': return (825, 825)
+
+                    # OLD TEAMS
+                    case 'CC' | 'CCU' | 'COR' | 'IC' | 'PS': return (900, 900)
+                    case 'CRS': return (1000, 1000)
+                    case 'DW' | 'MRM' | 'TT': return (825, 825) # GENERIC NEGRO LEAGUES
+                    case 'IA': return (1000, 1000)
+                    case 'LOU': return (1000, 1000)
+                    case 'MLA': return (1000, 1000)
+                    case 'MLB': return (950, 950)
+                    case 'MLN': return (900, 900)
+                    case 'SEP': return (1000, 1000)
+                    case 'TC' | 'TC2': return (900, 900)
+                    case 'WAP': return (900, 900)
+
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -886,6 +939,10 @@ class Team(Enum):
                     case 'MIA-1': return (0, -100)
                     case 'PIT-4': return (0, -60)
                     case 'TBD' | 'TBD-1': return (-150, 0)
+
+                    # OLD TEAMS
+                    case 'MLN': return (-175, 0)
+
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
@@ -916,6 +973,7 @@ class Team(Enum):
                     case 'FLA' : return (-60, -30)
                     case 'HOU-2' : return (-60, -15)
                     case 'HOU-3' : return (-130, -160)
+                    case 'KCA' : return (-30, -90)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (-100, -100)
                     case 'LAA': return (-60, -50)
                     case 'LAD-A' | 'LAD-A-1': return (-40, -60)
@@ -947,6 +1005,30 @@ class Team(Enum):
                     case 'TOR-2': return (-30, -50)
                     case 'TOR-3': return (-130, -200)
                     case 'WSN-1': return (-30, -80)
+
+                    # OLD TEAMS
+                    case 'BLU' | 'DS' | 'DTS': return (-20, -50)
+                    case 'CC' | 'CCU' | 'COR' | 'IC' | 'PS': return (-120, -170)
+                    case 'CRS': return (-90, -250)
+                    case 'DW' | 'MRM' | 'TT': return (-100, -75) # GENERIC NEGRO LEAGUES
+                    case 'HIL': return (-50, 0)
+                    case 'IA': return (-90, -250)
+                    case 'KCC' | 'KCM' | 'KCN': return (0, -90)
+                    case 'LOU': return (-90, -250)
+                    case 'LOW' | 'LVB': return (-165, 0)
+                    case 'MLA': return (-90, -250)
+                    case 'MLB': return (-70, -200)
+                    case 'MLN': return (-160, -100)
+                    case 'PBG': return (0, -50)
+                    case 'PBS': return (-60, -50)
+                    case 'PHA': return (-60, -50)
+                    case 'PRO': return (-60, 0)
+                    case 'SEP': return (-120, -220)
+                    case 'SL2' | 'SL3': return (-30, -60)
+                    case 'SLB': return (-20, -50)
+                    case 'TC' | 'TC2': return (-120, -170)
+                    case 'WAP': return (-120, -170)
+
                     case _: return (0,0)
             case _: return (0, 0) 
 
