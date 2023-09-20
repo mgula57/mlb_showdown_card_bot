@@ -288,7 +288,7 @@ class Team(Enum):
             case 'TC2': return (158, 25, 23, 255)
             case 'TBD': return (0, 43, 115, 255)
             case 'TBR': return (9, 44, 92, 255)
-            case 'TEX': return (192,17,31, 255)
+            case 'TEX': return (192, 17, 31, 255)
             case 'TOL': return (64, 62, 98, 255)
             case 'TOR': return (19, 74, 142, 255)
             case 'TT': return (189, 47, 45, 255)
@@ -438,9 +438,9 @@ class Team(Enum):
                 '1': (17, 141, 196, 255),
             }
             case 'TEX': return {
-                '1': (235, 0, 44, 255),
-                '2': (235, 0, 44, 255),
-                '3': (192, 17, 31, 255),
+                '1': (32, 54, 168, 255),
+                '2': (32, 54, 168, 255),
+                '3': (186, 12, 47, 255),
             }
             case 'TOR': return {
                 '1': (0, 107, 166, 255),
@@ -490,6 +490,7 @@ class Team(Enum):
             case 'STL': return (12, 35, 64, 255)
             case 'TBD': return (0, 70, 55, 255)
             case 'TBR': return (143, 188, 230, 255)
+            case 'TEX': return (0, 50, 120, 255)
             case _: return self.primary_color
     
     @property
@@ -583,6 +584,11 @@ class Team(Enum):
             }
             case 'TBD': return {
                 '1': (35, 21, 80, 255),
+            }
+            case 'TEX': return {
+                '1': (235, 31, 43, 255),
+                '2': (235, 31, 43, 255),
+                '3': (0, 45, 114, 255),
             }
             case _: return {}
             
@@ -848,6 +854,8 @@ class Team(Enum):
                     case 'STL' | 'STL-2': return (850, 850)
                     case 'TBD' | 'TBD-1': return (1000, 1000)
                     case 'TBR': return (800, 800)
+                    case 'TEX-1': return (900, 900)
+                    case 'TEX-2' | 'TEX-3': return (800, 800)
                     case _: return (735, 735)
             case _: return (750, 750)
 
@@ -925,6 +933,8 @@ class Team(Enum):
                     case 'STL' | 'STL-2': return (-95, -120)
                     case 'TBD' | 'TBD-1': return (-160, -190)
                     case 'TBR': return (-50, -60)
+                    case 'TEX-2' | 'TEX-3': return (-50, -60)
+                    case 'TEX-1': return (-80, -120)
                     case _: return (0,0)
             case _: return (0, 0) 
 
