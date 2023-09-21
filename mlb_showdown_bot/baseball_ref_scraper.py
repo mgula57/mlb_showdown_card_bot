@@ -17,10 +17,12 @@ try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
     from .enums.team import Team
+    from .enums.accolade import Accolade
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
     from enums.team import Team
+    from enums.accolade import Accolade
 
 class BaseballReferenceScraper:
 
@@ -622,7 +624,7 @@ class BaseballReferenceScraper:
         for leaderboard_div in leaderboard_table_divs_list:
             td_list_accolades = leaderboard_div.find_all('td')
             category = leaderboard_div['id'].replace('leaderboard_','')
-            categories_included_list = [accolade.value for accolade in sc.Accolade]
+            categories_included_list = [accolade.value for accolade in Accolade]
             if td_list_accolades is None or category not in categories_included_list:
                 continue
             accolades_list_for_category = []

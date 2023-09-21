@@ -3307,7 +3307,8 @@ class ShowdownPlayerCard:
         """
 
         # SETUP IMAGE METADATA
-        logo_name = self.team.logo_name(year=self.median_year, is_alternate=self.use_alternate_logo or force_use_alternate)
+        is_alternate = self.use_alternate_logo or force_use_alternate
+        logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
         logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
         logo_rotation = rotation if rotation else (10 if self.context == '2002' and self.edition.rotate_team_logo_2002 and not ignore_dynamic_elements else 0 )
         logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context_year)]
@@ -3317,31 +3318,39 @@ class ShowdownPlayerCard:
         is_all_star_game = self.edition == Edition.ALL_STAR_GAME
         is_rookie_season = self.edition == Edition.ROOKIE_SEASON
 
-        if self.edition.use_edition_logo_as_team_logo and not is_00_01:
-            # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
-            logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
-            is_wide_logo = logo_name == 'ASG-2022'
-            if is_04_05 and is_cooperstown:
-                logo_size = (330,330)
-                logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 120)
-            elif is_wide_logo and is_all_star_game:
-                logo_size = (logo_size[0] + 85, logo_size[1] + 85)
-                x_movement = -40 if self.context in ['2000','2001'] else -85
-                logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
-
-        # USE INPUT SIZE IF THEY EXISTS
+        # USE INPUT SIZE IF IT EXISTS
         if size:
             logo_size = size
     
         try:
-            # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
-            logo_name = self.team.logo_name(year=self.median_year, is_alternate=self.use_alternate_logo or force_use_alternate)
-            team_logo_path = self.__team_logo_path(name=logo_name)
-            if self.edition == Edition.NATIONALITY and self.nationality:
-                if self.nationality in sc.NATIONALITY_COLORS.keys():
-                    team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
+            if self.edition.use_edition_logo_as_team_logo and not is_00_01:
+                # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
+                logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
+                team_logo_path = self.__team_logo_path(name=logo_name)
+                is_wide_logo = logo_name == 'ASG-2022'
+                logo_size_multiplier = 1.0
+                if is_04_05 and is_cooperstown:
+                    logo_size = (330,330)
+                    logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 105)
+                elif is_wide_logo and is_all_star_game:
+                    logo_size = (logo_size[0] + 85, logo_size[1] + 85)
+                    x_movement = -40 if self.context in ['2000','2001'] else -85
+                    logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
+            else:
+                # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
+                logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
+                logo_size_multiplier = self.team.logo_size_multiplier(year=self.median_year, is_alternate=is_alternate)
+                team_logo_path = self.__team_logo_path(name=logo_name)
+                if self.edition == Edition.NATIONALITY and self.nationality:
+                    if self.nationality in sc.NATIONALITY_COLORS.keys():
+                        team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
+                        logo_size_multiplier = 1.25
             team_logo = Image.open(team_logo_path).convert("RGBA")
-            team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
+            size_adjusted = tuple(int(v * logo_size_multiplier) for v in logo_size)
+            if size_adjusted != logo_size:
+                pixel_difference = size_adjusted[0] - logo_size[0]
+                logo_paste_coordinates = tuple(int(v - (pixel_difference / 2)) for v in logo_paste_coordinates)
+            team_logo = team_logo.resize(size_adjusted, Image.ANTIALIAS)
         except:
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
             team_logo = Image.open(self.__team_logo_path(name=Team.MLB.logo_name(year=2023))).convert("RGBA")
