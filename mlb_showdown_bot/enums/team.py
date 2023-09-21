@@ -807,6 +807,23 @@ class Team(Enum):
         alt_ext = '-A' if is_alternate else ''
         return f"{self.value}{alt_ext}{self.logo_historical_index(year=year, include_dash=True)}"
 
+    def is_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
+        logo_name = self.logo_name(year=year, is_alternate=is_alternate)
+        return logo_name in [
+            'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
+            'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
+            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','SDP-2','SDP-A-2','SEP-A','SEP',
+            'SFG-2','SFG-3','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TOR-3','TOR-A-3'
+        ]
+    
+    def logo_size_multiplier(self, year:int, is_alternate:bool=False) -> float:
+        is_wide = self.is_logo_wide(year=year, is_alternate=is_alternate)
+        if is_wide:
+            return 1.25
+        
+        return 1.0
+
+
 # ------------------------------------------------------------------------
 # TEAM BACKGROUND (00/01)
 # ------------------------------------------------------------------------
@@ -822,15 +839,6 @@ class Team(Enum):
                     'LAD', 'MIA'
                 ]
             case _: return False
-
-    def is_background_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
-        logo_name = self.logo_name(year=year, is_alternate=is_alternate)
-        return logo_name in [
-            'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
-            'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
-            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','SDP-2','SDP-A-2','SEP-A','SEP',
-            'SFG-2','SFG-3','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TOR-3','TOR-A-3'
-        ]
 
     def background_logo_opacity(self, set:str) -> float:
         return 0.30 if set == '2001' else 0.19
@@ -857,7 +865,7 @@ class Team(Enum):
                     case 'CRS' | 'IA' | 'LOU' | 'MLA': return (1800, 1800)
                     case 'MLN': return (1900, 1900)
 
-                    case _: return (2600, 2600) if self.is_background_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
+                    case _: return (2600, 2600) if self.is_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
                     case 'ANA': return (1000, 1000)
