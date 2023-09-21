@@ -21,10 +21,16 @@ try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
     from .enums.team import Team
+    from .enums.icon import Icon
+    from .enums.edition import Edition
+    from .enums.accolade import Accolade
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
     from enums.team import Team
+    from enums.icon import Icon
+    from enums.edition import Edition
+    from enums.accolade import Accolade
 
 class ShowdownPlayerCard:
 
@@ -85,7 +91,7 @@ class ShowdownPlayerCard:
             self.team: Team = Team(stats.get('team_ID', 'MLB'))
         except:
             self.team = Team.MLB
-        self.edition: sc.Edition = sc.Edition(edition)
+        self.edition: Edition = Edition(edition)
         self.nationality: str = stats.get('nationality', None)
         self.use_secondary_color = use_secondary_color
 
@@ -280,13 +286,13 @@ class ShowdownPlayerCard:
     def special_edition(self) -> sc.SpecialEdition:
         """ Special Editions are cards with unique art and characteristics """
 
-        if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023':
+        if self.edition == Edition.ALL_STAR_GAME and str(self.year) == '2023':
             return sc.SpecialEdition.ASG_2023
         
-        if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005',]:
+        if self.edition == Edition.SUPER_SEASON and self.context in ['2004','2005',]:
             return sc.SpecialEdition.SUPER_SEASON
         
-        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
+        if self.edition == Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
             return sc.SpecialEdition.COOPERSTOWN_COLLECTION
         
         if self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
@@ -428,7 +434,7 @@ class ShowdownPlayerCard:
         self.hand = self.__handedness(hand=hand_raw)
         self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
         self.accolades = self.__accolades()
-        self.icons = self.__icons(awards=stats.get('award_summary',''))
+        self.icons: list[Icon] = self.__icons(awards=stats.get('award_summary',''))
 
     def __positions_and_defense(self, defensive_stats:dict, games_played:int, games_started:int, saves:int) -> dict:
         """Get in-game defensive positions and ratings
@@ -941,7 +947,7 @@ class ShowdownPlayerCard:
 
         return final_speed, letter
 
-    def __icons(self, awards:str) -> list[sc.Icon]:
+    def __icons(self, awards:str) -> list[Icon]:
         """Converts awards_summary and other metadata fields into in game icons.
 
         Args:
@@ -960,11 +966,11 @@ class ShowdownPlayerCard:
         awards_list = awards_string.split(',')
         
         icons = []
-        available_icons = [icon for icon in sc.Icon if icon.is_available(is_pitcher=self.is_pitcher)]
+        available_icons = [icon for icon in Icon if icon.is_available(is_pitcher=self.is_pitcher)]
         for icon in available_icons:
 
             # ROOKIE
-            if icon == sc.Icon.R and self.stats.get('is_rookie', False):
+            if icon == Icon.R and self.stats.get('is_rookie', False):
                 icons.append(icon)
                 continue
 
@@ -994,8 +1000,8 @@ class ShowdownPlayerCard:
 
 
         # IF PITCHER AND MORE THAN 4 ICONS (EX: BOB GIBSON 1968), FILTER OUT A G
-        if len(icons) >= 5 and self.is_pitcher and sc.Icon.G in icons:
-            icons.remove(sc.Icon.G)
+        if len(icons) >= 5 and self.is_pitcher and Icon.G in icons:
+            icons.remove(Icon.G)
 
         return icons
 
@@ -1022,7 +1028,7 @@ class ShowdownPlayerCard:
         for accolade_type, accolade_list in accolades_dict.items():
 
             try:
-                accolade_class = sc.Accolade(accolade_type)
+                accolade_class = Accolade(accolade_type)
             except ValueError:
                 continue
             
@@ -1070,7 +1076,7 @@ class ShowdownPlayerCard:
                     final_string = f"{num_awards}X {award_title}" if num_awards > 1 and num_seasons > 1 else award_title
                     if num_awards == 1 and num_seasons > 1 and is_pre_2004:
                         final_string = f"{year_parsed} {final_string}"
-                    priority = (1 if accolade_class == sc.Accolade.ALL_STAR else 0) if not is_icons or num_awards > 1 else 10 
+                    priority = (1 if accolade_class == Accolade.ALL_STAR else 0) if not is_icons or num_awards > 1 else 10 
                     accolades_rank_and_priority_tuples.append( (final_string, accolade_class.rank, priority) )
                 case "AWARDS (LIST)":
                     # EX: "2014 NL ROOKIE OF THE YEAR"
@@ -1111,7 +1117,7 @@ class ShowdownPlayerCard:
                 case "ORDINAL":
 
                     # SKIP IF SAVES AND STARTING PITCHER
-                    if is_starting_pitcher and accolade_class == sc.Accolade.SAVES:
+                    if is_starting_pitcher and accolade_class == Accolade.SAVES:
                         continue
 
                     def parse_ordinal(value:str, keep_year:bool=False) -> tuple[str, int, int]:
@@ -1122,7 +1128,7 @@ class ShowdownPlayerCard:
                         ordinal_rank_int = int(re.sub('[^0-9]','', rank_str))
                         is_leader = ordinal_rank_int == 1
                         final_string = f"{year_str}{league_and_stat} LEADER" if is_leader else f"{rank_str} IN {year_str}{league_and_stat}"
-                        if accolade_class == sc.Accolade.BA and is_leader:
+                        if accolade_class == Accolade.BA and is_leader:
                             final_string = final_string.replace('BA LEADER', ba_champ_text)
                         priority = ordinal_rank_int
                         return (final_string, accolade_class.rank, priority * accolade_class.priority_multiplier)
@@ -1138,7 +1144,7 @@ class ShowdownPlayerCard:
                         # REPLACE INDIVIDUAL PLACEMENTS WITH COUNTS ACROSS SEASONS
                         # EX: ['07 NL OPS LEADER, '08 NL OPS LEADER, '11 AL OPS LEADER] -> [3X OPS LEADER]
                         leader_list = []
-                        leader_text = ba_champ_text if accolade_class == sc.Accolade.BA else f'{accolade_class.title} LEADER'
+                        leader_text = ba_champ_text if accolade_class == Accolade.BA else f'{accolade_class.title} LEADER'
                         for accolade_tuple in ordinal_accolades:
                             accolade = accolade_tuple[0]
                             if leader_text in accolade:
@@ -1166,7 +1172,7 @@ class ShowdownPlayerCard:
                 ordinal_rank = self.ordinal(award_placement_int).upper()
                 league = f"{self.league} " if self.league != 'MLB' else ''
                 accolade_str = f"{ordinal_rank} IN {league}ROY"
-                accolades_rank_and_priority_tuples.append( (accolade_str, sc.Accolade.AWARDS.rank, award_placement_int) )
+                accolades_rank_and_priority_tuples.append( (accolade_str, Accolade.AWARDS.rank, award_placement_int) )
                     
         # CREATE LIST OF CURRENT ACCOLADES
         # USED TO FILTER OUT REDUNDANCIES
@@ -2221,9 +2227,9 @@ class ShowdownPlayerCard:
 
         # ICONS (03+)
         icon_pts = 0
-        if self.context in ['2003','2004','2005'] and len(self.icons) > 0:
+        if self.context in ['2003','2004','2005',sc.EXPANDED_SET] and len(self.icons) > 0:
             for icon in self.icons:
-                icon_pts += sc.POINTS_ICONS[self.context][icon.value]
+                icon_pts += icon.points
         self.icon_points = round(icon_pts,3)
 
         # COMBINE POINT VALUES
@@ -3083,7 +3089,7 @@ class ShowdownPlayerCard:
             card_image.paste(img, coordinates, img)
 
         # ADD HOLIDAY THEME
-        if self.edition == sc.Edition.HOLIDAY:
+        if self.edition == Edition.HOLIDAY:
             holiday_image_path = self.__template_img_path('Holiday')
             holiday_image = Image.open(holiday_image_path)
             card_image.paste(holiday_image,self.__coordinates_adjusted_for_bordering(coordinates=(0,0)),holiday_image)
@@ -3199,7 +3205,7 @@ class ShowdownPlayerCard:
         default_image_path = self.__template_img_path(f'Default Background - {self.template_set_year}{dark_mode_suffix}')
         
         # CHECK FOR CUSTOM LOCAL IMAGE ASSET (EX: NATIONALITY, ASG)
-        use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
+        use_nationality = self.edition == Edition.NATIONALITY and self.nationality
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if use_nationality else False
         custom_image_path = None
         background_image = None
@@ -3301,41 +3307,50 @@ class ShowdownPlayerCard:
         """
 
         # SETUP IMAGE METADATA
-        logo_name = self.team.logo_name(year=self.median_year, is_alternate=self.use_alternate_logo or force_use_alternate)
+        is_alternate = self.use_alternate_logo or force_use_alternate
+        logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
         logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
         logo_rotation = rotation if rotation else (10 if self.context == '2002' and self.edition.rotate_team_logo_2002 and not ignore_dynamic_elements else 0 )
         logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context_year)]
         is_04_05 = self.context in ['2004','2005']
         is_00_01 = self.context in ['2000','2001']
-        is_cooperstown = self.edition == sc.Edition.COOPERSTOWN_COLLECTION
-        is_all_star_game = self.edition == sc.Edition.ALL_STAR_GAME
-        is_rookie_season = self.edition == sc.Edition.ROOKIE_SEASON
+        is_cooperstown = self.edition == Edition.COOPERSTOWN_COLLECTION
+        is_all_star_game = self.edition == Edition.ALL_STAR_GAME
+        is_rookie_season = self.edition == Edition.ROOKIE_SEASON
 
-        if self.edition.use_edition_logo_as_team_logo and not is_00_01:
-            # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
-            logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
-            is_wide_logo = logo_name == 'ASG-2022'
-            if is_04_05 and is_cooperstown:
-                logo_size = (330,330)
-                logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 120)
-            elif is_wide_logo and is_all_star_game:
-                logo_size = (logo_size[0] + 85, logo_size[1] + 85)
-                x_movement = -40 if self.context in ['2000','2001'] else -85
-                logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
-
-        # USE INPUT SIZE IF THEY EXISTS
+        # USE INPUT SIZE IF IT EXISTS
         if size:
             logo_size = size
     
         try:
-            # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
-            logo_name = self.team.logo_name(year=self.median_year, is_alternate=self.use_alternate_logo or force_use_alternate)
-            team_logo_path = self.__team_logo_path(name=logo_name)
-            if self.edition == sc.Edition.NATIONALITY and self.nationality:
-                if self.nationality in sc.NATIONALITY_COLORS.keys():
-                    team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
+            if self.edition.use_edition_logo_as_team_logo and not is_00_01:
+                # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
+                logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
+                team_logo_path = self.__team_logo_path(name=logo_name)
+                is_wide_logo = logo_name == 'ASG-2022'
+                logo_size_multiplier = 1.0
+                if is_04_05 and is_cooperstown:
+                    logo_size = (330,330)
+                    logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 105)
+                elif is_wide_logo and is_all_star_game:
+                    logo_size = (logo_size[0] + 85, logo_size[1] + 85)
+                    x_movement = -40 if self.context in ['2000','2001'] else -85
+                    logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
+            else:
+                # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
+                logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
+                logo_size_multiplier = self.team.logo_size_multiplier(year=self.median_year, is_alternate=is_alternate)
+                team_logo_path = self.__team_logo_path(name=logo_name)
+                if self.edition == Edition.NATIONALITY and self.nationality:
+                    if self.nationality in sc.NATIONALITY_COLORS.keys():
+                        team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
+                        logo_size_multiplier = 1.25
             team_logo = Image.open(team_logo_path).convert("RGBA")
-            team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
+            size_adjusted = tuple(int(v * logo_size_multiplier) for v in logo_size)
+            if size_adjusted != logo_size:
+                pixel_difference = size_adjusted[0] - logo_size[0]
+                logo_paste_coordinates = tuple(int(v - (pixel_difference / 2)) for v in logo_paste_coordinates)
+            team_logo = team_logo.resize(size_adjusted, Image.ANTIALIAS)
         except:
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
             team_logo = Image.open(self.__team_logo_path(name=Team.MLB.logo_name(year=2023))).convert("RGBA")
@@ -3343,7 +3358,7 @@ class ShowdownPlayerCard:
 
         # ROTATE LOGO IF APPLICABLE
         if logo_rotation != 0:
-            team_logo = team_logo.rotate(logo_rotation, resample=Image.BICUBIC, expand=True)
+            team_logo = team_logo.rotate(logo_rotation, resample=Image.BICUBIC)
 
         # RETURN STATIC LOGO IF IGNORE_DYNAMIC_ELEMENTS IS ENABLED
         # IGNORES ROOKIE SEASON, SUPER SEASON
@@ -3351,7 +3366,7 @@ class ShowdownPlayerCard:
             return team_logo, logo_paste_coordinates
 
         # OVERRIDE IF SUPER SEASON
-        if self.edition == sc.Edition.SUPER_SEASON and not is_00_01:
+        if self.edition == Edition.SUPER_SEASON and not is_00_01:
             team_logo, _ = self.__super_season_image()
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context_year)]
 
@@ -3387,7 +3402,7 @@ class ShowdownPlayerCard:
         # OVERRIDE IF ROOKIE SEASON
         if is_rookie_season and not is_00_01:
             team_logo = self.__rookie_season_image()
-            team_logo = team_logo.rotate(10, resample=Image.BICUBIC, expand=True) if self.context == '2002' else team_logo
+            team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.context == '2002' else team_logo
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
 
         return team_logo, logo_paste_coordinates
@@ -3453,7 +3468,7 @@ class ShowdownPlayerCard:
             edition_extension = ''
             if self.edition.template_color_0405:
                 edition_extension = f'-{self.edition.template_color_0405}'
-            elif self.edition == sc.Edition.NATIONALITY and self.nationality:
+            elif self.edition == Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_TEMPLATE_COLOR.keys():
                     edition_extension = f'-{sc.NATIONALITY_TEMPLATE_COLOR[self.nationality]}'
                 else:
@@ -3483,7 +3498,7 @@ class ShowdownPlayerCard:
             container_img_path = self.__template_img_path(f'{year}-ChartOutsContainer-{type}')
             container_img_black = Image.open(container_img_path)
             fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
-            if self.edition == sc.Edition.NATIONALITY and self.nationality:
+            if self.edition == Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_COLORS.keys():
                     colors = sc.NATIONALITY_COLORS[self.nationality]
                     if len(colors) >= 2:
@@ -4276,30 +4291,30 @@ class ShowdownPlayerCard:
         
         # DEFINE COORDINATES, START WITH ROOKIE SEASON DESTINATION AND EDIT FOR OTHERS
         paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
-        if self.edition != sc.Edition.ROOKIE_SEASON and self.context == '2001':
+        if self.edition != Edition.ROOKIE_SEASON and self.context == '2001':
             # MOVE LOGO TO THE RIGHT
             paste_coordinates = (paste_coordinates[0] + 30, paste_coordinates[1])
         if self.context == '2000':
             # MOVE LOGO ABOVE TEAM LOGO AND SLIGHTLY TO THE LEFT
-            y_movement = -35 if self.edition == sc.Edition.SUPER_SEASON else 0
-            x_movement = -35 if self.edition == sc.Edition.SUPER_SEASON else 0
+            y_movement = -35 if self.edition == Edition.SUPER_SEASON else 0
+            x_movement = -35 if self.edition == Edition.SUPER_SEASON else 0
             paste_coordinates = (paste_coordinates[0] - 25 + x_movement, paste_coordinates[1] + y_movement)
 
         # ADD LOGO
         match self.edition:
-            case sc.Edition.ALL_STAR_GAME | sc.Edition.COOPERSTOWN_COLLECTION:
-                logo_name = 'CCC' if self.edition == sc.Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
+            case Edition.ALL_STAR_GAME | Edition.COOPERSTOWN_COLLECTION:
+                logo_name = 'CCC' if self.edition == Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
                 logo_size_x, logo_size_y = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
                 logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name == 'ASG-2022' else (logo_size_x, logo_size_y)
                 logo_path = self.__team_logo_path(name=logo_name)
                 logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.ANTIALIAS)
                 image.paste(logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), logo)
-            case sc.Edition.SUPER_SEASON:
+            case Edition.SUPER_SEASON:
                 super_season_img, y_adjustment = self.__super_season_image()
                 paste_coordinates_x, paste_coordinates_y = paste_coordinates
                 paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 220 + y_adjustment)
                 image.paste(super_season_img, self.__coordinates_adjusted_for_bordering(paste_coordinates), super_season_img)
-            case sc.Edition.ROOKIE_SEASON:
+            case Edition.ROOKIE_SEASON:
                 rs_logo = self.__rookie_season_image()
                 image.paste(rs_logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), rs_logo)
             case _:
@@ -4738,8 +4753,8 @@ class ShowdownPlayerCard:
         """
         # SEARCH FOR PLAYER IMAGE
         additional_substring_filters = [self.year, f'({self.team.value})',f'({self.team.value})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
-        use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
-        if self.edition != sc.Edition.NONE:
+        use_nationality = self.edition == Edition.NATIONALITY and self.nationality
+        if self.edition != Edition.NONE:
             for _ in range(0,3): # ADD 3X VALUE
                 additional_substring_filters.append(f'({self.edition.value})')
         if len(self.type_override) > 0:
@@ -4762,7 +4777,7 @@ class ShowdownPlayerCard:
         """
 
         # COOPERSTOWN
-        is_cooperstown = self.edition == sc.Edition.COOPERSTOWN_COLLECTION
+        is_cooperstown = self.edition == Edition.COOPERSTOWN_COLLECTION
         default_components_for_context = {c: self.__template_img_path("2000-Name") if c == sc.ImageComponent.NAME_CONTAINER_2000 else None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
         special_components_for_context = {c: self.__template_img_path("2000-Name") if c == sc.ImageComponent.NAME_CONTAINER_2000 else None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
 
@@ -4788,7 +4803,7 @@ class ShowdownPlayerCard:
             return components_dict
 
         # SUPER SEASON
-        if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005']:
+        if self.edition == Edition.SUPER_SEASON and self.context in ['2004','2005']:
             components_dict = special_components_for_context
             components_dict[sc.ImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
@@ -4918,11 +4933,11 @@ class ShowdownPlayerCard:
 
         # NATIONALITY COLOR
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if self.nationality else False
-        if self.edition == sc.Edition.NATIONALITY and self.nationality and country_exists and not ignore_team_overrides:
+        if self.edition == Edition.NATIONALITY and self.nationality and country_exists and not ignore_team_overrides:
             return sc.NATIONALITY_COLORS[self.nationality][0]
         
         # ASG COLOR
-        if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys() and not ignore_team_overrides:
+        if self.edition == Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys() and not ignore_team_overrides:
             color_for_league = sc.ALL_STAR_GAME_COLORS[str(self.year)].get(self.league, None)
             if color_for_league:
                 return color_for_league
