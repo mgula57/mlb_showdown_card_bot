@@ -36,3 +36,5 @@ for file in files_list:
 for player_file, components in components_dict.items():
     if len(components) != len(prefix_list):
         print(player_file, len(components), components)
+
+print("TESTS COMPLETED")

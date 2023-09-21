@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
+from mlb_showdown_bot.enums.team import Team
 import mlb_showdown_bot.showdown_constants as sc
 
 class ShowdownSetAccuracy:
@@ -274,7 +275,7 @@ class ShowdownSetAccuracy:
                     del wotc_player_card_dict[category]
         return wotc_player_card_dict
 
-    def __convert_wotc_to_showdown_player_object(self,wotc_player_card,my_player_card):
+    def __convert_wotc_to_showdown_player_object(self,wotc_player_card,my_player_card:ShowdownPlayerCard) -> ShowdownPlayerCard:
         """Creates Showdown Player Card Generator object version of WOTC stats
 
         Args:
@@ -286,7 +287,7 @@ class ShowdownSetAccuracy:
         """
 
         # ADD CLASS ATTRIBUTES NEEDED TO CALCULATE POINTS
-        my_player_card.team = wotc_player_card.Team
+        my_player_card.team = Team(wotc_player_card.Team)
         my_player_card.is_pitcher = wotc_player_card.Type == 'Pitcher'
         my_player_card.hand = wotc_player_card.Hand
         my_player_card.chart = {
@@ -305,7 +306,7 @@ class ShowdownSetAccuracy:
         }
         opponent_chart, my_advantages_per_20, opponent_advantages_per_20 = my_player_card.opponent_stats_for_calcs(command=wotc_player_card.OnbaseOrControl)
         chart_results_per_400_pa = my_player_card.chart_to_results_per_400_pa(my_player_card.chart, my_advantages_per_20, opponent_chart, opponent_advantages_per_20)
-        my_player_card.real_stats = my_player_card.stats_for_full_season(stats_per_400_pa=chart_results_per_400_pa)
+        my_player_card.projected = my_player_card.projected_statline(stats_per_400_pa=chart_results_per_400_pa,command=wotc_player_card.OnbaseOrControl)
         rep = {"SP": "STARTER", "RP": "RELIEVER", "CL": "CLOSER"}
         position_1 = str(wotc_player_card.Position1)            
         if position_1 in rep.keys():
@@ -333,8 +334,7 @@ class ShowdownSetAccuracy:
         else:
             letter = 'A'
         my_player_card.speed_letter = letter
-        my_player_card.points = my_player_card.point_value(chart=my_player_card.chart,
-                                                            real_stats=my_player_card.real_stats,
+        my_player_card.points = my_player_card.point_value(projected=my_player_card.projected,
                                                             positions_and_defense=defense,
                                                             speed_or_ip=my_player_card.ip if my_player_card.is_pitcher else wotc_player_card.Speed)
         return my_player_card

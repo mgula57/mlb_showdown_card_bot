@@ -16,9 +16,11 @@ import unidecode
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
+    from .enums.team import Team
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
+    from enums.team import Team
 
 class BaseballReferenceScraper:
 
@@ -60,7 +62,7 @@ class BaseballReferenceScraper:
 
         # CHECK FOR TEAM OVERRIDE
         self.team_override = None
-        for team_id in sc.TEAM_COLOR_PRIMARY.keys():
+        for team_id in [team.value for team in Team]:
             team_match = f'({team_id})' in self.name.upper()
             if team_match and not self.is_multi_year and not is_full_career:
                 self.team_override = team_id
@@ -987,7 +989,7 @@ class BaseballReferenceScraper:
         for category in soup_row:
             stat_category = category['data-stat']
             # LEAGUE LEADER?
-            is_league_leader = '<strong>' in str(category) # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD TEXT
+            is_league_leader = '<strong>' in str(category) or '<em>' in str(category) # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD OR ITALIC TEXT
 
             if stat_category in ('SV','HR','SB'):
                 # SAVE THIS INFO FOR RP, HR, OR SB ICONS
