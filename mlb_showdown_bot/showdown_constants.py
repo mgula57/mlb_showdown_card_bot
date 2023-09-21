@@ -1174,7 +1174,7 @@ BASELINE_PITCHER = {
         ERA_STEROID: {
             'command': 3.3,
             'outs': 16.0,
-            'so': 5.25,
+            'so': 4.10,
             'bb': 1.35,
             '1b': 2.0,
             '2b': 0.62,
@@ -1266,7 +1266,7 @@ BASELINE_PITCHER = {
         ERA_STEROID: {
             'command': 4.2,
             'outs': 16.2,
-            'so': 5.5,
+            'so': 4.00,
             'bb': 1.25,
             '1b': 2.05,
             '2b': 0.50,
@@ -2326,16 +2326,28 @@ COMMAND_ACCURACY_WEIGHTING = {
 """
 MAX HITTER SO
   - MAXIMUM AMOUNT OF SO RESULTS FOR HITTERS IN EACH SET
+  - REPRESENTS A "SOFT" CAP, OUTLIERS CAN STILL BE ABOVE THIS NUMBER
 """
-MAX_HITTER_SO_RESULTS = {
-    '2000': 4,
-    '2001': 5,
-    '2002': 6,
-    '2003': 4,
-    '2004': 4,
-    '2005': 4,
-    CLASSIC_SET: 5,
-    EXPANDED_SET: 4,
+HITTER_SO_RESULTS_SOFT_CAP = {
+    '2000': 3,
+    '2001': 3,
+    '2002': 4,
+    '2003': 3,
+    '2004': 3,
+    '2005': 3,
+    CLASSIC_SET: 3,
+    EXPANDED_SET: 3,
+}
+
+HITTER_SO_RESULTS_HARD_CAP = {
+    '2000': 5,
+    '2001': 6,
+    '2002': 7,
+    '2003': 6,
+    '2004': 6,
+    '2005': 6,
+    CLASSIC_SET: 6,
+    EXPANDED_SET: 6,
 }
 
 """

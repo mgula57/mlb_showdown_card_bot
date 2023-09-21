@@ -1522,6 +1522,7 @@ class ShowdownPlayerCard:
 
         for category, results_per_400_pa in stats_for_400_pa.items():
             if '_per_400_pa' in category and category != 'h_per_400_pa':
+
                 # CONVERT EACH REAL STAT CATEGORY INTO NUMBER OF RESULTS ON CHART
                 key = category[:2]
                 if key == 'sb':
@@ -1530,8 +1531,13 @@ class ShowdownPlayerCard:
                 else:
                     # CALCULATE NUM OF RESULTS
                     chart_results = (results_per_400_pa - (opponent_advantages_per_20*opponent_chart[key])) / my_advantages_per_20
-                chart_results = outs if key == 'so' and chart_results > outs else chart_results
+
+                if key == 'so':
+                    chart_results = self.__so_results(current_so=chart_results, num_out_slots=outs)
+                
+                # HANDLE CASE OF < 0
                 chart_results = chart_results if chart_results > 0 else 0
+
                 # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
                 if self.is_pitcher and key == 'hr' and chart_results < 1.0:
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
@@ -1551,9 +1557,6 @@ class ShowdownPlayerCard:
                 chart[key] = rounded_results
 
         # FILL "OUT" CATEGORIES (PU, GB, FB)
-        # MAKE SURE 'SO' DON'T FILL UP MORE THAN 5 SLOTS IF HITTER. THIS MAY CAUSE SOME STATISTICAL ANOMILIES IN MODERN YEARS.
-        max_hitter_so = sc.MAX_HITTER_SO_RESULTS[self.context]
-        chart['so'] = max_hitter_so if not self.is_pitcher and chart['so'] > max_hitter_so else chart['so']
         out_slots_remaining = outs - float(chart['so'])
         chart['pu'], chart['gb'], chart['fb'] = self.__out_results(
                                                     gb_pct=stats_for_400_pa.get('GO/AO', None),
@@ -1641,6 +1644,44 @@ class ShowdownPlayerCard:
 
         return pu_outs, gb_outs, fb_outs
 
+    def __so_results(self, current_so:int, num_out_slots:int) -> int:
+        """Update SO chart value to account for outliers and maximums
+
+        Args:
+          current_so: Number of slots currently occupied
+          num_out_slots: Total numbers of slots for outs available.
+
+        Returns:
+          Updated SO chart slots.
+        """
+
+        # FOR PITCHERS, SIMPLY RETURN CURRENT SO NUMBER
+        if self.is_pitcher:
+            return min(current_so, num_out_slots)
+        
+        # --- HITTERS ---
+        hard_limit_hitter = min(num_out_slots, sc.HITTER_SO_RESULTS_HARD_CAP.get(self.context, 6))
+        soft_limit_hitter = sc.HITTER_SO_RESULTS_SOFT_CAP.get(self.context, 3)
+        
+        # IF HITTER'S STRIKEOUTS ARE UNDER SOFT LIMIT, RETURN CURRENT RESULTS
+        if current_so < soft_limit_hitter:
+            return min(current_so, hard_limit_hitter)
+        
+        # IF PLAYER HAS SMALL SAMPLE SIZE, USE SOFT LIMIT AS HARD CAP
+        real_pa = self.stats.get('PA', 400)
+        if real_pa < 100:
+            return min(current_so, hard_limit_hitter, soft_limit_hitter)
+        
+        # IF PLAYER IS OVER THE SOFT LIMIT, SCALE BACK RESULTS TOWARDS SOFT CAP AND USE FLOOR INSTEAD OF ROUND
+        if current_so > soft_limit_hitter:
+            multiplier = 0.80
+            current_so *= multiplier
+            current_so = max(soft_limit_hitter, current_so) # MAKE SURE MULTIPLIER DOESN'T MOVE CARD UNDER SOFT LIMIT
+            current_so = math.floor(current_so)
+            return min(current_so, hard_limit_hitter)
+
+        return min(current_so, hard_limit_hitter)
+
     def __single_and_single_plus_results(self, remaining_slots:int, sb:int, command:int) -> tuple[int, int]:
         """Fill 1B and 1B+ categories on chart.
 
@@ -1653,11 +1694,11 @@ class ShowdownPlayerCard:
           Tuple of 1B, 1B+ result ints.
         """
 
-        # Pitcher has no 1B+
+        # PITCHER HAS NO 1B+
         if self.is_pitcher:
             return remaining_slots, 0
 
-        # Divide stolen bases per 400 PA by a scaler based on Onbase #
+        # DIVIDE STOLEN BASES PER 400 PA BY A SCALER BASED ON ONBASE #
         min_onbase = 4 if self.is_classic else 7
         max_onbase = 12 if self.is_classic else 16
         ob_min_max_dict = {'min': min_onbase, 'max': max_onbase}
