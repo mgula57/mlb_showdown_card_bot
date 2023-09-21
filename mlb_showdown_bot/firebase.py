@@ -13,11 +13,13 @@ try:
     from .showdown_player_card import ShowdownPlayerCard
     from . import showdown_constants as sc
     from .version import __version__
+    from .enums.edition import Edition
 except ImportError:
     # USE LOCAL IMPORT 
     from showdown_player_card import ShowdownPlayerCard
     import showdown_constants as sc
     from version import __version__
+    from enums.edition import Edition
 
 class Firebase:
 
@@ -216,7 +218,7 @@ class Firebase:
 
         # GRAB DATA FROM FIREBASE IF IT EXISTS
         is_offset = offset != 0
-        is_disabled = ignore_showdown_library or is_offset or team_override or sc.Edition(edition).ignore_showdown_library or hide_team_logo
+        is_disabled = ignore_showdown_library or is_offset or team_override or Edition(edition).ignore_showdown_library or hide_team_logo
         cached_data = self.query(
           bref_id=bref_id, 
           year=year, 

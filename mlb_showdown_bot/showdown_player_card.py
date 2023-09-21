@@ -22,11 +22,13 @@ try:
     from . import showdown_constants as sc
     from .enums.team import Team
     from .enums.icon import Icon
+    from .enums.edition import Edition
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
     from enums.team import Team
     from enums.icon import Icon
+    from enums.edition import Edition
 
 class ShowdownPlayerCard:
 
@@ -87,7 +89,7 @@ class ShowdownPlayerCard:
             self.team: Team = Team(stats.get('team_ID', 'MLB'))
         except:
             self.team = Team.MLB
-        self.edition: sc.Edition = sc.Edition(edition)
+        self.edition: Edition = Edition(edition)
         self.nationality: str = stats.get('nationality', None)
         self.use_secondary_color = use_secondary_color
 
@@ -282,13 +284,13 @@ class ShowdownPlayerCard:
     def special_edition(self) -> sc.SpecialEdition:
         """ Special Editions are cards with unique art and characteristics """
 
-        if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) == '2023':
+        if self.edition == Edition.ALL_STAR_GAME and str(self.year) == '2023':
             return sc.SpecialEdition.ASG_2023
         
-        if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005',]:
+        if self.edition == Edition.SUPER_SEASON and self.context in ['2004','2005',]:
             return sc.SpecialEdition.SUPER_SEASON
         
-        if self.edition == sc.Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
+        if self.edition == Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
             return sc.SpecialEdition.COOPERSTOWN_COLLECTION
         
         if self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
@@ -2226,7 +2228,6 @@ class ShowdownPlayerCard:
         if self.context in ['2003','2004','2005',sc.EXPANDED_SET] and len(self.icons) > 0:
             for icon in self.icons:
                 icon_pts += icon.points
-                print(icon.points, icon)
         self.icon_points = round(icon_pts,3)
 
         # COMBINE POINT VALUES
@@ -3086,7 +3087,7 @@ class ShowdownPlayerCard:
             card_image.paste(img, coordinates, img)
 
         # ADD HOLIDAY THEME
-        if self.edition == sc.Edition.HOLIDAY:
+        if self.edition == Edition.HOLIDAY:
             holiday_image_path = self.__template_img_path('Holiday')
             holiday_image = Image.open(holiday_image_path)
             card_image.paste(holiday_image,self.__coordinates_adjusted_for_bordering(coordinates=(0,0)),holiday_image)
@@ -3202,7 +3203,7 @@ class ShowdownPlayerCard:
         default_image_path = self.__template_img_path(f'Default Background - {self.template_set_year}{dark_mode_suffix}')
         
         # CHECK FOR CUSTOM LOCAL IMAGE ASSET (EX: NATIONALITY, ASG)
-        use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
+        use_nationality = self.edition == Edition.NATIONALITY and self.nationality
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if use_nationality else False
         custom_image_path = None
         background_image = None
@@ -3310,9 +3311,9 @@ class ShowdownPlayerCard:
         logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context_year)]
         is_04_05 = self.context in ['2004','2005']
         is_00_01 = self.context in ['2000','2001']
-        is_cooperstown = self.edition == sc.Edition.COOPERSTOWN_COLLECTION
-        is_all_star_game = self.edition == sc.Edition.ALL_STAR_GAME
-        is_rookie_season = self.edition == sc.Edition.ROOKIE_SEASON
+        is_cooperstown = self.edition == Edition.COOPERSTOWN_COLLECTION
+        is_all_star_game = self.edition == Edition.ALL_STAR_GAME
+        is_rookie_season = self.edition == Edition.ROOKIE_SEASON
 
         if self.edition.use_edition_logo_as_team_logo and not is_00_01:
             # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
@@ -3334,7 +3335,7 @@ class ShowdownPlayerCard:
             # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
             logo_name = self.team.logo_name(year=self.median_year, is_alternate=self.use_alternate_logo or force_use_alternate)
             team_logo_path = self.__team_logo_path(name=logo_name)
-            if self.edition == sc.Edition.NATIONALITY and self.nationality:
+            if self.edition == Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_COLORS.keys():
                     team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
             team_logo = Image.open(team_logo_path).convert("RGBA")
@@ -3354,7 +3355,7 @@ class ShowdownPlayerCard:
             return team_logo, logo_paste_coordinates
 
         # OVERRIDE IF SUPER SEASON
-        if self.edition == sc.Edition.SUPER_SEASON and not is_00_01:
+        if self.edition == Edition.SUPER_SEASON and not is_00_01:
             team_logo, _ = self.__super_season_image()
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context_year)]
 
@@ -3456,7 +3457,7 @@ class ShowdownPlayerCard:
             edition_extension = ''
             if self.edition.template_color_0405:
                 edition_extension = f'-{self.edition.template_color_0405}'
-            elif self.edition == sc.Edition.NATIONALITY and self.nationality:
+            elif self.edition == Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_TEMPLATE_COLOR.keys():
                     edition_extension = f'-{sc.NATIONALITY_TEMPLATE_COLOR[self.nationality]}'
                 else:
@@ -3486,7 +3487,7 @@ class ShowdownPlayerCard:
             container_img_path = self.__template_img_path(f'{year}-ChartOutsContainer-{type}')
             container_img_black = Image.open(container_img_path)
             fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
-            if self.edition == sc.Edition.NATIONALITY and self.nationality:
+            if self.edition == Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_COLORS.keys():
                     colors = sc.NATIONALITY_COLORS[self.nationality]
                     if len(colors) >= 2:
@@ -4279,30 +4280,30 @@ class ShowdownPlayerCard:
         
         # DEFINE COORDINATES, START WITH ROOKIE SEASON DESTINATION AND EDIT FOR OTHERS
         paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
-        if self.edition != sc.Edition.ROOKIE_SEASON and self.context == '2001':
+        if self.edition != Edition.ROOKIE_SEASON and self.context == '2001':
             # MOVE LOGO TO THE RIGHT
             paste_coordinates = (paste_coordinates[0] + 30, paste_coordinates[1])
         if self.context == '2000':
             # MOVE LOGO ABOVE TEAM LOGO AND SLIGHTLY TO THE LEFT
-            y_movement = -35 if self.edition == sc.Edition.SUPER_SEASON else 0
-            x_movement = -35 if self.edition == sc.Edition.SUPER_SEASON else 0
+            y_movement = -35 if self.edition == Edition.SUPER_SEASON else 0
+            x_movement = -35 if self.edition == Edition.SUPER_SEASON else 0
             paste_coordinates = (paste_coordinates[0] - 25 + x_movement, paste_coordinates[1] + y_movement)
 
         # ADD LOGO
         match self.edition:
-            case sc.Edition.ALL_STAR_GAME | sc.Edition.COOPERSTOWN_COLLECTION:
-                logo_name = 'CCC' if self.edition == sc.Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
+            case Edition.ALL_STAR_GAME | Edition.COOPERSTOWN_COLLECTION:
+                logo_name = 'CCC' if self.edition == Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
                 logo_size_x, logo_size_y = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
                 logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name == 'ASG-2022' else (logo_size_x, logo_size_y)
                 logo_path = self.__team_logo_path(name=logo_name)
                 logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.ANTIALIAS)
                 image.paste(logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), logo)
-            case sc.Edition.SUPER_SEASON:
+            case Edition.SUPER_SEASON:
                 super_season_img, y_adjustment = self.__super_season_image()
                 paste_coordinates_x, paste_coordinates_y = paste_coordinates
                 paste_coordinates = (paste_coordinates_x, paste_coordinates_y - 220 + y_adjustment)
                 image.paste(super_season_img, self.__coordinates_adjusted_for_bordering(paste_coordinates), super_season_img)
-            case sc.Edition.ROOKIE_SEASON:
+            case Edition.ROOKIE_SEASON:
                 rs_logo = self.__rookie_season_image()
                 image.paste(rs_logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), rs_logo)
             case _:
@@ -4741,8 +4742,8 @@ class ShowdownPlayerCard:
         """
         # SEARCH FOR PLAYER IMAGE
         additional_substring_filters = [self.year, f'({self.team.value})',f'({self.team.value})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
-        use_nationality = self.edition == sc.Edition.NATIONALITY and self.nationality
-        if self.edition != sc.Edition.NONE:
+        use_nationality = self.edition == Edition.NATIONALITY and self.nationality
+        if self.edition != Edition.NONE:
             for _ in range(0,3): # ADD 3X VALUE
                 additional_substring_filters.append(f'({self.edition.value})')
         if len(self.type_override) > 0:
@@ -4765,7 +4766,7 @@ class ShowdownPlayerCard:
         """
 
         # COOPERSTOWN
-        is_cooperstown = self.edition == sc.Edition.COOPERSTOWN_COLLECTION
+        is_cooperstown = self.edition == Edition.COOPERSTOWN_COLLECTION
         default_components_for_context = {c: self.__template_img_path("2000-Name") if c == sc.ImageComponent.NAME_CONTAINER_2000 else None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
         special_components_for_context = {c: self.__template_img_path("2000-Name") if c == sc.ImageComponent.NAME_CONTAINER_2000 else None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
 
@@ -4791,7 +4792,7 @@ class ShowdownPlayerCard:
             return components_dict
 
         # SUPER SEASON
-        if self.edition == sc.Edition.SUPER_SEASON and self.context in ['2004','2005']:
+        if self.edition == Edition.SUPER_SEASON and self.context in ['2004','2005']:
             components_dict = special_components_for_context
             components_dict[sc.ImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
@@ -4921,11 +4922,11 @@ class ShowdownPlayerCard:
 
         # NATIONALITY COLOR
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if self.nationality else False
-        if self.edition == sc.Edition.NATIONALITY and self.nationality and country_exists and not ignore_team_overrides:
+        if self.edition == Edition.NATIONALITY and self.nationality and country_exists and not ignore_team_overrides:
             return sc.NATIONALITY_COLORS[self.nationality][0]
         
         # ASG COLOR
-        if self.edition == sc.Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys() and not ignore_team_overrides:
+        if self.edition == Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys() and not ignore_team_overrides:
             color_for_league = sc.ALL_STAR_GAME_COLORS[str(self.year)].get(self.league, None)
             if color_for_league:
                 return color_for_league
