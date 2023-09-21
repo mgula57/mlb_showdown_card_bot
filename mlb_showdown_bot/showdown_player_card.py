@@ -21,10 +21,12 @@ try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
     from .enums.team import Team
+    from .enums.icon import Icon
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
     from enums.team import Team
+    from enums.icon import Icon
 
 class ShowdownPlayerCard:
 
@@ -428,7 +430,7 @@ class ShowdownPlayerCard:
         self.hand = self.__handedness(hand=hand_raw)
         self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
         self.accolades = self.__accolades()
-        self.icons = self.__icons(awards=stats.get('award_summary',''))
+        self.icons: list[Icon] = self.__icons(awards=stats.get('award_summary',''))
 
     def __positions_and_defense(self, defensive_stats:dict, games_played:int, games_started:int, saves:int) -> dict:
         """Get in-game defensive positions and ratings
@@ -941,7 +943,7 @@ class ShowdownPlayerCard:
 
         return final_speed, letter
 
-    def __icons(self, awards:str) -> list[sc.Icon]:
+    def __icons(self, awards:str) -> list[Icon]:
         """Converts awards_summary and other metadata fields into in game icons.
 
         Args:
@@ -960,11 +962,11 @@ class ShowdownPlayerCard:
         awards_list = awards_string.split(',')
         
         icons = []
-        available_icons = [icon for icon in sc.Icon if icon.is_available(is_pitcher=self.is_pitcher)]
+        available_icons = [icon for icon in Icon if icon.is_available(is_pitcher=self.is_pitcher)]
         for icon in available_icons:
 
             # ROOKIE
-            if icon == sc.Icon.R and self.stats.get('is_rookie', False):
+            if icon == Icon.R and self.stats.get('is_rookie', False):
                 icons.append(icon)
                 continue
 
@@ -994,8 +996,8 @@ class ShowdownPlayerCard:
 
 
         # IF PITCHER AND MORE THAN 4 ICONS (EX: BOB GIBSON 1968), FILTER OUT A G
-        if len(icons) >= 5 and self.is_pitcher and sc.Icon.G in icons:
-            icons.remove(sc.Icon.G)
+        if len(icons) >= 5 and self.is_pitcher and Icon.G in icons:
+            icons.remove(Icon.G)
 
         return icons
 
@@ -2221,9 +2223,10 @@ class ShowdownPlayerCard:
 
         # ICONS (03+)
         icon_pts = 0
-        if self.context in ['2003','2004','2005'] and len(self.icons) > 0:
+        if self.context in ['2003','2004','2005',sc.EXPANDED_SET] and len(self.icons) > 0:
             for icon in self.icons:
-                icon_pts += sc.POINTS_ICONS[self.context][icon.value]
+                icon_pts += icon.points
+                print(icon.points, icon)
         self.icon_points = round(icon_pts,3)
 
         # COMBINE POINT VALUES
