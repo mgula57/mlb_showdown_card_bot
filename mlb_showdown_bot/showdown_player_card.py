@@ -3358,7 +3358,7 @@ class ShowdownPlayerCard:
 
         # ROTATE LOGO IF APPLICABLE
         if logo_rotation != 0:
-            team_logo = team_logo.rotate(logo_rotation, resample=Image.BICUBIC, expand=True)
+            team_logo = team_logo.rotate(logo_rotation, resample=Image.BICUBIC)
 
         # RETURN STATIC LOGO IF IGNORE_DYNAMIC_ELEMENTS IS ENABLED
         # IGNORES ROOKIE SEASON, SUPER SEASON
@@ -3402,7 +3402,7 @@ class ShowdownPlayerCard:
         # OVERRIDE IF ROOKIE SEASON
         if is_rookie_season and not is_00_01:
             team_logo = self.__rookie_season_image()
-            team_logo = team_logo.rotate(10, resample=Image.BICUBIC, expand=True) if self.context == '2002' else team_logo
+            team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.context == '2002' else team_logo
             logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
 
         return team_logo, logo_paste_coordinates
