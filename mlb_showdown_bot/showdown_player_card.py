@@ -23,12 +23,14 @@ try:
     from .enums.team import Team
     from .enums.icon import Icon
     from .enums.edition import Edition
+    from .enums.accolade import Accolade
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
     from enums.team import Team
     from enums.icon import Icon
     from enums.edition import Edition
+    from enums.accolade import Accolade
 
 class ShowdownPlayerCard:
 
@@ -1026,7 +1028,7 @@ class ShowdownPlayerCard:
         for accolade_type, accolade_list in accolades_dict.items():
 
             try:
-                accolade_class = sc.Accolade(accolade_type)
+                accolade_class = Accolade(accolade_type)
             except ValueError:
                 continue
             
@@ -1074,7 +1076,7 @@ class ShowdownPlayerCard:
                     final_string = f"{num_awards}X {award_title}" if num_awards > 1 and num_seasons > 1 else award_title
                     if num_awards == 1 and num_seasons > 1 and is_pre_2004:
                         final_string = f"{year_parsed} {final_string}"
-                    priority = (1 if accolade_class == sc.Accolade.ALL_STAR else 0) if not is_icons or num_awards > 1 else 10 
+                    priority = (1 if accolade_class == Accolade.ALL_STAR else 0) if not is_icons or num_awards > 1 else 10 
                     accolades_rank_and_priority_tuples.append( (final_string, accolade_class.rank, priority) )
                 case "AWARDS (LIST)":
                     # EX: "2014 NL ROOKIE OF THE YEAR"
@@ -1115,7 +1117,7 @@ class ShowdownPlayerCard:
                 case "ORDINAL":
 
                     # SKIP IF SAVES AND STARTING PITCHER
-                    if is_starting_pitcher and accolade_class == sc.Accolade.SAVES:
+                    if is_starting_pitcher and accolade_class == Accolade.SAVES:
                         continue
 
                     def parse_ordinal(value:str, keep_year:bool=False) -> tuple[str, int, int]:
@@ -1126,7 +1128,7 @@ class ShowdownPlayerCard:
                         ordinal_rank_int = int(re.sub('[^0-9]','', rank_str))
                         is_leader = ordinal_rank_int == 1
                         final_string = f"{year_str}{league_and_stat} LEADER" if is_leader else f"{rank_str} IN {year_str}{league_and_stat}"
-                        if accolade_class == sc.Accolade.BA and is_leader:
+                        if accolade_class == Accolade.BA and is_leader:
                             final_string = final_string.replace('BA LEADER', ba_champ_text)
                         priority = ordinal_rank_int
                         return (final_string, accolade_class.rank, priority * accolade_class.priority_multiplier)
@@ -1142,7 +1144,7 @@ class ShowdownPlayerCard:
                         # REPLACE INDIVIDUAL PLACEMENTS WITH COUNTS ACROSS SEASONS
                         # EX: ['07 NL OPS LEADER, '08 NL OPS LEADER, '11 AL OPS LEADER] -> [3X OPS LEADER]
                         leader_list = []
-                        leader_text = ba_champ_text if accolade_class == sc.Accolade.BA else f'{accolade_class.title} LEADER'
+                        leader_text = ba_champ_text if accolade_class == Accolade.BA else f'{accolade_class.title} LEADER'
                         for accolade_tuple in ordinal_accolades:
                             accolade = accolade_tuple[0]
                             if leader_text in accolade:
@@ -1170,7 +1172,7 @@ class ShowdownPlayerCard:
                 ordinal_rank = self.ordinal(award_placement_int).upper()
                 league = f"{self.league} " if self.league != 'MLB' else ''
                 accolade_str = f"{ordinal_rank} IN {league}ROY"
-                accolades_rank_and_priority_tuples.append( (accolade_str, sc.Accolade.AWARDS.rank, award_placement_int) )
+                accolades_rank_and_priority_tuples.append( (accolade_str, Accolade.AWARDS.rank, award_placement_int) )
                     
         # CREATE LIST OF CURRENT ACCOLADES
         # USED TO FILTER OUT REDUNDANCIES
