@@ -7,11 +7,13 @@ try:
     from .firebase import Firebase
     from .baseball_ref_scraper import BaseballReferenceScraper
     from .showdown_player_card import ShowdownPlayerCard
+    from .postgres_db import PostgresDB
 except ImportError:
     # USE LOCAL IMPORT 
     from firebase import Firebase
     from baseball_ref_scraper import BaseballReferenceScraper
     from showdown_player_card import ShowdownPlayerCard
+    from postgres_db import PostgresDB
 
 parser = argparse.ArgumentParser(description="Generate a player's MLB Showdown stats in a given year")
 parser.add_argument('-n','--name', help='The first and last name of the player',required=True)
@@ -36,6 +38,7 @@ parser.add_argument('-sypls','--set_year_plus_one', action='store_true', help='O
 parser.add_argument('-htl','--hide_team_logo', action='store_true', help='Optionally remove all team logos and branding.')
 parser.add_argument('-isl','--ignore_showdown_library', action='store_true', help='Optionally force ignore Showdown Library, will create card live.')
 parser.add_argument('-ic','--ignore_cache', action='store_true', help='Ignore local cache')
+parser.add_argument('-sc','--secondary_color', action='store_true', help='Used secondary team color.')
 
 args = parser.parse_args()
 
@@ -50,8 +53,8 @@ def main():
     scraper = BaseballReferenceScraper(name=name,year=year,ignore_cache=args.ignore_cache)
 
     # CHECK FOR STATS IN SHOWDOWN LIBRARY
-    db = Firebase()
-    cached_player_card = db.load_showdown_card(
+    firebase_db = Firebase()
+    cached_player_card = firebase_db.load_showdown_card(
         ignore_showdown_library=args.ignore_showdown_library,
         bref_id = scraper.baseball_ref_id,
         year=year,
@@ -74,41 +77,59 @@ def main():
         date_override=None,
         is_running_in_flask=False
     )
-    db.close_session()
+    firebase_db.close_session()
+
+    # CHECK FOR CARD RETURNED FROM CACHE
     if cached_player_card:
         cached_player_card.print_player()
         if args.show_image:
             cached_player_card.player_image(show=True)
-
+        return
+    
+    # IF NO CACHED SHOWDOWN CARD, FETCH REAL STATS FROM EITHER:
+    #  1. ARCHIVE: HISTORICAL DATA IN POSTGRES DB
+    #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
+    postgres_db = PostgresDB()
+    archived_statline, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override)
+    postgres_db.close_connection()
+    if archived_statline:
+        statline = archived_statline
+        data_source = 'Archive'
     else:
         statline = scraper.player_statline()
-        showdown = ShowdownPlayerCard(
-            name=name,
-            year=year,
-            stats=statline,
-            context=context,
-            expansion=args.expansion,
-            edition=args.edition,
-            offset=args.offset,
-            player_image_url=args.image_url,
-            player_image_path=args.image_path,
-            card_img_output_folder_path=args.image_output_path,
-            print_to_cli=True,
-            show_player_card_image=args.show_image,
-            set_number=str(args.set_num),
-            command_out_override=command_out_override,
-            add_image_border=args.add_border,
-            is_dark_mode=args.dark_mode,
-            is_variable_speed_00_01=args.variable_spd,
-            image_parallel=args.parallel,
-            add_year_container=args.add_year_container,
-            set_year_plus_one=args.set_year_plus_one,
-            hide_team_logo=args.hide_team_logo,
-            era=args.era,
-            source = scraper.source
-        )
-        total_load_time = (scraper.load_time if scraper.load_time else 0.00) + (showdown.load_time if showdown.load_time else 0.00)
-        print(f"LOAD TIME: {total_load_time}s")
+        data_source = scraper.source
+
+    # CREATE SHOWDOWN CARD FROM STATLINE
+    showdown = ShowdownPlayerCard(
+        name=name,
+        year=year,
+        stats=statline,
+        context=context,
+        expansion=args.expansion,
+        edition=args.edition,
+        offset=args.offset,
+        player_image_url=args.image_url,
+        player_image_path=args.image_path,
+        card_img_output_folder_path=args.image_output_path,
+        print_to_cli=True,
+        show_player_card_image=args.show_image,
+        set_number=str(args.set_num),
+        command_out_override=command_out_override,
+        add_image_border=args.add_border,
+        is_dark_mode=args.dark_mode,
+        is_variable_speed_00_01=args.variable_spd,
+        image_parallel=args.parallel,
+        add_year_container=args.add_year_container,
+        set_year_plus_one=args.set_year_plus_one,
+        hide_team_logo=args.hide_team_logo,
+        era=args.era,
+        use_secondary_color=args.secondary_color,
+        source=data_source
+    )
+
+    # PRINT TOTAL LOAD TIME
+    total_load_time = (scraper.load_time if scraper.load_time else 0.00) + (showdown.load_time if showdown.load_time else 0.00) + (archive_load_time if archive_load_time else 0.0)
+    print(f"LOAD TIME: {total_load_time}s")
 
 if __name__ == "__main__":
     main()

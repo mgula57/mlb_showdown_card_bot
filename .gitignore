@@ -41,6 +41,7 @@ __pycache__/
 
 # MY FILES
 tests/cache/player_cache.csv
+tests/image_output/
 static/output/
 mlb_showdown_bot/uploads/
 mlb_showdown_bot/output/

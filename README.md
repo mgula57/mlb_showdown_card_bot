@@ -248,7 +248,8 @@ Pitchers fall under the following categories
 
 In-game SPEED is calculated differently depending on the year. 
 * If the year is BEFORE or ON 2015, STOLEN BASES (per 650 PA) is used.
-* If the year is AFTER 2015, SPRINT SPEED _(Sourced from Baseball Savant)_ is used along with STOLEN BASES (per 650 PA). A weighted avg is used where SPRINT SPEED has a 70% weighting and STOLEN BASES has a 30% weighting.
+* If the year is AFTER 2015, SPRINT SPEED _(Sourced from Baseball Savant)_ is used along with STOLEN BASES (per 650 PA). A weighted avg is used where SPRINT SPEED has a 60% weighting and STOLEN BASES has a 40% weighting.
+  * If the player's speed from using SB would be above 20 and is higher than their speed would be using SPRINT SPEED, the weighting is changed to 75% for SB and 25% for SPRINT SPEED.
 
 The combination of SPRINT SPEED/STOLEN BASES is then converted to a percentile based off a range (the same way that defense is calculated). That percentile is then multiplied by the maximum in-game speed.
 
@@ -314,17 +315,17 @@ This is the list of available icons and how a player is eligible:
 
 _** Some of these thresholds are slightly different than the original game._
 
-* **SS**: Won Silver Slugger Award.
-* **GG**: Won Gold Glove Award.
+* **S**: Won Silver Slugger Award.
+* **G**: Won Gold Glove Award.
 * **V**: Won AL or NL Most Valuable Player Award.
 * **CY**: Won AL or NL CY Young Award.
 * **R**: Selected season was during the player's rookie eligibility.
 * **RY**: Won AL or NL Rookie of the Year Award.
 * **20**: Won 20 or more games as a Pitcher.
-* **K**: Struck out at least 215 batters.
-* **HR**: Hit at least 40 Home Runs or led either league in Home Runs.
-* **SB**: Stole at least 40 bases or led either league in Steals.
-* **RP**: Led AL or NL in Saves.
+* **K**: Was Top 2 in their league in SO.
+* **HR**: Was Top 2 in their league in HR.
+* **SB**: Was Top 2 in their league in SB.
+* **RP**: Was Top 2 in their league in SAVES.
 
 ### **Points**
 

@@ -30,8 +30,8 @@ class Edition(Enum):
             return None
     
     @property
-    def has_static_logo(self) -> bool:
-        return self in [Edition.ALL_STAR_GAME, Edition.COOPERSTOWN_COLLECTION]
+    def use_edition_logo_as_team_logo(self) -> bool:
+        return self in [Edition.COOPERSTOWN_COLLECTION]
     
     @property
     def template_extension(self) -> str:
@@ -40,10 +40,6 @@ class Edition(Enum):
     @property
     def is_not_empty(self) -> bool:
         return self != Edition.NONE
-
-    @property
-    def background_folder_name(self) -> str:
-        return 'countries' if self in [Edition.NATIONALITY] else 'team_backgrounds'
 
     @property
     def rotate_team_logo_2002(self) -> bool:
@@ -109,6 +105,11 @@ SPEED_METRIC_MIN = {
 SPEED_METRIC_WEIGHT = {
     SPRINT_SPEED_KEY: 0.60,
     STOLEN_BASES_KEY: 0.40,
+}
+SB_OUTLIER_SPEED_CUTOFF = 21
+SPEED_METRIC_WEIGHT_SB_OUTLIERS = {
+    SPRINT_SPEED_KEY: 0.25,
+    STOLEN_BASES_KEY: 0.75,
 }
 SPEED_METRIC_MULTIPLIER = {
     SPRINT_SPEED_KEY: {
@@ -887,7 +888,7 @@ BASELINE_PITCHER = {
         ERA_FREE_AGENCY: {
             'command': 3.95,
             'outs': 16.00,
-            'so': 5.00,
+            'so': 3.30,
             'bb': 1.32,
             '1b': 1.90,
             '2b': 0.65,
@@ -1173,7 +1174,7 @@ BASELINE_PITCHER = {
         ERA_STEROID: {
             'command': 3.3,
             'outs': 16.0,
-            'so': 5.25,
+            'so': 4.10,
             'bb': 1.35,
             '1b': 2.0,
             '2b': 0.62,
@@ -1265,7 +1266,7 @@ BASELINE_PITCHER = {
         ERA_STEROID: {
             'command': 4.2,
             'outs': 16.2,
-            'so': 5.5,
+            'so': 4.00,
             'bb': 1.25,
             '1b': 2.05,
             '2b': 0.50,
@@ -2325,16 +2326,28 @@ COMMAND_ACCURACY_WEIGHTING = {
 """
 MAX HITTER SO
   - MAXIMUM AMOUNT OF SO RESULTS FOR HITTERS IN EACH SET
+  - REPRESENTS A "SOFT" CAP, OUTLIERS CAN STILL BE ABOVE THIS NUMBER
 """
-MAX_HITTER_SO_RESULTS = {
-    '2000': 4,
-    '2001': 5,
-    '2002': 6,
-    '2003': 4,
-    '2004': 4,
-    '2005': 4,
-    CLASSIC_SET: 5,
-    EXPANDED_SET: 4,
+HITTER_SO_RESULTS_SOFT_CAP = {
+    '2000': 3,
+    '2001': 3,
+    '2002': 4,
+    '2003': 3,
+    '2004': 3,
+    '2005': 3,
+    CLASSIC_SET: 3,
+    EXPANDED_SET: 3,
+}
+
+HITTER_SO_RESULTS_HARD_CAP = {
+    '2000': 5,
+    '2001': 6,
+    '2002': 7,
+    '2003': 6,
+    '2004': 6,
+    '2005': 6,
+    CLASSIC_SET: 6,
+    EXPANDED_SET: 6,
 }
 
 """
@@ -2384,7 +2397,8 @@ CHART CATEGORY WEIGHTS
 CHART_CATEGORY_WEIGHTS = {
     '2000': {
         'position_player': {
-            'onbase_perc': 1.0,
+            'onbase_perc': 3.0,
+            'slugging_perc': 1.0,
         },
         'starting_pitcher': {
             'slugging_perc': 1.0,
@@ -2397,7 +2411,8 @@ CHART_CATEGORY_WEIGHTS = {
     },
     '2001': {
         'position_player': {
-            'onbase_perc': 1.0,
+            'onbase_perc': 3.0,
+            'slugging_perc': 1.0,
         },
         'starting_pitcher': {
             'slugging_perc': 1.0,
@@ -4095,446 +4110,6 @@ CUTOUT_CUSTOM_COORDINATES = {
     '2004': (-200,-350),
     '2005': (-200,-350),
     '2022': (-200,-350),
-}
-
-""" ALTERNATE TEAM LOGO RANGES. NOTE: END YEAR SHOULD BE YEAR OF NEW LOGO """
-
-TEAM_LOGO_ALTERNATES = {
-    'ANA': {
-        '1': list(range(2002, 2005)),
-    },
-    'ARI': {
-        '1': list(range(1998,2007))
-    },
-    'ATL': {
-        '1': list(range(1966,1972)),
-        '2': list(range(1972,1981)),
-        '3': list(range(1981,1987)),
-    },
-    'BAL': {
-        '1': list(range(1872,1900)),
-        '2': list(range(1914,1916)),
-        '3': list(range(1954,1966)),
-        '4': list(range(1966,1992)),
-        '5': list(range(1992,1995)),
-        '6': list(range(1995,2009)),
-        '7': list(range(2009,2019)),
-    },
-    'BOS': {
-        '1': list(range(1871,1901)),
-        '2': list(range(1901,1924)),
-        '3': list(range(1924,1961)),
-        '4': list(range(1961,1976)),
-    },
-    'CHC': {
-        '1': list(range(1876,1919)),
-        '2': list(range(1919,1946)),
-        '3': list(range(1946,1957)),
-        '4': list(range(1957,1979)),
-        '5': list(range(1979,1997)),
-    },
-    'CHW': {
-        '1': list(range(1901,1939)),
-        '2': list(range(1939,1960)),
-        '3': list(range(1960,1976)),
-        '4': list(range(1976,1991)),
-    },
-    'CIN': {
-        '1': list(range(1876,1953)),
-        '2': list(range(1953,1968)),
-        '3': list(range(1968,1993)),
-        '4': list(range(1993,1999)),
-    },
-    'CLE': {
-        '1': list(range(1871,1921)),
-        '2': list(range(1921,1946)),
-        '3': list(range(1946,1973)),
-        '4': list(range(1973,1979)),
-        '5': list(range(1979,2013)),
-        '6': list(range(2013,2022)),
-    },
-    'DET': {
-        '1': list(range(1901,1957)),
-        '2': list(range(1957,1994)),
-        '3': list(range(1994,2005)),
-    },
-    'HOU': {
-        '1': list(range(1965,1994)),
-        '2': list(range(1994,2000)),
-        '3': list(range(2000,2013)),
-    },
-    'KCR': {
-        '1': list(range(1969,1986)),
-        '2': list(range(1986,1993)),
-        '3': list(range(1993,2002)),
-    },
-    'MIA': {
-        '1': list(range(2012,2019)),
-    },
-    'MIL': {
-        '1': list(range(1970,1978)),
-        '2': list(range(1978,1994)),
-        '3': list(range(1994,2000)),
-        '4': list(range(2000,2018)),
-    },
-    'MIN': {
-        '1': list(range(1961,1987)),
-        '2': list(range(1987,2009)),
-    },
-    'NYM': {
-        '1': list(range(1962,1993)),
-        '2': list(range(1993,1998)),
-        '3': list(range(1998,2011)),
-    },
-    'NYY': {
-        '1': list(range(1900,1950)),
-    },
-    'OAK': {
-        '1': list(range(1968,1982)),
-        '2': list(range(1982,1993)),
-    },
-    'PHI': {
-        '1': list(range(1900,1950)),
-        '2': list(range(1950,1970)),
-        '3': list(range(1970,1992)),
-        '4': list(range(1992,2019)),
-    },
-    'PIT': {
-        '1': list(range(1900,1948)),
-        '2': list(range(1948,1970)),
-        '3': list(range(1970,2009)),
-    },
-    'SDP': {
-        '1': list(range(1969,1985)),
-        '2': list(range(1985,1992)),
-        '3': list(range(1992,2004)),
-        '4': list(range(2004,2012)),
-    },
-    'SEA': {
-        '1': list(range(1977,1981)),
-        '2': list(range(1981,1987)),
-        '3': list(range(1987,1993)),
-    },
-    'SFG': {
-        '1': list(range(1968,1983)),
-        '2': list(range(1983,1994)),
-        '3': list(range(1994,2000)),
-    },
-    'STL': {
-        '1': list(range(1875,1927)),
-        '2': list(range(1927,1965)),
-        '3': list(range(1965,1998)),
-    },
-    'TBD': {
-        '1': list(range(1998,2001)),
-    },
-    'TEX': {
-        '1': list(range(1972,1982)),
-        '2': list(range(1982,1994)),
-        '3': list(range(1994,2003)),
-    },
-    'TOR': {
-        '1': list(range(1977,1997)),
-        '2': list(range(1997,2003)),
-        '3': list(range(2003,2012)),
-    },
-    'WSN': {
-        '1': list(range(2005,2011)),
-    },
-}
-
-TEAM_COLOR_PRIMARY = {
-    'AB2': (172, 0, 0, 255),
-    'AB3': (172, 0, 0, 255),
-    'ABC': (172, 0, 0, 255),
-    'AG': (2, 2, 2, 255),
-    'AG': (2, 2, 2, 255),
-    'ALT': (104, 5, 49, 255),
-    'ANA': (19, 41, 75, 255),
-    'ARI': (167, 25, 48, 255),
-    'ATH': (0, 51, 160, 255),
-    'ATL': (206, 17, 65, 255),
-    'BAL': (223, 70, 1, 255),
-    'BBB': (184, 0, 0, 255),
-    'BBS': (135, 72, 42, 255),
-    'BCA': (10, 53, 132, 255),
-    'BE': (12, 35, 64, 255),
-    'BEG': (0, 4, 42, 255),
-    'BLA': (236, 165, 73, 255),
-    'BLU': (243, 105, 22, 255),
-    'BLN': (21, 10, 106, 255),
-    'BOS': (189, 48, 57, 255),
-    'BRA': (55, 55, 55, 255),
-    'BRO': (8, 41, 132, 255),
-    'BRG': (248, 41, 31, 255),
-    'BSN': (213, 0, 50, 255),
-    'BTT': (1, 55, 129, 255),
-    'BUF': (36, 32, 33, 255),
-    'BWW': (8, 41, 132, 255),
-    'CAL': (191, 13, 62, 255),
-    'CAG': (18, 44, 73, 255),
-    'CBB': (25, 73, 158, 255),
-    'CBE': (200, 16, 46, 255),
-    'CBN': (37, 76, 139, 255),
-    'CC': (228, 0, 23, 255),
-    'CCB': (200, 16, 46, 255),
-    'CCC': (160, 135, 69, 255),
-    'CCU': (192, 0, 49, 255),
-    'CEG': (0, 4, 42, 255),
-    'CEL': (37, 76, 139, 255),
-    'CEN': (192, 0, 49, 255),
-    'CHC': (14, 51, 134, 255),
-    'CHI': (1, 31, 105, 255),
-    'CHT': (14, 0, 119, 255),
-    'CHW': (39, 37, 31, 255),
-    'CIN': (198,1,31,255),
-    'CLE': (227,25,55,255),
-    'CKK': (209, 9, 47, 255),
-    'CLV': (14, 0, 119, 255),
-    'COL': (51,0,111,255),
-    'COR': (198,1,31,255),
-    'CRS': (14, 0, 119, 255),
-    'CSE': (10, 34, 64, 255),
-    'CS': (10, 34, 64, 255),
-    'CSW': (10, 34, 64, 255),
-    'CT': (198,1,31,255),
-    'CTG': (198,1,31,255),
-    'DET': (12, 35, 64, 255),
-    'DS': (193, 44, 56, 255),
-    'DTS': (193, 44, 56, 255),
-    'DW': (189, 47, 45, 255),
-    'FLA': (2, 159, 171, 255),
-    'HAR': (5, 0, 51, 255),
-    'HBG': (5, 0, 51, 255),
-    'HG': (2, 2, 2, 255),
-    'HIL': (203, 17, 66, 255),
-    'HOU': (235, 110, 31, 255),
-    'IAB': (172, 0, 0, 255),
-    'IA': (160, 39, 60, 255),
-    'IC': (228, 0, 23, 255),
-    'ID': (172, 0, 0, 255),
-    'JRC': (219, 35, 77, 255),
-    'KCA': (2, 133, 68, 255),
-    'KCC': (34, 39, 63, 255),
-    'KCM': (243, 0, 0, 255),
-    'KCN': (34, 39, 63, 255),
-    'KCR': (0, 70, 135, 255),
-    'LAA': (186, 0, 33, 255),
-    'LAD': (0, 90, 156, 255),
-    'LOU': (185, 32, 39, 255),
-    'LOW': (234, 26, 43, 255),
-    'LRG': (18, 26, 65, 255),
-    'LVB': (234, 26, 43, 255),
-    'MB': (45, 45, 45, 255),
-    'MGS': (19, 16, 45, 255),
-    'MIA': (0, 163, 224, 255),
-    'MIL': (18, 40, 75, 255),
-    'MIN': (211,17,69,255),
-    'MLA': (0, 33, 68, 255),
-    'MON': (228, 0, 43, 255),
-    'MRS': (181, 0, 51, 255),
-    'NE': (12, 35, 64, 255),
-    'NBY': (25, 37, 62, 255),
-    'NEG': (0, 4, 42, 255),
-    'NLG': (17, 36, 55, 255),
-    'NYC': (162, 0, 45, 255),
-    'NYG': (227, 82, 5, 255),
-    'NYM': (252, 89, 16, 255),
-    'NYU': (7, 91, 72, 255),
-    'NYY': (12, 35, 64, 255),
-    'OAK': (0, 56, 49, 255),
-    'OLY': (2, 17, 103, 255),
-    'PBG': (0, 0, 0, 255),
-    'PBS': (15, 135, 1, 255),
-    'PC': (123, 46, 42, 255),
-    'PHA': (0, 51, 160, 255),
-    'PHI': (232, 24, 40, 255),
-    'PK': (255, 196, 12, 255),
-    'PIT': (253, 184, 39, 255),
-    'PRO': (35, 31, 32, 255),
-    'PS': (192, 62, 51, 255),
-    'PTG': (203, 17, 66, 255),
-    'RES': (0, 4, 91, 255),
-    'RIC': (250, 138, 49, 255),
-    'ROC': (101, 55, 19, 255),
-    'ROK': (17, 111, 59, 255),
-    'SDP': (249, 182, 1, 255),
-    'SEA': (0, 92, 92, 255),
-    'SEP': (0, 79, 157, 255),
-    'SFG': (253, 90, 30, 255),
-    'SLB': (227, 73, 18, 255),
-    'SLG': (10, 34, 64, 255),
-    'SLM': (5, 14, 55, 255),
-    'SLR': (200, 16, 46, 255),
-    'SL2': (214, 0, 36, 255),
-    'SL3': (214, 0, 36, 255),
-    'SLS': (214, 0, 36, 255),
-    'SNS': (214, 0, 36, 255),
-    'STL': (196, 30, 58, 255),
-    'STP': (20, 52, 141, 255),
-    'TC': (158, 25, 23, 255),
-    'TC2': (158, 25, 23, 255),
-    'TBD': (0, 70, 55, 255),
-    'TBR': (70, 188, 230, 255),
-    'TEX': (192,17,31, 255),
-    'TOL': (64, 62, 98, 255),
-    'TOR': (19, 74, 142, 255),
-    'TT': (189, 47, 45, 255),
-    'WAP': (103, 172, 221, 255),
-    'WAS': (0, 33, 68, 255),
-    'WEG': (0, 4, 42, 255),
-    'WHS': (0, 33, 68, 255),
-    'WIL': (99, 61, 146, 255),
-    'WMP': (228, 0, 23, 255),
-    'WOR': (224, 17, 95, 255),
-    'WP': (228, 0, 23, 255),
-    'WSA': (0, 33, 68, 255),
-    'WSH': (0, 33, 68, 255),
-    'WSN': (171, 0, 3, 255),
-}
-
-TEAM_COLOR_PRIMARY_ALT = {
-    'ANA': {
-        '1': (186,0,33,255),
-    },
-    'ARI': {
-        '1': (0,96,86,255),
-    },
-    'ATL': {
-        '1': (1, 51, 172, 255),
-        '2': (213, 0, 50, 255),
-        '3': (213, 0, 50, 255),
-    },
-    'BAL': {
-        '1': (21, 10, 106, 255),
-        '2': (243, 105, 22, 255),
-        '3': (220, 72, 20, 255),
-        '4': (220, 72, 20, 255),
-        '5': (220, 72, 20, 255),
-        '6': (220, 72, 20, 255),
-        '7': (220, 72, 20, 255),
-    },
-    'BOS': {
-        '1': (189, 48, 57, 255),
-        '2': (189, 48, 57, 255),
-        '3': (189, 48, 57, 255),
-        '4': (189, 48, 57, 255),
-    },
-    'CHC': {
-        '1': (12, 35, 64, 255),
-        '2': (14, 51, 134, 255),
-        '3': (14, 51, 134, 255),
-        '4': (14, 51, 134, 255),
-        '5': (14, 51, 134, 255),
-    },
-    'CHW': {
-        '1': (0, 38, 99, 255),
-        '2': (0, 38, 99, 255),
-        '3': (0, 38, 99, 255),
-        '4': (0, 38, 99, 255),
-    },
-    'CIN': {
-        '1': (198,1,31,255),
-        '2': (198,1,31,255),
-        '3': (198,1,31,255),
-        '4': (198,1,31,255),
-    },
-    'CLE': {
-        '1': (0,33,68,255),
-        '2': (215,0,44,255),
-        '3': (215,0,44,255),
-        '4': (215,0,44,255),
-        '5': (215,0,44,255),
-        '6': (237,23,79,255),
-    },
-    'DET': {
-        '1': (0,33,68,255),
-        '2': (0,33,68,255),
-        '3': (0,33,68,255),
-    },
-    'HOU': {
-        '1': (255, 72, 25, 255),
-        '2': (114, 116, 74, 255),
-        '3': (157, 48, 34, 255),
-    },
-    'KCR': {
-        '1': (0, 70, 135, 255),
-        '2': (0, 70, 135, 255),
-        '3': (0, 70, 135, 255),
-    },
-    'MIA': {
-        '1': (255, 102, 0, 255),
-    },
-    'MIL': {
-        '1': (18, 40, 75, 255),
-        '2': (0, 70, 174, 255),
-        '3': (141, 116, 74, 255),
-        '4': (18, 40, 75, 255),
-    },
-    'MIN': {
-        '1': (190, 15, 52, 255),
-        '2': (190, 15, 52, 255),
-    },
-    'NYM': {
-        '1': (252, 89, 16, 255),
-        '2': (252, 89, 16, 255),
-        '3': (252, 89, 16, 255),
-    },
-    'NYY': {
-        '1': (12, 35, 64, 255),
-    },
-    'OAK': {
-        '1': (0, 56, 49, 255),
-        '2': (0, 56, 49, 255),
-    },
-    'PHI': {
-        '1': (232, 24, 40, 255),
-        '2': (232, 24, 40, 255),
-        '3': (232, 24, 40, 255),
-        '4': (232, 24, 40, 255),
-    },
-    'PIT': {
-        '1': (253, 184, 39, 255),
-        '2': (253, 184, 39, 255),
-        '3': (253, 184, 39, 255),
-    },
-    'SDP': {
-        '1': (97, 55, 30, 255),
-        '2': (70, 36, 37, 255),
-        '3': (10, 35, 67, 255),
-        '4': (183, 166, 109, 255),
-    },
-    'SEA': {
-        '1': (0, 40, 120, 255),
-        '2': (0, 40, 120, 255),
-        '3': (0, 40, 120, 255),
-    },
-    'SFG': {
-        '1': (253, 90, 30, 255),
-        '2': (253, 90, 30, 255),
-        '3': (253, 90, 30, 255),
-    },
-    'STL': {
-        '1': (196, 30, 58, 255),
-        '2': (196, 30, 58, 255),
-        '3': (196, 30, 58, 255),
-    },
-    'TBD': {
-        '1': (17, 141, 196, 255),
-    },
-    'TEX': {
-        '1': (235, 0, 44, 255),
-        '2': (235, 0, 44, 255),
-        '3': (192, 17, 31, 255),
-    },
-    'TOR': {
-        '1': (0, 107, 166, 255),
-        '2': (0, 107, 166, 255),
-        '3': (0, 75, 135, 255),
-    },
-    'WSN': {
-        '1': (171,0,3,255),
-    },
 }
 
 NATIONALITY_COLORS = {
@@ -16834,7 +16409,7 @@ class Accolade(Enum):
     RUNS = 'R'
     RBI = 'RBI'
     SB = 'SB'
-    SO = 'SO'
+    SO = 'SO_p'
     WINS = 'W'
     SHUTOUTS = 'SHO'
     IP = 'IP'
@@ -16917,3 +16492,76 @@ class Accolade(Enum):
     def rank(self) -> int:
         return self.rank_list.index(self.name) + 1
             
+""" ICONS """
+
+class Icon(Enum):
+
+    # HITTER
+    S = "S"
+    G = "G"
+    HR = "HR"
+    SB = "SB"
+
+    # PITCHER
+    CY = "CY"
+    _20 = "20"
+    K = "K"
+    RP = "RP"
+
+    # BOTH
+    V = "V"
+    R = "R"
+    RY = "RY"
+
+    @property
+    def stat_category(self) -> str:
+        match self.value:
+            case 'K': return 'SO'
+            case 'RP': return 'SV'
+            case 'HR': return 'HR'
+            case 'SB': return 'SB'
+            case "20": return "W"
+            case _: return None
+
+    @property
+    def accolade_search_term(self) -> str:
+        match self.value:
+            case 'K': return 'SO'
+            case 'RP': return 'SAVES'
+            case 'HR': return 'HR'
+            case 'SB': return 'SB'
+            case _: return None
+    
+    @property
+    def award_str(self) -> str:
+        match self.value:
+            case 'S': return 'SS'
+            case 'G': return 'GG'
+            case 'V': return 'MVP-1'
+            case 'CY': return 'CYA-1'
+            case 'RY': return 'ROY-1'
+            case _: return None
+
+    @property
+    def is_stat_based(self) -> bool:
+        return self.stat_category is not None
+    
+    @property
+    def is_league_leader_based(self) -> bool:
+        return self.value in ['K', 'RP', 'HR', 'SB']
+    
+    @property
+    def is_award_based(self) -> bool:
+        return self.award_str is not None
+    
+    @property
+    def stat_value_requirement(self) -> int:
+        match self.value:
+            case "20": return 20
+            case _: return None
+
+    def is_available(self, is_pitcher:bool) -> bool:
+        if is_pitcher:
+            return self.value in ['G','CY','20','K','RP','V','R','RY',]
+        else:
+            return self.value in ['S','G','HR','SB','V','R','RY',]
