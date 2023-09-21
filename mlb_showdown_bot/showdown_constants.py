@@ -888,7 +888,7 @@ BASELINE_PITCHER = {
         ERA_FREE_AGENCY: {
             'command': 3.95,
             'outs': 16.00,
-            'so': 5.00,
+            'so': 3.30,
             'bb': 1.32,
             '1b': 1.90,
             '2b': 0.65,
