@@ -3936,7 +3936,7 @@ class ShowdownPlayerCard:
                     border_color = sc.COLOR_BLACK,
                     border_size = 9
                 )
-                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.use_secondary_color) and self.context_year == '2022'
+                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.use_secondary_color) and self.context_year == '2022' and is_out_category
                 color_range = range_text if (is_wotc or is_out_category or self.is_dark_mode) and not use_dark_text else sc.COLOR_BLACK
                 chart_text.paste(color_range, (chart_text_x, 0), range_text)
                 pitcher_spacing = 531 if is_wotc else 510
