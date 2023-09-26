@@ -22,7 +22,7 @@ if args.keep_old_images == False:
 
 sets = ['2000','2001']
 teams: list[Team] = [tm for tm in Team] if args.teams == '' else [Team(tm) for tm in args.teams.split(',')]
-for team in teams[0:4]:
+for team in teams:
     years_dict = { '0': '2023' }
     for index, year_range in team.logo_historical_year_range_dict.items():
         years_dict[index] = str(min(year_range))
