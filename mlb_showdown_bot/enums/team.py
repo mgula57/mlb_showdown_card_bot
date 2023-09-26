@@ -484,7 +484,7 @@ class Team(Enum):
             case 'KCR': return (189, 155, 96, 255)
             case 'LAA': return (0, 50, 99, 255)
             case 'LAD': return (239, 62, 66, 255)
-            case 'MIA': return (239, 51, 64, 255)
+            case 'MIA': return (0, 0, 0, 255)
             case 'MIL': return (255, 197, 47, 255)
             case 'MIN': return (0, 43, 92, 255)
             case 'MLN': return (204, 9, 47, 255)
@@ -638,6 +638,11 @@ class Team(Enum):
         historical_color_map = self.secondary_color_historical if is_secondary else self.primary_color_historical
         color_historical = historical_color_map.get(logo_historical_index, default_color)
         return color_historical
+
+    def use_dark_text(self, year:int, is_secondary:bool) -> bool:
+        red, green, blue, _ = self.color(year=year, is_secondary=is_secondary)
+        return (red*0.299 + green*0.587 + blue*0.114) > 186
+        
 
 # ------------------------------------------------------------------------
 # LOGO

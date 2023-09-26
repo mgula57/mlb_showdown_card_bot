@@ -3512,7 +3512,9 @@ class ShowdownPlayerCard:
                     container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
             else:
                 container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
-            text_img = Image.open(self.__template_img_path(f'{year}-ChartOutsText-{type}'))
+            use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.use_secondary_color)
+            dark_mode_suffix = '-DARK' if use_dark_text else ''
+            text_img = Image.open(self.__template_img_path(f'{year}-ChartOutsText-{type}{dark_mode_suffix}'))
             template_image.paste(container_img, (0,0), container_img)
             template_image.paste(text_img, (0,0), text_img)
         else:
@@ -3934,7 +3936,8 @@ class ShowdownPlayerCard:
                     border_color = sc.COLOR_BLACK,
                     border_size = 9
                 )
-                color_range = range_text if is_wotc or is_out_category or self.is_dark_mode else sc.COLOR_BLACK
+                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.use_secondary_color) and self.context_year == '2022'
+                color_range = range_text if (is_wotc or is_out_category or self.is_dark_mode) and not use_dark_text else sc.COLOR_BLACK
                 chart_text.paste(color_range, (chart_text_x, 0), range_text)
                 pitcher_spacing = 531 if is_wotc else 510
                 hitter_spacing = 468 if is_wotc else 445
