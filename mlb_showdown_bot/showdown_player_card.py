@@ -24,6 +24,7 @@ try:
     from .enums.icon import Icon
     from .enums.edition import Edition
     from .enums.accolade import Accolade
+    from .enums.speed import SpeedMetric
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
@@ -31,6 +32,7 @@ except ImportError:
     from enums.icon import Icon
     from enums.edition import Edition
     from enums.accolade import Accolade
+    from enums.speed import SpeedMetric
 
 class ShowdownPlayerCard:
 
@@ -890,30 +892,27 @@ class ShowdownPlayerCard:
 
         # DEFINE METRICS USED TO DETERMINE IN-GAME SPEED
         disable_sprint_speed = sprint_speed is None or math.isnan(sprint_speed) or sprint_speed == '' or sprint_speed == 0 or is_disqualied_career_speed
-        speed_elements = {sc.STOLEN_BASES_KEY: stolen_bases} 
+        speed_elements = {SpeedMetric.STOLEN_BASES: stolen_bases} 
         if not disable_sprint_speed:
-            speed_elements.update( {sc.SPRINT_SPEED_KEY: sprint_speed} )
+            speed_elements.update( {SpeedMetric.SPRINT_SPEED: sprint_speed} )
 
-        in_game_speed_for_metric = {}
+        in_game_speed_for_metric: dict[SpeedMetric, float] = {}
         for metric, value in speed_elements.items():
-            metric_max = sc.SPEED_METRIC_MAX[metric]
-            metric_min = sc.SPEED_METRIC_MIN[metric]
             ignore_multiplier = self.context in ['2000', '2001'] and self.is_variable_speed_00_01
-            metric_multiplier = 1.05 if ignore_multiplier else sc.SPEED_METRIC_MULTIPLIER[metric][self.context]
-            era_multiplier = sc.SPEED_ERA_MULTIPLIER[self.era]
-            top_percentile_speed_for_metric = sc.SPEED_METRIC_TOP_PERCENTILE[metric]
+            metric_multiplier = 1.05 if ignore_multiplier else sc.SPEED_METRIC_MULTIPLIER[metric.value][self.context]
+            era_multiplier = sc.SPEED_ERA_MULTIPLIER[self.era]            
 
-            speed_percentile = era_multiplier * metric_multiplier * (value-metric_min) / (metric_max - metric_min)
-            speed = int(round(speed_percentile * top_percentile_speed_for_metric))
+            speed_percentile = era_multiplier * metric_multiplier * (value-metric.minimum_range_value) / (metric.maximum_range_value - metric.minimum_range_value)
+            speed = int(round(speed_percentile * metric.top_percentile_range_value))
 
             # CHANGE OUTLIERS
             min_in_game = sc.MIN_IN_GAME_SPD[self.context]
             max_in_game = sc.MAX_IN_GAME_SPD[self.context]
 
             cutoff_for_sub_percentile_sb = 20
-            if metric == sc.STOLEN_BASES_KEY and speed > cutoff_for_sub_percentile_sb:
-                sb_cap = sc.STOLEN_BASES_PER_650_PA_THRESHOLD_MAX[self.context] * metric_multiplier
-                sub_percentile = (value - metric_max) / (sb_cap - metric_max)
+            if metric == SpeedMetric.STOLEN_BASES and speed > cutoff_for_sub_percentile_sb:
+                sb_cap = SpeedMetric.STOLEN_BASES.threshold_max_650_pa * metric_multiplier
+                sub_percentile = (value - metric.maximum_range_value) / (sb_cap - metric.maximum_range_value)
                 remaining_slots_over_cutoff = max_in_game - cutoff_for_sub_percentile_sb
                 additional_speed_over_cutoff = sub_percentile * remaining_slots_over_cutoff
                 speed = int(additional_speed_over_cutoff + cutoff_for_sub_percentile_sb)
@@ -924,15 +923,14 @@ class ShowdownPlayerCard:
 
         # AVERAGE SPRINT SPEED WITH SB SPEED
         num_metrics = len(in_game_speed_for_metric)
-        metric_weights = sc.SPEED_METRIC_WEIGHT
-        sb_speed = in_game_speed_for_metric.get(sc.STOLEN_BASES_KEY, 0)
-        ss_speed = in_game_speed_for_metric.get(sc.SPRINT_SPEED_KEY, 0)
-        if num_metrics > 1 and sb_speed > sc.SB_OUTLIER_SPEED_CUTOFF and sb_speed > ss_speed:
-            # CHANGE WEIGHTS TO EMPHASIZE STOLEN BASES OVER SPRINT SPEED
-            metric_weights = sc.SPEED_METRIC_WEIGHT_SB_OUTLIERS
+        sb_speed = in_game_speed_for_metric.get(SpeedMetric.STOLEN_BASES, 0)
+        ss_speed = in_game_speed_for_metric.get(SpeedMetric.SPRINT_SPEED, 0)
         
-        final_speed = int(round( sum([(metric_weights.get(metric, 1.0) if num_metrics > 1 else 1.0) * in_game_spd for metric, in_game_spd in in_game_speed_for_metric.items() ]) ))
-
+        # CHANGE WEIGHTS TO EMPHASIZE STOLEN BASES OVER SPRINT SPEED
+        use_sb_outliers_weights = num_metrics > 1 and sb_speed > SpeedMetric.STOLEN_BASES.outlier_cutoff and sb_speed > ss_speed
+        
+        # FINALIZE SPEED, ASSIGN LETTER
+        final_speed = int(round( sum([( (metric.weight_sb_outliers if use_sb_outliers_weights else metric.weight) if num_metrics > 1 else 1.0) * in_game_spd for metric, in_game_spd in in_game_speed_for_metric.items() ]) ))
         if final_speed < sc.SPEED_C_CUTOFF[self.context]:
             letter = 'C'
         elif final_speed < 18:
