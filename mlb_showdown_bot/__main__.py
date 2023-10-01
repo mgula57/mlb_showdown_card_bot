@@ -18,7 +18,7 @@ except ImportError:
 parser = argparse.ArgumentParser(description="Generate a player's MLB Showdown stats in a given year")
 parser.add_argument('-n','--name', help='The first and last name of the player',required=True)
 parser.add_argument('-y','--year', help='The year of the player',required=True)
-parser.add_argument('-c','--context',help='The showdown set meta to use (2000-2005)',default='2000')
+parser.add_argument('-s','--set',help='The showdown set meta to use (2000-2005)',default='2000')
 parser.add_argument('-e','--era',help='The baseball era to use.',default='DYNAMIC')
 parser.add_argument('-o','--offset',help='Get alternate chart n away from most accurate',default=0)
 parser.add_argument('-url','--image_url',help='URL link to Player background image',default=None)
@@ -47,7 +47,7 @@ def main():
 
     name = args.name.title()
     year = args.year
-    context = args.context
+    set = args.set
     command_out_override = None if args.co_override == '' else tuple([int(x) for x in args.co_override.split('-')])
 
     scraper = BaseballReferenceScraper(name=name,year=year,ignore_cache=args.ignore_cache)
@@ -58,7 +58,7 @@ def main():
         ignore_showdown_library=args.ignore_showdown_library,
         bref_id = scraper.baseball_ref_id,
         year=year,
-        context=context,
+        set=set,
         expansion=args.expansion,
         edition=args.edition,
         player_image_path=args.image_path,
@@ -104,7 +104,7 @@ def main():
         name=name,
         year=year,
         stats=statline,
-        context=context,
+        set=set,
         expansion=args.expansion,
         edition=args.edition,
         offset=args.offset,

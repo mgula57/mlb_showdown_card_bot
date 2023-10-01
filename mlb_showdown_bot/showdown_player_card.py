@@ -24,7 +24,11 @@ try:
     from .enums.icon import Icon
     from .enums.edition import Edition
     from .enums.accolade import Accolade
-    from .enums.speed import SpeedMetric
+    from .enums.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart
+    from .enums.metrics import DefenseMetric
+    from .enums.nationality import Nationality
+    from .enums.images import ImageParallel, SpecialEdition
+    from .enums import colors
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
@@ -32,7 +36,12 @@ except ImportError:
     from enums.icon import Icon
     from enums.edition import Edition
     from enums.accolade import Accolade
-    from enums.speed import SpeedMetric
+    from enums.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart
+    from enums.player_position import PlayerSubType
+    from enums.metrics import DefenseMetric
+    from enums.nationality import Nationality
+    from enums.images import ImageParallel, SpecialEdition
+    from enums import colors
 
 class ShowdownPlayerCard:
 
@@ -40,7 +49,7 @@ class ShowdownPlayerCard:
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, name:str, year:str, stats:dict, context:str, expansion:str='FINAL', edition:str="NONE", offset:int=0, player_image_url:str=None, player_image_path:str=None, card_img_output_folder_path:str='', set_number:str='', test_numbers:tuple[int,int]=None, run_stats:bool=True, command_out_override:tuple[int,int]=None, print_to_cli:bool=False, show_player_card_image:bool=False, is_img_part_of_a_set:bool=False, add_image_border:bool=False, is_dark_mode:bool=False, is_variable_speed_00_01:bool=False, image_parallel:str="NONE", add_year_container:bool=False, set_year_plus_one:bool=False, hide_team_logo:bool=False, date_override:str=None, era:str="DYNAMIC", use_secondary_color:bool=False, is_running_in_flask:bool=False, source:str='Baseball Reference') -> None:
+    def __init__(self, name:str, year:str, stats:dict, set:str, expansion:str='FINAL', edition:str="NONE", offset:int=0, player_image_url:str=None, player_image_path:str=None, card_img_output_folder_path:str='', set_number:str='', test_numbers:tuple[int,int]=None, run_stats:bool=True, command_out_override:tuple[int,int]=None, print_to_cli:bool=False, show_player_card_image:bool=False, is_img_part_of_a_set:bool=False, add_image_border:bool=False, is_dark_mode:bool=False, is_variable_speed_00_01:bool=False, image_parallel:str="NONE", add_year_container:bool=False, set_year_plus_one:bool=False, hide_team_logo:bool=False, date_override:str=None, era:str="DYNAMIC", use_secondary_color:bool=False, is_running_in_flask:bool=False, source:str='Baseball Reference') -> None:
         """Initializer for ShowdownPlayerCard Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -60,13 +69,9 @@ class ShowdownPlayerCard:
                 self.type_override = type_str        
 
         # SET INFO
-        self.context: str = context.upper()
-        self.context_year: str = '2022' if self.context in sc.CLASSIC_AND_EXPANDED_SETS else context
+        self.set: Set = Set(set)
         self.expansion: str = expansion
-        self.era = self.era_dynamic if era == "DYNAMIC" else era
-        self.is_expanded: bool = self.context in sc.EXPANDED_SETS
-        self.is_classic: bool = self.context in sc.CLASSIC_SETS
-        self.has_icons: bool = self.context in sc.SETS_HAS_ICONS
+        self.era: Era = self.era_dynamic if era == "DYNAMIC" else Era(era)
 
         # STATS
         # ADD OPS IF NOT IN DICT (< 1900 CARDS)
@@ -74,7 +79,7 @@ class ShowdownPlayerCard:
             stats['onbase_plus_slugging'] = stats['slugging_perc'] + stats['onbase_perc']
         # REDUCE IF/FB FOR 1988
         if 'IF/FB' in stats.keys() and year == '1988':
-            stats['IF/FB'] = stats.get('IF/FB', 0.0) * sc.PU_MULTIPLIER_1988
+            stats['IF/FB'] = stats.get('IF/FB', 0.0) * self.set.pu_normalizer_1988
         # COMBINE BB AND HBP
         if 'HBP' in stats.keys():
             try:
@@ -87,18 +92,21 @@ class ShowdownPlayerCard:
         self.stats_version:int = int(offset)
 
         # METADATA
-        self.is_pitcher: bool = stats.get('type', '') == 'Pitcher'
+        self.player_type = PlayerType(stats.get('type', 'Hitter'))
         self.league: str = stats.get('lg_ID', 'MLB')
         try:
             self.team: Team = Team(stats.get('team_ID', 'MLB'))
         except:
             self.team = Team.MLB
-        self.edition: Edition = Edition(edition)
-        self.nationality: str = stats.get('nationality', None)
+        try:
+            self.nationality: Nationality = Nationality(stats.get('nationality', 'NONE'))
+        except:
+            self.nationality: Nationality = Nationality.NONE
         self.use_secondary_color = use_secondary_color
 
         # IMAGE
-        self.image_parallel: sc.ImageParallel = sc.ImageParallel(image_parallel)
+        self.edition: Edition = Edition(edition)
+        self.image_parallel: ImageParallel = ImageParallel(image_parallel)
         self.player_image_url: str = player_image_url
         self.player_image_path: str = player_image_path
         self.card_img_output_folder_path: str = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
@@ -114,11 +122,10 @@ class ShowdownPlayerCard:
         self.img_dark_bordered_id: str = None
         
         # CUSTOMIZATIONS
-        default_set_number: str = '—' if self.context in ['2003',sc.EXPANDED_SET, sc.CLASSIC_SET] else year
         self.has_custom_set_number: bool = set_number != ''
-        self.set_number: str = set_number if self.has_custom_set_number else default_set_number
-        self.add_year_container: bool = add_year_container and self.context in sc.CONTEXTS_ELIGIBLE_FOR_YEAR_CONTAINER
-        self.set_year_plus_one: bool = set_year_plus_one and self.context in sc.CONTEXTS_ELIGIBLE_FOR_SET_YEAR_PLUS_ONE
+        self.set_number: str = set_number if self.has_custom_set_number else self.set.default_set_number
+        self.add_year_container: bool = add_year_container and self.set.is_eligibile_for_year_container
+        self.set_year_plus_one: bool = set_year_plus_one and self.set.is_eligibile_for_year_plus_one
         self.hide_team_logo: bool = hide_team_logo
         self.date_override: str = date_override
         self.test_numbers: tuple[int,int] = test_numbers
@@ -158,8 +165,8 @@ class ShowdownPlayerCard:
             self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart['command'])
 
             # FOR PTS, USE STEROID ERA OPPONENT
-            proj_opponent_chart, proj_my_advantages_per_20, proj_opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=self.chart['command'], era_override=sc.ERA_STEROID)
-            projections_for_pts_per_400_pa = self.chart_to_results_per_400_pa(self.chart,proj_my_advantages_per_20,proj_opponent_chart,proj_opponent_advantages_per_20, era_override=sc.ERA_STEROID)
+            proj_opponent_chart, proj_my_advantages_per_20, proj_opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=self.chart['command'], era_override=Era.STEROID)
+            projections_for_pts_per_400_pa = self.chart_to_results_per_400_pa(self.chart,proj_my_advantages_per_20,proj_opponent_chart,proj_opponent_advantages_per_20, era_override=Era.STEROID)
             projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=self.chart['command'])
 
             self.points = self.point_value(projected=projections_for_pts,
@@ -178,7 +185,11 @@ class ShowdownPlayerCard:
 # ------------------------------------------------------------------------
 
     @property
-    def player_type(self) -> str:
+    def is_pitcher(self) -> bool:
+        return self.player_type.is_pitcher
+
+    @property
+    def player_sub_type(self) -> PlayerSubType:
         """Gets full player type (position_player, starting_pitcher, relief_pitcher).
            Used for applying weights
 
@@ -189,13 +200,11 @@ class ShowdownPlayerCard:
           String for full player type ('position_player', 'tarting_pitcher', 'relief_pitcher').
         """
         # PARSE PLAYER TYPE
-        if self.is_pitcher:
+        if self.player_type.is_pitcher:
             is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
-            player_category = 'starting_pitcher' if is_starting_pitcher else 'relief_pitcher'
+            return PlayerSubType.STARTING_PITCHER if is_starting_pitcher else PlayerSubType.RELIEF_PITCHER
         else:
-            player_category = 'position_player'
-
-        return player_category
+            return PlayerSubType.POSITION_PLAYER
 
     @property
     def player_classification(self) -> str:
@@ -262,45 +271,48 @@ class ShowdownPlayerCard:
         return hand_prefix
     
     @property
-    def era_dynamic(self) -> str:
+    def era_dynamic(self) -> Era:
         """Returns the era that best fits the player's season.
         If multi-season, return the era with the most years in it.
 
         Returns:
-            Era name string.
+            Era object based on selected year(s)
         """
 
         eras = []
         for year in self.year_list:
-            for era, year_range in sc.ERA_YEAR_RANGE.items():
-                if year in year_range:
+            for era in Era:
+                if year in era.year_range:
                     eras.append(era)
         
         # FILTER TO MOST
         most_common_era_tuples_list = Counter(eras).most_common(1)
 
         if len(most_common_era_tuples_list) == 0:
-            return sc.ERA_STEROID
+            return Era.STEROID
         
         return most_common_era_tuples_list[0][0]
 
     @property
-    def special_edition(self) -> sc.SpecialEdition:
+    def special_edition(self) -> SpecialEdition:
         """ Special Editions are cards with unique art and characteristics """
 
         if self.edition == Edition.ALL_STAR_GAME and str(self.year) == '2023':
-            return sc.SpecialEdition.ASG_2023
+            return SpecialEdition.ASG_2023
         
-        if self.edition == Edition.SUPER_SEASON and self.context in ['2004','2005',]:
-            return sc.SpecialEdition.SUPER_SEASON
+        if self.edition == Edition.SUPER_SEASON and self.set in ['2004','2005',]:
+            return SpecialEdition.SUPER_SEASON
         
-        if self.edition == Edition.COOPERSTOWN_COLLECTION and self.context in ['2002','2003','2004','2005',]:
-            return sc.SpecialEdition.COOPERSTOWN_COLLECTION
+        if self.edition == Edition.COOPERSTOWN_COLLECTION and self.set in ['2002','2003','2004','2005',]:
+            return SpecialEdition.COOPERSTOWN_COLLECTION
         
-        if self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
-            return sc.SpecialEdition.TEAM_COLOR_BLAST_DARK
+        if self.edition == Edition.NATIONALITY and self.nationality.is_populated:
+            return SpecialEdition.NATIONALITY
         
-        return sc.SpecialEdition.NONE
+        if self.image_parallel == ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
+            return SpecialEdition.TEAM_COLOR_BLAST_DARK
+        
+        return SpecialEdition.NONE
     
     @property
     def num_positions_playable(self) -> int:
@@ -335,7 +347,7 @@ class ShowdownPlayerCard:
         """
 
         # NO NEED TO COMBINE IF < 3 POSITIONS
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS or len(self.positions_and_defense) < 3:
+        if self.set.is_showdown_bot or len(self.positions_and_defense) < 3:
             return self.positions_and_defense
         
         positions_to_combine = self.__find_position_combination_opportunity(self.positions_and_defense)
@@ -362,15 +374,8 @@ class ShowdownPlayerCard:
           List of positions and defense ordered by how they will appear on the card image.
         """
         
-        return sorted(self.positions_and_defense_for_visuals.items(), key=lambda p: sc.POSITION_ORDERING.get(p[0],0))
+        return sorted(self.positions_and_defense_for_visuals.items(), key=lambda p: Position(p).index)
     
-    @property
-    def template_set_year(self) -> str:
-        match self.context:
-            case sc.EXPANDED_SET | sc.CLASSIC_SET: return '2022'
-            case '2005': return '2004'
-            case _: return self.context_year
-
     @property 
     def median_year(self) -> int:
         """ Median of all player seasons used. """
@@ -395,7 +400,12 @@ class ShowdownPlayerCard:
     @property
     def use_alternate_logo(self) -> bool:
         """ Alternate logos are used in 2004+ sets """
-        return self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET] and not self.edition.use_edition_logo_as_team_logo
+        return self.set.use_alternate_team_logo and not self.edition.use_edition_logo_as_team_logo
+
+    @property
+    def image_component_ordered_list(self) -> list[PlayerImageComponent]:
+        all_image_components = [c for c in PlayerImageComponent if c.layering_index is not None]
+        return list(sorted(all_image_components, key=lambda comp: comp.layering_index))
 
 # ------------------------------------------------------------------------
 # METADATA METHODS
@@ -588,7 +598,7 @@ class ShowdownPlayerCard:
             positions_set = set(positions_and_defense.keys())
         # IF PLAYER HAS ALL OUTFIELD POSITIONS
         if set(['LF/RF','CF','OF']).issubset(positions_set):
-            if self.context in ['2000','2001','2002'] and positions_and_defense['LF/RF'] != positions_and_defense['CF']:
+            if self.set in ['2000','2001','2002'] and positions_and_defense['LF/RF'] != positions_and_defense['CF']:
                 del positions_and_defense['OF']
                 del positions_and_games_played['OF']
             else:
@@ -603,7 +613,7 @@ class ShowdownPlayerCard:
         
         # IS CF AND 2000/2001
         # 2000/2001 SETS ALWAYS INCLUDED LF/RF FOR CF PLAYERS
-        if 'CF' in positions_set and len(positions_and_defense) == 1 and self.context in ['2000','2001']:
+        if 'CF' in positions_set and len(positions_and_defense) == 1 and self.set in ['2000','2001']:
             if 'CF' in positions_and_defense.keys():
                 cf_defense = positions_and_defense['CF']
                 lf_rf_defense = round(positions_and_defense['CF'] / 2)
@@ -645,7 +655,7 @@ class ShowdownPlayerCard:
             # SEE IF TOTAL DEFENSE IS ABOVE REQUIREMENT FOR +1
             total_defense = sum([defense for pos, defense in positions_and_defense.items() if pos in if_positions])
             total_games_played_if = sum([games_played for pos, games_played in positions_and_games_played.items() if pos in if_positions])
-            in_game_rating_if = 1 if total_defense >= sc.INFIELD_PLUS_ONE_REQUIREMENT else 0
+            in_game_rating_if = int(total_defense >= self.set.infield_plus_one_requirement)
 
             # REMOVE OLD POSITIONS
             for position in if_positions:
@@ -657,7 +667,7 @@ class ShowdownPlayerCard:
             positions_and_games_played['IF'] = total_games_played_if
 
         # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
-        position_slots = sc.NUM_POSITION_SLOTS[self.context]
+        position_slots = self.set.num_position_slots
 
         if len(positions_and_defense) <= position_slots:
             # NO NEED TO FILTER, RETURN CURRENT DICT
@@ -667,7 +677,7 @@ class ShowdownPlayerCard:
         included_positions_list = [pos[0] for pos in sorted_positions]
         final_positions_and_defense = {position: value for position, value in positions_and_defense.items() if position in included_positions_list}
 
-        if self.context not in sc.CLASSIC_AND_EXPANDED_SETS and len(final_positions_and_defense) > 2:
+        if self.set.is_wotc and len(final_positions_and_defense) > 2:
             positions_to_merge = self.__find_position_combination_opportunity(final_positions_and_defense)
             if positions_to_merge is None:
                 # NOTHING CAN BE COMBINED, REMOVE LAST POSITION
@@ -696,7 +706,7 @@ class ShowdownPlayerCard:
         positions_able_to_be_combined = {}
         position_list = list(positions_and_defense.keys())
         for position, defense in positions_and_defense.items():
-            combinations_list_for_pos = sc.POSITIONS_ALLOWED_COMBINATIONS.get(position,[])
+            combinations_list_for_pos = Position(position).allowed_combinations
             combinations_available_for_player = {p: abs(defense - positions_and_defense.get(p, 0)) for p in position_list if p != position and p in combinations_list_for_pos}
             if len(combinations_available_for_player) > 0:
                 sorted_combinations = sorted(combinations_available_for_player.items(), key=lambda x: x[1])
@@ -704,7 +714,7 @@ class ShowdownPlayerCard:
 
         # SELECT ONE POSITION TO CHANGE
         # FIRST SORT BASED ON DIFFERENCE IN DEFENSE, THEN BY POSITION'S ORDERING
-        sorted_positions = sorted(positions_able_to_be_combined.items(), key=lambda x: (x[1][1], -sc.POSITION_ORDERING.get(x[1], 0)))
+        sorted_positions = sorted(positions_able_to_be_combined.items(), key=lambda x: (x[1][1], -Position(x[1]).index))
         if len(sorted_positions) == 0:
             return None
         
@@ -734,50 +744,48 @@ class ShowdownPlayerCard:
           In game position name.
         """
 
+        pct_of_games_played = position_appearances / games_played
         if position == 'P' and self.is_pitcher:
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
-            if gsRatio > sc.STARTING_PITCHER_PCT_GAMES_STARTED:
+            if gsRatio > self.set.starting_pitcher_pct_games_started:
                 # ASSIGN MINIMUM IP FOR STARTERS
                 return 'STARTER'
-            if saves > sc.CLOSER_MIN_SAVES_REQUIRED:
+            if saves > self.set.closer_min_saves_required:
                 return 'CLOSER'
             else:
                 return 'RELIEVER'
-        elif ( position_appearances < sc.NUMBER_OF_GAMES_DEFENSE and (position_appearances / games_played < sc.PCT_OF_GAMES_DEFENSE) ) or (self.is_multi_year and ( (position_appearances / games_played) < sc.PCT_OF_GAMES_DEFENSE_MULTI_YEAR )):
+        elif ( position_appearances < self.set.min_number_of_games_defense and pct_of_games_played < self.set.min_pct_of_games_defense(is_multi_year=False) ) or (self.is_multi_year and  pct_of_games_played < self.set.min_pct_of_games_defense(is_multi_year=True)):
             # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
             return None
         elif position == 'DH' and num_positions > 1:
             # PLAYER MAY HAVE PLAYED AT DH, BUT HAS OTHER POSITIONS, SO DH WONT BE LISTED
             return None
-        elif self.context not in ['2000', '2001'] and position == 'C':
+        elif self.set not in ['2000', '2001'] and position == 'C':
             # CHANGE CATCHER POSITION NAME DEPENDING ON CONTEXT YEAR
             return 'CA'
         else:
             # RETURN BASEBALL REFERENCE STRING VALUE
             return position
 
-    def __convert_to_in_game_defense(self, position:str, rating:float, metric:str, games:int) -> int:
+    def __convert_to_in_game_defense(self, position:Position, rating:float, metric:DefenseMetric, games:int) -> int:
         """Converts the best available fielding metric to in game defense at a position.
            Uses DRS for 2003+, TZR for 1953-2002, dWAR for <1953.
            More modern defensive metrics (like DRS) are not available for historical
            seasons.
 
         Args:
-          position: In game position name.
+          position: In game position.
           rating: Total Zone Rating or dWAR. 0 is average for a position.
-          metric: String name of metric used for calculations (drs,tzr,dWAR)
+          metric: Metric used for calculations (ex: drs, tzr, dWAR, oaa)
           games: Games played at position.
 
         Returns:
           In game defensive rating.
         """
-        MIN_SABER_FIELDING = sc.MIN_SABER_FIELDING[metric]
-        MAX_SABER_FIELDING = sc.MAX_SABER_FIELDING[metric]
         # IF USING OUTS ABOVE AVG, CALCULATE RATING PER 162 GAMES
-        is_using_oaa = metric == 'oaa'
-        is_1b = position.upper() == '1B'
-        if is_using_oaa:
+        is_1b = position == Position._1B
+        if metric == DefenseMetric.OAA:
             rating = rating / games * 162.0
             # FOR OUTS ABOVE AVG OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
             # EX: NICK AHMED 2018 - 38.45 OAA per 162
@@ -785,27 +793,26 @@ class ShowdownPlayerCard:
             #   - OAA OVER MAX = 38.45 - 16 = 22.45
             #   - REDUCED OVER MAX = 22.45 * 0.5 = 11.23
             #   - NEW RATING = 16 + 11.23 = 26.23            
-            if rating > MAX_SABER_FIELDING and not is_1b:
-                amount_over_max = rating - MAX_SABER_FIELDING
-                reduced_amount_over_max = amount_over_max * sc.OAA_OVER_MAX_MULTIPLIER
-                rating = reduced_amount_over_max + MAX_SABER_FIELDING
+            if rating > metric.range_max and not is_1b:
+                amount_over_max = rating - metric.range_max
+                reduced_amount_over_max = amount_over_max * metric.over_max_multiplier
+                rating = reduced_amount_over_max + metric.range_max
 
-        max_defense_for_position = sc.POSITION_DEFENSE_RANGE[self.context][position]
-        defensive_range = MAX_SABER_FIELDING - MIN_SABER_FIELDING
-        percentile = (rating-MIN_SABER_FIELDING) / defensive_range
+        max_defense_for_position = self.set.position_defense_max(position=position)
+        percentile = (rating-metric.range_min) / metric.range_total_values
         defense_raw = percentile * max_defense_for_position
-        defense = round(defense_raw) if defense_raw > 0 or self.context in sc.CLASSIC_AND_EXPANDED_SETS else 0
+        defense = round(defense_raw) if defense_raw > 0 or self.set.is_showdown_bot else 0
         
         # FOR NEGATIVES, CAP DEFENSE AT -2
-        defense = -2 if self.context in sc.CLASSIC_AND_EXPANDED_SETS and defense < -2 else defense
+        defense = max(self.set.defense_floor, defense)
 
         # ADD IN STATIC METRICS FOR 1B
         if is_1b:
-            if rating > sc.FIRST_BASE_PLUS_2_CUTOFF[metric]:
+            if rating > metric.first_base_plus_2_cutoff:
                 defense = 2
-            elif rating > sc.FIRST_BASE_PLUS_1_CUTOFF[metric]:
+            elif rating > metric.first_base_plus_1_cutoff:
                 defense = 1
-            elif rating < sc.FIRST_BASE_MINUS_1_CUTOFF[metric] and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+            elif rating < metric.first_base_minus_1_cutoff and self.set.is_showdown_bot:
                 defense = -1
             else:
                 defense = 0
@@ -847,9 +854,7 @@ class ShowdownPlayerCard:
           In game innings pitched ability.
         """
         # ACCOUNT FOR HYBRID STARTER/RELIEVERS
-        type = self.player_type
-        is_reliever = type == 'relief_pitcher'
-        if is_reliever:
+        if self.player_sub_type == PlayerSubType.RELIEF_PITCHER:
             # REMOVE STARTER INNINGS AND GAMES STARTED
             ip_as_starter = games_started * ip_per_start
             innings_pitched -= ip_as_starter
@@ -884,7 +889,7 @@ class ShowdownPlayerCard:
     
         if is_sb_empty:
             # DEFAULT PLAYERS WITHOUT SB AVAILABLE TO 12
-            return 12, 'C' if self.context == '2002' else 'B'
+            return 12, 'C' if self.set == '2002' else 'B'
 
         # IF FULL CAREER CARD, ONLY USE SPRINT SPEED IF PLAYER HAS OVER 35% of CAREER POST 2015
         pct_career_post_2015 = sum([1 if year >= 2015 else 0 for year in self.year_list]) / len(self.year_list)
@@ -898,16 +903,16 @@ class ShowdownPlayerCard:
 
         in_game_speed_for_metric: dict[SpeedMetric, float] = {}
         for metric, value in speed_elements.items():
-            ignore_multiplier = self.context in ['2000', '2001'] and self.is_variable_speed_00_01
-            metric_multiplier = 1.05 if ignore_multiplier else sc.SPEED_METRIC_MULTIPLIER[metric.value][self.context]
-            era_multiplier = sc.SPEED_ERA_MULTIPLIER[self.era]            
+            use_variable_speed_multiplier = self.set.is_00_01 and self.is_variable_speed_00_01
+            metric_multiplier = self.set.speed_metric_multiplier(metric=metric, use_variable_speed_multiplier=use_variable_speed_multiplier)
+            era_multiplier = self.era.speed_multiplier
 
             speed_percentile = era_multiplier * metric_multiplier * (value-metric.minimum_range_value) / (metric.maximum_range_value - metric.minimum_range_value)
             speed = int(round(speed_percentile * metric.top_percentile_range_value))
 
             # CHANGE OUTLIERS
-            min_in_game = sc.MIN_IN_GAME_SPD[self.context]
-            max_in_game = sc.MAX_IN_GAME_SPD[self.context]
+            min_in_game = self.set.min_in_game_spd
+            max_in_game = self.set.max_in_game_spd
 
             cutoff_for_sub_percentile_sb = 20
             if metric == SpeedMetric.STOLEN_BASES and speed > cutoff_for_sub_percentile_sb:
@@ -931,7 +936,7 @@ class ShowdownPlayerCard:
         
         # FINALIZE SPEED, ASSIGN LETTER
         final_speed = int(round( sum([( (metric.weight_sb_outliers if use_sb_outliers_weights else metric.weight) if num_metrics > 1 else 1.0) * in_game_spd for metric, in_game_spd in in_game_speed_for_metric.items() ]) ))
-        if final_speed < sc.SPEED_C_CUTOFF[self.context]:
+        if final_speed < self.set.speed_c_cutoff:
             letter = 'C'
         elif final_speed < 18:
             letter = 'B'
@@ -939,7 +944,7 @@ class ShowdownPlayerCard:
             letter = 'A'
 
         # IF 2000 OR 2001, SPEED VALUES CAN ONLY BE 10,15,20
-        if self.context in ['2000', '2001'] and not self.is_variable_speed_00_01:
+        if self.set in ['2000', '2001'] and not self.is_variable_speed_00_01:
             spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
             final_speed = spd_letter_to_number[letter]
 
@@ -956,7 +961,7 @@ class ShowdownPlayerCard:
         """
 
         # ICONS ONLY APPLY TO 2003+
-        if not self.has_icons:
+        if not self.set.has_icons:
             return []
         
         # PARSE PLAYER'S AWARDS
@@ -1015,8 +1020,8 @@ class ShowdownPlayerCard:
 
         # HELPER ATTRIBUTES 
         num_seasons = len(self.year_list)
-        is_pre_2004 = self.context in ['2000','2001','2002','2003']
-        is_icons = self.context not in ['2000','2001','2002',]
+        is_pre_2004 = self.set in ['2000','2001','2002','2003']
+        is_icons = self.set not in ['2000','2001','2002',]
         ba_champ_text = 'BATTING TITLE'
         is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
 
@@ -1266,7 +1271,7 @@ class ShowdownPlayerCard:
                 accolades_rank_and_priority_tuples.append( (f"{dWAR} dWAR", 56, 10) )
         
         # GENERIC, ONLY IF EMPTY ----
-        length_req = sc.SUPER_SEASON_PRE_04_TEXT_LENGTH if is_pre_2004 else sc.SUPER_SEASON_04_05_MIN_TEXT_LENGTH
+        length_req = self.set.super_season_text_length_cutoff(index=3)
         usable_accolades = [a for a in accolades_rank_and_priority_tuples if len(a[0]) <= length_req]
         if len(usable_accolades) < 2:
             # OPS+
@@ -1354,7 +1359,7 @@ class ShowdownPlayerCard:
         """
 
         # STATIC COMBINATIONS LIST
-        command_out_combos = sc.CONTROL_COMBOS[self.context] if self.is_pitcher else sc.OB_COMBOS[self.context]
+        command_out_combos = self.set.command_out_combinations(player_type=self.player_type)
 
         # CALCULATE ONBASE PCT FOR EACH COMBO
         combo_and_obps = {}
@@ -1368,7 +1373,7 @@ class ShowdownPlayerCard:
 
         return combo_and_obps
 
-    def __onbase_control_outs(self, command:int=0, outs:int=0, era_override:str = None) -> dict[str, int]:
+    def __onbase_control_outs(self, command:int=0, outs:int=0, era_override:Era = None) -> dict[str, int]:
         """Give information needed to perform calculations of results.
            These numbers are needed to predict obp, home_runs, ...
 
@@ -1381,10 +1386,12 @@ class ShowdownPlayerCard:
           Dict object with onbase, control, pitcher outs, hitter outs
         """
         era = era_override if era_override else self.era
-        onbase_baseline = sc.BASELINE_HITTER[self.context][era]['command'] if self.test_numbers is None else self.test_numbers[0]
-        hitter_outs_baseline = sc.BASELINE_HITTER[self.context][era]['outs'] if self.test_numbers is None else self.test_numbers[1]
-        control_baseline = sc.BASELINE_PITCHER[self.context][era]['command'] if self.test_numbers is None else self.test_numbers[0]
-        pitcher_outs_baseline = sc.BASELINE_PITCHER[self.context][era]['outs'] if self.test_numbers is None else self.test_numbers[1]
+        baseline_hitter = self.set.baseline_chart(player_type=PlayerType.HITTER, era=era)
+        baseline_pitcher = self.set.baseline_chart(player_type=PlayerType.PITCHER, era=era)
+        onbase_baseline = baseline_hitter.command if self.test_numbers is None else self.test_numbers[0]
+        hitter_outs_baseline = baseline_hitter.outs if self.test_numbers is None else self.test_numbers[1]
+        control_baseline = baseline_pitcher.command if self.test_numbers is None else self.test_numbers[0]
+        pitcher_outs_baseline = baseline_pitcher.outs if self.test_numbers is None else self.test_numbers[1]
 
         return {
             'onbase': command if not self.is_pitcher else onbase_baseline,
@@ -1393,7 +1400,7 @@ class ShowdownPlayerCard:
             'pitcherOuts': outs if self.is_pitcher else pitcher_outs_baseline
         }
 
-    def opponent_stats_for_calcs(self, command:int, era_override:str = None) -> tuple[dict[str, float], float, float]:
+    def opponent_stats_for_calcs(self, command:int, era_override:Era = None) -> tuple[dict[str, float], float, float]:
         """Convert __onbase_control_outs info to be specific to self.
            Used to derive:
              1. opponent_chart
@@ -1410,11 +1417,11 @@ class ShowdownPlayerCard:
 
         era = era_override if era_override else self.era
         if not self.is_pitcher:
-            opponent_chart = sc.BASELINE_PITCHER[self.context][era]
+            opponent_chart = self.set.baseline_chart(player_type=PlayerType.PITCHER, era=era)
             my_advantages_per_20 = command-self.__onbase_control_outs(era_override=era_override)['control']
             opponent_advantages_per_20 = 20 - my_advantages_per_20
         else:
-            opponent_chart = sc.BASELINE_HITTER[self.context][era]
+            opponent_chart = self.set.baseline_chart(player_type=PlayerType.HITTER, era=era)
             opponent_advantages_per_20 = self.__onbase_control_outs(era_override=era_override)['onbase']-command
             my_advantages_per_20 = 20 - opponent_advantages_per_20
 
@@ -1456,8 +1463,8 @@ class ShowdownPlayerCard:
 
         if self.is_pitcher:
             # 2000 HAS 'SO' FIRST, ALL OTHER YEARS HAVE 'PU' FIRST
-            firstCategory = 'so' if self.context == '2000' else 'pu'
-            secondCategory = 'pu' if self.context == '2000' else 'so'
+            firstCategory = 'so' if self.set == '2000' else 'pu'
+            secondCategory = 'pu' if self.set == '2000' else 'so'
             categories = [firstCategory,secondCategory,'gb','fb','bb','1b','2b','hr']
         else:
             # HITTER CATEGORIES
@@ -1499,7 +1506,7 @@ class ShowdownPlayerCard:
 
         return best_chart, projected_stats_for_best_chart
 
-    def __chart_with_accuracy(self, command:int, outs:int, stats_for_400_pa:dict, era_override:str = None) -> tuple[dict[str, int], float, dict]:
+    def __chart_with_accuracy(self, command:int, outs:int, stats_for_400_pa:dict, era_override:Era = None) -> tuple[dict[str, int], float, dict]:
         """Create Player's chart and compare back to input stats.
 
         Args:
@@ -1547,7 +1554,7 @@ class ShowdownPlayerCard:
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
                     chart_results_decimal = chart_results % 1
                     era = era_override if era_override else self.era
-                    rounded_results = round(chart_results) if chart_results_decimal > sc.HR_ROUNDING_CUTOFF[self.context][era] else math.floor(chart_results)
+                    rounded_results = round(chart_results) if chart_results_decimal > era.hr_rounding_cutoff else math.floor(chart_results)
                 else:                    
                     rounded_results = round(chart_results)
                 # PITCHERS SHOULD ALWAYS GET 0 FOR 3B
@@ -1589,11 +1596,13 @@ class ShowdownPlayerCard:
         chart['1b'], chart['1b+'] = self.__single_and_single_plus_results(remaining_slots_qa,stolen_bases,command)
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20, era_override=era_override)
-        weights = sc.CHART_CATEGORY_WEIGHTS[self.context][self.player_type]
-        accuracy, categorical_accuracy, above_below = self.accuracy_between_dicts(actuals_dict=stats_for_400_pa,
-                                                                                  measurements_dict=in_game_stats_for_400_pa,
-                                                                                  weights=weights,
-                                                                                  only_use_weight_keys=True)
+        weights = self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type)
+        accuracy, _, _ = self.accuracy_between_dicts(
+            actuals_dict=stats_for_400_pa,
+            measurements_dict=in_game_stats_for_400_pa,
+            weights=weights,
+            only_use_weight_keys=True
+        )
         
         # QA: CHANGE ACCURACY TO 0 IF CHART DOESN'T ADD UP TO 20
         is_over_20 = sum([v for k, v in chart.items() if k not in ['command','outs', 'sb'] ]) > 20
@@ -1601,12 +1610,12 @@ class ShowdownPlayerCard:
 
         # ADD WEIGHTING OF ACCURACY
         # LIMITS AMOUNT OF RESULTS PER SET FOR CERTAIN COMMAND/OUT COMBINATIONS
-        weight = sc.COMMAND_ACCURACY_WEIGHTING[self.context].get(f"{command}-{outs}", 1.0)
+        weight = self.set.command_out_accuracy_weighting(command=command, outs=outs)
         accuracy = accuracy * weight
 
         return chart, accuracy, in_game_stats_for_400_pa
 
-    def __out_results(self, gb_pct:float, popup_pct:float, out_slots_remaining:int, slg:float, era_override:str = None) -> tuple[int, int, int]:
+    def __out_results(self, gb_pct:float, popup_pct:float, out_slots_remaining:int, slg:float, era_override:Era = None) -> tuple[int, int, int]:
         """Determine distribution of out results for Player.
 
         Args:
@@ -1622,7 +1631,8 @@ class ShowdownPlayerCard:
 
         # SET DEFAULTS FOR EMPTY DATA, BASED ON SLG
         if gb_pct is None or popup_pct is None:
-            slg_percentile = self.stat_percentile(stat=slg, min_max_dict={'min': 0.250, 'max': 0.500})
+            slg_range = ValueRange(min = 0.250, max = 0.500)
+            slg_percentile = slg_range.percentile(value=slg)
             multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
             gb_pct = gb_pct if gb_pct else round(1.5 * max(multiplier, 0.5),3)
             popup_pct = popup_pct if popup_pct else round(0.16 * max(multiplier, 0.5),3)
@@ -1631,13 +1641,12 @@ class ShowdownPlayerCard:
         if out_slots_remaining > 0:
             # MULTIPLIERS SERVE TO CORRECT TOWARDS WOTC
             # REPLACE HAVING DEFAULT FOR OPPONENT CHART
-            type = 'pitcher' if self.is_pitcher else 'hitter'
-            gb_multi = sc.GB_MULTIPLIER[type][self.context][era]
+            gb_multiplier = self.set.gb_multiplier(player_type=self.player_type, era=self.era)
             # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
-            gb_outs = int(round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multi))
+            gb_outs = int(round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multiplier))
             air_outs = out_slots_remaining - gb_outs
             # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
-            pu_multiplier = sc.PU_MULTIPLIER[self.context]
+            pu_multiplier = self.set.pu_multiplier
             pu_outs = 0 if not self.is_pitcher else int(math.ceil(air_outs*popup_pct*pu_multiplier))
             pu_outs = air_outs if pu_outs > air_outs else pu_outs
             fb_outs = int(air_outs-pu_outs)
@@ -1664,8 +1673,8 @@ class ShowdownPlayerCard:
             return min(current_so, num_out_slots)
         
         # --- HITTERS ---
-        hard_limit_hitter = min(num_out_slots, sc.HITTER_SO_RESULTS_HARD_CAP.get(self.context, 6))
-        soft_limit_hitter = sc.HITTER_SO_RESULTS_SOFT_CAP.get(self.context, 3)
+        hard_limit_hitter = min(num_out_slots, self.set.hitter_so_results_hard_cap)
+        soft_limit_hitter = self.set.hitter_so_results_soft_cap
         
         # IF HITTER'S STRIKEOUTS ARE UNDER SOFT LIMIT, RETURN CURRENT RESULTS
         if current_so < soft_limit_hitter:
@@ -1703,12 +1712,10 @@ class ShowdownPlayerCard:
             return remaining_slots, 0
 
         # DIVIDE STOLEN BASES PER 400 PA BY A SCALER BASED ON ONBASE #
-        min_onbase = 4 if self.is_classic else 7
-        max_onbase = 12 if self.is_classic else 16
-        ob_min_max_dict = {'min': min_onbase, 'max': max_onbase}
-        min_denominator = sc.HITTER_SINGLE_PLUS_DENOMINATOR_RANGE[self.context]['min']
-        max_denominator = sc.HITTER_SINGLE_PLUS_DENOMINATOR_RANGE[self.context]['max']
-        onbase_pctile = self.stat_percentile(stat=command, min_max_dict=ob_min_max_dict)
+        onbase_range = ValueRange(min=self.set.min_onbase_single_plus, max=self.set.max_onbase_single_plus)
+        min_denominator = self.set.hitter_single_plus_denominator_minimum
+        max_denominator = self.set.hitter_single_plus_denominator_maximum
+        onbase_pctile = onbase_range.percentile(value=command)
         single_plus_denominator = min_denominator + ( (max_denominator-min_denominator) * onbase_pctile )
         single_plus_results_raw = math.trunc(sb / single_plus_denominator)
 
@@ -1738,7 +1745,7 @@ class ShowdownPlayerCard:
             range_end = current_chart_index + category_results - 1
 
             # HANDLE RANGES > 20
-            if self.is_expanded and range_end >= 20 and self.is_pitcher:
+            if self.set.has_expanded_chart and range_end >= 20 and self.is_pitcher:
                 add_to_1b, num_of_results_2b = self.__calculate_ranges_over_20(dbl_per_400_pa, hr_per_400_pa)
                 # DEFINE OVER 20 RANGES
                 if category == '1b':
@@ -1749,10 +1756,10 @@ class ShowdownPlayerCard:
                     range_end = current_chart_index + category_results - 1
             
             # HANDLE ERRORS WITH SMALL SAMPLE SIZE 2000/2001 FOR SMALL ONBASE
-            if not self.is_expanded and range_end > 20:
+            if self.set.has_classic_chart and range_end > 20:
                 range_end = 20
                 
-            if category.upper() == 'HR' and self.is_expanded:
+            if category.upper() == 'HR' and self.set.has_expanded_chart:
                 # ADD PLUS AFTER HR
                 range = '{}+'.format(str(current_chart_index))
             elif category_results == 0:
@@ -1771,7 +1778,7 @@ class ShowdownPlayerCard:
             chart_ranges['{} Range'.format(category)] = range
 
         # FILL IN ABOVE 20 RESULTS IF APPLICABLE
-        if self.is_expanded and int(chart['hr']) < 1 and not self.is_pitcher:
+        if self.set.has_expanded_chart and int(chart['hr']) < 1 and not self.is_pitcher:
             chart_ranges = self.__hitter_chart_above_20(chart, chart_ranges, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa)
 
         return chart_ranges
@@ -1842,7 +1849,7 @@ class ShowdownPlayerCard:
         # STATIC THRESHOLDS FOR END HR #
         # THIS COULD BE MORE PROBABILITY BASED, BUT SEEMS LIKE ORIGINAL SETS USED STATIC METHODOLOGY
         # NOTE: 2002 HAS MORE EXTREME RANGES
-        is_2002 = self.context == '2002'
+        is_2002 = self.set == '2002'
         threshold_adjustment = 0 if is_2002 else -3
         if hr_per_400_pa < 1.0:
             hr_end = 27
@@ -1984,7 +1991,7 @@ class ShowdownPlayerCard:
 
         return rate
 
-    def chart_to_results_per_400_pa(self, chart:dict[str, int], my_advantages_per_20:float, opponent_chart:dict[str, float], opponent_advantages_per_20:float, era_override:str = None) -> dict:
+    def chart_to_results_per_400_pa(self, chart:dict[str, int], my_advantages_per_20:float, opponent_chart:dict[str, float], opponent_advantages_per_20:float, era_override:Era = None) -> dict:
         """Predict real stats given Showdown in game chart.
 
         Args:
@@ -2138,80 +2145,51 @@ class ShowdownPlayerCard:
 
         points = 0
 
-        player_category = self.player_type
+        player_sub_type = self.player_sub_type.value
 
         # PARSE POSITION MULTIPLIER
-        command_outs = f"{str(self.chart['command'])}-{str(self.chart['outs'])}"
-        pts_multiplier_dict = sc.POINTS_COMMAND_OUT_MULTIPLIER[self.context]
-        pts_multiplier = pts_multiplier_dict[command_outs] if command_outs in pts_multiplier_dict.keys() else 1.0
+        pts_multiplier = self.set.pts_command_out_multiplier(command=self.chart.get('command', 0), outs=self.chart.get('outs',0))
         self.points_command_out_multiplier = pts_multiplier
 
         # SLASH LINE VALUE
-        allow_negatives = sc.POINTS_ALLOW_NEGATIVE[self.context][player_category]
-        self.obp_points = round(
-                            sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['onbase'] \
-                            * self.stat_percentile(stat=projected['onbase_perc'],
-                                                    min_max_dict=sc.ONBASE_PCT_RANGE[self.context][player_category],
-                                                    is_desc=self.is_pitcher,
-                                                    allow_negative=allow_negatives) \
-                            * pts_multiplier
-                            , 3
-                        )
-        self.ba_points = round(
-                            sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['average'] \
-                            * self.stat_percentile(stat=projected['batting_avg'],
-                                                    min_max_dict=sc.BATTING_AVG_RANGE[self.context][player_category],
-                                                    is_desc=self.is_pitcher,
-                                                    allow_negative=allow_negatives) \
-                            * pts_multiplier
-                            , 3
-                        )
-        self.slg_points = round(
-                            sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['slugging'] \
-                            * self.stat_percentile(stat=projected['slugging_perc'],
-                                                    min_max_dict=sc.SLG_RANGE[self.context][player_category],
-                                                    is_desc=self.is_pitcher,
-                                                    allow_negative=allow_negatives) \
-                            * pts_multiplier
-                            , 3
-                        )
+        allow_negatives = self.set.pts_allow_negatives(self.player_sub_type)
+
+        # OBP
+        obp_percentile = self.set.pts_obp_percentile_range(self.player_sub_type).percentile(value=projected['onbase_perc'], is_desc=self.is_pitcher, allow_negative=allow_negatives)
+        obp_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.ONBASE)
+        self.obp_points = round(obp_pts_weight * obp_percentile * pts_multiplier, 3)
+
+        # BA        
+        ba_percentile = self.set.pts_ba_percentile_range(self.player_sub_type).percentile(value=projected['batting_avg'], is_desc=self.is_pitcher, allow_negative=allow_negatives)
+        ba_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.AVERAGE)
+        self.ba_points = round(ba_pts_weight * ba_percentile * pts_multiplier, 3)
+
+        # SLG
+        slg_percentile = self.set.pts_slg_percentile_range(self.player_sub_type).percentile(value=projected['slugging_perc'], is_desc=self.is_pitcher, allow_negative=allow_negatives)
+        slg_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.SLUGGING)
+        self.slg_points = round(slg_pts_weight * slg_percentile * pts_multiplier, 3)
 
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
-        spd_ip_category = 'ip' if self.is_pitcher else 'speed'
-        if self.is_pitcher:
-            spd_ip_range = sc.IP_RANGE[player_category]
-            allow_negatives_speed_ip = True
-        else:
-            spd_ip_range = sc.SPEED_RANGE[self.context]
-            allow_negatives_speed_ip = allow_negatives
-        ip_under_5_negative_multiplier = 1.5 if player_category == 'starting_pitcher' and speed_or_ip < 5 else 1.0
-        spd_ip_weight = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category][spd_ip_category] * ip_under_5_negative_multiplier
-        self.spd_ip_points = round(
-                                spd_ip_weight \
-                                * self.stat_percentile(stat=speed_or_ip,
-                                                        min_max_dict=spd_ip_range,
-                                                        is_desc=False,
-                                                        allow_negative=allow_negatives_speed_ip)
-                                , 3
-                            )
+        spd_ip_category = PointsMetric.IP if self.is_pitcher else PointsMetric.SPEED
+        allow_negatives_speed_ip = True if self.is_pitcher else allow_negatives
+        spd_ip_percentile = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type).percentile(value=speed_or_ip, is_desc=False, allow_negative=allow_negatives_speed_ip)
+        ip_under_5_negative_multiplier = self.player_sub_type.ip_under_5_negative_multiplier if speed_or_ip < 5 else 1.0
+        spd_ip_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=spd_ip_category) * ip_under_5_negative_multiplier
+        self.spd_ip_points = round(spd_ip_weight * spd_ip_percentile, 3)
+
         if not self.is_pitcher:
             # ONLY HITTERS HAVE HR ADD TO POINTS
-            self.hr_points = round(
-                                sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['home_runs'] \
-                                * self.stat_percentile(stat=projected['hr_per_650_pa'],
-                                                        min_max_dict=sc.HR_RANGE[self.context],
-                                                        is_desc=self.is_pitcher,
-                                                        allow_negative=allow_negatives) \
-                                * pts_multiplier
-                                , 3
-                            )
+            hr_percentile = self.set.pts_hr_percentile_range.percentile(value=projected['hr_per_650_pa'], is_desc=self.is_pitcher, allow_negative=allow_negatives)
+            hr_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.HOME_RUNS)
+            self.hr_points = round(hr_pts_weight * hr_percentile * pts_multiplier, 3)
+
             # AVERAGE POINT VALUE ACROSS POSITIONS
             defense_points = 0
             for position, fielding in positions_and_defense.items():
                 if position != 'DH':
-                    percentile = fielding / sc.POSITION_DEFENSE_RANGE[self.context][position]
-                    position_pts = percentile * sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['defense']
-                    position_pts = position_pts * sc.POINTS_POSITIONAL_DEFENSE_MULTIPLIER[self.context][position]
+                    percentile = fielding / self.set.position_defense_max(position=position)
+                    position_pts = percentile * self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.DEFENSE)
+                    position_pts = position_pts * self.set.pts_positional_defense_weight(position=Position(position))
                     defense_points += position_pts
             use_avg = list(positions_and_defense.keys()) == ['CF', 'LF/RF'] or list(positions_and_defense.keys()) == ['LF/RF', 'CF']
             num_positions_w_non_zero_def = len([pos for pos, df in positions_and_defense.items() if df != 0])
@@ -2220,12 +2198,12 @@ class ShowdownPlayerCard:
             self.defense_points = round(avg_points_per_position,3)
 
         # CLOSER BONUS (00 ONLY)
-        apply_closer_bonus = 'CLOSER' in self.positions_and_defense.keys() and self.context == '2000'
+        apply_closer_bonus = 'CLOSER' in self.positions_and_defense.keys() and self.set == '2000'
         self.points_bonus = 25 if apply_closer_bonus else 0
 
         # ICONS (03+)
         icon_pts = 0
-        if self.context in ['2003','2004','2005',sc.EXPANDED_SET] and len(self.icons) > 0:
+        if self.set.has_icon_pts and len(self.icons) > 0:
             for icon in self.icons:
                 icon_pts += icon.points
         self.icon_points = round(icon_pts,3)
@@ -2238,37 +2216,30 @@ class ShowdownPlayerCard:
         # --- APPLY ANY ADDITIONAL PT ADJUSTMENTS FOR DIFFERENT SETS ---
 
         # SOME SETS PULL CARDS SLIGHTLY TOWARDS THE MEDIAN
-        if sc.POINTS_NORMALIZE_TOWARDS_MEDIAN[self.context][player_category]:
+        if self.set.pts_normalize_towards_median(self.player_sub_type):
             points = self.__normalize_points_towards_median(points)
         else:
             self.points_normalizer = 1.0
 
         # ADJUST POINTS FOR RELIEVERS WITH 2X IP
-        if player_category == 'relief_pitcher':
-            is_multi_inning = self.ip > 1
-            ip_as_string = str(self.ip)
-            if ip_as_string in sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context].keys():
-                multi_inning_points_multiplier = sc.POINTS_RELIEVER_IP_MULTIPLIER[self.context][ip_as_string] if is_multi_inning else 1.0
-                if is_multi_inning:
-                    self.multi_inning_points_multiplier = multi_inning_points_multiplier
+        if self.player_sub_type == PlayerSubType.RELIEF_PITCHER:
+            multi_inning_points_multiplier = self.set.pts_reliever_ip_multiplier(ip=self.ip)
+            if multi_inning_points_multiplier > 1.0:
+                self.multi_inning_points_multiplier = multi_inning_points_multiplier
                 points *= multi_inning_points_multiplier
         
         if self.is_pitcher:
             # PITCHERS GET PTS FOR OUT DISTRIBUTION IN SOME SETS
             pct_gb = self.chart['gb'] / self.chart['outs']
-            if 'out_distribution' in sc.POINT_CATEGORY_WEIGHTS[self.context][player_category].keys():
-                pt_weight_gb = sc.POINT_CATEGORY_WEIGHTS[self.context][player_category]['out_distribution']
-                percentile_gb = self.stat_percentile(
-                    stat = pct_gb, 
-                    min_max_dict = sc.POINT_GB_MIN_MAX,
-                    allow_negative=True
-                )               
-                self.out_dist_points = round(pt_weight_gb * percentile_gb,3)
+            out_dist_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.OUT_DISTRIBUTION)
+            if out_dist_pts_weight:
+                percentile_gb = self.set.pts_gb_min_max_dict.percentile(value=pct_gb, allow_negative=True)          
+                self.out_dist_points = round(out_dist_pts_weight * percentile_gb,3)
                 points += self.out_dist_points
-                self.chart_pct_gb = round(pct_gb,4)
+                self.chart_pct_gb = round(pct_gb, 4)
             else:
                 self.out_dist_points = 0
-                self.chart_pct_gb = round(pct_gb,4)
+                self.chart_pct_gb = round(pct_gb, 4)
 
         # POINTS ARE ALWAYS ROUNDED TO TENTH
         points_to_nearest_tenth = int(round(points,-1))
@@ -2277,36 +2248,6 @@ class ShowdownPlayerCard:
         points_final = 10 if points_to_nearest_tenth < 10 else points_to_nearest_tenth
 
         return points_final
-
-    def stat_percentile(self, stat:float, min_max_dict:dict, is_desc:bool=False, allow_negative:bool=False) -> float:
-        """Get the percentile for a particular stat.
-
-        Args:
-          stat: Value to get percentile of.
-          min_max_dict: Dict with 'min' and 'max' range values for the stat
-          is_desc: Boolean for whether the lowest value should be treated as positive.
-          allow_negative: Boolean flag for whether to allow percentile to be < 0
-        Returns:
-          Percent of points to give for given category.
-        """
-
-        min = min_max_dict['min']
-        max = min_max_dict['max']
-        range = max - min
-        stat_within_range = stat - min
-
-        if not allow_negative and stat_within_range < 0 and not is_desc:
-            stat_within_range = 0
-
-        raw_percentile = stat_within_range / range
-
-        # REVERSE IF DESC
-        percentile_adjusted = 1 - raw_percentile if is_desc else raw_percentile
-
-        if not allow_negative and percentile_adjusted < 0:
-            percentile_adjusted = 0
-
-        return percentile_adjusted
 
     def __normalize_points_towards_median(self, points:float) -> float:
         """Normalize points for subset on players towards the median.
@@ -2319,38 +2260,29 @@ class ShowdownPlayerCard:
         """
 
         # NORMALIZE SCORE ACROSS MEDIAN
-        is_starting_pitcher = self.player_type == 'starting_pitcher'
-        is_relief_pitcher = self.player_type == 'relief_pitcher'
-        reliever_normalizer = sc.POINTS_NORMALIZER_RELIEVER_MULTIPLIER[self.context] if is_relief_pitcher else 1.0
-        median = 310 / reliever_normalizer
-        upper_limit = 800 if self.is_classic else 800
-        upper_limit = upper_limit / reliever_normalizer
+        type_normalizer_weight = self.set.pts_normalizer_weighting(player_sub_type=self.player_sub_type)
+        median = 310 / type_normalizer_weight
+        upper_limit = self.set.pts_normalizer_upper_limit
+        upper_limit = upper_limit / type_normalizer_weight
 
         # CHECK FOR STARTER WITH LOW IP
-        if is_starting_pitcher and self.ip < 7 and points < 550:
-            pts_ip_add = sc.POINT_CATEGORY_WEIGHTS[self.context]['starting_pitcher']['ip'] \
-                            * self.stat_percentile(stat=7,
-                                                   min_max_dict=sc.IP_RANGE['starting_pitcher'],
-                                                   is_desc=False,
-                                                   allow_negative=True)
+        if self.player_sub_type == PlayerSubType.STARTING_PITCHER and self.ip < 7 and points < 550:
+            pts_percentile = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type).percentile(value=7, is_desc=False, allow_negative=True)
+            pts_ip_add = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.IP) * pts_percentile
             pts_to_compare = round(points + pts_ip_add,-1)
         else:
             pts_to_compare = round(points,-1)
 
         # CENTER SLIGHTLY TOWARDS MEDIAN
-        points_cutoff = 120 if is_relief_pitcher else 500
+        points_cutoff = 120 if self.player_sub_type == PlayerSubType.RELIEF_PITCHER else 500
         if pts_to_compare >= points_cutoff:
-            min_max = {
-                'min': median,
-                'max': upper_limit
-            }
-            percentile = self.stat_percentile(
-                stat = pts_to_compare if pts_to_compare < upper_limit else upper_limit,
-                min_max_dict = min_max,
+            normalizer_value_range = ValueRange(min=median, max=upper_limit)
+            percentile = normalizer_value_range.percentile(
+                value = pts_to_compare if pts_to_compare < upper_limit else upper_limit,
                 is_desc = True
             )
             upper_multiplier = 1.0
-            lower_multiplier = sc.POINTS_NORMALIZER_MULTIPLIER[self.context][self.player_type]
+            lower_multiplier = self.set.pts_normalizer_lower_threshold(player_sub_type=self.player_sub_type)
             multiplier = percentile * (upper_multiplier - lower_multiplier) + lower_multiplier
 
             # APPLY THIS TO OFFENSIVE STATS
@@ -2388,9 +2320,9 @@ class ShowdownPlayerCard:
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
         years_list_str = [str(yr) for yr in self.year_list]
         sources_dict = {
-            key_command: sc.LEAGUE_AVG_COMMAND[self.context], 
-            key_obp: sc.LEAGUE_AVG_PROJ_OBP[self.context],
-            key_slg: sc.LEAGUE_AVG_PROJ_SLG[self.context],
+            key_command: sc.LEAGUE_AVG_COMMAND[self.set.value], 
+            key_obp: sc.LEAGUE_AVG_PROJ_OBP[self.set.value],
+            key_slg: sc.LEAGUE_AVG_PROJ_SLG[self.set.value],
         }
         metric_values_list_dict = {}
         for metric, source in sources_dict.items():
@@ -2420,7 +2352,7 @@ class ShowdownPlayerCard:
         is_below_avg = command < lg_avg_command
         negative_multiplier = -1 if is_below_avg else 1
         abs_pct_above_or_below_avg = abs(command - lg_avg_command) / lg_avg_command
-        command_adjustment_factor = 1.0 + ( abs_pct_above_or_below_avg * sc.COMMAND_ADJUSTMENT_FACTOR_WEIGHT * negative_multiplier)
+        command_adjustment_factor = 1.0 + ( abs_pct_above_or_below_avg * self.set.shOPS_command_adjustment_factor_weight * negative_multiplier)
 
         # -- CALCULATE FINAL shOPS+ --
         lg_avg_obp = metric_values_list_dict[key_obp]
@@ -2439,7 +2371,7 @@ class ShowdownPlayerCard:
 # GENERIC METHODS
 # ------------------------------------------------------------------------
 
-    def accuracy_between_dicts(self, actuals_dict:dict, measurements_dict:dict, weights:dict={}, all_or_nothing:list[str]=[], only_use_weight_keys:bool=False, era_override:str = None) -> tuple[float, dict, dict]:
+    def accuracy_between_dicts(self, actuals_dict:dict, measurements_dict:dict, weights:dict={}, all_or_nothing:list[str]=[], only_use_weight_keys:bool=False, era_override:Era = None) -> tuple[float, dict, dict]:
         """Compare two dictionaries of numbers to get overall difference
 
         Args:
@@ -2531,10 +2463,12 @@ class ShowdownPlayerCard:
         if is_pts_only:
             chart_w_combined_command_outs['points'] = self.points
 
-        return self.accuracy_between_dicts(actuals_dict=wotc_card_dict,
-                                           measurements_dict=chart_w_combined_command_outs,
-                                           weights={},
-                                           all_or_nothing=['command-outs'])
+        return self.accuracy_between_dicts(
+            actuals_dict=wotc_card_dict,
+            measurements_dict=chart_w_combined_command_outs,
+            weights={},
+            all_or_nothing=['command-outs']
+        )
 
     def __relative_pct_accuracy(self, actual:float, measurement:float) -> float:
         """ CALCULATE ACCURACY BETWEEN 2 NUMBERS"""
@@ -2605,8 +2539,8 @@ class ShowdownPlayerCard:
         print(f"{self.name} ({self.year})")
         print("----------------------------------------")
         print(f"Team: {self.team.value}")
-        print(f"Set: {self.context} {self.expansion} (v{self.version})")
-        print(f"Era: {self.era.title()}")
+        print(f"Set: {self.set} {self.expansion} (v{self.version})")
+        print(f"Era: {self.era.value.title()}")
         print(f"Data Source: {self.source}")
         if self.player_image_source:
             print(f"Img Source: {self.player_image_source}")
@@ -2769,7 +2703,7 @@ class ShowdownPlayerCard:
           Multi-Dimensional list where each row is a list of a pts category, stat and value.
         """
         
-        if self.player_type == 'relief_pitcher' and self.ip > 1:
+        if self.player_sub_type == PlayerSubType.RELIEF_PITCHER and self.ip > 1:
             spd_or_ip = ['IP', str(self.ip), f"{self.multi_inning_points_multiplier}x"]
         else:
             spd_or_ip = [
@@ -2893,9 +2827,10 @@ class ShowdownPlayerCard:
           Multi-dimensional list of avg opponent chart results.
         """
 
-        opponent_dict = sc.BASELINE_HITTER[self.context][self.era] if self.is_pitcher else sc.BASELINE_PITCHER[self.context][self.era]
+        opponent_type = PlayerType.HITTER if self.is_pitcher else PlayerType.PITCHER
+        opponent_chart: Chart = self.set.baseline_chart(player_type=opponent_type, era=self.era)
 
-        return [[category.upper(), str(round(value,2))] for category, value in opponent_dict.items()]
+        return opponent_chart.values_as_list
 
     def __player_metadata_summary_text(self, is_horizontal:bool=False, return_as_list:bool=False) -> str:
         """Creates a multi line string with all player metadata for card output.
@@ -2909,8 +2844,8 @@ class ShowdownPlayerCard:
         """
         positions_string = self.__position_and_defense_as_string(is_horizontal=is_horizontal)
 
-        ip = '{} IP'.format(self.ip) if self.context in ['2000','2001','2002','2003'] else 'IP {}'.format(self.ip)
-        speed = f'SPD {self.speed}' if self.context in sc.CLASSIC_AND_EXPANDED_SETS else f'Speed {self.speed_letter} ({self.speed})'
+        ip = '{} IP'.format(self.ip) if self.set in ['2000','2001','2002','2003'] else 'IP {}'.format(self.ip)
+        speed = f'SPD {self.speed}' if self.set.is_showdown_bot else f'Speed {self.speed_letter} ({self.speed})'
         ip_or_speed = speed if not self.is_pitcher else ip
         if is_horizontal:
             if return_as_list:
@@ -2921,7 +2856,7 @@ class ShowdownPlayerCard:
                     (ip if self.is_pitcher else positions_string),
                 ]
             else:
-                spacing_between_hand_and_final_item = '  ' if self.context in ['2004','2005'] and not self.is_pitcher and len(positions_string) > 13 and len(self.icons) > 0 else '   '
+                spacing_between_hand_and_final_item = '  ' if self.set in ['2004','2005'] and not self.is_pitcher and len(positions_string) > 13 and len(self.icons) > 0 else '   '
                 final_text = '{points} PT.   {item2}   {hand}{spacing_between_hand_and_final_item}{item4}'.format(
                     points=self.points,
                     item2=positions_string if self.is_pitcher else speed,
@@ -2942,7 +2877,7 @@ class ShowdownPlayerCard:
                 line3=ip_or_speed if self.is_pitcher else positions_string,
                 points=self.points
             )
-        final_text = final_text.upper() if self.context in ['2002','2004','2005'] else final_text
+        final_text = final_text.upper() if self.set in ['2002','2004','2005'] else final_text
         return final_text
 
     def __position_and_defense_as_string(self, is_horizontal:bool=False) -> str:
@@ -2956,7 +2891,7 @@ class ShowdownPlayerCard:
         """
         positions_string = ''
         position_num = 1
-        dh_string = '–' if self.context != '2000' else 'DH'
+        dh_string = '–' if self.set != '2000' else 'DH'
 
         if self.positions_and_defense_for_visuals == {}:
             # THE PLAYER IS A DH
@@ -3098,18 +3033,18 @@ class ShowdownPlayerCard:
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
-        small_name_cutoff = 18 if self.context == '2000' else 19
-        location_key = 'player_name_small' if len(self.name) >= small_name_cutoff and self.image_parallel != sc.ImageParallel.MYSTERY else 'player_name'
-        name_paste_location = sc.IMAGE_LOCATIONS[location_key][str(self.context_year)]
-        if self.context in ['2000', '2001']:
+        small_name_cutoff = 18 if self.set == '2000' else 19
+        name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if len(self.name) >= small_name_cutoff and self.image_parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
+        name_paste_location = self.set.template_component_paste_coordinates(name_image_component)
+        if self.set in ['2000', '2001']:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
             shadow_paste_coordinates = (name_paste_location[0] + 6, name_paste_location[1] + 6)
-            card_image.paste(sc.COLOR_BLACK, self.__coordinates_adjusted_for_bordering(shadow_paste_coordinates), name_text_blurred)
+            card_image.paste(colors.BLACK, self.__coordinates_adjusted_for_bordering(shadow_paste_coordinates), name_text_blurred)
         card_image.paste(color, self.__coordinates_adjusted_for_bordering(name_paste_location),  name_text)
 
         # ADD TEAM LOGO
-        disable_team_logo = self.hide_team_logo or (self.edition.has_additional_logo_00_01 and self.context == '2000')
+        disable_team_logo = self.hide_team_logo or (self.edition.has_additional_logo_00_01 and self.set == '2000')
         if not disable_team_logo:
             team_logo, team_logo_coords = self.__team_logo_image()
             card_image.paste(team_logo, self.__coordinates_adjusted_for_bordering(team_logo_coords), team_logo)
@@ -3119,27 +3054,24 @@ class ShowdownPlayerCard:
 
         # METADATA
         metadata_image, color = self.__metadata_image()
-        metadata_paste_coordinates = self.__coordinates_adjusted_for_bordering(sc.IMAGE_LOCATIONS['metadata'][str(self.context_year)])
+        metadata_paste_coordinates = self.__coordinates_adjusted_for_bordering(self.set.template_component_paste_coordinates(TemplateImageComponent.METADATA))
         card_image.paste(color, metadata_paste_coordinates, metadata_image)
 
         # CHART
         chart_image, color = self.__chart_image()
-        if self.context in ['2000','2001']:
-            chart_cords = sc.IMAGE_LOCATIONS['chart'][f"{self.context_year}{'p' if self.is_pitcher else 'h'}"]
-        else:
-            chart_cords = sc.IMAGE_LOCATIONS['chart'][f'{self.context_year}']
+        chart_cords = self.set.template_component_paste_coordinates(TemplateImageComponent.CHART, player_type=self.player_type)
         card_image.paste(color, self.__coordinates_adjusted_for_bordering(chart_cords), chart_image)
 
         # STYLE (IF APPLICABLE)
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+        if self.set.is_showdown_bot:
             theme_suffix = '-DARK' if self.is_dark_mode else ''
-            style_img_path = self.__template_img_path(f'{self.context}{theme_suffix}')
+            style_img_path = self.__template_img_path(f'{self.set}{theme_suffix}')
             style_img = Image.open(style_img_path)
-            style_coordinates = self.__coordinates_adjusted_for_bordering(sc.IMAGE_LOCATIONS['style'][self.context_year])
+            style_coordinates = self.__coordinates_adjusted_for_bordering(self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE))
             card_image.paste(style_img, style_coordinates, style_img)
         
         # ICONS
-        if self.has_icons:
+        if self.set.has_icons:
             card_image = self.__add_icons_to_image(card_image)
 
         # SET
@@ -3148,38 +3080,38 @@ class ShowdownPlayerCard:
 
         # YEAR CONTAINER
         if self.add_year_container:
-            paste_location = sc.IMAGE_LOCATIONS['year_container'][str(self.context_year)]
+            paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
             year_container_img = self.__year_container_add_on()
             card_image.paste(year_container_img, self.__coordinates_adjusted_for_bordering(paste_location), year_container_img)
 
         # EXPANSION
         if self.expansion != 'FINAL':
             expansion_image = self.__expansion_image()
-            expansion_location = sc.IMAGE_LOCATIONS['expansion'][str(self.context_year)]
-            if self.add_year_container and self.context in ['2000','2001']:
+            expansion_location = self.set.template_component_paste_coordinates(TemplateImageComponent.EXPANSION)
+            if self.add_year_container and self.set in ['2000','2001']:
                 # IF YEAR CONTAINER EXISTS, MOVE OVER EXPANSION LOGO
                 expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
-            if self.context == '2002' and self.expansion == 'TD':
+            if self.set == '2002' and self.expansion == 'TD':
                 expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
-            elif self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.expansion == 'TD':
+            elif self.set.is_showdown_bot and self.expansion == 'TD':
                 expansion_location = (expansion_location[0],expansion_location[1] - 12)
             card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
 
         # BETA TAG
         # TO BE REMOVED AFTER TEST PERIOD
-        # if self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+        # if self.set.is_showdown_bot:
         #     beta_img_path = self.__template_img_path('BETA')
         #     beta_banner_image = Image.open(beta_img_path)
         #     card_image.paste(beta_banner_image,(0,0),beta_banner_image)
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm or bordered
-        final_size = sc.CARD_SIZE_BORDERED_FINAL if self.add_image_border else sc.CARD_SIZE_FINAL
+        final_size = self.set.card_size_bordered_final if self.add_image_border else self.set.card_size_final
         card_image = self.__center_and_crop(card_image,final_size)
         card_image = self.__round_corners(card_image, 60)
 
         # MAKE IMAGE BLACK AND WHITE IF PARALLEL IS SELECTED
-        if self.image_parallel == sc.ImageParallel.BLACK_AND_WHITE:
+        if self.image_parallel == ImageParallel.BLACK_AND_WHITE:
             card_image = self.__change_image_saturation(image=card_image, saturation=0.05)
 
         if self.img_loading_error:
@@ -3198,18 +3130,16 @@ class ShowdownPlayerCard:
           PIL image object for the player background.
         """
 
-        is_00_01_set = self.context in ['2000','2001']        
-        dark_mode_suffix = '-DARK' if self.is_dark_mode and self.context in sc.CLASSIC_AND_EXPANDED_SETS else ''
-        default_image_path = self.__template_img_path(f'Default Background - {self.template_set_year}{dark_mode_suffix}')
+        is_00_01_set = self.set in ['2000','2001']        
+        dark_mode_suffix = '-DARK' if self.is_dark_mode and self.set.is_showdown_bot else ''
+        default_image_path = self.__template_img_path(f'Default Background - {self.set.template_year}{dark_mode_suffix}')
         
         # CHECK FOR CUSTOM LOCAL IMAGE ASSET (EX: NATIONALITY, ASG)
-        use_nationality = self.edition == Edition.NATIONALITY and self.nationality
-        country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if use_nationality else False
         custom_image_path = None
         background_image = None
-        if use_nationality and country_exists:
-            custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality}.png")
-        elif self.special_edition == sc.SpecialEdition.ASG_2023:
+        if self.special_edition == SpecialEdition.NATIONALITY:
+            custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality.value}.png")
+        elif self.special_edition == SpecialEdition.ASG_2023:
             custom_image_path = self.__card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
 
         # CUSTOM BACKGROUND 
@@ -3231,10 +3161,10 @@ class ShowdownPlayerCard:
         if background_image is None:
             background_image = Image.open(default_image_path)
 
-        has_border_already = background_image.size == sc.CARD_SIZE_BORDERED
+        has_border_already = background_image.size == self.set.card_size_bordered
 
         # IF 2000, ADD NAME CONTAINER
-        if self.context == '2000':
+        if self.set == '2000':
             name_container = self.__2000_player_name_container_image()
             paste_coordinates = self.__coordinates_adjusted_for_bordering((0,0), is_disabled = not has_border_already)
             background_image.paste(name_container, paste_coordinates, name_container)
@@ -3244,9 +3174,9 @@ class ShowdownPlayerCard:
         
         if self.add_image_border and not has_border_already:
             # USE WHITE OR BLACK
-            border_color = sc.COLOR_BLACK if self.is_dark_mode else sc.COLOR_WHITE
-            image_border = Image.new('RGBA', sc.CARD_SIZE_BORDERED, color=border_color)
-            image_border.paste(background_image.convert("RGBA"),(sc.CARD_BORDER_PADDING,sc.CARD_BORDER_PADDING),background_image.convert("RGBA"))
+            border_color = colors.BLACK if self.is_dark_mode else colors.WHITE
+            image_border = Image.new('RGBA', self.set.card_size_bordered, color=border_color)
+            image_border.paste(background_image.convert("RGBA"),(self.set.card_border_padding,self.set.card_border_padding),background_image.convert("RGBA"))
             background_image = image_border
 
         return background_image
@@ -3261,15 +3191,15 @@ class ShowdownPlayerCard:
           PIL Image for team background art.
         """
         
-        is_2001_set = self.context == '2001'
-        image_size = sc.CARD_SIZE_BORDERED if self.add_image_border else sc.CARD_SIZE
+        is_2001_set = self.set == '2001'
+        image_size = self.set.card_size_bordered if self.add_image_border else self.set.card_size
         background_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
         team_background_image = Image.new('RGB', image_size, color=background_color)
         
         # ADD 2001 SET ADDITIONS
         if is_2001_set:
             # BLACK OVERLAY
-            color_overlay_image = Image.new('RGBA', image_size, color=sc.COLOR_BLACK)
+            color_overlay_image = Image.new('RGBA', image_size, color=colors.BLACK)
             opacity_rgb = int(255 * 0.25)
             color_overlay_image.putalpha(opacity_rgb)
             team_background_image.paste(color_overlay_image, (0,0), color_overlay_image)
@@ -3307,11 +3237,11 @@ class ShowdownPlayerCard:
         # SETUP IMAGE METADATA
         is_alternate = self.use_alternate_logo or force_use_alternate
         logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
-        logo_size = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
-        logo_rotation = rotation if rotation else (10 if self.context == '2002' and self.edition.rotate_team_logo_2002 and not ignore_dynamic_elements else 0 )
-        logo_paste_coordinates = sc.IMAGE_LOCATIONS['team_logo'][str(self.context_year)]
-        is_04_05 = self.context in ['2004','2005']
-        is_00_01 = self.context in ['2000','2001']
+        logo_size = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
+        logo_rotation = rotation if rotation else (10 if self.set == '2002' and self.edition.rotate_team_logo_2002 and not ignore_dynamic_elements else 0 )
+        logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.TEAM_LOGO)
+        is_04_05 = self.set in ['2004','2005']
+        is_00_01 = self.set in ['2000','2001']
         is_cooperstown = self.edition == Edition.COOPERSTOWN_COLLECTION
         is_all_star_game = self.edition == Edition.ALL_STAR_GAME
         is_rookie_season = self.edition == Edition.ROOKIE_SEASON
@@ -3332,17 +3262,16 @@ class ShowdownPlayerCard:
                     logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 105)
                 elif is_wide_logo and is_all_star_game:
                     logo_size = (logo_size[0] + 85, logo_size[1] + 85)
-                    x_movement = -40 if self.context in ['2000','2001'] else -85
+                    x_movement = -40 if self.set in ['2000','2001'] else -85
                     logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
             else:
                 # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
                 logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
                 logo_size_multiplier = self.team.logo_size_multiplier(year=self.median_year, is_alternate=is_alternate)
                 team_logo_path = self.__team_logo_path(name=logo_name)
-                if self.edition == Edition.NATIONALITY and self.nationality:
-                    if self.nationality in sc.NATIONALITY_COLORS.keys():
-                        team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality}.png')
-                        logo_size_multiplier = 1.25
+                if self.special_edition == SpecialEdition.NATIONALITY:
+                    team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality.value}.png')
+                    logo_size_multiplier = self.nationality.logo_size_multiplier
             team_logo = Image.open(team_logo_path).convert("RGBA")
             size_adjusted = tuple(int(v * logo_size_multiplier) for v in logo_size)
             if size_adjusted != logo_size:
@@ -3366,7 +3295,7 @@ class ShowdownPlayerCard:
         # OVERRIDE IF SUPER SEASON
         if self.edition == Edition.SUPER_SEASON and not is_00_01:
             team_logo, _ = self.__super_season_image()
-            logo_paste_coordinates = sc.IMAGE_LOCATIONS['super_season'][str(self.context_year)]
+            logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SUPER_SEASON)
 
         # ADD YEAR TEXT IF COOPERSTOWN
         if is_cooperstown and is_04_05 and not is_all_star_game:
@@ -3383,25 +3312,25 @@ class ShowdownPlayerCard:
                 alignment = "center",
                 fill = "#E6DABD",
                 has_border = True,
-                border_color = sc.COLOR_BLACK
+                border_color = colors.BLACK
             )
             year_text_blurred = self.__text_image(
                 text = year_abbrev,
                 size = (180,180),
                 font = year_font_blurred,
                 alignment = "center",
-                fill = sc.COLOR_WHITE
+                fill = colors.WHITE
             )
             year_coords = (0,195)
-            cooperstown_logo.paste(sc.COLOR_BLACK,year_coords,year_text_blurred.filter(ImageFilter.BLUR))
+            cooperstown_logo.paste(colors.BLACK,year_coords,year_text_blurred.filter(ImageFilter.BLUR))
             cooperstown_logo.paste(year_text, year_coords, year_text)
             team_logo = cooperstown_logo
 
         # OVERRIDE IF ROOKIE SEASON
         if is_rookie_season and not is_00_01:
             team_logo = self.__rookie_season_image()
-            team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.context == '2002' else team_logo
-            logo_paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
+            team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.set == '2002' else team_logo
+            logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.ROOKIE_SEASON)
 
         return team_logo, logo_paste_coordinates
 
@@ -3418,31 +3347,32 @@ class ShowdownPlayerCard:
         """
 
         # ATTRIBUTES FOR THE LOGO
-        force_alternate = self.team.use_alternate_for_background(set=self.context)
+        force_alternate = self.team.use_alternate_for_background(set=self.set)
         use_alternate = self.use_alternate_logo or force_alternate
         logo_name = self.team.logo_name(year=self.median_year, is_alternate=use_alternate)
 
         # OPACITY
-        opacity = self.team.background_logo_opacity(set=self.context)
+        opacity = self.team.background_logo_opacity(set=self.set)
         team_logo = Image.open(self.__team_logo_path(logo_name))
         team_logo_copy = team_logo.copy()
         team_logo_copy.putalpha(int(255 * opacity))
         team_logo.paste(team_logo_copy, team_logo)
 
         # SATURATION
-        if self.context == '2000':
+        if self.set == '2000':
             team_logo = self.__change_image_saturation(image=team_logo, saturation=0.2)
 
         # SIZE
-        size = self.team.background_logo_size(year=self.median_year, set=self.context, is_alternate=use_alternate)
+        size = self.team.background_logo_size(year=self.median_year, set=self.set, is_alternate=use_alternate)
         team_logo = team_logo.resize(size=size, resample=Image.ANTIALIAS)
 
         # ROTATION
-        rotation = self.team.background_logo_rotation(set=self.context)
+        rotation = self.team.background_logo_rotation(set=self.set)
         if rotation != 0:
             team_logo = team_logo.rotate(rotation, resample=Image.BICUBIC, expand=True)
 
-        paste_location = self.__coordinates_adjusted_for_bordering(self.team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.context, image_size=sc.CARD_SIZE))
+        default_image_size = self.set.card_size
+        paste_location = self.__coordinates_adjusted_for_bordering(self.team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.set, image_size=default_image_size))
         return team_logo, paste_location
 
     def __template_image(self) -> Image.Image:
@@ -3455,38 +3385,35 @@ class ShowdownPlayerCard:
           PIL image object for Player's template background.
         """
 
-        year = self.template_set_year
+        year = self.set.template_year
 
         # GET TEMPLATE FOR PLAYER TYPE (HITTER OR PITCHER)
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
-        is_04_05 = self.context in ['2004','2005']
+        is_04_05 = self.set in ['2004','2005']
         edition_extension = ''
         if is_04_05:
             # 04/05 HAS MORE TEMPLATE OPTIONS
             edition_extension = ''
+            default_template_color = self.player_type.template_color_04_05
             if self.edition.template_color_0405:
                 edition_extension = f'-{self.edition.template_color_0405}'
-            elif self.edition == Edition.NATIONALITY and self.nationality:
-                if self.nationality in sc.NATIONALITY_TEMPLATE_COLOR.keys():
-                    edition_extension = f'-{sc.NATIONALITY_TEMPLATE_COLOR[self.nationality]}'
-                else:
-                    edition_extension = f'-{sc.TEMPLATE_COLOR_0405[type]}'
-                    self.img_loading_error = f"Country {self.nationality} not supported. Select a different Edition."
+            elif self.special_edition == SpecialEdition.NATIONALITY:
+                edition_extension = f'-{self.nationality.template_color}'
             else:
-                edition_extension = f'-{sc.TEMPLATE_COLOR_0405[type]}'
+                edition_extension = f'-{default_template_color}'
 
             if self.image_parallel.color_override_04_05_chart:
                 edition_extension = f"-{self.image_parallel.color_override_04_05_chart}"
             type_template = f'{year}-{type}{edition_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
         else:
-            dark_mode_extension = '-DARK' if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.is_dark_mode else ''
+            dark_mode_extension = '-DARK' if self.set.is_showdown_bot and self.is_dark_mode else ''
             type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
-        paste_location = sc.IMAGE_LOCATIONS['command'][self.context_year]
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+        paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.COMMAND)
+        if self.set.is_showdown_bot:
             # ADD TEXT + BACKGROUND AS IMAGE
             command_image = self.__command_image()
             if not self.is_pitcher:
@@ -3496,17 +3423,16 @@ class ShowdownPlayerCard:
             container_img_path = self.__template_img_path(f'{year}-ChartOutsContainer-{type}')
             container_img_black = Image.open(container_img_path)
             fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
-            if self.edition == Edition.NATIONALITY and self.nationality:
-                if self.nationality in sc.NATIONALITY_COLORS.keys():
-                    colors = sc.NATIONALITY_COLORS[self.nationality]
-                    if len(colors) >= 2:
-                        gradient_img_width = 475 if self.player_type == 'position_player' else 680
-                        gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=colors)
-                        container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
-                        container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
-                    else:
-                        container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
+            if self.special_edition == SpecialEdition.NATIONALITY:
+                colors = self.nationality.colors
+                if len(colors) >= 2:
+                    # GRADIENT
+                    gradient_img_width = self.player_sub_type.nationality_chart_gradient_img_width
+                    gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=colors)
+                    container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
+                    container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
                 else:
+                    # SOLID COLOR
                     container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
             else:
                 container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
@@ -3531,7 +3457,7 @@ class ShowdownPlayerCard:
         
         # ADD SHOWDOWN BOT LOGO AND ERA
         logo_img = self.__bot_logo_img()
-        logo_paste_location = sc.IMAGE_LOCATIONS['bot_logo'][self.context_year]
+        logo_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.BOT_LOGO)
         template_image.paste(logo_img, logo_paste_location, logo_img)
 
         return template_image
@@ -3549,10 +3475,9 @@ class ShowdownPlayerCard:
         logo_img_with_text = Image.new('RGBA',img_size)
 
         # LOAD LOGO IMAGE
-        bot_logo_key = 'bot_logo'
-        is_dark_mode = self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.is_dark_mode
+        is_dark_mode = self.set.is_showdown_bot and self.is_dark_mode
         dark_mode_extension = '-DARK' if is_dark_mode else ''
-        logo_size = sc.IMAGE_SIZES[bot_logo_key][self.context_year]
+        logo_size = self.set.template_component_size(TemplateImageComponent.BOT_LOGO)
         logo_img_name = f"BOT-LOGO{dark_mode_extension}"
         logo_img = Image.open(self.__template_img_path(logo_img_name))
 
@@ -3566,8 +3491,8 @@ class ShowdownPlayerCard:
         # ERA TEXT
         helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
         era_font = ImageFont.truetype(helvetica_neue_lt_path, size=70)
-        era_txt_color = "#b5b5b5" if self.context in sc.CLASSIC_AND_EXPANDED_SETS and self.is_dark_mode else "#585858"
-        era_text = self.__text_image(text=self.era.replace(' ERA', ''), size=(620, 100), font=era_font, alignment="center")
+        era_txt_color = "#b5b5b5" if self.set.is_showdown_bot and self.is_dark_mode else "#585858"
+        era_text = self.__text_image(text=self.era.value_no_era_suffix, size=(620, 100), font=era_font, alignment="center")
         text_paste_location = (0, 435) 
         
         # PASTE TO BLANK 600x600 IMAGE
@@ -3612,10 +3537,10 @@ class ShowdownPlayerCard:
         """
 
         # PARSE NAME STRING
-        name_upper = "????? ?????" if self.image_parallel == sc.ImageParallel.MYSTERY else self.name.upper()
+        name_upper = "????? ?????" if self.image_parallel == ImageParallel.MYSTERY else self.name.upper()
         first, last = name_upper.split(" ", 1)
-        name = name_upper if self.context != '2001' else first
-        default_chart_char_cutoff = 19 if self.context == '2002' else 15
+        name = name_upper if self.set != '2001' else first
+        default_chart_char_cutoff = 19 if self.set == '2002' else 15
         is_name_over_char_limit =  len(name) > default_chart_char_cutoff
 
         futura_black_path = self.__font_path('Futura Black')
@@ -3630,7 +3555,7 @@ class ShowdownPlayerCard:
         overlay_image_path = None
 
         # DEFINE ATTRIBUTES BASED ON CONTEXT
-        if self.context == '2000':
+        if self.set == '2000':
             name_rotation = 90
             name_alignment = "center"
             is_name_over_18_chars = len(name) >= 18
@@ -3644,7 +3569,7 @@ class ShowdownPlayerCard:
             name_font_path = helvetica_neue_lt_93_path
             padding = 0
             overlay_image_path = self.__template_img_path('2000-Name-Text-Background')
-        elif self.context == '2001':
+        elif self.set == '2001':
             name_rotation = 90
             name_alignment = "left"
             name_size = 96
@@ -3652,31 +3577,31 @@ class ShowdownPlayerCard:
             padding = 0
             name_font_path = futura_black_path
             overlay_image_path = self.__template_img_path('2001-Name-Text-Background')
-        elif self.context == '2002':
+        elif self.set == '2002':
             name_rotation = 90
             name_alignment = "left"
             name_size = 115 if is_name_over_char_limit else 144
             name_color = "#b5b4b5"
             padding = 15
-        elif self.context == '2003':
+        elif self.set == '2003':
             name_rotation = 90
             name_alignment = "right"
             name_size = 90 if is_name_over_char_limit else 96
-            name_color = sc.COLOR_WHITE
+            name_color = colors.WHITE
             padding = 60
-        elif self.context in ['2004','2005']:
+        elif self.set in ['2004','2005']:
             name_rotation = 0
             name_alignment = "left"
             name_size = 80 if is_name_over_char_limit else 96
-            name_color = sc.COLOR_WHITE
+            name_color = colors.WHITE
             padding = 3
             has_border = True
-            border_color = sc.COLOR_RED
+            border_color = colors.RED
         else:
             name_rotation = 0
             name_alignment = "left"
             name_size = 80 if is_name_over_char_limit else 96
-            name_color = sc.COLOR_WHITE
+            name_color = colors.WHITE
             name_font_path = helvetica_neue_cond_black_path
             padding = 3
             has_border = False
@@ -3685,7 +3610,7 @@ class ShowdownPlayerCard:
         # CREATE TEXT IMAGE
         final_text = self.__text_image(
             text = name,
-            size = sc.IMAGE_SIZES['player_name'][self.context_year],
+            size = self.set.template_component_size(TemplateImageComponent.PLAYER_NAME),
             font = name_font,
             fill = name_color,
             rotation = name_rotation,
@@ -3697,14 +3622,14 @@ class ShowdownPlayerCard:
         )
 
         # ADJUSTMENTS
-        if self.context == '2000':
+        if self.set == '2000':
             # SETUP COLOR FOR LATER STEP OF IMAGE OVERLAY
             name_color = final_text
-        elif self.context == '2001':
+        elif self.set == '2001':
             # ADD LAST NAME
             last_name = self.__text_image(
                 text = last,
-                size = sc.IMAGE_SIZES['player_name'][self.context],
+                size = self.set.template_component_size(TemplateImageComponent.PLAYER_NAME),
                 font = ImageFont.truetype(name_font_path, size=135),
                 rotation = name_rotation,
                 alignment = name_alignment,
@@ -3714,12 +3639,12 @@ class ShowdownPlayerCard:
             )
             final_text.paste(last_name, (90,0), last_name)
             name_color = final_text
-        elif self.context in ['2004','2005']:
+        elif self.set in ['2004','2005']:
             # DONT ASSIGN A COLOR TO TEXT AS 04/05 HAS MULTIPLE COLORS.
             # ASSIGN THE TEXT ITSELF AS THE COLOR OBJECT
             name_color = final_text
-        elif self.context in sc.CLASSIC_AND_EXPANDED_SETS:
-            name_color = sc.COLOR_WHITE if self.is_dark_mode else sc.COLOR_BLACK
+        elif self.set.is_showdown_bot:
+            name_color = colors.WHITE if self.is_dark_mode else colors.BLACK
 
         return final_text, name_color
 
@@ -3737,9 +3662,9 @@ class ShowdownPlayerCard:
         """
 
         # COLOR WILL BE RETURNED
-        color = sc.COLOR_WHITE
+        color = colors.WHITE
 
-        if self.context in ['2000','2001']:
+        if self.set in ['2000','2001']:
             # 2000 & 2001
 
             metadata_image = Image.new('RGBA', (1500, 2100), 255)
@@ -3751,24 +3676,24 @@ class ShowdownPlayerCard:
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=72)
                 position = list(self.positions_and_defense.keys())[0]
                 position_text = self.__text_image(text=position, size=(900, 300), font=font_position, alignment='center')
-                metadata_image.paste(sc.COLOR_WHITE, (660,342), position_text)
+                metadata_image.paste(colors.WHITE, (660,342), position_text)
                 # HAND | IP
                 font_hand_ip = ImageFont.truetype(helvetica_neue_lt_path, size=63)
                 hand_text = self.__text_image(text=self.hand, size=(900, 300), font=font_hand_ip)
-                metadata_image.paste(sc.COLOR_WHITE, (1092,420), hand_text)
+                metadata_image.paste(colors.WHITE, (1092,420), hand_text)
                 ip_text = self.__text_image(text='IP {}'.format(str(self.ip)), size=(900, 300), font=font_hand_ip)
-                metadata_image.paste(sc.COLOR_WHITE, (1260,420), ip_text)
+                metadata_image.paste(colors.WHITE, (1260,420), ip_text)
             else:
                 # SPEED | HAND
-                is_variable_spd_2000 = self.context == '2000' and self.is_variable_speed_00_01
+                is_variable_spd_2000 = self.set == '2000' and self.is_variable_speed_00_01
                 font_size_speed = 40 if is_variable_spd_2000 else 54
                 font_speed = ImageFont.truetype(helvetica_neue_lt_path, size=font_size_speed)
                 font_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
                 speed_text = self.__text_image(text='SPEED {}'.format(self.speed_letter), size=(900, 300), font=font_speed)
                 hand_text = self.__text_image(text=self.hand[-1], size=(300, 300), font=font_hand)
-                metadata_image.paste(color, (969 if self.context == '2000' else 915, 345 if is_variable_spd_2000 else 342), speed_text)
+                metadata_image.paste(color, (969 if self.set == '2000' else 915, 345 if is_variable_spd_2000 else 342), speed_text)
                 metadata_image.paste(color, (1212,342), hand_text)
-                if self.context == '2001' or is_variable_spd_2000:
+                if self.set == '2001' or is_variable_spd_2000:
                     # ADD # TO SPEED
                     font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
                     font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)
@@ -3785,7 +3710,7 @@ class ShowdownPlayerCard:
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)
                 y_position = 407
                 for index, (position, rating) in enumerate(self.positions_and_defense_img_order):
-                    dh_string = '   —' if self.context != '2000' else '   DH'
+                    dh_string = '   —' if self.set != '2000' else '   DH'
                     position_rating_text = dh_string if position == 'DH' else '{} +{}'.format(position,str(rating))
                     position_rating_image = self.__text_image(text=position_rating_text, size=(600, 300), font=font_position)
                     x_adjust = 10 if index == 0 and len(position) < 5 and len(self.positions_and_defense_img_order) > 1 else 0
@@ -3801,11 +3726,11 @@ class ShowdownPlayerCard:
             pts_x_pos = 969 if self.is_pitcher else 999
             metadata_image.paste(color, (pts_x_pos,pts_y_pos), pts_text)
 
-        elif self.context in ['2002','2003']:
+        elif self.set in ['2002','2003']:
             # 2002 & 2003
 
-            color = sc.COLOR_BLACK if self.context == '2002' else sc.COLOR_WHITE
-            if self.context_year == '2002':
+            color = colors.BLACK if self.set == '2002' else colors.WHITE
+            if self.set.year == '2002':
                 helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
                 metadata_font = ImageFont.truetype(helvetica_neue_lt_path, size=120)
             else:
@@ -3819,10 +3744,10 @@ class ShowdownPlayerCard:
                 rotation = 0,
                 alignment = "right",
                 padding=0,
-                spacing= 66 if self.context == '2003' else 57
+                spacing= 66 if self.set == '2003' else 57
             )
             metadata_image = metadata_text.resize((255,900), Image.ANTIALIAS)
-        elif self.context in ['2004','2005']:
+        elif self.set in ['2004','2005']:
             # 2004 & 2005
 
             metadata_font_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
@@ -3832,12 +3757,12 @@ class ShowdownPlayerCard:
                 text = metadata_text_string,
                 size = (3600, 900),
                 font = metadata_font,
-                fill = sc.COLOR_WHITE,
+                fill = colors.WHITE,
                 rotation = 0,
                 alignment = "left",
                 padding = 0,
                 has_border = True,
-                border_color = sc.COLOR_BLACK,
+                border_color = colors.BLACK,
                 border_size = 9
             )
             metadata_image = metadata_text.resize((1200,300), Image.ANTIALIAS)
@@ -3860,7 +3785,7 @@ class ShowdownPlayerCard:
                     text = category,
                     size = (1500, 900),
                     font = category_font,
-                    fill = sc.COLOR_WHITE,
+                    fill = colors.WHITE,
                     rotation = 0,
                     alignment = "left",
                     padding = 0,
@@ -3876,7 +3801,7 @@ class ShowdownPlayerCard:
                         text = '|',
                         size = (900, 900),
                         font = category_font,
-                        fill = sc.COLOR_WHITE,
+                        fill = colors.WHITE,
                         rotation = 0,
                         alignment = "left",
                         padding = 0,
@@ -3886,7 +3811,7 @@ class ShowdownPlayerCard:
                     current_x_position += 65
                 
 
-            color = sc.COLOR_GRAY if self.is_dark_mode else sc.COLOR_BLACK
+            color = colors.GRAY if self.is_dark_mode else colors.BLACK
 
         return metadata_image, color
 
@@ -3904,38 +3829,38 @@ class ShowdownPlayerCard:
             - Hex Color of text as a String.
         """
 
-        is_horizontal = self.context in ['2004','2005',sc.CLASSIC_SET, sc.EXPANDED_SET]
+        is_horizontal = self.set.is_chart_horizontal
 
         # FONT
         chart_font_file_name = 'Helvetica Neue 77 Bold Condensed' if is_horizontal else 'HelveticaNeueCondensedMedium'
         chart_font_path = self.__font_path(chart_font_file_name)
-        chart_text_size = int(sc.TEXT_SIZES['chart'][self.context_year])
-        chart_font = ImageFont.truetype(chart_font_path, size=chart_text_size)
+        chart_font_size = self.set.template_component_font_size(TemplateImageComponent.CHART)
+        chart_font = ImageFont.truetype(chart_font_path, size=chart_font_size)
 
         # CREATE CHART RANGES TEXT
         chart_string = ''
         # NEED IF 04/05
         chart_text = Image.new('RGBA',(6300,720))
-        chart_text_addition = -20 if self.context in sc.CLASSIC_AND_EXPANDED_SETS else 0
+        chart_text_addition = -20 if self.set.is_showdown_bot else 0
         chart_text_x = 150 + chart_text_addition if self.is_pitcher else 141
         for category in self.chart_categories:
             is_out_category = category.lower() in ['pu','so','gb','fb']
             range = self.chart_ranges['{} Range'.format(category)]
             # 2004/2005 CHART IS HORIZONTAL. PASTE TEXT ONTO IMAGE INSTEAD OF STRING OBJECT.
             if is_horizontal:
-                is_wotc = self.context in ['2004','2005']
+                is_wotc = self.set in ['2004','2005']
                 range_text = self.__text_image(
                     text = range,
                     size = (450,450),
                     font = chart_font,
-                    fill = sc.COLOR_WHITE,
+                    fill = colors.WHITE,
                     alignment = "center",
                     has_border = is_wotc,
-                    border_color = sc.COLOR_BLACK,
+                    border_color = colors.BLACK,
                     border_size = 9
                 )
-                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.use_secondary_color) and self.context_year == '2022' and is_out_category
-                color_range = range_text if (is_wotc or is_out_category or self.is_dark_mode) and not use_dark_text else sc.COLOR_BLACK
+                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.use_secondary_color) and self.set.year == '2022' and is_out_category
+                color_range = range_text if (is_wotc or is_out_category or self.is_dark_mode) and not use_dark_text else colors.BLACK
                 chart_text.paste(color_range, (chart_text_x, 0), range_text)
                 pitcher_spacing = 531 if is_wotc else 510
                 hitter_spacing = 468 if is_wotc else 445
@@ -3949,7 +3874,7 @@ class ShowdownPlayerCard:
             chart_text = chart_text.resize((2100,240), Image.ANTIALIAS)
             color = chart_text
         else:
-            spacing = int(sc.TEXT_SIZES['chart_spacing'][self.context_year])
+            spacing = self.set.template_component_font_spacing(TemplateImageComponent.CHART)
             chart_text = self.__text_image(
                 text = chart_string,
                 size = (765, 3600),
@@ -3959,7 +3884,7 @@ class ShowdownPlayerCard:
                 padding=0,
                 spacing=spacing
             )
-            color = sc.COLOR_BLACK
+            color = colors.BLACK
             chart_text = chart_text.resize((255,1200), Image.ANTIALIAS)
 
         return chart_text, color
@@ -3976,13 +3901,13 @@ class ShowdownPlayerCard:
 
         # FONT FOR SET
         helvetica_neue_cond_bold_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
-        font_size = 180 if self.context in sc.CLASSIC_AND_EXPANDED_SETS else 135
+        font_size = 180 if self.set.is_showdown_bot else 135
         set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size)
 
         set_image = Image.new('RGBA', (1500, 2100), 255)
-        set_image_location = sc.IMAGE_LOCATIONS['set'][str(self.context_year)]
+        set_image_location = self.set.template_component_paste_coordinates(TemplateImageComponent.SET)
 
-        if self.context in ['2000', '2001', '2002']:
+        if self.set in ['2000', '2001', '2002']:
             # SET AND NUMBER IN SAME STRING
             set_text = self.__text_image(
                 text = self.set_number,
@@ -3991,19 +3916,19 @@ class ShowdownPlayerCard:
                 alignment = "center"
             )
             set_text = set_text.resize((150,75), Image.ANTIALIAS)
-            set_image.paste(sc.COLOR_WHITE, set_image_location, set_text)
+            set_image.paste(colors.WHITE, set_image_location, set_text)
         else:
             # DIFFERENT STYLES BETWEEN NUMBER AND SET
             # CARD YEAR
             set_font_year = set_font
             year_as_str = str(self.year)
-            if self.is_multi_year and self.context in ['2004','2005']:
+            if self.is_multi_year and self.set in ['2004','2005']:
                 # EMPTY YEAR
                 year_string = ''
-            elif (self.is_full_career or self.is_multi_year) and self.context == '2003':
+            elif (self.is_full_career or self.is_multi_year) and self.set == '2003':
                 year_string = 'ALL' if self.is_full_career else 'MLT'
                 set_image_location = (set_image_location[0]-5,set_image_location[1])
-            elif self.is_multi_year and self.context in sc.CLASSIC_AND_EXPANDED_SETS:
+            elif self.is_multi_year and self.set.is_showdown_bot:
                 set_image_location = (set_image_location[0]-15,set_image_location[1])
                 if '-' in year_as_str:
                     try:
@@ -4021,7 +3946,7 @@ class ShowdownPlayerCard:
                     year_as_str = str(int(year_as_str) + (1 if self.set_year_plus_one else 0))
                 except:
                     year_as_str = year_as_str
-                year_string = year_as_str if self.context in sc.CLASSIC_AND_EXPANDED_SETS else f"'{year_as_str[2:4]}"
+                year_string = year_as_str if self.set.is_showdown_bot else f"'{year_as_str[2:4]}"
             year_text = self.__text_image(
                 text = year_string,
                 size = (525, 450),
@@ -4029,7 +3954,7 @@ class ShowdownPlayerCard:
                 alignment = "left"
             )
             year_text = year_text.resize((140,120), Image.ANTIALIAS)
-            set_image.paste(sc.COLOR_WHITE, set_image_location, year_text)
+            set_image.paste(colors.WHITE, set_image_location, year_text)
 
             # CARD NUMBER
             number_text = self.__text_image(
@@ -4039,8 +3964,8 @@ class ShowdownPlayerCard:
                 alignment = "center"
             )
             number_text = number_text.resize((160,120), Image.ANTIALIAS)
-            number_color = sc.COLOR_BLACK if self.context == '2003' else sc.COLOR_WHITE
-            set_image.paste(number_color, sc.IMAGE_LOCATIONS['number'][str(self.context_year)], number_text)
+            number_color = colors.BLACK if self.set == '2003' else colors.WHITE
+            set_image.paste(number_color, self.set.template_component_paste_coordinates(TemplateImageComponent.NUMBER), number_text)
 
         return set_image
 
@@ -4054,7 +3979,7 @@ class ShowdownPlayerCard:
           PIL image object for card expansion logo.
         """ 
 
-        expansion_image = Image.open(self.__template_img_path(f'{self.template_set_year}-{self.expansion}'))
+        expansion_image = Image.open(self.__template_img_path(f'{self.set.template_year}-{self.expansion}'))
         return expansion_image
 
     def __super_season_image(self) -> tuple[Image.Image, tuple[int,int]]:
@@ -4070,8 +3995,8 @@ class ShowdownPlayerCard:
             Y Adjustment for paste coordinates (applies to 00/01)
         """
 
-        is_after_03 = self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET]
-        include_accolades = self.context not in [sc.CLASSIC_SET,sc.EXPANDED_SET]
+        is_after_03 = self.set.is_after_03
+        include_accolades = self.set.show_super_season_accolades
 
         # FONTS
         super_season_year_path = self.__font_path('URW Corporate W01 Normal')
@@ -4083,11 +4008,7 @@ class ShowdownPlayerCard:
         if include_accolades:
             
             # SLOT MAX CHARACTERS
-            slot_max_characters_dict = {
-                1: (16 if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
-                2: (15 if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
-                3: (sc.SUPER_SEASON_04_05_MIN_TEXT_LENGTH if is_after_03 else sc.SUPER_SEASON_PRE_04_TEXT_LENGTH),
-            }
+            slot_max_characters_dict = {i: self.set.super_season_text_length_cutoff(i) for i in [1,2,3] }
 
             # ACCOLADES
             x_position = 18 if is_after_03 else 9
@@ -4124,7 +4045,7 @@ class ShowdownPlayerCard:
         # BACKGROUND IMAGE LOGO
         num_accolades = max(len(accolade_text_images),1)
         num_accolades_str = "" if is_after_03 else f"-{num_accolades}"
-        ss_type_index = sc.SUPER_SEASON_IMG_INDEX.get(self.context, '1')
+        ss_type_index = self.set.super_season_image_index
         super_season_image = Image.open(self.__template_img_path(f'Super Season-{ss_type_index}{num_accolades_str}'))
 
         # ORDER 04/05 ACCOLADES BY TEXT LENGTH
@@ -4135,7 +4056,7 @@ class ShowdownPlayerCard:
 
         # PASTE ACCOLADES
         for accolade_img, paste_coordinates, _ in accolade_text_images:
-            super_season_image.paste(sc.COLOR_BLACK, paste_coordinates, accolade_img)
+            super_season_image.paste(colors.BLACK, paste_coordinates, accolade_img)
 
         # YEAR
         if self.is_multi_year:
@@ -4154,20 +4075,15 @@ class ShowdownPlayerCard:
             rotation = 0 if is_after_03 else 7
         )
         year_text = year_text.resize((180,180), Image.ANTIALIAS)
-        year_paste_coords = sc.IMAGE_LOCATIONS['super_season_year_text'][self.context_year]
-        if self.is_multi_year:
-            if self.context in sc.CLASSIC_AND_EXPANDED_SETS:
-                year_paste_coords = (122,265)
-            else:
-                year_paste_coords = (126,110) if is_after_03 else (26,290)
-        year_color = "#ffffff" if self.context in sc.CLASSIC_AND_EXPANDED_SETS else "#982319"
-        super_season_image.paste(year_color,year_paste_coords,year_text)
+        year_paste_coords = self.set.super_season_year_paste_coordinates(is_multi_year=self.is_multi_year)
+        year_color = self.set.super_season_year_text_color
+        super_season_image.paste(year_color, year_paste_coords, year_text)
 
         # ADJUSTMENTS TO 00/01 Y COORDINATES
-        y_coord_adjustment = ( (3 - num_accolades) * 55 ) if self.context in ['2000','2001'] and num_accolades < 3 else 0
+        y_coord_adjustment = ( (3 - num_accolades) * 55 ) if self.set in ['2000','2001'] and num_accolades < 3 else 0
 
         # RESIZE
-        super_season_image = super_season_image.resize(sc.IMAGE_SIZES['super_season'][self.context_year], Image.ANTIALIAS)
+        super_season_image = super_season_image.resize(self.set.template_component_size(TemplateImageComponent.SUPER_SEASON), Image.ANTIALIAS)
         return super_season_image, y_coord_adjustment
 
     def __rookie_season_image(self) -> Image.Image:
@@ -4181,7 +4097,7 @@ class ShowdownPlayerCard:
         """
 
         # BACKGROUND IMAGE LOGO
-        rookie_season_image = Image.open(self.__template_img_path(f'{self.template_set_year}-Rookie Season'))
+        rookie_season_image = Image.open(self.__template_img_path(f'{self.set.template_year}-Rookie Season'))
 
         # ADD YEAR
         first_year = str(min(self.year_list))
@@ -4195,13 +4111,13 @@ class ShowdownPlayerCard:
                 font = year_font,
                 alignment = "left"
             )
-            location_original = sc.IMAGE_LOCATIONS['rookie_season_year_text'][self.context_year]
+            location_original = self.set.template_component_paste_coordinates(TemplateImageComponent.ROOKIE_SEASON_YEAR_TEXT)
             x_adjustment = 230 if is_suffix else 0
             paste_location = (location_original[0] + x_adjustment, location_original[1])
             rookie_season_image.paste(year_text,paste_location,year_text)
 
         # RESIZE
-        logo_size = sc.IMAGE_SIZES['rookie_season'][str(self.context_year)]
+        logo_size = self.set.template_component_size(TemplateImageComponent.ROOKIE_SEASON)
         rookie_season_image = rookie_season_image.resize(logo_size, Image.ANTIALIAS)
 
         return rookie_season_image
@@ -4217,16 +4133,15 @@ class ShowdownPlayerCard:
           Updated PIL Image with icons for player.
         """
 
-        icon_positional_mapping = sc.ICON_LOCATIONS[self.context_year]
         # ITERATE THROUGH AND PASTE ICONS
         for index, icon in enumerate(self.icons[0:4]):
-            position = icon_positional_mapping[index]
-            if self.context not in sc.CLASSIC_AND_EXPANDED_SETS:
-                icon_img_path = self.__template_img_path(f'{self.template_set_year}-{icon.value}')
+            position = self.set.icon_paste_coordinates(index+1)
+            if self.set.is_wotc:
+                icon_img_path = self.__template_img_path(f'{self.set.template_year}-{icon.value}')
                 icon_image = Image.open(icon_img_path)
                 # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
                 # EX: 'LF/RF' IS LONGER STRING THAN '3B'
-                if self.context in ['2004','2005']:
+                if self.set in ['2004','2005']:
                     positions_list = self.positions_and_defense_for_visuals.keys()
                     positions_over_4_char = len([pos for pos in positions_list if len(pos) > 4 and not self.is_pitcher])
                     offset = 0
@@ -4255,7 +4170,7 @@ class ShowdownPlayerCard:
           PIL Image for with icon text and background circle.
         """
         # CIRCLE
-        text_color = sc.COLOR_WHITE
+        text_color = colors.WHITE
         border_size = 9
         icon_img = Image.new('RGBA',(220,220))
         draw = ImageDraw.Draw(icon_img)
@@ -4287,15 +4202,15 @@ class ShowdownPlayerCard:
         """
         
         # ONLY FOR 00/01 SETS
-        if self.context not in ['2000','2001']:
+        if self.set not in ['2000','2001']:
             return image
         
         # DEFINE COORDINATES, START WITH ROOKIE SEASON DESTINATION AND EDIT FOR OTHERS
-        paste_coordinates = sc.IMAGE_LOCATIONS['rookie_season'][str(self.context_year)]
-        if self.edition != Edition.ROOKIE_SEASON and self.context == '2001':
+        paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.ROOKIE_SEASON)
+        if self.edition != Edition.ROOKIE_SEASON and self.set == '2001':
             # MOVE LOGO TO THE RIGHT
             paste_coordinates = (paste_coordinates[0] + 30, paste_coordinates[1])
-        if self.context == '2000':
+        if self.set == '2000':
             # MOVE LOGO ABOVE TEAM LOGO AND SLIGHTLY TO THE LEFT
             y_movement = -35 if self.edition == Edition.SUPER_SEASON else 0
             x_movement = -35 if self.edition == Edition.SUPER_SEASON else 0
@@ -4305,7 +4220,7 @@ class ShowdownPlayerCard:
         match self.edition:
             case Edition.ALL_STAR_GAME | Edition.COOPERSTOWN_COLLECTION:
                 logo_name = 'CCC' if self.edition == Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
-                logo_size_x, logo_size_y = sc.IMAGE_SIZES['team_logo'][str(self.context_year)]
+                logo_size_x, logo_size_y = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
                 logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name == 'ASG-2022' else (logo_size_x, logo_size_y)
                 logo_path = self.__team_logo_path(name=logo_name)
                 logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.ANTIALIAS)
@@ -4336,7 +4251,7 @@ class ShowdownPlayerCard:
         # BACKGROUND CONTAINER IMAGE
         img_type_suffix = 'Control' if self.is_pitcher else 'Onbase'
         dark_mode_suffix = '-DARK' if self.is_dark_mode else ''
-        background_img = Image.open(self.__template_img_path(f'{self.template_set_year}-{img_type_suffix}{dark_mode_suffix}'))
+        background_img = Image.open(self.__template_img_path(f'{self.set.template_year}-{img_type_suffix}{dark_mode_suffix}'))
         font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
         command = str(self.chart['command'])
         num_chars_command = len(command)
@@ -4453,16 +4368,16 @@ class ShowdownPlayerCard:
         # ---- IMAGE FROM GOOGLE DRIVE -----
         file_service = None
         if player_img_user_uploaded is None:
-            search_for_universal_img = self.image_parallel != sc.ImageParallel.MYSTERY
+            search_for_universal_img = self.image_parallel != ImageParallel.MYSTERY
             img_components_dict = self.__player_image_components_dict()
             if search_for_universal_img:
-                folder_id = sc.G_DRIVE_PLAYER_IMAGE_FOLDERS['UNIVERSAL']
+                folder_id = self.set.player_image_gdrive_folder_id
                 file_service, img_components_dict = self.__query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
             
             # ADD SILHOUETTE IF NECESSARY
-            non_empty_components = [typ for typ in sc.IMAGE_COMPONENT_ORDERED_LIST if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
+            non_empty_components = [typ for typ in self.image_component_ordered_list if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
             if len(non_empty_components) == 0:
-                img_components_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification}')
+                img_components_dict[PlayerImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.set.template_year}-SIL-{self.player_classification}')
             
             player_imgs = self.__automated_player_image_layers(component_img_urls_dict=img_components_dict, file_service=file_service)
             if len(player_imgs) > 0:
@@ -4471,7 +4386,7 @@ class ShowdownPlayerCard:
                     self.is_automated_image = True
 
         # IF 2000, ADD SET CONTAINER AND NAME CONTAINER IF USER UPLOADED IMAGE
-        if self.context == '2000':
+        if self.set == '2000':
             if player_img_user_uploaded:
                 name_container = self.__2000_player_name_container_image()
                 images_to_paste.append((name_container, default_img_paste_coordinates))
@@ -4492,11 +4407,11 @@ class ShowdownPlayerCard:
         
         player_img_components = []
         is_img_download_error = False
-        for img_component in sc.IMAGE_COMPONENT_ORDERED_LIST:
+        for img_component in self.image_component_ordered_list:
             
             # ADD SILHOUETTE IF NECESSARY
-            if img_component == sc.ImageComponent.SILHOUETTE and is_img_download_error:
-                component_img_urls_dict[sc.ImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.template_set_year}-SIL-{self.player_classification}')
+            if img_component == PlayerImageComponent.SILHOUETTE and is_img_download_error:
+                component_img_urls_dict[PlayerImageComponent.SILHOUETTE] = self.__template_img_path(f'{self.set.template_year}-SIL-{self.player_classification}')
             
             # CHECK FOR IMAGE TYPE
             img_url = component_img_urls_dict.get(img_component, None)
@@ -4505,19 +4420,21 @@ class ShowdownPlayerCard:
                 continue
 
             # CARD SIZING
-            card_size = sc.CARD_SIZE_BORDERED if self.add_image_border and not img_component.adjust_paste_coordinates_for_bordered else sc.CARD_SIZE
-            size_growth_multiplier = ( card_size[0] / sc.CARD_SIZE[0], card_size[1] / sc.CARD_SIZE[1])
-            original_crop_size = sc.PLAYER_IMAGE_CROP_SIZE[self.context]
+            card_size = self.set.card_size_bordered if self.add_image_border and not img_component.adjust_paste_coordinates_for_bordered else self.set.card_size
+            card_width, card_height = card_size
+            default_card_width, default_card_height = self.set.card_size
+            size_growth_multiplier = ( card_width / default_card_width, card_height / default_card_height)
+            original_crop_size = self.set.player_image_crop_size
             player_crop_size = (int(original_crop_size[0] * size_growth_multiplier[0]), int(original_crop_size[1] * size_growth_multiplier[1])) if self.add_image_border else original_crop_size
-            special_crop_adjustment = sc.PLAYER_IMAGE_CROP_ADJUSTMENT[self.context]
-            if self.context in sc.CLASSIC_AND_EXPANDED_SETS and (self.special_edition == sc.SpecialEdition.ASG_2023 or self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST):
+            special_crop_adjustment = self.set.player_image_crop_adjustment
+            if self.set.is_showdown_bot and (self.special_edition == SpecialEdition.ASG_2023 or self.image_parallel == ImageParallel.TEAM_COLOR_BLAST):
                 player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
                 special_crop_adjustment = (0,int((1785 - 2100) / 2))
                 if self.add_image_border:
                     player_crop_size = (int(player_crop_size[0] * size_growth_multiplier[0]), int(player_crop_size[1] * size_growth_multiplier[1]))
             default_crop_size = card_size
             default_crop_adjustment = (0,0)
-            if self.context in ['2002','2003'] and img_component.crop_adjustment_02_03 is not None:
+            if self.set in ['2002','2003'] and img_component.crop_adjustment_02_03 is not None:
                 default_crop_adjustment = img_component.crop_adjustment_02_03
 
             # DOWNLOAD IMAGE
@@ -4556,7 +4473,7 @@ class ShowdownPlayerCard:
                 continue
             
             # ADJUST SATURATION
-            saturation_adjustment = sc.SPECIAL_EDITION_IMG_SATURATION_ADJUSTMENT.get(self.special_edition, {})
+            saturation_adjustment = self.special_edition.image_component_saturation_adjustments_dict
             saturation_adjustment.update(self.image_parallel.image_type_saturations_dict)
             if len(saturation_adjustment) > 0:
                 component_adjustment_factor = saturation_adjustment.get(img_component, None)
@@ -4576,19 +4493,19 @@ class ShowdownPlayerCard:
                 image = image.resize(size=card_size, resample=Image.ANTIALIAS)
 
             # SUPER SEASON: FIND LOCATIONS FOR ELLIPSES
-            is_super_season_glow = img_component in [sc.ImageComponent.GLOW, sc.ImageComponent.SILHOUETTE] and self.special_edition == sc.SpecialEdition.SUPER_SEASON
+            is_super_season_glow = img_component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE] and self.special_edition == SpecialEdition.SUPER_SEASON
             if is_super_season_glow:
 
                 # CALCULATE COORDINATES OF ELLIPSES
                 y_cords = {
-                    sc.ImageComponent.ELLIPSE_LARGE: 850 if self.is_pitcher else 800,
-                    sc.ImageComponent.ELLIPSE_MEDIUM: 400 if self.is_pitcher else 300,
-                    sc.ImageComponent.ELLIPSE_SMALL: 1200 if self.is_pitcher else 1300,
+                    PlayerImageComponent.ELLIPSE_LARGE: 850 if self.is_pitcher else 800,
+                    PlayerImageComponent.ELLIPSE_MEDIUM: 400 if self.is_pitcher else 300,
+                    PlayerImageComponent.ELLIPSE_SMALL: 1200 if self.is_pitcher else 1300,
                 }
                 is_reversed_map = {
-                    sc.ImageComponent.ELLIPSE_LARGE: False,
-                    sc.ImageComponent.ELLIPSE_MEDIUM: not self.is_pitcher,
-                    sc.ImageComponent.ELLIPSE_SMALL: self.is_pitcher,
+                    PlayerImageComponent.ELLIPSE_LARGE: False,
+                    PlayerImageComponent.ELLIPSE_MEDIUM: not self.is_pitcher,
+                    PlayerImageComponent.ELLIPSE_SMALL: self.is_pitcher,
                 }
                 transparent_pixel = (255, 255, 255, 0)
                 img_width, _ = image.size
@@ -4613,7 +4530,7 @@ class ShowdownPlayerCard:
 
         return player_img_components
 
-    def __query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[sc.ImageComponent, str], bref_id:str, year:int = None) -> tuple:
+    def __query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int = None) -> tuple:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -4673,7 +4590,7 @@ class ShowdownPlayerCard:
         
         return (file_service, file_matches_metadata_dict)
     
-    def __img_file_matches_dict(self, files_metadata:list[dict], components_dict:dict[sc.ImageComponent, str], bref_id:str, year:int) -> dict[sc.ImageComponent, str]:
+    def __img_file_matches_dict(self, files_metadata:list[dict], components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int) -> dict[PlayerImageComponent, str]:
         """ Iterate through gdrive files and find matches to the player and other settings defined by user.
          
         Args:
@@ -4697,7 +4614,7 @@ class ShowdownPlayerCard:
             num_components_in_filename = len([c for c in components_dict.keys() if f'{c.value}-' in file_name])
             if bref_id in file_name and num_components_in_filename > 0:
                 component_name = file_name.split('-')[0].upper()
-                component = sc.ImageComponent(component_name)
+                component = PlayerImageComponent(component_name)
                 current_files_for_component = component_player_file_matches_dict.get(component, [])
                 current_files_for_component.append(img_file)
                 component_player_file_matches_dict[component] = current_files_for_component
@@ -4708,7 +4625,7 @@ class ShowdownPlayerCard:
             return components_dict
 
         # ORDER EACH COMPONENT'S FILE LIST BY HOW WELL IT MATCHES PARAMETERS
-        component_img_url_dict: dict[sc.ImageComponent, str] = {}
+        component_img_url_dict: dict[PlayerImageComponent, str] = {}
         additional_substring_search_list = self.__img_match_keyword_list()
         for component, img_file_list in component_player_file_matches_dict.items():
             img_file_list = sorted(img_file_list, key = lambda i: len(i['name']), reverse=False)
@@ -4754,7 +4671,6 @@ class ShowdownPlayerCard:
         """
         # SEARCH FOR PLAYER IMAGE
         additional_substring_filters = [self.year, f'({self.team.value})',f'({self.team.value})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
-        use_nationality = self.edition == Edition.NATIONALITY and self.nationality
         if self.edition != Edition.NONE:
             for _ in range(0,3): # ADD 3X VALUE
                 additional_substring_filters.append(f'({self.edition.value})')
@@ -4762,13 +4678,13 @@ class ShowdownPlayerCard:
             additional_substring_filters.append(self.type_override)
         if self.is_dark_mode:
             additional_substring_filters.append('(DARK)')
-        if use_nationality:
+        if self.special_edition == SpecialEdition.NATIONALITY:
             for _ in range(0,4):
-                additional_substring_filters.append(f'({self.nationality})') # ADDS NATIONALITY THREE TIMES TO GIVE IT 3X IMPORTANCE
+                additional_substring_filters.append(f'({self.nationality.value})') # ADDS NATIONALITY THREE TIMES TO GIVE IT 3X IMPORTANCE
 
         return additional_substring_filters
 
-    def __player_image_components_dict(self) -> dict[sc.ImageComponent, str]:
+    def __player_image_components_dict(self) -> dict[PlayerImageComponent, str]:
         """ Add card art image paths (ex: Cooperstown, Super Season, Gradient, etc). 
         
         Add empty placeholders for image assets that are loaded from google drive.
@@ -4779,51 +4695,51 @@ class ShowdownPlayerCard:
 
         # COOPERSTOWN
         is_cooperstown = self.edition == Edition.COOPERSTOWN_COLLECTION
-        default_components_for_context = {c: self.__template_img_path("2000-Name") if c == sc.ImageComponent.NAME_CONTAINER_2000 else None for c in sc.AUTO_IMAGE_COMPONENTS[self.context] }
-        special_components_for_context = {c: self.__template_img_path("2000-Name") if c == sc.ImageComponent.NAME_CONTAINER_2000 else None for c in sc.AUTO_IMAGE_COMPONENTS_SPECIAL[self.context] }
+        default_components_for_context = {c: self.__template_img_path("2000-Name") if c == PlayerImageComponent.NAME_CONTAINER_2000 else None for c in self.set.player_image_components_list() }
+        special_components_for_context = {c: self.__template_img_path("2000-Name") if c == PlayerImageComponent.NAME_CONTAINER_2000 else None for c in self.set.player_image_components_list(is_special=True) }
 
         if self.image_parallel.has_special_components:
             # ADD ADDITIONAL COMPONENTS
             if len(self.image_parallel.special_component_additions) > 0:
                 team_logo_name = self.team.logo_name(year=self.median_year)
-                special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == sc.ImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image_parallel.special_component_additions.items()})
+                special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == PlayerImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image_parallel.special_component_additions.items()})
             # EDITING EXISTING COMPONENTS
             replacements_dict = self.image_parallel.special_components_replacements
             for old_component, new_component in replacements_dict.items():
                 special_components_for_context.pop(old_component, None)
                 special_components_for_context[new_component] = None
-            is_asg_and_team_color_blast_dark = ( self.special_edition == sc.SpecialEdition.ASG_2023 and self.is_dark_mode and self.image_parallel == sc.ImageParallel.TEAM_COLOR_BLAST )
-            if self.special_edition == sc.SpecialEdition.TEAM_COLOR_BLAST_DARK or is_asg_and_team_color_blast_dark:
-                special_components_for_context.pop(sc.ImageComponent.WHITE_CIRCLE, None)
-                special_components_for_context[sc.ImageComponent.BLACK_CIRCLE] = self.__card_art_path(sc.ImageComponent.BLACK_CIRCLE.name)
+            is_asg_and_team_color_blast_dark = ( self.special_edition == SpecialEdition.ASG_2023 and self.is_dark_mode and self.image_parallel == ImageParallel.TEAM_COLOR_BLAST )
+            if self.special_edition == SpecialEdition.TEAM_COLOR_BLAST_DARK or is_asg_and_team_color_blast_dark:
+                special_components_for_context.pop(PlayerImageComponent.WHITE_CIRCLE, None)
+                special_components_for_context[PlayerImageComponent.BLACK_CIRCLE] = self.__card_art_path(PlayerImageComponent.BLACK_CIRCLE.name)
             default_components_for_context = special_components_for_context
 
-        if is_cooperstown and self.context not in ['2000','2001']:
+        if is_cooperstown and self.set not in ['2000','2001']:
             components_dict = special_components_for_context
-            components_dict[sc.ImageComponent.COOPERSTOWN] = self.__card_art_path('RADIAL' if self.context in ['2002','2003'] else 'COOPERSTOWN')
+            components_dict[PlayerImageComponent.COOPERSTOWN] = self.__card_art_path('RADIAL' if self.set in ['2002','2003'] else 'COOPERSTOWN')
             return components_dict
 
         # SUPER SEASON
-        if self.edition == Edition.SUPER_SEASON and self.context in ['2004','2005']:
+        if self.edition == Edition.SUPER_SEASON and self.set in ['2004','2005']:
             components_dict = special_components_for_context
-            components_dict[sc.ImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
+            components_dict[PlayerImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
         
         # ALL STAR
-        if self.special_edition == sc.SpecialEdition.ASG_2023 and self.context not in ['2000','2001']:
+        if self.special_edition == SpecialEdition.ASG_2023 and self.set not in ['2000','2001']:
             components_dict = { c:v for c, v in special_components_for_context.items() if not c.is_loaded_via_download }
             components_dict.update({
-                sc.ImageComponent.GLOW: None,
-                sc.ImageComponent.CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2023-BG-{self.league}'),
+                PlayerImageComponent.GLOW: None,
+                PlayerImageComponent.CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2023-BG-{self.league}'),
             })
-            if self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET]:
-                components_dict[sc.ImageComponent.CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
+            if self.set.is_after_03:
+                components_dict[PlayerImageComponent.CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
             return components_dict
 
         # CLASSIC/EXPANDED
-        if self.context in sc.CLASSIC_AND_EXPANDED_SETS and not is_cooperstown and self.image_parallel == sc.ImageParallel.NONE:
+        if self.set.is_showdown_bot and not is_cooperstown and self.image_parallel == ImageParallel.NONE:
             components_dict = default_components_for_context
-            components_dict[sc.ImageComponent.GRADIENT] = self.__card_art_path(f"{'DARK' if self.is_dark_mode else 'LIGHT'}-GRADIENT")
+            components_dict[PlayerImageComponent.GRADIENT] = self.__card_art_path(f"{'DARK' if self.is_dark_mode else 'LIGHT'}-GRADIENT")
             return components_dict
 
         return default_components_for_context
@@ -4919,7 +4835,8 @@ class ShowdownPlayerCard:
         if not self.add_image_border or is_disabled:
             return coordinates
         
-        return (coordinates[0] + sc.CARD_BORDER_PADDING, coordinates[1] + sc.CARD_BORDER_PADDING)
+        padding = self.set.card_border_padding
+        return (coordinates[0] + padding, coordinates[1] + padding)
 
     def __team_color_rgbs(self, is_secondary_color:bool=False, ignore_team_overrides:bool = False) -> tuple[int,int,int,int]:
         """RGB colors for player team
@@ -4933,15 +4850,13 @@ class ShowdownPlayerCard:
         """
 
         # NATIONALITY COLOR
-        country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if self.nationality else False
-        if self.edition == Edition.NATIONALITY and self.nationality and country_exists and not ignore_team_overrides:
-            return sc.NATIONALITY_COLORS[self.nationality][0]
+        if self.special_edition == SpecialEdition.NATIONALITY and not ignore_team_overrides:
+            return self.nationality.primary_color
         
-        # ASG COLOR
-        if self.edition == Edition.ALL_STAR_GAME and str(self.year) in sc.ALL_STAR_GAME_COLORS.keys() and not ignore_team_overrides:
-            color_for_league = sc.ALL_STAR_GAME_COLORS[str(self.year)].get(self.league, None)
-            if color_for_league:
-                return color_for_league
+        # SPECIAL EDITION COLOR
+        special_edition_color = self.special_edition.color(league=self.league)
+        if special_edition_color and not ignore_team_overrides:
+            return special_edition_color
         
         # GRAB FROM CURRENT TEAM COLORS
         return self.team.color(year=self.median_year, is_secondary=is_secondary_color)
@@ -5304,8 +5219,8 @@ class ShowdownPlayerCard:
         has_user_uploaded_img = self.player_image_url or self.player_image_path
         has_special_edition = self.edition.is_not_empty
         has_expansion = self.expansion != 'FINAL'
-        has_variable_spd_diff = self.is_variable_speed_00_01 and self.context in ['2000','2001']
-        set_yr_plus_one_enabled = self.set_year_plus_one and self.context in ['2004','2005']
+        has_variable_spd_diff = self.is_variable_speed_00_01 and self.set in ['2000','2001']
+        set_yr_plus_one_enabled = self.set_year_plus_one and self.set in ['2004','2005']
         return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or has_variable_spd_diff or self.has_custom_set_number or set_yr_plus_one_enabled or self.hide_team_logo
 
 
@@ -5331,7 +5246,7 @@ class ShowdownPlayerCard:
         else:
             self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
         
-        if self.context in ['2002','2004','2005',sc.CLASSIC_SET, sc.EXPANDED_SET]:
+        if self.set.convert_final_image_to_rgb:
             image = image.convert('RGB')
 
         save_img_path = os.path.join(self.card_img_output_folder_path, self.image_name)
