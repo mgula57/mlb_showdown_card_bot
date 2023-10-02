@@ -27,7 +27,7 @@ class ChartCategory(Enum):
 
 class Chart:
 
-    def __init__(self, is_pitcher:bool, set:str, command:int, outs:int, values:dict[str,int]) -> None:
+    def __init__(self, is_pitcher:bool, set:str, command:int, outs:int, values:dict[str,int] = {}) -> None:
 
         self.is_pitcher:bool = is_pitcher
         self.set: str = set
@@ -44,7 +44,7 @@ class Chart:
         }
 
     @property
-    def chart_categories(self) -> list[ChartCategory]:
+    def categories_list(self) -> list[ChartCategory]:
         if self.is_pitcher:
             # 2000 HAS 'SO' FIRST, ALL OTHER YEARS HAVE 'PU' FIRST
             firstCategory = ChartCategory.SO if self.set == '2000' else ChartCategory.PU
@@ -53,6 +53,9 @@ class Chart:
         else:
             # HITTER CATEGORIES
             return [ChartCategory.SO, ChartCategory.GB, ChartCategory.FB, ChartCategory.BB, ChartCategory._1B, ChartCategory._1B_PLUS, ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]
+
+    def num_values(self, category:ChartCategory) -> int:
+        return self.values.get(category, 0)
 
     @property
     def command_name(self) -> str:
@@ -64,3 +67,7 @@ class Chart:
         values_list = [ [self.command_name, str(self.command)], ['outs', str(self.outs)] ]
         values_list += [[category.value, str(round(value,2))] for category, value in self.values.items()]
         return values_list
+    
+    @property
+    def is_num_values_over_20(self) -> bool:
+        return sum([v for v in self.values.values()]) > 20

@@ -238,6 +238,14 @@ class Set(Enum):
     def infield_plus_one_requirement(self) -> int:
         return 6
     
+    @property
+    def is_outfield_split(self) -> bool:
+        return self.value in ['2000','2001','2002']
+
+    @property
+    def dh_string(self) -> str:
+        return 'DH' if self.value == '2000' else '–'
+    
     # ---------------------------------------
     # ICONS
     # ---------------------------------------
@@ -1320,6 +1328,26 @@ class Set(Enum):
     @property
     def convert_final_image_to_rgb(self) -> bool:
         return self.value in ['2002','2004','2005','CLASSIC','EXPANDED',]
+    
+    @property
+    def is_metadata_text_uppercased(self) -> bool:
+        return self.value in ['2002','2004','2005']
+
+    @property
+    def small_name_text_length_cutoff(self) -> int:
+        return 18 if self.value == '2000' else 19
+    
+    @property
+    def has_unified_set_and_year_strings(self) -> bool:
+        return self.value in ['2000', '2001', '2002']
+    
+    @property
+    def enable_cooperstown_special_edition(self) -> bool:
+        return self.value in ['2002','2003','2004','2005',]
+
+    @property
+    def has_split_first_and_last_names(self) -> bool:
+        return self.value == '2001'
     
     # ---------------------------------------
     # PLAYER IMAGE
