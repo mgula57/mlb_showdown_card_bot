@@ -3533,7 +3533,7 @@ SLG_RANGE = {
             'max': 0.445
         },
         'position_player': {
-            'min': 0.350,
+            'min': 0.360,
             'max': 0.550
         }
     },
@@ -3547,7 +3547,7 @@ SLG_RANGE = {
             'max': 0.500
         },
         'position_player': {
-            'min': 0.350,
+            'min': 0.360,
             'max': 0.550
         }
     },
@@ -3561,8 +3561,8 @@ SLG_RANGE = {
             'max': 0.475
         },
         'position_player': {
-            'min': 0.360,
-            'max': 0.550
+            'min': 0.380,
+            'max': 0.545
         }
     },
     '2005': {
@@ -3575,7 +3575,7 @@ SLG_RANGE = {
             'max': 0.480
         },
         'position_player': {
-            'min': 0.360,
+            'min': 0.380,
             'max': 0.545
         }
     },
@@ -3603,7 +3603,7 @@ SLG_RANGE = {
             'max': 0.480
         },
         'position_player': {
-            'min': 0.360,
+            'min': 0.375,
             'max': 0.545
         }
     },

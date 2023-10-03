@@ -7,6 +7,7 @@ from pathlib import Path
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
 from mlb_showdown_bot.enums.team import Team
+from mlb_showdown_bot.enums.icon import Icon
 import mlb_showdown_bot.showdown_constants as sc
 
 class ShowdownSetAccuracy:
@@ -287,7 +288,11 @@ class ShowdownSetAccuracy:
         """
 
         # ADD CLASS ATTRIBUTES NEEDED TO CALCULATE POINTS
-        my_player_card.team = Team(wotc_player_card.Team)
+        team_cleaned = wotc_player_card.Team.replace('LA(A)', 'LAA')\
+                        .replace('CHI(N)','CHC').replace('NY(N)','NYM').replace('NY(A)','NYY')\
+                        .replace('CHI(A)','CHW').replace('LA(N)','LAD').replace('KC', 'KCR') \
+                        .replace('SD','SDP').replace('SF','SFG').replace('TB','TBD')
+        my_player_card.team = Team(team_cleaned)
         my_player_card.is_pitcher = wotc_player_card.Type == 'Pitcher'
         my_player_card.hand = wotc_player_card.Hand
         my_player_card.chart = {
@@ -323,7 +328,8 @@ class ShowdownSetAccuracy:
         my_player_card.positions_and_defense = defense
         my_player_card.ip = int(wotc_player_card.IP)
         icons = [wotc_player_card.Icon1, wotc_player_card.Icon2, wotc_player_card.Icon3, wotc_player_card.Icon4]
-        icons = [x for x in icons if str(x) != 'nan']
+        icons = [str(x) for x in icons if str(x) != 'nan']
+        icons = [Icon(x) for x in icons]
         my_player_card.icons = icons
         my_player_card.chart_ranges = my_player_card.ranges_for_chart(my_player_card.chart, 5.0, 5.0, 5.0)
         my_player_card.speed = wotc_player_card.Speed
