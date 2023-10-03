@@ -28,6 +28,7 @@ ERA_FREE_AGENCY = "FREE AGENCY ERA"
 ERA_STEROID = "STEROID ERA"
 ERA_POST_STEROID = "POST STEROID ERA"
 ERA_STATCAST = "STATCAST ERA"
+ERA_PITCH_CLOCK = "PITCH CLOCK ERA"
 ERA_YEAR_RANGE = {
     ERA_PRE_1900: list(range(1884, 1900)),
     ERA_DEAD_BALL: list(range(1900, 1920)),
@@ -37,7 +38,8 @@ ERA_YEAR_RANGE = {
     ERA_FREE_AGENCY: list(range(1977, 1994)),
     ERA_STEROID: list(range(1994, 2010)),
     ERA_POST_STEROID: list(range(2010, 2015)),
-    ERA_STATCAST: list(range(2015, 2024)),
+    ERA_STATCAST: list(range(2015, 2023)),
+    ERA_PITCH_CLOCK: list(range(2023, 2025)),
 }
 
 """
@@ -106,6 +108,7 @@ SPEED_ERA_MULTIPLIER = {
     ERA_STEROID: 1.0,
     ERA_POST_STEROID: 1.0,
     ERA_STATCAST: 1.0,
+    ERA_PITCH_CLOCK: 0.99,
 }
 SPEED_METRIC_TOP_PERCENTILE = {
     SPRINT_SPEED_KEY: 25.0,
@@ -244,6 +247,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.00,
             ERA_POST_STEROID: 1.00,
             ERA_STATCAST: 0.95,
+            ERA_PITCH_CLOCK: 0.95,
         },
         '2001': {
             ERA_PRE_1900: 1.20,
@@ -255,6 +259,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.11,
             ERA_POST_STEROID: 1.05,
             ERA_STATCAST: 1.00,
+            ERA_PITCH_CLOCK: 1.00,
         },
         '2002': {
             ERA_PRE_1900: 1.20,
@@ -266,6 +271,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.15,
             ERA_POST_STEROID: 1.10,
             ERA_STATCAST: 1.05,
+            ERA_PITCH_CLOCK: 1.05,
         },
         '2003': {
             ERA_PRE_1900: 1.20,
@@ -277,6 +283,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.12,
             ERA_POST_STEROID: 1.10,
             ERA_STATCAST: 1.05,
+            ERA_PITCH_CLOCK: 1.05,
         },
         '2004': {
             ERA_PRE_1900: 1.20,
@@ -288,6 +295,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.10,
             ERA_POST_STEROID: 1.05,
             ERA_STATCAST: 1.00,
+            ERA_PITCH_CLOCK: 1.00,
         },
         '2005': {
             ERA_PRE_1900: 1.20,
@@ -299,6 +307,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.10,
             ERA_POST_STEROID: 1.05,
             ERA_STATCAST: 1.00,
+            ERA_PITCH_CLOCK: 1.05,
         },
         CLASSIC_SET: {
             ERA_PRE_1900: 1.10,
@@ -310,6 +319,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.00,
             ERA_POST_STEROID: 0.95,
             ERA_STATCAST: 0.90,
+            ERA_PITCH_CLOCK: 0.90,
         },
         EXPANDED_SET: {
             ERA_PRE_1900: 1.10,
@@ -321,6 +331,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.00,
             ERA_POST_STEROID: 0.95,
             ERA_STATCAST: 0.90,
+            ERA_PITCH_CLOCK: 0.90,
         },
     },
     'pitcher': {
@@ -334,6 +345,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 0.85,
             ERA_POST_STEROID: 0.85,
             ERA_STATCAST: 0.82,
+            ERA_PITCH_CLOCK: 0.82,
         },
         '2001': {
             ERA_PRE_1900: 1.05,
@@ -345,6 +357,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 0.93,
             ERA_POST_STEROID: 0.90,
             ERA_STATCAST: 0.85,
+            ERA_PITCH_CLOCK: 0.85,
         },
         '2002': {
             ERA_PRE_1900: 1.05,
@@ -356,6 +369,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 0.91,
             ERA_POST_STEROID: 0.90,
             ERA_STATCAST: 0.85,
+            ERA_PITCH_CLOCK: 0.85,
         },
         '2003': {
             ERA_PRE_1900: 1.15,
@@ -367,6 +381,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.05,
             ERA_POST_STEROID: 1.00,
             ERA_STATCAST: 0.95,
+            ERA_PITCH_CLOCK: 0.95,
         },
         '2004': {
             ERA_PRE_1900: 1.15,
@@ -378,6 +393,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.05,
             ERA_POST_STEROID: 1.00,
             ERA_STATCAST: 0.95,
+            ERA_PITCH_CLOCK: 0.95,
         },
         '2005': {
             ERA_PRE_1900: 1.15,
@@ -389,6 +405,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.05,
             ERA_POST_STEROID: 1.00,
             ERA_STATCAST: 0.95,
+            ERA_PITCH_CLOCK: 0.95,
         },
         CLASSIC_SET: {
             ERA_PRE_1900: 1.10,
@@ -400,6 +417,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.00,
             ERA_POST_STEROID: 0.95,
             ERA_STATCAST: 0.90,
+            ERA_PITCH_CLOCK: 0.90,
         },
         EXPANDED_SET: {
             ERA_PRE_1900: 1.10,
@@ -411,6 +429,7 @@ GB_MULTIPLIER = {
             ERA_STEROID: 1.00,
             ERA_POST_STEROID: 0.95,
             ERA_STATCAST: 0.90,
+            ERA_PITCH_CLOCK: 0.90,
         },
     },
 }
@@ -426,6 +445,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
         ERA_STATCAST: 0.70,
+        ERA_PITCH_CLOCK: 0.70,
     },
     '2001': {
         ERA_PRE_1900: 0.75,
@@ -437,6 +457,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
         ERA_STATCAST: 0.70,
+        ERA_PITCH_CLOCK: 0.70,
     },
     '2002': {
         ERA_PRE_1900: 0.75,
@@ -448,6 +469,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
         ERA_STATCAST: 0.70,
+        ERA_PITCH_CLOCK: 0.70,
     },
     '2003': {
         ERA_PRE_1900: 0.75,
@@ -459,6 +481,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
         ERA_STATCAST: 0.70,
+        ERA_PITCH_CLOCK: 0.70,
     },
     '2004': {
         ERA_PRE_1900: 0.75,
@@ -470,6 +493,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
         ERA_STATCAST: 0.70,
+        ERA_PITCH_CLOCK: 0.70,
     },
     '2005': {
         ERA_PRE_1900: 0.75,
@@ -481,6 +505,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
         ERA_STATCAST: 0.70,
+        ERA_PITCH_CLOCK: 0.70,
     },
     CLASSIC_SET: {
         ERA_PRE_1900: 0.75,
@@ -492,6 +517,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
         ERA_STATCAST: 0.70,
+        ERA_PITCH_CLOCK: 0.70,
     },
     EXPANDED_SET: {
         ERA_PRE_1900: 0.75,
@@ -503,6 +529,7 @@ HR_ROUNDING_CUTOFF = {
         ERA_STEROID: 0.85,
         ERA_POST_STEROID: 0.75,
         ERA_STATCAST: 0.70,
+        ERA_PITCH_CLOCK: 0.70,
     },
 }
 """
@@ -594,6 +621,16 @@ BASELINE_PITCHER = {
         },
         ERA_STATCAST: {
             'command': 3.25,
+            'outs': 16.00,
+            'so': 6.00,
+            'bb': 1.35,
+            '1b': 1.92,
+            '2b': 0.65,
+            '3b': 0.00,
+            'hr': 0.08,
+        },
+        ERA_PITCH_CLOCK: {
+            'command': 3.24,
             'outs': 16.00,
             'so': 6.00,
             'bb': 1.35,
@@ -694,6 +731,16 @@ BASELINE_PITCHER = {
             '3b': 0.00,
             'hr': 0.08,
         },
+        ERA_PITCH_CLOCK: {
+            'command': 3.3,
+            'outs': 16.0,
+            'so': 6.00,
+            'bb': 1.35,
+            '1b': 1.82,
+            '2b': 0.62,
+            '3b': 0.00,
+            'hr': 0.08,
+        },
     },
     '2002': {
         ERA_PRE_1900: {
@@ -786,6 +833,16 @@ BASELINE_PITCHER = {
             '3b': 0.00,
             'hr': 0.13,
         },
+        ERA_PITCH_CLOCK: {
+            'command': 3.45,
+            'outs': 16.80,
+            'so': 5.75,
+            'bb': 1.10,
+            '1b': 1.35,
+            '2b': 0.52,
+            '3b': 0.00,
+            'hr': 0.13,
+        },
     },
     '2003': {
         ERA_PRE_1900: {
@@ -870,6 +927,16 @@ BASELINE_PITCHER = {
         },
         ERA_STATCAST: {
             'command': 4.25,
+            'outs': 16.00,
+            'so': 5.00,
+            'bb': 1.25,
+            '1b': 1.90,
+            '2b': 0.65,
+            '3b': 0.00,
+            'hr': 0.20,
+        },
+        ERA_PITCH_CLOCK: {
+            'command': 4.23,
             'outs': 16.00,
             'so': 5.00,
             'bb': 1.25,
@@ -970,6 +1037,16 @@ BASELINE_PITCHER = {
             '3b': 0.00,
             'hr': 0.20,
         },
+        ERA_PITCH_CLOCK: {
+            'command': 4.00,
+            'outs': 15.95,
+            'so': 5.50,
+            'bb': 1.15,
+            '1b': 1.95,
+            '2b': 0.60,
+            '3b': 0.00,
+            'hr': 0.20,
+        },
     },
     '2005': {
         ERA_PRE_1900: {
@@ -1054,6 +1131,16 @@ BASELINE_PITCHER = {
         },
         ERA_STATCAST: {
             'command': 4.15,
+            'outs': 15.90,
+            'so': 5.10,
+            'bb': 1.15,
+            '1b': 2.00,
+            '2b': 0.65,
+            '3b': 0.00,
+            'hr': 0.20,
+        },
+        ERA_PITCH_CLOCK: {
+            'command': 4.10,
             'outs': 15.90,
             'so': 5.10,
             'bb': 1.15,
@@ -1154,6 +1241,16 @@ BASELINE_PITCHER = {
             '3b': 0.00,
             'hr': 0.11,
         },
+        ERA_PITCH_CLOCK: {
+            'command': 3.25,
+            'outs': 16.1,
+            'so': 5.25,
+            'bb': 1.35,
+            '1b': 2.0,
+            '2b': 0.62,
+            '3b': 0.00,
+            'hr': 0.11,
+        },
     },
     EXPANDED_SET: {
         ERA_PRE_1900: {
@@ -1238,6 +1335,16 @@ BASELINE_PITCHER = {
         },
         ERA_STATCAST: {
             'command': 4.2,
+            'outs': 16.1,
+            'so': 5.5,
+            'bb': 1.25,
+            '1b': 2.05,
+            '2b': 0.71,
+            '3b': 0.01,
+            'hr': 0.20,
+        },
+        ERA_PITCH_CLOCK: {
+            'command': 4.15,
             'outs': 16.1,
             'so': 5.5,
             'bb': 1.25,
@@ -1355,6 +1462,17 @@ BASELINE_HITTER = {
             '3b': 0.30,
             'hr': 2.10,
         },
+        ERA_PITCH_CLOCK: {
+            'command': 7.3,
+            'outs': 3.90,
+            'so': 2.0,
+            'bb': 4.4,
+            '1b': 6.80,
+            '1b+': 0.50,
+            '2b': 2.00,
+            '3b': 0.30,
+            'hr': 2.10,
+        },
     },
     '2001': {
         ERA_PRE_1900: {
@@ -1447,6 +1565,17 @@ BASELINE_HITTER = {
         },
         ERA_STATCAST: {
             'command': 7.3,
+            'outs': 4.0,
+            'so': 2.00,
+            'bb': 4.45,
+            '1b': 6.70,
+            '1b+': 0.70,
+            '2b': 1.95,
+            '3b': 0.2,
+            'hr': 2.0,            
+        },
+        ERA_PITCH_CLOCK: {
+            'command': 7.4,
             'outs': 4.0,
             'so': 2.00,
             'bb': 4.45,
@@ -1557,6 +1686,17 @@ BASELINE_HITTER = {
             '3b': 0.24,
             'hr': 1.60,
         },
+        ERA_PITCH_CLOCK: {
+            'command': 9.20,
+            'outs': 6.00,
+            'so': 2.50,
+            'bb': 3.40,
+            '1b': 6.52,
+            '1b+': 0.30,
+            '2b': 1.94,
+            '3b': 0.24,
+            'hr': 1.60,
+        },
     },
     '2003': {
         ERA_PRE_1900: {
@@ -1649,6 +1789,17 @@ BASELINE_HITTER = {
         },
         ERA_STATCAST: {
             'command': 8.75,
+            'outs': 6.30,
+            'so': 3.30,
+            'bb': 3.00,
+            '1b': 6.30,
+            '1b+': 0.55,
+            '2b': 1.55,
+            '3b': 0.30,
+            'hr': 2.00,
+        },
+        ERA_PITCH_CLOCK: {
+            'command': 8.80,
             'outs': 6.30,
             'so': 3.30,
             'bb': 3.00,
@@ -1759,6 +1910,17 @@ BASELINE_HITTER = {
             '3b': 0.15,
             'hr': 1.80,
         },
+        ERA_PITCH_CLOCK: {
+            'command': 9.05,
+            'outs': 7.1,
+            'so': 3.00,
+            'bb': 3.15,
+            '1b': 6.00,
+            '1b+': 0.40,
+            '2b': 1.30,
+            '3b': 0.15,
+            'hr': 1.80,
+        },
     },
     '2005': {
         ERA_PRE_1900: {
@@ -1851,6 +2013,17 @@ BASELINE_HITTER = {
         },
         ERA_STATCAST: {
             'command': 9.0,
+            'outs': 7.0,
+            'so': 3.05,
+            'bb': 3.35,
+            '1b': 6.00,
+            '1b+': 0.40,
+            '2b': 1.35,
+            '3b': 0.15,
+            'hr': 1.75,
+        },
+        ERA_PITCH_CLOCK: {
+            'command': 9.1,
             'outs': 7.0,
             'so': 3.05,
             'bb': 3.35,
@@ -1961,6 +2134,17 @@ BASELINE_HITTER = {
             '3b': 0.2,
             'hr': 2.0,
         },
+        ERA_PITCH_CLOCK: {
+            'command': 7.35,
+            'outs': 4.0,
+            'so': 2.00,
+            'bb': 4.45,
+            '1b': 6.70,
+            '1b+': 0.70,
+            '2b': 1.95,
+            '3b': 0.2,
+            'hr': 2.0,
+        },
     },
     EXPANDED_SET: {
         ERA_PRE_1900: {
@@ -2053,6 +2237,17 @@ BASELINE_HITTER = {
         },
         ERA_STATCAST: {
             'command': 9.2,
+            'outs': 7.1,
+            'so': 3.0,
+            'bb': 3.35,
+            '1b': 6.05,
+            '1b+': 0.40,
+            '2b': 1.30,
+            '3b': 0.15,
+            'hr': 1.65,
+        },
+        ERA_PITCH_CLOCK: {
+            'command': 9.25,
             'outs': 7.1,
             'so': 3.0,
             'bb': 3.35,
