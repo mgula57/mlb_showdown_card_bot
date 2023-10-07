@@ -2741,8 +2741,13 @@ class ShowdownPlayerCard:
         rounded_metrics_list = ['SB', 'onbase_plus_slugging_plus']
         for category in category_list:
             if category in self.stats.keys():
-                stat_cleaned = int(self.stats[category]) if category in rounded_metrics_list else self.stats[category]
-                stat = str(stat_cleaned) if self.stats[category] else 'N/A'
+                stat_raw = self.stats.get(category, None)
+                if stat_raw is None:
+                    stat = 'N/A'
+                else:
+                    stat_raw = 0 if str(stat_raw) == '' else stat_raw
+                    stat_cleaned = int(stat_raw) if category in rounded_metrics_list else stat_raw
+                    stat = str(stat_cleaned) if stat_raw else 'N/A'
                 short_name_map = {
                     'onbase_plus_slugging_plus': 'OPS+',
                     'whip': 'WHIP',
@@ -2758,7 +2763,7 @@ class ShowdownPlayerCard:
         for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
             for metric, value in metric_and_value_dict.items():
                 final_player_data.append([f'{metric.upper()}-{position}',str(round(value)),'N/A'])
-
+        
         return final_player_data
 
     def points_data_for_html_table(self) -> list[list[str]]:
@@ -4642,7 +4647,10 @@ class ShowdownPlayerCard:
         
         # CREDS FILE FOUND, PROCEED
         GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
-        GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
+        try:
+            GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
+        except:
+            return (file_service, components_dict)
         creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, SCOPES)
 
         # BUILD THE SERVICE OBJECT.
