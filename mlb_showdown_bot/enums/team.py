@@ -385,6 +385,9 @@ class Team(Enum):
                 '2': (0, 70, 135, 255),
                 '3': (0, 70, 135, 255),
             }
+            case 'LAA': return {
+                '1': (191, 13, 62, 255),
+            }
             case 'MIA': return {
                 '1': (255, 102, 0, 255),
             }
@@ -568,6 +571,9 @@ class Team(Enum):
                 '2': (192, 154, 91, 255),
                 '3': (192, 154, 91, 255),
             }
+            case 'LAA': return {
+                '1': (4, 28, 44, 255),
+            }
             case 'MIA': return {
                 '1': (0, 119, 200, 255),
             }
@@ -721,6 +727,9 @@ class Team(Enum):
             }
             case 'LAD': return {
                 '1': list(range(1999,2007)),
+            }
+            case 'LAA': return {
+                '1': list(range(1961,1965)),
             }
             case 'MIA': return {
                 '1': list(range(2012,2019)),
@@ -988,7 +997,7 @@ class Team(Enum):
                     case 'HOU-3' : return (-130, -160)
                     case 'KCA' : return (-30, -90)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (-100, -100)
-                    case 'LAA': return (-60, -50)
+                    case 'LAA' | 'LAA-1': return (-60, -50)
                     case 'LAD-A' | 'LAD-A-1': return (-40, -60)
                     case 'MIA-A': return (-40, -75)
                     case 'MIA-A-1': return (-40, -100)
