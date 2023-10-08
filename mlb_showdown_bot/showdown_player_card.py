@@ -395,6 +395,11 @@ class ShowdownPlayerCard:
         """ Alternate logos are used in 2004+ sets """
         return self.context in ['2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET] and not self.edition.use_edition_logo_as_team_logo
 
+    @property
+    def team_override_for_images(self) -> Team :
+        """ Team override to use for background images and colors (ex: CC)"""
+        return Team.CCC if self.edition == Edition.COOPERSTOWN_COLLECTION else None
+    
 # ------------------------------------------------------------------------
 # METADATA METHODS
 # ------------------------------------------------------------------------
@@ -3270,7 +3275,8 @@ class ShowdownPlayerCard:
         
         is_2001_set = self.context == '2001'
         image_size = sc.CARD_SIZE_BORDERED if self.add_image_border else sc.CARD_SIZE
-        background_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
+        team_override = self.team_override_for_images
+        background_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=team_override)
         team_background_image = Image.new('RGB', image_size, color=background_color)
         
         # ADD 2001 SET ADDITIONS
@@ -3291,7 +3297,7 @@ class ShowdownPlayerCard:
                 team_background_image.paste(color_image, (0,0), color_image)
 
         # ADD TEAM LOGO
-        team_logo_image, paste_location = self.team_logo_for_background()
+        team_logo_image, paste_location = self.team_logo_for_background(team_override=team_override)
         team_background_image.paste(team_logo_image, paste_location, team_logo_image)
 
         return team_background_image
@@ -3412,11 +3418,11 @@ class ShowdownPlayerCard:
 
         return team_logo, logo_paste_coordinates
 
-    def team_logo_for_background(self) -> tuple[Image.Image, tuple[int,int]]:
+    def team_logo_for_background(self, team_override:Team = None) -> tuple[Image.Image, tuple[int,int]]:
         """Open and manipulate the team logo used for 2000/2001 team backgrounds.
         
         Args:
-          None
+          team_override: Optionally use a different team. Used for some special editions like CC.
 
         Returns:
           Tuple with:
@@ -3424,13 +3430,16 @@ class ShowdownPlayerCard:
             Coordinates to paste logo.
         """
 
+        # DEFINE TEAM TO USE
+        team = team_override if team_override else self.team
+
         # ATTRIBUTES FOR THE LOGO
-        force_alternate = self.team.use_alternate_for_background(set=self.context)
+        force_alternate = team.use_alternate_for_background(set=self.context)
         use_alternate = self.use_alternate_logo or force_alternate
-        logo_name = self.team.logo_name(year=self.median_year, is_alternate=use_alternate)
+        logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate)
 
         # OPACITY
-        opacity = self.team.background_logo_opacity(set=self.context)
+        opacity = team.background_logo_opacity(set=self.context)
         team_logo = Image.open(self.__team_logo_path(logo_name))
         team_logo_copy = team_logo.copy()
         team_logo_copy.putalpha(int(255 * opacity))
@@ -3441,15 +3450,15 @@ class ShowdownPlayerCard:
             team_logo = self.__change_image_saturation(image=team_logo, saturation=0.2)
 
         # SIZE
-        size = self.team.background_logo_size(year=self.median_year, set=self.context, is_alternate=use_alternate)
+        size = team.background_logo_size(year=self.median_year, set=self.context, is_alternate=use_alternate)
         team_logo = team_logo.resize(size=size, resample=Image.ANTIALIAS)
 
         # ROTATION
-        rotation = self.team.background_logo_rotation(set=self.context)
+        rotation = team.background_logo_rotation(set=self.context)
         if rotation != 0:
             team_logo = team_logo.rotate(rotation, resample=Image.BICUBIC, expand=True)
 
-        paste_location = self.__coordinates_adjusted_for_bordering(self.team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.context, image_size=sc.CARD_SIZE))
+        paste_location = self.__coordinates_adjusted_for_bordering(team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.context, image_size=sc.CARD_SIZE))
         return team_logo, paste_location
 
     def __template_image(self) -> Image.Image:
@@ -3502,7 +3511,8 @@ class ShowdownPlayerCard:
             # ADD CHART ROUNDED RECT
             container_img_path = self.__template_img_path(f'{year}-ChartOutsContainer-{type}')
             container_img_black = Image.open(container_img_path)
-            fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
+            team_override = self.team_override_for_images
+            fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=team_override)
             if self.edition == Edition.NATIONALITY and self.nationality:
                 if self.nationality in sc.NATIONALITY_COLORS.keys():
                     colors = sc.NATIONALITY_COLORS[self.nationality]
@@ -4271,7 +4281,7 @@ class ShowdownPlayerCard:
         x2 = 190
         y2 = 190       
         draw.ellipse((x1-border_size, y1-border_size, x2+border_size, y2+border_size), fill=text_color)
-        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color))
+        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=self.team_override_for_images))
 
         # ADD TEXT
         font_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
@@ -4351,7 +4361,7 @@ class ShowdownPlayerCard:
         font = ImageFont.truetype(font_path, size=size)
 
         # ADD TEXT
-        fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
+        fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=self.team_override_for_images)
         fill_color_hex = self.__rbgs_to_hex(rgbs=fill_color)
         # SEPARATE 
         for index, char in enumerate(command):
@@ -4547,7 +4557,7 @@ class ShowdownPlayerCard:
                             self.__cache_downloaded_image(image=image, path=cached_image_path)
                             self.player_image_source = 'Google Drive'
                 case "COLOR":
-                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, ignore_team_overrides=True))
+                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images))
                 case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
@@ -4931,16 +4941,19 @@ class ShowdownPlayerCard:
         
         return (coordinates[0] + sc.CARD_BORDER_PADDING, coordinates[1] + sc.CARD_BORDER_PADDING)
 
-    def __team_color_rgbs(self, is_secondary_color:bool=False, ignore_team_overrides:bool = False) -> tuple[int,int,int,int]:
+    def __team_color_rgbs(self, is_secondary_color:bool=False, ignore_team_overrides:bool = False, team_override:Team = None) -> tuple[int,int,int,int]:
         """RGB colors for player team
 
         Args:
           is_secondary_color: Optionally use secondary color instead of primary.
           ignore_team_overrides: Boolean to optionally skip overrides.
+          team_override: Optionally use a different team. Used for some special editions like CC.
 
         Returns:
             Tuple with RGB team colors
         """
+
+        team = team_override if team_override else self.team
 
         # NATIONALITY COLOR
         country_exists = self.nationality in sc.NATIONALITY_COLORS.keys() if self.nationality else False
@@ -4954,7 +4967,7 @@ class ShowdownPlayerCard:
                 return color_for_league
         
         # GRAB FROM CURRENT TEAM COLORS
-        return self.team.color(year=self.median_year, is_secondary=is_secondary_color)
+        return team.color(year=self.median_year, is_secondary=is_secondary_color)
 
 
 # ------------------------------------------------------------------------
