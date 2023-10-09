@@ -4607,7 +4607,6 @@ class ShowdownPlayerCard:
                     sc.ImageComponent.ELLIPSE_MEDIUM: not self.is_pitcher,
                     sc.ImageComponent.ELLIPSE_SMALL: self.is_pitcher,
                 }
-                transparent_pixel = (255, 255, 255, 0)
                 img_width, _ = image.size
                 for ellipse_type, ycord in y_cords.items():
                     is_reversed = is_reversed_map.get(ellipse_type, False)
@@ -4616,11 +4615,14 @@ class ShowdownPlayerCard:
                         coordinates = (x_cord, ycord)
                         try:
                             pixel = image.getpixel(coordinates)
+                            pixel_opacity = pixel[3]
                         except:
                             break
-                        if pixel != transparent_pixel:
+                        if pixel_opacity > 200: # OUT OF 255
                             ellipse_circle_image = Image.open(self.__card_art_path(ellipse_type.value)).convert('RGBA')
-                            x_adjustment = -75
+                            ellipse_width, _ = ellipse_circle_image.size
+                            ellipse_x_movement_mutliplier = 0.60 if is_reversed else 0.30
+                            x_adjustment = -1 * int(ellipse_width * ellipse_x_movement_mutliplier)
                             coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
                             player_img_components.append((ellipse_circle_image, coordinates_adjusted))
                             break
