@@ -3369,7 +3369,12 @@ class ShowdownPlayerCard:
 
         # ROTATE LOGO IF APPLICABLE
         if logo_rotation != 0:
-            team_logo = team_logo.rotate(logo_rotation, resample=Image.BICUBIC)
+            size_original = team_logo.size
+            team_logo = team_logo.rotate(logo_rotation, expand=True, resample=Image.BICUBIC)
+            size_new = team_logo.size
+            if size_original != size_new:
+                movement = size_new[0] - size_original[0]
+                logo_paste_coordinates = (logo_paste_coordinates[0] - int(movement / 2.0), logo_paste_coordinates[1] - int(movement / 2.0))
 
         # RETURN STATIC LOGO IF IGNORE_DYNAMIC_ELEMENTS IS ENABLED
         # IGNORES ROOKIE SEASON, SUPER SEASON
@@ -4828,6 +4833,7 @@ class ShowdownPlayerCard:
         # SUPER SEASON
         if self.edition == Edition.SUPER_SEASON and self.context in ['2004','2005']:
             components_dict = special_components_for_context
+            components_dict[sc.ImageComponent.DARKENER] = self.__card_art_path('DARKENER')
             components_dict[sc.ImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
         
