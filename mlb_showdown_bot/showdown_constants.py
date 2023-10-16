@@ -16275,6 +16275,7 @@ class ImageComponent(Enum):
     GLOW = "GLOW"
     CUT = "CUT"
     GRADIENT = "GRADIENT"
+    DARKENER = "DARKENER"
     COOPERSTOWN = "COOPERSTOWN"
     ELLIPSE_LARGE = "ELLIPSE-LARGE"
     ELLIPSE_MEDIUM = "ELLIPSE-MEDIUM"
@@ -16335,6 +16336,7 @@ class ImageComponent(Enum):
             "TEAM_LOGO",
             "SILHOUETTE",
             "NAME_CONTAINER_2000",
+            "DARKENER",
         ]
     
     @property
@@ -16355,6 +16357,7 @@ IMAGE_COMPONENT_ORDERED_LIST = [
     ImageComponent.CUSTOM_BACKGROUND,
     ImageComponent.COOPERSTOWN,
     ImageComponent.SUPER_SEASON,
+    ImageComponent.DARKENER,
     ImageComponent.GRADIENT,
     ImageComponent.RAINBOW_FOIL,
     ImageComponent.SAPPHIRE,
@@ -16418,8 +16421,8 @@ AUTO_IMAGE_COMPONENTS_SPECIAL = {
 PLAYER_IMAGE_CROP_SIZE = {
     '2000': (1500,2100),
     '2001': (1200,1680),
-    '2002': (1200,1680),
-    '2003': (1200,1680),
+    '2002': (1305,1827),
+    '2003': (1305,1827),
     '2004': (1500,2100),
     '2005': (1500,2100),
     CLASSIC_SET: (1200, 1680),
@@ -16429,8 +16432,8 @@ PLAYER_IMAGE_CROP_SIZE = {
 PLAYER_IMAGE_CROP_ADJUSTMENT = {
     '2000': (-25,-300),
     '2001': (-35,-460),
-    '2002': (75,-300),
-    '2003': (75,-200),
+    '2002': (75,-250),
+    '2003': (75,-150),
     '2004': (0,0),
     '2005': (0,0),
     CLASSIC_SET: (0,int((PLAYER_IMAGE_CROP_SIZE[CLASSIC_SET][1] - 2100) / 2)),
