@@ -4828,6 +4828,7 @@ class ShowdownPlayerCard:
         # SUPER SEASON
         if self.edition == Edition.SUPER_SEASON and self.context in ['2004','2005']:
             components_dict = special_components_for_context
+            components_dict[sc.ImageComponent.DARKENER] = self.__card_art_path('DARKENER')
             components_dict[sc.ImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
         
