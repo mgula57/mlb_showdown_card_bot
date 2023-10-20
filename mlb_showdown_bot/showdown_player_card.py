@@ -201,7 +201,7 @@ class ShowdownPlayerCard:
         """
         # PARSE PLAYER TYPE
         if self.player_type.is_pitcher:
-            is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
+            is_starting_pitcher = self.has_position(Position.SP)
             return PlayerSubType.STARTING_PITCHER if is_starting_pitcher else PlayerSubType.RELIEF_PITCHER
         else:
             return PlayerSubType.POSITION_PLAYER
@@ -662,8 +662,6 @@ class ShowdownPlayerCard:
         """
 
         # CONVERT POSITION STRINGS TO POSITION CLASS
-        pprint(positions_and_defense)
-        pprint(positions_and_games_played)
         positions_and_defense: dict[Position, int] = { Position(p): v for p, v in positions_and_defense.items() }
         positions_and_games_played: dict[Position, int] = { Position(p): v for p, v in positions_and_games_played.items() }
 
@@ -1507,7 +1505,7 @@ class ShowdownPlayerCard:
 
         return best_chart, projected_stats_for_best_chart
 
-    def __chart_with_accuracy(self, command:int, outs:int, stats_for_400_pa:dict, era_override:Era = None) -> tuple[dict[str, int], float, dict]:
+    def __chart_with_accuracy(self, command:int, outs:int, stats_for_400_pa:dict, era_override:Era = None) -> tuple[Chart, float, dict]:
         """Create Player's chart and compare back to input stats.
 
         Args:
@@ -1533,23 +1531,26 @@ class ShowdownPlayerCard:
             if '_per_400_pa' in category and category != 'h_per_400_pa':
 
                 # CONVERT EACH REAL STAT CATEGORY INTO NUMBER OF RESULTS ON CHART
-                key = category[:2]
-                if key == 'sb':
-                    # STOLEN BASES HAS NO OPPONENT RESULTS
-                    chart_results = results_per_400_pa / stats_for_400_pa['pct_of_400_pa']
-                else:
-                    # CALCULATE NUM OF RESULTS
-                    opponent_values = opponent_chart.num_values(ChartCategory(key.upper()))
-                    chart_results = (results_per_400_pa - (opponent_advantages_per_20*opponent_values)) / my_advantages_per_20
+                key:str = category[:2]
 
-                if key == 'so':
+                # STOLEN BASES HAS NO OPPONENT RESULTS
+                if key == 'sb':
+                    chart.sb = results_per_400_pa / stats_for_400_pa['pct_of_400_pa']  
+                    continue              
+            
+                # CALCULATE NUM OF RESULTS
+                chart_category = ChartCategory(key.upper())
+                opponent_values = opponent_chart.num_values(chart_category)
+                chart_results = (results_per_400_pa - (opponent_advantages_per_20*opponent_values)) / my_advantages_per_20
+                
+                if chart_category == ChartCategory.SO:
                     chart_results = self.__so_results(current_so=chart_results, num_out_slots=outs)
                 
                 # HANDLE CASE OF < 0
                 chart_results = chart_results if chart_results > 0 else 0
 
                 # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
-                if self.is_pitcher and key == 'hr' and chart_results < 1.0:
+                if self.is_pitcher and chart_category == ChartCategory.HR and chart_results < 1.0:
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
                     chart_results_decimal = chart_results % 1
                     era = era_override if era_override else self.era
@@ -1557,14 +1558,14 @@ class ShowdownPlayerCard:
                 else:                    
                     rounded_results = round(chart_results)
                 # PITCHERS SHOULD ALWAYS GET 0 FOR 3B
-                rounded_results = 0 if self.is_pitcher and key == '3b' else rounded_results
+                rounded_results = 0 if self.is_pitcher and chart_category == ChartCategory._3B else rounded_results
                 # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
-                rounded_results = 12 if key == 'bb' and rounded_results > 13 else rounded_results
+                rounded_results = 12 if chart_category == ChartCategory.BB and rounded_results > 13 else rounded_results
                 # MAX HR RESULTS AT 10
-                rounded_results = 10 if key == 'hr' and rounded_results > 10 else rounded_results
+                rounded_results = 10 if chart_category == ChartCategory.HR and rounded_results > 10 else rounded_results
                 # MAX 2B RESULTS AT 12
-                rounded_results = 12 if key == '2b' and rounded_results > 12 else rounded_results
-                chart.values[key.upper()] = rounded_results
+                rounded_results = 12 if chart_category == ChartCategory._2B and rounded_results > 12 else rounded_results
+                chart.values[chart_category] = rounded_results
 
         # FILL "OUT" CATEGORIES (PU, GB, FB)
         out_slots_remaining = outs - float(chart.num_values(ChartCategory.SO))
@@ -1597,7 +1598,7 @@ class ShowdownPlayerCard:
         remaining_slots_qa = 0 if remaining_slots < 0 else remaining_slots
 
         # FILL 1B AND 1B+
-        stolen_bases = int(stats_for_400_pa['sb_per_400_pa'])
+        stolen_bases = int(stats_for_400_pa.get('sb_per_400_pa',0))
         single_results, single_plus_results = self.__single_and_single_plus_results(remaining_slots_qa,stolen_bases,command)
         chart.values.update({
             ChartCategory._1B: single_results,
@@ -2187,7 +2188,6 @@ class ShowdownPlayerCard:
             defense_points = 0
             for position, fielding in positions_and_defense.items():
                 if position != 'DH':
-                    print(position)
                     percentile = fielding / self.set.position_defense_max(position=position)
                     position_pts = percentile * self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.DEFENSE)
                     position_pts = position_pts * self.set.pts_positional_defense_weight(position=Position(position))

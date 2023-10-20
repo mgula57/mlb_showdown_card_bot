@@ -27,7 +27,7 @@ class ChartCategory(Enum):
 
 class Chart:
 
-    def __init__(self, is_pitcher:bool, set:str, command:int, outs:int, values:dict[str,int] = {}) -> None:
+    def __init__(self, is_pitcher:bool, set:str, command:int, outs:int, sb:int=0.0, values:dict[str,int] = {}) -> None:
 
         self.is_pitcher:bool = is_pitcher
         self.set: str = set
@@ -36,8 +36,10 @@ class Chart:
         self.command: int = command
         self.outs: int = outs
 
+        self.sb:float = sb
+
         self.values: dict[ChartCategory, int] = {
-            category: values.get(category.value) for category in ChartCategory if values.get(category, None) is not None
+            category: values.get(category.value) for category in ChartCategory if values.get(category.value, None) is not None
         }
 
         self.ranges: dict[ChartCategory, str] = {
