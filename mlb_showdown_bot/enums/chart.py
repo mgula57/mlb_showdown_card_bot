@@ -71,10 +71,6 @@ class Chart:
         values_list += [[category.value, str(round(value,2))] for category, value in self.values.items()]
         return values_list
     
-    @property
-    def is_num_values_over_20(self) -> bool:
-        return sum([v for v in self.values.values()]) > 20
-    
     # ---------------------------------------
     # RANGES
     # ---------------------------------------
@@ -289,3 +285,45 @@ class Chart:
     def ranges_list(self) -> list[str]:
         """List of ranges ordered as strings"""
         return [self.ranges[category] for category in self.categories_list]
+    
+    # ---------------------------------------
+    # QA
+    # ---------------------------------------
+    
+    def remaining_slots(self, excluded_categories:list[ChartCategory] = []) -> int:
+        """ Calculate how many chart slots remain.
+        
+        Args:
+          excluded_categories: Optional list of categories to exclude from the count.
+        
+        Returns:
+          Int for remaining slots.
+        """
+
+        return 20 - (sum([v for c, v in self.values.items() if c not in excluded_categories]))
+    
+    def check_and_fix_value_overage(self, excluded_categories:list[ChartCategory] = []) -> None:
+        """ If there are over 20 chart slots used, attempt to fix by reducing BB.
+        
+        Args:
+          excluded_categories: Optional list of categories to exclude from the count.
+        
+        Returns:
+          None
+        """
+
+        remaining_slots = self.remaining_slots(excluded_categories=excluded_categories)
+
+        # CHART IS COMPLIANT, RETURN
+        if remaining_slots >= 0:
+            return
+
+        # FIX BARRY BONDS EFFECT (HUGE WALK)
+        walk_results = self.num_values(ChartCategory.BB)
+        if walk_results >= abs(remaining_slots):
+            self.values[ChartCategory.BB] = walk_results - abs(remaining_slots)
+
+    @property
+    def is_num_values_over_20(self) -> bool:
+        return self.remaining_slots() != 20
+    

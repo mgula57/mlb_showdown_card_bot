@@ -1582,23 +1582,14 @@ class ShowdownPlayerCard:
         })
 
         # CALCULATE HOW MANY SPOTS ARE LEFT TO FILL 1B AND 1B+
-        remaining_slots = 20
-        for category, results in chart.values.items():
-            # IGNORE NON RESULT KEYS (EXCEPT 1B, WHICH WE WANT TO FILL OURSELVES)
-            if category not in [ChartCategory._1B]:
-                remaining_slots -= int(results)
-
-        # QA BARRY BONDS EFFECT (HUGE WALK)
-        if remaining_slots < 0:
-            walk_results = chart.num_values(ChartCategory.BB)
-            if walk_results >= abs(remaining_slots):
-                chart.values[ChartCategory.BB] = walk_results - abs(remaining_slots)
-                remaining_slots += abs(remaining_slots)
-        remaining_slots_qa = 0 if remaining_slots < 0 else remaining_slots
+        remaining_slots = chart.remaining_slots(excluded_categories=[ChartCategory._1B])
+        chart.check_and_fix_value_overage(excluded_categories=[ChartCategory._1B])
+        remaining_slots = chart.remaining_slots(excluded_categories=[ChartCategory._1B]) # RE-CHECK
+        remaining_slots_qad = 0 if remaining_slots < 0 else remaining_slots
 
         # FILL 1B AND 1B+
         stolen_bases = int(stats_for_400_pa.get('sb_per_400_pa',0))
-        single_results, single_plus_results = self.__single_and_single_plus_results(remaining_slots_qa,stolen_bases,command)
+        single_results, single_plus_results = self.__single_and_single_plus_results(remaining_slots_qad,stolen_bases,command)
         chart.values.update({
             ChartCategory._1B: single_results,
             ChartCategory._1B_PLUS: single_plus_results,
