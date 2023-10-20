@@ -219,14 +219,18 @@ class Firebase:
         # GRAB DATA FROM FIREBASE IF IT EXISTS
         is_offset = offset != 0
         is_disabled = ignore_showdown_library or is_offset or team_override or Edition(edition).ignore_showdown_library or hide_team_logo
-        cached_data = self.query(
-          bref_id=bref_id, 
-          year=year, 
-          set=set, 
-          expansion='FINAL', # TODO: UPDATE IN 2023 FOR LIVE CARDS
-          is_variable_speed_00_01=is_variable_speed_00_01,
-          disable=is_disabled,
-        )
+        try:
+          cached_data = self.query(
+            bref_id=bref_id, 
+            year=year, 
+            set=set, 
+            expansion='FINAL', # TODO: UPDATE IN 2023 FOR LIVE CARDS
+            is_variable_speed_00_01=is_variable_speed_00_01,
+            disable=is_disabled,
+          )
+        except Exception as e:
+            return None
+        
         if not cached_data:
             return None
 

@@ -29,7 +29,7 @@ class BaseballReferenceScraper:
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, name, year, ignore_cache:bool=False):
+    def __init__(self, name, year, ignore_cache:bool=False, disable_cleaning_cache:bool=False):
 
         self.year_input = year.upper()
         is_full_career = year.upper() == 'CAREER'
@@ -51,6 +51,7 @@ class BaseballReferenceScraper:
         self.error = None
         self.source = None
         self.ignore_cache = ignore_cache
+        self.disable_cleaning_cache = disable_cleaning_cache
         self.load_time = None
         
         # PARSE MULTI YEARS
@@ -230,6 +231,7 @@ class BaseballReferenceScraper:
         override_team = f'-{self.team_override}' if self.team_override else ""
         cached_filename = f"{years_as_str}-{self.baseball_ref_id}{override_type}{override_team}.json"
         cached_data = self.load_cached_data(cached_filename)
+        print(cached_filename, cached_data)
         if cached_data:
             self.source = 'Local Cache'
             end_time = datetime.now()
@@ -1174,27 +1176,6 @@ class BaseballReferenceScraper:
         
         return icon_threshold_bools
 
-    def __career_year_range(self, table_prefix, advanced_stats_soup):
-        """Parse the player's first and last seasons in the MLB
-
-        Args:
-          table_prefix: String for whether player is batter or pitcher
-          advanced_stats_soup: BeautifulSoup object for advanced stats table.
-
-        Returns:
-          Tuple of start and end years of career (ex: 2001, 2009)
-        """
-        try:
-            full_element_prefix = '{}_standard.'.format(table_prefix)
-            all_seasons_list = advanced_stats_soup.find_all('tr',attrs={'class':'full','id': re.compile(full_element_prefix)})
-            first_season = all_seasons_list[0].find('th',attrs={'class':'left','data-stat': 'year_ID'} )
-            last_season = all_seasons_list[-1].find('th',attrs={'class':'left','data-stat': 'year_ID'} )
-            year_of_first_season = str(first_season["csk"])
-            year_of_last_season = str(last_season["csk"])
-            return year_of_first_season, year_of_last_season
-        except:
-            return 2300, 2300
-
     def __combine_multi_year_dict(self, yearly_stats_dict):
         """Combine multiple years into one master final dataset
 
@@ -1485,7 +1466,7 @@ class BaseballReferenceScraper:
         
         # RETURN NONE IF FILE IS OVER 10 MINS OLD
         mins_since_modification = self.__file_mins_since_modification(path=full_path)
-        if mins_since_modification > 10.0:
+        if mins_since_modification > 10.0 and not self.disable_cleaning_cache:
             return None
 
         file = open(full_path, 'r')
@@ -1515,6 +1496,11 @@ class BaseballReferenceScraper:
         self.__remove_old_files(folder_path=folder_path)
     
     def __remove_old_files(self, folder_path:str, mins_cutoff:float = 10.0) -> None:
+
+        # DISABLE CLEANING
+        if self.disable_cleaning_cache:
+            return
+
         # CLEAR OUT OLD FILES
         for item in os.listdir(folder_path):
             if item != '.gitkeep':

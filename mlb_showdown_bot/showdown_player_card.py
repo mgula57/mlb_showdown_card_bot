@@ -51,7 +51,7 @@ class ShowdownPlayerCard:
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, name:str, year:str, stats:dict, set:str, expansion:str='FINAL', edition:str="NONE", offset:int=0, player_image_url:str=None, player_image_path:str=None, card_img_output_folder_path:str='', set_number:str='', test_numbers:tuple[int,int]=None, run_stats:bool=True, command_out_override:tuple[int,int]=None, print_to_cli:bool=False, show_player_card_image:bool=False, is_img_part_of_a_set:bool=False, add_image_border:bool=False, is_dark_mode:bool=False, is_variable_speed_00_01:bool=False, image_parallel:str="NONE", add_year_container:bool=False, set_year_plus_one:bool=False, hide_team_logo:bool=False, date_override:str=None, era:str="DYNAMIC", use_secondary_color:bool=False, is_running_in_flask:bool=False, source:str='Baseball Reference') -> None:
+    def __init__(self, name:str, year:str, stats:dict, set:str, expansion:str='FINAL', edition:str="NONE", offset:int=0, player_image_url:str=None, player_image_path:str=None, card_img_output_folder_path:str='', set_number:str='', test_numbers:tuple[int,int]=None, run_stats:bool=True, command_out_override:tuple[int,int]=None, print_to_cli:bool=False, show_player_card_image:bool=False, is_img_part_of_a_set:bool=False, add_image_border:bool=False, is_dark_mode:bool=False, is_variable_speed_00_01:bool=False, image_parallel:str="NONE", add_year_container:bool=False, set_year_plus_one:bool=False, hide_team_logo:bool=False, date_override:str=None, era:str="DYNAMIC", use_secondary_color:bool=False, is_running_in_flask:bool=False, source:str='Baseball Reference', disable_cache_cleaning:bool=False) -> None:
         """Initializer for ShowdownPlayerCard Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -122,6 +122,7 @@ class ShowdownPlayerCard:
         self.img_bordered_id: str = None
         self.img_dark_id: str = None
         self.img_dark_bordered_id: str = None
+        self.disable_cache_cleaning = disable_cache_cleaning
         
         # CUSTOMIZATIONS
         self.has_custom_set_number: bool = set_number != ''
@@ -5288,6 +5289,10 @@ class ShowdownPlayerCard:
         Returns:
           None
         """
+
+        # IGNORE CLEANING
+        if self.disable_cache_cleaning:
+            return
 
         # FINAL IMAGES
         output_folder_paths = [os.path.join(os.path.dirname(__file__), 'output')]
