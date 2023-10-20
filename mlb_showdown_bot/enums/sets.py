@@ -1429,7 +1429,8 @@ class Set(Enum):
     @property
     def player_image_crop_size(self) -> tuple[int,int]:
         match self.value:
-            case '2001' | '2002' | '2003': return (1200,1680)
+            case '2001': return (1200,1680)
+            case '2002' | '2003': return (1305,1827)
             case '2000' | '2004' | '2005': return (1500,2100)
             case 'CLASSIC' | 'EXPANDED': return (1200,1680)
 
@@ -1438,8 +1439,8 @@ class Set(Enum):
         match self.value:
             case '2000': return (-25,-300)
             case '2001': return (-35,-460)
-            case '2002': return (75,-300)
-            case '2003': return (75,-200)
+            case '2002': return (75,-250)
+            case '2003': return (75,-150)
             case 'CLASSIC' | 'EXPANDED': (0,int((self.player_image_crop_size[1] - 2100) / 2))
             case _: return (0,0)
 

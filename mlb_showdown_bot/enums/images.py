@@ -14,6 +14,7 @@ class PlayerImageComponent(Enum):
     GLOW = "GLOW"
     CUT = "CUT"
     GRADIENT = "GRADIENT"
+    DARKENER = "DARKENER"
     COOPERSTOWN = "COOPERSTOWN"
     ELLIPSE_LARGE = "ELLIPSE-LARGE"
     ELLIPSE_MEDIUM = "ELLIPSE-MEDIUM"
@@ -74,6 +75,7 @@ class PlayerImageComponent(Enum):
             "TEAM_LOGO",
             "SILHOUETTE",
             "NAME_CONTAINER_2000",
+            "DARKENER",
         ]
     
     @property
@@ -100,6 +102,7 @@ class PlayerImageComponent(Enum):
             'CUSTOM_BACKGROUND',
             'COOPERSTOWN',
             'SUPER_SEASON',
+            'DARKENER',
             'GRADIENT',
             'RAINBOW_FOIL',
             'SAPPHIRE',
