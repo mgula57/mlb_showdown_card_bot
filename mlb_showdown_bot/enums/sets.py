@@ -31,6 +31,7 @@ class Era(Enum):
     STEROID = "STEROID ERA"
     POST_STEROID = "POST STEROID ERA"
     STATCAST = "STATCAST ERA"
+    PITCH_CLOCK = "PITCH CLOCK ERA"
 
     @property
     def year_range(self) -> list[int]:
@@ -43,13 +44,15 @@ class Era(Enum):
             case 'FREE_AGENCY': return list(range(1977, 1994))
             case 'STEROID': return list(range(1994, 2010))
             case 'POST_STEROID': return list(range(2010, 2015))
-            case 'STATCAST': return list(range(2015, 2024))
+            case 'STATCAST': return list(range(2015, 2023))
+            case 'PITCH_CLOCK': return list(range(2023, 2025))
 
     @property
     def speed_multiplier(self) -> float:
         match self.name:
             case 'PRE_1900': return 0.80
             case 'DEAD_BALL': return 0.80
+            case 'PITCH_CLOCK': return 0.99
             case _: return 1.0
 
     @property
@@ -60,7 +63,7 @@ class Era(Enum):
     def hr_rounding_cutoff(self) -> float:
         match self.name:
             case 'STEROID': return 0.85
-            case 'STATCAST': return 0.70
+            case 'STATCAST' | 'PITCH_CLOCK': return 0.70
             case _: return 0.75
 
 
@@ -538,19 +541,19 @@ class Set(Enum):
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
                             case Era.STEROID | Era.POST_STEROID: return 1.00
-                            case Era.STATCAST: return 0.95
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
                     case '2001' | '2002' | '2003' | '2004' | '2005':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
                             case Era.STEROID | Era.POST_STEROID: return 1.10
-                            case Era.STATCAST: return 1.00
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.00
                     case 'CLASSIC' | 'EXPANDED':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
                             case Era.STEROID | Era.POST_STEROID: return 1.00
-                            case Era.STATCAST: return 0.90
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.90
             case PlayerType.PITCHER:
                 match self.value:
                     case '2000' | '2001' | '2002':
@@ -558,19 +561,19 @@ class Set(Enum):
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
                             case Era.STEROID | Era.POST_STEROID: return 0.90
-                            case Era.STATCAST: return 0.85
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.85
                     case '2003' | '2004' | '2005':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.15
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.10
                             case Era.STEROID | Era.POST_STEROID: return 1.05
-                            case Era.STATCAST: return 0.95
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
                     case 'CLASSIC' | 'EXPANDED':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
                             case Era.STEROID | Era.POST_STEROID: return 1.00
-                            case Era.STATCAST: return 0.95
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
 
     @property
     def hitter_so_results_soft_cap(self) -> int:
@@ -1680,6 +1683,21 @@ class Set(Enum):
                                         'HR': 0.08,
                                     }
                                 )
+                            case Era.PITCH_CLOCK:
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=3.24,
+                                    outs=16.00,
+                                    values={
+                                        'SO': 6.00,
+                                        'BB': 1.35,
+                                        '1B': 1.92,
+                                        '2B': 0.65,
+                                        '3B': 0.00,
+                                        'HR': 0.08,
+                                    }
+                                )
                     case '2001':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL:
@@ -1793,6 +1811,21 @@ class Set(Enum):
                                     set=self.value,
                                     command=3.3,
                                     outs=16.1,
+                                    values={
+                                        'SO': 6.00,
+                                        'BB': 1.35,
+                                        '1B': 1.82,
+                                        '2B': 0.62,
+                                        '3B': 0.00,
+                                        'HR': 0.08,
+                                    }
+                                )
+                            case Era.PITCH_CLOCK:
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=3.3,
+                                    outs=16.0,
                                     values={
                                         'SO': 6.00,
                                         'BB': 1.35,
@@ -1939,6 +1972,21 @@ class Set(Enum):
                                         'HR': 0.13,
                                     }
                                 )
+                            case Era.PITCH_CLOCK:
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=3.45,
+                                    outs=16.80,
+                                    values={
+                                        'SO': 5.75,
+                                        'BB': 1.10,
+                                        '1B': 1.35,
+                                        '2B': 0.52,
+                                        '3B': 0.00,
+                                        'HR': 0.13,
+                                    }
+                                )
                     case '2003':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL: 
@@ -2051,6 +2099,21 @@ class Set(Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=4.25,
+                                    outs=16.00,
+                                    values={
+                                        'SO': 5.00,
+                                        'BB': 1.25,
+                                        '1B': 1.90,
+                                        '2B': 0.65,
+                                        '3B': 0.00,
+                                        'HR': 0.20,
+                                    }
+                                )
+                            case Era.PITCH_CLOCK: 
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=4.23,
                                     outs=16.00,
                                     values={
                                         'SO': 5.00,
@@ -2183,6 +2246,21 @@ class Set(Enum):
                                         'HR': 0.20,
                                     }
                                 )
+                            case Era.PITCH_CLOCK:
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=4.00,
+                                    outs=15.95,
+                                    values={
+                                        'SO': 5.50,
+                                        'BB': 1.15,
+                                        '1B': 1.95,
+                                        '2B': 0.60,
+                                        '3B': 0.00,
+                                        'HR': 0.20,
+                                    }
+                                )
                     case '2005':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL:
@@ -2295,6 +2373,21 @@ class Set(Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=4.15,
+                                    outs=15.90,
+                                    values={
+                                        'SO': 5.10,
+                                        'BB': 1.15,
+                                        '1B': 2.00,
+                                        '2B': 0.65,
+                                        '3B': 0.00,
+                                        'HR': 0.20,
+                                    }
+                                )
+                            case Era.PITCH_CLOCK:
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=4.10,
                                     outs=15.90,
                                     values={
                                         'SO': 5.10,
@@ -2427,6 +2520,21 @@ class Set(Enum):
                                         'HR': 0.11,
                                     }
                                 )
+                            case Era.PITCH_CLOCK:
+                                return Chart(
+                                    is_pitcher=self.player_type.is_pitcher,
+                                    set=self.value,
+                                    command=3.25,
+                                    outs=16.1,
+                                    values={
+                                        'SO': 5.25,
+                                        'BB': 1.35,
+                                        '1B': 2.0,
+                                        '2B': 0.62,
+                                        '3B': 0.00,
+                                        'HR': 0.11,
+                                    }
+                                )
                     case 'EXPANDED':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL:
@@ -2539,6 +2647,21 @@ class Set(Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=4.2,
+                                    outs=16.1,
+                                    values={
+                                        'SO': 5.5,
+                                        'BB': 1.25,
+                                        '1B': 2.05,
+                                        '2B': 0.71,
+                                        '3B': 0.01,
+                                        'HR': 0.20,
+                                    }
+                                )
+                            case Era.PITCH_CLOCK:
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=4.15,
                                     outs=16.1,
                                     values={
                                         'SO': 5.5,
@@ -2681,6 +2804,22 @@ class Set(Enum):
                                         'HR': 2.10,
                                     }
                                 )
+                            case Era.PITCH_CLOCK: 
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=7.35,
+                                    outs=3.90,
+                                    values={
+                                        'SO': 2.0,
+                                        'BB': 4.4,
+                                        '1B': 6.60,
+                                        '1B+': 0.60,
+                                        '2B': 2.05,
+                                        '3B': 0.30,
+                                        'HR': 2.15,
+                                    }
+                                )
                     case '2001': 
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL: 
@@ -2811,6 +2950,22 @@ class Set(Enum):
                                         'HR': 2.0,  
                                     }          
                                 )
+                            case Era.PITCH_CLOCK: 
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=7.4,
+                                    outs=4.0,
+                                    values={
+                                        'SO': 2.00,
+                                        'BB': 4.45,
+                                        '1B': 6.40,
+                                        '1B+': 0.75,
+                                        '2B': 2.1,
+                                        '3B': 0.2,
+                                        'HR': 2.1,  
+                                    }          
+                                )
                     case '2002': 
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL: 
@@ -2937,6 +3092,22 @@ class Set(Enum):
                                         '1B': 6.52,
                                         '1B+': 0.30,
                                         '2B': 1.94,
+                                        '3B': 0.24,
+                                        'HR': 1.60,
+                                    }
+                                )
+                            case Era.PITCH_CLOCK: 
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=9.20,
+                                    outs=6.00,
+                                    values={
+                                        'SO': 2.50,
+                                        'BB': 3.40,
+                                        '1B': 6.36,
+                                        '1B+': 0.40,
+                                        '2B': 2.00,
                                         '3B': 0.24,
                                         'HR': 1.60,
                                     }
@@ -3071,6 +3242,22 @@ class Set(Enum):
                                         'HR': 2.00,
                                     }
                                 )
+                            case Era.PITCH_CLOCK: 
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=8.85,
+                                    outs=6.30,
+                                    values={
+                                        'SO': 3.30,
+                                        'BB': 3.00,
+                                        '1B': 6.20,
+                                        '1B+': 0.60,
+                                        '2B': 1.60,
+                                        '3B': 0.30,
+                                        'HR': 2.00,
+                                    }
+                                )
                     case '2004': 
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL: 
@@ -3197,6 +3384,22 @@ class Set(Enum):
                                         '1B': 6.00,
                                         '1B+': 0.40,
                                         '2B': 1.30,
+                                        '3B': 0.15,
+                                        'HR': 1.80,
+                                    }
+                                )
+                            case Era.PITCH_CLOCK: 
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=9.15,
+                                    outs=7.1,
+                                    values={
+                                        'SO': 3.00,
+                                        'BB': 3.15,
+                                        '1B': 5.85,
+                                        '1B+': 0.45,
+                                        '2B': 1.40,
                                         '3B': 0.15,
                                         'HR': 1.80,
                                     }
@@ -3331,6 +3534,22 @@ class Set(Enum):
                                         'HR': 1.75,
                                     }
                                 )
+                            case Era.PITCH_CLOCK: 
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=9.1,
+                                    outs=7.0,
+                                    values={
+                                        'SO': 3.05,
+                                        'BB': 3.35,
+                                        '1B': 5.85,
+                                        '1B+': 0.45,
+                                        '2B': 1.45,
+                                        '3B': 0.15,
+                                        'HR': 1.75,
+                                    }
+                                )
                     case 'CLASSIC': 
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL: 
@@ -3461,6 +3680,22 @@ class Set(Enum):
                                         'HR': 2.0,
                                     }
                                 )
+                            case Era.PITCH_CLOCK: 
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=7.45,
+                                    outs=4.0,
+                                    values={
+                                        'SO': 2.00,
+                                        'BB': 4.45,
+                                        '1B': 6.55,
+                                        '1B+': 0.75,
+                                        '2B': 2.05,
+                                        '3B': 0.2,
+                                        'HR': 2.0,
+                                    }
+                                )
                     case 'EXPANDED': 
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL: 
@@ -3587,6 +3822,22 @@ class Set(Enum):
                                         '1B': 6.05,
                                         '1B+': 0.40,
                                         '2B': 1.30,
+                                        '3B': 0.15,
+                                        'HR': 1.65,
+                                    }
+                            )
+                            case Era.PITCH_CLOCK: 
+                                return Chart(
+                                    is_pitcher=player_type.is_pitcher,
+                                    set=self.value,
+                                    command=9.35,
+                                    outs=7.0,
+                                    values={
+                                        'SO': 3.0,
+                                        'BB': 3.30,
+                                        '1B': 6.00,
+                                        '1B+': 0.40,
+                                        '2B': 1.40,
                                         '3B': 0.15,
                                         'HR': 1.65,
                                     }
