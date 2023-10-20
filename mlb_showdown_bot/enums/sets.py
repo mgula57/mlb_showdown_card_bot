@@ -302,7 +302,7 @@ class Set(Enum):
                 (12,0),(12,2),(12,3),
             ]
             case '2002': return [
-                (7,5),(7,6),(7,7),
+                (7,5),(7,6),(7,7),(7,8),(7,9),(7,10),
                 (8,5),(8,6),(8,7),(8,8),
                 (9,5),(9,6),(9,7),
                 (10,5),(10,6),(10,7),
@@ -314,7 +314,7 @@ class Set(Enum):
                 (16,3),(16,4),(16,5),(16,6),
             ]
             case '2003': return [
-                (7,8),(7,10),
+                (7,8),(7,9),(7,10),
                 (8,5),(8,6),(8,7),(8,8),(8,9),
                 (9,5),(9,6),(9,7),(9,8),
                 (10,5),(10,6),(10,7),
@@ -327,10 +327,10 @@ class Set(Enum):
             ]
             case '2004' | '2005': return [
                 (7,8),(7,9),(7,10),(7,11),
-                (8,7),(8,8),(8,9),(8,10),
+                (8,7),(8,8),(8,9),(8,10),(8,11),
                 (9,5),(9,6),(9,7),(9,8),(9,9),(9,10),(9,11),
-                (10,5),(10,6),(10,7),
-                (11,5),(11,6),(11,7),
+                (10,5),(10,6),(10,7),(10,8),
+                (11,5),(11,6),(11,7),(11,8),
                 (12,5),(12,6),(12,7),
                 (13,5),(13,6),(13,7),
                 (14,5),(14,6),(14,7),
@@ -366,7 +366,7 @@ class Set(Enum):
         match self.value:
             case '2000': return [
                 (0,16),(0,17),(0,18),
-                (2,15),(2,16),
+                (2,15),(2,16),(2,18),
                 (3,15),(3,16),(3,17),(3,18),
                 (4,14),(4,15),(4,16),(4,17),(4,18),
                 (5,15),(5,16),(5,17),(5,18),(5,19),
@@ -374,10 +374,10 @@ class Set(Enum):
             ]
             case '2001': return [
                 (0,17),(0,18),
-                (1,17),
-                (2,16),(2,17),
-                (3,14),(3,15),(3,16),(3,17),
-                (4,14),(4,15),(4,16),(4,17),
+                (1,17),(1,18),
+                (2,16),(2,17),(2,18),
+                (3,14),(3,15),(3,16),(3,17),(3,18),
+                (4,14),(4,15),(4,16),(4,17),(4,18),
                 (5,14),(5,15),(5,16),(5,17),(5,18),(5,19),
                 (6,14),(6,15),(6,16),(6,17),(6,18),(6,20),
             ]
@@ -398,9 +398,9 @@ class Set(Enum):
                 (6,16),(6,17),(6,18),(6,20),
             ]
             case '2004' | '2005': return [
-                (1,13),(1,14),(1,15),(1,16),(1,18),
-                (2,14),(2,15),(2,16),(2,18),
-                (3,15),(3,16),(3,17),(3,18),
+                (1,13),(1,14),(1,15),(1,16),(1,18),(1,19),
+                (2,14),(2,15),(2,16),(2,18),(2,19),
+                (3,15),(3,16),(3,17),(3,18),(3,19),
                 (4,14),(4,15),(4,16),(4,17),(4,18),
                 (5,12),(5,14),(5,15),(5,16),(5,17),(5,18),(5,19),
                 (6,15),(6,16),(6,17),(6,18),(6,20),
@@ -415,8 +415,8 @@ class Set(Enum):
                 (6,14),(6,15),(6,16),(6,17),(6,18),(6,20),
             ]
             case 'EXPANDED': return [
-                (1,14),(1,15),(1,16),(1,17),(1,18),
-                (2,15),(2,16),(2,17),(2,18),
+                (1,14),(1,15),(1,16),(1,17),(1,18),(1,19),
+                (2,15),(2,16),(2,17),(2,18),(2,19),
                 (3,15),(3,16),(3,17),(3,18),(3,19),
                 (4,15),(4,16),(4,17),(4,18),(4,19),
                 (5,14),(5,15),(5,16),(5,17),(5,18),(5,19),
@@ -429,16 +429,62 @@ class Set(Enum):
     def command_out_accuracy_weighting(self, command:int, outs:int) -> float:
         command_out_str = f"{command}-{outs}"
         match self.value:
-            case '2000' | '2001':
+            case '2000':
                 match command_out_str:
                     case '7-2' | '8-2' | '9-2': return 0.999
-            case '2003' | '2004' | '2005':
+                    case '2-18': return 0.97
+            case '2001':
+                match command_out_str:
+                    case '7-2' | '8-2' | '9-2': return 0.999
+                    case '1-18': return 0.975
+                    case '2-18': return 0.97
+                    case '3-18' | '4-18': return 0.98
+            case '2003':
                 match command_out_str: 
-                    case '1-18' | '2-18' | '3-17' | '3-18': return 0.99
+                    case '1-18': return 0.99
+                    case '2-18': return 0.98
+                    case '3-17': return 0.99
+                    case '3-18': return 0.99
                     case '4-18': return 0.98
+            case '2004':
+                match command_out_str: 
+                    case '1-18': return 0.98
+                    case '1-19': return 0.97
+                    case '2-18': return 0.985
+                    case '2-19': return 0.975
+                    case '3-17': return 0.99
+                    case '3-18': return 0.99
+                    case '3-19': return 0.965
+                    case '4-15': return 0.99
+                    case '4-18': return 0.98
+
+                    case '10-8': return 0.985
+                    case '11-8': return 0.99
+            case '2005':
+                match command_out_str: 
+                    case '1-18': return 0.99
+                    case '1-19': return 0.97
+                    case '2-18': return 0.985
+                    case '2-19': return 0.975
+                    case '3-17': return 0.99
+                    case '3-18': return 0.99
+                    case '3-19': return 0.965
+                    case '4-15': return 0.99
+                    case '4-18': return 0.98
+
+                    case '10-8': return 0.985
+                    case '11-8': return 0.99
+            case 'CLASSIC':
+                match command_out_str:
+                    case '3-19' | '2-18' | '1-18': return 0.99
             case 'EXPANDED':
                 match command_out_str:
-                    case '3-19' | '3-18': return 0.99
+                    case '3-19': return 0.98
+                    case '3-18': return 0.99
+                    case '2-18': return 0.993
+                    case '1-18': return 0.99
+                    case '2-19': return 0.98
+                    case '1-19': return 0.99
 
         # DEFAULT TO 1.0
         return 1.00
@@ -899,6 +945,7 @@ class Set(Enum):
                     case '3-17': return 0.97
                     case '3-16': return 0.97
                     case '3-15': return 1.1
+                    case '2-18': return 0.92
             case '2001':
                 match command_out_str:
                     case '10-4': return 1.05
@@ -910,10 +957,14 @@ class Set(Enum):
                     case '7-4': return 0.90
                     case '7-3': return 0.90
 
+                    case '1-18': return 0.90
                     case '2-17': return 0.92
+                    case '2-18': return 0.92
                     case '3-17': return 0.85
+                    case '3-18': return 0.92
                     case '4-14': return 1.15
                     case '4-15': return 1.15
+                    case '4-18': return 0.95
                     case '5-14': return 1.25
                     case '6-14': return 1.05
                     case '6-15': return 1.05
@@ -937,18 +988,28 @@ class Set(Enum):
                     case '3-17': return 0.90
                     case '4-17': return 0.95
                     case '2-18': return 0.80
+                    case '3-18': return 0.90
+                    case '1-19': return 0.90
+                    case '2-19': return 0.90
+                    case '3-19': return 0.90
             case '2005':
                 match command_out_str:
                     case '9-5': return 1.15
                     case '9-6': return 1.1
                     case '9-7': return 0.95
+
+                    case '2-18': return 0.85
                     case '3-15': return 1.25
                     case '3-16': return 1.05
                     case '3-17': return 0.8
                     case '3-18': return 0.9
                     case '4-17': return 0.8
                     case '5-17': return 0.95
+                    case '6-16': return 1.10
                     case '6-17': return 1.03
+                    case '1-19': return 0.90
+                    case '2-19': return 0.90
+                    case '3-19': return 0.90
             case 'CLASSIC':
                 match command_out_str:
                     case '10-4': return 1.05
@@ -959,6 +1020,8 @@ class Set(Enum):
                     case '8-3': return 0.90
                     case '7-4': return 0.90
                     case '7-3': return 0.90
+
+                    case '1-18': return 0.90
                     case '2-17': return 0.92
                     case '2-18': return 0.95
                     case '3-17': return 0.85
@@ -979,6 +1042,9 @@ class Set(Enum):
                     case '3-17': return 0.90
                     case '3-18': return 0.90
                     case '4-17': return 0.90
+                    case '1-19': return 0.90
+                    case '2-19': return 0.90
+                    case '3-19': return 0.90
 
         return 1.0
 
@@ -1043,12 +1109,12 @@ class Set(Enum):
             case '2004':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 0.65
-                    case PlayerSubType.STARTING_PITCHER: return 0.75
+                    case PlayerSubType.STARTING_PITCHER: return 0.80
                     case PlayerSubType.RELIEF_PITCHER: return 0.675
             case '2005':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 0.65
-                    case PlayerSubType.STARTING_PITCHER: return 0.75
+                    case PlayerSubType.STARTING_PITCHER: return 0.78
                     case PlayerSubType.RELIEF_PITCHER: return 0.74
             case 'CLASSIC':
                 match player_sub_type:
@@ -1220,17 +1286,17 @@ class Set(Enum):
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.350, max = 0.470)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.500)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.350, max = 0.550)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.360, max = 0.550)
             case '2004':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.340, max = 0.470)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.475)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.360, max = 0.550)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.380, max = 0.545)
             case '2005':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.335, max = 0.475)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.480)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.360, max = 0.545)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.380, max = 0.545)
             case 'CLASSIC':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.340, max = 0.500)
@@ -1240,7 +1306,7 @@ class Set(Enum):
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.335, max = 0.475)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.480)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.360, max = 0.545)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.375, max = 0.545)
 
     def pts_speed_or_ip_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
         match player_sub_type:
