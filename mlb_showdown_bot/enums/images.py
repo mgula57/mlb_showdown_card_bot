@@ -138,7 +138,6 @@ class SpecialEdition(Enum):
     NATIONALITY = "NATIONALITY"
     NONE = "NONE"
 
-    @property
     def color(self, league:str=None) -> tuple[int,int,int,int]:
         match self.name:
             case "ASG_2023": 

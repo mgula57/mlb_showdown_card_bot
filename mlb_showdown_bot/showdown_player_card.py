@@ -158,10 +158,9 @@ class ShowdownPlayerCard:
             self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,
                                                                               stats_per_400_pa=stats_for_400_pa,
                                                                               offset=int(offset))
-            self.chart_ranges = self.ranges_for_chart(chart=self.chart,
-                                                      dbl_per_400_pa=float(stats_for_400_pa['2b_per_400_pa']),
-                                                      trpl_per_400_pa=float(stats_for_400_pa['3b_per_400_pa']),
-                                                      hr_per_400_pa=float(stats_for_400_pa['hr_per_400_pa']))
+            self.chart.generate_range_strings(dbl_per_400_pa=float(stats_for_400_pa['2b_per_400_pa']),
+                                              trpl_per_400_pa=float(stats_for_400_pa['3b_per_400_pa']),
+                                              hr_per_400_pa=float(stats_for_400_pa['hr_per_400_pa']))
             self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command)
 
             # FOR PTS, USE STEROID ERA OPPONENT
@@ -1525,7 +1524,7 @@ class ShowdownPlayerCard:
         opponent_chart, my_advantages_per_20, opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=command, era_override=era_override)
 
         # CREATE THE CHART DICTIONARY
-        chart = Chart(is_pitcher=self.is_pitcher, set=self.set.value, command=command, outs=outs)
+        chart = Chart(is_pitcher=self.is_pitcher, set=self.set.value, command=command, outs=outs, is_expanded=self.set.has_expanded_chart)
 
         for category, results_per_400_pa in stats_for_400_pa.items():
             if '_per_400_pa' in category and category != 'h_per_400_pa':
@@ -1734,204 +1733,6 @@ class ShowdownPlayerCard:
         single_results = remaining_slots - single_plus_results
 
         return single_results, single_plus_results
-
-    def ranges_for_chart(self, chart:Chart, dbl_per_400_pa:float, trpl_per_400_pa:float, hr_per_400_pa:float) -> dict[str, str]:
-        """Converts chart integers to Range Strings ({1B: 3} -> {'1B': '11-13'})
-
-        Args:
-          chart: Chart object
-          dbl_per_400_pa: Number of 2B results every 400 PA
-          trpl_per_400_pa: Number of 3B results every 400 PA
-          hr_per_400_pa: Number of HR results every 400 PA
-
-        Returns:
-          Dict of ranges for each result category.
-        """
-
-        current_chart_index = 1
-        chart_ranges: dict[str, str] = {}
-        for category in chart.categories_list:
-            category_results = chart.num_values(category)
-            range_end = current_chart_index + category_results - 1
-
-            # HANDLE RANGES > 20
-            if self.set.has_expanded_chart and range_end >= 20 and self.is_pitcher:
-                add_to_1b, num_of_results_2b = self.__calculate_ranges_over_20(dbl_per_400_pa, hr_per_400_pa)
-                # DEFINE OVER 20 RANGES
-                if category == ChartCategory._1B:
-                    category_results += add_to_1b
-                    range_end = current_chart_index + category_results - 1
-                elif category == ChartCategory._2B:
-                    category_results += num_of_results_2b
-                    range_end = current_chart_index + category_results - 1
-            
-            # HANDLE ERRORS WITH SMALL SAMPLE SIZE 2000/2001 FOR SMALL ONBASE
-            if self.set.has_classic_chart and range_end > 20:
-                range_end = 20
-                
-            if category == ChartCategory.HR and self.set.has_expanded_chart:
-                # ADD PLUS AFTER HR
-                range = '{}+'.format(str(current_chart_index))
-            elif category_results == 0:
-                # EMPTY RANGE
-                range = '—'
-            elif category_results == 1:
-                # RANGE IS CURRENT INDEX
-                range = str(current_chart_index)
-                current_chart_index += 1
-            else:
-                # MULTIPLE RESULTS
-                range_start = current_chart_index
-                range = '{}–{}'.format(range_start,range_end)
-                current_chart_index = range_end + 1
-
-            chart_ranges['{} Range'.format(category.value)] = range
-
-        # FILL IN ABOVE 20 RESULTS IF APPLICABLE
-        if self.set.has_expanded_chart and chart.num_values(ChartCategory.HR) < 1 and not self.is_pitcher:
-            chart_ranges = self.__hitter_chart_above_20(chart, chart_ranges, dbl_per_400_pa, trpl_per_400_pa, hr_per_400_pa)
-
-        return chart_ranges
-
-    def __calculate_ranges_over_20(self, dbl_per_400_pa:float, hr_per_400_pa:float) -> tuple[int, int]:
-        """Calculates starting points of 2B and HR ranges for post 2001 cards
-           whose charts expand past 20.
-
-        Args:
-          dbl_per_400_pa: Number of 2B results every 400 PA
-          hr_per_400_pa: Number of HR results every 400 PA
-
-        Returns:
-          Tuple of 1b_additions, 2b results
-        """
-        # TODO: MAKE THIS LESS STATIC
-
-        # HR
-        if hr_per_400_pa >= 13:
-            hr_start = 21
-        elif hr_per_400_pa >= 11:
-            hr_start = 22
-        elif hr_per_400_pa >= 8.5:
-            hr_start = 23
-        elif hr_per_400_pa >= 7.0:
-            hr_start = 24
-        elif hr_per_400_pa >= 5.0:
-            hr_start = 25
-        elif hr_per_400_pa >= 3.0:
-            hr_start = 26
-        else:
-            hr_start = 27
-
-        # 2B
-        if dbl_per_400_pa >= 13:
-            dbl_start = 21
-        elif dbl_per_400_pa >= 9.0:
-            dbl_start = 22
-        elif dbl_per_400_pa >= 5.5:
-            dbl_start = 23
-        else:
-            dbl_start = 24
-
-        add_to_1b = dbl_start - 20
-        hr_start_final = hr_start if dbl_start < hr_start else dbl_start + 1
-        num_of_results_2b = hr_start_final - dbl_start
-
-        return add_to_1b, num_of_results_2b
-
-    def __hitter_chart_above_20(self, chart:Chart, chart_ranges:dict[str, str], dbl_per_400_pa:float, trpl_per_400_pa:float, hr_per_400_pa:float) -> dict[str, str]:
-        """If a hitter has remaining result categories above 20, populate them.
-        Only for sets > 2001.
-
-        Args:
-            chart: Chart object.
-            chart_ranges: Dict with visual representation of range per result category
-            dbl_per_400_pa: Number of 2B results every 400 PA
-            trpl_per_400_pa: Number of 3B results every 400 PA
-            hr_per_400_pa: Number of HR results every 400 PA
-
-        Returns:
-            Dict of ranges for each result category.
-        """
-        # VALIDATE THAT CHART HAS VALUES ABOVE 20
-        if chart.num_values(ChartCategory.HR) > 0:
-            return chart_ranges
-
-        # STATIC THRESHOLDS FOR END HR #
-        # THIS COULD BE MORE PROBABILITY BASED, BUT SEEMS LIKE ORIGINAL SETS USED STATIC METHODOLOGY
-        # NOTE: 2002 HAS MORE EXTREME RANGES
-        is_2002 = self.set == Set._2002
-        threshold_adjustment = 0 if is_2002 else -3
-        if hr_per_400_pa < 1.0:
-            hr_end = 27
-        elif hr_per_400_pa < 2.5 and is_2002: # RESTRICT TO 2002
-            hr_end = 26
-        elif hr_per_400_pa < 3.75 and is_2002: # RESTRICT TO 2002
-            hr_end = 25
-        elif hr_per_400_pa < 4.75 + threshold_adjustment:
-            hr_end = 24
-        elif hr_per_400_pa < 6.25 + threshold_adjustment:
-            hr_end = 23
-        elif hr_per_400_pa < 7.5 + threshold_adjustment:
-            hr_end = 22
-        else:
-            hr_end = 21
-        chart_ranges['HR Range'] = '{}+'.format(hr_end)
-
-        # SPLIT REMAINING OVER 20 SPACES BETWEEN 1B, 2B, AND 3B
-        remaining_slots = hr_end - 21
-        is_remaining_slots = remaining_slots > 0
-        is_last_under_20_result_3b = chart.num_values(ChartCategory._3B) > 0
-        is_last_under_20_result_2b = not is_last_under_20_result_3b and chart.num_values(ChartCategory._2B) > 0
-
-        if is_remaining_slots:
-            # FILL WITH 3B
-            if is_last_under_20_result_3b:
-                current_range_start = chart_ranges['3B Range'][0:2]
-                new_range_end = hr_end - 1
-                range_updated = '{}–{}'.format(current_range_start,new_range_end)
-                chart_ranges['3B Range'] = range_updated
-            # FILL WITH 2B (AND POSSIBLY 3B)
-            elif is_last_under_20_result_2b:
-                new_range_end = hr_end - 1
-                if trpl_per_400_pa >= 3.5:
-                    # GIVE TRIPLE 21-HR
-                    triple_range = '21' if remaining_slots == 1 else '21-{}'.format(new_range_end)
-                    chart_ranges['3B Range'] = triple_range
-                else:
-                    # GIVE 2B-HR
-                    current_range_start = chart_ranges['2B Range'][0:2]
-                    range_updated = '{}–{}'.format(current_range_start,new_range_end)
-                    chart_ranges['2B Range'] = range_updated
-            # FILL WITH 1B (AND POSSIBLY 2B AND 3B)
-            else:
-                new_range_end = hr_end - 1
-                if trpl_per_400_pa + dbl_per_400_pa == 0:
-                    # FILL WITH 1B
-                    category_1b = '1B+ Range' if chart.num_values(ChartCategory._1B_PLUS) > 0 else '1B Range'
-                    current_range_start = chart_ranges[category_1b][0:2]
-                    # CHECK FOR IF SOMEHOW PLAYER HAS 0 1B TOO
-                    if current_range_start == '—':
-                        current_range_start = '21'
-                    range_updated = '{}–{}'.format(current_range_start,new_range_end)
-                    chart_ranges[category_1b] = range_updated
-                else:
-                    # SPLIT BETWEEN 2B AND 3B
-                    dbl_pct = dbl_per_400_pa / (trpl_per_400_pa + dbl_per_400_pa)
-                    dbl_slots = int(round((remaining_slots * dbl_pct)))
-                    trpl_slots = remaining_slots - dbl_slots
-
-                    # FILL 2B
-                    dbl_range = '21' if dbl_slots == 1 else '21-{}'.format(20 + dbl_slots)
-                    dbl_range = '—' if dbl_slots == 0 else dbl_range
-                    chart_ranges['2B Range'] = dbl_range
-
-                    # FILL 3B
-                    trpl_start = 21 + dbl_slots
-                    trpl_range = str(trpl_start) if trpl_slots == 1 else '{}-{}'.format(trpl_start, trpl_start + trpl_slots - 1)
-                    trpl_range = '—' if trpl_slots == 0 else trpl_range
-                    chart_ranges['3B Range'] = trpl_range
-        return chart_ranges
-
 
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
@@ -2563,10 +2364,8 @@ class ShowdownPlayerCard:
 
         print(f"{self.chart.command} {'CONTROL' if self.is_pitcher else 'ONBASE'}")
 
-        chart_columns = self.chart.categories_list
-        chart_ranges = [self.chart_ranges[f'{category.value} Range'] for category in chart_columns]
-        chart_tbl = PrettyTable(field_names=[col.value for col in chart_columns])
-        chart_tbl.add_row(chart_ranges)
+        chart_tbl = PrettyTable(field_names=[col.value for col in self.chart.categories_list])
+        chart_tbl.add_row(self.chart.ranges_list)
 
         print("\nCHART")
         print(chart_tbl)
@@ -3693,7 +3492,7 @@ class ShowdownPlayerCard:
                 # POSITION
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=72)
                 position = self.positions_list[0]
-                position_text = self.__text_image(text=position, size=(900, 300), font=font_position, alignment='center')
+                position_text = self.__text_image(text=position.value, size=(900, 300), font=font_position, alignment='center')
                 metadata_image.paste(colors.WHITE, (660,342), position_text)
                 # HAND | IP
                 font_hand_ip = ImageFont.truetype(helvetica_neue_lt_path, size=63)
@@ -3863,8 +3662,8 @@ class ShowdownPlayerCard:
         chart_text_addition = -20 if self.set.is_showdown_bot else 0
         chart_text_x = 150 + chart_text_addition if self.is_pitcher else 141
         for category in self.chart.categories_list:
-            is_out_category = category.lower() in ['pu','so','gb','fb']
-            range = self.chart_ranges['{} Range'.format(category)]
+            is_out_category = category.is_out
+            range = self.chart.ranges[category]
             # 2004/2005 CHART IS HORIZONTAL. PASTE TEXT ONTO IMAGE INSTEAD OF STRING OBJECT.
             if is_horizontal:
                 is_wotc = self.set.is_04_05
