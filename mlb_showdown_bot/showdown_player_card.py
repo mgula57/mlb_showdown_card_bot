@@ -5131,31 +5131,6 @@ class ShowdownPlayerCard:
         
         return None
 
-    def __update_image_opacity(self, image:Image.Image, opacity: float) -> Image.Image:
-        """ Apply new opacity value to each pixel in the image.
-        Only changes opacity of non-transparent pixels.
-
-        Args:
-          image: PIL Image to change the opacity for.
-          opacity: Updated image opacity. Using 0.0 -> 1.0 scale.
-
-        Returns:
-          PIL Image updated for new opacity value.
-        """
-        opacity_for_rgb = int(255 * opacity)
-        color_data = image.getdata()
-        new_color_data = []
-        for color_tuple in color_data:
-            current_opacity = color_tuple[3]
-            new_opacity = current_opacity if current_opacity == 0 else opacity_for_rgb
-            color_tuple = color_tuple[:3]
-            color_tuple = color_tuple + (new_opacity, ) #change the 100 to any transparency number you like between (0,255)
-            new_color_data.append(color_tuple)
-        
-        image.putdata(new_color_data)
-        return image
-    
-
 # ------------------------------------------------------------------------
 # SHOWDOWN IMAGE LIBRARY IMPORT
 # ------------------------------------------------------------------------
