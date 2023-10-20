@@ -231,7 +231,6 @@ class BaseballReferenceScraper:
         override_team = f'-{self.team_override}' if self.team_override else ""
         cached_filename = f"{years_as_str}-{self.baseball_ref_id}{override_type}{override_team}.json"
         cached_data = self.load_cached_data(cached_filename)
-        print(cached_filename, cached_data)
         if cached_data:
             self.source = 'Local Cache'
             end_time = datetime.now()

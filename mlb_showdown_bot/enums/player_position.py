@@ -79,3 +79,14 @@ class Position(MultiValueEnum):
             case 'SS': return ['2B','3B',]
             case _: return []
 
+    @property
+    def is_infield(self) -> bool:
+        return self.name in ['_1B','_2B','_3B','SS',]
+    
+    @property
+    def is_pitcher(self) -> bool:
+        return self.name in ['SP','RP','CL']
+    
+    @property
+    def is_hitter(self) -> bool:
+        return not self.is_pitcher

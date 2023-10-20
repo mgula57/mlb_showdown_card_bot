@@ -152,11 +152,7 @@ class ShowdownPlayerCard:
             # MAKES MATH EASIER (20 SIDED DICE)
             stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=stats)
 
-            if command_out_override is None:
-                command_out_combos = self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=5)
-            else:
-                # OVERRIDE WILL MANUALLY CHOOSE COMMAND OUTS COMBO (USED FOR TESTING)
-                command_out_combos = [command_out_override]
+            command_out_combos = [command_out_override] if command_out_override else self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=5)
 
             self.chart: Chart = None
             self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,
@@ -340,7 +336,7 @@ class ShowdownPlayerCard:
         return num_positions
     
     @property
-    def positions_and_defense_for_visuals(self) -> dict:
+    def positions_and_defense_for_visuals(self) -> dict[str, int]:
         """ Transform the player's positions_and_defense dictionary for visuals (printing, card image)
         
         Args:
@@ -350,19 +346,21 @@ class ShowdownPlayerCard:
           Dictionary where key is the position, value is the defense at that position
         """
 
+        positions_and_defense_as_str = { p.value: v for p,v in self.positions_and_defense.items() }
+
         # NO NEED TO COMBINE IF < 3 POSITIONS
         if self.set.is_showdown_bot or len(self.positions_and_defense) < 3:
-            return self.positions_and_defense
+            return positions_and_defense_as_str
         
         positions_to_combine = self.__find_position_combination_opportunity(self.positions_and_defense)
         if positions_to_combine is None:
-            return self.positions_and_defense
+            return positions_and_defense_as_str
         positions_to_combine_str =  "/".join(positions_to_combine)
         
         avg_defense = self.positions_and_defense.get(positions_to_combine[0], None)
         if avg_defense is None:
-            return self.positions_and_defense
-        combined_positions_and_defense = {pos: df for pos, df in self.positions_and_defense.items() if pos not in positions_to_combine}
+            return positions_and_defense_as_str
+        combined_positions_and_defense = {pos: df for pos, df in positions_and_defense_as_str.items() if pos not in positions_to_combine}
         combined_positions_and_defense[positions_to_combine_str] = avg_defense
 
         return combined_positions_and_defense
@@ -380,6 +378,11 @@ class ShowdownPlayerCard:
         
         return sorted(self.positions_and_defense_for_visuals.items(), key=lambda p: Position(p).index)
     
+    @property
+    def positions_list(self) -> [Position]:
+        """ List of player's in-game positions"""
+        return list(self.positions_and_defense.keys())
+
     @property 
     def median_year(self) -> int:
         """ Median of all player seasons used. """
@@ -496,9 +499,9 @@ class ShowdownPlayerCard:
                                                         games_played=games_played,
                                                         games_started=games_started,
                                                         saves=saves)
-                positions_and_games_played[position] = games_at_position
                 # IN-GAME RATING AT
                 if position is not None:
+                    positions_and_games_played[position] = games_at_position
                     if not self.is_pitcher:
                         try:
                             # FOR MULTI YEAR CARDS THAT SPAN CROSS OVER 2016, IGNORE OAA
@@ -529,30 +532,31 @@ class ShowdownPlayerCard:
                             dWar = float(defensive_stats['dWAR']) if is_d_war_available else None
                             
                             if is_oaa_available:
-                                metric = 'oaa'
+                                metric = DefenseMetric.OAA
                                 defensive_rating = oaa
                             elif drs != None:
-                                metric = 'drs'
+                                metric = DefenseMetric.DRS
                                 defensive_rating = drs
                             elif tzr != None: 
-                                metric = 'tzr'
+                                metric = DefenseMetric.TZR
                                 defensive_rating = tzr
                             else:
-                                metric = 'dWAR'
+                                metric = DefenseMetric.DWAR
                                 defensive_rating = dWar
                             positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
-                        except:
+                        except Exception as e:
+                            print(e)
                             in_game_defense = 0
                         positions_and_defense[position] = in_game_defense
                     else:
                         positions_and_defense[position] = 0
 
         # COMBINE ALIKE IN-GAME POSITIONS (LF/RF, OF, IF, ...)
-        final_positions_in_game, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played,is_of_but_hasnt_played_cf=is_of_but_hasnt_played_cf)
+        initial_position_name_and_rating, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played,is_of_but_hasnt_played_cf=is_of_but_hasnt_played_cf)
 
         # FILTER TO TOP POSITIONS BY GAMES PLAYED
-        final_positions_in_game = self.__filter_to_top_positions(positions_and_defense=final_positions_in_game, positions_and_games_played=final_position_games_played)
+        final_positions_in_game = self.__finalize_in_game_positions(positions_and_defense=initial_position_name_and_rating, positions_and_games_played=final_position_games_played)
 
         # ASSIGN DH IF POSITIONS DICT IS EMPTY
         if final_positions_in_game == {}:
@@ -646,7 +650,7 @@ class ShowdownPlayerCard:
 
         return positions_and_defense, positions_and_games_played
 
-    def __filter_to_top_positions(self, positions_and_defense:dict, positions_and_games_played:dict) -> dict:
+    def __finalize_in_game_positions(self, positions_and_defense:dict[str,int], positions_and_games_played:dict[str,int]) -> dict:
         """ Filter number of positions, find opportunities to combine positions. Convert position strings to classes.
         
         Args:
@@ -657,23 +661,31 @@ class ShowdownPlayerCard:
           Dict of positions and defense filtered to max positions.
         """
 
+        # CONVERT POSITION STRINGS TO POSITION CLASS
+        pprint(positions_and_defense)
+        pprint(positions_and_games_played)
+        positions_and_defense: dict[Position, int] = { Position(p): v for p, v in positions_and_defense.items() }
+        positions_and_games_played: dict[Position, int] = { Position(p): v for p, v in positions_and_games_played.items() }
+
         # CHECK FOR IF ELIGIBILITY
-        if_positions = ['1B','2B','SS','3B']
-        is_if_eligible = set(['1B','2B','SS','3B']) == set([pos for pos in positions_and_defense.keys() if pos in if_positions])
-        if is_if_eligible:
+        infield_positions_and_defense = { p:v for p, v in positions_and_defense.items() if p.is_infield }
+        infield_positions_and_games_played = { p:v for p, v in positions_and_games_played.items() if p.is_infield }
+        is_infield_eligible = len(infield_positions_and_defense) == 4
+        if is_infield_eligible:
             # SEE IF TOTAL DEFENSE IS ABOVE REQUIREMENT FOR +1
-            total_defense = sum([defense for pos, defense in positions_and_defense.items() if pos in if_positions])
-            total_games_played_if = sum([games_played for pos, games_played in positions_and_games_played.items() if pos in if_positions])
-            in_game_rating_if = int(total_defense >= self.set.infield_plus_one_requirement)
+            infield_positions = list(infield_positions_and_defense.keys())
+            total_defense_infield = sum(list(infield_positions_and_defense.values()))
+            total_games_played_infield = sum(list(infield_positions_and_games_played.values()))
+            in_game_rating_infield = int(total_defense_infield >= self.set.infield_plus_one_requirement)
 
             # REMOVE OLD POSITIONS
-            for position in if_positions:
+            for position in infield_positions:
                 positions_and_defense.pop(position, None)
                 positions_and_games_played.pop(position, None)
 
             # ADD IF DEFENSE
-            positions_and_defense['IF'] = in_game_rating_if
-            positions_and_games_played['IF'] = total_games_played_if
+            positions_and_defense[Position.IF] = in_game_rating_infield
+            positions_and_games_played[Position.IF] = total_games_played_infield
 
         # LIMIT TO ONLY 2 POSITIONS. CHOOSE BASED ON # OF GAMES PLAYED.
         position_slots = self.set.num_position_slots
@@ -687,7 +699,7 @@ class ShowdownPlayerCard:
         final_positions_and_defense = {position: value for position, value in positions_and_defense.items() if position in included_positions_list}
 
         if self.set.is_wotc and len(final_positions_and_defense) > 2:
-            positions_to_merge = self.__find_position_combination_opportunity(final_positions_and_defense)
+            positions_to_merge = self.__find_position_combination_opportunity(positions_and_defense=final_positions_and_defense)
             if positions_to_merge is None:
                 # NOTHING CAN BE COMBINED, REMOVE LAST POSITION
                 final_positions_and_defense.pop(included_positions_list[-1], None)
@@ -699,7 +711,7 @@ class ShowdownPlayerCard:
 
         return final_positions_and_defense
 
-    def __find_position_combination_opportunity(self, positions_and_defense:dict) -> list[str]:
+    def __find_position_combination_opportunity(self, positions_and_defense:dict[Position, int]) -> list[Position]:
         """ From dictionary of player with > 2 positions, see if there is an opportunity to combine positions together.
 
         If no combination opportunies exist, return None.
@@ -715,7 +727,7 @@ class ShowdownPlayerCard:
         positions_able_to_be_combined = {}
         position_list = list(positions_and_defense.keys())
         for position, defense in positions_and_defense.items():
-            combinations_list_for_pos = Position(position).allowed_combinations
+            combinations_list_for_pos = position.allowed_combinations
             combinations_available_for_player = {p: abs(defense - positions_and_defense.get(p, 0)) for p in position_list if p != position and p in combinations_list_for_pos}
             if len(combinations_available_for_player) > 0:
                 sorted_combinations = sorted(combinations_available_for_player.items(), key=lambda x: x[1])
@@ -723,7 +735,7 @@ class ShowdownPlayerCard:
 
         # SELECT ONE POSITION TO CHANGE
         # FIRST SORT BASED ON DIFFERENCE IN DEFENSE, THEN BY POSITION'S ORDERING
-        sorted_positions = sorted(positions_able_to_be_combined.items(), key=lambda x: (x[1][1], -Position(x[1]).index))
+        sorted_positions = sorted(positions_able_to_be_combined.items(), key=lambda x: (x[1][1], -x[1].index))
         if len(sorted_positions) == 0:
             return None
         
@@ -735,8 +747,8 @@ class ShowdownPlayerCard:
         # ONLY RETURN COMBINATION IF DIFFERENCE IS < 3
         if difference > 2:
             return None
-        else:
-            return [position1, position2]
+        
+        return [position1, position2]
 
     def __position_name_in_game(self, position:str, num_positions:int, position_appearances:int, games_played:int, games_started:int, saves:int) -> str:
         """Cleans position name to conform to game standards.
@@ -777,7 +789,7 @@ class ShowdownPlayerCard:
             # RETURN BASEBALL REFERENCE STRING VALUE
             return position
 
-    def __convert_to_in_game_defense(self, position:Position, rating:float, metric:DefenseMetric, games:int) -> int:
+    def __convert_to_in_game_defense(self, position:str, rating:float, metric:DefenseMetric, games:int) -> int:
         """Converts the best available fielding metric to in game defense at a position.
            Uses DRS for 2003+, TZR for 1953-2002, dWAR for <1953.
            More modern defensive metrics (like DRS) are not available for historical
@@ -793,6 +805,7 @@ class ShowdownPlayerCard:
           In game defensive rating.
         """
         # IF USING OUTS ABOVE AVG, CALCULATE RATING PER 162 GAMES
+        position = Position(position)
         is_1b = position == Position._1B
         if metric == DefenseMetric.OAA:
             rating = rating / games * 162.0
@@ -1032,7 +1045,7 @@ class ShowdownPlayerCard:
         is_pre_2004 = not self.set.is_after_03
         is_icons = self.set.has_icons
         ba_champ_text = 'BATTING TITLE'
-        is_starting_pitcher = 'STARTER' in self.positions_and_defense.keys()
+        is_starting_pitcher = self.has_position(Position.SP)
 
         # -- PART 1: AWARDS AND RANKINGS --
         accolades_dict = self.stats.get('accolades', {})
@@ -1323,6 +1336,9 @@ class ShowdownPlayerCard:
             return [int(x.strip()) for x in years]
         else:
             return [int(year)]
+
+    def has_position(self, position: Position) -> bool:
+        return position in self.positions_list
 
 
 # ------------------------------------------------------------------------
@@ -2183,7 +2199,7 @@ class ShowdownPlayerCard:
             self.defense_points = round(avg_points_per_position,3)
 
         # CLOSER BONUS (00 ONLY)
-        apply_closer_bonus = 'CLOSER' in self.positions_and_defense.keys() and self.set == Set._2000
+        apply_closer_bonus = self.has_position(Position.CL) and self.set == Set._2000
         self.points_bonus = 25 if apply_closer_bonus else 0
 
         # ICONS (03+)
@@ -2524,7 +2540,7 @@ class ShowdownPlayerCard:
         print(f"{self.name} ({self.year})")
         print("----------------------------------------")
         print(f"Team: {self.team.value}")
-        print(f"Set: {self.set} {self.expansion} (v{self.version})")
+        print(f"Set: {self.set.value} {self.expansion} (v{self.version})")
         print(f"Era: {self.era.value.title()}")
         print(f"Data Source: {self.source}")
         if self.player_image_source:
@@ -2790,9 +2806,9 @@ class ShowdownPlayerCard:
             'onbase_plus_slugging': self.__format_slash_pct(self.projected['onbase_plus_slugging']) if 'onbase_plus_slugging' in self.projected.keys() else 0.00,
             'hr_per_650_pa': round(self.projected['hr_per_650_pa'],1) if 'hr_per_650_pa' in self.projected.keys() else 0,
         }
-        positions = ['CA','C','1B','2B','3B','SS','LF/RF','CF','OF']
-        for position in positions:
-            values_mapping[position] = self.positions_and_defense[position] if position in self.positions_and_defense.keys() else 0
+        for position, defense in self.positions_and_defense.items():
+            if position.is_hitter and position != Position.DH:
+                values_mapping[position.value] = defense
 
         ranking_data = []
         for category in self.rank.keys():
@@ -3676,7 +3692,7 @@ class ShowdownPlayerCard:
             if self.is_pitcher:
                 # POSITION
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=72)
-                position = list(self.positions_and_defense.keys())[0]
+                position = self.positions_list[0]
                 position_text = self.__text_image(text=position, size=(900, 300), font=font_position, alignment='center')
                 metadata_image.paste(colors.WHITE, (660,342), position_text)
                 # HAND | IP
