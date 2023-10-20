@@ -10,7 +10,7 @@ README = (HERE / "README.md").read_text()
 # SETUP
 setup(
     name="mlb-showdown-bot",
-    version="3.6.2",
+    version="3.6.31",
     description="Create custom MLB Showdown cards",
     long_description=README,
     long_description_content_type="text/markdown",

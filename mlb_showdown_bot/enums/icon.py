@@ -77,6 +77,6 @@ class Icon(Enum):
     def points(self) -> int:
         match self.value:
             case 'R': return 0
-            case 'G' | 'S' | 'SB' | 'RY' | 'RP' | 'K' | '20': return 10
-            case 'V' | 'HR' | 'CY': return 15
+            case 'G' | 'S' | 'SB' | 'RY' | 'RP' | 'K' | '20': return 15
+            case 'V' | 'HR' | 'CY': return 20
             case _: return 0

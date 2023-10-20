@@ -410,6 +410,11 @@ class ShowdownPlayerCard:
         all_image_components = [c for c in PlayerImageComponent if c.layering_index is not None]
         return list(sorted(all_image_components, key=lambda comp: comp.layering_index))
 
+    @property
+    def team_override_for_images(self) -> Team :
+        """ Team override to use for background images and colors (ex: CC)"""
+        return Team.CCC if self.edition == Edition.COOPERSTOWN_COLLECTION else None
+    
 # ------------------------------------------------------------------------
 # METADATA METHODS
 # ------------------------------------------------------------------------
@@ -2652,8 +2657,13 @@ class ShowdownPlayerCard:
         rounded_metrics_list = ['SB', 'onbase_plus_slugging_plus']
         for category in category_list:
             if category in self.stats.keys():
-                stat_cleaned = int(self.stats[category]) if category in rounded_metrics_list else self.stats[category]
-                stat = str(stat_cleaned) if self.stats[category] else 'N/A'
+                stat_raw = self.stats.get(category, None)
+                if stat_raw is None:
+                    stat = 'N/A'
+                else:
+                    stat_raw = 0 if str(stat_raw) == '' else stat_raw
+                    stat_cleaned = int(stat_raw) if category in rounded_metrics_list else stat_raw
+                    stat = str(stat_cleaned) if stat_raw else 'N/A'
                 short_name_map = {
                     'onbase_plus_slugging_plus': 'OPS+',
                     'whip': 'WHIP',
@@ -2669,7 +2679,7 @@ class ShowdownPlayerCard:
         for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
             for metric, value in metric_and_value_dict.items():
                 final_player_data.append([f'{metric.upper()}-{position}',str(round(value)),'N/A'])
-
+        
         return final_player_data
 
     def points_data_for_html_table(self) -> list[list[str]]:
@@ -3172,7 +3182,8 @@ class ShowdownPlayerCard:
         
         is_2001_set = self.set == Set._2001
         image_size = self.set.card_size_bordered if self.add_image_border else self.set.card_size
-        background_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
+        team_override = self.team_override_for_images
+        background_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=team_override)
         team_background_image = Image.new('RGB', image_size, color=background_color)
         
         # ADD 2001 SET ADDITIONS
@@ -3193,7 +3204,7 @@ class ShowdownPlayerCard:
                 team_background_image.paste(color_image, (0,0), color_image)
 
         # ADD TEAM LOGO
-        team_logo_image, paste_location = self.team_logo_for_background()
+        team_logo_image, paste_location = self.team_logo_for_background(team_override=team_override)
         team_background_image.paste(team_logo_image, paste_location, team_logo_image)
 
         return team_background_image
@@ -3264,7 +3275,12 @@ class ShowdownPlayerCard:
 
         # ROTATE LOGO IF APPLICABLE
         if logo_rotation != 0:
-            team_logo = team_logo.rotate(logo_rotation, resample=Image.BICUBIC)
+            size_original = team_logo.size
+            team_logo = team_logo.rotate(logo_rotation, expand=True, resample=Image.BICUBIC)
+            size_new = team_logo.size
+            if size_original != size_new:
+                movement = size_new[0] - size_original[0]
+                logo_paste_coordinates = (logo_paste_coordinates[0] - int(movement / 2.0), logo_paste_coordinates[1] - int(movement / 2.0))
 
         # RETURN STATIC LOGO IF IGNORE_DYNAMIC_ELEMENTS IS ENABLED
         # IGNORES ROOKIE SEASON, SUPER SEASON
@@ -3313,11 +3329,11 @@ class ShowdownPlayerCard:
 
         return team_logo, logo_paste_coordinates
 
-    def team_logo_for_background(self) -> tuple[Image.Image, tuple[int,int]]:
+    def team_logo_for_background(self, team_override:Team = None) -> tuple[Image.Image, tuple[int,int]]:
         """Open and manipulate the team logo used for 2000/2001 team backgrounds.
         
         Args:
-          None
+          team_override: Optionally use a different team. Used for some special editions like CC.
 
         Returns:
           Tuple with:
@@ -3325,13 +3341,16 @@ class ShowdownPlayerCard:
             Coordinates to paste logo.
         """
 
+        # DEFINE TEAM TO USE
+        team = team_override if team_override else self.team
+
         # ATTRIBUTES FOR THE LOGO
-        force_alternate = self.team.use_alternate_for_background(set=self.set)
+        force_alternate = team.use_alternate_for_background(set=self.set)
         use_alternate = self.use_alternate_logo or force_alternate
-        logo_name = self.team.logo_name(year=self.median_year, is_alternate=use_alternate)
+        logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate)
 
         # OPACITY
-        opacity = self.team.background_logo_opacity(set=self.set)
+        opacity = team.background_logo_opacity(set=self.set)
         team_logo = Image.open(self.__team_logo_path(logo_name))
         team_logo_copy = team_logo.copy()
         team_logo_copy.putalpha(int(255 * opacity))
@@ -3342,16 +3361,16 @@ class ShowdownPlayerCard:
             team_logo = self.__change_image_saturation(image=team_logo, saturation=0.2)
 
         # SIZE
-        size = self.team.background_logo_size(year=self.median_year, set=self.set, is_alternate=use_alternate)
+        size = team.background_logo_size(year=self.median_year, set=self.set, is_alternate=use_alternate)
         team_logo = team_logo.resize(size=size, resample=Image.ANTIALIAS)
 
         # ROTATION
-        rotation = self.team.background_logo_rotation(set=self.set)
+        rotation = team.background_logo_rotation(set=self.set)
         if rotation != 0:
             team_logo = team_logo.rotate(rotation, resample=Image.BICUBIC, expand=True)
 
         default_image_size = self.set.card_size
-        paste_location = self.__coordinates_adjusted_for_bordering(self.team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.set, image_size=default_image_size))
+        paste_location = self.__coordinates_adjusted_for_bordering(team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.set, image_size=default_image_size))
         return team_logo, paste_location
 
     def __template_image(self) -> Image.Image:
@@ -3401,7 +3420,8 @@ class ShowdownPlayerCard:
             # ADD CHART ROUNDED RECT
             container_img_path = self.__template_img_path(f'{year}-ChartOutsContainer-{type}')
             container_img_black = Image.open(container_img_path)
-            fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
+            team_override = self.team_override_for_images
+            fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=team_override)
             if self.special_edition == SpecialEdition.NATIONALITY:
                 colors = self.nationality.colors
                 if len(colors) >= 2:
@@ -4161,7 +4181,7 @@ class ShowdownPlayerCard:
         x2 = 190
         y2 = 190       
         draw.ellipse((x1-border_size, y1-border_size, x2+border_size, y2+border_size), fill=text_color)
-        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color))
+        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=self.team_override_for_images))
 
         # ADD TEXT
         font_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
@@ -4241,7 +4261,7 @@ class ShowdownPlayerCard:
         font = ImageFont.truetype(font_path, size=size)
 
         # ADD TEXT
-        fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
+        fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=self.team_override_for_images)
         fill_color_hex = self.__rbgs_to_hex(rgbs=fill_color)
         # SEPARATE 
         for index, char in enumerate(command):
@@ -4439,7 +4459,7 @@ class ShowdownPlayerCard:
                             self.__cache_downloaded_image(image=image, path=cached_image_path)
                             self.player_image_source = 'Google Drive'
                 case "COLOR":
-                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, ignore_team_overrides=True))
+                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images))
                 case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
@@ -4489,7 +4509,6 @@ class ShowdownPlayerCard:
                     PlayerImageComponent.ELLIPSE_MEDIUM: not self.is_pitcher,
                     PlayerImageComponent.ELLIPSE_SMALL: self.is_pitcher,
                 }
-                transparent_pixel = (255, 255, 255, 0)
                 img_width, _ = image.size
                 for ellipse_type, ycord in y_cords.items():
                     is_reversed = is_reversed_map.get(ellipse_type, False)
@@ -4498,11 +4517,14 @@ class ShowdownPlayerCard:
                         coordinates = (x_cord, ycord)
                         try:
                             pixel = image.getpixel(coordinates)
+                            pixel_opacity = pixel[3]
                         except:
                             break
-                        if pixel != transparent_pixel:
+                        if pixel_opacity > 200: # OUT OF 255
                             ellipse_circle_image = Image.open(self.__card_art_path(ellipse_type.value)).convert('RGBA')
-                            x_adjustment = -75
+                            ellipse_width, _ = ellipse_circle_image.size
+                            ellipse_x_movement_mutliplier = 0.60 if is_reversed else 0.30
+                            x_adjustment = -1 * int(ellipse_width * ellipse_x_movement_mutliplier)
                             coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
                             player_img_components.append((ellipse_circle_image, coordinates_adjusted))
                             break
@@ -4539,7 +4561,10 @@ class ShowdownPlayerCard:
         
         # CREDS FILE FOUND, PROCEED
         GOOGLE_CREDENTIALS_STR = GOOGLE_CREDENTIALS_STR.replace("\'", "\"")
-        GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
+        try:
+            GOOGLE_CREDENTIALS_JSON = json.loads(GOOGLE_CREDENTIALS_STR)
+        except:
+            return (file_service, components_dict)
         creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, SCOPES)
 
         # BUILD THE SERVICE OBJECT.
@@ -4704,6 +4729,7 @@ class ShowdownPlayerCard:
         # SUPER SEASON
         if self.edition == Edition.SUPER_SEASON and self.set.is_04_05:
             components_dict = special_components_for_context
+            components_dict[PlayerImageComponent.DARKENER] = self.__card_art_path('DARKENER')
             components_dict[PlayerImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
         
@@ -4820,16 +4846,19 @@ class ShowdownPlayerCard:
         padding = self.set.card_border_padding
         return (coordinates[0] + padding, coordinates[1] + padding)
 
-    def __team_color_rgbs(self, is_secondary_color:bool=False, ignore_team_overrides:bool = False) -> tuple[int,int,int,int]:
+    def __team_color_rgbs(self, is_secondary_color:bool=False, ignore_team_overrides:bool = False, team_override:Team = None) -> tuple[int,int,int,int]:
         """RGB colors for player team
 
         Args:
           is_secondary_color: Optionally use secondary color instead of primary.
           ignore_team_overrides: Boolean to optionally skip overrides.
+          team_override: Optionally use a different team. Used for some special editions like CC.
 
         Returns:
             Tuple with RGB team colors
         """
+
+        team = team_override if team_override else self.team
 
         # NATIONALITY COLOR
         if self.special_edition == SpecialEdition.NATIONALITY and not ignore_team_overrides:
@@ -4841,7 +4870,7 @@ class ShowdownPlayerCard:
             return special_edition_color
         
         # GRAB FROM CURRENT TEAM COLORS
-        return self.team.color(year=self.median_year, is_secondary=is_secondary_color)
+        return team.color(year=self.median_year, is_secondary=is_secondary_color)
 
 
 # ------------------------------------------------------------------------

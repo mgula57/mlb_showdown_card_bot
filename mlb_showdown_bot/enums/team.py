@@ -376,14 +376,18 @@ class Team(Enum):
                 '3': (0,33,68,255),
             }
             case 'HOU': return {
-                '1': (4, 30, 66, 255),
-                '2': (12, 35, 64, 255),
-                '3': (154, 51, 36, 255),
+                '1': (250, 70, 22, 255),
+                '2': (4, 30, 66, 255),
+                '3': (12, 35, 64, 255),
+                '4': (154, 51, 36, 255),
             }
             case 'KCR': return {
                 '1': (0, 70, 135, 255),
                 '2': (0, 70, 135, 255),
                 '3': (0, 70, 135, 255),
+            }
+            case 'LAA': return {
+                '1': (191, 13, 62, 255),
             }
             case 'MIA': return {
                 '1': (255, 102, 0, 255),
@@ -559,14 +563,18 @@ class Team(Enum):
                 '3': (250,70,22,255),
             }
             case 'HOU': return {
-                '1': (250, 70, 22, 255),
-                '2': (137, 115, 75, 255),
-                '3': (211, 188, 141, 255),
+                '1': (4, 30, 66, 255),
+                '2': (250, 70, 22, 255),
+                '3': (137, 115, 75, 255),
+                '4': (211, 188, 141, 255),
             }
             case 'KCR': return {
                 '1': (192, 154, 91, 255),
                 '2': (192, 154, 91, 255),
                 '3': (192, 154, 91, 255),
+            }
+            case 'LAA': return {
+                '1': (4, 28, 44, 255),
             }
             case 'MIA': return {
                 '1': (0, 119, 200, 255),
@@ -710,9 +718,10 @@ class Team(Enum):
                 '3': list(range(1994,2005)),
             }
             case 'HOU': return {
-                '1': list(range(1965,1994)),
-                '2': list(range(1994,2000)),
-                '3': list(range(2000,2013)),
+                '1': list(range(1962,1965)),
+                '2': list(range(1965,1994)),
+                '3': list(range(1994,2000)),
+                '4': list(range(2000,2013)),
             }
             case 'KCR': return {
                 '1': list(range(1969,1986)),
@@ -721,6 +730,9 @@ class Team(Enum):
             }
             case 'LAD': return {
                 '1': list(range(1999,2007)),
+            }
+            case 'LAA': return {
+                '1': list(range(1961,1965)),
             }
             case 'MIA': return {
                 '1': list(range(2012,2019)),
@@ -890,7 +902,8 @@ class Team(Enum):
                     case 'COL': return (900, 900)
                     case 'DET-3': return (825, 825)
                     case 'FLA' : return (850, 850)
-                    case 'HOU-3' : return (950, 950)
+                    case 'HOU-1' : return (1000, 1000)
+                    case 'HOU-4' : return (950, 950)
                     case 'KCA' : return (800, 800)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (850, 850)
                     case 'LAA': return (775, 775)
@@ -984,11 +997,12 @@ class Team(Enum):
                     case 'DET-3': return (-120, -100)
                     case 'DET' : return (-80, -60)
                     case 'FLA' : return (-60, -30)
-                    case 'HOU-2' : return (-60, -15)
-                    case 'HOU-3' : return (-130, -160)
+                    case 'HOU-1' : return (-90, -230)
+                    case 'HOU-3' : return (-60, -15)
+                    case 'HOU-4' : return (-130, -160)
                     case 'KCA' : return (-30, -90)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (-100, -100)
-                    case 'LAA': return (-60, -50)
+                    case 'LAA' | 'LAA-1': return (-60, -50)
                     case 'LAD-A' | 'LAD-A-1': return (-40, -60)
                     case 'MIA-A': return (-40, -75)
                     case 'MIA-A-1': return (-40, -100)
