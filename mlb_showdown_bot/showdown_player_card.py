@@ -3161,12 +3161,12 @@ class ShowdownPlayerCard:
         team = team_override if team_override else self.team
 
         # ATTRIBUTES FOR THE LOGO
-        force_alternate = team.use_alternate_for_background(set=self.set)
+        force_alternate = team.use_alternate_for_background(set=self.set.value)
         use_alternate = self.use_alternate_logo or force_alternate
         logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate)
 
         # OPACITY
-        opacity = team.background_logo_opacity(set=self.set)
+        opacity = team.background_logo_opacity(set=self.set.value)
         team_logo = Image.open(self.__team_logo_path(logo_name))
         team_logo_copy = team_logo.copy()
         team_logo_copy.putalpha(int(255 * opacity))
@@ -3177,16 +3177,16 @@ class ShowdownPlayerCard:
             team_logo = self.__change_image_saturation(image=team_logo, saturation=0.2)
 
         # SIZE
-        size = team.background_logo_size(year=self.median_year, set=self.set, is_alternate=use_alternate)
+        size = team.background_logo_size(year=self.median_year, set=self.set.value, is_alternate=use_alternate)
         team_logo = team_logo.resize(size=size, resample=Image.ANTIALIAS)
 
         # ROTATION
-        rotation = team.background_logo_rotation(set=self.set)
+        rotation = team.background_logo_rotation(set=self.set.value)
         if rotation != 0:
             team_logo = team_logo.rotate(rotation, resample=Image.BICUBIC, expand=True)
 
         default_image_size = self.set.card_size
-        paste_location = self.__coordinates_adjusted_for_bordering(team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.set, image_size=default_image_size))
+        paste_location = self.__coordinates_adjusted_for_bordering(team.background_logo_paste_location(year=self.median_year, is_alternate=use_alternate, set=self.set.value, image_size=default_image_size))
         return team_logo, paste_location
 
     def __template_image(self) -> Image.Image:
