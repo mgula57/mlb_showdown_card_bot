@@ -325,5 +325,5 @@ class Chart:
 
     @property
     def is_num_values_over_20(self) -> bool:
-        return self.remaining_slots() != 20
+        return self.remaining_slots() < 0
     

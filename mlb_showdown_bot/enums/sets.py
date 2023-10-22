@@ -2474,7 +2474,7 @@ class Set(Enum):
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL:
                                 return Chart(
-                                    is_pitcher=self.player_type.is_pitcher,
+                                    is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=3.20,
                                     outs=16.0,
@@ -2489,7 +2489,7 @@ class Set(Enum):
                                 )
                             case Era.LIVE_BALL:
                                 return Chart(
-                                    is_pitcher=self.player_type.is_pitcher,
+                                    is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=2.99,
                                     outs=15.70,
@@ -2504,7 +2504,7 @@ class Set(Enum):
                                 )
                             case Era.INTEGRATION:
                                 return Chart(
-                                    is_pitcher=self.player_type.is_pitcher,
+                                    is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=2.95,
                                     outs=15.90,
@@ -2519,7 +2519,7 @@ class Set(Enum):
                                 )
                             case Era.EXPANSION:
                                 return Chart(
-                                    is_pitcher=self.player_type.is_pitcher,
+                                    is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=3.05,
                                     outs=16.1,
@@ -2534,7 +2534,7 @@ class Set(Enum):
                                 )
                             case Era.FREE_AGENCY:
                                 return Chart(
-                                    is_pitcher=self.player_type.is_pitcher,
+                                    is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=3.05,
                                     outs=16.1,
@@ -2549,7 +2549,7 @@ class Set(Enum):
                                 )
                             case Era.STEROID:
                                 return Chart(
-                                    is_pitcher=self.player_type.is_pitcher,
+                                    is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=3.3,
                                     outs=16.0,
@@ -2564,7 +2564,7 @@ class Set(Enum):
                                 )
                             case Era.POST_STEROID:
                                 return Chart(
-                                    is_pitcher=self.player_type.is_pitcher,
+                                    is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=3.00,
                                     outs=16.1,
@@ -2579,7 +2579,7 @@ class Set(Enum):
                                 )
                             case Era.STATCAST:
                                 return Chart(
-                                    is_pitcher=self.player_type.is_pitcher,
+                                    is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=3.3,
                                     outs=16.1,
@@ -2594,7 +2594,7 @@ class Set(Enum):
                                 )
                             case Era.PITCH_CLOCK:
                                 return Chart(
-                                    is_pitcher=self.player_type.is_pitcher,
+                                    is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     command=3.25,
                                     outs=16.1,
