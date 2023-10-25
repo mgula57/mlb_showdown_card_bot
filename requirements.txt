@@ -15,6 +15,7 @@ pillow==9.3.0
 pip-chill==1.0.1
 prettytable>=3.7.0
 psycopg2==2.8.6
+pydantic>=2.4.2
 simplejson>=3.17.6
 termcolor==2.0.1
 unidecode==1.2.0
