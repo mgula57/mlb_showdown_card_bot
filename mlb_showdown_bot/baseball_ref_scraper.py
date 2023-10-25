@@ -247,11 +247,11 @@ class BaseballReferenceScraper:
         for year in self.years:
             # DEFENSE
             stats_dict = {'bref_id': self.baseball_ref_id, 'bref_url': url_for_homepage_stats}
-            positional_fielding = self.positional_fielding(soup_for_homepage_stats=soup_for_homepage_stats,year=year)
+            positional_fielding = self.positions_and_defense(soup_for_homepage_stats=soup_for_homepage_stats,year=year)
             stats_dict.update(positional_fielding)
 
             # HAND / TYPE
-            type = self.type(positional_fielding,year=year)
+            type = self.type(positions_dict=stats_dict['positions'],year=year)
 
             # NATIONALITY
             nationality = self.nationality(soup_for_homepage_stats=soup_for_homepage_stats)
@@ -325,8 +325,16 @@ class BaseballReferenceScraper:
             if 'outs_above_avg' not in stats_dict.keys() and is_hitter: # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
                 years_list = years_played if is_full_career else self.years
                 years_as_ints = [int(y) for y in years_list]
-                stats_dict['outs_above_avg'] = self.statcast_outs_above_average_dict(name=name, years=years_as_ints)
+                oaa_dict = self.statcast_outs_above_average_dict(name=name, years=years_as_ints)
+                stats_dict['outs_above_avg'] = oaa_dict
                 is_data_from_statcast = len(stats_dict['outs_above_avg']) > 0 if stats_dict['outs_above_avg'] else False
+                current_positions = stats_dict.get('positions', {})
+                for position, oaa in oaa_dict.items():
+                    dict_for_position = current_positions.get(position, None)
+                    if dict_for_position:
+                        dict_for_position['oaa'] = oaa
+                        current_positions[position] = dict_for_position
+                stats_dict['positions'] = current_positions
             
             # DERIVE 1B 
             triples = 0 if '3B' not in stats_dict.keys() else int(stats_dict['3B'])
@@ -351,17 +359,18 @@ class BaseballReferenceScraper:
         self.load_time = round((end_time - start_time).total_seconds(),2)
         
         return stats_dict
-
-    def positional_fielding(self, soup_for_homepage_stats, year):
-        """Parse standard fielding metrics (tzr, games_played).
+    
+    def positions_and_defense(self, soup_for_homepage_stats:BeautifulSoup, year:int) -> dict[str, dict]:
+        """Parse standard positions and fielding metrics into a dictionary.
 
         Args:
           soup_for_homepage_stats: BeautifulSoup object with all stats on homepage.
           year: Year for Player stats
 
         Returns:
-          Dict with name, tzr, and games played per position.
+          Dict for each position with details.
         """
+
         is_full_career = year == 'CAREER'
         if is_full_career:
             fielding_table = soup_for_homepage_stats.find('div', attrs = {'id': 'div_standard_fielding'})
@@ -370,20 +379,18 @@ class BaseballReferenceScraper:
         else:
             fielding_metrics_by_position = soup_for_homepage_stats.find_all('tr', attrs = {'id': '{}:standard_fielding'.format(year)})
 
-        # POSITIONAL TZR
-        all_positions = {}
-        for index, position_info in enumerate(fielding_metrics_by_position, 1):
-            # PARSE POSITION ATTRIBUTES
-            is_position_found = position_info.find('td', attrs={'data-stat':'pos'})
+        positions_dict = {}
+        for position_data in fielding_metrics_by_position:
+            is_position_found = position_data.find('td', attrs={'data-stat':'pos'})
             if is_position_found:
-                position_name = position_info.find('td', attrs={'data-stat':'pos'}).get_text()
-                games_played = position_info.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
+                position_name = position_data.find('td', attrs={'data-stat':'pos'}).get_text()
+                games_played = position_data.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
 
                 if position_name != 'TOT':
                     # DRS (2003+)
-                    drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total'})
+                    drs_object = position_data.find('td',attrs={'class':'right','data-stat':'bis_runs_total'})
                     drs_rating = drs_object.get_text() if drs_object else None
-                    drs_rating = None if (drs_rating or '') == '' else drs_rating
+                    drs_rating = None if (drs_rating or '') == '' else float(drs_rating)
                     
                     # ACCOUNT FOR SHORTENED OR ONGOING SEASONS
                     use_stat_per_yr = False
@@ -397,25 +404,23 @@ class BaseballReferenceScraper:
                         use_stat_per_yr = (str(year) == '2020' or is_year_end_date_before_today) and drs_is_above_0
                     
                     if use_stat_per_yr:
-                        drs_object = position_info.find('td',attrs={'class':'right','data-stat':'bis_runs_total_per_season'})
+                        drs_object = position_data.find('td',attrs={'class':'right','data-stat':'bis_runs_total_per_season'})
                         drs_rating = drs_object.get_text() if drs_object != None else 0
                         drs_rating = 0 if drs_rating == '' else int(drs_rating)
 
                     # TOTAL ZONE (1953-2003)
                     suffix = '_per_season' if use_stat_per_yr else ''
-                    total_zone_object = position_info.find('td',attrs={'class':'right','data-stat':f'tz_runs_total{suffix}'})
+                    total_zone_object = position_data.find('td',attrs={'class':'right','data-stat':f'tz_runs_total{suffix}'})
                     total_zone_rating = total_zone_object.get_text() if total_zone_object else None
-                    total_zone_rating = None if (total_zone_rating or '') == '' else total_zone_rating
+                    total_zone_rating = None if (total_zone_rating or '') == '' else float(total_zone_rating)
 
                     # UPDATE POSITION DICTIONARY
-                    position_dict = {
-                        'Position{}'.format(index): position_name,
-                        'gPosition{}'.format(index): games_played if games_played != '' else 0,
-                        'tzPosition{}'.format(index): total_zone_rating,
-                        'drsPosition{}'.format(index): drs_rating
+                    positions_dict[position_name] = {
+                        'g': int(games_played) if games_played != '' else 0,
+                        'tzr': total_zone_rating,
+                        'drs': drs_rating,
                     }
-                    all_positions.update(position_dict)
-
+        
         # GET DEFENSIVE WAR IN CASE OF LACK OF TZR AVAILABILITY FOR SEASONS < 1952
         # UPDATE: SCRAPE TOTAL WAR AS WELL
         try:
@@ -430,11 +435,14 @@ class BaseballReferenceScraper:
                 player_value = soup_for_homepage_stats.find('tr', attrs = {'id': 'batting_value.{}'.format(year)})
                 dwar_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR_def'})
                 dwar_rating = dwar_object.get_text() if dwar_object != None else 0
-            all_positions.update({'dWAR': dwar_rating})
-        except:
-            all_positions.update({'dWAR': 0})
 
-        return all_positions
+        except:
+            dwar_rating = 0
+        
+        return {
+            'positions': positions_dict,
+            'dWAR': dwar_rating,
+        }
 
     def __bWar(self, soup_for_homepage_stats, year, type):
         """Parse bWAR (baseball reference WAR)
@@ -640,7 +648,7 @@ class BaseballReferenceScraper:
 
         return awards_and_accolades_dict
 
-    def type(self, positional_fielding, year):
+    def type(self, positions_dict:dict[str,dict], year):
         """Guess Player Type (Pitcher or Hitter) based on games played at each position.
 
         Args:
@@ -653,18 +661,8 @@ class BaseballReferenceScraper:
         Returns:
           Either 'Hitter' or 'Pitcher' string.
         """
-
-        games_as_pitcher = 0
-        games_as_hitter = 0
-        positions = int((len(positional_fielding)-1) / 4)
-        # SPLIT GAMES BETWEEN TYPES
-        for position_index in range(1, positions + 1):
-            games = int(positional_fielding['gPosition{}'.format(position_index)])
-            position = positional_fielding['Position{}'.format(position_index)]
-            if position == 'P':
-                games_as_pitcher += games
-            else:
-                games_as_hitter += games
+        games_as_pitcher = sum([pos_data.get('g', 0) for pos, pos_data in positions_dict.items() if pos == 'P'])
+        games_as_hitter = sum([pos_data.get('g', 0) for pos, pos_data in positions_dict.items() if pos != 'P'])
 
         # CHECK FOR TYPE OVERRIDE
         is_pitcher_override = '(PITCHER)' in self.name.upper() and games_as_pitcher > 0

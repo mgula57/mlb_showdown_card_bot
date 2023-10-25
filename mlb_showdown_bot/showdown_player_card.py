@@ -374,8 +374,8 @@ class ShowdownPlayerCard:
         Returns:
           List of positions and defense ordered by how they will appear on the card image.
         """
-        
-        return sorted(self.positions_and_defense_for_visuals.items(), key=lambda p: Position(p).index)
+
+        return sorted(self.positions_and_defense_for_visuals.items(), key=lambda pos_and_def: Position(pos_and_def[0]).index)
     
     @property
     def positions_list(self) -> [Position]:
@@ -449,21 +449,18 @@ class ShowdownPlayerCard:
         stolen_bases_per_650_pa = stolen_bases_raw / pa_to_650_ratio
 
         # CALL METHODS AND ASSIGN TO SELF
-        self.positions_and_defense = self.__positions_and_defense(defensive_stats=defensive_stats_raw,
-                                                                  games_played=games_played_raw,
-                                                                  games_started=games_started_raw,
-                                                                  saves=saves_raw)
+        self.positions_and_defense = self.__positions_and_defense(stats_dict=stats, games_played=games_played_raw, games_started=games_started_raw, saves=saves_raw)
         self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw, games_started=games_started_raw, ip_per_start=ip_per_start)
         self.hand = self.__handedness(hand=hand_raw)
         self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
         self.accolades = self.__accolades()
         self.icons: list[Icon] = self.__icons(awards=stats.get('award_summary',''))
 
-    def __positions_and_defense(self, defensive_stats:dict, games_played:int, games_started:int, saves:int) -> dict[Position,int]:
+    def __positions_and_defense(self, stats_dict:dict, games_played:int, games_started:int, saves:int) -> dict[Position, int]:
         """Get in-game defensive positions and ratings
 
         Args:
-          defensive_stats: Dict of games played and total_zone for each position.
+          stats_dict: All stats from the player's real life season.
           games_played: Number of games played at any position.
           games_started: Number of games started as a pitcher.
           saves: Number of saves. Used to determine what kind of reliever a player is.
@@ -472,33 +469,26 @@ class ShowdownPlayerCard:
           Dict with in game positions and defensive ratings
         """
 
-        # THERE ARE ALWAYS 4 KEYS FOR EACH POSITION
-        num_positions = int((len(defensive_stats.keys())-1) / 4)
-
-        # INITIAL DICTS TO STORE POSITIONS AND DEFENSE
         positions_and_defense = {}
         positions_and_games_played = {}
         positions_and_real_life_ratings = {}
 
         # FLAG IF OF IS AVAILABLE BUT NOT CF (SHOHEI OHTANI 2021 CASE)
-        positions_list = [defensive_stats[f'Position{i}'] for i in range(1, num_positions+1)]
+        defense_stats_dict:dict = stats_dict.get('positions', {})
+        positions_list: list[str] = list(defense_stats_dict.keys())
+        num_positions = len(positions_list)
         is_of_but_hasnt_played_cf = 'OF' in positions_list and 'CF' not in positions_list
 
-        # POPULATE POSITION DICTS
-        # PARSE POSITION NAME, GAMES, AND TZ RATING AND CONVERT TO IN-GAME
-        for position_index in range(1, num_positions+1):
-            position_raw = defensive_stats['Position{}'.format(position_index)]
-            # CHECK IF POSITION MATCHES PLAYER TYPE
-            is_valid_position = self.is_pitcher == ('P' == position_raw)
+        for position_name, defensive_stats in defense_stats_dict.items():
+            is_valid_position = self.is_pitcher == ('P' == position_name)
             if is_valid_position:
-                games_at_position = int(defensive_stats[f'gPosition{position_index}'])
-                position = self.__position_name_in_game(position=position_raw,
+                games_at_position = defensive_stats.get('g', 0)
+                position = self.__position_name_in_game(position=position_name,
                                                         num_positions=num_positions,
                                                         position_appearances=games_at_position,
                                                         games_played=games_played,
                                                         games_started=games_started,
                                                         saves=saves)
-                # IN-GAME RATING AT
                 if position is not None:
                     positions_and_games_played[position] = games_at_position
                     if not self.is_pitcher:
@@ -510,25 +500,25 @@ class ShowdownPlayerCard:
                             use_drs_over_oaa = start_year < 2016 and end_year >= 2016
                             
                             # CHECK WHICH DEFENSIVE METRIC TO USE
-                            is_drs_available = f'drsPosition{position_index}' in defensive_stats.keys()
-                            is_d_war_available = 'dWAR' in defensive_stats.keys()
-                            is_oaa_available = position in defensive_stats['outs_above_avg'].keys() and not use_drs_over_oaa
-                            oaa = defensive_stats['outs_above_avg'][position] if is_oaa_available else None
+                            is_drs_available = 'drs' in defensive_stats.keys()
+                            is_d_war_available = 'dWAR' in stats_dict.keys()
+                            is_oaa_available = 'oaa' in defensive_stats.keys() and not use_drs_over_oaa
+                            oaa = defensive_stats['oaa'] if is_oaa_available else None
                             # DRS
                             try:
                                 if is_drs_available:
-                                    drs = int(defensive_stats[f'drsPosition{position_index}']) if defensive_stats[f'drsPosition{position_index}'] != None else None
+                                    drs = int(defensive_stats['drs']) if defensive_stats['drs'] != None else None
                                 else:
                                     drs = None
                             except:
                                 drs = None
                             # TZR
                             try:
-                                tzr = int(defensive_stats[f'tzPosition{position_index}']) if defensive_stats[f'tzPosition{position_index}'] != None else None
+                                tzr = int(defensive_stats['tzr']) if defensive_stats['tzr'] != None else None
                             except:
                                 tzr = None
                             # DWAR
-                            dWar = float(defensive_stats['dWAR']) if is_d_war_available else None
+                            dWar = float(stats_dict['dWAR']) if is_d_war_available else None
                             
                             if is_oaa_available:
                                 metric = DefenseMetric.OAA
@@ -559,7 +549,7 @@ class ShowdownPlayerCard:
 
         # ASSIGN DH IF POSITIONS DICT IS EMPTY
         if final_positions_in_game == {}:
-            final_positions_in_game = {'DH': 0}
+            final_positions_in_game = {Position.DH: 0}
 
         # STORE TO REAL LIFE NUMBERS TO SELF
         self.positions_and_real_life_ratings = positions_and_real_life_ratings
@@ -649,7 +639,7 @@ class ShowdownPlayerCard:
 
         return positions_and_defense, positions_and_games_played
 
-    def __finalize_in_game_positions(self, positions_and_defense:dict[str,int], positions_and_games_played:dict[str,int]) -> dict:
+    def __finalize_in_game_positions(self, positions_and_defense:dict[str,int], positions_and_games_played:dict[str,int]) -> dict[Position,int]:
         """ Filter number of positions, find opportunities to combine positions. Convert position strings to classes.
         
         Args:
@@ -773,7 +763,7 @@ class ShowdownPlayerCard:
                 return 'CLOSER'
             else:
                 return 'RELIEVER'
-        elif ( position_appearances < self.set.min_number_of_games_defense and pct_of_games_played < self.set.min_pct_of_games_defense(is_multi_year=False) ) or (self.is_multi_year and  pct_of_games_played < self.set.min_pct_of_games_defense(is_multi_year=True)):
+        elif ( position_appearances < self.set.min_number_of_games_defense and pct_of_games_played < self.set.min_pct_of_games_defense(is_multi_year=False) ) or (self.is_multi_year and pct_of_games_played < self.set.min_pct_of_games_defense(is_multi_year=True)):
             # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
             return None
         elif position == 'DH' and num_positions > 1:
@@ -1979,7 +1969,7 @@ class ShowdownPlayerCard:
             # AVERAGE POINT VALUE ACROSS POSITIONS
             defense_points = 0
             for position, fielding in positions_and_defense.items():
-                if position != 'DH':
+                if position != Position.DH:
                     percentile = fielding / self.set.position_defense_max(position=position)
                     position_pts = percentile * self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.DEFENSE)
                     position_pts = position_pts * self.set.pts_positional_defense_weight(position=Position(position))
@@ -2861,7 +2851,7 @@ class ShowdownPlayerCard:
         # STYLE (IF APPLICABLE)
         if self.set.is_showdown_bot:
             theme_suffix = '-DARK' if self.is_dark_mode else ''
-            style_img_path = self.__template_img_path(f'{self.set}{theme_suffix}')
+            style_img_path = self.__template_img_path(f'{self.set.value}{theme_suffix}')
             style_img = Image.open(style_img_path)
             style_coordinates = self.__coordinates_adjusted_for_bordering(self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE))
             card_image.paste(style_img, style_coordinates, style_img)

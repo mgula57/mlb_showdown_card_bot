@@ -93,7 +93,7 @@ def main():
     postgres_db = PostgresDB()
     archived_statline, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override)
     postgres_db.close_connection()
-    if archived_statline:
+    if archived_statline and False:
         statline = archived_statline
         data_source = 'Archive'
     else:

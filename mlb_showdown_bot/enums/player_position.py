@@ -54,6 +54,9 @@ class Position(MultiValueEnum):
     RP = "RELIEVER"
     CL = "CLOSER"
 
+    LF = "LF"
+    RF = "RF"
+
     @property
     def index(self) -> int:
         match self.name:
@@ -70,6 +73,7 @@ class Position(MultiValueEnum):
             case 'SP': return 1
             case 'RP': return 1
             case 'CL': return 1
+            case _: return 0
 
     @property
     def allowed_combinations(self) -> list[str]:
@@ -90,3 +94,10 @@ class Position(MultiValueEnum):
     @property
     def is_hitter(self) -> bool:
         return not self.is_pitcher
+    
+    @property
+    def is_valid_in_game(self) -> bool:
+        return self.name not in ['LF', 'RF']
+    
+    def __repr__(self):
+        return self.value

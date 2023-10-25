@@ -1446,7 +1446,7 @@ class Set(Enum):
             case '2001': return (-35,-460)
             case '2002': return (75,-250)
             case '2003': return (75,-150)
-            case 'CLASSIC' | 'EXPANDED': (0,int((self.player_image_crop_size[1] - 2100) / 2))
+            case 'CLASSIC' | 'EXPANDED': return (0,int((self.player_image_crop_size[1] - 2100) / 2))
             case _: return (0,0)
 
     def player_image_components_list(self, is_special:bool=False) -> list[PlayerImageComponent]:
