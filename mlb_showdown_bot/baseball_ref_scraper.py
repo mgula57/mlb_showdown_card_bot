@@ -1241,7 +1241,7 @@ class BaseballReferenceScraper:
 
         return avg_year_dict
 
-    def __combine_multi_year_positions(self, yearly_stats_dict):
+    def __combine_multi_year_positions(self, yearly_stats_dict:dict) -> dict:
         """Combine multiple year defensive positions and metrics
         into one master final dataset.
 
@@ -1253,57 +1253,45 @@ class BaseballReferenceScraper:
         """
 
         # OBJECT TO UPDATE
-        defensive_fields_dict = {}
-        positions_and_defense = {}
-        positions_and_games_played = {}
+        positions_and_metric_value_lists:dict[str: dict] = {}
         dWar_list = []
 
-        # PARSE BY POSITION
-        for year, stats in yearly_stats_dict.items():
-            defensive_stats = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k}
-            num_positions = int((len(defensive_stats.keys())-1) / 4)
-            dWar_list.append(float(defensive_stats['dWAR']))
-            for position_index in range(1, num_positions+1):
-                position = defensive_stats['Position{}'.format(position_index)]
-                # CHECK IF POSITION MATCHES PLAYER TYPE
-                games_at_position = int(defensive_stats['gPosition{}'.format(position_index)])
-                if position in positions_and_games_played.keys():
-                    games_at_position += positions_and_games_played[position]
-                positions_and_games_played[position] = games_at_position
-                # IN-GAME RATING AT
-                if position:
-                    try:
-                        drs_raw = defensive_stats['drsPosition{}'.format(position_index)]
-                        tzr_raw = defensive_stats['tzPosition{}'.format(position_index)]
-                        year_defense_metrics = {
-                            'drs': int(drs_raw) if drs_raw else None,
-                            'tzr': int(tzr_raw) if tzr_raw else None,
-                        }
-                    except:
-                        year_defense_metrics = {'drs': 0, 'tzr': 0}
-                    if position in positions_and_defense.keys():
-                        for key in ['drs', 'tzr']:
-                            current_stat_list = positions_and_defense[position][key]
-                            current_stat_list.append(year_defense_metrics[key])
-                            positions_and_defense[position][key] = current_stat_list
-                    else:
-                        positions_and_defense[position] = { k:[v] for (k,v) in year_defense_metrics.items() }
-        
-        # RE-INDEX POSITIONAL STATS
-        positions_and_games_played_sorted_tuple = sorted(positions_and_games_played.items(), key=operator.itemgetter(1), reverse=True)
-        for index, (position, games_played) in enumerate(positions_and_games_played_sorted_tuple, 1):
-            drs_list = [df for df in positions_and_defense[position]['drs'] if df is not None]
-            tzr_list = [tz for tz in positions_and_defense[position]['tzr'] if tz is not None]
-            position_dict = {
-                f"Position{index}": position,
-                f"gPosition{index}": games_played,
-                "dWar": statistics.median(dWar_list),
-                f"drsPosition{index}": statistics.median(drs_list) if len(drs_list) > 0 else None,
-                f"tzPosition{index}": statistics.median(tzr_list) if len(tzr_list) > 0 else None,
-            }
-            defensive_fields_dict.update(position_dict)
+        # CREATE SUB-LISTS OF VALUES
+        for stats in yearly_stats_dict.values():
 
-        return defensive_fields_dict
+            # DWAR
+            dWar_list.append(float(stats['dWAR']))
+
+            # POSITIONS AND DEFENSE
+            positions_dict = stats.get('positions', {})
+            for position, pos_data in positions_dict.items():
+                updated_pos_aggregate = positions_and_metric_value_lists.get(position, {})
+                for metric, value in pos_data.items():
+                    updated_agg_list = updated_pos_aggregate.get(metric, [])
+                    if value is not None:
+                        updated_agg_list.append(value)
+                    updated_pos_aggregate[metric] = updated_agg_list
+                positions_and_metric_value_lists[position] = updated_pos_aggregate
+            
+        # AGGREGATE PER METRIC PER POSITION
+        aggregated_positions = {}
+        for position, pos_data in positions_and_metric_value_lists.items():
+            updated_position_data = {}
+            for metric, value_list in pos_data.items():
+                is_median = metric in ['tzr', 'drs']
+                aggregated_value = None
+                if len(value_list) > 0:
+                    aggregated_value = statistics.median(value_list) if is_median else sum(value_list)
+                updated_position_data[metric] = aggregated_value
+            aggregated_positions[position] = updated_position_data
+
+        # SUM DWAR
+        aggregated_dWar = statistics.median(dWar_list)
+
+        return {
+            'positions': aggregated_positions,
+            'dWar': aggregated_dWar
+        }
 
     def __get_career_totals_row(self, div_id, soup_object):
         """Grab first row of career totals data from any table
