@@ -219,7 +219,7 @@ class Set(Enum):
             case Position._3B: return 4.5 if self.is_showdown_bot else 4
             case Position.SS: return 6 if self.is_showdown_bot else 5
             case Position.CF: return 3.5 if self.is_showdown_bot else 3
-            case Position.LFRF | Position.OF: return 2
+            case Position.LFRF | Position.OF | Position.RF | Position.LF: return 2
             case Position.IF: return 1
             case _: return 0
 
