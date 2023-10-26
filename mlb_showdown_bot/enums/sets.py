@@ -207,6 +207,10 @@ class Set(Enum):
     # POSITIONS/DEFENSE
     # ---------------------------------------
 
+    @property
+    def catcher_position_name(self) -> str:
+        return 'C' if self.is_00_01 else 'CA'
+
     def position_defense_max(self, position:Position) -> float:
         match position:
             case Position.CA: return 11 if self.value == '2001' else 12

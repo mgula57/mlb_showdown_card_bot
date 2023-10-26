@@ -36,7 +36,7 @@ if __name__ == "__main__":
     for player_inputs in inputs_to_test:
         result = 'SUCCESS'
         try:
-            sleep(3)
+            sleep(5)
             name = player_inputs['name']
             year = player_inputs['year']
             edition = player_inputs['edition']
@@ -53,7 +53,7 @@ if __name__ == "__main__":
                     edition=edition,
                     print_to_cli=False
                 )
-                # showdown.card_image()
+                showdown.card_image()
                 if showdown.img_loading_error:
                     result = 'FAILED'
                     failures += 1

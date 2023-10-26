@@ -345,7 +345,7 @@ class ShowdownPlayerCard:
           Dictionary where key is the position, value is the defense at that position
         """
 
-        positions_and_defense_as_str = { p.value: v for p,v in self.positions_and_defense.items() }
+        positions_and_defense_as_str = { p.value_visual(ca_position_name=self.set.catcher_position_name) : v for p,v in self.positions_and_defense.items() }
 
         # NO NEED TO COMBINE IF < 3 POSITIONS
         if self.set.is_showdown_bot or len(self.positions_and_defense) < 3:
@@ -433,7 +433,6 @@ class ShowdownPlayerCard:
         """
 
         # RAW METADATA FROM BASEBALL REFERENCE
-        defensive_stats_raw = {k:v for (k,v) in stats.items() if 'Position' in k or 'dWAR' in k or 'outs_above_avg' in k}
         hand_raw = stats['hand']
         innings_pitched_raw = float(stats['IP']) if self.is_pitcher else 0.0
         ip_per_start = (stats['IP/GS'] or 0.0) if 'IP/GS' in stats.keys() else 0.0

@@ -57,6 +57,11 @@ class Position(MultiValueEnum):
     LF = "LF"
     RF = "RF"
 
+    def value_visual(self, ca_position_name:str) -> str:
+        match self.name:
+            case 'CA': return ca_position_name
+            case _: return self.value
+
     @property
     def index(self) -> int:
         match self.name:
