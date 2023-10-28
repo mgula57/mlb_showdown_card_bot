@@ -28,8 +28,9 @@ class BaseballReferenceScraper:
 
 # ------------------------------------------------------------------------
 # INIT
+# ------------------------------------------------------------------------
 
-    def __init__(self, name, year, ignore_cache:bool=False, disable_cleaning_cache:bool=False):
+    def __init__(self, name:str, year:str, ignore_cache:bool=False, disable_cleaning_cache:bool=False) -> None:
 
         self.year_input = year.upper()
         is_full_career = year.upper() == 'CAREER'
@@ -98,7 +99,7 @@ class BaseballReferenceScraper:
 # ------------------------------------------------------------------------
 # SCRAPE WEBSITES
 
-    def __check_for_default_bref_id(self, name):
+    def __check_for_default_bref_id(self, name:str) -> str:
         """Check for player name string in default csv with names and bref ids
 
         Purpose is to see if bot can avoid needing to scrape Google.
@@ -121,7 +122,7 @@ class BaseballReferenceScraper:
         else:
             return None
 
-    def search_google_for_b_ref_id(self, name, year):
+    def search_google_for_b_ref_id(self, name:str, year:str) -> str:
         """Convert name to a baseball reference Player ID.
 
         Goes by rank on google search for search: 'baseball reference "name" "year"'.
@@ -130,7 +131,6 @@ class BaseballReferenceScraper:
         Args:
           name: Full name of Player
           year: Year for Player stats
-
 
         Raises:
           AttributeError: Cannot find Baseball Ref Page for name/year combo.
@@ -163,7 +163,7 @@ class BaseballReferenceScraper:
         player_b_ref_id = top_result_url.split('.shtml')[0].split('/')[-1]
         return player_b_ref_id
 
-    def __soup_for_url(self, url, is_baseball_ref_page=False):
+    def __soup_for_url(self, url:str, is_baseball_ref_page=False) -> BeautifulSoup:
         """Converts html to BeautifulSoup object.
 
         Args:
@@ -184,7 +184,7 @@ class BaseballReferenceScraper:
 
         return soup
 
-    def html_for_url(self, url):
+    def html_for_url(self, url:str) -> str:
         """Make request for URL to get HTML
 
         Args:
@@ -212,6 +212,7 @@ class BaseballReferenceScraper:
 
 # ------------------------------------------------------------------------
 # PARSING HTML
+# ------------------------------------------------------------------------
 
     def player_statline(self) -> dict:
         """Scrape baseball-reference.com to get all relevant stats
@@ -444,7 +445,7 @@ class BaseballReferenceScraper:
             'dWAR': dwar_rating,
         }
 
-    def __bWar(self, soup_for_homepage_stats, year, type):
+    def __bWar(self, soup_for_homepage_stats:BeautifulSoup, year:int, type:str) -> float:
         """Parse bWAR (baseball reference WAR)
 
         Args:
@@ -474,7 +475,7 @@ class BaseballReferenceScraper:
         except:
             return 0.0
 
-    def hand(self, soup_for_homepage_stats, type):
+    def hand(self, soup_for_homepage_stats:BeautifulSoup, type:str) -> str:
         """Parse hand of player.
 
         Batting Hand for hitter.
@@ -503,7 +504,7 @@ class BaseballReferenceScraper:
                 hand = 'Both' if hand == 'Unknown' else hand
                 return hand
 
-    def player_name(self, soup_for_homepage_stats):
+    def player_name(self, soup_for_homepage_stats:BeautifulSoup) -> str:
         """Parse player name from baseball reference
 
         Args:
@@ -529,7 +530,7 @@ class BaseballReferenceScraper:
             name_string = name_object.find('span').get_text()
         return name_string
 
-    def nationality(self, soup_for_homepage_stats) -> str:
+    def nationality(self, soup_for_homepage_stats:BeautifulSoup) -> str:
         """Parse player's nationality
 
         Args:
@@ -559,7 +560,7 @@ class BaseballReferenceScraper:
         # NO NATIONALITY WAS FOUND, RETURN NONE
         return None
     
-    def rookie_status_year(self, soup_for_homepage_stats) -> int:
+    def rookie_status_year(self, soup_for_homepage_stats:BeautifulSoup) -> int:
         """Parse the player's rookie status end year. Used for the "R" icon.
 
         Args:
@@ -590,7 +591,7 @@ class BaseballReferenceScraper:
         # NO ROOKIE STATUS WAS FOUND, RETURN NONE
         return None
 
-    def is_hof(self, soup_for_homepage_stats) -> bool:
+    def is_hof(self, soup_for_homepage_stats:BeautifulSoup) -> bool:
         """Parse the player's metadata and check if they are in the HOF
 
         Args:
@@ -613,7 +614,7 @@ class BaseballReferenceScraper:
         # NO ROOKIE STATUS WAS FOUND, RETURN NONE
         return False
     
-    def __accolades_dict(self, soup_for_homepage_stats: BeautifulSoup, years_included: list[str]) -> dict:
+    def __accolades_dict(self, soup_for_homepage_stats:BeautifulSoup, years_included:list[str]) -> dict:
         """Parse the "Leaderboards, Awards, Honors" section of bref.
 
         Args:
@@ -648,7 +649,7 @@ class BaseballReferenceScraper:
 
         return awards_and_accolades_dict
 
-    def type(self, positions_dict:dict[str,dict], year):
+    def type(self, positions_dict:dict[str,dict], year:int) -> str:
         """Guess Player Type (Pitcher or Hitter) based on games played at each position.
 
         Args:
@@ -685,7 +686,7 @@ class BaseballReferenceScraper:
         else:
             return "Pitcher"
 
-    def statcast_sprint_speed(self, name, year):
+    def statcast_sprint_speed(self, name:str, year:int) -> float:
         """Sprint Speed for player from Baseball Savant (Only applicable to 2015+).
 
         Args:
@@ -711,7 +712,7 @@ class BaseballReferenceScraper:
 
         for player_dict in speed_list_all_players:
             # FIND PLAYER IN LIST
-            is_player_match = self.__statcast_name_match(bref_name=name, statcast_name=player_dict['name_display_last_first'])
+            is_player_match = self.__is_statcast_name_match(bref_name=name, statcast_name=player_dict['name_display_last_first'])
             if is_player_match:
                 speed = float(player_dict['r_sprint_speed_top50percent_pretty'])
                 return speed
@@ -719,7 +720,7 @@ class BaseballReferenceScraper:
         default_speed = 26.25
         return default_speed
 
-    def statcast_outs_above_average_dict(self, name, years):
+    def statcast_outs_above_average_dict(self, name:str, years:list[int]) -> dict[str, float]:
         """Outs above average metric for players from Baseball Savant (Only applicable to 2016+).
 
         Args:
@@ -748,7 +749,7 @@ class BaseballReferenceScraper:
         for player_dict in oaa_list_all_players:
             # FIND PLAYER IN LIST
             
-            is_player_match = self.__statcast_name_match(bref_name=name, statcast_name=player_dict['entity_name'])
+            is_player_match = self.__is_statcast_name_match(bref_name=name, statcast_name=player_dict['entity_name'])
             if is_player_match:
                 # MAKE REQUEST FOR DETAILED PAGE WITH EXACT NUMBERS
                 statcast_player_id = player_dict['entity_id']
@@ -785,7 +786,7 @@ class BaseballReferenceScraper:
         # IF NOT FOUND, RETURN NONE
         return {}
 
-    def __statcast_name_match(self, bref_name, statcast_name):
+    def __is_statcast_name_match(self, bref_name:str, statcast_name:str) -> bool:
         """Compare first name and last name from bref vs statcast to match to a player.
         Returns true if both the first name and last name are a match.
 
@@ -819,7 +820,7 @@ class BaseballReferenceScraper:
         
         return is_match
 
-    def advanced_stats(self, type, year):
+    def advanced_stats(self, type:str, year:int) -> dict:
         """Parse advanced stats page from baseball reference.
 
         Standard and ratio stats. For Pitchers, uses batting against table.
@@ -955,7 +956,7 @@ class BaseballReferenceScraper:
             else:
                 ratio_row_key = f'{table_prefix}_ratio.{year}'
                 ratio_row = soup_for_advanced_stats.find('tr', attrs = {'class': 'full', 'id': ratio_row_key})
-        advanced_stats.update(self.__parse_ratio_stats(ratio_row=ratio_row, slg=advanced_stats['slugging_perc']))
+        advanced_stats.update(self.__parse_ratio_stats(ratio_row=ratio_row))
 
         # IP/GS (STARTING PITCHER)
         if type == 'Pitcher':
@@ -973,7 +974,7 @@ class BaseballReferenceScraper:
         
         return advanced_stats
 
-    def __parse_standard_stats(self, type, soup_row, included_g_for_pitcher=False):
+    def __parse_standard_stats(self, type:str, soup_row:BeautifulSoup, included_g_for_pitcher:bool=False) -> dict:
         """Parse standard batting table.
 
         Args:
@@ -1018,7 +1019,7 @@ class BaseballReferenceScraper:
 
         return standard_stats_dict
 
-    def __parse_splits_stats(self,year):
+    def __parse_splits_stats(self,year:int) -> dict:
         """Parse standard statline from the "splits" page on Baseball Reference
 
         Args:
@@ -1036,7 +1037,7 @@ class BaseballReferenceScraper:
         batting_against_dict = dict(zip(header_values, stats_values))
         return batting_against_dict
 
-    def __parse_generic_bref_row(self, row):
+    def __parse_generic_bref_row(self, row:BeautifulSoup) -> dict:
         """Parse hitting stats a pitcher allowed.
 
         Args:
@@ -1058,12 +1059,11 @@ class BaseballReferenceScraper:
 
         return final_stats_dict
 
-    def __parse_ratio_stats(self, ratio_row, slg):
+    def __parse_ratio_stats(self, ratio_row:BeautifulSoup) -> dict[str,float]:
         """Parse out ratios (GB/AO, PU)
 
         Args:
           ratio_row: BeautifulSoup table row for ratios.
-          slg: Slugging Pct, used if ratio's dont exist
 
         Returns:
           Dict with ratio statistics.
@@ -1090,7 +1090,7 @@ class BaseballReferenceScraper:
             'IF/FB': pu_ratio
         }
 
-    def __parse_team_after_trade(self, soup_for_homepage_stats, year, type):
+    def __parse_team_after_trade(self, soup_for_homepage_stats:BeautifulSoup, year:int, type:str) -> str:
         """Parse the last team a player playe dfor in the given season.
 
         Args:
@@ -1127,7 +1127,7 @@ class BaseballReferenceScraper:
         except:
             return 'TOT'
 
-    def __add_icon_threshold_bools(self, type, year, stats_dict, homepage_soup):
+    def __add_icon_threshold_bools(self, type:str, year:int, stats_dict:dict, homepage_soup:BeautifulSoup) -> dict[str,bool]:
         """Add 4 boolean flags for whether the player qualifies for Icons for a given stat
 
         Args:
@@ -1293,7 +1293,7 @@ class BaseballReferenceScraper:
             'dWar': aggregated_dWar
         }
 
-    def __get_career_totals_row(self, div_id, soup_object):
+    def __get_career_totals_row(self, div_id:str, soup_object:BeautifulSoup) -> BeautifulSoup:
         """Grab first row of career totals data from any table
 
         Args:
@@ -1309,7 +1309,7 @@ class BaseballReferenceScraper:
         row = footer.find_all('tr')[0]
         return row
 
-    def __years_played_list(self, type, homepage_soup):
+    def __years_played_list(self, type:str, homepage_soup:BeautifulSoup) -> list[str]:
         """Parse the standard batting/pitching table to get a list of the years
            a player played in.
 
@@ -1325,7 +1325,7 @@ class BaseballReferenceScraper:
         years_parsed = [year['id'].split('.')[-1] for year in year_soup_objects_list]
         return years_parsed
 
-    def __team_w_most_games_played(self, type, homepage_soup, years_filter_list=[]):
+    def __team_w_most_games_played(self, type:str, homepage_soup:BeautifulSoup, years_filter_list:list[int]=[]):
         """Parse the standard batting/pitching table to get a list of the years
            a player played in.
 
@@ -1356,7 +1356,7 @@ class BaseballReferenceScraper:
         else:
             return 'TOT'
 
-    def __get_stat_list_from_standard_table(self, type, homepage_soup, stat_key):
+    def __get_stat_list_from_standard_table(self, type:str, homepage_soup:BeautifulSoup, stat_key:str) -> list:
         """Parse the standard batting/pitching table to get a list of values for a given stat.
 
         Args:
@@ -1365,7 +1365,7 @@ class BaseballReferenceScraper:
           years_filter_list: Optional list of years to include
 
         Returns:
-          List of years as strings
+          List of stats across years.
         """
         table_prefix = 'batting' if type == 'Hitter' else 'pitching'
         standard_table = homepage_soup.find('div', attrs = {'id': f'all_{table_prefix}_standard'})
@@ -1383,7 +1383,7 @@ class BaseballReferenceScraper:
 
         return stat_list
 
-    def __is_pitcher_from_1901_to_1918(self, year, type):
+    def __is_pitcher_from_1901_to_1918(self, year:int, type:str) -> bool:
         """Checks to see if the player is a pitcher and the year is between 1901-1917.
         
         Args:
@@ -1398,7 +1398,7 @@ class BaseballReferenceScraper:
         except:
             return False
 
-    def __find_partial_team_stats_row(self, soup_object, team, year, return_soup_object=False):
+    def __find_partial_team_stats_row(self, soup_object:BeautifulSoup, team:str, year:int, return_soup_object:bool=False) -> BeautifulSoup:
         """Iterates through each object to try to find specific team stats for a given year.
         
         Args:
@@ -1430,6 +1430,7 @@ class BaseballReferenceScraper:
             
 # ------------------------------------------------------------------------
 # HELPER METHODS
+# ------------------------------------------------------------------------
 
     def load_cached_data(self, filename:str) -> dict:
         """Check if data file exists in local storage, load and return JSON converted to a dict
@@ -1494,7 +1495,7 @@ class BaseballReferenceScraper:
                 if is_file_stale:
                     os.remove(item_path)
 
-    def __file_mins_since_modification(self, path:str):
+    def __file_mins_since_modification(self, path:str) -> float:
         """Checks modified date of file.
            Used for cleaning and reading from cache.
 
@@ -1511,7 +1512,7 @@ class BaseballReferenceScraper:
 
         return file_age_mins
     
-    def __name_last_initial(self, name):
+    def __name_last_initial(self, name:str) -> str:
         """Parse first initial of Player's last name.
 
         Need to account for >2 words and Suffixes (Jr, Sr, etc)
@@ -1535,7 +1536,7 @@ class BaseballReferenceScraper:
         last_initial = name_no_suffix.split(' ')[1][:1]
         return last_initial
 
-    def __percentile(self,minValue,maxValue,value):
+    def __percentile(self, minValue:float, maxValue:float, value:float) -> float:
         """Get percentile of value given a range.
 
         Args:
@@ -1551,7 +1552,7 @@ class BaseballReferenceScraper:
 
         return min(percentile_raw,1.0) if percentile_raw > 0 else 0
 
-    def __convert_to_numeric(self, string_value):
+    def __convert_to_numeric(self, string_value:str):
         """Will convert a string to either int or float if able, otherwise return as string
 
         Args:
