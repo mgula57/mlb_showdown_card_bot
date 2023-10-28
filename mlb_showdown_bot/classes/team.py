@@ -1,6 +1,6 @@
 from enum import Enum
 
-class Team(Enum):
+class Team(str, Enum):
 
     AB2 = 'AB2'
     AB3 = 'AB3'
@@ -154,6 +154,10 @@ class Team(Enum):
     WSH = 'WSH'
     WSN = 'WSN'
     MLB = "MLB"
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls.MLB
 
 # ------------------------------------------------------------------------
 # COLOR

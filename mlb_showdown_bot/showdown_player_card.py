@@ -20,30 +20,28 @@ from pprint import pprint
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
-    from .enums.team import Team
-    from .enums.icon import Icon
-    from .enums.edition import Edition
-    from .enums.accolade import Accolade
-    from .enums.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart
-    from .enums.metrics import DefenseMetric
-    from .enums.nationality import Nationality
-    from .enums.chart import ChartCategory
-    from .enums.images import ImageParallel, SpecialEdition
-    from .enums import colors
+    from .classes.team import Team
+    from .classes.icon import Icon
+    from .classes.accolade import Accolade
+    from .classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart
+    from .classes.metrics import DefenseMetric
+    from .classes.nationality import Nationality
+    from .classes.chart import ChartCategory
+    from .classes.images import ImageParallel, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
+    from .classes import colors
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
-    from enums.team import Team
-    from enums.icon import Icon
-    from enums.edition import Edition
-    from enums.accolade import Accolade
-    from enums.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart
-    from enums.player_position import PlayerSubType
-    from enums.metrics import DefenseMetric
-    from enums.nationality import Nationality
-    from enums.chart import ChartCategory
-    from enums.images import ImageParallel, SpecialEdition
-    from enums import colors
+    from classes.team import Team
+    from classes.icon import Icon
+    from classes.accolade import Accolade
+    from classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart
+    from classes.player_position import PlayerSubType
+    from classes.metrics import DefenseMetric
+    from classes.nationality import Nationality
+    from classes.chart import ChartCategory
+    from classes.images import ImageParallel, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
+    from classes import colors
 
 class ShowdownPlayerCard:
 
@@ -51,7 +49,7 @@ class ShowdownPlayerCard:
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, name:str, year:str, stats:dict, set:str, expansion:str='FINAL', edition:str="NONE", offset:int=0, player_image_url:str=None, player_image_path:str=None, card_img_output_folder_path:str='', set_number:str='', test_numbers:tuple[int,int]=None, run_stats:bool=True, command_out_override:tuple[int,int]=None, print_to_cli:bool=False, show_player_card_image:bool=False, is_img_part_of_a_set:bool=False, add_image_border:bool=False, is_dark_mode:bool=False, is_variable_speed_00_01:bool=False, image_parallel:str="NONE", add_year_container:bool=False, set_year_plus_one:bool=False, hide_team_logo:bool=False, date_override:str=None, era:str="DYNAMIC", use_secondary_color:bool=False, is_running_in_flask:bool=False, source:str='Baseball Reference', disable_cache_cleaning:bool=False) -> None:
+    def __init__(self, name:str, year:str, stats:dict, set:str, expansion:str='BS', edition:str="NONE", offset:int=0, player_image_url:str=None, player_image_path:str=None, card_img_output_folder_path:str='', set_number:str='', test_numbers:tuple[int,int]=None, run_stats:bool=True, command_out_override:tuple[int,int]=None, print_to_cli:bool=False, show_player_card_image:bool=False, is_img_part_of_a_set:bool=False, add_image_border:bool=False, is_dark_mode:bool=False, is_variable_speed_00_01:bool=False, image_parallel:str="NONE", add_year_container:bool=False, set_year_plus_one:bool=False, hide_team_logo:bool=False, date_override:str=None, era:str="DYNAMIC", use_secondary_color:bool=False, is_running_in_flask:bool=False, source:str='Baseball Reference', disable_cache_cleaning:bool=False) -> None:
         """Initializer for ShowdownPlayerCard Class"""
 
         # ASSIGNED ATTRIBUTES
@@ -72,7 +70,6 @@ class ShowdownPlayerCard:
 
         # SET INFO
         self.set: Set = Set(set)
-        self.expansion: str = expansion
         self.era: Era = self.era_dynamic if era == "DYNAMIC" else Era(era)
 
         # STATS
@@ -84,52 +81,38 @@ class ShowdownPlayerCard:
             stats['IF/FB'] = stats.get('IF/FB', 0.0) * self.set.pu_normalizer_1988
         # COMBINE BB AND HBP
         if 'HBP' in stats.keys():
-            try:
-                stats['BB'] = stats['BB'] + stats['HBP']
-            except:
-                print("ERROR COMBINING BB AND HBP")
+            stats['BB'] = stats.get('BB',0) + stats.get('HBP',0)
         self.stats: dict = stats
         self.source: str = source
-        self.is_stats_estimate = stats.get('is_stats_estimate', False)
+        self.is_stats_estimate: bool = stats.get('is_stats_estimate', False)
         self.stats_version:int = int(offset)
 
         # METADATA
         self.player_type = PlayerType(stats.get('type', 'Hitter'))
         self.league: str = stats.get('lg_ID', 'MLB')
-        try:
-            self.team: Team = Team(stats.get('team_ID', 'MLB'))
-        except:
-            self.team = Team.MLB
-        try:
-            self.nationality: Nationality = Nationality(stats.get('nationality', 'NONE'))
-        except:
-            self.nationality: Nationality = Nationality.NONE
-        self.use_secondary_color = use_secondary_color
+        self.team: Team = Team(stats.get('team_ID', None))        
+        self.nationality: Nationality = Nationality(stats.get('nationality', None))
 
         # IMAGE
-        self.edition: Edition = Edition(edition)
-        self.image_parallel: ImageParallel = ImageParallel(image_parallel)
-        self.player_image_url: str = player_image_url
-        self.player_image_path: str = player_image_path
-        self.card_img_output_folder_path: str = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output')
-        self.is_automated_image: bool = False
-        self.player_image_source: str = None
-        self.is_img_part_of_a_set: bool = is_img_part_of_a_set
-        self.add_image_border: bool = add_image_border
-        self.is_dark_mode: bool = is_dark_mode
-        self.img_loading_error: str = None
-        self.img_id: str = None
-        self.img_bordered_id: str = None
-        self.img_dark_id: str = None
-        self.img_dark_bordered_id: str = None
+        self.image: ShowdownImage = ShowdownImage(
+            edition = edition,
+            expansion = expansion,
+            source = ImageSource(url=player_image_url, path=player_image_path),
+            parallel = image_parallel,
+            output_folder_path = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output'),
+            set_number = set_number if set_number != '' else self.set.default_set_number,
+            add_one_to_set_year = set_year_plus_one and self.set.is_eligibile_for_year_plus_one,
+            show_year_container = add_year_container and self.set.is_eligibile_for_year_container,
+            is_bordered = add_image_border,
+            is_dark_mode = is_dark_mode,
+            hide_team_logo = hide_team_logo,
+            use_secondary_color = use_secondary_color
+        )
+        self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
+        
         self.disable_cache_cleaning = disable_cache_cleaning
         
         # CUSTOMIZATIONS
-        self.has_custom_set_number: bool = set_number != ''
-        self.set_number: str = set_number if self.has_custom_set_number else self.set.default_set_number
-        self.add_year_container: bool = add_year_container and self.set.is_eligibile_for_year_container
-        self.set_year_plus_one: bool = set_year_plus_one and self.set.is_eligibile_for_year_plus_one
-        self.hide_team_logo: bool = hide_team_logo
         self.date_override: str = date_override
         self.test_numbers: tuple[int,int] = test_numbers
         self.command_out_override: tuple[int,int] = command_out_override
@@ -291,27 +274,6 @@ class ShowdownPlayerCard:
             return Era.STEROID
         
         return most_common_era_tuples_list[0][0]
-
-    @property
-    def special_edition(self) -> SpecialEdition:
-        """ Special Editions are cards with unique art and characteristics """
-
-        if self.edition == Edition.ALL_STAR_GAME and str(self.year) == '2023':
-            return SpecialEdition.ASG_2023
-        
-        if self.edition == Edition.SUPER_SEASON and self.set.is_04_05:
-            return SpecialEdition.SUPER_SEASON
-        
-        if self.edition == Edition.COOPERSTOWN_COLLECTION and self.set.enable_cooperstown_special_edition:
-            return SpecialEdition.COOPERSTOWN_COLLECTION
-        
-        if self.edition == Edition.NATIONALITY and self.nationality.is_populated:
-            return SpecialEdition.NATIONALITY
-        
-        if self.image_parallel == ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
-            return SpecialEdition.TEAM_COLOR_BLAST_DARK
-        
-        return SpecialEdition.NONE
     
     @property
     def num_positions_playable(self) -> int:
@@ -406,7 +368,7 @@ class ShowdownPlayerCard:
     @property
     def use_alternate_logo(self) -> bool:
         """ Alternate logos are used in 2004+ sets """
-        return self.set.use_alternate_team_logo and not self.edition.use_edition_logo_as_team_logo
+        return self.set.use_alternate_team_logo and not self.image.edition.use_edition_logo_as_team_logo
 
     @property
     def image_component_ordered_list(self) -> list[PlayerImageComponent]:
@@ -416,7 +378,7 @@ class ShowdownPlayerCard:
     @property
     def team_override_for_images(self) -> Team :
         """ Team override to use for background images and colors (ex: CC)"""
-        return Team.CCC if self.edition == Edition.COOPERSTOWN_COLLECTION else None
+        return Team.CCC if self.image.edition == Edition.COOPERSTOWN_COLLECTION else None
     
 # ------------------------------------------------------------------------
 # METADATA METHODS
@@ -2321,11 +2283,11 @@ class ShowdownPlayerCard:
         print(f"{self.name} ({self.year})")
         print("----------------------------------------")
         print(f"Team: {self.team.value}")
-        print(f"Set: {self.set.value} {self.expansion} (v{self.version})")
+        print(f"Set: {self.set.value} {self.image.expansion} (v{self.version})")
         print(f"Era: {self.era.value.title()}")
         print(f"Data Source: {self.source}")
-        if self.player_image_source:
-            print(f"Img Source: {self.player_image_source}")
+        if not self.image.source.type.is_empty:
+            print(f"Img Source: {self.image.source.type}")
 
         # ----- POSITION AND ICONS  ----- #
 
@@ -2754,7 +2716,7 @@ class ShowdownPlayerCard:
         Returns:
           String with RGB codes (ex: "rgba(255, 50, 25, 1.0)")
         """
-        tm_colors = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color)
+        tm_colors = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color)
 
         return f'rgb({tm_colors[0]}, {tm_colors[1]}, {tm_colors[2]})'
 
@@ -2807,7 +2769,7 @@ class ShowdownPlayerCard:
             card_image.paste(img, coordinates, img)
 
         # ADD HOLIDAY THEME
-        if self.edition == Edition.HOLIDAY:
+        if self.image.edition == Edition.HOLIDAY:
             holiday_image_path = self.__template_img_path('Holiday')
             holiday_image = Image.open(holiday_image_path)
             card_image.paste(holiday_image,self.__coordinates_adjusted_for_bordering(coordinates=(0,0)),holiday_image)
@@ -2819,7 +2781,7 @@ class ShowdownPlayerCard:
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
         small_name_cutoff = self.set.small_name_text_length_cutoff
-        name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if len(self.name) >= small_name_cutoff and self.image_parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
+        name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if len(self.name) >= small_name_cutoff and self.image.parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
         name_paste_location = self.set.template_component_paste_coordinates(name_image_component)
         if self.set.is_00_01:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
@@ -2829,7 +2791,7 @@ class ShowdownPlayerCard:
         card_image.paste(color, self.__coordinates_adjusted_for_bordering(name_paste_location),  name_text)
 
         # ADD TEAM LOGO
-        disable_team_logo = self.hide_team_logo or (self.edition.has_additional_logo_00_01 and self.set == Set._2000)
+        disable_team_logo = self.image.hide_team_logo or (self.image.edition.has_additional_logo_00_01 and self.set == Set._2000)
         if not disable_team_logo:
             team_logo, team_logo_coords = self.__team_logo_image()
             card_image.paste(team_logo, self.__coordinates_adjusted_for_bordering(team_logo_coords), team_logo)
@@ -2849,7 +2811,7 @@ class ShowdownPlayerCard:
 
         # STYLE (IF APPLICABLE)
         if self.set.is_showdown_bot:
-            theme_suffix = '-DARK' if self.is_dark_mode else ''
+            theme_suffix = '-DARK' if self.image.is_dark_mode else ''
             style_img_path = self.__template_img_path(f'{self.set.value}{theme_suffix}')
             style_img = Image.open(style_img_path)
             style_coordinates = self.__coordinates_adjusted_for_bordering(self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE))
@@ -2864,21 +2826,21 @@ class ShowdownPlayerCard:
         card_image.paste(set_image, self.__coordinates_adjusted_for_bordering((0,0)), set_image)
 
         # YEAR CONTAINER
-        if self.add_year_container:
+        if self.image.show_year_container:
             paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
             year_container_img = self.__year_container_add_on()
             card_image.paste(year_container_img, self.__coordinates_adjusted_for_bordering(paste_location), year_container_img)
 
         # EXPANSION
-        if self.expansion != 'FINAL':
+        if self.image.expansion.has_image:
             expansion_image = self.__expansion_image()
             expansion_location = self.set.template_component_paste_coordinates(TemplateImageComponent.EXPANSION)
-            if self.add_year_container and self.set.is_00_01:
+            if self.image.show_year_container and self.set.is_00_01:
                 # IF YEAR CONTAINER EXISTS, MOVE OVER EXPANSION LOGO
                 expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
-            if self.set == Set._2002 and self.expansion == 'TD':
+            if self.set == Set._2002 and self.image.expansion == Expansion.TD:
                 expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
-            elif self.set.is_showdown_bot and self.expansion == 'TD':
+            elif self.set.is_showdown_bot and self.image.expansion == Expansion.TD:
                 expansion_location = (expansion_location[0],expansion_location[1] - 12)
             card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
 
@@ -2891,16 +2853,16 @@ class ShowdownPlayerCard:
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm or bordered
-        final_size = self.set.card_size_bordered_final if self.add_image_border else self.set.card_size_final
+        final_size = self.set.card_size_bordered_final if self.image.is_bordered else self.set.card_size_final
         card_image = self.__center_and_crop(card_image,final_size)
         card_image = self.__round_corners(card_image, 60)
 
         # MAKE IMAGE BLACK AND WHITE IF PARALLEL IS SELECTED
-        if self.image_parallel == ImageParallel.BLACK_AND_WHITE:
+        if self.image.parallel == ImageParallel.BLACK_AND_WHITE:
             card_image = self.__change_image_saturation(image=card_image, saturation=0.05)
 
-        if self.img_loading_error:
-            print(self.img_loading_error)
+        if self.image.error:
+            print(self.image.error)
 
         self.save_image(image=card_image, start_time=start_time, show=show, img_name_suffix=img_name_suffix)
 
@@ -2916,15 +2878,15 @@ class ShowdownPlayerCard:
         """
 
         is_00_01_set = self.set.is_00_01        
-        dark_mode_suffix = '-DARK' if self.is_dark_mode and self.set.is_showdown_bot else ''
+        dark_mode_suffix = '-DARK' if self.image.is_dark_mode and self.set.is_showdown_bot else ''
         default_image_path = self.__template_img_path(f'Default Background - {self.set.template_year}{dark_mode_suffix}')
         
         # CHECK FOR CUSTOM LOCAL IMAGE ASSET (EX: NATIONALITY, ASG)
         custom_image_path = None
         background_image = None
-        if self.special_edition == SpecialEdition.NATIONALITY:
+        if self.image.special_edition == SpecialEdition.NATIONALITY:
             custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality.value}.png")
-        elif self.special_edition == SpecialEdition.ASG_2023:
+        elif self.image.special_edition == SpecialEdition.ASG_2023:
             custom_image_path = self.__card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
 
         # CUSTOM BACKGROUND 
@@ -2954,12 +2916,12 @@ class ShowdownPlayerCard:
             paste_coordinates = self.__coordinates_adjusted_for_bordering((0,0), is_disabled = not has_border_already)
             background_image.paste(name_container, paste_coordinates, name_container)
 
-        if self.image_parallel.is_team_background_black_and_white:
+        if self.image.parallel.is_team_background_black_and_white:
             background_image = self.__change_image_saturation(image=background_image, saturation=0.10)
         
-        if self.add_image_border and not has_border_already:
+        if self.image.is_bordered and not has_border_already:
             # USE WHITE OR BLACK
-            border_color = colors.BLACK if self.is_dark_mode else colors.WHITE
+            border_color = colors.BLACK if self.image.is_dark_mode else colors.WHITE
             image_border = Image.new('RGBA', self.set.card_size_bordered, color=border_color)
             image_border.paste(background_image.convert("RGBA"),(self.set.card_border_padding,self.set.card_border_padding),background_image.convert("RGBA"))
             background_image = image_border
@@ -2977,9 +2939,9 @@ class ShowdownPlayerCard:
         """
         
         is_2001_set = self.set == Set._2001
-        image_size = self.set.card_size_bordered if self.add_image_border else self.set.card_size
+        image_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
         team_override = self.team_override_for_images
-        background_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=team_override)
+        background_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
         team_background_image = Image.new('RGB', image_size, color=background_color)
         
         # ADD 2001 SET ADDITIONS
@@ -3024,20 +2986,20 @@ class ShowdownPlayerCard:
         is_alternate = self.use_alternate_logo or force_use_alternate
         logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
         logo_size = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
-        logo_rotation = rotation if rotation else (10 if self.set == Set._2002 and self.edition.rotate_team_logo_2002 and not ignore_dynamic_elements else 0 )
+        logo_rotation = rotation if rotation else (10 if self.set == Set._2002 and self.image.edition.rotate_team_logo_2002 and not ignore_dynamic_elements else 0 )
         logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.TEAM_LOGO)
         is_04_05 = self.set.is_04_05
         is_00_01 = self.set.is_00_01
-        is_cooperstown = self.edition == Edition.COOPERSTOWN_COLLECTION
-        is_all_star_game = self.edition == Edition.ALL_STAR_GAME
-        is_rookie_season = self.edition == Edition.ROOKIE_SEASON
+        is_cooperstown = self.image.edition == Edition.COOPERSTOWN_COLLECTION
+        is_all_star_game = self.image.edition == Edition.ALL_STAR_GAME
+        is_rookie_season = self.image.edition == Edition.ROOKIE_SEASON
 
         # USE INPUT SIZE IF IT EXISTS
         if size:
             logo_size = size
     
         try:
-            if self.edition.use_edition_logo_as_team_logo and not is_00_01:
+            if self.image.edition.use_edition_logo_as_team_logo and not is_00_01:
                 # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
                 logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
                 team_logo_path = self.__team_logo_path(name=logo_name)
@@ -3055,7 +3017,7 @@ class ShowdownPlayerCard:
                 logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
                 logo_size_multiplier = self.team.logo_size_multiplier(year=self.median_year, is_alternate=is_alternate)
                 team_logo_path = self.__team_logo_path(name=logo_name)
-                if self.special_edition == SpecialEdition.NATIONALITY:
+                if self.image.special_edition == SpecialEdition.NATIONALITY:
                     team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality.value}.png')
                     logo_size_multiplier = self.nationality.logo_size_multiplier
             team_logo = Image.open(team_logo_path).convert("RGBA")
@@ -3084,7 +3046,7 @@ class ShowdownPlayerCard:
             return team_logo, logo_paste_coordinates
 
         # OVERRIDE IF SUPER SEASON
-        if self.edition == Edition.SUPER_SEASON and not is_00_01:
+        if self.image.edition == Edition.SUPER_SEASON and not is_00_01:
             team_logo, _ = self.__super_season_image()
             logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SUPER_SEASON)
 
@@ -3189,19 +3151,19 @@ class ShowdownPlayerCard:
             # 04/05 HAS MORE TEMPLATE OPTIONS
             edition_extension = ''
             default_template_color = self.player_type.template_color_04_05
-            if self.edition.template_color_0405:
-                edition_extension = f'-{self.edition.template_color_0405}'
-            elif self.special_edition == SpecialEdition.NATIONALITY:
+            if self.image.edition.template_color_0405:
+                edition_extension = f'-{self.image.edition.template_color_0405}'
+            elif self.image.special_edition == SpecialEdition.NATIONALITY:
                 edition_extension = f'-{self.nationality.template_color}'
             else:
                 edition_extension = f'-{default_template_color}'
 
-            if self.image_parallel.color_override_04_05_chart:
-                edition_extension = f"-{self.image_parallel.color_override_04_05_chart}"
+            if self.image.parallel.color_override_04_05_chart:
+                edition_extension = f"-{self.image.parallel.color_override_04_05_chart}"
             type_template = f'{year}-{type}{edition_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
         else:
-            dark_mode_extension = '-DARK' if self.set.is_showdown_bot and self.is_dark_mode else ''
+            dark_mode_extension = '-DARK' if self.set.is_showdown_bot and self.image.is_dark_mode else ''
             type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
 
@@ -3217,8 +3179,8 @@ class ShowdownPlayerCard:
             container_img_path = self.__template_img_path(f'{year}-ChartOutsContainer-{type}')
             container_img_black = Image.open(container_img_path)
             team_override = self.team_override_for_images
-            fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=team_override)
-            if self.special_edition == SpecialEdition.NATIONALITY:
+            fill_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
+            if self.image.special_edition == SpecialEdition.NATIONALITY:
                 colors = self.nationality.colors
                 if len(colors) >= 2:
                     # GRADIENT
@@ -3231,7 +3193,7 @@ class ShowdownPlayerCard:
                     container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
             else:
                 container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
-            use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.use_secondary_color)
+            use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color)
             dark_mode_suffix = '-DARK' if use_dark_text else ''
             text_img = Image.open(self.__template_img_path(f'{year}-ChartOutsText-{type}{dark_mode_suffix}'))
             template_image.paste(container_img, (0,0), container_img)
@@ -3270,7 +3232,7 @@ class ShowdownPlayerCard:
         logo_img_with_text = Image.new('RGBA',img_size)
 
         # LOAD LOGO IMAGE
-        is_dark_mode = self.set.is_showdown_bot and self.is_dark_mode
+        is_dark_mode = self.set.is_showdown_bot and self.image.is_dark_mode
         dark_mode_extension = '-DARK' if is_dark_mode else ''
         logo_size = self.set.template_component_size(TemplateImageComponent.BOT_LOGO)
         logo_img_name = f"BOT-LOGO{dark_mode_extension}"
@@ -3286,7 +3248,7 @@ class ShowdownPlayerCard:
         # ERA TEXT
         helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
         era_font = ImageFont.truetype(helvetica_neue_lt_path, size=70)
-        era_txt_color = "#b5b5b5" if self.set.is_showdown_bot and self.is_dark_mode else "#585858"
+        era_txt_color = "#b5b5b5" if self.set.is_showdown_bot and self.image.is_dark_mode else "#585858"
         era_text = self.__text_image(text=self.era.value_no_era_suffix, size=(620, 100), font=era_font, alignment="center")
         text_paste_location = (0, 435) 
         
@@ -3332,7 +3294,7 @@ class ShowdownPlayerCard:
         """
 
         # PARSE NAME STRING
-        name_upper = "????? ?????" if self.image_parallel == ImageParallel.MYSTERY else self.name.upper()
+        name_upper = "????? ?????" if self.image.parallel == ImageParallel.MYSTERY else self.name.upper()
         first, last = name_upper.split(" ", 1)
         name = first if self.set.has_split_first_and_last_names else name_upper
         default_chart_char_cutoff = 19 if self.set == Set._2002 else 15
@@ -3441,7 +3403,7 @@ class ShowdownPlayerCard:
                 # ASSIGN THE TEXT ITSELF AS THE COLOR OBJECT
                 name_color = final_text
             case Set.CLASSIC | Set.EXPANDED:
-                name_color = colors.WHITE if self.is_dark_mode else colors.BLACK
+                name_color = colors.WHITE if self.image.is_dark_mode else colors.BLACK
 
         return final_text, name_color
 
@@ -3609,7 +3571,7 @@ class ShowdownPlayerCard:
                     current_x_position += 65
                 
 
-            color = colors.GRAY if self.is_dark_mode else colors.BLACK
+            color = colors.GRAY if self.image.is_dark_mode else colors.BLACK
 
         return metadata_image, color
 
@@ -3657,8 +3619,8 @@ class ShowdownPlayerCard:
                     border_color = colors.BLACK,
                     border_size = 9
                 )
-                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.use_secondary_color) and self.set.year == '2022' and is_out_category
-                color_range = range_text if (is_wotc or is_out_category or self.is_dark_mode) and not use_dark_text else colors.BLACK
+                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color) and self.set.year == '2022' and is_out_category
+                color_range = range_text if (is_wotc or is_out_category or self.image.is_dark_mode) and not use_dark_text else colors.BLACK
                 chart_text.paste(color_range, (chart_text_x, 0), range_text)
                 pitcher_spacing = 531 if is_wotc else 510
                 hitter_spacing = 468 if is_wotc else 445
@@ -3708,7 +3670,7 @@ class ShowdownPlayerCard:
         if self.set.has_unified_set_and_year_strings:
             # SET AND NUMBER IN SAME STRING
             set_text = self.__text_image(
-                text = self.set_number,
+                text = self.image.set_number,
                 size = (600, 300),
                 font = set_font,
                 alignment = "center"
@@ -3741,7 +3703,7 @@ class ShowdownPlayerCard:
                         set_image_location = (set_image_location[0]-5,set_image_location[1]+3)
             else:
                 try:
-                    year_as_str = str(int(year_as_str) + (1 if self.set_year_plus_one else 0))
+                    year_as_str = str(int(year_as_str) + (1 if self.image.add_one_to_set_year else 0))
                 except:
                     year_as_str = year_as_str
                 year_string = year_as_str if self.set.is_showdown_bot else f"'{year_as_str[2:4]}"
@@ -3756,7 +3718,7 @@ class ShowdownPlayerCard:
 
             # CARD NUMBER
             number_text = self.__text_image(
-                text = self.set_number,
+                text = self.image.set_number,
                 size = (600, 450),
                 font = set_font,
                 alignment = "center"
@@ -3777,7 +3739,7 @@ class ShowdownPlayerCard:
           PIL image object for card expansion logo.
         """ 
 
-        expansion_image = Image.open(self.__template_img_path(f'{self.set.template_year}-{self.expansion}'))
+        expansion_image = Image.open(self.__template_img_path(f'{self.set.template_year}-{self.image.expansion.value}'))
         return expansion_image
 
     def __super_season_image(self) -> tuple[Image.Image, tuple[int,int]]:
@@ -3977,7 +3939,7 @@ class ShowdownPlayerCard:
         x2 = 190
         y2 = 190       
         draw.ellipse((x1-border_size, y1-border_size, x2+border_size, y2+border_size), fill=text_color)
-        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=self.team_override_for_images))
+        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images))
 
         # ADD TEXT
         font_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
@@ -4005,19 +3967,19 @@ class ShowdownPlayerCard:
         
         # DEFINE COORDINATES, START WITH ROOKIE SEASON DESTINATION AND EDIT FOR OTHERS
         paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.ROOKIE_SEASON)
-        if self.edition != Edition.ROOKIE_SEASON and self.set == Set._2001:
+        if self.image.edition != Edition.ROOKIE_SEASON and self.set == Set._2001:
             # MOVE LOGO TO THE RIGHT
             paste_coordinates = (paste_coordinates[0] + 30, paste_coordinates[1])
         if self.set == Set._2000:
             # MOVE LOGO ABOVE TEAM LOGO AND SLIGHTLY TO THE LEFT
-            y_movement = -35 if self.edition == Edition.SUPER_SEASON else 0
-            x_movement = -35 if self.edition == Edition.SUPER_SEASON else 0
+            y_movement = -35 if self.image.edition == Edition.SUPER_SEASON else 0
+            x_movement = -35 if self.image.edition == Edition.SUPER_SEASON else 0
             paste_coordinates = (paste_coordinates[0] - 25 + x_movement, paste_coordinates[1] + y_movement)
 
         # ADD LOGO
-        match self.edition:
+        match self.image.edition:
             case Edition.ALL_STAR_GAME | Edition.COOPERSTOWN_COLLECTION:
-                logo_name = 'CCC' if self.edition == Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
+                logo_name = 'CCC' if self.image.edition == Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
                 logo_size_x, logo_size_y = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
                 logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name == 'ASG-2022' else (logo_size_x, logo_size_y)
                 logo_path = self.__team_logo_path(name=logo_name)
@@ -4048,7 +4010,7 @@ class ShowdownPlayerCard:
 
         # BACKGROUND CONTAINER IMAGE
         img_type_suffix = 'Control' if self.is_pitcher else 'Onbase'
-        dark_mode_suffix = '-DARK' if self.is_dark_mode else ''
+        dark_mode_suffix = '-DARK' if self.image.is_dark_mode else ''
         background_img = Image.open(self.__template_img_path(f'{self.set.template_year}-{img_type_suffix}{dark_mode_suffix}'))
         font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
         command = str(self.chart.command)
@@ -4057,7 +4019,7 @@ class ShowdownPlayerCard:
         font = ImageFont.truetype(font_path, size=size)
 
         # ADD TEXT
-        fill_color = self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, team_override=self.team_override_for_images)
+        fill_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images)
         fill_color_hex = self.__rbgs_to_hex(rgbs=fill_color)
         # SEPARATE 
         for index, char in enumerate(command):
@@ -4140,33 +4102,30 @@ class ShowdownPlayerCard:
         # CHECK FOR USER UPLOADED IMAGE
         player_img_user_uploaded = None
         # ---- LOCAL/UPLOADED IMAGE -----
-        if self.player_image_path:
-            image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.player_image_path)
+        if self.image.source.path:
+            image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.image.source.path)
             try:
                 player_img_uploaded_raw = Image.open(image_path).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_uploaded_raw, (1500,2100))
                 images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
-                self.player_image_source = 'Upload'
             except Exception as err:
-                self.img_loading_error = str(err)
+                self.image.error = str(err)
         
         # ---- IMAGE FROM URL -----
-        elif self.player_image_url:
+        elif self.image.source.url:
             # LOAD IMAGE FROM URL
-            image_url = self.player_image_url
             try:
-                response = requests.get(image_url)
+                response = requests.get(self.image.source.url)
                 player_img_raw = Image.open(BytesIO(response.content)).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_raw, (1500,2100))
                 images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
-                self.player_image_source = 'Link'
             except Exception as err:
-                self.img_loading_error = str(err)
+                self.image.error = str(err)
 
         # ---- IMAGE FROM GOOGLE DRIVE -----
         file_service = None
         if player_img_user_uploaded is None:
-            search_for_universal_img = self.image_parallel != ImageParallel.MYSTERY
+            search_for_universal_img = self.image.parallel != ImageParallel.MYSTERY
             img_components_dict = self.__player_image_components_dict()
             if search_for_universal_img:
                 folder_id = self.set.player_image_gdrive_folder_id
@@ -4180,8 +4139,6 @@ class ShowdownPlayerCard:
             player_imgs = self.__automated_player_image_layers(component_img_urls_dict=img_components_dict, file_service=file_service)
             if len(player_imgs) > 0:
                 images_to_paste += player_imgs
-                if self.player_image_source is not None:
-                    self.is_automated_image = True
 
         # IF 2000, ADD SET CONTAINER AND NAME CONTAINER IF USER UPLOADED IMAGE
         if self.set == Set._2000:
@@ -4218,17 +4175,17 @@ class ShowdownPlayerCard:
                 continue
 
             # CARD SIZING
-            card_size = self.set.card_size_bordered if self.add_image_border and not img_component.adjust_paste_coordinates_for_bordered else self.set.card_size
+            card_size = self.set.card_size_bordered if self.image.is_bordered and not img_component.adjust_paste_coordinates_for_bordered else self.set.card_size
             card_width, card_height = card_size
             default_card_width, default_card_height = self.set.card_size
             size_growth_multiplier = ( card_width / default_card_width, card_height / default_card_height)
             original_crop_size = self.set.player_image_crop_size
-            player_crop_size = (int(original_crop_size[0] * size_growth_multiplier[0]), int(original_crop_size[1] * size_growth_multiplier[1])) if self.add_image_border else original_crop_size
+            player_crop_size = (int(original_crop_size[0] * size_growth_multiplier[0]), int(original_crop_size[1] * size_growth_multiplier[1])) if self.image.is_bordered else original_crop_size
             special_crop_adjustment = self.set.player_image_crop_adjustment
-            if self.set.is_showdown_bot and (self.special_edition == SpecialEdition.ASG_2023 or self.image_parallel == ImageParallel.TEAM_COLOR_BLAST):
+            if self.set.is_showdown_bot and (self.image.special_edition == SpecialEdition.ASG_2023 or self.image.parallel == ImageParallel.TEAM_COLOR_BLAST):
                 player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
                 special_crop_adjustment = (0,int((1785 - 2100) / 2))
-                if self.add_image_border:
+                if self.image.is_bordered:
                     player_crop_size = (int(player_crop_size[0] * size_growth_multiplier[0]), int(player_crop_size[1] * size_growth_multiplier[1]))
             default_crop_size = card_size
             default_crop_adjustment = (0,0)
@@ -4244,7 +4201,7 @@ class ShowdownPlayerCard:
                     cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
                     try:
                         image = Image.open(cached_image_path)
-                        self.player_image_source = 'Local Cache'
+                        self.image.source.type = ImageSourceType.LOCAL_CACHE
                     except:
                         image = None
 
@@ -4253,9 +4210,9 @@ class ShowdownPlayerCard:
                         image = self.__download_google_drive_image(file_service=file_service,file_id=img_url)
                         if image:
                             self.__cache_downloaded_image(image=image, path=cached_image_path)
-                            self.player_image_source = 'Google Drive'
+                            self.image.source.type = ImageSourceType.GOOGLE_DRIVE
                 case "COLOR":
-                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images))
+                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images))
                 case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
@@ -4271,8 +4228,8 @@ class ShowdownPlayerCard:
                 continue
             
             # ADJUST SATURATION
-            saturation_adjustment = self.special_edition.image_component_saturation_adjustments_dict
-            saturation_adjustment.update(self.image_parallel.image_type_saturations_dict)
+            saturation_adjustment = self.image.special_edition.image_component_saturation_adjustments_dict
+            saturation_adjustment.update(self.image.parallel.image_type_saturations_dict)
             if len(saturation_adjustment) > 0:
                 component_adjustment_factor = saturation_adjustment.get(img_component, None)
                 if component_adjustment_factor:
@@ -4291,7 +4248,7 @@ class ShowdownPlayerCard:
                 image = image.resize(size=card_size, resample=Image.ANTIALIAS)
 
             # SUPER SEASON: FIND LOCATIONS FOR ELLIPSES
-            is_super_season_glow = img_component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE] and self.special_edition == SpecialEdition.SUPER_SEASON
+            is_super_season_glow = img_component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE] and self.image.special_edition == SpecialEdition.SUPER_SEASON
             if is_super_season_glow:
 
                 # CALCULATE COORDINATES OF ELLIPSES
@@ -4383,7 +4340,7 @@ class ShowdownPlayerCard:
                     break
             except Exception as err:
                 # IMAGE MAY FAIL TO LOAD SOMETIMES
-                self.img_loading_error = str(err)
+                self.image.error = str(err)
                 failure_number += 1
                 continue
             
@@ -4474,14 +4431,14 @@ class ShowdownPlayerCard:
         """
         # SEARCH FOR PLAYER IMAGE
         additional_substring_filters = [self.year, f'({self.team.value})',f'({self.team.value})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
-        if self.edition != Edition.NONE:
+        if self.image.edition != Edition.NONE:
             for _ in range(0,3): # ADD 3X VALUE
-                additional_substring_filters.append(f'({self.edition.value})')
+                additional_substring_filters.append(f'({self.image.edition.value})')
         if len(self.type_override) > 0:
             additional_substring_filters.append(self.type_override)
-        if self.is_dark_mode:
+        if self.image.is_dark_mode:
             additional_substring_filters.append('(DARK)')
-        if self.special_edition == SpecialEdition.NATIONALITY:
+        if self.image.special_edition == SpecialEdition.NATIONALITY:
             for _ in range(0,4):
                 additional_substring_filters.append(f'({self.nationality.value})') # ADDS NATIONALITY THREE TIMES TO GIVE IT 3X IMPORTANCE
 
@@ -4497,22 +4454,22 @@ class ShowdownPlayerCard:
         """
 
         # COOPERSTOWN
-        is_cooperstown = self.edition == Edition.COOPERSTOWN_COLLECTION
+        is_cooperstown = self.image.edition == Edition.COOPERSTOWN_COLLECTION
         default_components_for_context = {c: self.__template_img_path("2000-Name") if c == PlayerImageComponent.NAME_CONTAINER_2000 else None for c in self.set.player_image_components_list() }
         special_components_for_context = {c: self.__template_img_path("2000-Name") if c == PlayerImageComponent.NAME_CONTAINER_2000 else None for c in self.set.player_image_components_list(is_special=True) }
 
-        if self.image_parallel.has_special_components:
+        if self.image.parallel.has_special_components:
             # ADD ADDITIONAL COMPONENTS
-            if len(self.image_parallel.special_component_additions) > 0:
+            if len(self.image.parallel.special_component_additions) > 0:
                 team_logo_name = self.team.logo_name(year=self.median_year)
-                special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == PlayerImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image_parallel.special_component_additions.items()})
+                special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == PlayerImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image.parallel.special_component_additions.items()})
             # EDITING EXISTING COMPONENTS
-            replacements_dict = self.image_parallel.special_components_replacements
+            replacements_dict = self.image.parallel.special_components_replacements
             for old_component, new_component in replacements_dict.items():
                 special_components_for_context.pop(old_component, None)
                 special_components_for_context[new_component] = None
-            is_asg_and_team_color_blast_dark = ( self.special_edition == SpecialEdition.ASG_2023 and self.is_dark_mode and self.image_parallel == ImageParallel.TEAM_COLOR_BLAST )
-            if self.special_edition == SpecialEdition.TEAM_COLOR_BLAST_DARK or is_asg_and_team_color_blast_dark:
+            is_asg_and_team_color_blast_dark = ( self.image.special_edition == SpecialEdition.ASG_2023 and self.image.is_dark_mode and self.image.parallel == ImageParallel.TEAM_COLOR_BLAST )
+            if self.image.special_edition == SpecialEdition.TEAM_COLOR_BLAST_DARK or is_asg_and_team_color_blast_dark:
                 special_components_for_context.pop(PlayerImageComponent.WHITE_CIRCLE, None)
                 special_components_for_context[PlayerImageComponent.BLACK_CIRCLE] = self.__card_art_path(PlayerImageComponent.BLACK_CIRCLE.name)
             default_components_for_context = special_components_for_context
@@ -4523,14 +4480,14 @@ class ShowdownPlayerCard:
             return components_dict
 
         # SUPER SEASON
-        if self.edition == Edition.SUPER_SEASON and self.set.is_04_05:
+        if self.image.edition == Edition.SUPER_SEASON and self.set.is_04_05:
             components_dict = special_components_for_context
             components_dict[PlayerImageComponent.DARKENER] = self.__card_art_path('DARKENER')
             components_dict[PlayerImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
         
         # ALL STAR
-        if self.special_edition == SpecialEdition.ASG_2023 and not self.set.is_00_01:
+        if self.image.special_edition == SpecialEdition.ASG_2023 and not self.set.is_00_01:
             components_dict = { c:v for c, v in special_components_for_context.items() if not c.is_loaded_via_download }
             components_dict.update({
                 PlayerImageComponent.GLOW: None,
@@ -4541,9 +4498,9 @@ class ShowdownPlayerCard:
             return components_dict
 
         # CLASSIC/EXPANDED
-        if self.set.is_showdown_bot and not is_cooperstown and self.image_parallel == ImageParallel.NONE:
+        if self.set.is_showdown_bot and not is_cooperstown and self.image.parallel == ImageParallel.NONE:
             components_dict = default_components_for_context
-            components_dict[PlayerImageComponent.GRADIENT] = self.__card_art_path(f"{'DARK' if self.is_dark_mode else 'LIGHT'}-GRADIENT")
+            components_dict[PlayerImageComponent.GRADIENT] = self.__card_art_path(f"{'DARK' if self.image.is_dark_mode else 'LIGHT'}-GRADIENT")
             return components_dict
 
         return default_components_for_context
@@ -4636,7 +4593,7 @@ class ShowdownPlayerCard:
           Updated tuple for adjusted coordinates.
         """
 
-        if not self.add_image_border or is_disabled:
+        if not self.image.is_bordered or is_disabled:
             return coordinates
         
         padding = self.set.card_border_padding
@@ -4657,11 +4614,11 @@ class ShowdownPlayerCard:
         team = team_override if team_override else self.team
 
         # NATIONALITY COLOR
-        if self.special_edition == SpecialEdition.NATIONALITY and not ignore_team_overrides:
+        if self.image.special_edition == SpecialEdition.NATIONALITY and not ignore_team_overrides:
             return self.nationality.primary_color
         
         # SPECIAL EDITION COLOR
-        special_edition_color = self.special_edition.color(league=self.league)
+        special_edition_color = self.image.special_edition.color(league=self.league)
         if special_edition_color and not ignore_team_overrides:
             return special_edition_color
         
@@ -4917,11 +4874,10 @@ class ShowdownPlayerCard:
                 while done is False:
                     status, done = downloader.next_chunk()
                 image = Image.open(file).convert("RGBA")
-                self.img_loading_error = None
                 return image
             except Exception as err:
                 # IMAGE MAY FAIL TO LOAD SOMETIMES
-                self.img_loading_error = str(err)
+                self.image.error = str(err)
                 continue
         
         return None
@@ -4970,10 +4926,7 @@ class ShowdownPlayerCard:
           Id for image if it exists
         """
 
-        if self.is_dark_mode:
-            return self.img_dark_bordered_id if self.add_image_border else self.img_dark_id
-        else:
-            return self.img_bordered_id if self.add_image_border else self.img_id
+        return None  # TODO: ADD IMAGE CACHING FROM FIREBASE STORAGE
 
     def is_img_processing_required(self) -> bool:
         """Certain attributes about a card dictate when processing a new image is required, 
@@ -4998,12 +4951,12 @@ class ShowdownPlayerCard:
         """
 
         is_not_v1 = self.stats_version != 0
-        has_user_uploaded_img = self.player_image_url or self.player_image_path
-        has_special_edition = self.edition.is_not_empty
-        has_expansion = self.expansion != 'FINAL'
+        has_user_uploaded_img = self.image.source.type.is_user_generated
+        has_special_edition = self.image.edition.is_not_empty
+        has_expansion = self.image.expansion != Expansion.BS
         has_variable_spd_diff = self.is_variable_speed_00_01 and self.set.is_00_01
-        set_yr_plus_one_enabled = self.set_year_plus_one and self.set.is_04_05
-        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or has_variable_spd_diff or self.has_custom_set_number or set_yr_plus_one_enabled or self.hide_team_logo
+        set_yr_plus_one_enabled = self.image.add_one_to_set_year and self.set.is_04_05
+        return has_user_uploaded_img or has_expansion or is_not_v1 or has_special_edition or has_variable_spd_diff or self.image.set_number or set_yr_plus_one_enabled or self.image.hide_team_logo
 
 
 # ------------------------------------------------------------------------
@@ -5023,19 +4976,19 @@ class ShowdownPlayerCard:
         Returns:
           None
         """
-        if self.is_img_part_of_a_set:
-            self.image_name = f'{self.set_number} {self.name}{img_name_suffix}.png'
-        else:
-            self.image_name = '{name}-{timestamp}.png'.format(name=self.name, timestamp=str(datetime.now()))
+
+        self.image.output_file_name = f'{self.name}-{str(datetime.now())}.png'
+        if self.image.set_name:
+            self.image.output_file_name = f'{self.image.set_number} {self.name}{img_name_suffix}.png'            
         
         if self.set.convert_final_image_to_rgb:
             image = image.convert('RGB')
 
-        save_img_path = os.path.join(self.card_img_output_folder_path, self.image_name)
+        save_img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
         image.save(save_img_path, dpi=(300, 300), quality=100)
         
         if self.is_running_in_flask:
-            flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image_name)
+            flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image.output_file_name)
             image.save(flask_img_path, dpi=(300, 300), quality=100)
 
         # OPEN THE IMAGE LOCALLY
@@ -5072,7 +5025,7 @@ class ShowdownPlayerCard:
 
         for folder_path in output_folder_paths:
             for item in os.listdir(folder_path):
-                if item != self.image_name and item != '.gitkeep':
+                if item != self.image.output_file_name and item != '.gitkeep':
                     item_path = os.path.join(folder_path, item)
                     is_file_stale = self.__is_file_over_mins_threshold(path=item_path, mins=5)
                     if is_file_stale:

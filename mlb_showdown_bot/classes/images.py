@@ -1,11 +1,79 @@
 from enum import Enum
+from pydantic import BaseModel
+from typing import Optional
 
+# ---------------------------------------
+# EDITION
+# ---------------------------------------
+
+class Edition(str, Enum):
+    NONE = "NONE"
+    COOPERSTOWN_COLLECTION = "CC"
+    ALL_STAR_GAME = "ASG"
+    SUPER_SEASON = "SS"
+    ROOKIE_SEASON = "RS"
+    HOLIDAY = "HOL"
+    NATIONALITY = "NAT"
+
+    @property
+    def ignore_historical_team_logo(self) -> bool:
+        return self in [Edition.ALL_STAR_GAME, Edition.COOPERSTOWN_COLLECTION]
+    
+    @property
+    def template_color_0405(self) -> str:
+        if self == Edition.COOPERSTOWN_COLLECTION:
+            return "BROWN"
+        elif self == Edition.SUPER_SEASON:
+            return "RED"
+        else:
+            return None
+    
+    @property
+    def use_edition_logo_as_team_logo(self) -> bool:
+        return self in [Edition.COOPERSTOWN_COLLECTION]
+    
+    @property
+    def template_extension(self) -> str:
+        return f'-{self.value}' if self in [Edition.ALL_STAR_GAME, Edition.COOPERSTOWN_COLLECTION] else ''
+    
+    @property
+    def is_not_empty(self) -> bool:
+        return self != Edition.NONE
+
+    @property
+    def rotate_team_logo_2002(self) -> bool:
+        return self not in [Edition.COOPERSTOWN_COLLECTION, Edition.NATIONALITY]
+    
+    @property
+    def ignore_showdown_library(self) -> bool:
+        return self in [Edition.NATIONALITY] # TODO: NATIONALITY DATA CURRENTLY NOT IN SL, REMOVE AFTER ADDING
+
+    @property
+    def has_additional_logo_00_01(self) -> bool:
+        return self.name in ['COOPERSTOWN_COLLECTION', 'ALL_STAR_GAME', 'SUPER_SEASON', 'ROOKIE_SEASON']
+
+# ---------------------------------------
+# EXPANSION
+# ---------------------------------------
+
+class Expansion(str, Enum):
+
+    BS = 'BS'
+    TD = 'TD'
+    PR = 'PR'
+
+    def __repr__(self) -> str:
+        return self.value
+    
+    @property
+    def has_image(self) -> bool:
+        return self.value not in ['BS']
 
 # ---------------------------------------
 # PLAYER IMAGE COMPONENT
 # ---------------------------------------
 
-class PlayerImageComponent(Enum):
+class PlayerImageComponent(str, Enum):
 
     BACKGROUND = "BG"
     CUSTOM_BACKGROUND = "CUSTOM BG"
@@ -129,7 +197,7 @@ class PlayerImageComponent(Enum):
 # SPECIAL EDITION
 # ---------------------------------------
 
-class SpecialEdition(Enum):
+class SpecialEdition(str, Enum):
     
     ASG_2023 = "ASG 2023"
     COOPERSTOWN_COLLECTION = "CC"
@@ -165,7 +233,7 @@ class SpecialEdition(Enum):
 # ---------------------------------------
 
 
-class ImageParallel(Enum):
+class ImageParallel(str, Enum):
     
     RAINBOW_FOIL = "RF"
     SAPPHIRE = "SPH"
@@ -179,6 +247,10 @@ class ImageParallel(Enum):
     TEAM_COLOR_BLAST = "TCB"
     MYSTERY = "MYSTERY"
     NONE = "NONE"
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls.NONE
 
     @property
     def has_special_components(self) -> bool:
@@ -246,3 +318,85 @@ class TemplateImageComponent(Enum):
     COMMAND = "command"
     STYLE = "style"
     BOT_LOGO = "bot_logo"
+
+# ---------------------------------------
+# IMAGE SOURCE
+# ---------------------------------------
+
+class ImageSourceType(str, Enum):
+    UPLOAD = "Upload"
+    LINK = 'Link'
+    LOCAL_CACHE = 'Local Cache'
+    GOOGLE_DRIVE = 'Google Drive'
+    EMPTY = 'EMPTY'
+
+    def __repr__(self) -> str:
+        return self.value
+
+    @property
+    def is_user_generated(self) -> bool:
+        return self.name in ['UPLOAD', 'LINK']
+    
+    @property
+    def is_automated(self) -> bool:
+        return self.name in ['LOCAL_CACHE', 'GOOGLE_DRIVE']
+    
+    @property
+    def is_empty(self) -> bool:
+        return self.name == 'EMPTY'
+
+
+class ImageSource(BaseModel):
+
+    type: ImageSourceType = ImageSourceType.EMPTY
+    url: Optional[str] = None
+    path: Optional[str] = None
+
+    def __post_init__(self):
+        if self.type == ImageSourceType.EMPTY:
+            if self.path:
+                self.type = ImageSourceType.UPLOAD
+            elif self.url:
+                self.type = ImageSourceType.LINK
+
+    @property
+    def is_automated(self) -> bool:
+        return self.type.is_automated
+
+
+class ShowdownImage(BaseModel):
+
+    edition: Edition
+    expansion: Expansion
+    source: ImageSource
+    parallel: ImageParallel
+    special_edition: SpecialEdition = SpecialEdition.NONE
+    output_folder_path: Optional[str] = None
+    output_file_name: Optional[str] = None
+    set_name: Optional[str] = None
+    set_year: Optional[int] = None
+    set_number: str = '—'
+    add_one_to_set_year: bool = False
+    show_year_container: bool = False
+    is_bordered: bool = False
+    is_dark_mode: bool = False
+    hide_team_logo: bool = False
+    use_secondary_color: bool = False
+    error: Optional[str] = None
+
+    def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False):
+        if self.special_edition == SpecialEdition.NONE:
+            if self.edition == Edition.ALL_STAR_GAME and year == '2023':
+                return SpecialEdition.ASG_2023
+            
+            if self.edition == Edition.SUPER_SEASON and is_04_05:
+                return SpecialEdition.SUPER_SEASON
+            
+            if self.edition == Edition.COOPERSTOWN_COLLECTION and enable_cooperstown_special_edition:
+                return SpecialEdition.COOPERSTOWN_COLLECTION
+            
+            if self.edition == Edition.NATIONALITY and has_nationality:
+                return SpecialEdition.NATIONALITY
+            
+            if self.parallel == ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
+                return SpecialEdition.TEAM_COLOR_BLAST_DARK

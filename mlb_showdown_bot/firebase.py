@@ -13,13 +13,13 @@ try:
     from .showdown_player_card import ShowdownPlayerCard
     from . import showdown_constants as sc
     from .version import __version__
-    from .enums.edition import Edition
+    from .classes.images import Edition
 except ImportError:
     # USE LOCAL IMPORT 
     from showdown_player_card import ShowdownPlayerCard
     import showdown_constants as sc
     from version import __version__
-    from enums.edition import Edition
+    from classes.images import Edition
 
 class Firebase:
 
@@ -224,7 +224,7 @@ class Firebase:
             bref_id=bref_id, 
             year=year, 
             set=set, 
-            expansion='FINAL', # TODO: UPDATE IN 2023 FOR LIVE CARDS
+            expansion='BS', # TODO: UPDATE IN 2023 FOR LIVE CARDS
             is_variable_speed_00_01=is_variable_speed_00_01,
             disable=is_disabled,
           )

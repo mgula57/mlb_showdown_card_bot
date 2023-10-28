@@ -1,5 +1,6 @@
 import argparse
 import os
+from pprint import pprint
 
 # MY PACKAGES
 try:
@@ -27,7 +28,7 @@ parser.add_argument('-o_path','--image_output_path',help='Path to folder for car
 parser.add_argument('-num','--set_num',help='Assign card a set number',default='')
 parser.add_argument('-show','--show_image', action='store_true', help='Optionally open the final Player Card Image upon completion')
 parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default='', type=str)
-parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='FINAL')
+parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='BS')
 parser.add_argument('-ed','--edition',help='Add optional edition (Values: None, Super Season, All-Star Game, Cooperstown Collection, Holiday, Nationality, Rookie Season)',default='NONE')
 parser.add_argument('-bor','--add_border', action='store_true', help='Optionally add border to player image')
 parser.add_argument('-dark','--dark_mode', action='store_true', help='Optionally toggle dark mode (2022+ sets only)')

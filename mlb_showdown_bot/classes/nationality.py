@@ -26,6 +26,10 @@ class Nationality(Enum):
     IS = 'IS'
     NONE = 'NONE'
 
+    @classmethod
+    def _missing_(cls, value):
+        return cls.NONE
+
     @property
     def is_unknown(self) -> bool:
         return self.value == 'NONE'
