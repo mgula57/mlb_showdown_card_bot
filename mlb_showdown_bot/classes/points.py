@@ -17,6 +17,9 @@ class Points(BaseModel):
     normalizer: float = 1.0
     allow_negatives: bool = False
     multi_inning_mutliplier: float = 1.0
+
+    class Config:  
+        use_enum_values = True
     
     @property
     def total_points(self) -> int:
