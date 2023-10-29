@@ -41,9 +41,6 @@ class Chart(BaseModel):
     trpl_per_400_pa: float = None
     hr_per_400_pa: float = None
 
-    class Config:  
-        use_enum_values = True
-
     def __init__(self, **data) -> None:
         super().__init__(**data)
         self.generate_range_strings()
