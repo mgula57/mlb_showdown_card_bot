@@ -76,7 +76,7 @@ class Era(Enum):
 # SET
 # ------------------------------------------------------------------------------
 
-class Set(Enum):
+class Set(str, Enum):
     """ Card logic and style metadata. Includes Showdown Bot produced sets and the original WOTC sets. 
     
         WOTC:
@@ -100,6 +100,9 @@ class Set(Enum):
     _2005 = "2005"
     CLASSIC = "CLASSIC"
     EXPANDED = "EXPANDED"
+
+    def __repr__(self) -> str:
+        return self.value
 
     # ---------------------------------------
     # SET ORIGINATION
@@ -1643,6 +1646,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.0,
                                     outs=15.85,
                                     values={
@@ -1658,6 +1662,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.10,
                                     outs=15.75,
                                     values={
@@ -1673,6 +1678,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=15.90,
                                     values={
@@ -1688,6 +1694,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.10,
                                     outs=16.00,
                                     values={
@@ -1703,6 +1710,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.00,
                                     values={
@@ -1718,6 +1726,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.0,
                                     outs=15.75,
                                     values={
@@ -1733,6 +1742,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.10,
                                     values={
@@ -1748,6 +1758,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.25,
                                     outs=16.00,
                                     values={
@@ -1763,6 +1774,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.24,
                                     outs=16.00,
                                     values={
@@ -1780,6 +1792,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.0,
                                     outs=15.90,
                                     values={
@@ -1795,6 +1808,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.05,
                                     outs=15.80,
                                     values={
@@ -1810,6 +1824,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=15.80,
                                     values={
@@ -1825,6 +1840,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.1,
                                     outs=16.1,
                                     values={
@@ -1840,6 +1856,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.05,
                                     values={
@@ -1855,6 +1872,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.0,
                                     outs=16.0,
                                     values={
@@ -1870,6 +1888,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.1,
                                     values={
@@ -1885,6 +1904,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.1,
                                     values={
@@ -1900,6 +1920,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.0,
                                     values={
@@ -1917,6 +1938,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.5,
                                     outs=16.2,
                                     values={
@@ -1932,6 +1954,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.5,
                                     outs=16.2,
                                     values={
@@ -1947,6 +1970,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.30,
                                     values={
@@ -1962,6 +1986,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.10,
                                     outs=16.60,
                                     values={
@@ -1977,6 +2002,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.20,
                                     outs=16.80,
                                     values={
@@ -1992,6 +2018,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.35,
                                     outs=16.65,
                                     values={
@@ -2007,6 +2034,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.7,
                                     values={
@@ -2022,6 +2050,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.80,
                                     values={
@@ -2037,6 +2066,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.45,
                                     outs=16.90,
                                     values={
@@ -2052,6 +2082,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.45,
                                     outs=16.80,
                                     values={
@@ -2069,6 +2100,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.7,
                                     outs=16.0,
                                     values={
@@ -2084,6 +2116,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.70,
                                     outs=15.70,
                                     values={
@@ -2099,6 +2132,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.90,
                                     outs=15.90,
                                     values={
@@ -2114,6 +2148,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=16.00,
                                     values={
@@ -2129,6 +2164,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.95,
                                     outs=16.00,
                                     values={
@@ -2144,6 +2180,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.9,
                                     outs=16.3,
                                     values={
@@ -2159,6 +2196,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.15,
                                     outs=15.95,
                                     values={
@@ -2174,6 +2212,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.25,
                                     outs=16.00,
                                     values={
@@ -2189,6 +2228,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.23,
                                     outs=16.00,
                                     values={
@@ -2206,6 +2246,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.60,
                                     outs=16.00,
                                     values={
@@ -2221,6 +2262,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.50,
                                     outs=15.70,
                                     values={
@@ -2236,6 +2278,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.80,
                                     outs=15.80,
                                     values={
@@ -2251,6 +2294,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.95,
                                     values={
@@ -2266,6 +2310,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.70,
                                     outs=15.90,
                                     values={
@@ -2281,6 +2326,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.85,
                                     outs=16.35,
                                     values={
@@ -2296,6 +2342,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.90,
                                     outs=16.00,
                                     values={
@@ -2311,6 +2358,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=16.00,
                                     values={
@@ -2326,6 +2374,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.95,
                                     values={
@@ -2343,6 +2392,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.60,
                                     outs=16.10,
                                     values={
@@ -2358,6 +2408,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.50,
                                     outs=15.70,
                                     values={
@@ -2373,6 +2424,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.80,
                                     outs=15.85,
                                     values={
@@ -2388,6 +2440,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.85,
                                     values={
@@ -2403,6 +2456,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.75,
                                     outs=15.90,
                                     values={
@@ -2418,6 +2472,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.9,
                                     outs=16.2,
                                     values={
@@ -2433,6 +2488,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.90,
                                     values={
@@ -2448,6 +2504,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.15,
                                     outs=15.90,
                                     values={
@@ -2463,6 +2520,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.10,
                                     outs=15.90,
                                     values={
@@ -2480,6 +2538,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.20,
                                     outs=16.0,
                                     values={
@@ -2495,6 +2554,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=2.99,
                                     outs=15.70,
                                     values={
@@ -2510,6 +2570,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=2.95,
                                     outs=15.90,
                                     values={
@@ -2525,6 +2586,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.05,
                                     outs=16.1,
                                     values={
@@ -2540,6 +2602,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.05,
                                     outs=16.1,
                                     values={
@@ -2555,6 +2618,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.0,
                                     values={
@@ -2570,6 +2634,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.1,
                                     values={
@@ -2585,6 +2650,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.1,
                                     values={
@@ -2600,6 +2666,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.25,
                                     outs=16.1,
                                     values={
@@ -2617,6 +2684,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.0,
                                     outs=15.8,
                                     values={
@@ -2632,6 +2700,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.60,
                                     outs=15.65,
                                     values={
@@ -2647,6 +2716,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.90,
                                     outs=15.80,
                                     values={
@@ -2662,6 +2732,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.90,
                                     values={
@@ -2677,6 +2748,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=3.80,
                                     outs=16.05,
                                     values={
@@ -2692,6 +2764,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.2,
                                     outs=16.2,
                                     values={
@@ -2707,6 +2780,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.0,
                                     outs=16.0,
                                     values={
@@ -2722,6 +2796,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.2,
                                     outs=16.1,
                                     values={
@@ -2737,6 +2812,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=4.15,
                                     outs=16.1,
                                     values={
@@ -2756,6 +2832,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.6,
                                     outs=4.0,
                                     values={
@@ -2772,6 +2849,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.77,
                                     outs=4.0,
                                     values={
@@ -2788,6 +2866,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=3.60,
                                     values={
@@ -2804,6 +2883,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.35,
                                     outs=3.85,
                                     values={
@@ -2820,6 +2900,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.40,
                                     outs=4.10,
                                     values={
@@ -2836,6 +2917,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.7,
                                     outs=3.7,
                                     values={
@@ -2852,6 +2934,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.25,
                                     outs=3.90,
                                     values={
@@ -2868,6 +2951,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.2,
                                     outs=3.90,
                                     values={
@@ -2884,6 +2968,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.35,
                                     outs=3.90,
                                     values={
@@ -2902,6 +2987,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.6,
                                     outs=4.0,
                                     values={
@@ -2918,6 +3004,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.75,
                                     outs=3.8,
                                     values={
@@ -2934,6 +3021,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=3.90,
                                     values={
@@ -2950,6 +3038,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.41,
                                     outs=4.15,
                                     values={
@@ -2966,6 +3055,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.55,
                                     outs=4.00,
                                     values={
@@ -2982,6 +3072,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.8,
                                     outs=3.9,
                                     values={
@@ -2998,6 +3089,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.4,
                                     outs=4.1,
                                     values={
@@ -3014,6 +3106,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.3,
                                     outs=4.0,
                                     values={
@@ -3030,6 +3123,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.4,
                                     outs=4.0,
                                     values={
@@ -3048,6 +3142,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.25,
                                     outs=6.0,
                                     values={
@@ -3064,6 +3159,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.7,
                                     outs=6.0,
                                     values={
@@ -3080,6 +3176,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.45,
                                     outs=6.00,
                                     values={
@@ -3096,6 +3193,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.30,
                                     outs=6.10,
                                     values={
@@ -3112,6 +3210,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.4,
                                     outs=6.00,
                                     values={
@@ -3128,6 +3227,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.4,
                                     outs=6.0,
                                     values={
@@ -3144,6 +3244,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.2,
                                     outs=6.10,
                                     values={
@@ -3160,6 +3261,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.10,
                                     outs=6.00,
                                     values={
@@ -3176,6 +3278,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.20,
                                     outs=6.00,
                                     values={
@@ -3194,6 +3297,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.0,
                                     outs=6.0,
                                     values={
@@ -3210,6 +3314,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.65,
                                     outs=6.05,
                                     values={
@@ -3226,6 +3331,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.20,
                                     outs=6.00,
                                     values={
@@ -3242,6 +3348,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=8.95,
                                     outs=6.20,
                                     values={
@@ -3258,6 +3365,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.10,
                                     outs=6.15,
                                     values={
@@ -3274,6 +3382,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=8.6,
                                     outs=7.2,
                                     values={
@@ -3290,6 +3399,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=8.90,
                                     outs=6.40,
                                     values={
@@ -3306,6 +3416,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=8.75,
                                     outs=6.30,
                                     values={
@@ -3322,6 +3433,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=8.85,
                                     outs=6.30,
                                     values={
@@ -3340,6 +3452,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.30,
                                     outs=7.00,
                                     values={
@@ -3356,6 +3469,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.70,
                                     outs=6.50,
                                     values={
@@ -3372,6 +3486,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.50,
                                     outs=6.80,
                                     values={
@@ -3388,6 +3503,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.0,
                                     values={
@@ -3404,6 +3520,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.35,
                                     values={
@@ -3420,6 +3537,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.05,
                                     outs=7.5,
                                     values={
@@ -3436,6 +3554,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.20,
                                     outs=7.2,
                                     values={
@@ -3452,6 +3571,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.00,
                                     outs=7.2,
                                     values={
@@ -3468,6 +3588,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.15,
                                     outs=7.1,
                                     values={
@@ -3486,6 +3607,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.1,
                                     values={
@@ -3502,6 +3624,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.70,
                                     outs=6.55,
                                     values={
@@ -3518,6 +3641,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.45,
                                     outs=6.75,
                                     values={
@@ -3534,6 +3658,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.1,
                                     values={
@@ -3550,6 +3675,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.40,
                                     outs=7.15,
                                     values={
@@ -3566,6 +3692,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.0,
                                     outs=7.3,
                                     values={
@@ -3582,6 +3709,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.25,
                                     outs=7.00,
                                     values={
@@ -3598,6 +3726,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.0,
                                     outs=7.0,
                                     values={
@@ -3614,6 +3743,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.1,
                                     outs=7.0,
                                     values={
@@ -3632,6 +3762,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.80,
                                     outs=4.05,
                                     values={
@@ -3648,6 +3779,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.75,
                                     outs=3.8,
                                     values={
@@ -3664,6 +3796,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.50,
                                     outs=3.95,
                                     values={
@@ -3680,6 +3813,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.42,
                                     outs=4.10,
                                     values={
@@ -3696,6 +3830,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.60,
                                     outs=4.1,
                                     values={
@@ -3712,6 +3847,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.5,
                                     outs=4.0,
                                     values={
@@ -3728,6 +3864,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=4.1,
                                     values={
@@ -3744,6 +3881,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.3,
                                     outs=4.0,
                                     values={
@@ -3760,6 +3898,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=4.0,
                                     values={
@@ -3778,6 +3917,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.7,
                                     outs=7.0,
                                     values={
@@ -3794,6 +3934,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.85,
                                     outs=6.50,
                                     values={
@@ -3810,6 +3951,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.5,
                                     outs=6.65,
                                     values={
@@ -3826,6 +3968,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.5,
                                     outs=6.9,
                                     values={
@@ -3842,6 +3985,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.50,
                                     outs=7.15,
                                     values={
@@ -3858,6 +4002,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.5,
                                     outs=7.4,
                                     values={
@@ -3874,6 +4019,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.0,
                                     values={
@@ -3890,6 +4036,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.2,
                                     outs=7.1,
                                     values={
@@ -3906,6 +4053,7 @@ class Set(Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.0,
                                     values={

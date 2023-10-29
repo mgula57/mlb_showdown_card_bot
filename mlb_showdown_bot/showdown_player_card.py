@@ -141,9 +141,6 @@ class ShowdownPlayerCard:
             self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,
                                                                               stats_per_400_pa=stats_for_400_pa,
                                                                               offset=int(offset))
-            self.chart.generate_range_strings(dbl_per_400_pa=float(stats_for_400_pa['2b_per_400_pa']),
-                                              trpl_per_400_pa=float(stats_for_400_pa['3b_per_400_pa']),
-                                              hr_per_400_pa=float(stats_for_400_pa['hr_per_400_pa']))
             self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command)
 
             # FOR PTS, USE STEROID ERA OPPONENT
@@ -1475,7 +1472,16 @@ class ShowdownPlayerCard:
         opponent_chart, my_advantages_per_20, opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=command, era_override=era_override)
 
         # CREATE THE CHART DICTIONARY
-        chart = Chart(is_pitcher=self.is_pitcher, set=self.set.value, command=command, outs=outs, is_expanded=self.set.has_expanded_chart)
+        chart = Chart(
+            is_pitcher=self.is_pitcher, 
+            set=self.set.value, 
+            command=command, 
+            outs=outs, 
+            is_expanded=self.set.has_expanded_chart, 
+            dbl_per_400_pa = round(stats_for_400_pa.get('2b_per_400_pa', 0), 4),
+            trpl_per_400_pa = round(stats_for_400_pa.get('3b_per_400_pa', 0), 4),
+            hr_per_400_pa = round(stats_for_400_pa.get('hr_per_400_pa', 0), 4)
+        )
 
         for category, results_per_400_pa in stats_for_400_pa.items():
             if '_per_400_pa' in category and category != 'h_per_400_pa':
@@ -1485,7 +1491,7 @@ class ShowdownPlayerCard:
 
                 # STOLEN BASES HAS NO OPPONENT RESULTS
                 if key == 'sb':
-                    chart.sb = results_per_400_pa / stats_for_400_pa['pct_of_400_pa']  
+                    chart.sb = round(results_per_400_pa / stats_for_400_pa['pct_of_400_pa'], 3)
                     continue              
             
                 # CALCULATE NUM OF RESULTS
@@ -1545,6 +1551,7 @@ class ShowdownPlayerCard:
             ChartCategory._1B: single_results,
             ChartCategory._1B_PLUS: single_plus_results,
         })
+        chart.generate_range_strings()
 
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20, era_override=era_override)

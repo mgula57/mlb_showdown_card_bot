@@ -1,4 +1,6 @@
 from enum import Enum
+from pydantic import BaseModel
+from typing import Union
 
 # ---------------------------------------
 # CHART CATEGORY
@@ -25,25 +27,22 @@ class ChartCategory(Enum):
 # CHART
 # ---------------------------------------
 
-class Chart:
+class Chart(BaseModel):
 
-    def __init__(self, is_pitcher:bool, set:str, command:int, outs:int, is_expanded:bool=False, sb:int=0.0, values:dict[str,int] = {}) -> None:
+    is_pitcher: bool
+    set: str
+    is_expanded: bool
+    command: Union[float, int]
+    outs: Union[float, int]
+    sb: float = 0.0
+    values: dict[ChartCategory, Union[float, int]] = {}
+    ranges: dict[ChartCategory, str] = {}
+    dbl_per_400_pa: float = None
+    trpl_per_400_pa: float = None
+    hr_per_400_pa: float = None
 
-        self.is_pitcher:bool = is_pitcher
-        self.set: str = set
-        self.is_expanded: bool = is_expanded
-
-        # COMMAND AND OUTS
-        self.command: int = command
-        self.outs: int = outs
-
-        self.sb:float = sb
-
-        self.values: dict[ChartCategory, int] = {
-            category: values.get(category.value) for category in ChartCategory if values.get(category.value, None) is not None
-        }
-
-        self.ranges: dict[ChartCategory, str] = {} 
+    def __init__(self, **data) -> None:
+        super().__init__(**data)
         self.generate_range_strings()
 
     @property
@@ -75,7 +74,7 @@ class Chart:
     # RANGES
     # ---------------------------------------
 
-    def generate_range_strings(self, dbl_per_400_pa:float=None, trpl_per_400_pa:float=None, hr_per_400_pa:float=None) -> None:
+    def generate_range_strings(self) -> None:
         """Use the current chart to generate string representations for the chart 
         Ex: 
           - SO: 3 -> SO: 1-3
@@ -84,10 +83,7 @@ class Chart:
           - ...
 
         Args:
-          chart: Chart object
-          dbl_per_400_pa: Number of 2B results every 400 PA
-          trpl_per_400_pa: Number of 3B results every 400 PA
-          hr_per_400_pa: Number of HR results every 400 PA
+          None
           
         Returns:
           None - Stores final dictionary in self.
@@ -95,6 +91,11 @@ class Chart:
 
         if len(self.values) == 0:
             return
+        
+        # FILL IN NULLS WITH 0'S
+        dbl_per_400_pa = self.dbl_per_400_pa if self.dbl_per_400_pa else 0.0
+        trpl_per_400_pa = self.trpl_per_400_pa if self.trpl_per_400_pa else 0.0
+        hr_per_400_pa = self.hr_per_400_pa if self.hr_per_400_pa else 0.0
 
         current_chart_index = 1
         chart_ranges: dict[ChartCategory, str] = {}
@@ -153,7 +154,6 @@ class Chart:
         Returns:
           Tuple of 1b_additions, 2b results
         """
-        # TODO: MAKE THIS LESS STATIC
 
         # HR
         if hr_per_400_pa >= 13:
