@@ -1191,6 +1191,19 @@ class Set(str, Enum):
     # POINTS RANGES FOR PERCENTILES
     # ---------------------------------------
 
+    def pts_range_for_metric(self, metric:PointsMetric, player_sub_type:PlayerSubType) -> ValueRange:
+        match metric:
+            case PointsMetric.ONBASE:
+                return self.pts_obp_percentile_range(player_sub_type=player_sub_type)
+            case PointsMetric.AVERAGE:
+                return self.pts_ba_percentile_range(player_sub_type=player_sub_type)
+            case PointsMetric.SLUGGING:
+                return self.pts_slg_percentile_range(player_sub_type=player_sub_type)
+            case PointsMetric.SPEED | PointsMetric.IP:
+                return self.pts_speed_or_ip_percentile_range(player_sub_type=player_sub_type)
+            case PointsMetric.HOME_RUNS:
+                return self.pts_hr_percentile_range
+
     def pts_obp_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
         match self.value:
             case '2000':

@@ -70,6 +70,10 @@ class Chart(BaseModel):
         values_list += [[category.value, str(round(value,2))] for category, value in self.values.items()]
         return values_list
     
+    @property
+    def gb_pct(self) -> float:
+        return round(self.num_values(ChartCategory.GB) / self.outs, 3)
+    
     # ---------------------------------------
     # RANGES
     # ---------------------------------------

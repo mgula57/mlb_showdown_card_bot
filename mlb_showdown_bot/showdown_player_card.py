@@ -28,6 +28,7 @@ try:
     from .classes.nationality import Nationality
     from .classes.chart import ChartCategory
     from .classes.images import ImageParallel, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
+    from .classes.points import Points
     from .classes import colors
 except ImportError:
     # USE LOCAL IMPORT
@@ -41,6 +42,7 @@ except ImportError:
     from classes.nationality import Nationality
     from classes.chart import ChartCategory
     from classes.images import ImageParallel, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
+    from classes.points import Points
     from classes import colors
 
 class ShowdownPlayerCard:
@@ -148,9 +150,10 @@ class ShowdownPlayerCard:
             projections_for_pts_per_400_pa = self.chart_to_results_per_400_pa(chart=self.chart, my_advantages_per_20=proj_my_advantages_per_20, opponent_chart=proj_opponent_chart, opponent_advantages_per_20=proj_opponent_advantages_per_20, era_override=Era.STEROID)
             projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=self.chart.command)
 
-            self.points = self.point_value(projected=projections_for_pts,
+            self.points_breakdown = self.calculate_points(projected=projections_for_pts,
                                             positions_and_defense=self.positions_and_defense,
                                             speed_or_ip=self.ip if self.is_pitcher else self.speed)
+            self.points = self.points_breakdown.total_points
 
             if show_player_card_image or len(card_img_output_folder_path) > 0:
                 self.card_image(show=True if show_player_card_image else False)
@@ -1884,7 +1887,7 @@ class ShowdownPlayerCard:
 # PLAYER VALUE METHODS
 # ------------------------------------------------------------------------
 
-    def point_value(self, projected:dict, positions_and_defense:dict[Position, int], speed_or_ip:int) -> int:
+    def calculate_points(self, projected:dict, positions_and_defense:dict[Position, int], speed_or_ip:int) -> Points:
         """Derive player's value. Uses constants to compare against other cards in set.
 
         Args:
@@ -1893,32 +1896,26 @@ class ShowdownPlayerCard:
           speed_or_ip: In game speed ability or innings pitched.
 
         Returns:
-          Points that the player is worth.
+          Breakdown of points categories
         """
 
-        points = 0
+        points = Points()
 
         # PARSE POSITION MULTIPLIER
         pts_multiplier = self.set.pts_command_out_multiplier(command=self.chart.command, outs=self.chart.outs)
-        self.points_command_out_multiplier = pts_multiplier
+        points.command_out_multiplier = pts_multiplier
 
         # SLASH LINE VALUE
         allow_negatives = self.set.pts_allow_negatives(self.player_sub_type)
 
-        # OBP
-        obp_percentile = self.set.pts_obp_percentile_range(self.player_sub_type).percentile(value=projected['onbase_perc'], is_desc=self.is_pitcher, allow_negative=allow_negatives)
-        obp_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.ONBASE)
-        self.obp_points = round(obp_pts_weight * obp_percentile * pts_multiplier, 3)
-
-        # BA        
-        ba_percentile = self.set.pts_ba_percentile_range(self.player_sub_type).percentile(value=projected['batting_avg'], is_desc=self.is_pitcher, allow_negative=allow_negatives)
-        ba_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.AVERAGE)
-        self.ba_points = round(ba_pts_weight * ba_percentile * pts_multiplier, 3)
-
-        # SLG
-        slg_percentile = self.set.pts_slg_percentile_range(self.player_sub_type).percentile(value=projected['slugging_perc'], is_desc=self.is_pitcher, allow_negative=allow_negatives)
-        slg_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.SLUGGING)
-        self.slg_points = round(slg_pts_weight * slg_percentile * pts_multiplier, 3)
+        # SLASHLNE METRICS (AND HR IF HITTER)
+        slash_metrics = [PointsMetric.ONBASE, PointsMetric.AVERAGE, PointsMetric.SLUGGING] + ([] if self.is_pitcher else [PointsMetric.HOME_RUNS])
+        for slash_metric in slash_metrics:
+            # OBP
+            range = self.set.pts_range_for_metric(metric=slash_metric, player_sub_type=self.player_sub_type)
+            percentile = range.percentile(value=projected.get(slash_metric.metric_name_bref), is_desc=self.is_pitcher, allow_negative=allow_negatives)
+            pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=slash_metric)
+            setattr(points, slash_metric.points_breakdown_attr_name, round(pts_weight * percentile * pts_multiplier, 3))
 
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
         spd_ip_category = PointsMetric.IP if self.is_pitcher else PointsMetric.SPEED
@@ -1926,14 +1923,9 @@ class ShowdownPlayerCard:
         spd_ip_percentile = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type).percentile(value=speed_or_ip, is_desc=False, allow_negative=allow_negatives_speed_ip)
         ip_under_5_negative_multiplier = self.player_sub_type.ip_under_5_negative_multiplier if speed_or_ip < 5 else 1.0
         spd_ip_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=spd_ip_category) * ip_under_5_negative_multiplier
-        self.spd_ip_points = round(spd_ip_weight * spd_ip_percentile, 3)
+        setattr(points, spd_ip_category.points_breakdown_attr_name, round(spd_ip_weight * spd_ip_percentile, 3))
 
         if not self.is_pitcher:
-            # ONLY HITTERS HAVE HR ADD TO POINTS
-            hr_percentile = self.set.pts_hr_percentile_range.percentile(value=projected['hr_per_650_pa'], is_desc=self.is_pitcher, allow_negative=allow_negatives)
-            hr_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.HOME_RUNS)
-            self.hr_points = round(hr_pts_weight * hr_percentile * pts_multiplier, 3)
-
             # AVERAGE POINT VALUE ACROSS POSITIONS
             defense_points = 0
             for position, fielding in positions_and_defense.items():
@@ -1942,73 +1934,55 @@ class ShowdownPlayerCard:
                     position_pts = percentile * self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.DEFENSE)
                     position_pts = position_pts * self.set.pts_positional_defense_weight(position=Position(position))
                     defense_points += position_pts
-            use_avg = list(positions_and_defense.keys()) == ['CF', 'LF/RF'] or list(positions_and_defense.keys()) == ['LF/RF', 'CF']
+            use_avg = list(positions_and_defense.keys()) == [Position.CF, Position.LFRF] or list(positions_and_defense.keys()) == [Position.LFRF, Position.CF]
             num_positions_w_non_zero_def = len([pos for pos, df in positions_and_defense.items() if df != 0])
             num_positions = max(num_positions_w_non_zero_def, 1)
             avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else ( (num_positions + 2) / 3.0))
-            self.defense_points = round(avg_points_per_position,3)
+            points.defense = round(avg_points_per_position,3)
 
         # CLOSER BONUS (00 ONLY)
         apply_closer_bonus = self.has_position(Position.CL) and self.set == Set._2000
-        self.points_bonus = 25 if apply_closer_bonus else 0
+        points.bonus = 25 if apply_closer_bonus else 0
 
         # ICONS (03+)
         icon_pts = 0
         if self.set.has_icon_pts and len(self.icons) > 0:
             for icon in self.icons:
                 icon_pts += icon.points
-        self.icon_points = round(icon_pts,3)
-
-        # COMBINE POINT VALUES
-        points = self.obp_points + self.ba_points + self.slg_points + self.spd_ip_points + self.points_bonus + self.icon_points
-        if not self.is_pitcher:
-            points += self.hr_points + self.defense_points
+        points.icons = round(icon_pts,3)
 
         # --- APPLY ANY ADDITIONAL PT ADJUSTMENTS FOR DIFFERENT SETS ---
 
         # SOME SETS PULL CARDS SLIGHTLY TOWARDS THE MEDIAN
-        if self.set.pts_normalize_towards_median(self.player_sub_type):
-            points = self.__normalize_points_towards_median(points)
-        else:
-            self.points_normalizer = 1.0
+        points = self.__normalize_points_towards_median(points)
 
         # ADJUST POINTS FOR RELIEVERS WITH 2X IP
         if self.player_sub_type == PlayerSubType.RELIEF_PITCHER:
             multi_inning_points_multiplier = self.set.pts_reliever_ip_multiplier(ip=self.ip)
             if multi_inning_points_multiplier > 1.0:
-                self.multi_inning_points_multiplier = multi_inning_points_multiplier
-                points *= multi_inning_points_multiplier
+                points.multi_inning_mutliplier = multi_inning_points_multiplier
         
         if self.is_pitcher:
             # PITCHERS GET PTS FOR OUT DISTRIBUTION IN SOME SETS
-            pct_gb = self.chart.num_values(ChartCategory.GB) / self.chart.outs
             out_dist_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.OUT_DISTRIBUTION)
             if out_dist_pts_weight:
-                percentile_gb = self.set.pts_gb_min_max_dict.percentile(value=pct_gb, allow_negative=True)          
-                self.out_dist_points = round(out_dist_pts_weight * percentile_gb,3)
-                points += self.out_dist_points
-                self.chart_pct_gb = round(pct_gb, 4)
-            else:
-                self.out_dist_points = 0
-                self.chart_pct_gb = round(pct_gb, 4)
+                percentile_gb = self.set.pts_gb_min_max_dict.percentile(value=self.chart.gb_pct, allow_negative=True)          
+                points.out_distribution = round(out_dist_pts_weight * percentile_gb,3)
 
-        # POINTS ARE ALWAYS ROUNDED TO TENTH
-        points_to_nearest_tenth = int(round(points,-1))
+        return points
 
-        # POINTS CANNOT BE < 10
-        points_final = 10 if points_to_nearest_tenth < 10 else points_to_nearest_tenth
-
-        return points_final
-
-    def __normalize_points_towards_median(self, points:float) -> float:
+    def __normalize_points_towards_median(self, points:Points) -> Points:
         """Normalize points for subset on players towards the median.
 
         Args:
-          points: Current Points attributed to player
+          points: Current Points object
 
         Returns:
           Updated PTS total for player after normalization.
         """
+
+        if not self.set.pts_normalize_towards_median(self.player_sub_type):
+            return points
 
         # NORMALIZE SCORE ACROSS MEDIAN
         type_normalizer_weight = self.set.pts_normalizer_weighting(player_sub_type=self.player_sub_type)
@@ -2024,31 +1998,29 @@ class ShowdownPlayerCard:
         else:
             pts_to_compare = round(points,-1)
 
-        # CENTER SLIGHTLY TOWARDS MEDIAN
-        points_cutoff = 120 if self.player_sub_type == PlayerSubType.RELIEF_PITCHER else 500
-        if pts_to_compare >= points_cutoff:
-            normalizer_value_range = ValueRange(min=median, max=upper_limit)
-            percentile = normalizer_value_range.percentile(
-                value = pts_to_compare if pts_to_compare < upper_limit else upper_limit,
-                is_desc = True
-            )
-            upper_multiplier = 1.0
-            lower_multiplier = self.set.pts_normalizer_lower_threshold(player_sub_type=self.player_sub_type)
-            multiplier = percentile * (upper_multiplier - lower_multiplier) + lower_multiplier
-
-            # APPLY THIS TO OFFENSIVE STATS
-            self.obp_points = round(self.obp_points * multiplier,3)
-            self.ba_points = round(self.ba_points * multiplier,3)
-            self.slg_points = round(self.slg_points * multiplier,3)
-
-            if not self.is_pitcher:
-                self.hr_points = round(self.hr_points * multiplier,3)
-
-            self.points_normalizer = round(multiplier,3)
-            return self.obp_points + self.ba_points + self.slg_points + self.spd_ip_points + self.points_bonus + self.icon_points
-        else:
-            self.points_normalizer = 1.0
+        # RETURN CURRENT OBJECT IF LESS THAN CUTOFF
+        if pts_to_compare < self.player_sub_type.pts_normalizer_cutoff:
             return points
+
+        normalizer_value_range = ValueRange(min=median, max=upper_limit)
+        percentile = normalizer_value_range.percentile(
+            value = pts_to_compare if pts_to_compare < upper_limit else upper_limit,
+            is_desc = True
+        )
+        upper_multiplier = 1.0
+        lower_multiplier = self.set.pts_normalizer_lower_threshold(player_sub_type=self.player_sub_type)
+        multiplier = percentile * (upper_multiplier - lower_multiplier) + lower_multiplier
+
+        # APPLY THIS TO OFFENSIVE STATS
+        points.obp = round(points.obp * multiplier,3)
+        points.ba = round(points.ba * multiplier,3)
+        points.slg = round(points.slg * multiplier,3)
+
+        if not self.is_pitcher:
+            points.hr = round(points.hr * multiplier,3)
+
+        points.normalizer = round(multiplier,3)
+        return points
 
     def calculate_shOPS_plus(self, command:int, proj_obp:float, proj_slg:float) -> float:
         """Calculates shoOPS+ metric.
@@ -2458,40 +2430,40 @@ class ShowdownPlayerCard:
         """
         
         if self.player_sub_type == PlayerSubType.RELIEF_PITCHER and self.ip > 1:
-            spd_or_ip = ['IP', str(self.ip), f"{self.multi_inning_points_multiplier}x"]
+            spd_or_ip = ['IP', str(self.ip), f"{self.points_breakdown.multi_inning_mutliplier}x"]
         else:
             spd_or_ip = [
                 'IP' if self.is_pitcher else 'SPD', 
                 str(self.ip if self.is_pitcher else self.speed),
-                str(round(self.spd_ip_points))
+                str(round(self.points_breakdown.ip if self.is_pitcher else self.points_breakdown.speed))
             ]
         pts_data = [
-            ['BA', self.__format_slash_pct(self.projected['batting_avg']), str(round(self.ba_points))],
-            ['OBP', self.__format_slash_pct(self.projected['onbase_perc']), str(round(self.obp_points))],
-            ['SLG', self.__format_slash_pct(self.projected['slugging_perc']), str(round(self.slg_points))],
+            ['BA', self.__format_slash_pct(self.projected['batting_avg']), str(round(self.points_breakdown.ba))],
+            ['OBP', self.__format_slash_pct(self.projected['onbase_perc']), str(round(self.points_breakdown.obp))],
+            ['SLG', self.__format_slash_pct(self.projected['slugging_perc']), str(round(self.points_breakdown.slg))],
             spd_or_ip,
 
         ]
 
         if not self.is_pitcher:
-            pts_data.append(['HR (650 PA)', str(round(self.projected['hr_per_650_pa'])), str(round(self.hr_points))])
+            pts_data.append(['HR (650 PA)', str(round(self.projected['hr_per_650_pa'])), str(round(self.points_breakdown.hr))])
             pts_data.append([
                 'DEFENSE', 
                 self.__position_and_defense_as_string(is_horizontal=True),
-                str(round(self.defense_points))
+                str(round(self.points_breakdown.defense))
             ])
         else:
-            pts_data.append(['OUT DIST', str(round(self.chart_pct_gb,2)), str(round(self.out_dist_points))])
+            pts_data.append(['OUT DIST', str(round(self.chart.gb_pct,2)), str(round(self.points_breakdown.out_distribution))])
         
-        if self.points_bonus > 0:
-            pts_data.append(['BONUS', 'N/A', str(round(self.points_bonus))])
-        if self.icon_points > 0:
-            pts_data.append(['ICONS', ','.join([i.value for i in self.icons]), str(round(self.icon_points))])
-        if self.points_normalizer < 1.0:
-            pts_data.append(['NORMALIZER', 'N/A', str(round(self.points_normalizer,2))])
-        if self.points_command_out_multiplier != 1.0:
+        if self.points_breakdown.bonus > 0:
+            pts_data.append(['BONUS', 'N/A', str(round(self.points_breakdown.bonus))])
+        if self.points_breakdown.icons > 0:
+            pts_data.append(['ICONS', ','.join([i.value for i in self.icons]), str(round(self.points_breakdown.icons))])
+        if self.points_breakdown.normalizer < 1.0:
+            pts_data.append(['NORMALIZER', 'N/A', str(round(self.points_breakdown.normalizer,2))])
+        if self.points_breakdown.command_out_multiplier != 1.0:
             command_name = 'CTRL' if self.is_pitcher else 'OB'
-            pts_data.append([f'{command_name}/OUT MULTLIPLIER', 'N/A', str(round(self.points_command_out_multiplier,2))])
+            pts_data.append([f'{command_name}/OUT MULTLIPLIER', 'N/A', str(round(self.points_breakdown.command_out_multiplier,2))])
         
         
         pts_data.append(['TOTAL', '', self.points])

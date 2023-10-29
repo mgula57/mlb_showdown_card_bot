@@ -75,3 +75,24 @@ class PointsMetric(Enum):
     HOME_RUNS = 'home_runs'
     IP = 'ip'
     OUT_DISTRIBUTION = 'out_distribution'
+
+    @property
+    def points_breakdown_attr_name(self) -> str:
+        match self.name:
+            case 'DEFENSE': return 'defense'
+            case 'SPEED': return 'speed'
+            case 'ONBASE': return 'obp'
+            case 'AVERAGE': return 'ba'
+            case 'SLUGGING': return 'slg'
+            case 'HOME_RUNS': return 'hr'
+            case 'IP': return 'ip'
+            case 'OUT_DISTRIBUTION': return 'out_distribution'
+
+    @property
+    def metric_name_bref(self) -> str:
+        match self.name:
+            case 'ONBASE': return 'onbase_perc'
+            case 'AVERAGE': return 'batting_avg'
+            case 'SLUGGING': return 'slugging_perc'
+            case 'HOME_RUNS': return 'hr_per_650_pa'
+            case _: return None
