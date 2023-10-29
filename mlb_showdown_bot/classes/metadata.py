@@ -70,9 +70,6 @@ class Speed(BaseModel):
     speed: int
     letter: SpeedLetter
 
-    class Config:  
-        use_enum_values = True
-
     @property
     def full_string(self) -> str:
         return f'Speed {self.letter.value} ({self.speed})'

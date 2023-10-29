@@ -352,9 +352,6 @@ class ImageSource(BaseModel):
     url: Optional[str] = None
     path: Optional[str] = None
 
-    class Config:  
-        use_enum_values = True
-
     def __init__(self, **data) -> None:
         super().__init__(**data)
         if self.type == ImageSourceType.EMPTY:
@@ -387,9 +384,6 @@ class ShowdownImage(BaseModel):
     hide_team_logo: bool = False
     use_secondary_color: bool = False
     error: Optional[str] = None
-
-    class Config:  
-        use_enum_values = True
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False):
         if self.special_edition == SpecialEdition.NONE:
