@@ -29,6 +29,7 @@ try:
     from .classes.chart import ChartCategory
     from .classes.images import ImageParallel, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
     from .classes.points import Points
+    from .classes.metadata import Speed, SpeedLetter, Hand
     from .classes import colors
 except ImportError:
     # USE LOCAL IMPORT
@@ -43,6 +44,7 @@ except ImportError:
     from classes.chart import ChartCategory
     from classes.images import ImageParallel, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
     from classes.points import Points
+    from classes.metadata import Speed, SpeedLetter, Hand
     from classes import colors
 
 class ShowdownPlayerCard:
@@ -131,7 +133,12 @@ class ShowdownPlayerCard:
         if run_stats:            
 
             # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
-            self.__player_metadata(stats=stats)
+            self.positions_and_defense: dict[Position, int] = self.__positions_and_defense(stats_dict=stats)
+            self.ip: int = self.__innings_pitched(innings_pitched=float(stats.get('IP', 0)), games=stats.get('G', 0), games_started=stats.get('GS', 0), ip_per_start=stats.get('IP/GS', 0))
+            self.hand: Hand = self.__handedness(hand_raw=stats.get('hand', None))
+            self.speed: Speed = self.__speed(sprint_speed=stats.get('sprint_speed', None), stolen_bases=stats.get('SB', 0) / ( stats.get('PA', 0) / 650.0 ), is_sb_empty=len(str(stats.get('SB',''))) == 0)
+            self.accolades: list[str] = self.__accolades()
+            self.icons: list[Icon] = self.__icons(awards=stats.get('award_summary',''))
 
             # CONVERT STATS TO PER 400 PA
             # MAKES MATH EASIER (20 SIDED DICE)
@@ -143,17 +150,17 @@ class ShowdownPlayerCard:
             self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,
                                                                               stats_per_400_pa=stats_for_400_pa,
                                                                               offset=int(offset))
-            self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command)
+            self.projected: dict = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command)
 
             # FOR PTS, USE STEROID ERA OPPONENT
             proj_opponent_chart, proj_my_advantages_per_20, proj_opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=self.chart.command, era_override=Era.STEROID)
             projections_for_pts_per_400_pa = self.chart_to_results_per_400_pa(chart=self.chart, my_advantages_per_20=proj_my_advantages_per_20, opponent_chart=proj_opponent_chart, opponent_advantages_per_20=proj_opponent_advantages_per_20, era_override=Era.STEROID)
             projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=self.chart.command)
 
-            self.points_breakdown = self.calculate_points(projected=projections_for_pts,
+            self.points_breakdown: Points = self.calculate_points(projected=projections_for_pts,
                                             positions_and_defense=self.positions_and_defense,
-                                            speed_or_ip=self.ip if self.is_pitcher else self.speed)
-            self.points = self.points_breakdown.total_points
+                                            speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
+            self.points: int = self.points_breakdown.total_points
 
             if show_player_card_image or len(card_img_output_folder_path) > 0:
                 self.card_image(show=True if show_player_card_image else False)
@@ -206,8 +213,7 @@ class ShowdownPlayerCard:
         is_outfield = any(pos in positions for pos in ['OF','CF','LF/RF'])
         is_1b = '1B' in positions
         is_multi_position = len(positions) > 1
-        hitter_hand = "LHH" if self.hand[-1] == "S" else f"{self.hand[-1]}HH"
-        hand_prefix = self.hand if self.is_pitcher else hitter_hand
+        hand_prefix = self.hand.silhouette_name(self.is_pitcher)
         hand_throwing = self.stats['hand_throw']
         throwing_hand_prefix = f"{hand_throwing[0].upper()}H"
 
@@ -384,51 +390,19 @@ class ShowdownPlayerCard:
 # METADATA METHODS
 # ------------------------------------------------------------------------
 
-    def __player_metadata(self, stats:dict) -> None:
-        """Parse all metadata (positions, hand, speed, ...) and assign to self.
-
-        Args:
-          stats: Dict of stats from Baseball Reference scraper
-
-        Returns:
-          None
-        """
-
-        # RAW METADATA FROM BASEBALL REFERENCE
-        hand_raw = stats['hand']
-        innings_pitched_raw = float(stats['IP']) if self.is_pitcher else 0.0
-        ip_per_start = (stats['IP/GS'] or 0.0) if 'IP/GS' in stats.keys() else 0.0
-        games_played_raw = int(stats['G'])
-        games_started_raw = int(stats['GS']) if self.is_pitcher else 0
-        saves_raw = int(stats['SV']) if self.is_pitcher else 0
-        sprint_speed_raw = stats['sprint_speed'] if 'sprint_speed' in stats.keys() else None
-        is_sb_empty = len(str(stats['SB'])) == 0
-        stolen_bases_raw = int(0 if is_sb_empty else stats['SB']) if not self.is_pitcher else 0
-
-        # DERIVED SB PER 650 PA (NORMAL SEASON)
-        pa_to_650_ratio = int(stats['PA']) / 650.0
-        stolen_bases_per_650_pa = stolen_bases_raw / pa_to_650_ratio
-
-        # CALL METHODS AND ASSIGN TO SELF
-        self.positions_and_defense = self.__positions_and_defense(stats_dict=stats, games_played=games_played_raw, games_started=games_started_raw, saves=saves_raw)
-        self.ip = self.__innings_pitched(innings_pitched=innings_pitched_raw, games=games_played_raw, games_started=games_started_raw, ip_per_start=ip_per_start)
-        self.hand = self.__handedness(hand=hand_raw)
-        self.speed, self.speed_letter = self.__speed(sprint_speed=sprint_speed_raw, stolen_bases=stolen_bases_per_650_pa, is_sb_empty=is_sb_empty)
-        self.accolades = self.__accolades()
-        self.icons: list[Icon] = self.__icons(awards=stats.get('award_summary',''))
-
-    def __positions_and_defense(self, stats_dict:dict, games_played:int, games_started:int, saves:int) -> dict[Position, int]:
+    def __positions_and_defense(self, stats_dict:dict) -> dict[Position, int]:
         """Get in-game defensive positions and ratings
 
         Args:
           stats_dict: All stats from the player's real life season.
-          games_played: Number of games played at any position.
-          games_started: Number of games started as a pitcher.
-          saves: Number of saves. Used to determine what kind of reliever a player is.
 
         Returns:
           Dict with in game positions and defensive ratings
         """
+
+        total_games_played = stats_dict.get('G', 0)
+        total_games_started = stats_dict.get('GS', 0)
+        total_saves = stats_dict.get('SV', 0)
 
         positions_and_defense = {}
         positions_and_games_played = {}
@@ -447,9 +421,9 @@ class ShowdownPlayerCard:
                 position = self.__position_name_in_game(position=position_name,
                                                         num_positions=num_positions,
                                                         position_appearances=games_at_position,
-                                                        games_played=games_played,
-                                                        games_started=games_started,
-                                                        saves=saves)
+                                                        games_played=total_games_played,
+                                                        games_started=total_games_started,
+                                                        saves=total_saves)
                 if position is not None:
                     positions_and_games_played[position] = games_at_position
                     if not self.is_pitcher:
@@ -796,20 +770,19 @@ class ShowdownPlayerCard:
 
         return defense
 
-    def __handedness(self, hand:str) -> str:
+    def __handedness(self, hand_raw:str) -> Hand:
         """Get hand of player. Format to how card will display hand.
 
         Args:
-          hand: Hand string from Baseball Reference. Will be "Left", "Right", or "Both".
+          hand_raw: Hand string from Baseball Reference. Will be "Left", "Right", or "Both".
 
         Returns:
           Formatted hand string (ex: "Bats R" or "RHP").
         """
 
-        hand_first_letter = hand[0:1] if hand != 'Both' else 'S'
-        hand_formatted_for_position = '{}HP'.format(hand_first_letter) if self.is_pitcher else 'Bats {}'.format(hand_first_letter)
+        hand_first_letter = hand_raw[0:1].upper() if hand_raw != 'Both' else 'S'
 
-        return hand_formatted_for_position
+        return Hand(hand_first_letter)
 
     def __innings_pitched(self, innings_pitched:float, games:int, games_started:int, ip_per_start:float) -> int:
         """In game stamina for a pitcher. Position Player defaults to 0.
@@ -839,7 +812,7 @@ class ShowdownPlayerCard:
         
         return ip
 
-    def __speed(self, sprint_speed:float, stolen_bases:int, is_sb_empty:bool) -> tuple[int, str]:
+    def __speed(self, sprint_speed:float, stolen_bases:int, is_sb_empty:bool) -> Speed:
         """In game speed for a position player. Will use pure sprint speed
            if year is >= 2015, otherwise uses stolen bases. Pitcher defaults to 10.
 
@@ -850,16 +823,16 @@ class ShowdownPlayerCard:
           is_sb_empty: Bool for whether SB are unavailable for the player.
 
         Returns:
-          Tuple with in game speed ability, in game letter grade
+          Speed class with speed and letter.
         """
 
         if self.is_pitcher:
             # PITCHER DEFAULTS TO 10
-            return 10, 'C'
+            return Speed(speed=10, letter=SpeedLetter.C)
     
-        if is_sb_empty:
-            # DEFAULT PLAYERS WITHOUT SB AVAILABLE TO 12
-            return 12, 'C' if self.set == Set._2002 else 'B'
+        if is_sb_empty and sprint_speed is None:
+            # DEFAULT PLAYERS WITHOUT SB/SS AVAILABLE TO 12
+            return Speed(speed=10, letter=SpeedLetter.C if self.set == Set._2002 else SpeedLetter.B)
 
         # IF FULL CAREER CARD, ONLY USE SPRINT SPEED IF PLAYER HAS OVER 35% of CAREER POST 2015
         pct_career_post_2015 = sum([1 if year >= 2015 else 0 for year in self.year_list]) / len(self.year_list)
@@ -907,18 +880,17 @@ class ShowdownPlayerCard:
         # FINALIZE SPEED, ASSIGN LETTER
         final_speed = int(round( sum([( (metric.weight_sb_outliers if use_sb_outliers_weights else metric.weight) if num_metrics > 1 else 1.0) * in_game_spd for metric, in_game_spd in in_game_speed_for_metric.items() ]) ))
         if final_speed < self.set.speed_c_cutoff:
-            letter = 'C'
+            letter = SpeedLetter.C
         elif final_speed < 18:
-            letter = 'B'
+            letter = SpeedLetter.B
         else:
-            letter = 'A'
+            letter = SpeedLetter.A
 
         # IF 2000 OR 2001, SPEED VALUES CAN ONLY BE 10,15,20
         if self.set.is_00_01 and not self.is_variable_speed_00_01:
-            spd_letter_to_number = {'A': 20,'B': 15,'C': 10}
-            final_speed = spd_letter_to_number[letter]
+            final_speed = letter.speed_00_01
 
-        return final_speed, letter
+        return Speed(speed=final_speed, letter=letter)
 
     def __icons(self, awards:str) -> list[Icon]:
         """Converts awards_summary and other metadata fields into in game icons.
@@ -1991,12 +1963,12 @@ class ShowdownPlayerCard:
         upper_limit = upper_limit / type_normalizer_weight
 
         # CHECK FOR STARTER WITH LOW IP
-        if self.player_sub_type == PlayerSubType.STARTING_PITCHER and self.ip < 7 and points < 550:
+        if self.player_sub_type == PlayerSubType.STARTING_PITCHER and self.ip < 7 and points.total_points < 550:
             pts_percentile = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type).percentile(value=7, is_desc=False, allow_negative=True)
             pts_ip_add = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.IP) * pts_percentile
-            pts_to_compare = round(points + pts_ip_add,-1)
+            pts_to_compare = round(points.total_points + pts_ip_add, -1)
         else:
-            pts_to_compare = round(points,-1)
+            pts_to_compare = round(points.total_points, -1)
 
         # RETURN CURRENT OBJECT IF LESS THAN CUTOFF
         if pts_to_compare < self.player_sub_type.pts_normalizer_cutoff:
@@ -2176,7 +2148,7 @@ class ShowdownPlayerCard:
 
         chart_w_combined_command_outs = self.chart
         chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart.command,self.chart.outs)
-        chart_w_combined_command_outs['spd'] = self.speed
+        chart_w_combined_command_outs['spd'] = self.speed.speed
         chart_w_combined_command_outs['defense'] = int(list(self.positions_and_defense.values())[0])
         
         # COMBINE 1B and 1B+ IF NON-VOLATILE CATEGORIES
@@ -2275,7 +2247,7 @@ class ShowdownPlayerCard:
         for position,fielding in self.positions_and_defense_for_visuals.items():
             positions_string += f'{position}{"" if fielding < 0 else "+"}{fielding} ' if not self.is_pitcher else position
         # IP / SPEED
-        ip_or_speed = 'Speed {} ({})'.format(self.speed_letter,self.speed) if not self.is_pitcher else '{} IP'.format(self.ip)
+        ip_or_speed = self.speed.full_string if not self.is_pitcher else '{} IP'.format(self.ip)
         # ICON(S)
         icon_string = ''
         for index, icon in enumerate(self.icons):
@@ -2434,7 +2406,7 @@ class ShowdownPlayerCard:
         else:
             spd_or_ip = [
                 'IP' if self.is_pitcher else 'SPD', 
-                str(self.ip if self.is_pitcher else self.speed),
+                str(self.ip if self.is_pitcher else self.speed.speed),
                 str(round(self.points_breakdown.ip if self.is_pitcher else self.points_breakdown.speed))
             ]
         pts_data = [
@@ -2518,7 +2490,7 @@ class ShowdownPlayerCard:
         }
         values_mapping = {
             'points': self.points,
-            'speed': self.speed,
+            'speed': self.speed.speed,
             'ip': self.ip,
             'onbase_perc': self.__format_slash_pct(self.projected['onbase_perc']) if 'onbase_perc' in self.projected.keys() else 0.00,
             'slugging_perc': self.__format_slash_pct(self.projected['slugging_perc']) if 'slugging_perc' in self.projected.keys() else 0.00,
@@ -2571,14 +2543,14 @@ class ShowdownPlayerCard:
         positions_string = self.__position_and_defense_as_string(is_horizontal=is_horizontal)
 
         ip = f'IP {self.ip}' if self.set.is_after_03 else f'{self.ip} IP'
-        speed = f'SPD {self.speed}' if self.set.is_showdown_bot else f'Speed {self.speed_letter} ({self.speed})'
+        speed = f'SPD {self.speed.speed}' if self.set.is_showdown_bot else self.speed.full_string
         ip_or_speed = speed if not self.is_pitcher else ip
         if is_horizontal:
             if return_as_list:
                 final_text = [
                     f'{self.points} PT.',
                     positions_string if self.is_pitcher else speed,
-                    self.hand,
+                    self.hand.visual(self.is_pitcher),
                     (ip if self.is_pitcher else positions_string),
                 ]
             else:
@@ -2586,7 +2558,7 @@ class ShowdownPlayerCard:
                 final_text = '{points} PT.   {item2}   {hand}{spacing_between_hand_and_final_item}{item4}'.format(
                     points=self.points,
                     item2=positions_string if self.is_pitcher else speed,
-                    hand=self.hand,
+                    hand=self.hand.visual(self.is_pitcher),
                     spacing_between_hand_and_final_item=spacing_between_hand_and_final_item,
                     item4=ip if self.is_pitcher else positions_string
                 )
@@ -2599,7 +2571,7 @@ class ShowdownPlayerCard:
             {points} PT.
             """.format(
                 line1=positions_string if self.is_pitcher else ip_or_speed,
-                hand=self.hand,
+                hand=self.hand.visual(self.is_pitcher),
                 line3=ip_or_speed if self.is_pitcher else positions_string,
                 points=self.points
             )
@@ -3417,7 +3389,7 @@ class ShowdownPlayerCard:
                 metadata_image.paste(colors.WHITE, (660,342), position_text)
                 # HAND | IP
                 font_hand_ip = ImageFont.truetype(helvetica_neue_lt_path, size=63)
-                hand_text = self.__text_image(text=self.hand, size=(900, 300), font=font_hand_ip)
+                hand_text = self.__text_image(text=self.hand.visual(self.is_pitcher), size=(900, 300), font=font_hand_ip)
                 metadata_image.paste(colors.WHITE, (1092,420), hand_text)
                 ip_text = self.__text_image(text='IP {}'.format(str(self.ip)), size=(900, 300), font=font_hand_ip)
                 metadata_image.paste(colors.WHITE, (1260,420), ip_text)
@@ -3427,8 +3399,8 @@ class ShowdownPlayerCard:
                 font_size_speed = 40 if is_variable_spd_2000 else 54
                 font_speed = ImageFont.truetype(helvetica_neue_lt_path, size=font_size_speed)
                 font_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
-                speed_text = self.__text_image(text='SPEED {}'.format(self.speed_letter), size=(900, 300), font=font_speed)
-                hand_text = self.__text_image(text=self.hand[-1], size=(300, 300), font=font_hand)
+                speed_text = self.__text_image(text=f'SPEED {self.speed.letter}', size=(900, 300), font=font_speed)
+                hand_text = self.__text_image(text=self.hand.value, size=(300, 300), font=font_hand)
                 metadata_image.paste(color, (969 if self.set == Set._2000 else 915, 345 if is_variable_spd_2000 else 342), speed_text)
                 metadata_image.paste(color, (1212,342), hand_text)
                 if self.set == Set._2001 or is_variable_spd_2000:
@@ -3436,13 +3408,13 @@ class ShowdownPlayerCard:
                     font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
                     font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)
                     speed_num_text = self.__text_image(
-                        text=str(self.speed),
+                        text=str(self.speed.speed),
                         size=(300, 300),
                         font=font_speed_number
                     )
                     parenthesis_left = self.__text_image(text='(   )', size=(300, 300), font=font_parenthesis)
                     metadata_image.paste(color, (1116,342), parenthesis_left)
-                    spd_number_x_position = 1138 if len(str(self.speed)) < 2 else 1128
+                    spd_number_x_position = 1138 if len(str(self.speed.speed)) < 2 else 1128
                     metadata_image.paste(color, (spd_number_x_position,345), speed_num_text)
                 # POSITION(S)
                 font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)

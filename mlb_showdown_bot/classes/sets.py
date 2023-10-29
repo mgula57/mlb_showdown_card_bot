@@ -1,14 +1,14 @@
 from enum import Enum
 
 try:
-    from .speed import SpeedMetric
+    from .metadata import SpeedMetric
     from .player_position import PlayerType, PlayerSubType, Position
     from .metrics import Stat, PointsMetric
     from .value_range import ValueRange
     from .images import PlayerImageComponent, TemplateImageComponent
     from .chart import Chart
 except ImportError:
-    from speed import SpeedMetric
+    from metadata import SpeedMetric
     from player_position import PlayerType, PlayerSubType, Position
     from metrics import Stat, PointsMetric
     from value_range import ValueRange
