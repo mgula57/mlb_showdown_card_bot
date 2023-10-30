@@ -318,7 +318,7 @@ def card_creator():
                 add_image_border=add_img_border,
                 is_dark_mode=is_dark_mode,
                 is_variable_speed_00_01=is_variable_speed_00_01,
-                image_parallel=image_parallel,
+                parallel=image_parallel,
                 add_year_container=add_year_container,
                 set_year_plus_one=set_year_plus_one,
                 hide_team_logo=hide_team_logo,

@@ -367,10 +367,10 @@ class ImageSource(BaseModel):
 
 class ShowdownImage(BaseModel):
 
-    edition: Edition
-    expansion: Expansion
-    source: ImageSource
-    parallel: ImageParallel
+    edition: Edition = Edition.NONE
+    expansion: Expansion = Expansion.BS
+    source: ImageSource = ImageSource()
+    parallel: ImageParallel = ImageParallel.NONE
     special_edition: SpecialEdition = SpecialEdition.NONE
     output_folder_path: Optional[str] = None
     output_file_name: Optional[str] = None

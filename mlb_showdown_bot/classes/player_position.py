@@ -6,6 +6,10 @@ class PlayerType(Enum):
     PITCHER = 'Pitcher'
     HITTER = 'Hitter'
 
+    @classmethod
+    def _missing_(cls, _):
+        return cls.HITTER
+
     @property
     def is_pitcher(self) -> bool:
         return self.name == 'PITCHER'
@@ -22,7 +26,6 @@ class PlayerType(Enum):
     def template_color_04_05(self) -> str:
         return 'BLUE' if self.is_pitcher else 'GREEN'
     
-
 class PlayerSubType(Enum):
 
     POSITION_PLAYER = 'position_player'

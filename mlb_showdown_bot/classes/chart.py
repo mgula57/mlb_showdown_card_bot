@@ -32,10 +32,10 @@ class Chart(BaseModel):
     is_pitcher: bool
     set: str
     is_expanded: bool
-    command: Union[float, int]
-    outs: Union[float, int]
+    command: Union[int, float]
+    outs: Union[int, float]
     sb: float = 0.0
-    values: dict[ChartCategory, Union[float, int]] = {}
+    values: dict[ChartCategory, Union[int, float]] = {}
     ranges: dict[ChartCategory, str] = {}
     dbl_per_400_pa: float = None
     trpl_per_400_pa: float = None

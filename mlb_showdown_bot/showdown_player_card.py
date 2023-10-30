@@ -1,4 +1,3 @@
-from posixpath import join
 import numpy as np
 import math
 import requests
@@ -17,6 +16,8 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from prettytable import PrettyTable
 from pprint import pprint
+from pydantic import BaseModel, validator
+from typing import Any, Optional, Union
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from . import showdown_constants as sc
@@ -31,6 +32,7 @@ try:
     from .classes.points import Points
     from .classes.metadata import Speed, SpeedLetter, Hand
     from .classes import colors
+    from .version import __version__
 except ImportError:
     # USE LOCAL IMPORT
     import showdown_constants as sc
@@ -46,110 +48,109 @@ except ImportError:
     from classes.points import Points
     from classes.metadata import Speed, SpeedLetter, Hand
     from classes import colors
+    from version import __version__
 
-class ShowdownPlayerCard:
+class ShowdownPlayerCard(BaseModel):
+
+    # REQUIRED
+    year: str
+    set: Set
+    stats: dict # TODO: VALIDATE NO HBP DOUBLE COUNTING WHEN INIT FROM DICT
+    year_list: list[int] = []
+    era: Era
+    name: str
+
+    # DERIVED
+    is_full_career: bool = False
+    is_multi_year: bool = False
+    bref_id: str = ''
+    bref_url: str = ''
+    league: str = 'MLB'
+    team: Team = Team.MLB
+    nationality: Nationality = Nationality.NONE
+    type_override: str = '' # TODO: ADD TO INPUTS
+    player_type: PlayerType = PlayerType.HITTER
+
+    # OPTIONALS
+    version: str = __version__
+    source: str = 'Baseball Reference'
+    is_stats_estimate: bool = False
+    stats_version:int = 0 #TODO: CHANGE NAME IN INIT (OFFSET -> STATS_VERSION)
+    disable_cache_cleaning: bool = False
+    date_override: Optional[str] = None
+    test_numbers: Optional[tuple[int,int]] = None
+    command_out_override:  Optional[tuple[int,int]] = None
+    is_variable_speed_00_01: bool = False
+    
+    # ENVIRONMENT
+    is_running_in_flask: bool = False
+    load_time: float = 0.0
+
+    # RANKS
+    rank: dict = {}
+    pct_rank: dict = {}
+
+    # PROCESSED BY CLASS
+    image: ShowdownImage = ShowdownImage()
+    chart: Chart = None
+    positions_and_defense: dict[Position, int] = {}
+    positions_and_real_life_ratings: dict[Position, dict[DefenseMetric, Union[float, int]]] = {}
+    top_command_out_combinations: list[tuple[tuple[int,int], float]] = []
+    ip:int = None
+    hand: Hand = None
+    speed: Speed = None
+    accolades: list[str] = None
+    icons: list[Icon] = None
+    projected: dict = {}
+    points_breakdown: Points = Points()
+    points: int = 0.0
 
 # ------------------------------------------------------------------------
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, name:str, year:str, stats:dict, set:str, expansion:str='BS', edition:str="NONE", offset:int=0, player_image_url:str=None, player_image_path:str=None, card_img_output_folder_path:str='', set_number:str='', test_numbers:tuple[int,int]=None, run_stats:bool=True, command_out_override:tuple[int,int]=None, print_to_cli:bool=False, show_player_card_image:bool=False, is_img_part_of_a_set:bool=False, add_image_border:bool=False, is_dark_mode:bool=False, is_variable_speed_00_01:bool=False, image_parallel:str="NONE", add_year_container:bool=False, set_year_plus_one:bool=False, hide_team_logo:bool=False, date_override:str=None, era:str="DYNAMIC", use_secondary_color:bool=False, is_running_in_flask:bool=False, source:str='Baseball Reference', disable_cache_cleaning:bool=False) -> None:
+    def __init__(self, **data) -> None:
         """Initializer for ShowdownPlayerCard Class"""
 
-        # ASSIGNED ATTRIBUTES
-        self.version: str = "3.6"
-        self.name: str = stats.get('name', name)
-        self.bref_id: str = stats.get('bref_id', '')
-        self.bref_url = stats.get('bref_url', '')
-        self.year = str(year).upper()
-        self.is_full_career: bool = self.year.upper() == "CAREER"
-        self.is_multi_year: bool = len(self.year) > 4
-        self.year_list: list[int] = self.__convert_year_str_to_list(year=year, all_years_played=stats.get('years_played', []))
-
-        # TYPE OVERRIDE
-        self.type_override: str = ''
-        for type_str in ['(Pitcher)','(Hitter)']:
-            if type_str in name:
-                self.type_override = type_str        
-
-        # SET INFO
-        self.set: Set = Set(set)
-        self.era: Era = self.era_dynamic if era == "DYNAMIC" else Era(era)
-
-        # STATS
-        # ADD OPS IF NOT IN DICT (< 1900 CARDS)
-        if 'onbase_plus_slugging' not in stats.keys() and 'slugging_perc' in stats.keys() and 'onbase_perc' in stats.keys():
-            stats['onbase_plus_slugging'] = stats['slugging_perc'] + stats['onbase_perc']
-        # REDUCE IF/FB FOR 1988
-        if 'IF/FB' in stats.keys() and year == '1988':
-            stats['IF/FB'] = stats.get('IF/FB', 0.0) * self.set.pu_normalizer_1988
-        # COMBINE BB AND HBP
-        if 'HBP' in stats.keys():
-            stats['BB'] = stats.get('BB',0) + stats.get('HBP',0)
-        self.stats: dict = stats
-        self.source: str = source
-        self.is_stats_estimate: bool = stats.get('is_stats_estimate', False)
-        self.stats_version:int = int(offset)
-
-        # METADATA
-        self.player_type = PlayerType(stats.get('type', 'Hitter'))
-        self.league: str = stats.get('lg_ID', 'MLB')
-        self.team: Team = Team(stats.get('team_ID', None))        
-        self.nationality: Nationality = Nationality(stats.get('nationality', None))
+        super().__init__(**data)
 
         # IMAGE
         self.image: ShowdownImage = ShowdownImage(
-            edition = edition,
-            expansion = expansion,
-            source = ImageSource(url=player_image_url, path=player_image_path),
-            parallel = image_parallel,
-            output_folder_path = card_img_output_folder_path if len(card_img_output_folder_path) > 0 else os.path.join(os.path.dirname(__file__), 'output'),
-            set_number = set_number if set_number != '' else self.set.default_set_number,
-            add_one_to_set_year = set_year_plus_one and self.set.is_eligibile_for_year_plus_one,
-            show_year_container = add_year_container and self.set.is_eligibile_for_year_container,
-            is_bordered = add_image_border,
-            is_dark_mode = is_dark_mode,
-            hide_team_logo = hide_team_logo,
-            use_secondary_color = use_secondary_color
+            edition = data.get('edition', Edition.NONE),
+            expansion = data.get('expansion', Expansion.BS),
+            source = ImageSource(url=data.get('player_image_url', None), path=data.get('player_image_path', None)),
+            parallel = data.get('parallel', ImageParallel.NONE),
+            output_folder_path = data.get('card_img_output_folder_path', '') if len(data.get('card_img_output_folder_path', '')) > 0 else os.path.join(os.path.dirname(__file__), 'output'),
+            set_number = data.get('set_number', '') if data.get('set_number', '') != '' else self.set.default_set_number,
+            add_one_to_set_year = data.get('set_year_plus_one', False) and self.set.is_eligibile_for_year_plus_one,
+            show_year_container = data.get('add_year_container', False) and self.set.is_eligibile_for_year_container,
+            is_bordered = data.get('add_image_border', False),
+            is_dark_mode = data.get('is_dark_mode', False),
+            hide_team_logo = data.get('hide_team_logo', False),
+            use_secondary_color = data.get('use_secondary_color', False)
         )
         self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
         
-        self.disable_cache_cleaning = disable_cache_cleaning
-        
-        # CUSTOMIZATIONS
-        self.date_override: str = date_override
-        self.test_numbers: tuple[int,int] = test_numbers
-        self.command_out_override: tuple[int,int] = command_out_override
-        self.is_variable_speed_00_01: bool = is_variable_speed_00_01
-
-        # RANKS
-        self.rank: dict = {}
-        self.pct_rank: dict = {}
-        
-        # RUNTIME
-        self.is_running_in_flask: bool = is_running_in_flask
-        self.load_time: float = None
-        
-        if run_stats:            
+        if not self.is_populated:
 
             # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
-            self.positions_and_defense: dict[Position, int] = self.__positions_and_defense(stats_dict=stats)
-            self.ip: int = self.__innings_pitched(innings_pitched=float(stats.get('IP', 0)), games=stats.get('G', 0), games_started=stats.get('GS', 0), ip_per_start=stats.get('IP/GS', 0))
-            self.hand: Hand = self.__handedness(hand_raw=stats.get('hand', None))
-            self.speed: Speed = self.__speed(sprint_speed=stats.get('sprint_speed', None), stolen_bases=stats.get('SB', 0) / ( stats.get('PA', 0) / 650.0 ), is_sb_empty=len(str(stats.get('SB',''))) == 0)
+            self.positions_and_defense: dict[Position, int] = self.__positions_and_defense(stats_dict=self.stats)
+            self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats.get('IP', 0)), games=self.stats.get('G', 0), games_started=self.stats.get('GS', 0), ip_per_start=self.stats.get('IP/GS', 0))
+            self.hand: Hand = self.__handedness(hand_raw=self.stats.get('hand', None))
+            self.speed: Speed = self.__speed(sprint_speed=self.stats.get('sprint_speed', None), stolen_bases=self.stats.get('SB', 0) / ( self.stats.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats.get('SB',''))) == 0)
             self.accolades: list[str] = self.__accolades()
-            self.icons: list[Icon] = self.__icons(awards=stats.get('award_summary',''))
+            self.icons: list[Icon] = self.__icons(awards=self.stats.get('award_summary',''))
 
             # CONVERT STATS TO PER 400 PA
             # MAKES MATH EASIER (20 SIDED DICE)
-            stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=stats)
+            stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=self.stats)
 
-            command_out_combos = [command_out_override] if command_out_override else self.__top_accurate_command_out_combos(obp=float(stats['onbase_perc']), num_results=5)
+            command_out_combos = [self.command_out_override] if self.command_out_override else self.__top_accurate_command_out_combos(obp=float(self.stats['onbase_perc']), num_results=5)
 
             self.chart: Chart = None
             self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,
                                                                               stats_per_400_pa=stats_for_400_pa,
-                                                                              offset=int(offset))
+                                                                              offset=int(self.stats_version))
             self.projected: dict = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command)
 
             # FOR PTS, USE STEROID ERA OPPONENT
@@ -162,16 +163,173 @@ class ShowdownPlayerCard:
                                             speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
             self.points: int = self.points_breakdown.total_points
 
-            if show_player_card_image or len(card_img_output_folder_path) > 0:
-                self.card_image(show=True if show_player_card_image else False)
+            show_image = data.get('show_image', False)
+            if data.get('show_image', False) or len(data.get('card_img_output_folder_path', '')) > 0:
+                self.card_image(show=show_image)
             
-            if print_to_cli:
+            if data.get('print_to_cli', False):
                 self.print_player()
+
+# ------------------------------------------------------------------------
+# VALIDATORS
+# ------------------------------------------------------------------------
+
+    @validator('year', always=True)
+    def clean_year(cls, year:str) -> str:
+        return str(year).upper()
+
+    @validator('year_list', always=True)
+    def parse_year_list(cls, year_list:list[int], values:dict) -> list[int]:
+
+        if year_list is not None:
+            if len(year_list) > 0:
+                return year_list
+        
+        year:str = values.get('year')
+        stats:dict = values.get('stats', {})
+        all_years_played:list[str] = stats.get('years_played', [])
+        if year.upper() == 'CAREER':
+            return [int(year) for year in all_years_played]
+        elif '-' in year:
+            # RANGE OF YEARS
+            years = year.split('-')
+            year_start = int(years[0].strip())
+            year_end = int(years[1].strip())
+            return list(range(year_start,year_end+1))
+        elif '+' in year:
+            years = year.split('+')
+            return [int(x.strip()) for x in years]
+        else:
+            return [int(year)]
+
+    @validator('is_full_career', always=True)
+    def parse_is_full_career(cls, is_full_career:bool, values:dict) -> bool:
+        if is_full_career:
+            return is_full_career
+        
+        year:str = values.get('year', '')
+        return year.upper() == 'CAREER'
+    
+    @validator('is_multi_year', always=True)
+    def parse_is_multi_year(cls, is_multi_year:bool, values:dict) -> bool:
+        if is_multi_year:
+            return is_multi_year
+        
+        year_list:list[int] = values.get('year_list', [])
+        return len(year_list) > 1
+
+    @validator('stats')
+    def clean_stats(cls, stats:dict, values:dict) -> dict[str, Any]:
+
+        # ADD OPS IF NOT IN DICT (< 1900 CARDS)
+        if 'onbase_plus_slugging' not in stats.keys() and 'slugging_perc' in stats.keys() and 'onbase_perc' in stats.keys():
+            stats['onbase_plus_slugging'] = stats['slugging_perc'] + stats['onbase_perc']
+
+        # REDUCE IF/FB FOR 1988
+        if 'IF/FB' in stats.keys() and values.get('year', '') == '1988':
+            stats['IF/FB'] = stats.get('IF/FB', 0.0) * Set(values.get('set', None)).pu_normalizer_1988
+
+        # COMBINE BB AND HBP
+        if 'HBP' in stats.keys():
+            stats['BB'] = stats.get('BB',0) + stats.get('HBP',0)
+
+        return stats
+    
+    @validator('era', pre=True)
+    def handle_dynamic_era(cls, era:str, values:dict) -> Era:
+
+        if era.upper() != 'DYNAMIC':
+            return Era(era)
+        
+        year_list = values.get('year_list', [])
+        eras = []
+        for year in year_list:
+            for era in Era:
+                if year in era.year_range:
+                    eras.append(era)
+        
+        # FILTER TO MOST
+        most_common_era_tuples_list = Counter(eras).most_common(1)
+
+        if len(most_common_era_tuples_list) == 0:
+            return Era.STEROID
+        
+        return most_common_era_tuples_list[0][0]
+
+    @validator('name')
+    def parse_name(cls, name:str, values:dict) -> str:
+        """Use the bref name first, user input as a backup"""
+        stats:dict = values.get('stats', {})
+        return stats.get('name', name)
+
+    @validator('type_override', always=True)
+    def parse_type_override(cls, type_override:str, values:dict) -> str:
+        
+        if type_override:
+            if len(type_override) > 0:
+                return type_override
+        
+        return type_override
+    
+    @validator('player_type', always=True)
+    def parse_player_type(cls, _ : str, values:dict) -> str: 
+        stats:dict = values.get('stats', {})
+        return PlayerType(stats.get('type', None))
+    
+    @validator('bref_id', always=True)
+    def parse_bref_id(cls, bref_id:str, values:dict) -> str:
+        if bref_id:
+            if len(bref_id) > 1:
+                return bref_id
+        stats: dict = values.get('stats', {})
+        return stats.get('bref_id', '')
+    
+    @validator('bref_url', always=True)
+    def parse_bref_url(cls, bref_url:str, values:dict) -> str:
+        if bref_url:
+            if len(bref_url) > 0:
+                return bref_url
+        stats: dict = values.get('stats', {})
+        return stats.get('bref_url', '')
+    
+    @validator('is_stats_estimate', always=True)
+    def parse_is_stats_estimate(cls, is_stats_estimate:str, values:dict) -> bool:
+        if is_stats_estimate:
+            return is_stats_estimate
+        stats: dict = values.get('stats', {})
+        return stats.get('is_stats_estimate', False)
+
+    @validator('league', always=True)
+    def parse_league(cls, league:str, values:dict) -> str:
+        if league != 'MLB':
+            return league
+        stats: dict = values.get('stats', {})
+        return stats.get('league', 'MLB')
+    
+    @validator('team', always=True)
+    def parse_team(cls, team:Team, values:dict) -> Team:
+        if team != Team.MLB:
+            return team
+        stats:dict = values.get('stats', {})
+        return Team(stats.get('team_ID', None))
+    
+    @validator('nationality', always=True)
+    def parse_nationality(cls, nationality:Nationality, values:dict) -> Nationality:
+        if nationality != Nationality.NONE:
+            return nationality
+        stats:dict = values.get('stats', {})
+        return Nationality(stats.get('nationality', None))
 
 
 # ------------------------------------------------------------------------
 # STATIC PROPERTIES
 # ------------------------------------------------------------------------
+
+    @property
+    def is_populated(self) -> bool:
+        if self.chart is None:
+            return False
+        return self.points > 0
 
     @property
     def is_pitcher(self) -> bool:
@@ -257,30 +415,7 @@ class ShowdownPlayerCard:
 
         # RETURN STANDARD CUTOUT
         return hand_prefix
-    
-    @property
-    def era_dynamic(self) -> Era:
-        """Returns the era that best fits the player's season.
-        If multi-season, return the era with the most years in it.
-
-        Returns:
-            Era object based on selected year(s)
-        """
-
-        eras = []
-        for year in self.year_list:
-            for era in Era:
-                if year in era.year_range:
-                    eras.append(era)
         
-        # FILTER TO MOST
-        most_common_era_tuples_list = Counter(eras).most_common(1)
-
-        if len(most_common_era_tuples_list) == 0:
-            return Era.STEROID
-        
-        return most_common_era_tuples_list[0][0]
-    
     @property
     def num_positions_playable(self) -> int:
         """Count how many positions the player is eligible to play. 
@@ -382,7 +517,7 @@ class ShowdownPlayerCard:
         return list(sorted(all_image_components, key=lambda comp: comp.layering_index))
 
     @property
-    def team_override_for_images(self) -> Team :
+    def team_override_for_images(self) -> Team:
         """ Team override to use for background images and colors (ex: CC)"""
         return Team.CCC if self.image.edition == Edition.COOPERSTOWN_COLLECTION else None
     

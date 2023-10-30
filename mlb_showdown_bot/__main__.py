@@ -1,6 +1,6 @@
 import argparse
-import os
 from pprint import pprint
+from fastapi.encoders import jsonable_encoder
 
 # MY PACKAGES
 try:
@@ -27,7 +27,7 @@ parser.add_argument('-path','--image_path',help='Path to Player background image
 parser.add_argument('-o_path','--image_output_path',help='Path to folder for card image output',default='')
 parser.add_argument('-num','--set_num',help='Assign card a set number',default='')
 parser.add_argument('-show','--show_image', action='store_true', help='Optionally open the final Player Card Image upon completion')
-parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default='', type=str)
+parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default=None, type=str)
 parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='BS')
 parser.add_argument('-ed','--edition',help='Add optional edition (Values: None, Super Season, All-Star Game, Cooperstown Collection, Holiday, Nationality, Rookie Season)',default='NONE')
 parser.add_argument('-bor','--add_border', action='store_true', help='Optionally add border to player image')
@@ -50,7 +50,7 @@ def main():
     name = args.name.title()
     year = args.year
     set = args.set
-    command_out_override = None if args.co_override == '' else tuple([int(x) for x in args.co_override.split('-')])
+    command_out_override = None if args.co_override is None else tuple([int(x) for x in args.co_override.split('-')])
 
     scraper = BaseballReferenceScraper(name=name,year=year,ignore_cache=args.ignore_cache, disable_cleaning_cache=args.disable_cache_cleaning)
 
@@ -107,6 +107,7 @@ def main():
         year=year,
         stats=statline,
         set=set,
+        era=args.era,
         expansion=args.expansion,
         edition=args.edition,
         offset=args.offset,
@@ -114,17 +115,16 @@ def main():
         player_image_path=args.image_path,
         card_img_output_folder_path=args.image_output_path,
         print_to_cli=True,
-        show_player_card_image=args.show_image,
+        show_image=args.show_image,
         set_number=str(args.set_num),
         command_out_override=command_out_override,
         add_image_border=args.add_border,
         is_dark_mode=args.dark_mode,
         is_variable_speed_00_01=args.variable_spd,
-        image_parallel=args.parallel,
+        parallel=args.parallel,
         add_year_container=args.add_year_container,
         set_year_plus_one=args.set_year_plus_one,
         hide_team_logo=args.hide_team_logo,
-        era=args.era,
         use_secondary_color=args.secondary_color,
         source=data_source,
         disable_cache_cleaning=args.disable_cache_cleaning
