@@ -1,12 +1,12 @@
 from enum import Enum
 from pydantic import BaseModel
-from typing import Union
+from typing import Union, Optional
 
 # ---------------------------------------
 # CHART CATEGORY
 # ---------------------------------------
 
-class ChartCategory(Enum):
+class ChartCategory(str, Enum):
 
     PU = "PU"
     SO = "SO"
@@ -37,9 +37,9 @@ class Chart(BaseModel):
     sb: float = 0.0
     values: dict[ChartCategory, Union[int, float]] = {}
     ranges: dict[ChartCategory, str] = {}
-    dbl_per_400_pa: float = None
-    trpl_per_400_pa: float = None
-    hr_per_400_pa: float = None
+    dbl_per_400_pa: Optional[float] = None
+    trpl_per_400_pa: Optional[float] = None
+    hr_per_400_pa: Optional[float] = None
 
     def __init__(self, **data) -> None:
         super().__init__(**data)
@@ -93,7 +93,7 @@ class Chart(BaseModel):
           None - Stores final dictionary in self.
         """
 
-        if len(self.values) == 0:
+        if len(self.values) == 0 or len(self.ranges) > 0:
             return
         
         # FILL IN NULLS WITH 0'S

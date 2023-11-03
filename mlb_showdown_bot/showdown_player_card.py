@@ -111,7 +111,12 @@ class ShowdownPlayerCard(BaseModel):
 
     def __init__(self, **data) -> None:
         """Initializer for ShowdownPlayerCard Class"""
+        
+        # HANDLE EMPTY ERA INPUT AS DYNAMIC
+        if data.get('era', None) is None:
+            data['era'] = "DYNAMIC"
 
+        # INIT
         super().__init__(**data)
 
         # IMAGE
