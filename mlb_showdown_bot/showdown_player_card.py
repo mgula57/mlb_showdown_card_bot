@@ -1687,7 +1687,7 @@ class ShowdownPlayerCard(BaseModel):
         if out_slots_remaining > 0:
             # MULTIPLIERS SERVE TO CORRECT TOWARDS WOTC
             # REPLACE HAVING DEFAULT FOR OPPONENT CHART
-            gb_multiplier = self.set.gb_multiplier(player_type=self.player_type, era=self.era)
+            gb_multiplier = self.set.gb_multiplier(player_type=self.player_type, era=era)
             # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
             gb_outs = int(round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multiplier))
             air_outs = out_slots_remaining - gb_outs
@@ -2453,6 +2453,9 @@ class ShowdownPlayerCard(BaseModel):
             in_game = f"{float(round(self.projected[key],3)):.3f}".replace('0.','.')
             actual = f"{float(self.stats[key]):.3f}".replace('0.','.')
             final_player_data.append([category_prefix+cleaned_category,actual,in_game])
+
+        # GAMES
+        final_player_data.append(['G', str(self.stats.get('G', 0)), '-'])
 
         # PLATE APPEARANCES
         real_life_pa = int(self.stats['PA'])

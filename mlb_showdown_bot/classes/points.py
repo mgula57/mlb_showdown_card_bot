@@ -20,7 +20,7 @@ class Points(BaseModel):
     
     @property
     def total_points(self) -> int:
-        points_unrounded = (self.ba + self.obp + self.slg + self.hr + self.defense + self.speed + self.ip + self.icons + self.out_distribution + self.bonus) * self.multi_inning_mutliplier
+        points_unrounded = ((self.ba + self.obp + self.slg + self.hr + self.defense + self.speed + self.ip + self.icons + self.bonus) * self.multi_inning_mutliplier ) + self.out_distribution
         
         # POINTS ARE ALWAYS ROUNDED TO NEAREST TENTH
         points_to_nearest_tenth = int(round(points_unrounded,-1))
