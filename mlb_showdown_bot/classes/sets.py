@@ -149,9 +149,8 @@ class Set(str, Enum):
     # DEFAULTS
     # ---------------------------------------
     
-    @property 
-    def default_set_number(self) -> str:
-        return '—' if self.value in ['2003', 'CLASSIC', 'EXPANDED'] else self.year
+    def default_set_number(self, year_str: str) -> str:
+        return '—' if self.value in ['2003', 'CLASSIC', 'EXPANDED'] else year_str
 
     # ---------------------------------------
     # METRICS
@@ -320,7 +319,7 @@ class Set(str, Enum):
                 (7,2),(7,3),(7,4),(7,5),(7,6),
                 (8,2),(8,3),(8,4),(8,5),
                 (9,2),(9,3),(9,4),(9,5),
-                (10,2),(10,3),(10,4),(10,5),
+                (10,2),(10,3),(10,4),
                 (11,2),(11,3),
                 (12,0),(12,2),(12,3),
             ]
@@ -631,23 +630,33 @@ class Set(str, Enum):
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
                             case Era.STEROID | Era.POST_STEROID: return 0.85
                             case Era.STATCAST | Era.PITCH_CLOCK: return 0.82
-                    case '2001' | '2002':
+                    case '2001':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
-                            case Era.STEROID | Era.POST_STEROID: return 0.90
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
+                            case Era.STEROID: return 0.93
+                            case Era.POST_STEROID: return 0.90
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.85
+                    case '2002':
+                        match era:
+                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
+                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
+                            case Era.STEROID: return 0.91
+                            case Era.POST_STEROID: return 0.90
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.85
                     case '2003' | '2004' | '2005':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.15
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.10
-                            case Era.STEROID | Era.POST_STEROID: return 1.05
+                            case Era.STEROID: return 1.05
+                            case Era.POST_STEROID: return 1.00
                             case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
                     case 'CLASSIC' | 'EXPANDED':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
-                            case Era.STEROID | Era.POST_STEROID: return 1.00
+                            case Era.STEROID: return 1.00
+                            case Era.POST_STEROID: return 0.95
                             case Era.STATCAST | Era.PITCH_CLOCK: return 0.90
 
     @property
