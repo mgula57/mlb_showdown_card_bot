@@ -72,7 +72,7 @@ class Position(MultiValueEnum):
             case _: return self.value
 
     @property
-    def index(self) -> int:
+    def ordering_index(self) -> int:
         match self.name:
             case 'CA': return 11
             case '_1B': return 9

@@ -614,7 +614,13 @@ class Set(str, Enum):
                             case Era.STATCAST | Era.PITCH_CLOCK: return 0.90
             case PlayerType.PITCHER:
                 match self.value:
-                    case '2000' | '2001' | '2002':
+                    case '2000':
+                        match era:
+                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
+                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
+                            case Era.STEROID | Era.POST_STEROID: return 0.85
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.82
+                    case '2001' | '2002':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00

@@ -460,14 +460,15 @@ class ShowdownPlayerCard(BaseModel):
             return positions_and_defense_as_str
         
         positions_to_combine = self.__find_position_combination_opportunity(self.positions_and_defense)
+        positions_to_combine_as_str = [pos.value for pos in positions_to_combine]
         if positions_to_combine is None:
             return positions_and_defense_as_str
-        positions_to_combine_str =  "/".join(positions_to_combine)
+        positions_to_combine_str =  "/".join(positions_to_combine_as_str)
         
         avg_defense = self.positions_and_defense.get(positions_to_combine[0], None)
         if avg_defense is None:
             return positions_and_defense_as_str
-        combined_positions_and_defense = {pos: df for pos, df in positions_and_defense_as_str.items() if pos not in positions_to_combine}
+        combined_positions_and_defense = {pos: df for pos, df in positions_and_defense_as_str.items() if pos not in positions_to_combine_as_str}
         combined_positions_and_defense[positions_to_combine_str] = avg_defense
 
         return combined_positions_and_defense
@@ -482,8 +483,8 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           List of positions and defense ordered by how they will appear on the card image.
         """
-
-        return sorted(self.positions_and_defense_for_visuals.items(), key=lambda pos_and_def: Position(pos_and_def[0]).index)
+        position_enum_values = [pos.value for pos in Position]
+        return sorted(self.positions_and_defense_for_visuals.items(), key=lambda pos_and_def: (Position(pos_and_def[0]).ordering_index if pos_and_def[0] in position_enum_values else 0) )
     
     @property
     def positions_list(self) -> [Position]:
@@ -786,10 +787,10 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # CREATE DICTIONARY OF POSITIONS ABLE TO BE COMBINED + DIFFERENCE IN DEFENSE
-        positions_able_to_be_combined = {}
+        positions_able_to_be_combined: dict[Position, tuple[Position, int]] = {}
         position_list = list(positions_and_defense.keys())
         for position, defense in positions_and_defense.items():
-            combinations_list_for_pos = position.allowed_combinations
+            combinations_list_for_pos = [Position(pos_str) for pos_str in position.allowed_combinations]
             combinations_available_for_player = {p: abs(defense - positions_and_defense.get(p, 0)) for p in position_list if p != position and p in combinations_list_for_pos}
             if len(combinations_available_for_player) > 0:
                 sorted_combinations = sorted(combinations_available_for_player.items(), key=lambda x: x[1])
@@ -797,7 +798,8 @@ class ShowdownPlayerCard(BaseModel):
 
         # SELECT ONE POSITION TO CHANGE
         # FIRST SORT BASED ON DIFFERENCE IN DEFENSE, THEN BY POSITION'S ORDERING
-        sorted_positions = sorted(positions_able_to_be_combined.items(), key=lambda x: (x[1][1], -x[1].index))
+        sorted_positions = sorted(positions_able_to_be_combined.items(), key=lambda x: (x[1][1], -x[0].ordering_index))
+        
         if len(sorted_positions) == 0:
             return None
         
