@@ -2078,12 +2078,12 @@ class ShowdownPlayerCard(BaseModel):
         upper_limit = upper_limit / type_normalizer_weight
 
         # CHECK FOR STARTER WITH LOW IP
-        if self.player_sub_type == PlayerSubType.STARTING_PITCHER and self.ip < 7 and points.total_points < 550:
+        if self.player_sub_type == PlayerSubType.STARTING_PITCHER and self.ip < 7 and points.total_points_unrounded < 550:
             pts_percentile = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type).percentile(value=7, is_desc=False, allow_negative=True)
             pts_ip_add = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.IP) * pts_percentile
-            pts_to_compare = round(points.total_points + pts_ip_add, -1)
+            pts_to_compare = round(points.total_points_unrounded + pts_ip_add, -1)
         else:
-            pts_to_compare = round(points.total_points, -1)
+            pts_to_compare = round(points.total_points_unrounded, -1)
 
         # RETURN CURRENT OBJECT IF LESS THAN CUTOFF
         if pts_to_compare < self.player_sub_type.pts_normalizer_cutoff:

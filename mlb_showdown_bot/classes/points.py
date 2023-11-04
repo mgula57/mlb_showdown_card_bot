@@ -20,15 +20,18 @@ class Points(BaseModel):
     
     @property
     def total_points(self) -> int:
-        points_unrounded = ((self.ba + self.obp + self.slg + self.hr + self.defense + self.speed + self.ip + self.icons + self.bonus) * self.multi_inning_mutliplier ) + self.out_distribution
         
         # POINTS ARE ALWAYS ROUNDED TO NEAREST TENTH
-        points_to_nearest_tenth = int(round(points_unrounded,-1))
+        points_to_nearest_tenth = int(round(self.total_points_unrounded,-1))
 
         # POINTS CANNOT BE < 10
         points_final = 10 if points_to_nearest_tenth < 10 else points_to_nearest_tenth
 
         return points_final
+    
+    @property
+    def total_points_unrounded(self):
+        return ((self.ba + self.obp + self.slg + self.hr + self.defense + self.speed + self.ip + self.icons + self.bonus) * self.multi_inning_mutliplier ) + self.out_distribution
     
     @property
     def breakdown_str(self) -> str:
