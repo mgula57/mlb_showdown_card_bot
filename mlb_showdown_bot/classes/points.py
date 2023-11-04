@@ -30,3 +30,12 @@ class Points(BaseModel):
 
         return points_final
     
+    @property
+    def breakdown_str(self) -> str:
+        """Strings with list of all points categories"""
+        
+        breakdown_categories = ['ba','obp','slg','hr','defense','speed','ip','icons','out_distribution','bonus',]
+        other_attributes = ['command_out_multiplier', 'normalizer', 'multi_inning_mutliplier']
+        all_categories = breakdown_categories + other_attributes
+        return "  ".join(f"{cat.replace('_',' ').upper()}:{round(getattr(self, cat, 0), 2)}" for cat in all_categories if getattr(self, cat, 0) != (1.0 if cat in other_attributes else 0.0) )
+    

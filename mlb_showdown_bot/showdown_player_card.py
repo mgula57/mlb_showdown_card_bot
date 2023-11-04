@@ -2394,8 +2394,9 @@ class ShowdownPlayerCard(BaseModel):
             icon_string += f"{'|' if index == 0 else ''} {icon.value} "
 
         print(f"\n{self.points} PTS | {positions_string}| {ip_or_speed} {icon_string}")
+        print(self.points_breakdown.breakdown_str)
 
-        print(f"{self.chart.command} {'CONTROL' if self.is_pitcher else 'ONBASE'}")
+        print(f"\n{self.chart.command} {'CONTROL' if self.is_pitcher else 'ONBASE'}")
 
         chart_tbl = PrettyTable(field_names=[col.value for col in self.chart.categories_list])
         chart_tbl.add_row(self.chart.ranges_list)
@@ -2430,7 +2431,7 @@ class ShowdownPlayerCard(BaseModel):
         all_numeric_value_lists = []
         for source in final_dict.keys():
             source_dict = getattr(self, source)
-            src_value_name = source.replace('stats', 'real').upper()
+            src_value_name = source.replace('stats', 'real').replace('projected', 'proj').upper()
             values = [src_value_name]
             numeric_values = []
             for abbr, full_name in stat_categories_dict.items():

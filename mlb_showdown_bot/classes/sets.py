@@ -631,7 +631,7 @@ class Set(str, Enum):
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
                             case Era.STEROID | Era.POST_STEROID: return 1.00
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.90
 
     @property
     def hitter_so_results_soft_cap(self) -> int:
@@ -924,7 +924,7 @@ class Set(str, Enum):
                     case Position.IF: return 1.0
             case 'CLASSIC' | 'EXPANDED':
                 match position:
-                    case Position.CA: return 1.0
+                    case Position.CA: return 1.4
                     case Position._1B: return 0.5
                     case Position._2B: return 1.0
                     case Position._3B: return 1.0
