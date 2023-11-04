@@ -309,7 +309,7 @@ class ShowdownPlayerCard(BaseModel):
         if league != 'MLB':
             return league
         stats: dict = values.get('stats', {})
-        return stats.get('league', 'MLB')
+        return stats.get('lg_ID', 'MLB')
     
     @validator('team', always=True)
     def parse_team(cls, team:Team, values:dict) -> Team:
@@ -1370,33 +1370,6 @@ class ShowdownPlayerCard(BaseModel):
 
         return sorted_accolades[0:maximum] if maximum else sorted_accolades
 
-    def __convert_year_str_to_list(self, year:str, all_years_played:list[str]) -> list[int]:
-        """Convert user input year string to a list of year integers.
-
-        Ex: "2020-2022" -> [2020, 2021, 2022]
-        
-        Args:
-          year: Year string input by the user.
-          all_years_played: List of all years played by the player. Used if year input is CAREER.
-
-        Returns:
-          List of years converted to integers.
-        """
-
-        if year.upper() == 'CAREER':
-            return [int(year) for year in all_years_played]
-        elif '-' in year:
-            # RANGE OF YEARS
-            years = year.split('-')
-            year_start = int(years[0].strip())
-            year_end = int(years[1].strip())
-            return list(range(year_start,year_end+1))
-        elif '+' in year:
-            years = year.split('+')
-            return [int(x.strip()) for x in years]
-        else:
-            return [int(year)]
-
     def has_position(self, position: Position) -> bool:
         return position in self.positions_list
 
@@ -2385,7 +2358,7 @@ class ShowdownPlayerCard(BaseModel):
         # POSITION
         positions_string = ''
         for position,fielding in self.positions_and_defense_for_visuals.items():
-            positions_string += f'{position}{"" if fielding < 0 else "+"}{fielding} ' if not self.is_pitcher else position
+            positions_string += f'{position}{"" if fielding < 0 else "+"}{fielding} ' if not self.is_pitcher else f"{position} "
         # IP / SPEED
         ip_or_speed = self.speed.full_string if not self.is_pitcher else '{} IP'.format(self.ip)
         # ICON(S)
