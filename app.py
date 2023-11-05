@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify
 from mlb_showdown_bot.firebase import Firebase
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
@@ -9,6 +9,10 @@ from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
 from pprint import pprint
 
+
+# ----------------------------------------------------------
+# DATABASE
+# ----------------------------------------------------------
 
 app = Flask(__name__)
 
@@ -152,6 +156,10 @@ def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansi
         return None
 
 
+# ----------------------------------------------------------
+# FRONT END
+# ----------------------------------------------------------
+
 @app.route('/')
 def card_submission():
     return render_template('index.html')
@@ -159,177 +167,131 @@ def card_submission():
 @app.route('/card_creation')
 def card_creator():
 
-    error = ''
-    is_automated_image = False
-    is_stats_loaded_from_library = False
-    is_img_loaded_from_library = False
-    showdown = None
-    name = None
-    year = None
-    set = None
-    img_url = None
-    img_name = None
-    set_num = None
-    expansion = None
-    offset = None
-    add_img_border = None
-    is_dark_mode = None
-    is_variable_spd_00_01 = None
-    is_random = None
-    is_foil = False
-    is_stats_loaded_from_library = None
-    is_img_loaded_from_library = None
-    add_year_container = None
-    ignore_showdown_library = None
-    set_year_plus_one = None
-    hide_team_logo = None
-    edition = None
-    date_override = None
-    era = None
-    image_parallel = None
-    bref_id = None
-    team = None
-    data_source = None
-    image_source = None
-    scraper_load_time = None
-    card_load_time = None
-    is_secondary_color = None
+    # -----------------
+    # FIELDS
+    # -----------------
+
+    # USER INPUTS
+    name: str = None
+    year: str = None
+    set: str = None
+    set_number: str = None
+    expansion: str = None
+    edition: str = None
+    era: str = None
+    chart_version: int = None
+    image_parallel: str = None
+
+    # OPTIONAL ADD-ONS
+    img_url: str = None
+    img_name: str = None
+    add_img_border: bool = None
+    is_dark_mode: bool = None
+    is_variable_speed_00_01: bool = None
+    add_year_container: bool = None
+    ignore_showdown_library: bool = None
+    set_year_plus_one: bool = None
+    hide_team_logo: bool = None
+    date_override: str = None
+    is_secondary_color: bool = None
+    ignore_cache: bool = None
+
+    # RANDOMIZER
+    is_random: bool = None
+    
+    # DERIVED FROM SHOWDOWN CARD CLASS
+    is_automated_image: bool = False
+    is_stats_loaded_from_library: bool = False
+    is_img_loaded_from_library: bool = False
+    bref_id: str = None
+    team: str = None
+    data_source: str = None
+    image_source: str = None
+    scraper_load_time: float = None
+    card_load_time: float = None
+
+    error: str = ''
 
     try:
-        # PARSE INPUTS
+        
+        # -----------------
+        # 1. PARSE INPUTS
+        # -----------------
+
         error = 'Input Error. Please Try Again'
-        name = request.args.get('name').title()
-        year = str(request.args.get('year'))
-        # if ' (' in year and ')' in year:
-        #     month, day = year.split('(')[1].split(')')[0].split('/')
-        #     year = year.split(' ')[0]
-        #     date_override = f'{month.zfill(2)}-{day.zfill(2)}-{year}'
-        set = str(request.args.get('set')).upper()
-        url = request.args.get('url')
-        try:
-            offset = int(request.args.get('offset'))
-            offset = 4 if offset > 4 else offset
-            offset = 0 if offset < 0 else offset
-        except:
-            offset = 0
-        img = request.args.get('img_name')
-        set_num = str(request.args.get('set_num'))
-        expansion_raw = str(request.args.get('expansion'))
-        edition_raw = str(request.args.get('edition'))
-        era_raw = str(request.args.get('era'))
-        img_parallel_raw = str(request.args.get('img_parallel', 'NONE'))
-        is_border = request.args.get('addBorder').lower() == 'true' if request.args.get('addBorder') else False
-        dark_mode = request.args.get('is_dark_mode').lower() == 'true' if request.args.get('is_dark_mode') else False
-        is_variable_spd_00_01 = request.args.get('is_variable_spd_00_01').lower() == 'true' if request.args.get('is_variable_spd_00_01') else False
-        year_container = request.args.get('add_year_container').lower() == 'true' if request.args.get('add_year_container') else False
-        set_yr_p1 = request.args.get('set_year_plus_one').lower() == 'true' if request.args.get('set_year_plus_one') else False
-        hide_team = request.args.get('hide_team_logo').lower() == 'true' if request.args.get('hide_team_logo') else False
-        ignore_sl = request.args.get('ignore_showdown_library').lower() == 'true' if request.args.get('ignore_showdown_library') else False
-        ignore_cache = request.args.get('ignore_cache').lower() == 'true' if request.args.get('ignore_cache') else False
-        secondary_color = request.args.get('is_secondary_color').lower() == 'true' if request.args.get('is_secondary_color') else False
-        image_parallel_txt = str(request.args.get('parallel', 'NONE'))
+
+        # INPUTS
+        name = request.args.get('name', '').title()
+        year = str(request.args.get('year', ''))
+        set = str(request.args.get('set', '')).upper()
+        set_number = str(request.args.get('set_num', ''))
+        expansion = str(request.args.get('expansion', 'BS'))
+        edition = str(request.args.get('edition', 'NONE'))
+        era = str(request.args.get('era', 'DYNAMIC'))
+        chart_version = int(request.args.get('offset', 0))
+        image_parallel = str(request.args.get('parallel', 'NONE'))
+
+        # OPTIONALS
+        img_url = request.args.get('url', None)
+        img_name = request.args.get('img_name', None)
+        add_img_border = request.args.get('addBorder', '').lower() == 'true'
+        is_dark_mode = request.args.get('is_dark_mode', '').lower() == 'true'
+        is_variable_speed_00_01 = request.args.get('is_variable_spd_00_01', '').lower() == 'true'
+        add_year_container = request.args.get('add_year_container', '').lower() == 'true'
+        ignore_showdown_library = request.args.get('ignore_showdown_library', '').lower() == 'true'
+        set_year_plus_one = request.args.get('set_year_plus_one', '').lower() == 'true'
+        hide_team_logo = request.args.get('hide_team_logo', '').lower() == 'true'
+        is_secondary_color = request.args.get('is_secondary_color', '').lower() == 'true'
+        ignore_cache = request.args.get('ignore_cache', '').lower() == 'true'
+
+        # RANDOM
         is_random = name.upper() == '((RANDOM))'
         if is_random:
             # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
             name, year = random_player_id_and_year()
 
-        # LOAD PLAYER DATA
+        # -----------------
+        # 2. RUN CARD STATS
+        # -----------------
         error = 'Error loading player data. Make sure the player name and year are correct'
         scraper = BaseballReferenceScraper(name=name,year=year,ignore_cache=ignore_cache)
-        img_url = None if url == '' else url
-        img_name = None if img == '' else img
-        set_number = set_num
-        expansion = "FINAL" if expansion_raw == '' else expansion_raw
-        edition = "NONE" if edition_raw == '' else edition_raw
-        era = "DYNAMIC" if era_raw == '' else era_raw
-        add_img_border = is_border if is_border else False
-        is_dark_mode = dark_mode if dark_mode else False
-        is_variable_speed_00_01 = is_variable_spd_00_01 if is_variable_spd_00_01 else False
-        is_foil = False
-        image_parallel = "NONE" if image_parallel_txt == '' else  image_parallel_txt
-        add_year_container = year_container if year_container else False
-        set_year_plus_one = set_yr_p1 if set_yr_p1 else False
-        hide_team_logo = hide_team if hide_team else False
-        ignore_showdown_library = ignore_sl if ignore_sl else False
-        is_secondary_color = secondary_color if secondary_color else False
         trends_data = None
         statline = None
-
-        # CREATE CARD
-        error = "Error - Unable to create Showdown Card data."
-
         try:
-            db = Firebase()
-            # trends_collection_name = f'trends_{year}_{set}'
-            # trends_data = db.query_firestore(trends_collection_name, document=scraper.baseball_ref_id_used_for_trends)
-            # if date_override:
-            #     statline = db.query_firestore(trends_collection_name, document=scraper.baseball_ref_id_used_for_trends, sub_collection=db.trends_full_stats_subcollection_name, sub_document=date_override)
-            #     if statline is None:
-            #         date_override = None
-            showdown = db.load_showdown_card(
-                ignore_showdown_library=ignore_showdown_library,
-                bref_id = scraper.baseball_ref_id,
-                year=year,
-                context=set,
-                expansion=expansion,
-                edition=edition,
-                player_image_path=img_name,
-                player_image_url=img_url,
-                offset=offset,
-                set_number=set_number,
-                add_image_border=add_img_border,
-                is_dark_mode=is_dark_mode,
-                is_variable_speed_00_01=is_variable_speed_00_01,
-                image_parallel=image_parallel,
-                team_override=scraper.team_override,
-                set_year_plus_one=set_year_plus_one,
-                pitcher_override=scraper.pitcher_override,
-                hitter_override=scraper.hitter_override,
-                hide_team_logo=hide_team_logo,
-                date_override=date_override,
-                is_running_in_flask=True
-            )
-            db.close_session()
+            statline = scraper.player_statline()
         except:
-            showdown = None
-            
-        if showdown:
-            is_stats_loaded_from_library = True
-        else:
-            is_stats_loaded_from_library = False
-            error = 'Error loading player data. Make sure the player name and year are correct'
-            if statline is None:
-                try:
-                    statline = scraper.player_statline()
-                except:
-                    if scraper.error:
-                        error = scraper.error
-            showdown = ShowdownPlayerCard(
-                name=name,
-                year=year,
-                stats=statline,
-                context=set,
-                expansion=expansion,
-                edition=edition,
-                player_image_path=img_name,
-                player_image_url=img_url,
-                offset=offset,
-                set_number=set_number,
-                add_image_border=add_img_border,
-                is_dark_mode=is_dark_mode,
-                is_variable_speed_00_01=is_variable_speed_00_01,
-                parallel=image_parallel,
-                add_year_container=add_year_container,
-                set_year_plus_one=set_year_plus_one,
-                hide_team_logo=hide_team_logo,
-                date_override=date_override,
-                era=era,
-                use_secondary_color=is_secondary_color,
-                is_running_in_flask=True,
-                source=scraper.source
-            )
+            if scraper.error:
+                error = scraper.error
+        showdown_card = ShowdownPlayerCard(
+            name=name,
+            year=year,
+            stats=statline,
+            set=set,
+            expansion=expansion,
+            edition=edition,
+            era=era,
+            player_image_path=img_name,
+            player_image_url=img_url,
+            chart_version=chart_version,
+            set_number=set_number,
+            add_image_border=add_img_border,
+            is_dark_mode=is_dark_mode,
+            is_variable_speed_00_01=is_variable_speed_00_01,
+            parallel=image_parallel,
+            add_year_container=add_year_container,
+            set_year_plus_one=set_year_plus_one,
+            hide_team_logo=hide_team_logo,
+            date_override=date_override,
+            use_secondary_color=is_secondary_color,
+            is_running_in_flask=True,
+            source=scraper.source
+        )
+
+        # -----------------
+        # 3. GENERATE CARD IMAGE
+        # -----------------
         error = "Error - Unable to create Showdown Card Image."
-        cached_img_link = showdown.cached_img_link()
+        cached_img_link = showdown_card.cached_img_link()
         if cached_img_link:
             # USE IMAGE FROM GDRIVE
             card_image_path = cached_img_link
@@ -337,53 +299,38 @@ def card_creator():
         else:
             # GENERATE THE IMAGE
             is_img_loaded_from_library = False
-            showdown.card_image()
-            card_image_path = os.path.join('static', 'output', showdown.image_name)
-        player_command = "Control" if showdown.is_pitcher else "Onbase"
-        player_era = showdown.era.title()
-        player_stats_data = showdown.player_data_for_html_table()
-        player_points_data = showdown.points_data_for_html_table()
-        player_accuracy_data = showdown.accuracy_data_for_html_table()
-        player_ranks_data = showdown.rank_data_for_html_table()
-        opponent_data = showdown.opponent_data_for_html_table()
-        opponent_type = "Hitter" if showdown.is_pitcher else "Pitcher"
-        radar_labels, radar_values = showdown.radar_chart_labels_as_values()
-        radar_color = showdown.radar_chart_color()
-        is_automated_image = showdown.is_automated_image
-        player_name = showdown.name
-        player_year = showdown.year
-        player_context = showdown.context
-        bref_url = showdown.bref_url
-        bref_id = showdown.bref_id
-        team = showdown.team.value
-        data_source = showdown.source
-        image_source = showdown.player_image_source
+            showdown_card.card_image()
+            card_image_path = os.path.join('static', 'output', showdown_card.image.output_file_name)
+        
+        # -----------------
+        # 4. SETUP METADATA SHOWN NEXT TO CARD
+        # -----------------
+        player_command = showdown_card.command_type
+        player_era = showdown_card.era.value.title()
+        player_stats_data = showdown_card.player_data_for_html_table()
+        player_points_data = showdown_card.points_data_for_html_table()
+        player_accuracy_data = showdown_card.accuracy_data_for_html_table()
+        player_ranks_data = showdown_card.rank_data_for_html_table()
+        opponent_data = showdown_card.opponent_data_for_html_table()
+        opponent_type = "Hitter" if showdown_card.is_pitcher else "Pitcher"
+        radar_labels, radar_values = showdown_card.radar_chart_labels_as_values()
+        radar_color = showdown_card.radar_chart_color()
+        is_automated_image = showdown_card.image.source.is_automated
+        player_name = showdown_card.name
+        player_year = showdown_card.year
+        player_set = showdown_card.set.value
+        bref_url = showdown_card.bref_url
+        bref_id = showdown_card.bref_id
+        team = showdown_card.team.value
+        data_source = showdown_card.source
+        image_source = showdown_card.image.source.type.value
         scraper_load_time = scraper.load_time
-        card_load_time = showdown.load_time
-        shOPS_plus = showdown.projected['onbase_plus_slugging_plus'] if 'onbase_plus_slugging_plus' in showdown.projected else None
+        card_load_time = showdown_card.load_time
+        shOPS_plus = showdown_card.projected.get('onbase_plus_slugging_plus', None)
         name = player_name if is_random else name # LOG ACTUAL NAME IF IS RANDOMIZED PLAYER
-
-        trends_diff = 0
-        if trends_data:
-            # IF TRENDS DATA EXISTS, CHECK IF CURRENT DAYS DATA IS INCLUDED. 
-            # IF NOT, INCLUDE DATA FROM CARD GENERATED ABOVE
-            current_date = datetime.now().strftime('%m-%d-%Y')
-            if current_date not in trends_data.keys():
-                player_data = showdown.__dict__
-                included_keys = ['positions_and_defense', 'points', 'speed', 'chart', 'ip']
-                reduced_player_data = {key: player_data[key] for key in included_keys}
-                reduced_player_data['chart'] = {key: reduced_player_data['chart'][key] for key in ['command','outs']}
-                trends_data[current_date] = reduced_player_data
-            # SEE IF THE PLAYER WENT UP OR DOWN DAY OVER DAY
-            dates_list = list(trends_data.keys())
-            dates_list.sort(reverse=True)
-            if len(dates_list) > 1:
-                latest_pts = trends_data[dates_list[0]]['points']
-                last_pts = trends_data[dates_list[1]]['points']
-                trends_diff = latest_pts - last_pts
         
         # PARSE ERRORS AND SEND OUTPUT TO LOGS
-        error = showdown.img_loading_error[:250] if showdown.img_loading_error else ''
+        error = showdown_card.image.error[:250] if showdown_card.image.error else ''
         if len(error) > 0:
             print(error)
         log_card_submission_to_db(
@@ -394,13 +341,13 @@ def card_creator():
             img_name=img_name,
             error=error,
             expansion=expansion,
-            stats_offset=offset,
-            set_num=set_num,
+            stats_offset=chart_version,
+            set_num=set_number,
             is_dark_mode=is_dark_mode,
             is_variable_spd_00_01=is_variable_speed_00_01,
             is_random=is_random,
             is_automated_image=is_automated_image,
-            is_foil=is_foil,
+            is_foil=False, # DEPRECATED
             is_stats_loaded_from_library=is_stats_loaded_from_library,
             is_img_loaded_from_library=is_img_loaded_from_library,
             add_year_container=add_year_container,
@@ -432,14 +379,14 @@ def card_creator():
             player_ranks=player_ranks_data,
             player_name=player_name,
             player_year=player_year,
-            player_context=player_context,
+            player_set=player_set,
             bref_url=bref_url,
             radar_labels=radar_labels,
             radar_values=radar_values,
             radar_color=radar_color,
             shOPS_plus=shOPS_plus,
             trends_data=trends_data,
-            trends_diff=trends_diff,
+            trends_diff=0,
             opponent=opponent_data,
             opponent_type=opponent_type,
             era=player_era,
@@ -457,13 +404,13 @@ def card_creator():
             img_name=img_name,
             error=error_full,
             expansion=expansion,
-            stats_offset=offset,
-            set_num=set_num,
+            stats_offset=chart_version,
+            set_num=set_number,
             is_dark_mode=is_dark_mode,
-            is_variable_spd_00_01=is_variable_spd_00_01,
+            is_variable_spd_00_01=is_variable_speed_00_01,
             is_random=is_random,
             is_automated_image=is_automated_image,
-            is_foil=is_foil,
+            is_foil=False, # DEPRECATED
             is_stats_loaded_from_library=is_stats_loaded_from_library,
             is_img_loaded_from_library=is_img_loaded_from_library,
             add_year_container=add_year_container,
@@ -495,7 +442,7 @@ def card_creator():
             player_ranks=None,
             player_name=None,
             player_year=None,
-            player_context=None,
+            player_set=None,
             bref_url=None,
             radar_labels=None,
             radar_values=None,

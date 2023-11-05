@@ -333,7 +333,7 @@ function showCardData(data) {
             document.getElementById("playerlink_href").href = data.bref_url;
             $("#playerlink_href_text").text(data.player_year);
             $("#player_name").text(data.player_name.toUpperCase());
-            $("#player_link").text(`Set: ${data.player_context} | ${data.era} | Year(s):`);
+            $("#player_link").text(`Set: ${data.player_set} | ${data.era} | Year(s):`);
         }
 
         // ADD shOPS+

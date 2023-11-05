@@ -385,19 +385,24 @@ class ShowdownImage(BaseModel):
     use_secondary_color: bool = False
     error: Optional[str] = None
 
-    def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False):
+    def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:
             if self.edition == Edition.ALL_STAR_GAME and year == '2023':
-                return SpecialEdition.ASG_2023
+                self.special_edition = SpecialEdition.ASG_2023
+                return 
             
             if self.edition == Edition.SUPER_SEASON and is_04_05:
-                return SpecialEdition.SUPER_SEASON
+                self.special_edition = SpecialEdition.SUPER_SEASON
+                return 
             
             if self.edition == Edition.COOPERSTOWN_COLLECTION and enable_cooperstown_special_edition:
-                return SpecialEdition.COOPERSTOWN_COLLECTION
+                self.special_edition = SpecialEdition.COOPERSTOWN_COLLECTION
+                return 
             
             if self.edition == Edition.NATIONALITY and has_nationality:
-                return SpecialEdition.NATIONALITY
-            
+                self.special_edition = SpecialEdition.NATIONALITY
+                return 
+
             if self.parallel == ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
-                return SpecialEdition.TEAM_COLOR_BLAST_DARK
+                self.special_edition = SpecialEdition.TEAM_COLOR_BLAST_DARK
+                return 

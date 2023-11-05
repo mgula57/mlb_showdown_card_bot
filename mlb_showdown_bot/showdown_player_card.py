@@ -75,7 +75,7 @@ class ShowdownPlayerCard(BaseModel):
     version: str = __version__
     source: str = 'Baseball Reference'
     is_stats_estimate: bool = False
-    stats_version:int = 0 #TODO: CHANGE NAME IN INIT (OFFSET -> STATS_VERSION)
+    chart_version:int = 0
     disable_cache_cleaning: bool = False
     date_override: Optional[str] = None
     test_numbers: Optional[tuple[int,int]] = None
@@ -94,7 +94,7 @@ class ShowdownPlayerCard(BaseModel):
     image: ShowdownImage = ShowdownImage()
     chart: Chart = None
     positions_and_defense: dict[Position, int] = {}
-    positions_and_real_life_ratings: dict[Position, dict[DefenseMetric, Union[float, int]]] = {}
+    positions_and_real_life_ratings: dict[str, dict[DefenseMetric, Union[float, int]]] = {}
     top_command_out_combinations: list[tuple[tuple[int,int], float]] = []
     ip:int = None
     hand: Hand = None
@@ -155,7 +155,7 @@ class ShowdownPlayerCard(BaseModel):
             self.chart: Chart = None
             self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,
                                                                               stats_per_400_pa=stats_for_400_pa,
-                                                                              offset=int(self.stats_version))
+                                                                              offset=int(self.chart_version))
             self.projected: dict = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command)
 
             # FOR PTS, USE STEROID ERA OPPONENT
@@ -525,7 +525,22 @@ class ShowdownPlayerCard(BaseModel):
     @property
     def team_override_for_images(self) -> Team:
         """ Team override to use for background images and colors (ex: CC)"""
-        return Team.CCC if self.image.edition == Edition.COOPERSTOWN_COLLECTION else None
+        
+        # COOPERSTOWN COLLECTION LOGO
+        if self.image.edition == Edition.COOPERSTOWN_COLLECTION:
+            return Team.CCC
+        
+        # HIDE TEAM LOGO, USE MLB
+        if self.image.hide_team_logo:
+            return Team.MLB
+        
+        return None
+    
+    @property
+    def command_type(self) -> str:
+        """ Type of Command, either 'Onbase' or 'Control'"""
+        return "Control" if self.is_pitcher else "Onbase"
+    
     
 # ------------------------------------------------------------------------
 # METADATA METHODS
@@ -2371,7 +2386,7 @@ class ShowdownPlayerCard(BaseModel):
         print(f"\n{self.points} PTS | {positions_string}| {ip_or_speed} {icon_string}")
         print(self.points_breakdown.breakdown_str)
 
-        print(f"\n{self.chart.command} {'CONTROL' if self.is_pitcher else 'ONBASE'}")
+        print(f"\n{self.chart.command} {self.command_type.upper()}")
 
         chart_tbl = PrettyTable(field_names=[col.value for col in self.chart.categories_list])
         chart_tbl.add_row(self.chart.ranges_list)
@@ -2443,6 +2458,7 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         final_player_data = []
+        en_dash = '—'
 
         # ADD WHETHER STATS ESTIMATIONS WERE INVOLVED
         category_prefix = ''
@@ -2457,7 +2473,7 @@ class ShowdownPlayerCard(BaseModel):
             final_player_data.append([category_prefix+cleaned_category,actual,in_game])
 
         # GAMES
-        final_player_data.append(['G', str(self.stats.get('G', 0)), '-'])
+        final_player_data.append(['G', str(self.stats.get('G', 0)), en_dash])
 
         # PLATE APPEARANCES
         real_life_pa = int(self.stats['PA'])
@@ -2487,11 +2503,11 @@ class ShowdownPlayerCard(BaseModel):
             if category in self.stats.keys():
                 stat_raw = self.stats.get(category, None)
                 if stat_raw is None:
-                    stat = 'N/A'
+                    stat = en_dash
                 else:
                     stat_raw = 0 if str(stat_raw) == '' else stat_raw
                     stat_cleaned = int(stat_raw) if category in rounded_metrics_list else stat_raw
-                    stat = str(stat_cleaned) if stat_raw else 'N/A'
+                    stat = str(stat_cleaned) if stat_raw is not None else en_dash
                 short_name_map = {
                     'onbase_plus_slugging_plus': 'OPS+',
                     'whip': 'WHIP',
@@ -2501,12 +2517,12 @@ class ShowdownPlayerCard(BaseModel):
                     'earned_run_avg': 'ERA',
                 }
                 short_category_name = short_name_map[category]
-                final_player_data.append([short_category_name,stat,'N/A'])
+                final_player_data.append([short_category_name,stat,en_dash])
 
         # DEFENSE (IF APPLICABLE)
         for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
             for metric, value in metric_and_value_dict.items():
-                final_player_data.append([f'{metric.upper()}-{position}',str(round(value)),'N/A'])
+                final_player_data.append([f'{metric.value.upper()}-{position}',str(round(value)),en_dash])
         
         return final_player_data
 
@@ -2520,6 +2536,7 @@ class ShowdownPlayerCard(BaseModel):
           Multi-Dimensional list where each row is a list of a pts category, stat and value.
         """
         
+        en_dash = '—'
         if self.player_sub_type == PlayerSubType.RELIEF_PITCHER and self.ip > 1:
             spd_or_ip = ['IP', str(self.ip), f"{self.points_breakdown.multi_inning_mutliplier}x"]
         else:
@@ -2547,14 +2564,14 @@ class ShowdownPlayerCard(BaseModel):
             pts_data.append(['OUT DIST', str(round(self.chart.gb_pct,2)), str(round(self.points_breakdown.out_distribution))])
         
         if self.points_breakdown.bonus > 0:
-            pts_data.append(['BONUS', 'N/A', str(round(self.points_breakdown.bonus))])
+            pts_data.append(['BONUS', en_dash, str(round(self.points_breakdown.bonus))])
         if self.points_breakdown.icons > 0:
             pts_data.append(['ICONS', ','.join([i.value for i in self.icons]), str(round(self.points_breakdown.icons))])
         if self.points_breakdown.normalizer < 1.0:
-            pts_data.append(['NORMALIZER', 'N/A', str(round(self.points_breakdown.normalizer,2))])
+            pts_data.append(['NORMALIZER', en_dash, str(round(self.points_breakdown.normalizer,2))])
         if self.points_breakdown.command_out_multiplier != 1.0:
             command_name = 'CTRL' if self.is_pitcher else 'OB'
-            pts_data.append([f'{command_name}/OUT MULTLIPLIER', 'N/A', str(round(self.points_breakdown.command_out_multiplier,2))])
+            pts_data.append([f'{command_name}/OUT MULTLIPLIER', en_dash, str(round(self.points_breakdown.command_out_multiplier,2))])
         
         
         pts_data.append(['TOTAL', '', self.points])
@@ -5020,7 +5037,7 @@ class ShowdownPlayerCard(BaseModel):
           Id for image if it exists
         """
 
-        is_not_v1 = self.stats_version != 0
+        is_not_v1 = self.chart_version != 0
         has_user_uploaded_img = self.image.source.type.is_user_generated
         has_special_edition = self.image.edition.is_not_empty
         has_expansion = self.image.expansion != Expansion.BS
