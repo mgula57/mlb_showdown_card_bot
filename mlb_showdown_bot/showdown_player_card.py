@@ -139,7 +139,8 @@ class ShowdownPlayerCard(BaseModel):
         )
         self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
         
-        if not self.is_populated:
+        disable_running_card: bool = data.get('disable_running_card', False)
+        if not self.is_populated and not disable_running_card:
 
             # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
             self.positions_and_defense: dict[Position, int] = self.__positions_and_defense(stats_dict=self.stats)
@@ -1813,7 +1814,7 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # SUBTRACT SACRIFICES?
-        sh = float(stats['SH'] if stats['SH'] != '' else 0)
+        sh = stats.get('SH', 0)
         pct_of_n_pa = (float(stats['PA']) - sh) / plate_appearances
 
         # POPULATE DICT WITH VALUES UNCHANGED BY SHIFT IN PA
@@ -3247,10 +3248,13 @@ class ShowdownPlayerCard(BaseModel):
             # 04/05 HAS MORE TEMPLATE OPTIONS
             edition_extension = ''
             default_template_color = self.player_type.template_color_04_05
+            team_color_name = self.team.color_name(year=self.median_year, is_secondary=self.image.use_secondary_color)
             if self.image.edition.template_color_0405:
                 edition_extension = f'-{self.image.edition.template_color_0405}'
             elif self.image.special_edition == SpecialEdition.NATIONALITY:
                 edition_extension = f'-{self.nationality.template_color}'
+            elif self.image.parallel == ImageParallel.TEAM_COLOR_BLAST and team_color_name:
+                edition_extension = f'-{team_color_name}'
             else:
                 edition_extension = f'-{default_template_color}'
 
