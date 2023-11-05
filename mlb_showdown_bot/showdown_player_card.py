@@ -2557,7 +2557,7 @@ class ShowdownPlayerCard(BaseModel):
             pts_data.append(['HR (650 PA)', str(round(self.projected['hr_per_650_pa'])), str(round(self.points_breakdown.hr))])
             pts_data.append([
                 'DEFENSE', 
-                self.__position_and_defense_as_string(is_horizontal=True),
+                self.positions_and_defense_as_string(is_horizontal=True),
                 str(round(self.points_breakdown.defense))
             ])
         else:
@@ -2676,7 +2676,7 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           String/list of output text for player info + stats
         """
-        positions_string = self.__position_and_defense_as_string(is_horizontal=is_horizontal)
+        positions_string = self.positions_and_defense_as_string(is_horizontal=is_horizontal)
 
         ip = f'IP {self.ip}' if self.set.is_after_03 else f'{self.ip} IP'
         speed = f'SPD {self.speed.speed}' if self.set.is_showdown_bot else self.speed.full_string
@@ -2714,7 +2714,7 @@ class ShowdownPlayerCard(BaseModel):
         final_text = final_text.upper() if self.set.is_metadata_text_uppercased else final_text
         return final_text
 
-    def __position_and_defense_as_string(self, is_horizontal:bool=False) -> str:
+    def positions_and_defense_as_string(self, is_horizontal:bool=False) -> str:
         """Creates a single line string with positions and defense.
 
         Args:

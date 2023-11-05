@@ -61,7 +61,8 @@ if __name__ == "__main__":
                 stats[f"Position{index}"] = position
                 for def_stat, value in def_stats_dict.items():
                     if def_stat != 'oaa':
-                        stats[f"{def_stat}Position{index}"] = value
+                        replacement_key = def_stat.replace('tzr', 'tz')
+                        stats[f"{replacement_key}Position{index}"] = value
             stats.pop('positions', None)
         
             # --- OLD ---
@@ -79,7 +80,6 @@ if __name__ == "__main__":
             # CHECK FOR MATCH
 
             # PROJECTED
-            # player_match_failures = { k: {'new': v, 'old': showdown_current.projected.get(k, None)} for k, v in showdown_new.projected.items() if showdown_current.projected.get(k, None) != v }
             player_match_failures = {}
 
             # COMMAND/OUTS
@@ -93,6 +93,12 @@ if __name__ == "__main__":
             old_points = showdown_current.points
             if new_points != old_points:
                 player_match_failures['points'] = {'new': new_points, 'old': old_points}
+
+            # POSITIONS AND DEFENSE
+            new_defense_and_positions = showdown_new.positions_and_defense_as_string(is_horizontal=True)
+            old_defense_and_positions = showdown_current.positions_and_defense_as_string(is_horizontal=True)
+            if new_defense_and_positions != old_defense_and_positions:
+                player_match_failures['defense'] = {'new': new_defense_and_positions, 'old': old_defense_and_positions}
 
             if len(player_match_failures) > 0:
                 all_failures[name] = player_match_failures
