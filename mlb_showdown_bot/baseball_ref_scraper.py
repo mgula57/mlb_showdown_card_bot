@@ -667,8 +667,8 @@ class BaseballReferenceScraper:
         games_as_hitter = sum([pos_data.get('g', 0) for pos, pos_data in positions_dict.items() if pos != 'P'])
 
         # CHECK FOR TYPE OVERRIDE
-        is_pitcher_override = '(PITCHER)' in self.name.upper() and games_as_pitcher > 0
-        is_hitter_override = '(HITTER)' in self.name.upper()
+        is_pitcher_override = self.pitcher_override and games_as_pitcher > 0
+        is_hitter_override = self.hitter_override
 
         # COMPARE GAMES PLAYED IN BOTH TYPES
         total_games = games_as_hitter + games_as_pitcher
