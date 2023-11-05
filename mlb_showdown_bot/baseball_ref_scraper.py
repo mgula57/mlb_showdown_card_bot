@@ -72,8 +72,9 @@ class BaseballReferenceScraper:
                 self.team_override = team_id
 
         # CHECK FOR TYPE OVERRIDE
-        self.pitcher_override = '(PITCHER)' if '(PITCHER)' in self.name.upper() else None
-        self.hitter_override = '(HITTER)' if '(HITTER)' in self.name.upper() else None
+        self.pitcher_override = '(PITCHER)' if ( '(PITCHER)' in self.name.upper() or '(PITCHING)' in self.name.upper() ) else None
+        self.hitter_override = '(HITTER)' if ( '(HITTER)' in self.name.upper() or '(HITTING)' in self.name.upper() ) and self.pitcher_override is None else None
+        self.player_type_override = None if (self.pitcher_override is None and self.hitter_override is None) else f"{self.hitter_override if self.hitter_override else ''}{self.pitcher_override if self.pitcher_override else ''}"
 
         # CHECK FOR BASEBALL REFERENCE ID
         self.is_name_a_bref_id = any(char.isdigit() for char in name)

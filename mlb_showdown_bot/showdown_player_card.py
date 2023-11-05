@@ -68,9 +68,9 @@ class ShowdownPlayerCard(BaseModel):
     league: str = 'MLB'
     team: Team = Team.MLB
     nationality: Nationality = Nationality.NONE
-    type_override: str = '' # TODO: ADD TO INPUTS
     player_type: PlayerType = PlayerType.HITTER
-
+    player_type_override: Optional[PlayerType] = None
+    
     # OPTIONALS
     version: str = __version__
     source: str = 'Baseball Reference'
@@ -118,6 +118,9 @@ class ShowdownPlayerCard(BaseModel):
 
         # INIT
         super().__init__(**data)
+
+        # PARSE TYPE OVERRIDE
+        self.player_type_override = self.parse_player_type_override(player_type_override=self.player_type_override, name_user_input=data.get('name', None))
 
         # IMAGE
         self.image: ShowdownImage = ShowdownImage(
@@ -266,15 +269,6 @@ class ShowdownPlayerCard(BaseModel):
         """Use the bref name first, user input as a backup"""
         stats:dict = values.get('stats', {})
         return stats.get('name', name)
-
-    @validator('type_override', always=True)
-    def parse_type_override(cls, type_override:str, values:dict) -> str:
-        
-        if type_override:
-            if len(type_override) > 0:
-                return type_override
-        
-        return type_override
     
     @validator('player_type', always=True)
     def parse_player_type(cls, _ : str, values:dict) -> str: 
@@ -324,6 +318,21 @@ class ShowdownPlayerCard(BaseModel):
             return nationality
         stats:dict = values.get('stats', {})
         return Nationality(stats.get('nationality', None))
+
+    def parse_player_type_override(cls, player_type_override:str, name_user_input: str) -> PlayerType:
+        """Check for player type override as an input and within the user inputted name."""
+
+        if player_type_override:
+            return player_type_override
+
+        if name_user_input:
+            for type in PlayerType:
+                values_in_name = [substr for substr in type.override_user_input_substrings if f'({substr})' in name_user_input.upper()]
+                has_an_override_in_name_input = len(values_in_name) > 0
+                if has_an_override_in_name_input:
+                    return type
+        
+        return None
 
 
 # ------------------------------------------------------------------------
@@ -4284,7 +4293,8 @@ class ShowdownPlayerCard(BaseModel):
             match img_component.load_source:
                 case "DOWNLOAD":
                     # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
-                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team.value}){self.type_override}.png"
+                    type_override = self.player_type_override.override_string if self.player_type_override else ''
+                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team.value}){type_override}.png"
                     cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
                     try:
                         image = Image.open(cached_image_path)
@@ -4476,29 +4486,34 @@ class ShowdownPlayerCard(BaseModel):
         additional_substring_search_list = self.__img_match_keyword_list()
         for component, img_file_list in component_player_file_matches_dict.items():
             img_file_list = sorted(img_file_list, key = lambda i: len(i['name']), reverse=False)
-            match_rates = {}
+            match_scores: dict[str, float] = {}
             for img_metadata in img_file_list:
-                img_name = img_metadata['name']
-                img_id = img_metadata['id']
-                match_rate = sum(val in img_name for val in additional_substring_search_list)
+                img_name: str = img_metadata.get('name', None)
+                img_id: str = img_metadata.get('id', None)
+                match_score = sum(val in img_name for val in additional_substring_search_list)
 
                 # ADD DISTANCE FROM YEAR                
                 year_from_img_name = img_name.split(f"-")[1] if len(img_name.split(f"-")) > 1 else 1000
                 is_img_multi_year = len(year_from_img_name) > 4
                 if year_from_img_name == year:
                     # EXACT YEAR MATCH
-                    match_rate += 1
+                    match_score += 1
                 elif is_img_multi_year == False and self.is_multi_year == False:
                     year_img = float(year_from_img_name)
                     year_self = float(year)
                     pct_diff = 1 - (abs(year_img - year_self) / year_self)
-                    match_rate += pct_diff
+                    match_score += pct_diff
+
+                # ADD TYPE OVERRIDE
+                if self.player_type_override:
+                    if self.player_type_override.override_string in img_name.upper():
+                        match_score += 1
                 
                 # ADD MATCH RATE SCORE
-                match_rates[img_id] = match_rate
+                match_scores[img_id] = match_score
             
             # GET BEST MATCH
-            sorted_matches = sorted(match_rates.items(), key=operator.itemgetter(1), reverse=True)
+            sorted_matches = sorted(match_scores.items(), key=operator.itemgetter(1), reverse=True)
             file_id = sorted_matches[0][0]
             component_img_url_dict[component] = file_id
 
@@ -4521,8 +4536,8 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.edition != Edition.NONE:
             for _ in range(0,3): # ADD 3X VALUE
                 additional_substring_filters.append(f'({self.image.edition.value})')
-        if len(self.type_override) > 0:
-            additional_substring_filters.append(self.type_override)
+        if self.player_type_override:
+            additional_substring_filters.append(self.player_type_override.override_string)
         if self.image.is_dark_mode:
             additional_substring_filters.append('(DARK)')
         if self.image.special_edition == SpecialEdition.NATIONALITY:

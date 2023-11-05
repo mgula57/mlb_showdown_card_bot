@@ -92,7 +92,7 @@ def main():
     #  1. ARCHIVE: HISTORICAL DATA IN POSTGRES DB
     #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
     postgres_db = PostgresDB(is_archive=True)
-    archived_statline, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override)
+    archived_statline, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override)
     postgres_db.close_connection()
     if archived_statline:
         statline = archived_statline

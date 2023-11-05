@@ -26,6 +26,19 @@ class PlayerType(Enum):
     def template_color_04_05(self) -> str:
         return 'BLUE' if self.is_pitcher else 'GREEN'
     
+    @property
+    def override_user_input_substrings(self) -> list[str]:
+        """List of allowable strings for the user to input to designate a type override."""
+        match self.name:
+            case "PITCHER": return ['PITCHER', 'PITCHING',]
+            case "HITTER": return ['HITTER', 'HITTING',]
+    
+    @property
+    def override_string(self) -> str:
+        """Add parenthesis to the type"""
+        return f"({self.name})"
+        
+    
 class PlayerSubType(Enum):
 
     POSITION_PLAYER = 'position_player'
