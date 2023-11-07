@@ -5064,7 +5064,7 @@ class ShowdownPlayerCard(BaseModel):
 
 
 # ------------------------------------------------------------------------
-# IMAGE EXPORTING
+# EXPORTING
 # ------------------------------------------------------------------------
 
     def save_image(self, image:Image.Image, start_time:datetime, show:bool=False, img_name_suffix:str='') -> None:
@@ -5163,3 +5163,8 @@ class ShowdownPlayerCard(BaseModel):
         file_age_mins = (datetime_current - datetime_uploaded).total_seconds() / 60.0
 
         return file_age_mins >= mins
+
+    def as_json(self) -> dict:
+        """Convert current class to a json"""
+        
+        return self.model_dump(mode="json")
