@@ -2383,9 +2383,7 @@ class ShowdownPlayerCard(BaseModel):
         # ----- POSITION AND ICONS  ----- #
 
         # POSITION
-        positions_string = ''
-        for position,fielding in self.positions_and_defense_for_visuals.items():
-            positions_string += f'{position}{"" if fielding < 0 else "+"}{fielding} ' if not self.is_pitcher else f"{position} "
+        positions_string = self.positions_and_defense_as_string(is_horizontal=True) + ' '
         # IP / SPEED
         ip_or_speed = self.speed.full_string if not self.is_pitcher else '{} IP'.format(self.ip)
         # ICON(S)

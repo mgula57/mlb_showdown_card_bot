@@ -441,6 +441,22 @@ class BaseballReferenceScraper:
         except:
             dwar_rating = 0
         
+        # CHECK FOR PINCH HITTER
+        # PINCH HITTERS WILL NOT HAVE A RECORD IN THE FIELDING TABLE
+        is_positions_empty = len(positions_dict) == 0
+        metadata = soup_for_homepage_stats.find('div', attrs = {'id': 'meta'})
+        if is_positions_empty and metadata:
+            # FIND THE HAND TAG IN THE METADATA LIST
+            for strong_tag in metadata.find_all('strong'):
+                positions_tag = 'Positions:'
+                if strong_tag.text == positions_tag:
+                    positions_str = strong_tag.next_sibling.replace('•','').rstrip()
+                    if 'Pinch Hitter' in positions_str:
+                        positions_dict['DH'] = {
+                            'g': 0,
+                            'tzr': None,
+                            'drs': None
+                        }
         return {
             'positions': positions_dict,
             'dWAR': dwar_rating,
@@ -675,6 +691,8 @@ class BaseballReferenceScraper:
         if total_games == 0:
             if self.is_multi_year:
                 return None
+            elif 'DH' in positions_dict.keys():
+                return "Hitter"
             else:
                 self.error = f'This Player Played 0 Games in {year}. Check Player Name and Year'
                 raise AttributeError(self.error)
