@@ -9,11 +9,13 @@ parser = argparse.ArgumentParser(description="Test set constants")
 args = parser.parse_args()
 
 # TEST COMMAND OUT COMBINATIONS PER ERA
-for set in Set:
-    print(f'---- {set.value} ----')
-    for era in Era:
-        if era != Era.STEROID:
-            for type in PlayerType:
+for type in PlayerType:
+    for set in Set:
+        print(f'---- {set.value} {type} ----')
+        for era in Era:
+            excluded = era in [Era.STEROID]
+            if not excluded:
+            
                 chart = set.baseline_chart(player_type=type, era=era)
                 remaining_slots = round(chart.remaining_slots(excluded_categories=[ChartCategory.SO]) - chart.outs, 2)
                 if remaining_slots != 0:
