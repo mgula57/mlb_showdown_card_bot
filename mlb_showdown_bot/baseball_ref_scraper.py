@@ -15,12 +15,10 @@ from datetime import datetime
 import unidecode
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
-    from . import showdown_constants as sc
     from .classes.team import Team
     from .classes.accolade import Accolade
 except ImportError:
     # USE LOCAL IMPORT
-    import showdown_constants as sc
     from classes.team import Team
     from classes.accolade import Accolade
 

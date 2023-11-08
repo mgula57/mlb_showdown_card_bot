@@ -3366,7 +3366,8 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           PIL image object for 2000 name background/container
         """
-        return Image.open(self.__template_img_path("2000-Name"))
+        image_suffix = self.image.parallel.name_container_suffix_2000
+        return Image.open(self.__template_img_path(f"2000-Name{image_suffix}"))
 
     def __2000_player_set_container_image(self) -> Image.Image:
         """Gets template asset image for 2000 set box.
