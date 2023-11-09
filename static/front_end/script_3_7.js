@@ -614,7 +614,7 @@ $(function () {
             var is_border = moreOptionsSelected.includes("Border");
             var is_dark_mode = moreOptionsSelected.includes("DarkMode");
             var is_foil = moreOptionsSelected.includes("Foil");
-            var add_year_container = moreOptionsSelected.includes("YearContainer");
+            var show_year_text = moreOptionsSelected.includes("YearContainer");
             var set_year_plus_one = moreOptionsSelected.includes("SetYearPlus1");
             var hide_team_branding = moreOptionsSelected.includes("HideTeamBranding");
             var is_variable_spd = moreOptionsSelected.includes("VariableSpeed");
@@ -640,7 +640,7 @@ $(function () {
                 is_dark_mode: is_dark_mode,
                 is_variable_spd_00_01: is_variable_spd,
                 is_foil: is_foil,
-                add_year_container: add_year_container,
+                show_year_text: show_year_text,
                 set_year_plus_one: set_year_plus_one,
                 hide_team_logo: hide_team_branding,
                 ignore_showdown_library: ignore_showdown_library,

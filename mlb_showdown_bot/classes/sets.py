@@ -139,8 +139,13 @@ class Set(str, Enum):
 
     @property
     def is_eligibile_for_year_container(self) -> bool:
-        return self.value in ['2000', '2001', '2002', '2003']
+        return self.value in ['2000', '2001', '2002', '2003', '2004', '2005',]
     
+    @property
+    def is_year_container_text(self) -> bool:
+        """ Applies to 04+ sets, uses text next to logo instead of container for displaying the year"""
+        return self.value in ['2004','2005',]
+
     @property
     def is_eligibile_for_year_plus_one(self) -> bool:
         return self.is_04_05
@@ -150,7 +155,7 @@ class Set(str, Enum):
     # ---------------------------------------
     
     def default_set_number(self, year_str: str) -> str:
-        return '—' if self.value in ['2003', 'CLASSIC', 'EXPANDED'] else year_str
+        return '—' if self.value in ['2003', '2004', '2005', 'CLASSIC', 'EXPANDED'] else year_str
 
     # ---------------------------------------
     # METRICS
@@ -275,23 +280,18 @@ class Set(str, Enum):
     def icon_paste_coordinates(self, index:int) -> tuple[int,int]:
         match self.value:
             case '2003':
-                match index:
-                    case 1: return (1005,1905)
-                    case 2: return (1005,1830)
-                    case 3: return (930,1905)
-                    case 4: return (930,1830)
-            case '2004' | '2005':
-                match index:
-                    case 1: return (1050,1695)
-                    case 2: return (1125,1695)
-                    case 3: return (1200,1695)
-                    case 4: return (1275,1695)
-            case 'CLASSIC' | 'EXPANDED':
-                match index:
-                    case 1: return (440,2005)
-                    case 2: return (520,2005)
-                    case 3: return (600,2005)
-                    case 4: return (680,2005)
+                print((round(index * 1.001 / 2.0) - 1), index, index % 2)
+                y_position = 1905 if (index % 2) == 1 else 1830
+                starting_x = 1005
+                x_offset = int(-75 * (round(index * 1.001 / 2.0) - 1))
+                return (starting_x + x_offset, y_position)
+
+            case '2004' | '2005' | 'CLASSIC' | 'EXPANDED':
+                is_04_05 = self.value in ['2004','2005']
+                starting_x = 1050 if is_04_05 else 440
+                starting_y = 1695 if is_04_05 else 2005
+                distance_between_icons = 75 if is_04_05 else 80
+                return (int(starting_x + ( (index - 1) * distance_between_icons )), starting_y)
 
 
     # ---------------------------------------
@@ -1565,6 +1565,7 @@ class Set(str, Enum):
                     case '2000' | '2001': return (1250,1865)
                     case '2002': return (60,2038)
                     case '2003': return (482,1775)
+                    case '2004' | '2005': return (1100,1450)
             case TemplateImageComponent.NUMBER:
                 match self.value:
                     case '2002': return (120,1785)

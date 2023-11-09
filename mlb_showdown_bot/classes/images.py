@@ -388,7 +388,7 @@ class ShowdownImage(BaseModel):
     set_year: Optional[int] = None
     set_number: str = '—'
     add_one_to_set_year: bool = False
-    show_year_container: bool = False
+    show_year_text: bool = False
     is_bordered: bool = False
     is_dark_mode: bool = False
     hide_team_logo: bool = False

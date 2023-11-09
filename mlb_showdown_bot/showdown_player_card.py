@@ -131,7 +131,7 @@ class ShowdownPlayerCard(BaseModel):
             output_folder_path = data.get('card_img_output_folder_path', '') if len(data.get('card_img_output_folder_path', '')) > 0 else os.path.join(os.path.dirname(__file__), 'output'),
             set_number = data.get('set_number', '') if data.get('set_number', '') != '' else self.set.default_set_number(self.year),
             add_one_to_set_year = data.get('set_year_plus_one', False) and self.set.is_eligibile_for_year_plus_one,
-            show_year_container = data.get('add_year_container', False) and self.set.is_eligibile_for_year_container,
+            show_year_text = data.get('show_year_text', False) and self.set.is_eligibile_for_year_container,
             is_bordered = data.get('add_image_border', False),
             is_dark_mode = data.get('is_dark_mode', False),
             hide_team_logo = data.get('hide_team_logo', False),
@@ -1111,9 +1111,9 @@ class ShowdownPlayerCard(BaseModel):
                     continue
 
 
-        # IF PITCHER AND MORE THAN 4 ICONS (EX: BOB GIBSON 1968), FILTER OUT A G
-        if len(icons) >= 5 and self.is_pitcher and Icon.G in icons:
-            icons.remove(Icon.G)
+        # IF REMOVE R ICON IF THERE'S NO ROOM FOR IT (EX: ICHIRO 2001)
+        if len(icons) >= 5 and not self.is_pitcher and Icon.R in icons and Icon.RY in icons:
+            icons.remove(Icon.R)
 
         return icons
 
@@ -2896,7 +2896,10 @@ class ShowdownPlayerCard(BaseModel):
 
         # METADATA
         metadata_image, color = self.__metadata_image()
-        metadata_paste_coordinates = self.__coordinates_adjusted_for_bordering(self.set.template_component_paste_coordinates(TemplateImageComponent.METADATA))
+        metadata_image_x, metadata_image_y = self.set.template_component_paste_coordinates(TemplateImageComponent.METADATA)
+        if len(self.icons) > 4 and self.set in [Set._2004, Set._2005]:
+            metadata_image_x += -10
+        metadata_paste_coordinates = self.__coordinates_adjusted_for_bordering((metadata_image_x, metadata_image_y))
         card_image.paste(color, metadata_paste_coordinates, metadata_image)
 
         # CHART
@@ -2921,7 +2924,7 @@ class ShowdownPlayerCard(BaseModel):
         card_image.paste(set_image, self.__coordinates_adjusted_for_bordering((0,0)), set_image)
 
         # YEAR CONTAINER
-        if self.image.show_year_container:
+        if self.image.show_year_text and not self.set.is_year_container_text:
             paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
             year_container_img = self.__year_container_add_on()
             card_image.paste(year_container_img, self.__coordinates_adjusted_for_bordering(paste_location), year_container_img)
@@ -2930,7 +2933,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.expansion.has_image:
             expansion_image = self.__expansion_image()
             expansion_location = self.set.template_component_paste_coordinates(TemplateImageComponent.EXPANSION)
-            if self.image.show_year_container and self.set.is_00_01:
+            if self.image.show_year_text and self.set.is_00_01:
                 # IF YEAR CONTAINER EXISTS, MOVE OVER EXPANSION LOGO
                 expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
             if self.set == Set._2002 and self.image.expansion == Expansion.TD:
@@ -3088,6 +3091,7 @@ class ShowdownPlayerCard(BaseModel):
         is_cooperstown = self.image.edition == Edition.COOPERSTOWN_COLLECTION
         is_all_star_game = self.image.edition == Edition.ALL_STAR_GAME
         is_rookie_season = self.image.edition == Edition.ROOKIE_SEASON
+        logo_size_multiplier = 1.0
 
         # USE INPUT SIZE IF IT EXISTS
         if size:
@@ -3099,7 +3103,6 @@ class ShowdownPlayerCard(BaseModel):
                 logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
                 team_logo_path = self.__team_logo_path(name=logo_name)
                 is_wide_logo = logo_name == 'ASG-2022'
-                logo_size_multiplier = 1.0
                 if is_04_05 and is_cooperstown:
                     logo_size = (330,330)
                     logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 105)
@@ -3120,6 +3123,7 @@ class ShowdownPlayerCard(BaseModel):
             if size_adjusted != logo_size:
                 pixel_difference = size_adjusted[0] - logo_size[0]
                 logo_paste_coordinates = tuple(int(v - (pixel_difference / 2)) for v in logo_paste_coordinates)
+                logo_size = size_adjusted
             team_logo = team_logo.resize(size_adjusted, Image.ANTIALIAS)
         except:
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
@@ -3145,34 +3149,43 @@ class ShowdownPlayerCard(BaseModel):
             team_logo, _ = self.__super_season_image()
             logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SUPER_SEASON)
 
-        # ADD YEAR TEXT IF COOPERSTOWN
-        if is_cooperstown and is_04_05 and not is_all_star_game:
-            cooperstown_logo = Image.new('RGBA', (logo_size[0] + 300, logo_size[1]))
-            cooperstown_logo.paste(team_logo,(150,0),team_logo)
-            year_font_path = self.__font_path('BaskervilleBoldItalicBT')
+        # ADD YEAR TEXT IF COOPERSTOWN OR YEAR TEXT OPTION IF SELECTED
+        if is_04_05 and (is_cooperstown or self.image.show_year_text):
+            
+            new_logo = Image.new('RGBA', (logo_size[0] + 300, logo_size[1]))
+            new_logo_coords = (150, 0)
+            new_logo.paste(team_logo, new_logo_coords, team_logo)
+            font_name = 'BaskervilleBoldItalicBT' if is_cooperstown else 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique'
+            year_font_path = self.__font_path(font_name)
             year_font = ImageFont.truetype(year_font_path, size=87)
             year_font_blurred = ImageFont.truetype(year_font_path, size=90)
             year_abbrev = f"’{self.year[2:4]}" if not self.is_multi_year else " "
+            year_text_color = "#E6DABD" if is_cooperstown else "#E5E4E2"
+            year_text_border_color = colors.BLACK
+            
+            # CREATE TEXT IMAGES
             year_text = self.__text_image(
                 text = year_abbrev,
                 size = (180,180),
                 font = year_font,
                 alignment = "center",
-                fill = "#E6DABD",
+                fill = year_text_color,
                 has_border = True,
-                border_color = colors.BLACK
+                border_color = year_text_border_color
             )
-            year_text_blurred = self.__text_image(
-                text = year_abbrev,
-                size = (180,180),
-                font = year_font_blurred,
-                alignment = "center",
-                fill = colors.WHITE
-            )
-            year_coords = (0,195)
-            cooperstown_logo.paste(colors.BLACK,year_coords,year_text_blurred.filter(ImageFilter.BLUR))
-            cooperstown_logo.paste(year_text, year_coords, year_text)
-            team_logo = cooperstown_logo
+            year_coords = (0,195) if is_cooperstown else (-25, int(120 * logo_size_multiplier))
+            if is_cooperstown:
+                year_text_blurred = self.__text_image(
+                    text = year_abbrev,
+                    size = (180,180),
+                    font = year_font_blurred,
+                    alignment = "center",
+                    fill = colors.WHITE
+                )
+                new_logo.paste(colors.BLACK,year_coords,year_text_blurred.filter(ImageFilter.BLUR))
+            new_logo.paste(year_text, year_coords, year_text)
+            team_logo = new_logo
+            logo_paste_coordinates = logo_paste_coordinates if is_cooperstown else (logo_paste_coordinates[0] - 150, logo_paste_coordinates[1])
 
         # OVERRIDE IF ROOKIE SEASON
         if is_rookie_season and not is_00_01:
@@ -3608,7 +3621,6 @@ class ShowdownPlayerCard(BaseModel):
             metadata_image = metadata_text.resize((255,900), Image.ANTIALIAS)
         elif self.set.is_04_05:
             # 2004 & 2005
-
             metadata_font_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
             metadata_font = ImageFont.truetype(metadata_font_path, size=144)
             metadata_text_string = self.__player_metadata_summary_text(is_horizontal=True)
@@ -3993,7 +4005,7 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # ITERATE THROUGH AND PASTE ICONS
-        for index, icon in enumerate(self.icons[0:4]):
+        for index, icon in enumerate(self.icons):
             position = self.set.icon_paste_coordinates(index+1)
             if self.set.is_wotc:
                 icon_img_path = self.__template_img_path(f'{self.set.template_year}-{icon.value}')

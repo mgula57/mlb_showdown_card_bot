@@ -188,7 +188,7 @@ def card_creator():
     add_img_border: bool = None
     is_dark_mode: bool = None
     is_variable_speed_00_01: bool = None
-    add_year_container: bool = None
+    show_year_text: bool = None
     ignore_showdown_library: bool = None
     set_year_plus_one: bool = None
     hide_team_logo: bool = None
@@ -237,7 +237,7 @@ def card_creator():
         add_img_border = request.args.get('addBorder', '').lower() == 'true'
         is_dark_mode = request.args.get('is_dark_mode', '').lower() == 'true'
         is_variable_speed_00_01 = request.args.get('is_variable_spd_00_01', '').lower() == 'true'
-        add_year_container = request.args.get('add_year_container', '').lower() == 'true'
+        show_year_text = request.args.get('show_year_text', '').lower() == 'true'
         ignore_showdown_library = request.args.get('ignore_showdown_library', '').lower() == 'true'
         set_year_plus_one = request.args.get('set_year_plus_one', '').lower() == 'true'
         hide_team_logo = request.args.get('hide_team_logo', '').lower() == 'true'
@@ -278,7 +278,7 @@ def card_creator():
             is_dark_mode=is_dark_mode,
             is_variable_speed_00_01=is_variable_speed_00_01,
             parallel=image_parallel,
-            add_year_container=add_year_container,
+            show_year_text=show_year_text,
             set_year_plus_one=set_year_plus_one,
             hide_team_logo=hide_team_logo,
             date_override=date_override,
@@ -350,7 +350,7 @@ def card_creator():
             is_foil=False, # DEPRECATED
             is_stats_loaded_from_library=is_stats_loaded_from_library,
             is_img_loaded_from_library=is_img_loaded_from_library,
-            add_year_container=add_year_container,
+            add_year_container=show_year_text,
             ignore_showdown_library=ignore_showdown_library,
             set_year_plus_one=set_year_plus_one,
             edition=edition,
@@ -413,7 +413,7 @@ def card_creator():
             is_foil=False, # DEPRECATED
             is_stats_loaded_from_library=is_stats_loaded_from_library,
             is_img_loaded_from_library=is_img_loaded_from_library,
-            add_year_container=add_year_container,
+            add_year_container=show_year_text,
             ignore_showdown_library=ignore_showdown_library,
             set_year_plus_one=set_year_plus_one,
             edition=edition,
