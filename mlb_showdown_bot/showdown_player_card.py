@@ -24,11 +24,11 @@ try:
     from .classes.team import Team
     from .classes.icon import Icon
     from .classes.accolade import Accolade
-    from .classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart
+    from .classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
     from .classes.metrics import DefenseMetric
     from .classes.nationality import Nationality
     from .classes.chart import ChartCategory
-    from .classes.images import ImageParallel, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
+    from .classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
     from .classes.points import Points
     from .classes.metadata import Speed, SpeedLetter, Hand
     from .classes import colors
@@ -39,12 +39,12 @@ except ImportError:
     from classes.team import Team
     from classes.icon import Icon
     from classes.accolade import Accolade
-    from classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart
+    from classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
     from classes.player_position import PlayerSubType
     from classes.metrics import DefenseMetric
     from classes.nationality import Nationality
     from classes.chart import ChartCategory
-    from classes.images import ImageParallel, ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
+    from classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
     from classes.points import Points
     from classes.metadata import Speed, SpeedLetter, Hand
     from classes import colors
@@ -537,7 +537,7 @@ class ShowdownPlayerCard(BaseModel):
         """ Team override to use for background images and colors (ex: CC)"""
         
         # COOPERSTOWN COLLECTION LOGO
-        if self.image.edition == Edition.COOPERSTOWN_COLLECTION:
+        if self.image.edition == Edition.COOPERSTOWN_COLLECTION or self.image.parallel == ImageParallel.GOLD_FRAME:
             return Team.CCC
         
         # HIDE TEAM LOGO, USE MLB
@@ -3150,7 +3150,7 @@ class ShowdownPlayerCard(BaseModel):
             logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SUPER_SEASON)
 
         # ADD YEAR TEXT IF COOPERSTOWN OR YEAR TEXT OPTION IF SELECTED
-        if is_04_05 and (is_cooperstown or self.image.show_year_text):
+        if is_04_05 and (is_cooperstown or self.image.show_year_text) and self.image.edition not in [Edition.ROOKIE_SEASON, Edition.SUPER_SEASON]:
             
             new_logo = Image.new('RGBA', (logo_size[0] + 300, logo_size[1]))
             new_logo_coords = (150, 0)
@@ -3274,8 +3274,9 @@ class ShowdownPlayerCard(BaseModel):
             type_template = f'{year}-{type}{edition_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
         else:
+            custom_extension = self.set.template_custom_extension(self.image.parallel)
             dark_mode_extension = '-DARK' if self.set.is_showdown_bot and self.image.is_dark_mode else ''
-            type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}'
+            type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}{custom_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
@@ -3419,6 +3420,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # DEFAULT NAME ATTRIBUTES
         name_font_path = helvetica_neue_lt_path
+        name_color = self.set.template_component_color(TemplateImageComponent.PLAYER_NAME, parallel=self.image.parallel)
         has_border = False
         border_color = None
         overlay_image_path = None
@@ -3435,7 +3437,6 @@ class ShowdownPlayerCard(BaseModel):
                     name_size = 110
                 elif is_name_over_15_chars:
                     name_size = 127
-                name_color = "#D2D2D2"
                 name_font_path = helvetica_neue_lt_93_path
                 padding = 0
                 overlay_image_path = self.__template_img_path('2000-Name-Text-Background')
@@ -3443,7 +3444,6 @@ class ShowdownPlayerCard(BaseModel):
                 name_rotation = 90
                 name_alignment = "left"
                 name_size = 96
-                name_color = "#D2D2D2"
                 padding = 0
                 name_font_path = futura_black_path
                 overlay_image_path = self.__template_img_path('2001-Name-Text-Background')
@@ -3451,19 +3451,16 @@ class ShowdownPlayerCard(BaseModel):
                 name_rotation = 90
                 name_alignment = "left"
                 name_size = 115 if is_name_over_char_limit else 144
-                name_color = "#b5b4b5"
                 padding = 15
             case Set._2003:
                 name_rotation = 90
                 name_alignment = "right"
                 name_size = 90 if is_name_over_char_limit else 96
-                name_color = colors.WHITE
                 padding = 60
             case Set._2004 | Set._2005:
                 name_rotation = 0
                 name_alignment = "left"
                 name_size = 80 if is_name_over_char_limit else 96
-                name_color = colors.WHITE
                 padding = 3
                 has_border = True
                 border_color = colors.RED
@@ -3471,7 +3468,6 @@ class ShowdownPlayerCard(BaseModel):
                 name_rotation = 0
                 name_alignment = "left"
                 name_size = 80 if is_name_over_char_limit else 96
-                name_color = colors.WHITE
                 name_font_path = helvetica_neue_cond_black_path
                 padding = 3
                 has_border = False
@@ -3510,6 +3506,9 @@ class ShowdownPlayerCard(BaseModel):
                 )
                 final_text.paste(last_name, (90,0), last_name)
                 name_color = final_text
+            case Set._2002:
+                if self.image.parallel == ImageParallel.GOLD_FRAME:
+                    name_color = "#616161"
             case Set._2004 | Set._2005:
                 # DONT ASSIGN A COLOR TO TEXT AS 04/05 HAS MULTIPLE COLORS.
                 # ASSIGN THE TEXT ITSELF AS THE COLOR OBJECT
@@ -4351,6 +4350,12 @@ class ShowdownPlayerCard(BaseModel):
             if img_component.opacity < 1.0:
                 opacity_255_scale = int(255 * img_component.opacity)
                 image.putalpha(opacity_255_scale)
+
+            # ADJUST SIZE
+            size_adjustment_for_set = self.set.player_image_component_size_adjustment(img_component)
+            if size_adjustment_for_set:
+                new_size = (int(image.size[0] * size_adjustment_for_set), int(image.size[1] * size_adjustment_for_set))
+                image = image.resize(size=new_size, resample=Image.ANTIALIAS)
             
             # CROP IMAGE
             crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
@@ -4394,6 +4399,10 @@ class ShowdownPlayerCard(BaseModel):
                             player_img_components.append((ellipse_circle_image, coordinates_adjusted))
                             break
             
+            set_paste_adjustment = self.set.player_image_component_paste_adjustment(img_component)
+            if set_paste_adjustment:                
+                paste_coordinates = tuple(sum(x) for x in zip(paste_coordinates, set_paste_adjustment))
+
             # PASTE IMAGE
             player_img_components.append((image, paste_coordinates))
 

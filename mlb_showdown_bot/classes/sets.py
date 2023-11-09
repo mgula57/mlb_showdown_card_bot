@@ -5,14 +5,14 @@ try:
     from .player_position import PlayerType, PlayerSubType, Position
     from .metrics import Stat, PointsMetric
     from .value_range import ValueRange
-    from .images import PlayerImageComponent, TemplateImageComponent
+    from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel
     from .chart import Chart
 except ImportError:
     from metadata import SpeedMetric
     from player_position import PlayerType, PlayerSubType, Position
     from metrics import Stat, PointsMetric
     from value_range import ValueRange
-    from images import PlayerImageComponent, TemplateImageComponent
+    from images import PlayerImageComponent, TemplateImageComponent, ImageParallel
     from chart import Chart
 
 
@@ -1408,6 +1408,16 @@ class Set(str, Enum):
             case '2005': return '2004'
             case _: return self.year
 
+    def template_custom_extension(self, parallel: ImageParallel) -> str:
+        """Add extension to the template image path for a custom parallel. """
+
+        match parallel:
+            case ImageParallel.GOLD_FRAME:
+                match self.value:
+                    case '2002': return '-NO-NAME'
+    
+        return ''
+
     @property
     def use_alternate_team_logo(self) -> bool:
         return self.is_after_03
@@ -1508,6 +1518,25 @@ class Set(str, Enum):
                 case '2001': return [PlayerImageComponent.GLOW]
                 case '2002' | '2003' | '2004' | '2005': return [PlayerImageComponent.BACKGROUND]
                 case 'CLASSIC' | 'EXPANDED': return [PlayerImageComponent.BACKGROUND, PlayerImageComponent.SHADOW]
+
+    def player_image_component_paste_adjustment(self, component: PlayerImageComponent) -> tuple[int,int]:
+        match component:
+            case PlayerImageComponent.GOLD_FRAME:
+                match self.value:
+                    case '2000': return (20, 0)
+        
+        return None
+    
+    def player_image_component_size_adjustment(self, component: PlayerImageComponent) -> float:
+        match component:
+            case PlayerImageComponent.GOLD_FRAME:
+                match self.value:
+                    case '2001': return 1.025
+                    case '2002': return 1.01
+                    case 'EXPANDED' | 'CLASSIC': return 1.025
+        
+        return None
+        
 
     # ---------------------------------------
     # TEMPLATE IMAGE
@@ -1671,6 +1700,18 @@ class Set(str, Enum):
                     case '2002': return 25
                     case '2003': return 26
                     case '2004' | '2005' | 'CLASSIC' | 'EXPANDED': return 75
+
+    def template_component_color(self, component: TemplateImageComponent, parallel: ImageParallel) -> str:
+        """Return color string for a template image component """
+
+        match component:
+            case TemplateImageComponent.PLAYER_NAME:
+                match self.value:
+                    case '2000' | '2001': return "#D2D2D2"
+                    case '2002': return "#b5b4b5"
+                    case _: return "#FFFFFF"
+
+        return None
 
     # ---------------------------------------
     # BASELINE PLAYERS
