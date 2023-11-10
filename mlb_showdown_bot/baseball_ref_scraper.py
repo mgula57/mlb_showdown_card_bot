@@ -350,6 +350,12 @@ class BaseballReferenceScraper:
         # PARSE ACCOLADES IN TOTAL
         stats_dict['accolades'] = self.__accolades_dict(soup_for_homepage_stats=soup_for_homepage_stats, years_included=self.years)
 
+        # FIX EMPTY STRING DATA
+        empty_str_fields_for_test = ['batting_avg', 'onbase_perc', 'slugging_perc', 'onbase_plus_slugging']
+        for field in empty_str_fields_for_test:
+            if str(stats_dict.get(field, 0.00)) == '':
+                stats_dict[field] = 0.00
+
         # SAVE DATA        
         self.source = f"Baseball Reference{'/Baseball Savant' if is_data_from_statcast else ''}"
         self.__cache_data_locally(data=stats_dict, filename=cached_filename)
@@ -446,8 +452,8 @@ class BaseballReferenceScraper:
         if is_positions_empty and metadata:
             # FIND THE HAND TAG IN THE METADATA LIST
             for strong_tag in metadata.find_all('strong'):
-                positions_tag = 'Positions:'
-                if strong_tag.text == positions_tag:
+                positions_tags = ['Positions:', 'Position:']
+                if strong_tag.text in positions_tags:
                     positions_str = strong_tag.next_sibling.replace('•','').rstrip()
                     if 'Pinch Hitter' in positions_str:
                         positions_dict['DH'] = {
