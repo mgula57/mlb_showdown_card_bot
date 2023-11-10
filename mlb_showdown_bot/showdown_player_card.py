@@ -95,7 +95,7 @@ class ShowdownPlayerCard(BaseModel):
     chart: Chart = None
     positions_and_defense: dict[Position, int] = {}
     positions_and_real_life_ratings: dict[str, dict[DefenseMetric, Union[float, int]]] = {}
-    top_command_out_combinations: list[tuple[tuple[int,int], float]] = []
+    command_out_accuracies: dict[str, float] = {}
     ip:int = None
     hand: Hand = None
     speed: Speed = None
@@ -1562,7 +1562,7 @@ class ShowdownPlayerCard(BaseModel):
 
         chart_and_accuracies.sort(key=operator.itemgetter(2),reverse=True)
         best_chart = chart_and_accuracies[offset][1]
-        self.top_command_out_combinations = [(ca[0],round(ca[2],4)) for ca in chart_and_accuracies]
+        self.command_out_accuracies = { f"{ca[0][0]}-{ca[0][1]}": round(ca[2],4) for ca in chart_and_accuracies }
         projected_stats_for_best_chart = chart_and_accuracies[offset][3]
 
         return best_chart, projected_stats_for_best_chart
@@ -2596,10 +2596,10 @@ class ShowdownPlayerCard(BaseModel):
           Multi-Dimensional list where each row is a list of a offset and accuracy value.
         """
         accuracy_data: list[list[str]] = []
-        for index, co_accuracy_tuple in enumerate(self.top_command_out_combinations):
-            command_out_tuple = co_accuracy_tuple[0]
-            command = command_out_tuple[0]
-            outs = command_out_tuple[1]
+        sorted_accuracies_as_tuples = sorted(self.command_out_accuracies.items(), key=lambda co_and_ac: co_and_ac[1], reverse=True)
+        for index, co_accuracy_tuple in enumerate(sorted_accuracies_as_tuples):
+            command_out_str = co_accuracy_tuple[0]
+            command, outs = command_out_str.split('-')
             accuracy = co_accuracy_tuple[1]
             accuracy_data.append([str(index + 1), f"{command}", f"{outs}", f"{round(100 * accuracy, 2)}%"])
 
