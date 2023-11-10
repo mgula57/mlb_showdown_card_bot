@@ -1,7 +1,7 @@
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
-import mlb_showdown_bot.showdown_constants as sc
 from mlb_showdown_bot.enums.edition import Edition
+from mlb_showdown_bot.enums.sets import Set
 from termcolor import colored
 from time import sleep
 
@@ -29,7 +29,6 @@ if __name__ == "__main__":
         {'name': 'Bob Gibson', 'year': '1968', 'edition': Edition.COOPERSTOWN_COLLECTION.value},
     ]
     num_tests = len(inputs_to_test)
-    sets = ['2000','2001','2002','2003','2004','2005',sc.CLASSIC_SET,sc.EXPANDED_SET]
 
     # TEST EACH PLAYER IN EACH SET
     failures = 0
@@ -37,20 +36,20 @@ if __name__ == "__main__":
     for player_inputs in inputs_to_test:
         result = 'SUCCESS'
         try:
-            sleep(3)
+            sleep(5)
             name = player_inputs['name']
             year = player_inputs['year']
             edition = player_inputs['edition']
             # GET PLAYER DATA
             scraper = BaseballReferenceScraper(name=name,year=year)
             statline = scraper.player_statline()
-            for set in sets:
+            for set in Set:
                 # CREATE SHOWDOWN CARD 
                 showdown = ShowdownPlayerCard(
                     name=name,
                     year=year,
                     stats=statline,
-                    context=set,
+                    set=set.value,
                     edition=edition,
                     print_to_cli=False
                 )
@@ -58,11 +57,11 @@ if __name__ == "__main__":
                 if showdown.img_loading_error:
                     result = 'FAILED'
                     failures += 1
-                    error_messages.append(f'{name}-{set}: {showdown.img_loading_error}')
+                    error_messages.append(f'{name}-{set.value}: {showdown.img_loading_error}')
         except Exception as e:
             result = 'FAILED'
             failures += 1
-            error_messages.append(f'{name}-{set}: {str(e)}')
+            error_messages.append(f'{name}-{set.value}: {str(e)}')
         print(colored(f'{name}: {result}', 'red' if result == 'FAILED' else 'green'))
 
     # PRINT RESULT

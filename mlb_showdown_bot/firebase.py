@@ -13,13 +13,13 @@ try:
     from .showdown_player_card import ShowdownPlayerCard
     from . import showdown_constants as sc
     from .version import __version__
-    from .enums.edition import Edition
+    from .classes.images import Edition
 except ImportError:
     # USE LOCAL IMPORT 
     from showdown_player_card import ShowdownPlayerCard
     import showdown_constants as sc
     from version import __version__
-    from enums.edition import Edition
+    from classes.images import Edition
 
 class Firebase:
 
@@ -86,7 +86,7 @@ class Firebase:
 # DATABASE
 # ------------------------------------------------------------------------
 
-    def query(self, bref_id: str, year: str, context: str, expansion: str, is_variable_speed_00_01: False, disable: bool = False) -> dict:
+    def query(self, bref_id: str, year: str, set: str, expansion: str, is_variable_speed_00_01: False, disable: bool = False) -> dict:
         """Query cached data for player's card.
 
         Looks for unique ID (Version + Bref Id + Year + Context)
@@ -94,7 +94,7 @@ class Firebase:
         Args:
           bref_id: Baseball Reference Player ID (ex: ohtansh01)
           year: Year for stats (ex: 2022)
-          context: Showdown Bot Set type (ex: 2022-CLASSIC)
+          set: Showdown Bot Set type (ex: 2022-CLASSIC)
           expansion: Expansion within a set (ex: Trading Deadline, Pennant Run, Final, etc)
 
         Returns:
@@ -102,28 +102,28 @@ class Firebase:
         """
 
         # CHECK FOR CREDS
-        filter_for_var_spd = context in ['2000','2001'] and is_variable_speed_00_01
+        filter_for_var_spd = set in ['2000','2001'] and is_variable_speed_00_01
         if not self.creds or filter_for_var_spd or disable:
             # NO CREDS
             return None
 
         bref_id_json_safe = self.__bref_id_json_safe(bref_id)
-        ref = db.reference(f'{self.destination_card_output}/{self.version_json_safe}/{context}/{year}/{expansion}/{bref_id_json_safe}')
+        ref = db.reference(f'{self.destination_card_output}/{self.version_json_safe}/{set}/{year}/{expansion}/{bref_id_json_safe}')
 
         # READ THE DATA AT THE POSTS REFERENCE (THIS IS A BLOCKING OPERATION)
         data = ref.get()
         return data
 
-    def upload(self, context: str, year: str, expansion: str, data: dict, remove_existing:bool = True, destination:str = 'realtime', date:str = None):
+    def upload(self, set: str, year: str, expansion: str, data: dict, remove_existing:bool = True, destination:str = 'realtime', date:str = None):
         """Clean and upload data to firebase.
 
         Args:
           year: Year for stats (ex: 2022)
-          context: Showdown Bot Set type (ex: 2022-CLASSIC)
+          set: Showdown Bot Set type (ex: CLASSIC)
           expansion: Expansion within a set (ex: Trading Deadline, Pennant Run, Final, etc)
           data: Dictionary with player data for upload. 
                 Key = player ID, value = player data dictionary
-          remove_existing: Optionally remove existing context + year data
+          remove_existing: Optionally remove existing set + year data
           destination: 'realtime' publishes to the realtime database, 'firestore' publishes to a subcollection for trends data.
           date: Used as index for trends full data uploads.
 
@@ -141,13 +141,13 @@ class Firebase:
 
         if destination == 'realtime':
             # SAVE TO REALTIME DATABASE        
-            ref = db.reference(f"/{self.destination_card_output}/{self.version_json_safe}/{context}/{year}/{expansion}")
+            ref = db.reference(f"/{self.destination_card_output}/{self.version_json_safe}/{set}/{year}/{expansion}")
             if remove_existing:
                 ref.delete()
             ref.set(player_dict_final)
         elif destination == 'firestore' and date is not None:
             firestore_db = firestore.client()
-            trends_ref = firestore_db.collection(f'trends_{year}_{context}')
+            trends_ref = firestore_db.collection(f'trends_{year}_{set}')
             for bref_id, player_data in data.items():
                 trends_ref.document(bref_id).collection(self.trends_full_data_subcollection_name).document(date).set(player_data['stats'], merge=True)
 
@@ -199,14 +199,14 @@ class Firebase:
 # PARSING
 # ------------------------------------------------------------------------
 
-    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, context: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, image_parallel, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, date_override, is_running_in_flask) -> ShowdownPlayerCard:
+    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, set: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, image_parallel, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, date_override, is_running_in_flask) -> ShowdownPlayerCard:
         """Load cached player showdown data from database.
 
         Args:
           ignore_showdown_library: Manual override to not query database.
           bref_id: Baseball Reference Player ID (ex: ohtansh01)
           year: Year for stats (ex: 2022)
-          context: Showdown Bot Set type (ex: 2022-CLASSIC)
+          set: Showdown Bot Set type (ex: 2004, CLASSIC)
 
         Returns:
           Showdown Card Object
@@ -219,14 +219,18 @@ class Firebase:
         # GRAB DATA FROM FIREBASE IF IT EXISTS
         is_offset = offset != 0
         is_disabled = ignore_showdown_library or is_offset or team_override or Edition(edition).ignore_showdown_library or hide_team_logo
-        cached_data = self.query(
-          bref_id=bref_id, 
-          year=year, 
-          context=context, 
-          expansion='FINAL', # TODO: UPDATE IN 2023 FOR LIVE CARDS
-          is_variable_speed_00_01=is_variable_speed_00_01,
-          disable=is_disabled,
-        )
+        try:
+          cached_data = self.query(
+            bref_id=bref_id, 
+            year=year, 
+            set=set, 
+            expansion='BS', # TODO: UPDATE IN 2023 FOR LIVE CARDS
+            is_variable_speed_00_01=is_variable_speed_00_01,
+            disable=is_disabled,
+          )
+        except Exception as e:
+            return None
+        
         if not cached_data:
             return None
 
@@ -257,7 +261,7 @@ class Firebase:
             name=bref_id, 
             year=year, 
             stats={}, 
-            context=context, 
+            set=set, 
             run_stats=False,
             expansion=expansion,
             player_image_path=player_image_path,
@@ -379,8 +383,7 @@ class Firebase:
             "gb Range": "r_gb",
             "hr Range": "r_hr",
             "so Range": "r_so",
-            "context": "ctx",
-            "context_year": "ctx_yr",
+            "set": "set",
             "defense1": "df1",
             "defense2": "df2",
             "defense3": "df3",
