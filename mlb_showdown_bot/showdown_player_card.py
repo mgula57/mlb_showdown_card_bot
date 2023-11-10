@@ -4369,15 +4369,24 @@ class ShowdownPlayerCard(BaseModel):
             if is_super_season_glow:
 
                 # CALCULATE COORDINATES OF ELLIPSES
+
+                # RANDOMIZE Y
+                first_letter_name_ord = ord(self.name[0])
+                year_ord = ord(str(self.median_year)[-1])
+                total_index = min(first_letter_name_ord + year_ord, 179)
+
+                random_bool_1 = total_index < 162
+                random_bool_2 = year_ord > 54
+
                 y_cords = {
-                    PlayerImageComponent.ELLIPSE_LARGE: 850 if self.is_pitcher else 800,
-                    PlayerImageComponent.ELLIPSE_MEDIUM: 400 if self.is_pitcher else 300,
-                    PlayerImageComponent.ELLIPSE_SMALL: 1200 if self.is_pitcher else 1300,
+                    PlayerImageComponent.ELLIPSE_LARGE: 850 if random_bool_2 else 800,
+                    PlayerImageComponent.ELLIPSE_MEDIUM: 400 if random_bool_2 else 300,
+                    PlayerImageComponent.ELLIPSE_SMALL: 1300 if random_bool_2 else 1400,
                 }
                 is_reversed_map = {
-                    PlayerImageComponent.ELLIPSE_LARGE: False,
-                    PlayerImageComponent.ELLIPSE_MEDIUM: not self.is_pitcher,
-                    PlayerImageComponent.ELLIPSE_SMALL: self.is_pitcher,
+                    PlayerImageComponent.ELLIPSE_LARGE: random_bool_1,
+                    PlayerImageComponent.ELLIPSE_MEDIUM: not random_bool_1,
+                    PlayerImageComponent.ELLIPSE_SMALL: random_bool_1,
                 }
                 img_width, _ = image.size
                 for ellipse_type, ycord in y_cords.items():
