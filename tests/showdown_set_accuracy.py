@@ -6,8 +6,8 @@ import os
 from pathlib import Path
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
-from mlb_showdown_bot.enums.team import Team
-from mlb_showdown_bot.enums.icon import Icon
+from mlb_showdown_bot.classes.team import Team
+from mlb_showdown_bot.classes.icon import Icon
 import mlb_showdown_bot.showdown_constants as sc
 
 class ShowdownSetAccuracy:

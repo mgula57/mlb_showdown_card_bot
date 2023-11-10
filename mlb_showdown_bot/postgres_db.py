@@ -11,8 +11,9 @@ class PostgresDB:
 # INITS AND CONNECTION
 # ------------------------------------------------------------------------
 
-    def __init__(self, skip_connection:bool = False) -> None:
+    def __init__(self, skip_connection:bool = False, is_archive:bool = False) -> None:
         self.connection = None
+        self.env_var_name = 'DATABASE_URL_ARCHIVE' if is_archive else 'DATABASE_URL'
         if not skip_connection:
             self.connect()
         
@@ -21,7 +22,7 @@ class PostgresDB:
         If no environment variable for DATABASE_URL exists, None is stored.
         
         """
-        DATABASE_URL = os.getenv('DATABASE_URL')
+        DATABASE_URL = os.getenv(self.env_var_name)
 
         try:
             self.connection = psycopg2.connect(DATABASE_URL, sslmode='require')
@@ -89,6 +90,7 @@ class PostgresDB:
             year_int = default_return_tuple
         
         if year_int is None or self.connection is None:
+            print("NO CONNECTION")
             return default_return_tuple
         
         if team_override:
@@ -131,8 +133,9 @@ class PostgresDB:
         """
 
         column_names_to_filter = ["year", "historical_date"]
-        values_to_filter = [tuple([str(yr) for yr in year_list]), historical_date]
-        conditions = [sql.SQL(' IS ' if col == "historical_date" and historical_date is None else " = ").join([sql.Identifier(col), sql.Placeholder()]) for col in column_names_to_filter]
+        values_to_filter = [tuple(year_list), historical_date]
+        where_clause_values_equals_str = "=" if len(year_list) == 0 else "IN"
+        conditions = [sql.SQL(' IS ' if col == "historical_date" and historical_date is None else f" {where_clause_values_equals_str} ").join([sql.Identifier(col), sql.Placeholder()]) for col in column_names_to_filter]
         if exclude_records_with_stats:
             query = sql.SQL("SELECT * FROM {table} WHERE jsonb_extract_path(stats, 'bref_id') IS NULL AND {where_clause}") \
                         .format(
