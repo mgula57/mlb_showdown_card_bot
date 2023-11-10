@@ -1519,11 +1519,11 @@ class Set(str, Enum):
                 case '2002' | '2003' | '2004' | '2005': return [PlayerImageComponent.BACKGROUND]
                 case 'CLASSIC' | 'EXPANDED': return [PlayerImageComponent.BACKGROUND, PlayerImageComponent.SHADOW]
 
-    def player_image_component_paste_adjustment(self, component: PlayerImageComponent) -> tuple[int,int]:
+    def player_image_component_crop_adjustment(self, component: PlayerImageComponent) -> tuple[int,int]:
         match component:
             case PlayerImageComponent.GOLD_FRAME:
                 match self.value:
-                    case '2000': return (20, 0)
+                    case '2000': return (-20, 0)
         
         return None
     

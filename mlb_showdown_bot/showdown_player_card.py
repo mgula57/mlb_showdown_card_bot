@@ -4298,9 +4298,14 @@ class ShowdownPlayerCard(BaseModel):
                 if self.image.is_bordered:
                     player_crop_size = (int(player_crop_size[0] * size_growth_multiplier[0]), int(player_crop_size[1] * size_growth_multiplier[1]))
             default_crop_size = card_size
+
+            # MOVE CROP WINDOW IF NECESSARY
             default_crop_adjustment = (0,0)
             if self.set in [Set._2002, Set._2003] and img_component.crop_adjustment_02_03 is not None:
                 default_crop_adjustment = img_component.crop_adjustment_02_03
+            set_crop_adjustment_for_component = self.set.player_image_component_crop_adjustment(img_component)
+            if set_crop_adjustment_for_component:                
+                default_crop_adjustment = set_crop_adjustment_for_component
 
             # DOWNLOAD IMAGE
             image = None
@@ -4407,10 +4412,6 @@ class ShowdownPlayerCard(BaseModel):
                             coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
                             player_img_components.append((ellipse_circle_image, coordinates_adjusted))
                             break
-            
-            set_paste_adjustment = self.set.player_image_component_paste_adjustment(img_component)
-            if set_paste_adjustment:                
-                paste_coordinates = tuple(sum(x) for x in zip(paste_coordinates, set_paste_adjustment))
 
             # PASTE IMAGE
             player_img_components.append((image, paste_coordinates))
