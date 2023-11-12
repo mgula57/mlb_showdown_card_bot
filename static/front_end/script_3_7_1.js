@@ -621,6 +621,16 @@ $(function () {
             var ignore_showdown_library = moreOptionsSelected.includes("IgnoreShowdownLibrary");
             var ignore_cache = moreOptionsSelected.includes("IgnoreCache");
             var is_secondary_color = moreOptionsSelected.includes("SecondaryColor");
+
+            // NICKNAME INDEX
+            var nickname_index = null;
+            if (moreOptionsSelected.includes("Nickname-1")) {
+                nickname_index = 1;
+            } else if (moreOptionsSelected.includes("Nickname-2")) {
+                nickname_index = 2
+            } else if (moreOptionsSelected.includes("Nickname-3")) {
+                nickname_index = 3
+            }            
             
             // CACHE SET VALUE
             var set = $("#setSelection :selected").val()
@@ -648,6 +658,7 @@ $(function () {
                 parallel: image_parallel,
                 ignore_cache: ignore_cache,
                 is_secondary_color: is_secondary_color,
+                nickname_index: nickname_index
             }, function (data) {
                 showCardData(data)
             });

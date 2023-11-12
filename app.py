@@ -66,8 +66,9 @@ class CardLog(db.Model):
     scraper_load_time = db.Column(db.Numeric(10,2))
     card_load_time = db.Column(db.Numeric(10,2))
     is_secondary_color = db.Column(db.Boolean)
+    nickname_index = db.Column(db.Integer)
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -106,8 +107,9 @@ class CardLog(db.Model):
         self.scraper_load_time = scraper_load_time
         self.card_load_time = card_load_time
         self.is_secondary_color = is_secondary_color
+        self.nickname_index = nickname_index
 
-def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color):
+def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -146,7 +148,8 @@ def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansi
             image_source = image_source,
             scraper_load_time=scraper_load_time,
             card_load_time=card_load_time,
-            is_secondary_color=is_secondary_color
+            is_secondary_color=is_secondary_color,
+            nickname_index=nickname_index
         )
         db.session.add(card_log)
         db.session.commit()
@@ -195,6 +198,7 @@ def card_creator():
     date_override: str = None
     is_secondary_color: bool = None
     ignore_cache: bool = None
+    nickname_index: int = None
 
     # RANDOMIZER
     is_random: bool = None
@@ -243,6 +247,8 @@ def card_creator():
         hide_team_logo = request.args.get('hide_team_logo', '').lower() == 'true'
         is_secondary_color = request.args.get('is_secondary_color', '').lower() == 'true'
         ignore_cache = request.args.get('ignore_cache', '').lower() == 'true'
+        nickname_index = request.args.get('nickname_index', None)
+        nickname_index = None if len(str(nickname_index or '')) == 0 else nickname_index
 
         # RANDOM
         is_random = name.upper() == '((RANDOM))'
@@ -284,7 +290,9 @@ def card_creator():
             date_override=date_override,
             use_secondary_color=is_secondary_color,
             is_running_in_flask=True,
-            source=scraper.source
+            source=scraper.source,
+            nickname_index=nickname_index,
+            ignore_cache=ignore_cache
         )
 
         # -----------------
@@ -364,7 +372,8 @@ def card_creator():
             image_source=image_source,
             scraper_load_time=scraper_load_time,
             card_load_time=card_load_time,
-            is_secondary_color=is_secondary_color
+            is_secondary_color=is_secondary_color,
+            nickname_index=nickname_index
         )
         return jsonify(
             image_path=card_image_path,
@@ -427,7 +436,8 @@ def card_creator():
             image_source=image_source,
             scraper_load_time=scraper_load_time,
             card_load_time=card_load_time,
-            is_secondary_color=is_secondary_color
+            is_secondary_color=is_secondary_color,
+            nickname_index=nickname_index
         )
         return jsonify(
             image_path=None,
