@@ -3227,7 +3227,8 @@ class ShowdownPlayerCard(BaseModel):
             logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SUPER_SEASON)
 
         # ADD YEAR TEXT IF COOPERSTOWN OR YEAR TEXT OPTION IF SELECTED
-        if is_04_05 and (is_cooperstown or self.image.show_year_text) and self.image.edition not in [Edition.ROOKIE_SEASON, Edition.SUPER_SEASON]:
+        text_enabled_for_set = ( is_04_05 and (is_cooperstown or self.image.show_year_text) ) or ( self.set.is_showdown_bot and self.image.show_year_text and self.image.edition != Edition.COOPERSTOWN_COLLECTION)
+        if text_enabled_for_set and self.image.edition not in [Edition.ROOKIE_SEASON, Edition.SUPER_SEASON]:
             
             new_logo = Image.new('RGBA', (logo_size[0] + 300, logo_size[1]))
             new_logo_coords = (150, 0)

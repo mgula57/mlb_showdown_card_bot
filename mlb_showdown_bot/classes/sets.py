@@ -139,12 +139,12 @@ class Set(str, Enum):
 
     @property
     def is_eligibile_for_year_container(self) -> bool:
-        return self.value in ['2000', '2001', '2002', '2003', '2004', '2005',]
+        return self.value in ['2000', '2001', '2002', '2003', '2004', '2005', 'CLASSIC', 'EXPANDED', ] # NOW ENABLED FOR ALL SETS
     
     @property
     def is_year_container_text(self) -> bool:
         """ Applies to 04+ sets, uses text next to logo instead of container for displaying the year"""
-        return self.value in ['2004','2005',]
+        return self.value in ['2004','2005','CLASSIC','EXPANDED',]
 
     @property
     def is_eligibile_for_year_plus_one(self) -> bool:
