@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Optional
 
 # ---------------------------------------
@@ -394,6 +394,7 @@ class ShowdownImage(BaseModel):
     hide_team_logo: bool = False
     use_secondary_color: bool = False
     error: Optional[str] = None
+    nickname_index: Optional[int] = None
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:
@@ -416,3 +417,17 @@ class ShowdownImage(BaseModel):
             if self.parallel == ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
                 self.special_edition = SpecialEdition.TEAM_COLOR_BLAST_DARK
                 return 
+            
+    @validator('nickname_index', always=True, pre=True)
+    def clean_nickname_index(cls, nickname_index:int) -> int:
+
+        if nickname_index is None:
+            return None
+        
+        try:
+            as_int = int(nickname_index)
+            if as_int > 6:
+                return None
+            return as_int
+        except:
+            return None
