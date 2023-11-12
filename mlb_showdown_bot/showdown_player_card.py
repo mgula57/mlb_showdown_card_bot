@@ -3343,6 +3343,8 @@ class ShowdownPlayerCard(BaseModel):
                 edition_extension = f'-{self.nationality.template_color}'
             elif self.image.parallel == ImageParallel.TEAM_COLOR_BLAST and team_color_name:
                 edition_extension = f'-{team_color_name}'
+            elif self.image.is_dark_mode:
+                edition_extension = '-BLACK'
             else:
                 edition_extension = f'-{default_template_color}'
 
