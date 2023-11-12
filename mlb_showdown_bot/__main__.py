@@ -41,6 +41,7 @@ parser.add_argument('-isl','--ignore_showdown_library', action='store_true', hel
 parser.add_argument('-ic','--ignore_cache', action='store_true', help='Ignore local cache')
 parser.add_argument('-dc','--disable_cache_cleaning', action='store_true', help='Disable removal of cached files after minutes threshold.')
 parser.add_argument('-sc','--secondary_color', action='store_true', help='Used secondary team color.')
+parser.add_argument('-nick','--nickname_index', help='Optionally choose a nickname to show for images. Enter a number based on ordering from bref, max is 3', default=None, type=int)
 
 args = parser.parse_args()
 
@@ -127,7 +128,8 @@ def main():
         hide_team_logo=args.hide_team_logo,
         use_secondary_color=args.secondary_color,
         source=data_source,
-        disable_cache_cleaning=args.disable_cache_cleaning
+        disable_cache_cleaning=args.disable_cache_cleaning,
+        nickname_index=args.nickname_index
     )
 
     # PRINT TOTAL LOAD TIME

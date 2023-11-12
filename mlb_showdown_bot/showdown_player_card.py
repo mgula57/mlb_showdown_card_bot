@@ -6,6 +6,8 @@ import os
 import re
 import json
 import statistics
+import pandas as pd
+import ast
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from oauth2client.service_account import ServiceAccountCredentials
@@ -70,6 +72,7 @@ class ShowdownPlayerCard(BaseModel):
     nationality: Nationality = Nationality.NONE
     player_type: PlayerType = PlayerType.HITTER
     player_type_override: Optional[PlayerType] = None
+    nicknames: list[str] = []
     
     # OPTIONALS
     version: str = __version__
@@ -119,6 +122,9 @@ class ShowdownPlayerCard(BaseModel):
         # INIT
         super().__init__(**data)
 
+        # PARSE NICKNAMES
+        self.nicknames = self.extract_player_nicknames_list()
+
         # PARSE TYPE OVERRIDE
         self.player_type_override = self.parse_player_type_override(player_type_override=self.player_type_override, name_user_input=data.get('name', None))
 
@@ -135,7 +141,8 @@ class ShowdownPlayerCard(BaseModel):
             is_bordered = data.get('add_image_border', False),
             is_dark_mode = data.get('is_dark_mode', False),
             hide_team_logo = data.get('hide_team_logo', False),
-            use_secondary_color = data.get('use_secondary_color', False)
+            use_secondary_color = data.get('use_secondary_color', False),
+            nickname_index=data.get('nickname_index', None)
         )
         self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
         
@@ -334,6 +341,23 @@ class ShowdownPlayerCard(BaseModel):
                     return type
         
         return None
+
+    def extract_player_nicknames_list(self) -> list[str]:
+
+        nicknames_file_path = os.path.join(Path(os.path.dirname(__file__)),'nicknames.csv')
+        nicknames_df = pd.read_csv(nicknames_file_path)
+        nicknames_filtered = nicknames_df.loc[nicknames_df['bref_id'] == self.bref_id]
+
+        if len(nicknames_filtered) == 0:
+            return []
+        
+        nicknames_str = nicknames_filtered['nicknames'].max()
+
+        try:
+            nicknames_list = ast.literal_eval(nicknames_str)
+            return nicknames_list
+        except:
+            return []
 
 
 # ------------------------------------------------------------------------
@@ -551,7 +575,36 @@ class ShowdownPlayerCard(BaseModel):
         """ Type of Command, either 'Onbase' or 'Control'"""
         return "Control" if self.is_pitcher else "Onbase"
     
-    
+    @property
+    def is_using_nickname(self) -> bool:
+        """Check to see availability of nickname for the player."""
+        
+        # NO NICKNAME CHOOSEN OR AVAILABLE
+        num_nicknames = len(self.nicknames)
+        if self.image.nickname_index is None or num_nicknames == 0:
+            return False
+        
+        # NICKNAME INDEX NOT AVAILABLE
+        is_index_to_high = self.image.nickname_index > num_nicknames
+        if is_index_to_high:
+            return False
+        
+        try:
+            _ = self.nicknames[self.image.nickname_index - 1]
+            return True
+        except:
+            return False
+
+    @property
+    def name_for_visuals(self) -> str:
+        """Returns name that is used for visuals, accounting for custom nicknames"""
+
+        if self.is_using_nickname:
+            return self.nicknames[self.image.nickname_index - 1]
+        
+        return self.name
+
+
 # ------------------------------------------------------------------------
 # METADATA METHODS
 # ------------------------------------------------------------------------
@@ -1398,8 +1451,31 @@ class ShowdownPlayerCard(BaseModel):
         return sorted_accolades[0:maximum] if maximum else sorted_accolades
 
     def has_position(self, position: Position) -> bool:
+        """Checks for position in positions list"""
         return position in self.positions_list
 
+    def split_name(self, name:str, is_nickname:bool=False) -> tuple[str, str]:
+        """ Splits name into first and last. Handles even split for nicknames 
+        
+        Args:
+          name: Name string to use for split.
+          is_nickname: Optional flag for whether it's a nickname.
+        """
+
+        # EVENLY SPLIT LONG NICKNAMES
+        name_split_full = name.split(" ")
+        num_words = len(name_split_full)
+        if num_words > 3 and is_nickname:
+            middle_index = int(num_words / 2.0)
+            first = " ".join(name_split_full[0:middle_index])
+            last = " ".join(name_split_full[middle_index:num_words])
+            return first, last
+            
+        # SPLIT NORMALLY
+        name_split = name.split(" ", 1)
+        first, last = name_split if len(name_split) > 1 else tuple(['', name_split[0]])
+
+        return first, last
 
 # ------------------------------------------------------------------------
 # COMMAND / OUTS METHODS
@@ -2371,7 +2447,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # ----- NAME AND SET  ----- #
         print("----------------------------------------")
-        print(f"{self.name} ({self.year})")
+        print(f"{self.name_for_visuals} ({self.year})")
         print("----------------------------------------")
         print(f"Team: {self.team.value}")
         print(f"Set: {self.set.value} {self.image.expansion} (v{self.version})")
@@ -2876,7 +2952,7 @@ class ShowdownPlayerCard(BaseModel):
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
         small_name_cutoff = self.set.small_name_text_length_cutoff
-        name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if len(self.name) >= small_name_cutoff and self.image.parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
+        name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if len(self.name_for_visuals) >= small_name_cutoff and self.image.parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
         name_paste_location = self.set.template_component_paste_coordinates(name_image_component)
         if self.set.is_00_01:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
@@ -3407,8 +3483,8 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # PARSE NAME STRING
-        name_upper = "????? ?????" if self.image.parallel == ImageParallel.MYSTERY else self.name.upper()
-        first, last = name_upper.split(" ", 1)
+        name_upper = "????? ?????" if self.image.parallel == ImageParallel.MYSTERY else self.name_for_visuals.upper()
+        first, last = self.split_name(name=name_upper, is_nickname=self.is_using_nickname)
         name = first if self.set.has_split_first_and_last_names else name_upper
         default_chart_char_cutoff = 19 if self.set == Set._2002 else 15
         is_name_over_char_limit =  len(name) > default_chart_char_cutoff
