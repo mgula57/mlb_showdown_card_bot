@@ -129,7 +129,8 @@ def main():
         use_secondary_color=args.secondary_color,
         source=data_source,
         disable_cache_cleaning=args.disable_cache_cleaning,
-        nickname_index=args.nickname_index
+        nickname_index=args.nickname_index,
+        ignore_cache=args.ignore_cache
     )
 
     # PRINT TOTAL LOAD TIME

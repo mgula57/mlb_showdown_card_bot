@@ -79,6 +79,7 @@ class ShowdownPlayerCard(BaseModel):
     source: str = 'Baseball Reference'
     is_stats_estimate: bool = False
     chart_version:int = 0
+    ignore_cache: bool = False
     disable_cache_cleaning: bool = False
     date_override: Optional[str] = None
     test_numbers: Optional[tuple[int,int]] = None
@@ -4388,14 +4389,16 @@ class ShowdownPlayerCard(BaseModel):
             match img_component.load_source:
                 case "DOWNLOAD":
                     # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
+                    image = None
                     type_override = self.player_type_override.override_string if self.player_type_override else ''
                     cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team.value}){type_override}.png"
                     cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
-                    try:
-                        image = Image.open(cached_image_path)
-                        self.image.source.type = ImageSourceType.LOCAL_CACHE
-                    except:
-                        image = None
+                    if not self.ignore_cache:
+                        try:
+                            image = Image.open(cached_image_path)
+                            self.image.source.type = ImageSourceType.LOCAL_CACHE
+                        except:
+                            image = None
 
                     # 2. DOWNLOAD FROM GOOGLE DRIVE IF IMAGE IS NOT FOUND FROM CACHE.
                     if image is None:

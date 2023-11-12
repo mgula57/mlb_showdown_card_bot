@@ -291,7 +291,8 @@ def card_creator():
             use_secondary_color=is_secondary_color,
             is_running_in_flask=True,
             source=scraper.source,
-            nickname_index=nickname_index
+            nickname_index=nickname_index,
+            ignore_cache=ignore_cache
         )
 
         # -----------------
