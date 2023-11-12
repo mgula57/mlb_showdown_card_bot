@@ -344,7 +344,8 @@ class ShowdownPlayerCard(BaseModel):
         return None
 
     def extract_player_nicknames_list(self) -> list[str]:
-
+        """Use nicknames csv file to check if the player has nicknames available."""
+        
         nicknames_file_path = os.path.join(Path(os.path.dirname(__file__)),'nicknames.csv')
         nicknames_df = pd.read_csv(nicknames_file_path)
         nicknames_filtered = nicknames_df.loc[nicknames_df['bref_id'] == self.bref_id]
@@ -3584,7 +3585,8 @@ class ShowdownPlayerCard(BaseModel):
                     fill = name_color,
                     overlay_image_path = overlay_image_path
                 )
-                final_text.paste(last_name, (90,0), last_name)
+                x_coord = 45 if first == '' else 90
+                final_text.paste(last_name, (x_coord,0), last_name)
                 name_color = final_text
             case Set._2002:
                 if self.image.parallel == ImageParallel.GOLD_FRAME:
