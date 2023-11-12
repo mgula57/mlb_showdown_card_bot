@@ -29,8 +29,23 @@
     * [Negro Leagues and Pre-20th Century](#negro-leagues-and-pre-20th-century)
     * [shOPS+](#shops)
 * [Editions](#editions)
-* [2022 Sets](#2022-sets)
+    * [Cooperstown Collection](#cooperstown-collection)
+    * [Super Season](#super-season)
+    * [Nationality](#nationality)
+    * [All-Star Game](#all-star-game)
+    * [Rookie Season](#rookie-season)
+    * [Holiday](#holiday)
+* [New Sets](#new-sets)
 * [Parallels](#parallels)
+* [More Options](#more-options)
+    * [Border](#border)
+    * [Dark Mode](#dark-mode)
+    * [Year Text](#year-text)
+    * [Set Year +1](#set-year-+1)
+    * [Remove Team Branding](#remove-team-branding)
+    * [Use Secondary Team Color](#use-secondary-team-color)
+    * [Nicknames](#nicknames)
+    * [Variable Speed](#variable-speed)
 * [Showdown Library](#showdown-library)
 * [Showdown Explorer](#showdown-explorer)
 * [Running Locally](#running-locally)
@@ -666,7 +681,7 @@ Rookie Season replaces a player's team logo with a custom rookie season icon. So
 
 The Holiday theme adds a simple Christmas Tree inspired border to any card. This includes user uploaded photos, automated images, and silhouettes. 
 
-## **2022 Sets**
+## **New Sets**
 
  **Showdown Bot now includes new sets that modernize the look and play of MLB Showdown!**
 
@@ -733,6 +748,7 @@ Available Parallels:
 - Team Color Blast
 - Gold
 - Gold Rush
+- Gold Frame
 - Sapphire
 - Black and White
 - Radial
@@ -742,6 +758,61 @@ Available Parallels:
 - Mystery
 
 Stay tuned for more image parallels coming soon!
+
+## More Options
+
+The More Options menu provides additional customizations to your Showdown Cards
+
+### Border
+
+Adds border to image. If auto image, player image will bleed into the border. Otherwise fills in the border with the player's team color.
+
+### Dark Mode
+
+Dark Mode will change the following sets chart colors to black:
+
+- 2004
+- 2005
+- CLASSIC
+- EXPANDED
+
+It will also change the background color for compatible image parallels (ex: *Team Color Blast*)
+
+### Year Text
+
+Adds a text box with the player's year for the following sets:
+
+- 2000
+- 2001
+- 2002
+- 2003
+
+Adds a year abbreviation (ex: *'96*) to the following sets:
+
+- 2004
+- 2005
+- CLASSIC
+- EXPANDED
+
+### Set Year +1
+
+For 2004/2005 sets, changes the year abbrevation on the bottom right to be the year + 1. For example if the card's original year is *2022*, the text shown will be *'23*.
+
+### Remove Team Branding
+
+Removes all team logos.
+
+### Use Secondary Team Color
+
+Will change the team color to their secondary color for all card art assets and charts.
+
+### Nicknames
+
+Replace the player's name with their nicknames sourced from [here](https://www.baseball-reference.com/friv/baseball-player-nicknames.shtml). Users can choose any of the first 3 nicknames, order will match the order provided by baseball reference in the link above.
+
+### Variable Speed
+
+Expands speed options for 2000 and 2001 sets to use the full range of numbers between 8 and 28.
 
 ## Showdown Library 
 
