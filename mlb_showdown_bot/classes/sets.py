@@ -480,8 +480,9 @@ class Set(str, Enum):
                     case '4-15': return 0.99
                     case '4-18': return 0.98
 
-                    case '10-8': return 0.985
+                    case '10-8': return 0.99
                     case '11-8': return 0.99
+                    case '9-5': return 0.995
             case '2005':
                 match command_out_str: 
                     case '1-18': return 0.99
@@ -494,8 +495,9 @@ class Set(str, Enum):
                     case '4-15': return 0.99
                     case '4-18': return 0.98
 
-                    case '10-8': return 0.985
+                    case '10-8': return 0.99
                     case '11-8': return 0.99
+                    case '9-5': return 0.995
             case 'CLASSIC':
                 match command_out_str:
                     case '3-19' | '2-18' | '1-18': return 0.99
