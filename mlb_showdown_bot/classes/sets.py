@@ -148,7 +148,7 @@ class Set(str, Enum):
 
     @property
     def is_eligibile_for_year_plus_one(self) -> bool:
-        return self.is_04_05
+        return self.is_04_05 or self.value == '2003'
     
     # ---------------------------------------
     # DEFAULTS
