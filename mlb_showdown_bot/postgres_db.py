@@ -150,6 +150,25 @@ class PostgresDB:
                         )
         filters = tuple(values_to_filter)
         return self.execute_query(query=query, filter_values=filters)
+    
+    def fetch_player_year_list_from_archive(self, players_stats_ids: list[str]) -> list[dict]:
+        """Query the stats_archive table for all player data for given a list of player_stats_ids ('{bref_id}-{year}')
+        
+        Args:
+          players_stats_ids: List of concatinated strings for bref_id and year
+
+        Returns:
+          List of stats archive data.
+        """
+
+        conditions = [sql.SQL(' IN ').join([sql.Identifier('id'), sql.Placeholder()])]
+        query = sql.SQL("SELECT * FROM {table} WHERE {where_clause}") \
+                    .format(
+                        table=sql.Identifier("stats_archive"),
+                        where_clause=sql.SQL(' AND ').join(conditions)
+                    )
+        filters = (tuple(players_stats_ids), )
+        return self.execute_query(query=query, filter_values=filters)
 
 # ------------------------------------------------------------------------
 # TABLES
