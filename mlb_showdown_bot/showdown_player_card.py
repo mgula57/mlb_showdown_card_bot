@@ -4293,6 +4293,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # CHECK FOR USER UPLOADED IMAGE
         player_img_user_uploaded = None
+        player_img_user_upload_transparency_pct = 0.0
         # ---- LOCAL/UPLOADED IMAGE -----
         if self.image.source.path:
             image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.image.source.path)
@@ -4300,6 +4301,7 @@ class ShowdownPlayerCard(BaseModel):
                 player_img_uploaded_raw = Image.open(image_path).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_uploaded_raw, (1500,2100))
                 images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
+                player_img_user_upload_transparency_pct = self.__img_transparency_pct(player_img_user_uploaded)
             except Exception as err:
                 self.image.error = str(err)
         
@@ -4311,6 +4313,7 @@ class ShowdownPlayerCard(BaseModel):
                 player_img_raw = Image.open(BytesIO(response.content)).convert('RGBA')
                 player_img_user_uploaded = self.__center_and_crop(player_img_raw, (1500,2100))
                 images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
+                player_img_user_upload_transparency_pct = self.__img_transparency_pct(player_img_user_uploaded)
             except Exception as err:
                 self.image.error = str(err)
 
@@ -4332,9 +4335,9 @@ class ShowdownPlayerCard(BaseModel):
             if len(player_imgs) > 0:
                 images_to_paste += player_imgs
 
-        # IF 2000, ADD SET CONTAINER AND NAME CONTAINER IF USER UPLOADED IMAGE
+        # IF 2000, ADD SET CONTAINER AND NAME CONTAINER IF USER UPLOADED IMAGE THATS NOT TRANSPARENT
         if self.set == Set._2000:
-            if player_img_user_uploaded:
+            if player_img_user_uploaded and player_img_user_upload_transparency_pct < 0.30:
                 name_container = self.__2000_player_name_container_image()
                 images_to_paste.append((name_container, default_img_paste_coordinates))
             set_container = self.__2000_player_set_container_image()
@@ -4844,6 +4847,35 @@ class ShowdownPlayerCard(BaseModel):
         
         # GRAB FROM CURRENT TEAM COLORS
         return team.color(year=self.median_year, is_secondary=is_secondary_color)
+
+    def __img_transparency_pct(self, image: Image.Image) -> float:
+        """ Calculate what percent of an image is transparent/transclucent 
+        
+        Args:
+          image: PIL Image to conduct transparency test on.
+
+        Returns:
+          Float for percentage of image with transparent pixels.
+        """
+
+        img_width, img_height = image.size
+
+        results: list[int] = []
+        for x_coord in range(1, img_width):
+            for y_coord in range(1, img_height):
+                coordinates = (x_coord, y_coord)
+                try:
+                    pixel = image.getpixel(coordinates)
+                    pixel_opacity = pixel[3]
+                    results.append(int(pixel_opacity < 200))
+                except:
+                    continue
+        
+        if len(results) == 0:
+            return 0.0
+        
+        pct = sum(results) / len(results)
+        return pct
 
 
 # ------------------------------------------------------------------------
