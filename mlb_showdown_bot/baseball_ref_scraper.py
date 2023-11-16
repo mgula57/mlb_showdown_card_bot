@@ -455,7 +455,8 @@ class BaseballReferenceScraper:
                 positions_tags = ['Positions:', 'Position:']
                 if strong_tag.text in positions_tags:
                     positions_str = strong_tag.next_sibling.replace('•','').rstrip()
-                    if 'Pinch Hitter' in positions_str:
+                    pinch_hitters_list = ['skinnbo01'] # MANUAL LIST
+                    if 'Pinch Hitter' in positions_str or self.baseball_ref_id in pinch_hitters_list:
                         positions_dict['DH'] = {
                             'g': 0,
                             'tzr': None,
