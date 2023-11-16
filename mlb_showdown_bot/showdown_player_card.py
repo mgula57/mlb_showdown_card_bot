@@ -154,7 +154,7 @@ class ShowdownPlayerCard(BaseModel):
             self.positions_and_defense: dict[Position, int] = self.__positions_and_defense(stats_dict=self.stats)
             self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats.get('IP', 0)), games=self.stats.get('G', 0), games_started=self.stats.get('GS', 0), ip_per_start=self.stats.get('IP/GS', 0))
             self.hand: Hand = self.__handedness(hand_raw=self.stats.get('hand', None))
-            self.speed: Speed = self.__speed(sprint_speed=self.stats.get('sprint_speed', None), stolen_bases=self.stats.get('SB', 0) / ( self.stats.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats.get('SB',''))) == 0)
+            self.speed: Speed = self.__speed(sprint_speed=self.stats.get('sprint_speed', None), stolen_bases=self.stats.get('SB', 0) / ( self.stats.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats.get('SB',''))) == 0, games=self.stats.get('G', 0))
             self.accolades: list[str] = self.__accolades()
             self.icons: list[Icon] = self.__icons(awards=self.stats.get('award_summary',''))
 
@@ -1034,7 +1034,7 @@ class ShowdownPlayerCard(BaseModel):
         
         return ip
 
-    def __speed(self, sprint_speed:float, stolen_bases:int, is_sb_empty:bool) -> Speed:
+    def __speed(self, sprint_speed:float, stolen_bases:int, is_sb_empty:bool, games:int = 0) -> Speed:
         """In game speed for a position player. Will use pure sprint speed
            if year is >= 2015, otherwise uses stolen bases. Pitcher defaults to 10.
 
@@ -1043,6 +1043,7 @@ class ShowdownPlayerCard(BaseModel):
                         IMPORTANT: Data is available for 2015+.
           stolen_bases: Number of steals during the season.
           is_sb_empty: Bool for whether SB are unavailable for the player.
+          games: Number of games played in the season(s).
 
         Returns:
           Speed class with speed and letter.
@@ -1077,7 +1078,7 @@ class ShowdownPlayerCard(BaseModel):
 
             # CHANGE OUTLIERS
             min_in_game = self.set.min_in_game_spd
-            max_in_game = self.set.max_in_game_spd
+            max_in_game = (self.set.max_in_game_spd if games > 85 else (self.set.max_in_game_spd - 3))
 
             cutoff_for_sub_percentile_sb = 20
             if metric == SpeedMetric.STOLEN_BASES and speed > cutoff_for_sub_percentile_sb:
