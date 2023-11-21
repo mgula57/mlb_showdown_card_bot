@@ -4591,6 +4591,7 @@ class ShowdownPlayerCard(BaseModel):
             # LOOK FOR SUBSTRING MATCH
             file_name = img_file[file_name_key]
             num_components_in_filename = len([c for c in components_dict.keys() if f'{c.value}-' in file_name])
+            bref_id = bref_id.replace("'",'')
             if bref_id in file_name and num_components_in_filename > 0:
                 component_name = file_name.split('-')[0].upper()
                 component = PlayerImageComponent(component_name)
