@@ -14,6 +14,11 @@ class Edition(str, Enum):
     ROOKIE_SEASON = "RS"
     HOLIDAY = "HOL"
     NATIONALITY = "NAT"
+    POSTSEASON = "POST"
+
+    @classmethod
+    def _missing_(cls, _):
+        return cls.NONE
 
     @property
     def ignore_historical_team_logo(self) -> bool:
@@ -21,12 +26,14 @@ class Edition(str, Enum):
     
     @property
     def template_color_0405(self) -> str:
-        if self == Edition.COOPERSTOWN_COLLECTION:
-            return "BROWN"
-        elif self == Edition.SUPER_SEASON:
-            return "RED"
-        else:
-            return None
+        match self:
+            case Edition.COOPERSTOWN_COLLECTION:
+                return "BROWN"
+            case Edition.SUPER_SEASON:
+                return "RED"
+            case Edition.POSTSEASON:
+                return "DARK_BLUE"
+            case _: return None
     
     @property
     def use_edition_logo_as_team_logo(self) -> bool:
@@ -50,7 +57,7 @@ class Edition(str, Enum):
 
     @property
     def has_additional_logo_00_01(self) -> bool:
-        return self.name in ['COOPERSTOWN_COLLECTION', 'ALL_STAR_GAME', 'SUPER_SEASON', 'ROOKIE_SEASON']
+        return self in [Edition.COOPERSTOWN_COLLECTION, Edition.ALL_STAR_GAME, Edition.SUPER_SEASON, Edition.ROOKIE_SEASON, Edition.POSTSEASON]
 
 # ---------------------------------------
 # EXPANSION
@@ -61,13 +68,14 @@ class Expansion(str, Enum):
     BS = 'BS'
     TD = 'TD'
     PR = 'PR'
+    PM = 'PM'
 
     def __repr__(self) -> str:
         return self.value
     
     @property
     def has_image(self) -> bool:
-        return self.value not in ['BS']
+        return self.value not in ['BS', 'PM']
 
 # ---------------------------------------
 # PLAYER IMAGE COMPONENT
@@ -324,6 +332,9 @@ class TemplateImageComponent(Enum):
     SUPER_SEASON = "super_season"
     ROOKIE_SEASON = "rookie_season"
     ROOKIE_SEASON_YEAR_TEXT = "rookie_season_year_text"
+    POSTSEASON = "postseason"
+    POSTSEASON_YEAR_TEXT = "postseason_year_text"
+    POSTSEASON_YEAR_TEXT_BOX = "postseason_year_text_box"
     EXPANSION = "expansion"
     COMMAND = "command"
     STYLE = "style"

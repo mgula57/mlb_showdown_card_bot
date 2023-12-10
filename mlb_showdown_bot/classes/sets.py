@@ -280,7 +280,6 @@ class Set(str, Enum):
     def icon_paste_coordinates(self, index:int) -> tuple[int,int]:
         match self.value:
             case '2003':
-                print((round(index * 1.001 / 2.0) - 1), index, index % 2)
                 y_position = 1905 if (index % 2) == 1 else 1830
                 starting_x = 1005
                 x_offset = int(-75 * (round(index * 1.001 / 2.0) - 1))
@@ -1622,6 +1621,18 @@ class Set(str, Enum):
                     case 'CLASSIC' | 'EXPANDED': return (1075,1340)
             case TemplateImageComponent.ROOKIE_SEASON_YEAR_TEXT:
                 return (40, 145)
+            case TemplateImageComponent.POSTSEASON:
+                match self.value:
+                    case '2000': return (1200,1045)
+                    case '2001': return (1108,1015)
+                    case '2002': return (80,1320)
+                    case '2003': return (1085,1010)
+                    case '2004' | '2005': return (1100,1370)
+                    case 'CLASSIC' | 'EXPANDED': return (1075,1305)
+            case TemplateImageComponent.POSTSEASON_YEAR_TEXT_BOX:
+                return (288, 745)
+            case TemplateImageComponent.POSTSEASON_YEAR_TEXT:
+                return (288, 755)
             case TemplateImageComponent.EXPANSION:
                 match self.value:
                     case '2000' | '2001': return (1287,1855)
@@ -1676,6 +1687,16 @@ class Set(str, Enum):
                     case '2003': return (375,375)
                     case '2004' | '2005': return (339,339)
                     case 'CLASSIC' | 'EXPANDED': return (380,380)
+            case TemplateImageComponent.POSTSEASON: 
+                match self.value:
+                    case '2000': return (273,273)
+                    case '2001': return (300,300)
+                    case '2002': return (575,575)
+                    case '2003': return (375,375)
+                    case '2004' | '2005': return (339,339)
+                    case 'CLASSIC' | 'EXPANDED': return (380,380)
+            case TemplateImageComponent.POSTSEASON_YEAR_TEXT_BOX: 
+                return (415, 140)
             case TemplateImageComponent.BOT_LOGO: 
                 match self.value:
                     case '2000' | '2001': return (150,150)

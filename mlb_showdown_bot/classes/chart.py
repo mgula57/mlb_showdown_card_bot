@@ -40,6 +40,9 @@ class Chart(BaseModel):
     dbl_per_400_pa: Optional[float] = None
     trpl_per_400_pa: Optional[float] = None
     hr_per_400_pa: Optional[float] = None
+    dbl_range_start: Optional[int] = None
+    trpl_range_start: Optional[int] = None
+    hr_range_start: Optional[int] = None
 
     def __init__(self, **data) -> None:
         super().__init__(**data)
@@ -74,6 +77,10 @@ class Chart(BaseModel):
     def gb_pct(self) -> float:
         return round(self.num_values(ChartCategory.GB) / self.outs, 3)
     
+    @property
+    def is_range_start_populated(self) -> bool:
+        return self.hr_range_start
+
     # ---------------------------------------
     # RANGES
     # ---------------------------------------
@@ -159,34 +166,38 @@ class Chart(BaseModel):
           Tuple of 1b_additions, 2b results
         """
 
-        # HR
-        if hr_per_400_pa >= 13:
-            hr_start = 21
-        elif hr_per_400_pa >= 11:
-            hr_start = 22
-        elif hr_per_400_pa >= 8.5:
-            hr_start = 23
-        elif hr_per_400_pa >= 7.0:
-            hr_start = 24
-        elif hr_per_400_pa >= 5.0:
-            hr_start = 25
-        elif hr_per_400_pa >= 3.0:
-            hr_start = 26
+        if self.is_range_start_populated:
+            hr_start = self.hr_range_start
+            dbl_start = self.dbl_range_start or hr_start
         else:
-            hr_start = 27
+            # HR
+            if hr_per_400_pa >= 13:
+                hr_start = 21
+            elif hr_per_400_pa >= 11:
+                hr_start = 22
+            elif hr_per_400_pa >= 8.5:
+                hr_start = 23
+            elif hr_per_400_pa >= 7.0:
+                hr_start = 24
+            elif hr_per_400_pa >= 5.0:
+                hr_start = 25
+            elif hr_per_400_pa >= 3.0:
+                hr_start = 26
+            else:
+                hr_start = 27
 
-        # 2B
-        if dbl_per_400_pa >= 13:
-            dbl_start = 21
-        elif dbl_per_400_pa >= 9.0:
-            dbl_start = 22
-        elif dbl_per_400_pa >= 5.5:
-            dbl_start = 23
-        else:
-            dbl_start = 24
+            # 2B
+            if dbl_per_400_pa >= 13:
+                dbl_start = 21
+            elif dbl_per_400_pa >= 9.0:
+                dbl_start = 22
+            elif dbl_per_400_pa >= 5.5:
+                dbl_start = 23
+            else:
+                dbl_start = 24
 
-        add_to_1b = dbl_start - 20
-        hr_start_final = hr_start if dbl_start < hr_start else dbl_start + 1
+        add_to_1b = dbl_start - 21
+        hr_start_final = hr_start if (dbl_start < hr_start or self.is_range_start_populated) else dbl_start + 1
         num_of_results_2b = hr_start_final - dbl_start
 
         return add_to_1b, num_of_results_2b

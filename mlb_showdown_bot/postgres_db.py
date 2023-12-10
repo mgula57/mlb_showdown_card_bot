@@ -4,6 +4,11 @@ from psycopg2.extras import RealDictCursor
 from psycopg2.extensions import AsIs
 from psycopg2 import sql
 from datetime import datetime
+try:
+    # ASSUME THIS IS A SUBMODULE IN A PACKAGE
+    from .classes.stats_period import StatsPeriodType
+except ImportError:    
+    from classes.stats_period import StatsPeriodType
 
 class PostgresDB:
 
@@ -64,7 +69,7 @@ class PostgresDB:
 
         return output
     
-    def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:str = None, type_override:str = None, historical_date:str = None) -> tuple[dict, float]:
+    def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:str = None, type_override:str = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.FULL_SEASON) -> tuple[dict, float]:
         """Query the stats_archive table for a particular player's data from a single year
         
         Args:
@@ -72,6 +77,7 @@ class PostgresDB:
           bref_id: Unique ID for the player defined by bref.
           team_override: User override for filtering to a specific team. (ex: Max Scherzer (TEX))
           type_override: User override for specifing player type (ex: Shoehi Ohtani (Pitcher))
+          split: Split name (if applicable)
 
         Returns:
           Tuple:
@@ -89,8 +95,7 @@ class PostgresDB:
         except Exception as e:
             year_int = default_return_tuple
         
-        if year_int is None or self.connection is None:
-            print("NO CONNECTION")
+        if year_int is None or self.connection is None or stats_period_type != StatsPeriodType.FULL_SEASON:
             return default_return_tuple
         
         if team_override:
