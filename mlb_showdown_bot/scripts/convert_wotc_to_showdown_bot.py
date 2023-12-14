@@ -121,11 +121,17 @@ for index, wotc_data in enumerate(list_of_dicts, 1):
     proj_opponent_chart, proj_my_advantages_per_20, proj_opponent_advantages_per_20 = showdown_card.opponent_stats_for_calcs(command=showdown_card.chart.command)
     chart_results_per_400_pa = showdown_card.chart_to_results_per_400_pa(chart=showdown_card.chart, my_advantages_per_20=proj_my_advantages_per_20, opponent_chart=proj_opponent_chart, opponent_advantages_per_20=proj_opponent_advantages_per_20)
     showdown_card.projected = showdown_card.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=showdown_card.chart.command)
+    
+    # ADD ESTIMATED PTS
+    est_pts = showdown_card.calculate_points(projected=showdown_card.projected, positions_and_defense=showdown_card.positions_and_defense, speed_or_ip=showdown_card.ip if showdown_card.is_pitcher else showdown_card.speed.speed)
 
     if showdown_card.id in showdown_card_data.keys():
         dupes.append(showdown_card.id)
+
+    showdown_json = showdown_card.as_json()
+    showdown_json['est_points'] = est_pts.total_points
     
-    showdown_card_data[showdown_card.id] = showdown_card.as_json()
+    showdown_card_data[showdown_card.id] = showdown_json
 
 # ---------------------------------
 # 4. CONVERT TO JSON
@@ -133,4 +139,4 @@ for index, wotc_data in enumerate(list_of_dicts, 1):
 
 file_path = os.path.join(Path(os.path.dirname(__file__)).parent,'wotc_cards.json')
 with open(file_path, "w") as json_file:
-    json.dump(showdown_card_data, json_file, indent=4)
+    json.dump(showdown_card_data, json_file, indent=4, ensure_ascii=False)

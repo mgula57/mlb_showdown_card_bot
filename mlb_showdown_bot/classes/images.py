@@ -69,6 +69,7 @@ class Expansion(str, Enum):
     TD = 'TD'
     PR = 'PR'
     PM = 'PM'
+    ASG = "ASG"
 
     def __repr__(self) -> str:
         return self.value
