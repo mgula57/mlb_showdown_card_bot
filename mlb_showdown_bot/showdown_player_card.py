@@ -4801,6 +4801,14 @@ class ShowdownPlayerCard(BaseModel):
             if self.set.is_after_03:
                 components_dict[PlayerImageComponent.CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
             return components_dict
+        
+        # POSTSEASON
+        if self.image.edition == Edition.POSTSEASON:
+            components_dict = special_components_for_context
+            components_dict.pop(PlayerImageComponent.GLOW, None)
+            components_dict[PlayerImageComponent.SHADOW] = None
+            components_dict[PlayerImageComponent.POSTSEASON] = self.__card_art_path('POSTSEASON')
+            return components_dict
 
         # CLASSIC/EXPANDED
         if self.set.is_showdown_bot and not is_cooperstown and self.image.parallel == ImageParallel.NONE:

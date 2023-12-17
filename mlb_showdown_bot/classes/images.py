@@ -93,6 +93,7 @@ class PlayerImageComponent(str, Enum):
     GRADIENT = "GRADIENT"
     DARKENER = "DARKENER"
     COOPERSTOWN = "COOPERSTOWN"
+    POSTSEASON = "POSTSEASON"
     ELLIPSE_LARGE = "ELLIPSE-LARGE"
     ELLIPSE_MEDIUM = "ELLIPSE-MEDIUM"
     ELLIPSE_SMALL = "ELLIPSE-SMALL"
@@ -155,6 +156,7 @@ class PlayerImageComponent(str, Enum):
             "NAME_CONTAINER_2000",
             "DARKENER",
             "GOLD_FRAME",
+            "POSTSEASON"
         ]
     
     @property
@@ -181,6 +183,7 @@ class PlayerImageComponent(str, Enum):
             'CUSTOM_BACKGROUND',
             'COOPERSTOWN',
             'SUPER_SEASON',
+            "POSTSEASON",
             'DARKENER',
             'GRADIENT',
             'RAINBOW_FOIL',
@@ -216,6 +219,7 @@ class SpecialEdition(str, Enum):
     SUPER_SEASON = "SS"
     TEAM_COLOR_BLAST_DARK = "TCBD"
     NATIONALITY = "NATIONALITY"
+    POSTSEASON = "POSTSEASON"
     NONE = "NONE"
 
     def color(self, league:str=None) -> tuple[int,int,int,int]:
@@ -231,11 +235,11 @@ class SpecialEdition(str, Enum):
             
     @property
     def image_component_saturation_adjustments_dict(self) -> dict[PlayerImageComponent, float]:
-        match self.name:
-            case "COOPERSTOWN_COLLECTION": return {
+        match self:
+            case SpecialEdition.COOPERSTOWN_COLLECTION | SpecialEdition.POSTSEASON: return {
                 PlayerImageComponent.BACKGROUND: 0.33,
             }
-            case "SUPER_SEASON": return {
+            case SpecialEdition.SUPER_SEASON: return {
                 PlayerImageComponent.BACKGROUND: 0.75,
             }
         return {}
