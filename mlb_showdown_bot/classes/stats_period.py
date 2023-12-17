@@ -21,6 +21,12 @@ class StatsPeriodType(str, Enum):
     @property
     def enable_split(self) -> bool:
         return self.name in ['SPLIT']
+    
+    @property
+    def player_image_search_term(self) -> str:
+        match self:
+            case StatsPeriodType.POSTSEASON: return "(POST)"
+            case _: return None
 
 
 class StatsPeriod(BaseModel):

@@ -4467,7 +4467,8 @@ class ShowdownPlayerCard(BaseModel):
                     # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
                     image = None
                     type_override = self.player_type_override.override_string if self.player_type_override else ''
-                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team.value}){type_override}.png"
+                    stats_period = self.stats_period.type.player_image_search_term if self.stats_period.type.player_image_search_term else ''
+                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team.value}){type_override}{stats_period}.png"
                     cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
                     if not self.ignore_cache:
                         try:
@@ -4723,16 +4724,28 @@ class ShowdownPlayerCard(BaseModel):
         """
         # SEARCH FOR PLAYER IMAGE
         additional_substring_filters = [self.year, f'({self.team.value})',f'({self.team.value})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
+        
+        # EDITION
         if self.image.edition != Edition.NONE:
             for _ in range(0,3): # ADD 3X VALUE
                 additional_substring_filters.append(f'({self.image.edition.value})')
+
+        # PLAYER TYPE OVERRIDE
         if self.player_type_override:
             additional_substring_filters.append(self.player_type_override.override_string)
+        
+        # DARK MODE
         if self.image.is_dark_mode:
             additional_substring_filters.append('(DARK)')
+
+        # NATIONALITY
         if self.image.special_edition == SpecialEdition.NATIONALITY:
             for _ in range(0,4):
                 additional_substring_filters.append(f'({self.nationality.value})') # ADDS NATIONALITY THREE TIMES TO GIVE IT 3X IMPORTANCE
+        
+        # PERIOD TYPE
+        if self.stats_period.type.player_image_search_term: 
+            additional_substring_filters.append(self.stats_period.type.player_image_search_term)
 
         return additional_substring_filters
 
