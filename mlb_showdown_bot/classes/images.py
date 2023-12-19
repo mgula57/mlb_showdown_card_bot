@@ -344,6 +344,7 @@ class TemplateImageComponent(Enum):
     COMMAND = "command"
     STYLE = "style"
     BOT_LOGO = "bot_logo"
+    SPLIT = "split"
 
 # ---------------------------------------
 # IMAGE SOURCE

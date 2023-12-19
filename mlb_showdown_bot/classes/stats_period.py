@@ -28,6 +28,10 @@ class StatsPeriodType(str, Enum):
             case StatsPeriodType.POSTSEASON: return "(POST)"
             case _: return None
 
+    @property
+    def has_image(self) -> bool:
+        return self not in [StatsPeriodType.FULL_SEASON]
+
 
 class StatsPeriod(BaseModel):
 

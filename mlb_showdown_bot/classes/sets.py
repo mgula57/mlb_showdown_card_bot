@@ -1480,6 +1480,10 @@ class Set(str, Enum):
     def has_split_first_and_last_names(self) -> bool:
         return self.value == '2001'
     
+    @property
+    def is_split_image_long(self) -> bool:
+        return not self.is_showdown_bot
+
     # ---------------------------------------
     # PLAYER IMAGE
     # ---------------------------------------
@@ -1654,6 +1658,14 @@ class Set(str, Enum):
                     case '2003': return (655,1705)
                     case '2004' | '2005': return (1268,1965)
                     case 'CLASSIC' | 'EXPANDED': return (1345,2000)
+            case TemplateImageComponent.SPLIT:
+                match self.value:
+                    case '2000': return (330, 1860)
+                    case '2001': return (330, 1860)
+                    case '2002': return (290, 1850)
+                    case '2003': return (380, 1715)
+                    case '2004' | '2005': return (80, 1912)
+                    case 'CLASSIC' | 'EXPANDED': return (850,2000)
 
     def template_component_size(self, component:TemplateImageComponent) -> tuple[int,int]:
         match component:

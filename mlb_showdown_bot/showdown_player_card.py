@@ -2575,8 +2575,11 @@ class ShowdownPlayerCard(BaseModel):
             actual = f"{float(self.stats[key]):.3f}".replace('0.','.')
             final_player_data.append([category_prefix+cleaned_category,actual,in_game])
 
-        # GAMES
+        # GAMES/IP
         final_player_data.append(['G', str(self.stats.get('G', 0)), en_dash])
+        ip_real = self.stats.get('IP', None)
+        if ip_real:
+            final_player_data.append(['IP', str(self.stats.get('IP', 0)), en_dash])
 
         # PLATE APPEARANCES
         real_life_pa = int(self.stats['PA'])
@@ -3036,6 +3039,12 @@ class ShowdownPlayerCard(BaseModel):
             elif self.set.is_showdown_bot and self.image.expansion == Expansion.TD:
                 expansion_location = (expansion_location[0],expansion_location[1] - 12)
             card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
+
+        # SPLIT/DATE RANGE
+        if self.stats_period.type.has_image:
+            split_image = self.__date_range_or_split_image()
+            paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SPLIT)
+            card_image.paste(split_image, self.__coordinates_adjusted_for_bordering(paste_coordinates), split_image)
 
         # BETA TAG
         # TO BE REMOVED AFTER TEST PERIOD
@@ -4334,6 +4343,74 @@ class ShowdownPlayerCard(BaseModel):
         year_img.paste("#272727", (4,13 + multi_year_y_adjustment), year_text)
 
         return year_img
+
+    def __date_range_or_split_image(self) -> Image.Image:
+        """ Date Range or Split text image for partial year cards. Rounded rectangle with text.
+
+        Args: 
+          None
+
+        Returns:
+          PIL Image showing date range / split being shown on card.
+        """
+
+        # OPEN BACKGROUND IMAGE
+        image_name = "DATE-RANGE-BG-LONG" if self.set.is_split_image_long else "DATE-RANGE-BG"
+        split_image = Image.open(self.__template_img_path(image_name)).convert('RGBA')
+
+        # SPLIT TEXT
+        font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        size = 120 if self.set.is_split_image_long else 135
+        font = ImageFont.truetype(font_path, size=size)
+
+        # GRAB TEXT
+        text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
+        text_list = [t for t in text_list if t]
+
+        if self.set.is_split_image_long:
+
+            text_image_large = self.__text_image(
+                text = ' - '.join(text_list),
+                size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
+                font = font,
+                fill=colors.WHITE,
+                alignment = "center",
+            )
+            text_image = text_image_large.resize((280,240), Image.ANTIALIAS)
+            split_image.paste(text_image, (-5, 12), text_image)
+        else:
+            # ADD PERIOD
+            
+            y_position = 5
+            for text in text_list:
+
+                # SKIP IF NONE
+                if text is None:
+                    continue
+
+                text_image_large = self.__text_image(
+                    text = text,
+                    size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
+                    font = font,
+                    fill=colors.WHITE,
+                    alignment = "center",
+                )
+                text_image = text_image_large.resize((140,120), Image.ANTIALIAS)
+                split_image.paste(text_image, (0, y_position), text_image)
+                y_position += 45
+
+            # ADD DASH
+            dash_image_large = self.__text_image(
+                text = '-',
+                size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
+                font = font,
+                fill=colors.WHITE,
+                alignment = "center",
+            )
+            dash_image = dash_image_large.resize((140,120), Image.ANTIALIAS)
+            split_image.paste(dash_image, (0, 25), dash_image)
+
+        return split_image
 
 
 # ------------------------------------------------------------------------

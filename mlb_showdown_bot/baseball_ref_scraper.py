@@ -1191,7 +1191,7 @@ class BaseballReferenceScraper:
             game_log_data['G'] = 1
             innings_text = game_log_data.get('player_game_span', None)
             if innings_text:
-                is_start = 'GS' in str(innings_text)
+                is_start = 'GS' in str(innings_text) or 'SHO' in str(innings_text) or 'CG' in str(innings_text)
                 game_log_data['GS'] = int(is_start)
                 if is_start:
                     game_log_data['IP_GS'] = game_log_data.get('IP', 0)
@@ -1207,6 +1207,12 @@ class BaseballReferenceScraper:
         aggregated_data = { k.replace('batters_faced', 'PA'): self.__aggregate_stats_list(category=k, stats=v) for k,v in aggregated_data_into_lists.items() if k != 'earned_run_avg'}
 
         aggregated_data = self.__fill_empty_required_stat_categories(aggregated_data)
+
+        # ADD FIRST AND LAST GAME DATES
+        game_dates = aggregated_data_into_lists.get('date_game', None)
+        if game_dates:
+            aggregated_data['first_game_date'] = str(game_dates[0]).upper()
+            aggregated_data['last_game_date'] = str(game_dates[-1]).upper()
 
         return aggregated_data
 

@@ -1,17 +1,23 @@
 from flask import Flask, render_template, request, jsonify
-from mlb_showdown_bot.firebase import Firebase
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.postgres_db import PostgresDB
 from mlb_showdown_bot.classes.stats_period import StatsPeriod
 import os
 import pandas as pd
-from datetime import datetime
 from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
 from pprint import pprint
 from time import sleep
 
+# ----------------------------------------------------------
+# ARGUMENTS
+# ----------------------------------------------------------
+
+import argparse
+parser = argparse.ArgumentParser(description="Run Showdown Bot App.")
+parser.add_argument('-d','--debug', action='store_true', help='Activate Debug Mode.')
+args = parser.parse_args()
 
 # ----------------------------------------------------------
 # DATABASE
@@ -547,4 +553,4 @@ def random_player_id_and_year():
     return random_player_sample['player_id'], str(random_player_sample['year'])
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=args.debug)
