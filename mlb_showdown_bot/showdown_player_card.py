@@ -3186,7 +3186,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # SETUP IMAGE METADATA
         is_alternate = self.use_alternate_logo or force_use_alternate
-        logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
+        logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
         logo_size = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
         logo_rotation = rotation if rotation else (10 if self.set == Set._2002 and self.image.edition.rotate_team_logo_2002 and not ignore_dynamic_elements else 0 )
         logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.TEAM_LOGO)
@@ -3216,7 +3216,7 @@ class ShowdownPlayerCard(BaseModel):
                     logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
             else:
                 # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
-                logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
+                logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
                 logo_size_multiplier = self.team.logo_size_multiplier(year=self.median_year, is_alternate=is_alternate)
                 team_logo_path = self.__team_logo_path(name=logo_name)
                 if self.image.special_edition == SpecialEdition.NATIONALITY:
@@ -3319,7 +3319,7 @@ class ShowdownPlayerCard(BaseModel):
         # ATTRIBUTES FOR THE LOGO
         force_alternate = team.use_alternate_for_background(set=self.set.value)
         use_alternate = self.use_alternate_logo or force_alternate
-        logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate)
+        logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
 
         # OPACITY
         opacity = team.background_logo_opacity(set=self.set.value)

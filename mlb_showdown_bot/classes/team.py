@@ -875,9 +875,16 @@ class Team(str, Enum):
         
         return ''
     
-    def logo_name(self, year:int, is_alternate:bool=False) -> str:
+    def logo_name(self, year:int, is_alternate:bool=False, set:str='N/A', is_dark:bool=False) -> str:
+
         alt_ext = '-A' if is_alternate else ''
-        return f"{self.value}{alt_ext}{self.logo_historical_index(year=year, include_dash=True)}"
+        logo_name = f"{self.value}{alt_ext}{self.logo_historical_index(year=year, include_dash=True)}"
+
+        # CHECK FOR ALTS
+        if set in ['EXPANDED', 'CLASSIC'] and not is_dark and logo_name in ['NYY-A','NYY-A-2']:
+            return f'{logo_name}-ALT'
+
+        return logo_name
 
     def is_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
         logo_name = self.logo_name(year=year, is_alternate=is_alternate)
