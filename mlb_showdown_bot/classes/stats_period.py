@@ -29,7 +29,7 @@ class StatsPeriodType(str, Enum):
             case _: return None
 
     @property
-    def has_image(self) -> bool:
+    def show_text_on_card_image(self) -> bool:
         return self not in [StatsPeriodType.FULL_SEASON]
 
 

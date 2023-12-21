@@ -34,7 +34,7 @@ try:
     from .classes.points import Points
     from .classes.metadata import Speed, SpeedLetter, Hand
     from .classes import colors
-    from .classes.stats_period import StatsPeriod
+    from .classes.stats_period import StatsPeriod, StatsPeriodType
     from .version import __version__
 except ImportError:
     # USE LOCAL IMPORT
@@ -51,7 +51,7 @@ except ImportError:
     from classes.points import Points
     from classes.metadata import Speed, SpeedLetter, Hand
     from classes import colors
-    from classes.stats_period import StatsPeriod
+    from classes.stats_period import StatsPeriod, StatsPeriodType
     from version import __version__
 
 class ShowdownPlayerCard(BaseModel):
@@ -3041,7 +3041,7 @@ class ShowdownPlayerCard(BaseModel):
             card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
 
         # SPLIT/DATE RANGE
-        if self.stats_period.type.has_image:
+        if self.stats_period.type.show_text_on_card_image:
             split_image = self.__date_range_or_split_image()
             paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SPLIT)
             card_image.paste(split_image, self.__coordinates_adjusted_for_bordering(paste_coordinates), split_image)
@@ -4364,13 +4364,23 @@ class ShowdownPlayerCard(BaseModel):
         font = ImageFont.truetype(font_path, size=size)
 
         # GRAB TEXT
-        text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
-        text_list = [t for t in text_list if t]
+        match self.stats_period.type:
+            case StatsPeriodType.POSTSEASON:
+                text = 'POST'
+                text_list = [text]
+            case StatsPeriodType.DATE_RANGE:
+                text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
+                text_list = [t for t in text_list if t]
+                text = ' - '.join(text_list)
+            case StatsPeriodType.SPLIT:
+                text = self.stats_period.split.upper()
+                text_list = [text]
 
+        num_words = len(text_list)
         if self.set.is_split_image_long:
 
             text_image_large = self.__text_image(
-                text = ' - '.join(text_list),
+                text = text,
                 size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
                 font = font,
                 fill=colors.WHITE,
@@ -4381,7 +4391,7 @@ class ShowdownPlayerCard(BaseModel):
         else:
             # ADD PERIOD
             
-            y_position = 5
+            y_position = 5 if num_words > 1 else 25
             for text in text_list:
 
                 # SKIP IF NONE
@@ -4400,15 +4410,16 @@ class ShowdownPlayerCard(BaseModel):
                 y_position += 45
 
             # ADD DASH
-            dash_image_large = self.__text_image(
-                text = '-',
-                size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
-                font = font,
-                fill=colors.WHITE,
-                alignment = "center",
-            )
-            dash_image = dash_image_large.resize((140,120), Image.ANTIALIAS)
-            split_image.paste(dash_image, (0, 25), dash_image)
+            if self.stats_period.type == StatsPeriodType.DATE_RANGE and num_words > 1:
+                dash_image_large = self.__text_image(
+                    text = '-',
+                    size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
+                    font = font,
+                    fill=colors.WHITE,
+                    alignment = "center",
+                )
+                dash_image = dash_image_large.resize((140,120), Image.ANTIALIAS)
+                split_image.paste(dash_image, (0, 25), dash_image)
 
         return split_image
 
