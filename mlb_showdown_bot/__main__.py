@@ -120,6 +120,7 @@ def main():
             print(f"Projected PTS: {pts.total_points}  Actual PTS: {showdown.points}  Diff: {showdown.points - pts.total_points}")
 
     # CREATE SHOWDOWN CARD FROM STATLINE
+    stats_period = scraper.stats_period or stats_period
     if showdown is None:
         showdown = ShowdownPlayerCard(
             name=name,
