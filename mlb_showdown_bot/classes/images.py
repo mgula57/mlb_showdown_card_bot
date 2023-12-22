@@ -106,6 +106,7 @@ class PlayerImageComponent(str, Enum):
     GOLD_RUSH = "GOLD-BEAMS"
     GOLD = "GOLD"
     GOLD_FRAME = "GOLD_FRAME"
+    MOONLIGHT = "MOONLIGHT"
     WHITE_SMOKE = "WHITE_SMOKE"
     FLAMES = "FLAMES"
     WHITE_CIRCLE = "WHITE_CIRCLE"
@@ -194,6 +195,7 @@ class PlayerImageComponent(str, Enum):
             'GOLD',
             'GOLD_FRAME',
             'WHITE_SMOKE',
+            'MOONLIGHT',
             'FLAMES',
             'TEAM_LOGO',
             'TEAM_COLOR',
@@ -263,6 +265,7 @@ class ImageParallel(str, Enum):
     FLAMES = "FLAMES"
     TEAM_COLOR_BLAST = "TCB"
     MYSTERY = "MYSTERY"
+    MOONLIGHT = "MOONLIGHT"
     NONE = "NONE"
 
     @classmethod
@@ -286,12 +289,13 @@ class ImageParallel(str, Enum):
             case "WHITE_SMOKE": return { PlayerImageComponent.WHITE_SMOKE: PlayerImageComponent.WHITE_SMOKE.name, PlayerImageComponent.BACKGROUND: None }
             case "FLAMES": return { PlayerImageComponent.FLAMES: PlayerImageComponent.FLAMES.name }
             case "TEAM_COLOR_BLAST": return { PlayerImageComponent.WHITE_CIRCLE: PlayerImageComponent.WHITE_CIRCLE.name, PlayerImageComponent.TEAM_LOGO: None, PlayerImageComponent.TEAM_COLOR: None, PlayerImageComponent.BACKGROUND: None }
+            case "MOONLIGHT": return { PlayerImageComponent.MOONLIGHT: PlayerImageComponent.MOONLIGHT.name, PlayerImageComponent.BACKGROUND: None }
             case _: return {}
 
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
-            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD" | "GOLD_FRAME": return { PlayerImageComponent.GLOW: PlayerImageComponent.SHADOW }
+            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD" | "GOLD_FRAME" | "MOONLIGHT": return { PlayerImageComponent.GLOW: PlayerImageComponent.SHADOW }
             case _: return {}
     
     @property
@@ -299,6 +303,7 @@ class ImageParallel(str, Enum):
         match self.name:
             case "COMIC_BOOK_HERO" | "WHITE_SMOKE": return { PlayerImageComponent.BACKGROUND: 0.05 }
             case "GOLD_RUSH" | "GOLD" | "GOLD_FRAME": return { PlayerImageComponent.BACKGROUND: 0.40 }
+            case "MOONLIGHT": return { PlayerImageComponent.BACKGROUND: 0.60 }
             case "TEAM_COLOR_BLAST": return { PlayerImageComponent.TEAM_LOGO: 0.10 }
             case _: return {}
 
@@ -318,6 +323,12 @@ class ImageParallel(str, Enum):
         match self.name:
             case 'GOLD' | 'GOLD_RUSH' | 'GOLD_FRAME': return '-GOLD'
             case _: return ''
+
+    @property
+    def template_color_04_05(self) -> str:
+        match self:
+            case ImageParallel.MOONLIGHT: return "BLACK"
+            case _: return None
 
 
 # ---------------------------------------

@@ -3372,6 +3372,8 @@ class ShowdownPlayerCard(BaseModel):
                 edition_extension = f'-{self.nationality.template_color}'
             elif self.image.parallel == ImageParallel.TEAM_COLOR_BLAST and team_color_name:
                 edition_extension = f'-{team_color_name}'
+            elif self.image.parallel.template_color_04_05:
+                edition_extension = f'-{self.image.parallel.template_color_04_05}'
             elif self.image.is_dark_mode:
                 edition_extension = '-BLACK'
             else:
@@ -4366,7 +4368,7 @@ class ShowdownPlayerCard(BaseModel):
         # GRAB TEXT
         match self.stats_period.type:
             case StatsPeriodType.POSTSEASON:
-                text = 'POST'
+                text = 'POSTSEASON' if self.set.is_split_image_long else 'POST'
                 text_list = [text]
             case StatsPeriodType.DATE_RANGE:
                 text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
@@ -4386,7 +4388,7 @@ class ShowdownPlayerCard(BaseModel):
                 
         num_words = len(text_list)
         if self.set.is_split_image_long:
-
+            text = text if len(text) < 13 else f"{text[:11]}.."
             text_image_large = self.__text_image(
                 text = text,
                 size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
@@ -4404,7 +4406,8 @@ class ShowdownPlayerCard(BaseModel):
                 # SKIP IF NONE
                 if text is None:
                     continue
-
+                
+                text = text if len(text) < 8 else f"{text[:6]}.."
                 text_image_large = self.__text_image(
                     text = text,
                     size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
@@ -4895,14 +4898,6 @@ class ShowdownPlayerCard(BaseModel):
             })
             if self.set.is_after_03:
                 components_dict[PlayerImageComponent.CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
-            return components_dict
-        
-        # POSTSEASON
-        if self.image.edition == Edition.POSTSEASON:
-            components_dict = special_components_for_context
-            components_dict.pop(PlayerImageComponent.GLOW, None)
-            components_dict[PlayerImageComponent.SHADOW] = None
-            components_dict[PlayerImageComponent.POSTSEASON] = self.__card_art_path('POSTSEASON')
             return components_dict
 
         # CLASSIC/EXPANDED
