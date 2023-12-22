@@ -4374,8 +4374,16 @@ class ShowdownPlayerCard(BaseModel):
                 text = ' - '.join(text_list)
             case StatsPeriodType.SPLIT:
                 text = self.stats_period.split.upper()
+                text_no_slash = text.replace('/',' ')
                 text_list = [text]
-
+                text_split_by_word = text_no_slash.split(' ')
+                num_words = len(text_split_by_word)
+                if len(text) > 7 and num_words > 1 and not self.set.is_split_image_long:
+                    mid_point = int(num_words / 2)
+                    part_1 = ' '.join(text_split_by_word[:mid_point])
+                    part_2 = ' '.join(text_split_by_word[mid_point:])
+                    text_list = [part_1, part_2]
+                
         num_words = len(text_list)
         if self.set.is_split_image_long:
 
@@ -4390,7 +4398,6 @@ class ShowdownPlayerCard(BaseModel):
             split_image.paste(text_image, (-5, 12), text_image)
         else:
             # ADD PERIOD
-            
             y_position = 5 if num_words > 1 else 25
             for text in text_list:
 

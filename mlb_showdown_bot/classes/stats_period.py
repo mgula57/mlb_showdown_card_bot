@@ -65,7 +65,7 @@ class StatsPeriod(BaseModel):
     @property
     def id(self) -> str:
         values = [self.type.value, self.start_date, self.end_date, self.split]
-        return "-".join([str(v) for v in values if v is not None])
+        return "-".join([str(v).replace('/','-') for v in values if v is not None])
     
     @property
     def is_date_range(self) -> bool:

@@ -51,6 +51,7 @@ class BaseballReferenceScraper:
 
         self.name = name
         self.error = None
+        self.warning = None
         self.source = None
         self.ignore_cache = ignore_cache
         self.disable_cleaning_cache = disable_cleaning_cache
@@ -1129,6 +1130,9 @@ class BaseballReferenceScraper:
 
         splits = soup_for_split.find_all("th", string=self.stats_period.split)
         if len(splits) == 0:
+            self.warning = f'No Splits Available for {self.stats_period.split}'
+            self.stats_period.type = StatsPeriodType.FULL_SEASON
+            self.stats_period.split = None
             return None
 
         # ITERATE THROUGH ALL SPLIT ROWS THAT MATCH THE USER INPUTTED NAME
