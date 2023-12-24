@@ -4586,7 +4586,13 @@ class ShowdownPlayerCard(BaseModel):
                 case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
-                    image = Image.open(img_url).convert('RGBA').resize((1200,1200), resample=Image.ANTIALIAS)
+                    if self.image.parallel == ImageParallel.MOONLIGHT:
+                        image, paste_coordinates = self.team_logo_for_background(team_override=self.team_override_for_images)
+                        image = self.__change_image_saturation(image=image, saturation=0.05)
+                        player_img_components.append((image, paste_coordinates))
+                        continue
+                    else:
+                        image = Image.open(img_url).convert('RGBA').resize((1200,1200), resample=Image.ANTIALIAS)
                 case "NAME_CONTAINER":
                     image = self.__2000_player_name_container_image()
                 case _: 
@@ -4863,9 +4869,9 @@ class ShowdownPlayerCard(BaseModel):
 
         if self.image.parallel.has_special_components:
             # ADD ADDITIONAL COMPONENTS
-            if len(self.image.parallel.special_component_additions) > 0:
+            if len(self.image.parallel.special_component_additions(self.set.value)) > 0:
                 team_logo_name = self.team.logo_name(year=self.median_year)
-                special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == PlayerImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image.parallel.special_component_additions.items()})
+                special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == PlayerImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image.parallel.special_component_additions(self.set.value).items()})
             # EDITING EXISTING COMPONENTS
             replacements_dict = self.image.parallel.special_components_replacements
             for old_component, new_component in replacements_dict.items():

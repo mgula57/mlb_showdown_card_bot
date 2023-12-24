@@ -157,7 +157,6 @@ class PlayerImageComponent(str, Enum):
             "NAME_CONTAINER_2000",
             "DARKENER",
             "GOLD_FRAME",
-            "POSTSEASON"
         ]
     
     @property
@@ -276,8 +275,7 @@ class ImageParallel(str, Enum):
     def has_special_components(self) -> bool:
         return self.name not in ['NONE', 'BLACK_AND_WHITE']
 
-    @property
-    def special_component_additions(self) -> dict[str,str]:
+    def special_component_additions(self, set: str) -> dict[str,str]:
         match self.name:
             case "RAINBOW_FOIL": return { PlayerImageComponent.RAINBOW_FOIL: "RAINBOW-FOIL" }
             case "SAPPHIRE": return { PlayerImageComponent.SAPPHIRE: "SAPPHIRE" }
@@ -289,7 +287,11 @@ class ImageParallel(str, Enum):
             case "WHITE_SMOKE": return { PlayerImageComponent.WHITE_SMOKE: PlayerImageComponent.WHITE_SMOKE.name, PlayerImageComponent.BACKGROUND: None }
             case "FLAMES": return { PlayerImageComponent.FLAMES: PlayerImageComponent.FLAMES.name }
             case "TEAM_COLOR_BLAST": return { PlayerImageComponent.WHITE_CIRCLE: PlayerImageComponent.WHITE_CIRCLE.name, PlayerImageComponent.TEAM_LOGO: None, PlayerImageComponent.TEAM_COLOR: None, PlayerImageComponent.BACKGROUND: None }
-            case "MOONLIGHT": return { PlayerImageComponent.MOONLIGHT: PlayerImageComponent.MOONLIGHT.name, PlayerImageComponent.BACKGROUND: None }
+            case "MOONLIGHT":
+                comps_dict = { PlayerImageComponent.MOONLIGHT: PlayerImageComponent.MOONLIGHT.name, PlayerImageComponent.BACKGROUND: None }
+                if set == '2001':
+                    comps_dict[PlayerImageComponent.TEAM_LOGO] = None
+                return comps_dict
             case _: return {}
 
     @property

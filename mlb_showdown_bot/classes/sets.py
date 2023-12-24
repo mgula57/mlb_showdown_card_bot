@@ -1629,7 +1629,7 @@ class Set(str, Enum):
                 match self.value:
                     case '2000': return (1200,1045)
                     case '2001': return (1108,1015)
-                    case '2002': return (80,1320)
+                    case '2002': return (80,1275)
                     case '2003': return (1085,1010)
                     case '2004' | '2005': return (1100,1370)
                     case 'CLASSIC' | 'EXPANDED': return (1075,1305)
