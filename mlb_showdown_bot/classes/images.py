@@ -37,7 +37,7 @@ class Edition(str, Enum):
     
     @property
     def use_edition_logo_as_team_logo(self) -> bool:
-        return self in [Edition.COOPERSTOWN_COLLECTION]
+        return self in [Edition.COOPERSTOWN_COLLECTION, Edition.ALL_STAR_GAME]
     
     @property
     def template_extension(self) -> str:

@@ -1178,7 +1178,6 @@ class BaseballReferenceScraper:
         game_log_records = soup_game_log_page.find_all('tr', attrs={'id': re.compile(f'{type_prefix}_gamelogs.')})
         included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF',]
         game_logs_parsed: list[dict] = [self.__parse_generic_bref_row(row=game_log, included_categories=included_categories) for game_log in game_log_records]
-        print("P", game_logs_parsed)
         # AGGREGATE DATA
         aggregated_data_into_lists: dict[str, list] = {}
         for game_log_data in game_logs_parsed:
@@ -1195,7 +1194,6 @@ class BaseballReferenceScraper:
                 date_check = self.stats_period.start_date <= game_log_date <= self.stats_period.end_date
 
             # SKIP ROW IF IT FAILS THE DATE OR YEAR CHECKS
-            print(date_check, year_check)
             if not date_check or not year_check:
                 continue 
 
