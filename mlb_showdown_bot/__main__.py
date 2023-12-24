@@ -45,7 +45,7 @@ parser.add_argument('-htl','--hide_team_logo', action='store_true', help='Option
 parser.add_argument('-sc','--secondary_color', action='store_true', help='Used secondary team color.')
 
 # STATS
-parser.add_argument('-sp','--stats_period', help='Period to use for stats. Allowed options are FULL,DATES,POST,SPLIT', default='FULL', type=str)
+parser.add_argument('-sp','--stats_period', help='Period to use for stats. Allowed options are REGULAR,DATES,POST,SPLIT', default='REGULAR', type=str)
 parser.add_argument('-start','--start_date', help='Optional Start Date for stats. Only available post-1900.', default=None, type=str)
 parser.add_argument('-end','--end_date', help='Optional End Date for stats. Only available post-1900.', default=None, type=str)
 parser.add_argument('-spl','--split_name', help='Create a card using the splits page on baseball reference', default=None, type=str)

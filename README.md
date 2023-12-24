@@ -35,8 +35,14 @@
     * [All-Star Game](#all-star-game)
     * [Rookie Season](#rookie-season)
     * [Holiday](#holiday)
+    * [Postseason] (#postseason)
 * [New Sets](#new-sets)
 * [Parallels](#parallels)
+* [Period](#period)
+    * [Regular Season](#regular-season)
+    * [Postseason](#postseason)
+    * [Date Range](#date-range)
+    * [Split](#split)
 * [More Options](#more-options)
     * [Border](#border)
     * [Dark Mode](#dark-mode)
@@ -681,6 +687,12 @@ Rookie Season replaces a player's team logo with a custom rookie season icon. So
 
 The Holiday theme adds a simple Christmas Tree inspired border to any card. This includes user uploaded photos, automated images, and silhouettes. 
 
+### **Postseason**
+
+![Image](./static/interface/Postseason.png)
+
+Adds postseason logo to images. Only available when the Postseason period is selected.
+
 ## **New Sets**
 
  **Showdown Bot now includes new sets that modernize the look and play of MLB Showdown!**
@@ -756,8 +768,51 @@ Available Parallels:
 - White Smoke
 - Flames
 - Mystery
+- Moonlight
 
 Stay tuned for more image parallels coming soon!
+
+## Periods
+
+The periods option lets you choose the exact period of stats to use for your Showdown card.
+
+These are the available options:
+- Regular Season
+- Postseason
+- Date Range
+- Split
+
+### Regular Season
+
+This is the default period, and will include all games within the selected season(s). Excludes postseason.
+
+### Postseason
+
+Includes postseason stats from all rounds. Future update will let the user filter to certain rounds (ex: World Series).
+
+Certain stat inputs are unavailable for the playoffs. The following stat inputs will use regular season values:
+- Sprint Speed
+- Defense
+
+### Date Range
+
+Filters data to only games within a date range.
+
+**NOT available for multi-year cards.**
+
+Certain stat inputs are unavailable for exact date ranges. The following stat inputs will use full regular season values:
+- Sprint Speed
+- Defense
+
+### Split
+
+Filter to stats from a particular split on baseball reference. See player's "Splits" pages for available values. Name must match exactly.
+
+![Image](./static/interface/Splits.png)
+
+Certain stat inputs are unavailable for splits. The following stat inputs will use full regular season values:
+- Sprint Speed
+- Defense
 
 ## More Options
 

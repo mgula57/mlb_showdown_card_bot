@@ -69,7 +69,7 @@ class PostgresDB:
 
         return output
     
-    def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:str = None, type_override:str = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.FULL_SEASON) -> tuple[dict, float]:
+    def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:str = None, type_override:str = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.REGULAR_SEASON) -> tuple[dict, float]:
         """Query the stats_archive table for a particular player's data from a single year
         
         Args:
@@ -95,7 +95,7 @@ class PostgresDB:
         except Exception as e:
             year_int = default_return_tuple
         
-        if year_int is None or self.connection is None or stats_period_type != StatsPeriodType.FULL_SEASON:
+        if year_int is None or self.connection is None or stats_period_type != StatsPeriodType.REGULAR_SEASON:
             return default_return_tuple
         
         if team_override:

@@ -98,9 +98,9 @@
                                           <img for="periodSelection" src="static/interface/NEW.png" width=20 height=20 data-toggle="tooltip" data-placement="top" title="Period of time used for stats. Note that full season values will be used for stats unavailable daily. (ex: Sprint Speed, Defense)." >
                                           <select id="periodSelection" class="form-select mb-3" aria-label=".form-select-lg example" onchange="changePeriodSection(this)">
                                              {% set period_dict = {
-                                                "FULL": "Full Season", 
-                                                "DATES": "Date Range",
+                                                "REGULAR": "Regular Season",
                                                 "POST": "Postseason",
+                                                "DATES": "Date Range",
                                                 "SPLIT": "Split",
                                              } %}
                                              {% for period_value, period_name in period_dict.items() -%}
@@ -128,9 +128,14 @@
 
                                        <!-- SPLIT -->
                                        <div class="col-12 col-md-12" id="div_split" style="display: none; padding-bottom: 10px;">
-                                          <label for="split" style="color:Gray;"><b>Split</b></label>
+                                          <label for="split" style="color:Gray;">
+                                             <b>Split</b>
+                                          </label>
                                           <img for="split" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Filter player's stats to a particular split. See player's baseball reference splits page for options. For example: vs 'RHP', 'Home', '1st Half'." >
-                                          <input type="text" name="split" class="form-control" id="split" placeholder="Ex: vs LHB">
+                                          <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md#split" id="split_href" class="link-primary" target="_blank" rel="noopener noreferrer">
+                                               (How to)
+                                          </a>
+                                          <input type="text" name="split" class="form-control" id="split" placeholder="Ex: vs LHP">
                                        </div>
 
                                     </div>   

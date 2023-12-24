@@ -5,14 +5,14 @@ from typing import Optional
 
 class StatsPeriodType(str, Enum):
 
-    FULL_SEASON = "FULL"
+    REGULAR_SEASON = "REGULAR"
     DATE_RANGE = "DATES"
     POSTSEASON = "POST"
     SPLIT = "SPLIT"
 
     @property
     def uses_game_logs(self) -> bool:
-        return self.name in ['DATE_RANGE', 'POSTSEASON']
+        return self in [StatsPeriodType.DATE_RANGE, StatsPeriodType.POSTSEASON]
 
     @property
     def enable_date_range(self) -> bool:
@@ -30,13 +30,13 @@ class StatsPeriodType(str, Enum):
 
     @property
     def show_text_on_card_image(self) -> bool:
-        return self not in [StatsPeriodType.FULL_SEASON]
+        return self not in [StatsPeriodType.REGULAR_SEASON]
 
 
 class StatsPeriod(BaseModel):
 
     # ATTRIBUTES
-    type: StatsPeriodType = StatsPeriodType.FULL_SEASON
+    type: StatsPeriodType = StatsPeriodType.REGULAR_SEASON
 
     # DATE RANGE
     start_date: Optional[date] = None
@@ -74,7 +74,7 @@ class StatsPeriod(BaseModel):
     @property
     def string(self) -> str:
         match self.type:
-            case StatsPeriodType.FULL_SEASON: return "FULL SEASON"
+            case StatsPeriodType.REGULAR_SEASON: return "REGULAR SEASON"
             case StatsPeriodType.DATE_RANGE:
                 dates_formatted_list = [datetime.combine(dt, datetime.min.time()).strftime("%b %d") for dt in [self.start_date, self.end_date]]
                 dates_split = " to ".join(dates_formatted_list)

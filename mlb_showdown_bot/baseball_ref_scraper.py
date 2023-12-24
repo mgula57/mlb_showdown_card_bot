@@ -1138,7 +1138,7 @@ class BaseballReferenceScraper:
         splits = soup_for_split.find_all("th", string=self.stats_period.split)
         if len(splits) == 0:
             self.warning = f'No Splits Available for {self.stats_period.split}'
-            self.stats_period.type = StatsPeriodType.FULL_SEASON
+            self.stats_period.type = StatsPeriodType.REGULAR_SEASON
             self.stats_period.split = None
             return None
 
@@ -1167,7 +1167,7 @@ class BaseballReferenceScraper:
         """
         
         type_ext = 'p' if type == 'Pitcher' else 'b'
-        years = [int(y) for y in years]
+        years = [int(y) if y != 'CAREER' else y for y in years]
         first_year = years[0]
         period_ext = "year=0&post=1" if self.stats_period.type == StatsPeriodType.POSTSEASON else f"year={first_year}"
         url = f"https://www.baseball-reference.com/players/gl.fcgi?id={self.baseball_ref_id}&t={type_ext}&{period_ext}"
@@ -1178,7 +1178,7 @@ class BaseballReferenceScraper:
         game_log_records = soup_game_log_page.find_all('tr', attrs={'id': re.compile(f'{type_prefix}_gamelogs.')})
         included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF',]
         game_logs_parsed: list[dict] = [self.__parse_generic_bref_row(row=game_log, included_categories=included_categories) for game_log in game_log_records]
-
+        print("P", game_logs_parsed)
         # AGGREGATE DATA
         aggregated_data_into_lists: dict[str, list] = {}
         for game_log_data in game_logs_parsed:
@@ -1195,6 +1195,7 @@ class BaseballReferenceScraper:
                 date_check = self.stats_period.start_date <= game_log_date <= self.stats_period.end_date
 
             # SKIP ROW IF IT FAILS THE DATE OR YEAR CHECKS
+            print(date_check, year_check)
             if not date_check or not year_check:
                 continue 
 
