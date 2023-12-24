@@ -356,6 +356,9 @@ class TemplateImageComponent(Enum):
     EXPANSION = "expansion"
     COMMAND = "command"
     STYLE = "style"
+    STYLE_LOGO = "style_logo"
+    STYLE_LOGO_BG = "style_logo_bg"
+    STYLE_TEXT = "style_text"
     BOT_LOGO = "bot_logo"
     SPLIT = "split"
 

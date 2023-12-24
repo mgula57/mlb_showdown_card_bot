@@ -1651,6 +1651,17 @@ class Set(str, Enum):
             case TemplateImageComponent.STYLE:
                 match self.value:
                     case 'CLASSIC' | 'EXPANDED': return (60,1992)
+            case TemplateImageComponent.STYLE_LOGO_BG:
+                match self.value:
+                    case 'CLASSIC' | 'EXPANDED': return (255,5)
+            case TemplateImageComponent.STYLE_LOGO:
+                match self.value:
+                    case 'CLASSIC': return (285,18)
+                    case 'EXPANDED': return (295,20)
+            case TemplateImageComponent.STYLE_TEXT:
+                match self.value:
+                    case 'CLASSIC': return (38,27)
+                    case 'EXPANDED': return (15,27)
             case TemplateImageComponent.BOT_LOGO:
                 match self.value:
                     case '2000' | '2001': return (1250,1945)

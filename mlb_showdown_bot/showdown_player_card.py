@@ -3007,9 +3007,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # STYLE (IF APPLICABLE)
         if self.set.is_showdown_bot:
-            theme_suffix = '-DARK' if self.image.is_dark_mode else ''
-            style_img_path = self.__template_img_path(f'{self.set.value}{theme_suffix}')
-            style_img = Image.open(style_img_path)
+            style_img = self.__style_image()
             style_coordinates = self.__coordinates_adjusted_for_bordering(self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE))
             card_image.paste(style_img, style_coordinates, style_img)
         
@@ -4306,6 +4304,54 @@ class ShowdownPlayerCard(BaseModel):
             background_img.paste(fill_color_hex, paste_location, command_text_img)
 
         return background_img
+
+    def __style_image(self) -> Image.Image:
+        """ Style image for CLASSIC AND EXPANDED sets. Color scheme matches team colors
+        
+        Args:
+          None
+
+        Returns:
+          PIL image with style logo
+        """
+
+        color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color) # NOTE: USES OPPOSITE COLOR
+        color_hex = self.__rbgs_to_hex(rgbs=color)
+        red, green, blue, _ = color
+        color_lightness = (red*0.299 + green*0.587 + blue*0.114)
+        is_shadow = color_lightness < 75 if self.image.is_dark_mode else color_lightness > 186
+
+        # LOAD BACKGROUND
+        theme_suffix = 'DARK' if self.image.is_dark_mode else 'LIGHT'
+        shadow_suffix = '-SHADOW' if is_shadow else ''
+        bg_image_path = self.__template_img_path(f'STYLE-BG-{theme_suffix}{shadow_suffix}')
+        bg_image = Image.open(bg_image_path)
+
+        # BACKGROUND
+        logo_bg_original = Image.open(self.__template_img_path('STYLE-LOGO-BG'))
+        logo_bg = self.__add_color_overlay_to_img(img=logo_bg_original, color=color)
+        logo_bg_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE_LOGO_BG)
+        bg_image.paste(logo_bg, logo_bg_paste_coordinates, logo_bg)
+
+        # STYLE LOGO
+        style_logo = Image.open(self.__template_img_path(f'STYLE-LOGO-{self.set.value}'))
+        logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE_LOGO)
+        bg_image.paste(style_logo, logo_paste_coordinates, style_logo)
+
+        # STYLE TEXT
+        style_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        style_font = ImageFont.truetype(style_font_path, size=225)
+        style_text = self.__text_image(
+            text = self.set.value,
+            size = (1800, 300),
+            font = style_font,
+            alignment = "left"
+        )
+        style_text = style_text.resize((450,75), Image.ANTIALIAS)
+        style_text_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE_TEXT)
+        bg_image.paste(color_hex, style_text_paste_location, style_text)
+                
+        return bg_image
 
     def __year_container_add_on(self) -> Image.Image:
         """User can optionally add a box dedicated to showing years used for the card.
