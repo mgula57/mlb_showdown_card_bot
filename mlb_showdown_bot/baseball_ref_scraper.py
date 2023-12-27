@@ -250,6 +250,7 @@ class BaseballReferenceScraper:
         master_stats_dict = {}
         is_full_career = self.years == ['CAREER']
         is_data_from_statcast = False
+        has_ran_oaa = False
         for year in self.years:
             # DEFENSE
             stats_dict = {'bref_id': self.baseball_ref_id, 'bref_url': url_for_homepage_stats}
@@ -328,7 +329,7 @@ class BaseballReferenceScraper:
             is_data_from_statcast = stats_dict.get('sprint_speed', None) is not None
 
             # OUTS ABOVE AVERAGE (2016+)
-            if 'outs_above_avg' not in stats_dict.keys() and is_hitter: # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
+            if not has_ran_oaa and is_hitter: # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
                 years_list = years_played if is_full_career else self.years
                 years_as_ints = [int(y) for y in years_list]
                 oaa_dict = self.statcast_outs_above_average_dict(name=name, years=years_as_ints)
@@ -338,9 +339,10 @@ class BaseballReferenceScraper:
                 for position, oaa in oaa_dict.items():
                     dict_for_position = current_positions.get(position, None)
                     if dict_for_position:
-                        dict_for_position['oaa'] = oaa
+                        dict_for_position['oaa'] = round(oaa, 5)
                         current_positions[position] = dict_for_position
                 stats_dict['positions'] = current_positions
+                has_ran_oaa = True
             
             # DERIVE 1B 
             triples = int(stats_dict.get('3B', 0))
@@ -803,7 +805,7 @@ class BaseballReferenceScraper:
                         if is_year_match and is_team_row:
                             position = fielding_row['pos_name_short']
                             ooa = fielding_row['outs_above_average']
-                            if ooa:
+                            if ooa:                              
                                 ooa_rounded = round(ooa, 3)
                                 if position in fielding_data.keys():
                                     # POSITION IS ALREADY IN JSON, ADD TO IT
