@@ -1,6 +1,5 @@
 import argparse
 from pprint import pprint
-from fastapi.encoders import jsonable_encoder
 
 # MY PACKAGES
 try:
