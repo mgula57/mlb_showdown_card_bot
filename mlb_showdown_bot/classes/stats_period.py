@@ -81,3 +81,17 @@ class StatsPeriod(BaseModel):
                 return f"({dates_split})"
             case StatsPeriodType.POSTSEASON: return f"POSTSEASON"
             case StatsPeriodType.SPLIT: return f"SPLIT ({self.split or 'N/A'})"
+    
+    @property
+    def empty_message(self) -> str:
+        match self.type:
+            case StatsPeriodType.REGULAR_SEASON: return "No regular season data available"
+            case StatsPeriodType.DATE_RANGE: return f"No data found from {self.string.replace('(', '').replace(')','')}"
+            case StatsPeriodType.POSTSEASON: return f"No postseason data available"
+            case StatsPeriodType.SPLIT: return f"Split '{self.split or 'N/A'}' not found"
+
+    def reset(self) -> None:
+        self.type = StatsPeriodType.REGULAR_SEASON
+        self.start_date = None
+        self.end_date = None
+        self.split = None

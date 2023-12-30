@@ -104,7 +104,7 @@
                                                 "SPLIT": "Split",
                                              } %}
                                              {% for period_value, period_name in period_dict.items() -%}
-                                                <option value="{{period_value}}" {% if period_value == "FULL" %} selected="selected" {% endif %}>{{period_name}}</option>
+                                                <option value="{{period_value}}" {% if period_value == "REGULAR" %} selected="selected" {% endif %}>{{period_name}}</option>
                                              {% endfor -%}
                                           </select>
                                        </div>
@@ -417,13 +417,14 @@
                               <div class="row">
                                  
                                  <div class="col-md-7">
-                                    <div class="card_container">
+                                    <div class="card_container" id="card_container_div">
                                        <!-- CARD OUTPUT  -->
-                                       <div class="flex_box_custom">
+                                       <div class="flex_box_custom" style="align-items: flex-end;">
                                           <h4 style="color: #686666"><b>Image</b></h4>
                                           <div class="library_logo_container" id="library_logo">
                                              <img src="static/interface/ShowdownLibraryLogo.png" alt="Showdown Library Logo" class="img-fluid" id="showdown_library_logo_img" onclick="window.open('https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md#showdown-library', '_blank');">
                                           </div>
+                                          <h6 id="period_string"> </h6>
                                        </div>
 
                                        <div class="card_output">

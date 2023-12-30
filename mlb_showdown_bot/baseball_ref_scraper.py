@@ -51,7 +51,7 @@ class BaseballReferenceScraper:
 
         self.name = name
         self.error = None
-        self.warning = None
+        self.warnings: list[str] = []
         self.source = None
         self.ignore_cache = ignore_cache
         self.disable_cleaning_cache = disable_cleaning_cache
@@ -231,12 +231,7 @@ class BaseballReferenceScraper:
         start_time = datetime.now()
 
         # CHECK IN LOCAL CACHE
-        years_as_str = '-'.join([str(y) for y in self.years])
-        override_type = f"{f'-{self.pitcher_override}' if self.pitcher_override else ''}{f'-{self.hitter_override}' if self.hitter_override else ''}"
-        override_team = f'-{self.team_override}' if self.team_override else ""
-        override_period = f"-{self.stats_period.id}"
-        cached_filename = f"{years_as_str}-{self.baseball_ref_id}{override_type}{override_team}{override_period}.json"
-        cached_data = self.load_cached_data(cached_filename)
+        cached_data = self.load_cached_data(self.cache_filename)
         if cached_data:
             self.source = 'Local Cache'
             end_time = datetime.now()
@@ -372,7 +367,7 @@ class BaseballReferenceScraper:
 
         # SAVE DATA        
         self.source = f"Baseball Reference{'/Baseball Savant' if is_data_from_statcast else ''}"
-        self.__cache_data_locally(data=stats_dict, filename=cached_filename)
+        self.__cache_data_locally(data=stats_dict, filename=self.cache_filename)
         
         # CALC LOAD TIME
         end_time = datetime.now()
@@ -992,8 +987,9 @@ class BaseballReferenceScraper:
         if 'PA' not in current_categories:
             stats_data['is_stats_estimate'] = True
             # CHECK FOR BATTERS FACED
-            if stats_data['batters_faced'] > 0:
-                stats_data['PA'] = stats_data['batters_faced']
+            bf = stats_data.get('batters_faced',0)
+            if bf > 0:
+                stats_data['PA'] = bf
             # ESTIMATE PA AGAINST
             else:
                 stats_data['PA'] = stats_data['IP'] * 4.25 # NEED TO ESTIMATE PA BASED ON AVG PA PER INNING
@@ -1139,9 +1135,8 @@ class BaseballReferenceScraper:
 
         splits = soup_for_split.find_all("th", string=self.stats_period.split)
         if len(splits) == 0:
-            self.warning = f'No Splits Available for {self.stats_period.split}'
-            self.stats_period.type = StatsPeriodType.REGULAR_SEASON
-            self.stats_period.split = None
+            self.warnings.append(f'No Splits Available for {self.stats_period.split}')
+            self.stats_period.reset()
             return None
 
         # ITERATE THROUGH ALL SPLIT ROWS THAT MATCH THE USER INPUTTED NAME
@@ -1180,6 +1175,7 @@ class BaseballReferenceScraper:
         game_log_records = soup_game_log_page.find_all('tr', attrs={'id': re.compile(f'{type_prefix}_gamelogs.')})
         included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF',]
         game_logs_parsed: list[dict] = [self.__parse_generic_bref_row(row=game_log, included_categories=included_categories) for game_log in game_log_records]
+        
         # AGGREGATE DATA
         aggregated_data_into_lists: dict[str, list] = {}
         for game_log_data in game_logs_parsed:
@@ -1218,13 +1214,19 @@ class BaseballReferenceScraper:
                     
         aggregated_data = { k.replace('batters_faced', 'PA'): self.__aggregate_stats_list(category=k, stats=v) for k,v in aggregated_data_into_lists.items() if k != 'earned_run_avg'}
 
+        # CHECK FOR NO-DATA
+        if len(aggregated_data) == 0:
+            self.warnings.append(self.stats_period.empty_message)
+            self.stats_period.reset()
+            return None
+
         aggregated_data = self.__fill_empty_required_stat_categories(aggregated_data)
 
         # ADD FIRST AND LAST GAME DATES
         game_dates = aggregated_data_into_lists.get('date_game', None)
         if game_dates:
-            aggregated_data['first_game_date'] = str(game_dates[0]).upper()
-            aggregated_data['last_game_date'] = str(game_dates[-1]).upper()
+            aggregated_data['first_game_date'] = str(game_dates[0]).upper().split(' (', 1)[0]
+            aggregated_data['last_game_date'] = str(game_dates[-1]).upper().split(' (', 1)[0]
 
         return aggregated_data
 
@@ -1629,6 +1631,15 @@ class BaseballReferenceScraper:
 # ------------------------------------------------------------------------
 # HELPER METHODS
 # ------------------------------------------------------------------------
+
+    @property
+    def cache_filename(self) -> str:
+        """Name of cache file for player data. """
+        years_as_str = '-'.join([str(y) for y in self.years])
+        override_type = f"{f'-{self.pitcher_override}' if self.pitcher_override else ''}{f'-{self.hitter_override}' if self.hitter_override else ''}"
+        override_team = f'-{self.team_override}' if self.team_override else ""
+        override_period = f"-{self.stats_period.id}"
+        return f"{years_as_str}-{self.baseball_ref_id}{override_type}{override_team}{override_period}.json"
 
     def load_cached_data(self, filename:str) -> dict:
         """Check if data file exists in local storage, load and return JSON converted to a dict

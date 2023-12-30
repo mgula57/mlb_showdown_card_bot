@@ -150,7 +150,8 @@ def main():
             source=data_source,
             disable_cache_cleaning=args.disable_cache_cleaning,
             nickname_index=args.nickname_index,
-            ignore_cache=args.ignore_cache
+            ignore_cache=args.ignore_cache,
+            warnings=scraper.warnings
         )
 
     # PRINT TOTAL LOAD TIME

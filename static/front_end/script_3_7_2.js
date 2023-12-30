@@ -126,7 +126,7 @@ function changePeriodSection(windowSelectObject) {
             'div_end_date',
         ],
         'POST' : [],
-        'FULL': [],
+        'REGULAR': [],
         'SPLIT': ['div_split', 'div_split_description'],
     };
     for (const key in sections_and_ids) { 
@@ -519,6 +519,39 @@ function showCardData(data) {
         } else {
             $("#trend_container").hide();
         }
+
+        // PERIOD
+        $("#period_string").text(data.period);
+
+        // WARNINGS
+
+        // REMOVE EXISTING
+        var warningDivs = document.getElementsByClassName("warning_text");
+
+        // Convert the NodeList to an array for easier removal
+        var warningDivsArray = Array.from(warningDivs);
+
+        // Remove each div
+        warningDivsArray.forEach(function (div) {
+            div.remove();
+        });
+
+        var cardContainer = document.getElementById("card_container_div");
+
+        for (var warning of data.warnings) {
+
+            // CREATE A NEW PARAGRAPH ELEMENT
+            var warningElement = document.createElement("h5");
+
+            // SET THE CONTENT OF THE NEW PARAGRAPH
+            warningElement.className = "warning_text"
+            warningElement.textContent = '** ' + warning;
+            warningElement.style.color = '#9fb419';
+
+            // APPEND THE NEW PARAGRAPH TO THE END OF THE DIV
+            cardContainer.appendChild(warningElement);
+        }
+
     };
     $('#overlay').hide();
 }

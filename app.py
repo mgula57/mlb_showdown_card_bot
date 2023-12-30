@@ -353,7 +353,8 @@ def card_creator():
             is_running_in_flask=True,
             source=data_source,
             nickname_index=nickname_index,
-            ignore_cache=ignore_cache
+            ignore_cache=ignore_cache,
+            warnings=scraper.warnings
         )
 
         # -----------------
@@ -464,7 +465,9 @@ def card_creator():
             opponent=opponent_data,
             opponent_type=opponent_type,
             era=player_era,
-            image_parallel=image_parallel
+            image_parallel=image_parallel,
+            period=showdown_card.stats_period.string,
+            warnings=showdown_card.warnings
         )
 
     except Exception as e:
@@ -533,6 +536,8 @@ def card_creator():
             opponent_type=None,
             era=None,
             image_parallel=None,
+            period=None,
+            warnings=[]
         )
 
 @app.route('/upload', methods=["POST","GET"])

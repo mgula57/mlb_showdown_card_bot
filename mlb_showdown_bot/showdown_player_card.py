@@ -95,6 +95,7 @@ class ShowdownPlayerCard(BaseModel):
     # ENVIRONMENT
     is_running_in_flask: bool = False
     load_time: float = 0.0
+    warnings: list[str] = []
 
     # RANKS
     rank: dict = {}
@@ -2470,6 +2471,7 @@ class ShowdownPlayerCard(BaseModel):
         print(f"Team: {self.team.value}")
         print(f"Set: {self.set.value} {self.image.expansion} (v{self.version})")
         print(f"Era: {self.era.value.title()}")
+        print(f"Period: {self.stats_period.string}")
         print(f"Data Source: {self.source}")
         if not self.image.source.type.is_empty:
             print(f"Img Source: {self.image.source.type}")
@@ -2548,6 +2550,9 @@ class ShowdownPlayerCard(BaseModel):
 
         print('\nPROJECTED STATS')
         print(statline_tbl)
+
+        for warning in self.warnings:
+            print(f"** {warning}")
 
     def player_data_for_html_table(self) -> list[list[str]]:
         """Provides data needed to populate the statline shown on the showdownbot.com webpage.
@@ -3036,6 +3041,12 @@ class ShowdownPlayerCard(BaseModel):
                 expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
             elif self.set.is_showdown_bot and self.image.expansion == Expansion.TD:
                 expansion_location = (expansion_location[0],expansion_location[1] - 12)
+            
+            if self.stats_period.type.show_text_on_card_image and self.set.is_showdown_bot:
+                new_expansion_size = tuple(int(x * 0.85) for x in expansion_image.size)
+                expansion_image = expansion_image.resize(new_expansion_size, Image.ANTIALIAS)
+                expansion_location = (expansion_location[0] - 120, expansion_location[1] + 10)                
+
             card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
 
         # SPLIT/DATE RANGE
@@ -4434,7 +4445,7 @@ class ShowdownPlayerCard(BaseModel):
                 
         num_words = len(text_list)
         if self.set.is_split_image_long:
-            text = text if len(text) < 13 else f"{text[:11]}.."
+            text = text if len(text) < 15 else f"{text[:11]}.."
             text_image_large = self.__text_image(
                 text = text,
                 size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
@@ -4452,8 +4463,8 @@ class ShowdownPlayerCard(BaseModel):
                 # SKIP IF NONE
                 if text is None:
                     continue
-                
                 text = text if len(text) < 8 else f"{text[:6]}.."
+                
                 text_image_large = self.__text_image(
                     text = text,
                     size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
