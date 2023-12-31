@@ -31,6 +31,10 @@ class StatsPeriodType(str, Enum):
     @property
     def show_text_on_card_image(self) -> bool:
         return self not in [StatsPeriodType.REGULAR_SEASON]
+    
+    @property
+    def is_regular_season_games_stat_needed(self) -> bool:
+        return self not in [StatsPeriodType.REGULAR_SEASON]
 
 
 class StatsPeriod(BaseModel):
@@ -78,7 +82,7 @@ class StatsPeriod(BaseModel):
             case StatsPeriodType.DATE_RANGE:
                 dates_formatted_list = [datetime.combine(dt, datetime.min.time()).strftime("%b %d") for dt in [self.start_date, self.end_date]]
                 dates_split = " to ".join(dates_formatted_list)
-                return f"({dates_split})"
+                return f"{dates_split}"
             case StatsPeriodType.POSTSEASON: return f"POSTSEASON"
             case StatsPeriodType.SPLIT: return f"SPLIT ({self.split or 'N/A'})"
     

@@ -637,7 +637,7 @@ class ShowdownPlayerCard(BaseModel):
           Dict with in game positions and defensive ratings
         """
 
-        total_games_played = stats_dict.get('G', 0)
+        total_games_played = stats_dict.get('G_RS', None) or stats_dict.get('G', 0)
         total_games_started = stats_dict.get('GS', 0)
         total_saves = stats_dict.get('SV', 0)
 
@@ -2471,7 +2471,6 @@ class ShowdownPlayerCard(BaseModel):
         print(f"Team: {self.team.value}")
         print(f"Set: {self.set.value} {self.image.expansion} (v{self.version})")
         print(f"Era: {self.era.value.title()}")
-        print(f"Period: {self.stats_period.string}")
         print(f"Data Source: {self.source}")
         if not self.image.source.type.is_empty:
             print(f"Img Source: {self.image.source.type}")
