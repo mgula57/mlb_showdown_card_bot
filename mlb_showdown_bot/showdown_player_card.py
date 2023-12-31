@@ -3026,6 +3026,11 @@ class ShowdownPlayerCard(BaseModel):
         # YEAR CONTAINER
         if self.image.show_year_text and not self.set.is_year_container_text:
             paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
+
+            # ADJUST IF THERE'S STATS PERIOD TEXT
+            if self.stats_period.type.show_text_on_card_image:
+                paste_location = (paste_location[0], paste_location[1] - 65)
+
             year_container_img = self.__year_container_add_on()
             card_image.paste(year_container_img, self.__coordinates_adjusted_for_bordering(paste_location), year_container_img)
 

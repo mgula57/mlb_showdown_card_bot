@@ -1674,7 +1674,7 @@ class Set(str, Enum):
                     case '2000': return (330, 1860)
                     case '2001': return (330, 1860)
                     case '2002': return (290, 1850)
-                    case '2003': return (380, 1715)
+                    case '2003': return (380, 1775)
                     case '2004' | '2005': return (80, 1912)
                     case 'CLASSIC' | 'EXPANDED': return (850,2000)
 
