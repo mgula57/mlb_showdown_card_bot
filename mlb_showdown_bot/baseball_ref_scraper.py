@@ -356,7 +356,7 @@ class BaseballReferenceScraper:
         # STATS WINDOW DATA
         if self.stats_period.type.uses_game_logs:
             # STORE REG SEASON GAMES FOR HITTERS. NEEDED FOR SPEED/DEFENSE CALCS
-            if self.stats_period.type.is_regular_season_games_stat_needed:
+            if self.stats_period.type.is_regular_season_games_stat_needed and stats_dict.get('type', 'n/a') == 'Hitter':
                 stats_dict['G_RS'] = stats_dict.get('G', 0)
             game_log_data = self.game_log_data(type=type, years=self.years)
             if game_log_data:
