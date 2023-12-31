@@ -119,6 +119,8 @@ function changeImageSection(imageSelectObject) {
 }
 
 function changePeriodSection(windowSelectObject) {
+    
+    // SHOW/HIDE SECTIONS
     var selection = windowSelectObject.value;
     const sections_and_ids = {
         'DATES': [
@@ -137,6 +139,34 @@ function changePeriodSection(windowSelectObject) {
             } else {
                 $("#" + id).hide();
             }
+        }
+    }
+
+    // SHOW/HIDE EDITIONS
+    if (selection == 'POST') {
+        // ENABLE POSTSEASON, DISABLE SUPER SEASON AND ASG
+        document.getElementById("POST-option").disabled = false;
+        for (const edition of ["ASG", "SS"]) { 
+            var element = document.getElementById(edition + "-option");
+            element.disabled = true;
+            if (element.selected == true) {
+                // CHANGE SELECTION TO NONE
+                element.selected = false;
+                document.getElementById("NONE-option").selected = true;
+            }
+        }
+        
+    } else {
+        // ENABLE POSTSEASON, DISABLE SUPER SEASON AND ASG
+        for (const edition of ['ASG', 'SS']) { 
+            document.getElementById(edition + "-option").disabled = false;
+        }
+        var postElement = document.getElementById("POST-option")
+        postElement.disabled = true;
+        if (postElement.selected == true) {
+            // CHANGE SELECTION TO NONE
+            postElement.selected = false;
+            document.getElementById("NONE-option").selected = true;
         }
     }
 }
