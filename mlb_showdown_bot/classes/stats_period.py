@@ -62,6 +62,7 @@ class StatsPeriod(BaseModel):
             self.split = None
 
         if self.split:
+            self.split = self.split.strip()
             if len(self.split) == 0:
                 self.split = None
         
