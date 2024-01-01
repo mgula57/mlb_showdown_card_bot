@@ -1136,7 +1136,13 @@ class BaseballReferenceScraper:
         url_splits = f'https://www.baseball-reference.com/players/split.fcgi?id={self.baseball_ref_id}&year={year}&t={type_ext}'
         soup_for_split = self.__soup_for_url(url_splits, is_baseball_ref_page=True)
 
-        splits = soup_for_split.find_all("th", string=re.compile(self.stats_period.split, flags=re.IGNORECASE))
+        for tag in ['th', 'td']:
+            splits = soup_for_split.find_all(tag, string=re.compile(self.stats_period.split, flags=re.IGNORECASE))
+
+            # MATCH FOUND, BREAK LOOP
+            if len(splits) > 0:
+                break
+        
         if len(splits) == 0:
             self.warnings.append(f'No Splits Available for {self.stats_period.split}')
             self.stats_period.reset()
