@@ -1021,7 +1021,8 @@ class BaseballReferenceScraper:
             stats_data['slugging_perc'] = round(total_bases / ab, 5)
 
         if 'onbase_perc' not in current_categories:
-            obp_denominator = ( stats_data.get('AB', 0) + stats_data.get('BB', 0) + stats_data.get('HBP', 0) + stats_data.get('SF', 0) ) if 'AB' in stats_data.keys() else stats_data['PA']
+            sf = 0 if len(str(stats_data.get('SF', ''))) == 0 else stats_data.get('SF', 0)
+            obp_denominator = ( stats_data.get('AB', 0) + stats_data.get('BB', 0) + stats_data.get('HBP', 0) + sf ) if 'AB' in stats_data.keys() else stats_data['PA']
             stats_data['onbase_perc'] = round((stats_data['H'] + stats_data['BB'] + stats_data.get('HBP', 0)) / obp_denominator, 5)
         
         if 'batting_avg' not in current_categories:
@@ -1225,6 +1226,7 @@ class BaseballReferenceScraper:
 
         # CHECK FOR NO-DATA
         if len(aggregated_data) == 0:
+            pprint(aggregated_data)
             self.warnings.append(self.stats_period.empty_message)
             self.stats_period.reset()
             return None
@@ -1237,6 +1239,7 @@ class BaseballReferenceScraper:
             aggregated_data['first_game_date'] = str(game_dates[0]).upper().split(' (', 1)[0]
             aggregated_data['last_game_date'] = str(game_dates[-1]).upper().split(' (', 1)[0]
 
+        
         return aggregated_data
 
     def __parse_generic_bref_row(self, row:BeautifulSoup, included_categories:list[str] = []) -> dict:
