@@ -1850,6 +1850,7 @@ class BaseballReferenceScraper:
             
             return math.floor(total_real_decimal) + new_total_decimal_part
         else:
+            stats = [s for s in stats if len(str(s)) != 0]
             return sum(stats)
 
     
