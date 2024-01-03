@@ -13,6 +13,7 @@ import operator
 from bs4 import BeautifulSoup
 from pprint import pprint
 from datetime import datetime
+from difflib import SequenceMatcher
 import unidecode
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
@@ -1140,6 +1141,16 @@ class BaseballReferenceScraper:
         for tag in ['th', 'td']:
             splits = soup_for_split.find_all(tag, string=re.compile(self.stats_period.split, flags=re.IGNORECASE))
 
+            # FILTER TO BEST MATCH SPLIT
+            if len(splits) > 1:
+                best_string_match_ratio = max([SequenceMatcher(None, split.get_text(), self.stats_period.split).ratio() for split in splits])
+                updated_splits = []
+                for split in splits:
+                    ratio = SequenceMatcher(None, split.get_text(), self.stats_period.split).ratio()
+                    if round(ratio, 4) == round(best_string_match_ratio, 4):
+                        updated_splits.append(split)
+                splits = updated_splits
+                
             # MATCH FOUND, BREAK LOOP
             if len(splits) > 0:
                 break
