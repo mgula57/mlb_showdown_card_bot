@@ -3028,7 +3028,7 @@ class ShowdownPlayerCard(BaseModel):
             paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
 
             # ADJUST IF THERE'S STATS PERIOD TEXT
-            if self.stats_period.type.show_text_on_card_image:
+            if self.stats_period.type.show_text_on_card_image and self.set == Set._2003:
                 paste_location = (paste_location[0], paste_location[1] - 65)
 
             year_container_img = self.__year_container_add_on()
@@ -4434,7 +4434,9 @@ class ShowdownPlayerCard(BaseModel):
             case StatsPeriodType.DATE_RANGE:
                 text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
                 text_list = [t for t in text_list if t]
-                text = ' - '.join(text_list)
+                game_1_comp = self.stats.get('first_game_date', 'g1').strip()
+                game_2_comp = self.stats.get('last_game_date', 'g2').strip()                    
+                text = game_1_comp if game_1_comp == game_2_comp else ' - '.join(text_list)
             case StatsPeriodType.SPLIT:
                 text = self.stats_period.split.upper()
                 text_no_slash = text.replace('/',' ')
@@ -4449,7 +4451,7 @@ class ShowdownPlayerCard(BaseModel):
                 
         num_words = len(text_list)
         if self.set.is_split_image_long:
-            text = text if len(text) < 17 else f"{text[:11]}.."
+            text = text if len(text) < 17 else f"{text[:13]}.."
             text_image_large = self.__text_image(
                 text = text,
                 size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
