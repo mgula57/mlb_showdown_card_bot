@@ -83,6 +83,9 @@ class StatsPeriod(BaseModel):
             case StatsPeriodType.DATE_RANGE:
                 dates_formatted_list = [datetime.combine(dt, datetime.min.time()).strftime("%b %d") for dt in [self.start_date, self.end_date]]
                 dates_split = " to ".join(dates_formatted_list)
+                if len(dates_formatted_list) == 2:
+                    if dates_formatted_list[0] == dates_formatted_list[1]:
+                        return f"{dates_formatted_list[0]}"
                 return f"{dates_split}"
             case StatsPeriodType.POSTSEASON: return f"POSTSEASON"
             case StatsPeriodType.SPLIT: return f"SPLIT ({self.split or 'N/A'})"
