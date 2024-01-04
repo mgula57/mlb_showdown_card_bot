@@ -14,6 +14,11 @@ class Edition(str, Enum):
     ROOKIE_SEASON = "RS"
     HOLIDAY = "HOL"
     NATIONALITY = "NAT"
+    POSTSEASON = "POST"
+
+    @classmethod
+    def _missing_(cls, _):
+        return cls.NONE
 
     @property
     def ignore_historical_team_logo(self) -> bool:
@@ -21,16 +26,18 @@ class Edition(str, Enum):
     
     @property
     def template_color_0405(self) -> str:
-        if self == Edition.COOPERSTOWN_COLLECTION:
-            return "BROWN"
-        elif self == Edition.SUPER_SEASON:
-            return "RED"
-        else:
-            return None
+        match self:
+            case Edition.COOPERSTOWN_COLLECTION:
+                return "BROWN"
+            case Edition.SUPER_SEASON:
+                return "RED"
+            case Edition.POSTSEASON:
+                return "DARK_BLUE"
+            case _: return None
     
     @property
     def use_edition_logo_as_team_logo(self) -> bool:
-        return self in [Edition.COOPERSTOWN_COLLECTION]
+        return self in [Edition.COOPERSTOWN_COLLECTION, Edition.ALL_STAR_GAME]
     
     @property
     def template_extension(self) -> str:
@@ -50,7 +57,7 @@ class Edition(str, Enum):
 
     @property
     def has_additional_logo_00_01(self) -> bool:
-        return self.name in ['COOPERSTOWN_COLLECTION', 'ALL_STAR_GAME', 'SUPER_SEASON', 'ROOKIE_SEASON']
+        return self in [Edition.COOPERSTOWN_COLLECTION, Edition.ALL_STAR_GAME, Edition.SUPER_SEASON, Edition.ROOKIE_SEASON, Edition.POSTSEASON]
 
 # ---------------------------------------
 # EXPANSION
@@ -61,13 +68,15 @@ class Expansion(str, Enum):
     BS = 'BS'
     TD = 'TD'
     PR = 'PR'
+    PM = 'PM'
+    ASG = "ASG"
 
     def __repr__(self) -> str:
         return self.value
     
     @property
     def has_image(self) -> bool:
-        return self.value not in ['BS']
+        return self.value not in ['BS', 'PM']
 
 # ---------------------------------------
 # PLAYER IMAGE COMPONENT
@@ -84,6 +93,7 @@ class PlayerImageComponent(str, Enum):
     GRADIENT = "GRADIENT"
     DARKENER = "DARKENER"
     COOPERSTOWN = "COOPERSTOWN"
+    POSTSEASON = "POSTSEASON"
     ELLIPSE_LARGE = "ELLIPSE-LARGE"
     ELLIPSE_MEDIUM = "ELLIPSE-MEDIUM"
     ELLIPSE_SMALL = "ELLIPSE-SMALL"
@@ -96,6 +106,7 @@ class PlayerImageComponent(str, Enum):
     GOLD_RUSH = "GOLD-BEAMS"
     GOLD = "GOLD"
     GOLD_FRAME = "GOLD_FRAME"
+    MOONLIGHT = "MOONLIGHT"
     WHITE_SMOKE = "WHITE_SMOKE"
     FLAMES = "FLAMES"
     WHITE_CIRCLE = "WHITE_CIRCLE"
@@ -172,6 +183,7 @@ class PlayerImageComponent(str, Enum):
             'CUSTOM_BACKGROUND',
             'COOPERSTOWN',
             'SUPER_SEASON',
+            "POSTSEASON",
             'DARKENER',
             'GRADIENT',
             'RAINBOW_FOIL',
@@ -182,6 +194,7 @@ class PlayerImageComponent(str, Enum):
             'GOLD',
             'GOLD_FRAME',
             'WHITE_SMOKE',
+            'MOONLIGHT',
             'FLAMES',
             'TEAM_LOGO',
             'TEAM_COLOR',
@@ -207,6 +220,7 @@ class SpecialEdition(str, Enum):
     SUPER_SEASON = "SS"
     TEAM_COLOR_BLAST_DARK = "TCBD"
     NATIONALITY = "NATIONALITY"
+    POSTSEASON = "POSTSEASON"
     NONE = "NONE"
 
     def color(self, league:str=None) -> tuple[int,int,int,int]:
@@ -222,11 +236,11 @@ class SpecialEdition(str, Enum):
             
     @property
     def image_component_saturation_adjustments_dict(self) -> dict[PlayerImageComponent, float]:
-        match self.name:
-            case "COOPERSTOWN_COLLECTION": return {
+        match self:
+            case SpecialEdition.COOPERSTOWN_COLLECTION | SpecialEdition.POSTSEASON: return {
                 PlayerImageComponent.BACKGROUND: 0.33,
             }
-            case "SUPER_SEASON": return {
+            case SpecialEdition.SUPER_SEASON: return {
                 PlayerImageComponent.BACKGROUND: 0.75,
             }
         return {}
@@ -250,6 +264,7 @@ class ImageParallel(str, Enum):
     FLAMES = "FLAMES"
     TEAM_COLOR_BLAST = "TCB"
     MYSTERY = "MYSTERY"
+    MOONLIGHT = "MOONLIGHT"
     NONE = "NONE"
 
     @classmethod
@@ -260,8 +275,7 @@ class ImageParallel(str, Enum):
     def has_special_components(self) -> bool:
         return self.name not in ['NONE', 'BLACK_AND_WHITE']
 
-    @property
-    def special_component_additions(self) -> dict[str,str]:
+    def special_component_additions(self, set: str) -> dict[str,str]:
         match self.name:
             case "RAINBOW_FOIL": return { PlayerImageComponent.RAINBOW_FOIL: "RAINBOW-FOIL" }
             case "SAPPHIRE": return { PlayerImageComponent.SAPPHIRE: "SAPPHIRE" }
@@ -273,12 +287,17 @@ class ImageParallel(str, Enum):
             case "WHITE_SMOKE": return { PlayerImageComponent.WHITE_SMOKE: PlayerImageComponent.WHITE_SMOKE.name, PlayerImageComponent.BACKGROUND: None }
             case "FLAMES": return { PlayerImageComponent.FLAMES: PlayerImageComponent.FLAMES.name }
             case "TEAM_COLOR_BLAST": return { PlayerImageComponent.WHITE_CIRCLE: PlayerImageComponent.WHITE_CIRCLE.name, PlayerImageComponent.TEAM_LOGO: None, PlayerImageComponent.TEAM_COLOR: None, PlayerImageComponent.BACKGROUND: None }
+            case "MOONLIGHT":
+                comps_dict = { PlayerImageComponent.MOONLIGHT: PlayerImageComponent.MOONLIGHT.name, PlayerImageComponent.BACKGROUND: None }
+                if set == '2001':
+                    comps_dict[PlayerImageComponent.TEAM_LOGO] = None
+                return comps_dict
             case _: return {}
 
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
-            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD" | "GOLD_FRAME": return { PlayerImageComponent.GLOW: PlayerImageComponent.SHADOW }
+            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD" | "GOLD_FRAME" | "MOONLIGHT": return { PlayerImageComponent.GLOW: PlayerImageComponent.SHADOW }
             case _: return {}
     
     @property
@@ -286,6 +305,7 @@ class ImageParallel(str, Enum):
         match self.name:
             case "COMIC_BOOK_HERO" | "WHITE_SMOKE": return { PlayerImageComponent.BACKGROUND: 0.05 }
             case "GOLD_RUSH" | "GOLD" | "GOLD_FRAME": return { PlayerImageComponent.BACKGROUND: 0.40 }
+            case "MOONLIGHT": return { PlayerImageComponent.BACKGROUND: 0.60 }
             case "TEAM_COLOR_BLAST": return { PlayerImageComponent.TEAM_LOGO: 0.10 }
             case _: return {}
 
@@ -306,6 +326,12 @@ class ImageParallel(str, Enum):
             case 'GOLD' | 'GOLD_RUSH' | 'GOLD_FRAME': return '-GOLD'
             case _: return ''
 
+    @property
+    def template_color_04_05(self) -> str:
+        match self:
+            case ImageParallel.MOONLIGHT: return "BLACK"
+            case _: return None
+
 
 # ---------------------------------------
 # TEMPLATE IMAGE COMPONENT
@@ -324,10 +350,17 @@ class TemplateImageComponent(Enum):
     SUPER_SEASON = "super_season"
     ROOKIE_SEASON = "rookie_season"
     ROOKIE_SEASON_YEAR_TEXT = "rookie_season_year_text"
+    POSTSEASON = "postseason"
+    POSTSEASON_YEAR_TEXT = "postseason_year_text"
+    POSTSEASON_YEAR_TEXT_BOX = "postseason_year_text_box"
     EXPANSION = "expansion"
     COMMAND = "command"
     STYLE = "style"
+    STYLE_LOGO = "style_logo"
+    STYLE_LOGO_BG = "style_logo_bg"
+    STYLE_TEXT = "style_text"
     BOT_LOGO = "bot_logo"
+    SPLIT = "split"
 
 # ---------------------------------------
 # IMAGE SOURCE

@@ -34,6 +34,7 @@ try:
     from .classes.points import Points
     from .classes.metadata import Speed, SpeedLetter, Hand
     from .classes import colors
+    from .classes.stats_period import StatsPeriod, StatsPeriodType
     from .version import __version__
 except ImportError:
     # USE LOCAL IMPORT
@@ -50,6 +51,7 @@ except ImportError:
     from classes.points import Points
     from classes.metadata import Speed, SpeedLetter, Hand
     from classes import colors
+    from classes.stats_period import StatsPeriod, StatsPeriodType
     from version import __version__
 
 class ShowdownPlayerCard(BaseModel):
@@ -62,6 +64,9 @@ class ShowdownPlayerCard(BaseModel):
     era: Era
     name: str
 
+    # TIME PERIOD
+    stats_period: StatsPeriod = StatsPeriod()
+
     # DERIVED
     is_full_career: bool = False
     is_multi_year: bool = False
@@ -70,7 +75,7 @@ class ShowdownPlayerCard(BaseModel):
     league: str = 'MLB'
     team: Team = Team.MLB
     nationality: Nationality = Nationality.NONE
-    player_type: PlayerType = PlayerType.HITTER
+    player_type: PlayerType = None
     player_type_override: Optional[PlayerType] = None
     nicknames: list[str] = []
     
@@ -83,12 +88,14 @@ class ShowdownPlayerCard(BaseModel):
     disable_cache_cleaning: bool = False
     date_override: Optional[str] = None
     test_numbers: Optional[tuple[int,int]] = None
-    command_out_override:  Optional[tuple[int,int]] = None
+    command_out_override: Optional[tuple[int,int]] = None
     is_variable_speed_00_01: bool = False
+    is_wotc: bool = False
     
     # ENVIRONMENT
     is_running_in_flask: bool = False
     load_time: float = 0.0
+    warnings: list[str] = []
 
     # RANKS
     rank: dict = {}
@@ -130,22 +137,23 @@ class ShowdownPlayerCard(BaseModel):
         self.player_type_override = self.parse_player_type_override(player_type_override=self.player_type_override, name_user_input=data.get('name', None))
 
         # IMAGE
-        self.image: ShowdownImage = ShowdownImage(
-            edition = data.get('edition', Edition.NONE),
-            expansion = data.get('expansion', Expansion.BS),
-            source = ImageSource(url=data.get('player_image_url', None), path=data.get('player_image_path', None)),
-            parallel = data.get('parallel', ImageParallel.NONE),
-            output_folder_path = data.get('card_img_output_folder_path', '') if len(data.get('card_img_output_folder_path', '')) > 0 else os.path.join(os.path.dirname(__file__), 'output'),
-            set_number = data.get('set_number', '') if data.get('set_number', '') != '' else self.set.default_set_number(self.year),
-            add_one_to_set_year = data.get('set_year_plus_one', False) and self.set.is_eligibile_for_year_plus_one,
-            show_year_text = data.get('show_year_text', False) and self.set.is_eligibile_for_year_container,
-            is_bordered = data.get('add_image_border', False),
-            is_dark_mode = data.get('is_dark_mode', False),
-            hide_team_logo = data.get('hide_team_logo', False),
-            use_secondary_color = data.get('use_secondary_color', False),
-            nickname_index=data.get('nickname_index', None)
-        )
-        self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
+        if data.get('image', None) is None:
+            self.image: ShowdownImage = ShowdownImage(
+                edition = data.get('edition', Edition.NONE),
+                expansion = data.get('expansion', Expansion.BS),
+                source = ImageSource(url=data.get('player_image_url', None), path=data.get('player_image_path', None)),
+                parallel = data.get('parallel', ImageParallel.NONE),
+                output_folder_path = data.get('card_img_output_folder_path', '') if len(data.get('card_img_output_folder_path', '')) > 0 else os.path.join(os.path.dirname(__file__), 'output'),
+                set_number = data.get('set_number', '') if data.get('set_number', '') != '' else self.set.default_set_number(self.year),
+                add_one_to_set_year = data.get('set_year_plus_one', False) and self.set.is_eligibile_for_year_plus_one,
+                show_year_text = data.get('show_year_text', False) and self.set.is_eligibile_for_year_container,
+                is_bordered = data.get('add_image_border', False),
+                is_dark_mode = data.get('is_dark_mode', False),
+                hide_team_logo = data.get('hide_team_logo', False),
+                use_secondary_color = data.get('use_secondary_color', False),
+                nickname_index=data.get('nickname_index', None)
+            )
+            self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
         
         disable_running_card: bool = data.get('disable_running_card', False)
         if not self.is_populated and not disable_running_card:
@@ -155,7 +163,7 @@ class ShowdownPlayerCard(BaseModel):
             self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats.get('IP', 0)), games=self.stats.get('G', 0), games_started=self.stats.get('GS', 0), ip_per_start=self.stats.get('IP/GS', 0))
             self.hand: Hand = self.__handedness(hand_raw=self.stats.get('hand', None))
             self.speed: Speed = self.__speed(sprint_speed=self.stats.get('sprint_speed', None), stolen_bases=self.stats.get('SB', 0) / ( self.stats.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats.get('SB',''))) == 0, games=self.stats.get('G', 0))
-            self.accolades: list[str] = self.__accolades()
+            self.accolades: list[str] = self.parse_accolades()
             self.icons: list[Icon] = self.__icons(awards=self.stats.get('award_summary',''))
 
             # CONVERT STATS TO PER 400 PA
@@ -280,7 +288,7 @@ class ShowdownPlayerCard(BaseModel):
         return stats.get('name', name)
     
     @validator('player_type', always=True)
-    def parse_player_type(cls, _ : str, values:dict) -> str: 
+    def parse_player_type(cls, _ :str, values:dict) -> PlayerType:        
         stats:dict = values.get('stats', {})
         return PlayerType(stats.get('type', None))
     
@@ -365,6 +373,14 @@ class ShowdownPlayerCard(BaseModel):
 # ------------------------------------------------------------------------
 # STATIC PROPERTIES
 # ------------------------------------------------------------------------
+
+    @property
+    def id(self) -> str:
+        """Generate a unique ID to classify the player's card. Does not include image styling."""
+        fields = [self.year, self.bref_id, self.set.value, self.image.expansion.value,]
+        if self.player_type_override:
+            fields.append(self.player_type_override.value)
+        return "-".join(fields)
 
     @property
     def is_populated(self) -> bool:
@@ -621,7 +637,7 @@ class ShowdownPlayerCard(BaseModel):
           Dict with in game positions and defensive ratings
         """
 
-        total_games_played = stats_dict.get('G', 0)
+        total_games_played = stats_dict.get('G_RS', None) or stats_dict.get('G', 0)
         total_games_started = stats_dict.get('GS', 0)
         total_saves = stats_dict.get('SV', 0)
 
@@ -1173,7 +1189,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return icons
 
-    def __accolades(self, maximum:int = None) -> list[str]:
+    def parse_accolades(self, maximum:int = None) -> list[str]:
         """Generates array of player highlights for season.
 
         Args:
@@ -2450,7 +2466,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # ----- NAME AND SET  ----- #
         print("----------------------------------------")
-        print(f"{self.name_for_visuals} ({self.year})")
+        print(f"{self.name_for_visuals} ({self.year}) - {self.stats_period.string}")
         print("----------------------------------------")
         print(f"Team: {self.team.value}")
         print(f"Set: {self.set.value} {self.image.expansion} (v{self.version})")
@@ -2488,6 +2504,7 @@ class ShowdownPlayerCard(BaseModel):
             'OPS': 'onbase_plus_slugging',
             'OPS+': 'onbase_plus_slugging_plus',
             'PA': 'PA',
+            'AB': 'AB',
             '1B': '1b_per_650_pa',
             '2B': '2b_per_650_pa',
             '3B': '3b_per_650_pa',
@@ -2503,8 +2520,8 @@ class ShowdownPlayerCard(BaseModel):
             'projected': [],
             'stats': [],
         }
-        real_life_pa = int(self.stats['PA'])
-        real_life_pa_ratio = int(self.stats['PA']) / 650.0
+        real_life_pa = int(self.stats.get('PA', 0))
+        real_life_pa_ratio = real_life_pa / 650.0
         all_numeric_value_lists = []
         for source in final_dict.keys():
             source_dict = getattr(self, source)
@@ -2533,6 +2550,9 @@ class ShowdownPlayerCard(BaseModel):
         print('\nPROJECTED STATS')
         print(statline_tbl)
 
+        for warning in self.warnings:
+            print(f"** {warning}")
+
     def player_data_for_html_table(self) -> list[list[str]]:
         """Provides data needed to populate the statline shown on the showdownbot.com webpage.
 
@@ -2559,8 +2579,11 @@ class ShowdownPlayerCard(BaseModel):
             actual = f"{float(self.stats[key]):.3f}".replace('0.','.')
             final_player_data.append([category_prefix+cleaned_category,actual,in_game])
 
-        # GAMES
+        # GAMES/IP
         final_player_data.append(['G', str(self.stats.get('G', 0)), en_dash])
+        ip_real = self.stats.get('IP', None)
+        if ip_real:
+            final_player_data.append(['IP', str(self.stats.get('IP', 0)), en_dash])
 
         # PLATE APPEARANCES
         real_life_pa = int(self.stats['PA'])
@@ -2988,9 +3011,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # STYLE (IF APPLICABLE)
         if self.set.is_showdown_bot:
-            theme_suffix = '-DARK' if self.image.is_dark_mode else ''
-            style_img_path = self.__template_img_path(f'{self.set.value}{theme_suffix}')
-            style_img = Image.open(style_img_path)
+            style_img = self.__style_image()
             style_coordinates = self.__coordinates_adjusted_for_bordering(self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE))
             card_image.paste(style_img, style_coordinates, style_img)
         
@@ -3005,6 +3026,11 @@ class ShowdownPlayerCard(BaseModel):
         # YEAR CONTAINER
         if self.image.show_year_text and not self.set.is_year_container_text:
             paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.YEAR_CONTAINER)
+
+            # ADJUST IF THERE'S STATS PERIOD TEXT
+            if self.stats_period.type.show_text_on_card_image:
+                paste_location = (paste_location[0], paste_location[1] - 65)
+
             year_container_img = self.__year_container_add_on()
             card_image.paste(year_container_img, self.__coordinates_adjusted_for_bordering(paste_location), year_container_img)
 
@@ -3019,7 +3045,19 @@ class ShowdownPlayerCard(BaseModel):
                 expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
             elif self.set.is_showdown_bot and self.image.expansion == Expansion.TD:
                 expansion_location = (expansion_location[0],expansion_location[1] - 12)
+            
+            if self.stats_period.type.show_text_on_card_image and self.set.is_showdown_bot:
+                new_expansion_size = tuple(int(x * 0.85) for x in expansion_image.size)
+                expansion_image = expansion_image.resize(new_expansion_size, Image.ANTIALIAS)
+                expansion_location = (expansion_location[0] - 120, expansion_location[1] + 10)                
+
             card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
+
+        # SPLIT/DATE RANGE
+        if self.stats_period.type.show_text_on_card_image:
+            split_image = self.__date_range_or_split_image()
+            paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SPLIT)
+            card_image.paste(split_image, self.__coordinates_adjusted_for_bordering(paste_coordinates), split_image)
 
         # BETA TAG
         # TO BE REMOVED AFTER TEST PERIOD
@@ -3161,7 +3199,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # SETUP IMAGE METADATA
         is_alternate = self.use_alternate_logo or force_use_alternate
-        logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
+        logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
         logo_size = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
         logo_rotation = rotation if rotation else (10 if self.set == Set._2002 and self.image.edition.rotate_team_logo_2002 and not ignore_dynamic_elements else 0 )
         logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.TEAM_LOGO)
@@ -3169,7 +3207,7 @@ class ShowdownPlayerCard(BaseModel):
         is_00_01 = self.set.is_00_01
         is_cooperstown = self.image.edition == Edition.COOPERSTOWN_COLLECTION
         is_all_star_game = self.image.edition == Edition.ALL_STAR_GAME
-        is_rookie_season = self.image.edition == Edition.ROOKIE_SEASON
+        is_edition_static_logo = self.image.edition in [Edition.ROOKIE_SEASON, Edition.POSTSEASON]
         logo_size_multiplier = 1.0
 
         # USE INPUT SIZE IF IT EXISTS
@@ -3191,7 +3229,7 @@ class ShowdownPlayerCard(BaseModel):
                     logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
             else:
                 # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
-                logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate)
+                logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
                 logo_size_multiplier = self.team.logo_size_multiplier(year=self.median_year, is_alternate=is_alternate)
                 team_logo_path = self.__team_logo_path(name=logo_name)
                 if self.image.special_edition == SpecialEdition.NATIONALITY:
@@ -3268,10 +3306,11 @@ class ShowdownPlayerCard(BaseModel):
             logo_paste_coordinates = logo_paste_coordinates if is_cooperstown else (logo_paste_coordinates[0] - 150, logo_paste_coordinates[1])
 
         # OVERRIDE IF ROOKIE SEASON
-        if is_rookie_season and not is_00_01:
-            team_logo = self.__rookie_season_image()
+        if is_edition_static_logo and not is_00_01:
+            component = TemplateImageComponent.ROOKIE_SEASON if self.image.edition == Edition.ROOKIE_SEASON else TemplateImageComponent.POSTSEASON
+            team_logo = self.__rookie_season_image() if self.image.edition == Edition.ROOKIE_SEASON else self.__postseason_image()
             team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.set == Set._2002 else team_logo
-            logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.ROOKIE_SEASON)
+            logo_paste_coordinates = self.set.template_component_paste_coordinates(component)
 
         return team_logo, logo_paste_coordinates
 
@@ -3293,7 +3332,7 @@ class ShowdownPlayerCard(BaseModel):
         # ATTRIBUTES FOR THE LOGO
         force_alternate = team.use_alternate_for_background(set=self.set.value)
         use_alternate = self.use_alternate_logo or force_alternate
-        logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate)
+        logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
 
         # OPACITY
         opacity = team.background_logo_opacity(set=self.set.value)
@@ -3346,6 +3385,8 @@ class ShowdownPlayerCard(BaseModel):
                 edition_extension = f'-{self.nationality.template_color}'
             elif self.image.parallel == ImageParallel.TEAM_COLOR_BLAST and team_color_name:
                 edition_extension = f'-{team_color_name}'
+            elif self.image.parallel.template_color_04_05:
+                edition_extension = f'-{self.image.parallel.template_color_04_05}'
             elif self.image.is_dark_mode:
                 edition_extension = '-BLACK'
             else:
@@ -4075,6 +4116,52 @@ class ShowdownPlayerCard(BaseModel):
 
         return rookie_season_image
 
+    def __postseason_image(self) -> Image.Image:
+        """Creates image for optional postseason edition logo.
+
+        Args:
+          None
+
+        Returns:
+          PIL image object for postseason logo + year(s).
+        """
+
+        # LOGO
+        postseason_logo_image = Image.open(self.__template_img_path('Postseason'))
+
+        # ADD YEAR(S)
+        if not self.is_full_career:
+
+            # BACKGROUND RED RECTANGLE
+            box_width, box_height = self.set.template_component_size(TemplateImageComponent.POSTSEASON_YEAR_TEXT_BOX)
+            red_rect_image = self.__rectangle_image(width=box_width, height=box_height, fill="#c44242")
+            red_rect_paste_coords = self.set.template_component_paste_coordinates(TemplateImageComponent.POSTSEASON_YEAR_TEXT_BOX)
+            postseason_logo_image.paste(red_rect_image, red_rect_paste_coords)
+
+            # DEFINE YEAR TEXT
+            year_range = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
+            year_str = year_range if self.is_multi_year else self.year
+
+            year_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+            font_size = 120 if self.is_multi_year else 140
+            year_font = ImageFont.truetype(year_font_path, size=font_size)
+            year_text = self.__text_image(
+                text = year_str,
+                size = (box_width, box_height),
+                font = year_font,
+                alignment='center'
+            )
+            year_text_x, year_text_y = self.set.template_component_paste_coordinates(TemplateImageComponent.POSTSEASON_YEAR_TEXT)
+            if self.is_multi_year:
+                year_text_y += 10
+            postseason_logo_image.paste(year_text, (year_text_x, year_text_y), year_text)
+
+        # RESIZE
+        logo_size = self.set.template_component_size(TemplateImageComponent.POSTSEASON)
+        postseason_logo_image = postseason_logo_image.resize(logo_size, Image.ANTIALIAS)
+
+        return postseason_logo_image
+
     def __add_icons_to_image(self, player_image:Image.Image) -> Image.Image:
         """Add icon images (if player has icons) to existing player_image object.
            Only for >= 2003 sets.
@@ -4144,7 +4231,7 @@ class ShowdownPlayerCard(BaseModel):
         return icon_img
         
     def __add_additional_logos_00_01(self, image:Image.Image) -> Image.Image:
-        """Add CC/RS/SS logo to existing player_image object.
+        """Add CC/RS/SS/PS logo to existing player_image object.
            Only for 2000/2001 sets.
 
         Args:
@@ -4159,7 +4246,8 @@ class ShowdownPlayerCard(BaseModel):
             return image
         
         # DEFINE COORDINATES, START WITH ROOKIE SEASON DESTINATION AND EDIT FOR OTHERS
-        paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.ROOKIE_SEASON)
+        template_component = TemplateImageComponent.POSTSEASON if self.image.edition == Edition.POSTSEASON else TemplateImageComponent.ROOKIE_SEASON
+        paste_coordinates = self.set.template_component_paste_coordinates(template_component)
         if self.image.edition != Edition.ROOKIE_SEASON and self.set == Set._2001:
             # MOVE LOGO TO THE RIGHT
             paste_coordinates = (paste_coordinates[0] + 30, paste_coordinates[1])
@@ -4186,6 +4274,9 @@ class ShowdownPlayerCard(BaseModel):
             case Edition.ROOKIE_SEASON:
                 rs_logo = self.__rookie_season_image()
                 image.paste(rs_logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), rs_logo)
+            case Edition.POSTSEASON:
+                ps_logo = self.__postseason_image()
+                image.paste(ps_logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), ps_logo)
             case _:
                 return image
             
@@ -4229,6 +4320,54 @@ class ShowdownPlayerCard(BaseModel):
 
         return background_img
 
+    def __style_image(self) -> Image.Image:
+        """ Style image for CLASSIC AND EXPANDED sets. Color scheme matches team colors
+        
+        Args:
+          None
+
+        Returns:
+          PIL image with style logo
+        """
+
+        color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color) # NOTE: USES OPPOSITE COLOR
+        color_hex = self.__rbgs_to_hex(rgbs=color)
+        red, green, blue, _ = color
+        color_lightness = (red*0.299 + green*0.587 + blue*0.114)
+        is_shadow = color_lightness < 75 if self.image.is_dark_mode else color_lightness > 186
+
+        # LOAD BACKGROUND
+        theme_suffix = 'DARK' if self.image.is_dark_mode else 'LIGHT'
+        shadow_suffix = '-SHADOW' if is_shadow else ''
+        bg_image_path = self.__template_img_path(f'STYLE-BG-{theme_suffix}{shadow_suffix}')
+        bg_image = Image.open(bg_image_path)
+
+        # BACKGROUND
+        logo_bg_original = Image.open(self.__template_img_path('STYLE-LOGO-BG'))
+        logo_bg = self.__add_color_overlay_to_img(img=logo_bg_original, color=color)
+        logo_bg_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE_LOGO_BG)
+        bg_image.paste(logo_bg, logo_bg_paste_coordinates, logo_bg)
+
+        # STYLE LOGO
+        style_logo = Image.open(self.__template_img_path(f'STYLE-LOGO-{self.set.value}'))
+        logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE_LOGO)
+        bg_image.paste(style_logo, logo_paste_coordinates, style_logo)
+
+        # STYLE TEXT
+        style_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        style_font = ImageFont.truetype(style_font_path, size=225)
+        style_text = self.__text_image(
+            text = self.set.value,
+            size = (1800, 300),
+            font = style_font,
+            alignment = "left"
+        )
+        style_text = style_text.resize((450,75), Image.ANTIALIAS)
+        style_text_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE_TEXT)
+        bg_image.paste(color_hex, style_text_paste_location, style_text)
+                
+        return bg_image
+
     def __year_container_add_on(self) -> Image.Image:
         """User can optionally add a box dedicated to showing years used for the card.
 
@@ -4267,6 +4406,93 @@ class ShowdownPlayerCard(BaseModel):
         year_img.paste("#272727", (4,13 + multi_year_y_adjustment), year_text)
 
         return year_img
+
+    def __date_range_or_split_image(self) -> Image.Image:
+        """ Date Range or Split text image for partial year cards. Rounded rectangle with text.
+
+        Args: 
+          None
+
+        Returns:
+          PIL Image showing date range / split being shown on card.
+        """
+
+        # OPEN BACKGROUND IMAGE
+        image_name = "DATE-RANGE-BG-LONG" if self.set.is_split_image_long else "DATE-RANGE-BG"
+        split_image = Image.open(self.__template_img_path(image_name)).convert('RGBA')
+
+        # SPLIT TEXT
+        font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        size = 120 if self.set.is_split_image_long else 135
+        font = ImageFont.truetype(font_path, size=size)
+
+        # GRAB TEXT
+        match self.stats_period.type:
+            case StatsPeriodType.POSTSEASON:
+                text = 'POSTSEASON' if self.set.is_split_image_long else 'POST'
+                text_list = [text]
+            case StatsPeriodType.DATE_RANGE:
+                text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
+                text_list = [t for t in text_list if t]
+                text = ' - '.join(text_list)
+            case StatsPeriodType.SPLIT:
+                text = self.stats_period.split.upper()
+                text_no_slash = text.replace('/',' ')
+                text_list = [text]
+                text_split_by_word = text_no_slash.split(' ')
+                num_words = len(text_split_by_word)
+                if len(text) > 7 and num_words > 1 and not self.set.is_split_image_long:
+                    mid_point = int(num_words / 2)
+                    part_1 = ' '.join(text_split_by_word[:mid_point])
+                    part_2 = ' '.join(text_split_by_word[mid_point:])
+                    text_list = [part_1, part_2]
+                
+        num_words = len(text_list)
+        if self.set.is_split_image_long:
+            text = text if len(text) < 15 else f"{text[:11]}.."
+            text_image_large = self.__text_image(
+                text = text,
+                size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
+                font = font,
+                fill=colors.WHITE,
+                alignment = "center",
+            )
+            text_image = text_image_large.resize((280,240), Image.ANTIALIAS)
+            split_image.paste(text_image, (-5, 12), text_image)
+        else:
+            # ADD PERIOD
+            y_position = 5 if num_words > 1 else 25
+            for text in text_list:
+
+                # SKIP IF NONE
+                if text is None:
+                    continue
+                text = text if len(text) < 8 else f"{text[:6]}.."
+                
+                text_image_large = self.__text_image(
+                    text = text,
+                    size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
+                    font = font,
+                    fill=colors.WHITE,
+                    alignment = "center",
+                )
+                text_image = text_image_large.resize((140,120), Image.ANTIALIAS)
+                split_image.paste(text_image, (0, y_position), text_image)
+                y_position += 45
+
+            # ADD DASH
+            if self.stats_period.type == StatsPeriodType.DATE_RANGE and num_words > 1:
+                dash_image_large = self.__text_image(
+                    text = '-',
+                    size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
+                    font = font,
+                    fill=colors.WHITE,
+                    alignment = "center",
+                )
+                dash_image = dash_image_large.resize((140,120), Image.ANTIALIAS)
+                split_image.paste(dash_image, (0, 25), dash_image)
+
+        return split_image
 
 
 # ------------------------------------------------------------------------
@@ -4400,7 +4626,8 @@ class ShowdownPlayerCard(BaseModel):
                     # 1. CHECK FOR IMAGE IN LOCAL CACHE. CACHE EXPIRES AFTER 20 MINS.
                     image = None
                     type_override = self.player_type_override.override_string if self.player_type_override else ''
-                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team.value}){type_override}.png"
+                    stats_period = self.stats_period.type.player_image_search_term if self.stats_period.type.player_image_search_term else ''
+                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team.value}){type_override}{stats_period}.png"
                     cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
                     if not self.ignore_cache:
                         try:
@@ -4420,7 +4647,13 @@ class ShowdownPlayerCard(BaseModel):
                 case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
-                    image = Image.open(img_url).convert('RGBA').resize((1200,1200), resample=Image.ANTIALIAS)
+                    if self.image.parallel == ImageParallel.MOONLIGHT:
+                        image, paste_coordinates = self.team_logo_for_background(team_override=self.team_override_for_images)
+                        image = self.__change_image_saturation(image=image, saturation=0.05)
+                        player_img_components.append((image, paste_coordinates))
+                        continue
+                    else:
+                        image = Image.open(img_url).convert('RGBA').resize((1200,1200), resample=Image.ANTIALIAS)
                 case "NAME_CONTAINER":
                     image = self.__2000_player_name_container_image()
                 case _: 
@@ -4631,6 +4864,10 @@ class ShowdownPlayerCard(BaseModel):
                 if self.player_type_override:
                     if self.player_type_override.override_string in img_name.upper():
                         match_score += 1
+
+                # IF POSTSEASON IMAGE BUT NOT POSTSEASON CARD, REDUCE ACCURACY
+                if '(POST)' in img_name and self.stats_period.type != StatsPeriodType.POSTSEASON:
+                    match_score -= 2
                 
                 # ADD MATCH RATE SCORE
                 match_scores[img_id] = match_score
@@ -4656,16 +4893,28 @@ class ShowdownPlayerCard(BaseModel):
         """
         # SEARCH FOR PLAYER IMAGE
         additional_substring_filters = [self.year, f'({self.team.value})',f'({self.team.value})'] # ADDS TEAM TWICE TO GIVE IT 2X IMPORTANCE
+        
+        # EDITION
         if self.image.edition != Edition.NONE:
             for _ in range(0,3): # ADD 3X VALUE
                 additional_substring_filters.append(f'({self.image.edition.value})')
+
+        # PLAYER TYPE OVERRIDE
         if self.player_type_override:
             additional_substring_filters.append(self.player_type_override.override_string)
+        
+        # DARK MODE
         if self.image.is_dark_mode:
             additional_substring_filters.append('(DARK)')
+
+        # NATIONALITY
         if self.image.special_edition == SpecialEdition.NATIONALITY:
             for _ in range(0,4):
                 additional_substring_filters.append(f'({self.nationality.value})') # ADDS NATIONALITY THREE TIMES TO GIVE IT 3X IMPORTANCE
+        
+        # PERIOD TYPE
+        if self.stats_period.type.player_image_search_term: 
+            additional_substring_filters.append(self.stats_period.type.player_image_search_term)
 
         return additional_substring_filters
 
@@ -4685,9 +4934,9 @@ class ShowdownPlayerCard(BaseModel):
 
         if self.image.parallel.has_special_components:
             # ADD ADDITIONAL COMPONENTS
-            if len(self.image.parallel.special_component_additions) > 0:
+            if len(self.image.parallel.special_component_additions(self.set.value)) > 0:
                 team_logo_name = self.team.logo_name(year=self.median_year)
-                special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == PlayerImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image.parallel.special_component_additions.items()})
+                special_components_for_context.update({img_component: self.__team_logo_path(team_logo_name) if img_component == PlayerImageComponent.TEAM_LOGO else self.__card_art_path(relative_path) for img_component, relative_path in self.image.parallel.special_component_additions(self.set.value).items()})
             # EDITING EXISTING COMPONENTS
             replacements_dict = self.image.parallel.special_components_replacements
             for old_component, new_component in replacements_dict.items():
@@ -5136,6 +5385,23 @@ class ShowdownPlayerCard(BaseModel):
         
         return None
 
+    def __rectangle_image(self, width:int, height:int, fill:str) -> Image.Image:
+        """Create a new rectangle image with a particular color.
+
+        Args:
+          width: Width of the rectangle.
+          height: Height of the rectangle.
+          fill: Fill color of the rectangle.
+
+        Returns:
+          PIL Image for colored rectangle.
+        """
+
+        rect_image = Image.new("RGB", (width, height), fill)
+
+        return rect_image
+
+
 # ------------------------------------------------------------------------
 # SHOWDOWN IMAGE LIBRARY IMPORT
 # ------------------------------------------------------------------------
@@ -5317,4 +5583,4 @@ class ShowdownPlayerCard(BaseModel):
     def as_json(self) -> dict:
         """Convert current class to a json"""
         
-        return self.model_dump(mode="json")
+        return self.model_dump(mode="json", exclude_none=True)

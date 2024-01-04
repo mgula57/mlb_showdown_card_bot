@@ -1,14 +1,14 @@
 from flask import Flask, render_template, request, jsonify
-from mlb_showdown_bot.firebase import Firebase
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
+from mlb_showdown_bot.postgres_db import PostgresDB
+from mlb_showdown_bot.classes.stats_period import StatsPeriod
 import os
 import pandas as pd
-from datetime import datetime
 from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
 from pprint import pprint
-
+from time import sleep
 
 # ----------------------------------------------------------
 # DATABASE
@@ -67,8 +67,12 @@ class CardLog(db.Model):
     card_load_time = db.Column(db.Numeric(10,2))
     is_secondary_color = db.Column(db.Boolean)
     nickname_index = db.Column(db.Integer)
+    period = db.Column(db.String(64))
+    period_start_date = db.Column(db.String(64))
+    period_end_date = db.Column(db.String(64))
+    period_split = db.Column(db.String(64))
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index, period, period_start_date, period_end_date, period_split):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -108,8 +112,12 @@ class CardLog(db.Model):
         self.card_load_time = card_load_time
         self.is_secondary_color = is_secondary_color
         self.nickname_index = nickname_index
+        self.period = period
+        self.period_start_date = period_start_date
+        self.period_end_date = period_end_date
+        self.period_split = period_split
 
-def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index):
+def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index, period, period_start_date, period_end_date, period_split):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -149,7 +157,11 @@ def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansi
             scraper_load_time=scraper_load_time,
             card_load_time=card_load_time,
             is_secondary_color=is_secondary_color,
-            nickname_index=nickname_index
+            nickname_index=nickname_index,
+            period=period, 
+            period_start_date=period_start_date, 
+            period_end_date=period_end_date, 
+            period_split=period_split
         )
         db.session.add(card_log)
         db.session.commit()
@@ -184,6 +196,12 @@ def card_creator():
     era: str = None
     chart_version: int = None
     image_parallel: str = None
+
+    # PERIOD
+    period_type: str = None
+    period_start_date: str = None
+    period_end_date: str = None
+    period_split: str = None
 
     # OPTIONAL ADD-ONS
     img_url: str = None
@@ -235,6 +253,11 @@ def card_creator():
         chart_version = int(request.args.get('offset', 0))
         image_parallel = str(request.args.get('parallel', 'NONE'))
 
+        period_type = request.args.get('period', None)
+        period_start_date = request.args.get('period_start_date', None)
+        period_end_date = request.args.get('period_end_date', None)
+        period_split = request.args.get('period_split', None)
+
         # OPTIONALS
         img_url = request.args.get('url', None)
         img_name = request.args.get('img_name', None)
@@ -250,24 +273,52 @@ def card_creator():
         nickname_index = request.args.get('nickname_index', None)
         nickname_index = None if len(str(nickname_index or '')) == 0 else nickname_index
 
+        # DELAY SLIGHTLY IF IMG UPLOAD TO LET THE IMAGE FINISH UPLOADING
+        if img_name:
+            sleep(2)
+
         # RANDOM
         is_random = name.upper() == '((RANDOM))'
         if is_random:
             # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
             name, year = random_player_id_and_year()
 
+        # DEFINE PERIOD
+        stats_period = StatsPeriod(type=period_type, start_date=period_start_date, end_date=period_end_date, split=period_split)
+
         # -----------------
-        # 2. RUN CARD STATS
+        # 2. QUERY PLAYER STATS
         # -----------------
         error = 'Error loading player data. Make sure the player name and year are correct'
-        scraper = BaseballReferenceScraper(name=name,year=year,ignore_cache=ignore_cache)
+        scraper = BaseballReferenceScraper(name=name,year=year,stats_period=stats_period,ignore_cache=ignore_cache)
         trends_data = None
         statline = None
-        try:
-            statline = scraper.player_statline()
-        except:
-            if scraper.error:
-                error = scraper.error
+
+        # IF NO CACHED SHOWDOWN CARD, FETCH REAL STATS FROM EITHER:
+        #  1. ARCHIVE: HISTORICAL DATA IN POSTGRES DB
+        #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
+        archived_statline = None
+        if not ignore_cache:
+            postgres_db = PostgresDB(is_archive=True)
+            archived_statline, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
+            postgres_db.close_connection()
+
+        # CHECK FOR ARCHIVED STATLINE. IF IT DOESN'T EXIST, QUERY BASEBALL REFERENCE / BASEBALL SAVANT
+        if archived_statline:
+            statline = archived_statline
+            data_source = 'Archive'
+        else:
+            data_source = 'Baseball Reference'
+            try:
+                statline = scraper.player_statline()
+                data_source = scraper.source
+            except:
+                if scraper.error:
+                    error = scraper.error
+
+        # -----------------
+        # 3. RUN SHOWDOWN CARD
+        # -----------------
         showdown_card = ShowdownPlayerCard(
             name=name,
             year=year,
@@ -276,6 +327,7 @@ def card_creator():
             expansion=expansion,
             edition=edition,
             era=era,
+            stats_period=stats_period,
             player_image_path=img_name,
             player_image_url=img_url,
             chart_version=chart_version,
@@ -290,13 +342,14 @@ def card_creator():
             date_override=date_override,
             use_secondary_color=is_secondary_color,
             is_running_in_flask=True,
-            source=scraper.source,
+            source=data_source,
             nickname_index=nickname_index,
-            ignore_cache=ignore_cache
+            ignore_cache=ignore_cache,
+            warnings=scraper.warnings
         )
 
         # -----------------
-        # 3. GENERATE CARD IMAGE
+        # 4. GENERATE CARD IMAGE
         # -----------------
         error = "Error - Unable to create Showdown Card Image."
         cached_img_link = showdown_card.cached_img_link()
@@ -311,7 +364,7 @@ def card_creator():
             card_image_path = os.path.join('static', 'output', showdown_card.image.output_file_name)
         
         # -----------------
-        # 4. SETUP METADATA SHOWN NEXT TO CARD
+        # 5. SETUP METADATA SHOWN NEXT TO CARD
         # -----------------
         player_command = showdown_card.command_type
         player_era = showdown_card.era.value.title()
@@ -332,7 +385,7 @@ def card_creator():
         team = showdown_card.team.value
         data_source = showdown_card.source
         image_source = showdown_card.image.source.type.value
-        scraper_load_time = scraper.load_time
+        scraper_load_time = archive_load_time if data_source == 'Archive' else scraper.load_time
         card_load_time = showdown_card.load_time
         shOPS_plus = showdown_card.projected.get('onbase_plus_slugging_plus', None)
         name = player_name if is_random else name # LOG ACTUAL NAME IF IS RANDOMIZED PLAYER
@@ -373,7 +426,11 @@ def card_creator():
             scraper_load_time=scraper_load_time,
             card_load_time=card_load_time,
             is_secondary_color=is_secondary_color,
-            nickname_index=nickname_index
+            nickname_index=nickname_index,
+            period=period_type,
+            period_start_date=period_start_date,
+            period_end_date=period_end_date,
+            period_split=period_split
         )
         return jsonify(
             image_path=card_image_path,
@@ -399,7 +456,9 @@ def card_creator():
             opponent=opponent_data,
             opponent_type=opponent_type,
             era=player_era,
-            image_parallel=image_parallel
+            image_parallel=image_parallel,
+            period=showdown_card.stats_period.string,
+            warnings=showdown_card.warnings
         )
 
     except Exception as e:
@@ -437,7 +496,11 @@ def card_creator():
             scraper_load_time=scraper_load_time,
             card_load_time=card_load_time,
             is_secondary_color=is_secondary_color,
-            nickname_index=nickname_index
+            nickname_index=nickname_index,
+            period=period_type,
+            period_start_date=period_start_date,
+            period_end_date=period_end_date,
+            period_split=period_split
         )
         return jsonify(
             image_path=None,
@@ -464,6 +527,8 @@ def card_creator():
             opponent_type=None,
             era=None,
             image_parallel=None,
+            period=None,
+            warnings=[]
         )
 
 @app.route('/upload', methods=["POST","GET"])
@@ -484,4 +549,4 @@ def random_player_id_and_year():
     return random_player_sample['player_id'], str(random_player_sample['year'])
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run()

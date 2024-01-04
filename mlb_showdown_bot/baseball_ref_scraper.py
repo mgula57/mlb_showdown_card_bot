@@ -8,19 +8,23 @@ import json
 import string
 import math
 import statistics
+from statistics import mode
 import operator
 from bs4 import BeautifulSoup
 from pprint import pprint
 from datetime import datetime
+from difflib import SequenceMatcher
 import unidecode
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .classes.team import Team
     from .classes.accolade import Accolade
+    from .classes.stats_period import StatsPeriod, StatsPeriodType
 except ImportError:
     # USE LOCAL IMPORT
     from classes.team import Team
     from classes.accolade import Accolade
+    from classes.stats_period import StatsPeriod, StatsPeriodType
 
 class BaseballReferenceScraper:
 
@@ -28,7 +32,7 @@ class BaseballReferenceScraper:
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, name:str, year:str, ignore_cache:bool=False, disable_cleaning_cache:bool=False) -> None:
+    def __init__(self, name:str, year:str, stats_period:StatsPeriod = StatsPeriod(), ignore_cache:bool=False, disable_cleaning_cache:bool=False) -> None:
 
         self.year_input = year.upper()
         is_full_career = year.upper() == 'CAREER'
@@ -48,10 +52,12 @@ class BaseballReferenceScraper:
 
         self.name = name
         self.error = None
+        self.warnings: list[str] = []
         self.source = None
         self.ignore_cache = ignore_cache
         self.disable_cleaning_cache = disable_cleaning_cache
         self.load_time = None
+        self.stats_period = stats_period
         
         # PARSE MULTI YEARS
         if isinstance(year, list):
@@ -66,7 +72,7 @@ class BaseballReferenceScraper:
         self.team_override = None
         for team_id in [team.value for team in Team]:
             team_match = f'({team_id})' in self.name.upper()
-            if team_match and not self.is_multi_year and not is_full_career:
+            if team_match and not self.is_multi_year and not is_full_career and stats_period.split is None:
                 self.team_override = team_id
 
         # CHECK FOR TYPE OVERRIDE
@@ -226,11 +232,7 @@ class BaseballReferenceScraper:
         start_time = datetime.now()
 
         # CHECK IN LOCAL CACHE
-        years_as_str = '-'.join([str(y) for y in self.years])
-        override_type = f"{f'-{self.pitcher_override}' if self.pitcher_override else ''}{f'-{self.hitter_override}' if self.hitter_override else ''}"
-        override_team = f'-{self.team_override}' if self.team_override else ""
-        cached_filename = f"{years_as_str}-{self.baseball_ref_id}{override_type}{override_team}.json"
-        cached_data = self.load_cached_data(cached_filename)
+        cached_data = self.load_cached_data(self.cache_filename)
         if cached_data:
             self.source = 'Local Cache'
             end_time = datetime.now()
@@ -339,9 +341,9 @@ class BaseballReferenceScraper:
                 has_ran_oaa = True
             
             # DERIVE 1B 
-            triples = 0 if '3B' not in stats_dict.keys() else int(stats_dict['3B'])
-            doubles = 0 if '2B' not in stats_dict.keys() else int(stats_dict['2B'])
-            stats_dict['1B'] = int(stats_dict['H']) - int(stats_dict['HR']) - triples - doubles
+            triples = int(stats_dict.get('3B', 0))
+            doubles = int(stats_dict.get('2B', 0))
+            stats_dict['1B'] = int(stats_dict.get('H', 0)) - int(stats_dict.get('HR', 0)) - triples - doubles
             master_stats_dict[year] = stats_dict
         
         if self.is_multi_year:
@@ -352,6 +354,15 @@ class BaseballReferenceScraper:
         # PARSE ACCOLADES IN TOTAL
         stats_dict['accolades'] = self.__accolades_dict(soup_for_homepage_stats=soup_for_homepage_stats, years_included=self.years)
 
+        # STATS WINDOW DATA
+        if self.stats_period.type.uses_game_logs:
+            # STORE REG SEASON GAMES FOR HITTERS. NEEDED FOR SPEED/DEFENSE CALCS
+            if self.stats_period.type.is_regular_season_games_stat_needed and stats_dict.get('type', 'n/a') == 'Hitter':
+                stats_dict['G_RS'] = stats_dict.get('G', 0)
+            game_log_data = self.game_log_data(type=type, years=self.years)
+            if game_log_data:
+                stats_dict.update(game_log_data)
+
         # FIX EMPTY STRING DATA
         empty_str_fields_for_test = ['batting_avg', 'onbase_perc', 'slugging_perc', 'onbase_plus_slugging']
         for field in empty_str_fields_for_test:
@@ -360,7 +371,7 @@ class BaseballReferenceScraper:
 
         # SAVE DATA        
         self.source = f"Baseball Reference{'/Baseball Savant' if is_data_from_statcast else ''}"
-        self.__cache_data_locally(data=stats_dict, filename=cached_filename)
+        self.__cache_data_locally(data=stats_dict, filename=self.cache_filename)
         
         # CALC LOAD TIME
         end_time = datetime.now()
@@ -846,7 +857,7 @@ class BaseballReferenceScraper:
         
         return is_match
 
-    def advanced_stats(self, type:str, year:int) -> dict:
+    def advanced_stats(self, type:str, year:str) -> dict:
         """Parse advanced stats page from baseball reference.
 
         Standard and ratio stats. For Pitchers, uses batting against table.
@@ -884,11 +895,11 @@ class BaseballReferenceScraper:
                     batting_against_table = self.__get_career_totals_row(div_id='div_pitching_batting',soup_object=soup_for_advanced_stats)
                     advanced_stats.update(self.__parse_generic_bref_row(batting_against_table))
                 except:
-                    advanced_stats.update(self.__parse_splits_stats(year=year))
+                    advanced_stats.update(self.__parse_incomplete_splits_stats(year=year))
             else:
                 # LOOK AT "SPLITS" PAGE FOR PRE-1916 PITCHERS
                 if self.__is_pitcher_from_1901_to_1918(year=year,type=type):
-                    advanced_stats.update(self.__parse_splits_stats(year=year))
+                    advanced_stats.update(self.__parse_incomplete_splits_stats(year=year))
                 else:
                     batting_against_soup = soup_for_advanced_stats.find('table', attrs={'id': 'pitching_batting'})
                     partial_stats = self.__find_partial_team_stats_row(soup_object=batting_against_soup, team=self.team_override, year=year)
@@ -906,6 +917,11 @@ class BaseballReferenceScraper:
         else:
             standard_stats_dict = self.__parse_standard_stats(type, standard_row, included_g_for_pitcher=is_full_career)
             advanced_stats.update(standard_stats_dict)
+
+        # CHECK IF DATA SHOULD BE OVERRIDDEN BY SPLITS
+        splits_data = self.parse_splits_data(type=type, year=year)
+        if splits_data:
+            advanced_stats.update(splits_data)
 
         # PARSE AWARDS IF FULL CAREER
         if is_full_career or self.team_override:
@@ -928,47 +944,7 @@ class BaseballReferenceScraper:
                 advanced_stats[team_id_key] = self.__parse_team_after_trade(soup_for_homepage_stats=soup_for_advanced_stats,year=year,type=type)
 
         # FILL IN EMPTY STATS
-        current_categories = advanced_stats.keys()
-        if 'PA' not in current_categories:
-            advanced_stats['is_stats_estimate'] = True
-            # CHECK FOR BATTERS FACED
-            if advanced_stats['batters_faced'] > 0:
-                advanced_stats['PA'] = advanced_stats['batters_faced']
-            # ESTIMATE PA AGAINST
-            else:
-                advanced_stats['PA'] = advanced_stats['IP'] * 4.25 # NEED TO ESTIMATE PA BASED ON AVG PA PER INNING
-        
-        keys_to_fill = ['SH','HBP','IBB','SF']
-        for key in keys_to_fill:
-            if key not in current_categories:
-                advanced_stats[key] = 0
-
-        if '2B' not in current_categories:
-            maxDoubles = 0.25
-            eraPercentile = self.__percentile(minValue=1.0, maxValue=5.0, value=advanced_stats['earned_run_avg'])
-            advanced_stats['2B'] = int(advanced_stats['H'] * eraPercentile * maxDoubles)
-
-        if '3B' not in current_categories:
-            maxTriples = 0.025
-            eraPercentile = self.__percentile(minValue=1.0, maxValue=5.0, value=advanced_stats['earned_run_avg'])
-            advanced_stats['3B'] = int(advanced_stats['H'] * eraPercentile * maxTriples)
-        
-        if 'slugging_perc' not in current_categories:
-            ab = advanced_stats['PA'] - advanced_stats['BB'] - advanced_stats['HBP']
-            singles = advanced_stats['H'] - advanced_stats['2B'] - advanced_stats['3B'] - advanced_stats['HR']
-            total_bases = (singles + (2 * advanced_stats['2B']) + (3 * advanced_stats['3B']) + (4 * advanced_stats['HR']))
-            advanced_stats['AB'] = ab
-            advanced_stats['TB'] = total_bases
-            advanced_stats['slugging_perc'] = total_bases / ab
-
-        if 'onbase_perc' not in current_categories:
-            advanced_stats['onbase_perc'] = (advanced_stats['H'] + advanced_stats['BB']) / advanced_stats['PA']
-        
-        if 'batting_avg' not in current_categories:
-            advanced_stats['batting_avg'] = advanced_stats['H'] / advanced_stats['AB']
-        
-        if 'SB' not in current_categories:
-            advanced_stats['SB'] = 0
+        advanced_stats = self.__fill_empty_required_stat_categories(advanced_stats)
 
         # RATIO STATS
         ratio_table_key = f'div_{table_prefix}_ratio'
@@ -999,14 +975,89 @@ class BaseballReferenceScraper:
             advanced_stats['IP/GS'] = ip_per_gs
         
         return advanced_stats
+    
+    def __fill_empty_required_stat_categories(self, stats_data:dict) -> dict:
+        """Ensure all required fields are populated for player stats.
+        
+        Args:
+          data: Current dict for stats.
 
-    def __parse_standard_stats(self, type:str, soup_row:BeautifulSoup, included_g_for_pitcher:bool=False) -> dict:
+        Returns:
+          Update stats dict
+        """
+
+        # CHECK FOR PA
+        current_categories = stats_data.keys()
+        if 'PA' not in current_categories:
+            stats_data['is_stats_estimate'] = True
+            # CHECK FOR BATTERS FACED
+            bf = stats_data.get('batters_faced',0)
+            if bf > 0:
+                stats_data['PA'] = bf
+            # ESTIMATE PA AGAINST
+            else:
+                stats_data['PA'] = stats_data['IP'] * 4.25 # NEED TO ESTIMATE PA BASED ON AVG PA PER INNING
+        
+        keys_to_fill = ['SH','HBP','IBB','SF']
+        for key in keys_to_fill:
+            if key not in current_categories:
+                stats_data[key] = 0
+
+        if '2B' not in current_categories:
+            maxDoubles = 0.25
+            eraPercentile = self.__percentile(minValue=1.0, maxValue=5.0, value=stats_data['earned_run_avg'])
+            stats_data['2B'] = int(stats_data['H'] * eraPercentile * maxDoubles)
+
+        if '3B' not in current_categories:
+            maxTriples = 0.025
+            eraPercentile = self.__percentile(minValue=1.0, maxValue=5.0, value=stats_data['earned_run_avg'])
+            stats_data['3B'] = int(stats_data['H'] * eraPercentile * maxTriples)
+        
+        if 'slugging_perc' not in current_categories:
+            ab = stats_data.get('AB') if stats_data.get('AB', None) else stats_data['PA'] - stats_data['BB'] - stats_data['HBP']
+            singles = stats_data['H'] - stats_data['2B'] - stats_data['3B'] - stats_data['HR']
+            total_bases = (singles + (2 * stats_data['2B']) + (3 * stats_data['3B']) + (4 * stats_data['HR']))
+            stats_data['AB'] = ab
+            stats_data['TB'] = total_bases
+            stats_data['slugging_perc'] = round(total_bases / ab, 5)
+
+        if 'onbase_perc' not in current_categories:
+            sf = 0 if len(str(stats_data.get('SF', ''))) == 0 else stats_data.get('SF', 0)
+            obp_denominator = ( stats_data.get('AB', 0) + stats_data.get('BB', 0) + stats_data.get('HBP', 0) + sf ) if 'AB' in stats_data.keys() else stats_data['PA']
+            stats_data['onbase_perc'] = round((stats_data['H'] + stats_data['BB'] + stats_data.get('HBP', 0)) / obp_denominator, 5)
+        
+        if 'batting_avg' not in current_categories:
+            stats_data['batting_avg'] = round(stats_data['H'] / stats_data['AB'], 5)
+        
+        if 'SB' not in current_categories:
+            stats_data['SB'] = 0
+
+        if '1B' not in current_categories:
+            stats_data['1B'] = int(stats_data.get('H', 0)) - int(stats_data.get('HR', 0)) - int(stats_data.get('3B', 0)) - int(stats_data.get('2B', 0))
+
+        if 'onbase_plus_slugging' not in current_categories:
+            stats_data["onbase_plus_slugging"] = round(stats_data["onbase_perc"] + stats_data["slugging_perc"],4)
+
+        # PITCHER CATEGORIES
+        if 'IP_GS' in current_categories and 'GS' in current_categories and 'IP/GS' not in current_categories:
+            stats_data['IP/GS'] = round(stats_data['IP_GS'] / stats_data['GS'], 4)
+
+        if 'ER' in current_categories and 'IP' in current_categories and 'earned_run_avg' not in current_categories:
+            stats_data['earned_run_avg'] = round(9 * stats_data['ER'] / stats_data['IP'], 3)
+
+        if 'BB' in current_categories and 'H' in current_categories and 'IP' in current_categories and 'whip' not in current_categories:
+            stats_data['whip'] = round(( stats_data.get('BB', 0) + stats_data.get('H', 0) ) / stats_data.get('IP', 0), 3)
+
+        return stats_data
+
+    def __parse_standard_stats(self, type:str, soup_row:BeautifulSoup, included_g_for_pitcher:bool=False, search_for_lg_leader:bool=True) -> dict:
         """Parse standard batting table.
 
         Args:
           type: Player is Pitcher or Hitter.
           soup_row: BeautifulSoup row object with season stats.
           included_g_for_pitcher: Boolean for whether to parse 'G' for pitchers.
+          search_for_lg_leader: Boolean for whether to look for league leader bold/italic text.
 
         Returns:
           Dict with standard hitting statistics.
@@ -1016,12 +1067,14 @@ class BaseballReferenceScraper:
 
         for category in soup_row:
             stat_category = category['data-stat']
-            # LEAGUE LEADER?
-            is_league_leader = '<strong>' in str(category) or '<em>' in str(category) # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD OR ITALIC TEXT
 
-            if stat_category in ('SV','HR','SB','SO'):
-                # SAVE THIS INFO FOR RP, HR, OR SB ICONS
-                standard_stats_dict[f'is_{stat_category.lower()}_leader'] = is_league_leader
+            # LEAGUE LEADER?
+            if search_for_lg_leader:
+                is_league_leader = '<strong>' in str(category) or '<em>' in str(category) # LEAGUE LEADERS ON BASEBALL REF ARE DENOTED BY BOLD OR ITALIC TEXT
+
+                if stat_category in ('SV','HR','SB','SO'):
+                    # SAVE THIS INFO FOR RP, HR, OR SB ICONS
+                    standard_stats_dict[f'is_{stat_category.lower()}_leader'] = is_league_leader
              
             stat = category.get_text()
             if stat_category in ['SF','IBB','CS'] and stat == '':
@@ -1045,15 +1098,16 @@ class BaseballReferenceScraper:
 
         return standard_stats_dict
 
-    def __parse_splits_stats(self,year:int) -> dict:
-        """Parse standard statline from the "splits" page on Baseball Reference
+    def __parse_incomplete_splits_stats(self,year:int) -> dict:
+        """Parse standard statline from the "splits" page on Baseball Reference for players with incomplete data.
 
         Args:
           year: Year for data stats (ex: 2021, CAREER)
 
         Returns:
-          Dict with standard statistics.
+          Dict with statistics.
         """
+
         url_splits = f'https://www.baseball-reference.com/players/split.fcgi?id={self.baseball_ref_id}&year={year}&t=p'
         soup_for_split = self.__soup_for_url(url_splits, is_baseball_ref_page=True)
         tables_w_incomplete_split = [a for a in soup_for_split.select('th[data-stat="incomplete_split"]')]
@@ -1063,25 +1117,168 @@ class BaseballReferenceScraper:
         batting_against_dict = dict(zip(header_values, stats_values))
         return batting_against_dict
 
-    def __parse_generic_bref_row(self, row:BeautifulSoup) -> dict:
+    def parse_splits_data(self, type:str, year:int) -> dict:
+        """Find and parse the row with matching split name.
+        Return None if split does not exist.
+
+        Args:
+          type: Player is Pitcher or Hitter.
+          year: Year for data stats (ex: 2021, CAREER)
+          split_name: Name of the split.
+
+        Returns:
+          Dict with split statistics.
+        """
+
+        # RETURN NONE IF NO SPLIT
+        if self.stats_period.type != StatsPeriodType.SPLIT or self.stats_period.split is None:
+            return None
+        
+        type_ext = 'p' if type == 'Pitcher' else 'b'
+        url_splits = f'https://www.baseball-reference.com/players/split.fcgi?id={self.baseball_ref_id}&year={year}&t={type_ext}'
+        soup_for_split = self.__soup_for_url(url_splits, is_baseball_ref_page=True)
+
+        for tag in ['th', 'td']:
+            splits = soup_for_split.find_all(tag, string=re.compile(self.stats_period.split, flags=re.IGNORECASE))
+
+            # FILTER TO BEST MATCH SPLIT
+            if len(splits) > 1:
+                best_string_match_ratio = max([SequenceMatcher(None, split.get_text(), self.stats_period.split).ratio() for split in splits])
+                updated_splits = []
+                for split in splits:
+                    ratio = SequenceMatcher(None, split.get_text(), self.stats_period.split).ratio()
+                    if round(ratio, 4) == round(best_string_match_ratio, 4):
+                        updated_splits.append(split)
+                splits = updated_splits
+                
+            # MATCH FOUND, BREAK LOOP
+            if len(splits) > 0:
+                break
+        
+        if len(splits) == 0:
+            self.warnings.append(f'No Splits Available for {self.stats_period.split}')
+            self.stats_period.reset()
+            return None
+
+        # ITERATE THROUGH ALL SPLIT ROWS THAT MATCH THE USER INPUTTED NAME
+        # LOOP MAKES SURE ALL STATS ARE CAPTURED, ESPECIALLY IMPORTANT FOR PITCHERS 
+        #   WHO WILL HAVE GAME LEVEL AND BATTING AGAINST RECORDS
+        stats_dict: dict = {}
+        for header_column in splits:
+            header_values = [self.__convert_to_numeric(sib['data-stat']) for sib in header_column.next_siblings]
+            stats_values = [self.__convert_to_numeric(sib.string) for sib in header_column.next_siblings]
+            stats_dict.update(dict(zip(header_values, stats_values)))
+        
+        stats_dict = self.__fill_empty_required_stat_categories(stats_dict)
+
+        return stats_dict
+
+    def game_log_data(self, type:str, years:list[str]) -> dict:
+        """Parse Game Log Data. Used in certain stat period types (Postseason, Date Range).
+
+        Args:
+          type: Player Type
+          years: List of years as strings.
+
+        Returns:
+          Aggregated stats dict from game logs.
+        """
+        
+        type_ext = 'p' if type == 'Pitcher' else 'b'
+        years = [int(y) if y != 'CAREER' else y for y in years]
+        first_year = years[0]
+        period_ext = "year=0&post=1" if self.stats_period.type == StatsPeriodType.POSTSEASON else f"year={first_year}"
+        url = f"https://www.baseball-reference.com/players/gl.fcgi?id={self.baseball_ref_id}&t={type_ext}&{period_ext}"
+        soup_game_log_page = self.__soup_for_url(url, is_baseball_ref_page=True)
+
+        # CHECK FOR ROWS
+        type_prefix = 'pitching' if type == 'Pitcher' else 'batting'
+        game_log_records = soup_game_log_page.find_all('tr', attrs={'id': re.compile(f'{type_prefix}_gamelogs.')})
+        included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF',]
+        game_logs_parsed: list[dict] = [self.__parse_generic_bref_row(row=game_log, included_categories=included_categories) for game_log in game_log_records]
+        
+        # AGGREGATE DATA
+        aggregated_data_into_lists: dict[str, list] = {}
+        for game_log_data in game_logs_parsed:
+
+            # CHECK FOR DATE/YEAR FILTER
+            year_from_game_log = self.__convert_to_numeric(str(game_log_data.get('year_game', first_year)))
+            year_check = year_from_game_log in years or first_year == 'CAREER'
+            date_check = True
+            game_log_date_str: str = game_log_data.get('date_game', None)
+            if self.stats_period.is_date_range and game_log_date_str:
+                game_log_date_str_cleaned = game_log_date_str.split('(')[0]
+                game_log_date_str_full = f"{game_log_date_str_cleaned} {first_year}"
+                game_log_date = datetime.strptime(game_log_date_str_full, "%b %d %Y").date()
+                date_check = self.stats_period.start_date <= game_log_date <= self.stats_period.end_date
+
+            # SKIP ROW IF IT FAILS THE DATE OR YEAR CHECKS
+            if not date_check or not year_check:
+                continue 
+
+            # ADD TO GAMES PLAYED
+            game_log_data['G'] = 1
+            innings_text = game_log_data.get('player_game_span', None)
+            if innings_text:
+                is_start = 'GS' in str(innings_text) or 'SHO' in str(innings_text) or 'CG' in str(innings_text)
+                game_log_data['GS'] = int(is_start)
+                if is_start:
+                    game_log_data['IP_GS'] = game_log_data.get('IP', 0)
+
+            for category, stat in game_log_data.items():
+                # IF THE KEY IS NOT IN THE AGGREGATED_DATA DICTIONARY, ADD IT
+                if category not in aggregated_data_into_lists:
+                    aggregated_data_into_lists[category] = [stat]
+                else:
+                    # IF THE KEY IS ALREADY PRESENT, APPEND THE VALUE TO THE LIST
+                    aggregated_data_into_lists[category].append(stat)
+                    
+        aggregated_data = { k.replace('batters_faced', 'PA'): self.__aggregate_stats_list(category=k, stats=v) for k,v in aggregated_data_into_lists.items() if k != 'earned_run_avg'}
+
+        # CHECK FOR NO-DATA
+        if len(aggregated_data) == 0:
+            pprint(aggregated_data)
+            self.warnings.append(self.stats_period.empty_message)
+            self.stats_period.reset()
+            return None
+
+        aggregated_data = self.__fill_empty_required_stat_categories(aggregated_data)
+
+        # ADD FIRST AND LAST GAME DATES
+        game_dates = aggregated_data_into_lists.get('date_game', None)
+        if game_dates:
+            aggregated_data['first_game_date'] = str(game_dates[0]).upper().split(' (', 1)[0]
+            aggregated_data['last_game_date'] = str(game_dates[-1]).upper().split(' (', 1)[0]
+
+        
+        return aggregated_data
+
+    def __parse_generic_bref_row(self, row:BeautifulSoup, included_categories:list[str] = []) -> dict:
         """Parse hitting stats a pitcher allowed.
 
         Args:
           row: BeautifulSoup tr row object with stats
+          included_categories: List of categories to include. If empty include all.
 
         Returns:
           Dict with statistics
         """
 
+        if row is None:
+            return {}
+
         final_stats_dict = {}
-        if row is not None:
-            for category in row:
-                stat_category = category['data-stat']
-                stat = category.get_text()
-                stat = self.__convert_to_numeric(stat)
-                if stat_category in ['IBB'] and stat == '':
-                    stat = 0
-                final_stats_dict[stat_category]= stat
+        for category in row:
+            
+            stat_category = category['data-stat']
+            if stat_category not in included_categories and len(included_categories) > 0:
+                continue
+
+            stat = category.get_text()
+            stat = self.__convert_to_numeric(stat)
+            if stat_category in ['IBB'] and stat == '':
+                stat = 0
+            final_stats_dict[stat_category]= stat
 
         return final_stats_dict
 
@@ -1458,6 +1655,15 @@ class BaseballReferenceScraper:
 # HELPER METHODS
 # ------------------------------------------------------------------------
 
+    @property
+    def cache_filename(self) -> str:
+        """Name of cache file for player data. """
+        years_as_str = '-'.join([str(y) for y in self.years])
+        override_type = f"{f'-{self.pitcher_override}' if self.pitcher_override else ''}{f'-{self.hitter_override}' if self.hitter_override else ''}"
+        override_team = f'-{self.team_override}' if self.team_override else ""
+        override_period = f"-{self.stats_period.id}"
+        return f"{years_as_str}-{self.baseball_ref_id}{override_type}{override_team}{override_period}.json"
+
     def load_cached_data(self, filename:str) -> dict:
         """Check if data file exists in local storage, load and return JSON converted to a dict
         
@@ -1599,3 +1805,52 @@ class BaseballReferenceScraper:
         else:
             # RETURN ORIGINAL STRING
             return string_value
+        
+    def __aggregate_stats_list(self, category:str, stats:list[any], str_agg_type:str = 'mode') -> any:
+        """Aggregate list of stats into one value.
+
+        Args:
+          category: What the stat represents.
+          stats: List of stats. Can be any type, including str.
+          str_agg_type: How to aggregate if type is string. Accepted values are 'mode' or 'last'
+
+        Returns:
+          Single value representing the aggregate of stats.
+        """
+
+        # CHECK FOR AT LEAST 1 VALUE
+        if len(stats) == 0:
+            return None
+        
+        first_value_type = type(stats[0])
+        if first_value_type == str:
+            match str_agg_type:
+                case 'mode': return mode(stats)
+                case 'last': return stats[-1]
+        elif category == 'IP':
+
+            # CONVERT THE STATS LIST DECIMAL VALUES FROM .1, .2 to .33, .66
+            converted_stats = []
+            for stat in stats:
+                decimal_part = stat % 1.0
+                new_decimal = 0.0
+                match round(decimal_part, 1):
+                    case 0.1: new_decimal = 1.0 / 3.0
+                    case 0.2: new_decimal = 2.0 / 3.0
+                converted_stats.append(math.floor(stat) + new_decimal)
+            
+            # GET TOTAL AND CONVERT BACK TO "BASEBALL" DECIMAL
+            total_real_decimal = sum(converted_stats)
+            total_decimal_part = total_real_decimal % 1.0
+            new_total_decimal_part = 0.0
+            match round(total_decimal_part, 1):
+                case 0.3: new_total_decimal_part = 0.1
+                case 0.7: new_total_decimal_part = 0.2
+                case 1.0: new_total_decimal_part = 1.0
+            
+            return math.floor(total_real_decimal) + new_total_decimal_part
+        else:
+            stats = [s for s in stats if len(str(s)) != 0]
+            return sum(stats)
+
+    
