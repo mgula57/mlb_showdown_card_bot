@@ -280,7 +280,6 @@ class Set(str, Enum):
     def icon_paste_coordinates(self, index:int) -> tuple[int,int]:
         match self.value:
             case '2003':
-                print((round(index * 1.001 / 2.0) - 1), index, index % 2)
                 y_position = 1905 if (index % 2) == 1 else 1830
                 starting_x = 1005
                 x_offset = int(-75 * (round(index * 1.001 / 2.0) - 1))
@@ -1481,6 +1480,10 @@ class Set(str, Enum):
     def has_split_first_and_last_names(self) -> bool:
         return self.value == '2001'
     
+    @property
+    def is_split_image_long(self) -> bool:
+        return not self.is_showdown_bot
+
     # ---------------------------------------
     # PLAYER IMAGE
     # ---------------------------------------
@@ -1622,6 +1625,18 @@ class Set(str, Enum):
                     case 'CLASSIC' | 'EXPANDED': return (1075,1340)
             case TemplateImageComponent.ROOKIE_SEASON_YEAR_TEXT:
                 return (40, 145)
+            case TemplateImageComponent.POSTSEASON:
+                match self.value:
+                    case '2000': return (1200,1045)
+                    case '2001': return (1108,1015)
+                    case '2002': return (80,1275)
+                    case '2003': return (1085,1010)
+                    case '2004' | '2005': return (1100,1370)
+                    case 'CLASSIC' | 'EXPANDED': return (1075,1305)
+            case TemplateImageComponent.POSTSEASON_YEAR_TEXT_BOX:
+                return (288, 745)
+            case TemplateImageComponent.POSTSEASON_YEAR_TEXT:
+                return (288, 755)
             case TemplateImageComponent.EXPANSION:
                 match self.value:
                     case '2000' | '2001': return (1287,1855)
@@ -1636,6 +1651,17 @@ class Set(str, Enum):
             case TemplateImageComponent.STYLE:
                 match self.value:
                     case 'CLASSIC' | 'EXPANDED': return (60,1992)
+            case TemplateImageComponent.STYLE_LOGO_BG:
+                match self.value:
+                    case 'CLASSIC' | 'EXPANDED': return (255,5)
+            case TemplateImageComponent.STYLE_LOGO:
+                match self.value:
+                    case 'CLASSIC': return (285,18)
+                    case 'EXPANDED': return (295,20)
+            case TemplateImageComponent.STYLE_TEXT:
+                match self.value:
+                    case 'CLASSIC': return (38,27)
+                    case 'EXPANDED': return (15,27)
             case TemplateImageComponent.BOT_LOGO:
                 match self.value:
                     case '2000' | '2001': return (1250,1945)
@@ -1643,6 +1669,14 @@ class Set(str, Enum):
                     case '2003': return (655,1705)
                     case '2004' | '2005': return (1268,1965)
                     case 'CLASSIC' | 'EXPANDED': return (1345,2000)
+            case TemplateImageComponent.SPLIT:
+                match self.value:
+                    case '2000': return (330, 1860)
+                    case '2001': return (330, 1860)
+                    case '2002': return (290, 1850)
+                    case '2003': return (380, 1775)
+                    case '2004' | '2005': return (80, 1912)
+                    case 'CLASSIC' | 'EXPANDED': return (850,2000)
 
     def template_component_size(self, component:TemplateImageComponent) -> tuple[int,int]:
         match component:
@@ -1676,6 +1710,16 @@ class Set(str, Enum):
                     case '2003': return (375,375)
                     case '2004' | '2005': return (339,339)
                     case 'CLASSIC' | 'EXPANDED': return (380,380)
+            case TemplateImageComponent.POSTSEASON: 
+                match self.value:
+                    case '2000': return (273,273)
+                    case '2001': return (300,300)
+                    case '2002': return (575,575)
+                    case '2003': return (375,375)
+                    case '2004' | '2005': return (339,339)
+                    case 'CLASSIC' | 'EXPANDED': return (380,380)
+            case TemplateImageComponent.POSTSEASON_YEAR_TEXT_BOX: 
+                return (415, 140)
             case TemplateImageComponent.BOT_LOGO: 
                 match self.value:
                     case '2000' | '2001': return (150,150)

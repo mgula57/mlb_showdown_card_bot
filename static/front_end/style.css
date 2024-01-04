@@ -401,6 +401,10 @@ hr {
     padding-left: 10px;
 }
 
+#period_string {
+    color: #7a7a7a;
+}
+
 /* GENERAL */
 input[type='text'],
 input[type='number'],

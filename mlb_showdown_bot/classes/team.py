@@ -446,6 +446,7 @@ class Team(str, Enum):
                 '1': (253, 90, 30, 255),
                 '2': (253, 90, 30, 255),
                 '3': (253, 90, 30, 255),
+                '4': (253, 90, 30, 255),
             }
             case 'STL': return {
                 '1': (196, 30, 58, 255),
@@ -500,7 +501,7 @@ class Team(str, Enum):
             case 'MON': return (228, 0, 43, 255)
             case 'NYG': return (45, 45, 45, 255)
             case 'NYM': return (252, 89, 16, 255)
-            case 'NYY': return (196, 206, 211, 255)
+            case 'NYY': return (31, 77, 139, 255)
             case 'OAK': return (239, 178, 30, 255)
             case 'PHI': return (0, 45, 114, 255)
             case 'PIT': return (39, 37, 31, 255)
@@ -594,6 +595,10 @@ class Team(str, Enum):
                 '1': (12, 35, 64, 255),
                 '2': (34, 68, 179, 255),
             }
+            case 'NYY': return {
+                '1': (31, 77, 139, 255),
+                '2': (31, 77, 139, 255),
+            }
             case 'OAK': return {
                 '1': (255, 205, 0, 255),
                 '2': (255, 205, 0, 255),
@@ -624,6 +629,7 @@ class Team(str, Enum):
                 '1': (39, 37, 31, 255),
                 '2': (39, 37, 31, 255),
                 '3': (39, 37, 31, 255),
+                '4': (39, 37, 31, 255),
             }
             case 'STL': return {
                 '1': (12, 35, 64, 255),
@@ -801,6 +807,7 @@ class Team(str, Enum):
             }
             case 'NYY': return {
                 '1': list(range(1900,1950)),
+                '2': list(range(1951,2010)),
             }
             case 'OAK': return {
                 '1': list(range(1968,1982)),
@@ -831,9 +838,10 @@ class Team(str, Enum):
                 '3': list(range(1987,1993)),
             }
             case 'SFG': return {
-                '1': list(range(1968,1983)),
-                '2': list(range(1983,1994)),
-                '3': list(range(1994,2000)),
+                '1': list(range(1958,1968)),
+                '2': list(range(1968,1983)),
+                '3': list(range(1983,1994)),
+                '4': list(range(1994,2000)),
             }
             case 'STL': return {
                 '1': list(range(1875,1927)),
@@ -867,9 +875,16 @@ class Team(str, Enum):
         
         return ''
     
-    def logo_name(self, year:int, is_alternate:bool=False) -> str:
+    def logo_name(self, year:int, is_alternate:bool=False, set:str='N/A', is_dark:bool=False) -> str:
+
         alt_ext = '-A' if is_alternate else ''
-        return f"{self.value}{alt_ext}{self.logo_historical_index(year=year, include_dash=True)}"
+        logo_name = f"{self.value}{alt_ext}{self.logo_historical_index(year=year, include_dash=True)}"
+
+        # CHECK FOR ALTS
+        if set in ['EXPANDED', 'CLASSIC'] and not is_dark and logo_name in ['NYY-A','NYY-A-2']:
+            return f'{logo_name}-ALT'
+
+        return logo_name
 
     def is_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
         logo_name = self.logo_name(year=year, is_alternate=is_alternate)
@@ -877,7 +892,7 @@ class Team(str, Enum):
             'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
             'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
             'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','SDP-2','SDP-A-2','SEP-A','SEP',
-            'SFG-2','SFG-3','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TOR-3','TOR-A-3'
+            'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TOR-3','TOR-A-3'
         ]
     
     def logo_size_multiplier(self, year:int, is_alternate:bool=False) -> float:
@@ -922,7 +937,7 @@ class Team(str, Enum):
                     case 'MIN-2': return (2400, 2400)
                     case 'NYG': return (1800, 1800)
                     case 'PHI-2': return (1800, 1800)
-                    case 'SFG-1': return (1800, 1800)
+                    case 'SFG-1' | 'SFG-2': return (1800, 1800)
                     case 'TBD' | 'TBD-1': return (1950, 1950)
 
                     # OLD TEAMS
@@ -969,7 +984,8 @@ class Team(str, Enum):
                     case 'SEA-2': return (850, 850)
                     case 'SFG-1': return (850, 850)
                     case 'SFG-2': return (850, 850)
-                    case 'SFG' | 'SFG-3': return (950, 950)
+                    case 'SFG-3': return (850, 850)
+                    case 'SFG' | 'SFG-4': return (950, 950)
                     case 'STL' | 'STL-2': return (850, 850)
                     case 'TBD' | 'TBD-1': return (1000, 1000)
                     case 'TBR': return (800, 800)
@@ -1069,8 +1085,9 @@ class Team(str, Enum):
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (-50, -90)
                     case 'SEA-2': return (-80, -125)
                     case 'SFG-1': return (-85, -50)
-                    case 'SFG-2': return (-40, -80)
-                    case 'SFG' | 'SFG-3': return (-65, -190)
+                    case 'SFG-2': return (-85, -50)
+                    case 'SFG-3': return (-40, -80)
+                    case 'SFG' | 'SFG-4': return (-65, -190)
                     case 'STL' | 'STL-2': return (-95, -120)
                     case 'TBD' | 'TBD-1': return (-160, -190)
                     case 'TBR': return (-50, -60)
