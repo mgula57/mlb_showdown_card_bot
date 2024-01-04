@@ -4864,6 +4864,10 @@ class ShowdownPlayerCard(BaseModel):
                 if self.player_type_override:
                     if self.player_type_override.override_string in img_name.upper():
                         match_score += 1
+
+                # IF POSTSEASON IMAGE BUT NOT POSTSEASON CARD, REDUCE ACCURACY
+                if '(POST)' in img_name and self.stats_period.type != StatsPeriodType.POSTSEASON:
+                    match_score -= 2
                 
                 # ADD MATCH RATE SCORE
                 match_scores[img_id] = match_score
