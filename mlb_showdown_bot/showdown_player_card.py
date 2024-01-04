@@ -4449,7 +4449,7 @@ class ShowdownPlayerCard(BaseModel):
                 
         num_words = len(text_list)
         if self.set.is_split_image_long:
-            text = text if len(text) < 15 else f"{text[:11]}.."
+            text = text if len(text) < 17 else f"{text[:11]}.."
             text_image_large = self.__text_image(
                 text = text,
                 size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
