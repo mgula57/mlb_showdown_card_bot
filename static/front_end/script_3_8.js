@@ -566,7 +566,7 @@ function showCardData(data) {
             div.remove();
         });
 
-        var cardContainer = document.getElementById("card_container_div");
+        var cardContainer = document.getElementById("image_header_div");
 
         for (var warning of data.warnings) {
 
@@ -577,6 +577,7 @@ function showCardData(data) {
             warningElement.className = "warning_text"
             warningElement.textContent = '** ' + warning;
             warningElement.style.color = '#9fb419';
+            warningElement.style.padding = '0px'
 
             // APPEND THE NEW PARAGRAPH TO THE END OF THE DIV
             cardContainer.appendChild(warningElement);
