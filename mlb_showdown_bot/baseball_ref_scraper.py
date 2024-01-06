@@ -1207,7 +1207,7 @@ class BaseballReferenceScraper:
             date_check = True
             game_log_date_str: str = game_log_data.get('date_game', None)
             if self.stats_period.is_date_range and game_log_date_str:
-                game_log_date_str_cleaned = game_log_date_str.split('(')[0]
+                game_log_date_str_cleaned = game_log_date_str.split('(')[0].replace('\xa0susp', '')
                 game_log_date_str_full = f"{game_log_date_str_cleaned} {first_year}"
                 game_log_date = datetime.strptime(game_log_date_str_full, "%b %d %Y").date()
                 date_check = self.stats_period.start_date <= game_log_date <= self.stats_period.end_date
