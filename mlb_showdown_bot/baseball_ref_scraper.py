@@ -1019,7 +1019,7 @@ class BaseballReferenceScraper:
             total_bases = (singles + (2 * stats_data['2B']) + (3 * stats_data['3B']) + (4 * stats_data['HR']))
             stats_data['AB'] = ab
             stats_data['TB'] = total_bases
-            stats_data['slugging_perc'] = round(total_bases / ab, 5)
+            stats_data['slugging_perc'] = round(total_bases / ab, 5) if ab > 0 else 0.0
 
         if 'onbase_perc' not in current_categories:
             sf = 0 if len(str(stats_data.get('SF', ''))) == 0 else stats_data.get('SF', 0)
@@ -1027,7 +1027,7 @@ class BaseballReferenceScraper:
             stats_data['onbase_perc'] = round((stats_data['H'] + stats_data['BB'] + stats_data.get('HBP', 0)) / obp_denominator, 5)
         
         if 'batting_avg' not in current_categories:
-            stats_data['batting_avg'] = round(stats_data['H'] / stats_data['AB'], 5)
+            stats_data['batting_avg'] = round(stats_data['H'] / stats_data['AB'], 5) if stats_data.get('AB', 0) > 0 else 0.0
         
         if 'SB' not in current_categories:
             stats_data['SB'] = 0
