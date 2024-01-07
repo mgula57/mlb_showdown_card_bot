@@ -4330,7 +4330,7 @@ class ShowdownPlayerCard(BaseModel):
           PIL image with style logo
         """
 
-        color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color) # NOTE: USES OPPOSITE COLOR
+        color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images)
         color_hex = self.__rbgs_to_hex(rgbs=color)
         red, green, blue, _ = color
         color_lightness = (red*0.299 + green*0.587 + blue*0.114)
@@ -4435,8 +4435,10 @@ class ShowdownPlayerCard(BaseModel):
                 text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
                 text_list = [t for t in text_list if t]
                 game_1_comp = self.stats.get('first_game_date', 'g1').strip()
-                game_2_comp = self.stats.get('last_game_date', 'g2').strip()                    
-                text = game_1_comp if game_1_comp == game_2_comp else ' - '.join(text_list)
+                game_2_comp = self.stats.get('last_game_date', 'g2').strip()
+                is_single_game = game_1_comp == game_2_comp            
+                text = game_1_comp if is_single_game else ' - '.join(text_list)
+                text_list = [text] if is_single_game else text_list
             case StatsPeriodType.SPLIT:
                 text = self.stats_period.split.upper()
                 text_no_slash = text.replace('/',' ')
