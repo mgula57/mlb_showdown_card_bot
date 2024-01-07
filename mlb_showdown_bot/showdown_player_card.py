@@ -4330,7 +4330,7 @@ class ShowdownPlayerCard(BaseModel):
           PIL image with style logo
         """
 
-        color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color) # NOTE: USES OPPOSITE COLOR
+        color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images)
         color_hex = self.__rbgs_to_hex(rgbs=color)
         red, green, blue, _ = color
         color_lightness = (red*0.299 + green*0.587 + blue*0.114)
