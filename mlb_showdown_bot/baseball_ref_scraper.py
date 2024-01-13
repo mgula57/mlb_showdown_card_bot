@@ -67,6 +67,7 @@ class BaseballReferenceScraper:
         else:
             self.is_multi_year = False
             self.years = [year]
+        self.is_full_career = self.years == ['CAREER']
 
         # CHECK FOR TEAM OVERRIDE
         self.team_override = None
@@ -243,11 +244,25 @@ class BaseballReferenceScraper:
         url_for_homepage_stats = f'https://www.baseball-reference.com/players/{self.first_initial}/{self.baseball_ref_id}.shtml'
         soup_for_homepage_stats = self.__soup_for_url(url_for_homepage_stats, is_baseball_ref_page=True)
 
+        # DEFINE YEARS TO LOOP THROUGH
+        years_for_loop = self.years
+        is_full_career = self.is_full_career
+        is_multi_year = self.is_multi_year
+        years_played = self.__years_played_list(homepage_soup=soup_for_homepage_stats)
+        years_played_as_ints = [int(y) for y in years_played]
+
+        # ACCOUNT FOR PRE-1901 CAREER CARDS THAT DONT HAVE FULL STATS AVAILABLE
+        # TREAT AS IF THE USER INPUTTED THE EXACT YEAR RANGE INSTEAD OF CAREER.
+        if is_full_career and min(years_played_as_ints) < 1901:
+            years_for_loop = years_played_as_ints
+            is_multi_year = True
+            is_full_career = False
+
+        # ITERATE THROUGH YEARS
         master_stats_dict = {}
-        is_full_career = self.years == ['CAREER']
         is_data_from_statcast = False
         has_ran_oaa = False
-        for year in self.years:
+        for year in years_for_loop:
             # DEFENSE
             stats_dict = {'bref_id': self.baseball_ref_id, 'bref_url': url_for_homepage_stats}
             positional_fielding = self.positions_and_defense(soup_for_homepage_stats=soup_for_homepage_stats,year=year)
@@ -273,7 +288,6 @@ class BaseballReferenceScraper:
                 continue
 
             name = self.player_name(soup_for_homepage_stats)
-            years_played = self.__years_played_list(type=type, homepage_soup=soup_for_homepage_stats)
             stats_dict['type'] = type
             stats_dict['hand'] = self.hand(soup_for_homepage_stats, type)
             stats_dict['hand_throw'] = self.hand(soup_for_homepage_stats, type='Pitcher') # ALWAYS PASS PITCHER TO STORE THROWING HAND
@@ -282,7 +296,7 @@ class BaseballReferenceScraper:
             stats_dict['nationality'] = nationality
             stats_dict['rookie_status_year'] = rookie_status_year
             stats_dict['is_hof'] = is_hof
-            stats_dict['is_rookie'] = False if is_full_career or self.is_multi_year or rookie_status_year is None else ( int(year) <= rookie_status_year )
+            stats_dict['is_rookie'] = False if is_full_career or is_multi_year or rookie_status_year is None else ( int(year) <= rookie_status_year )
             
             # HITTING / HITTING AGAINST
             advanced_stats = self.advanced_stats(type,year=year)
@@ -326,7 +340,7 @@ class BaseballReferenceScraper:
 
             # OUTS ABOVE AVERAGE (2016+)
             if not has_ran_oaa and is_hitter: # ONLY NEEDS TO RUN ONCE FOR MULTI-YEAR
-                years_list = years_played if is_full_career else self.years
+                years_list = years_played if self.is_full_career else self.years
                 years_as_ints = [int(y) for y in years_list]
                 oaa_dict = self.statcast_outs_above_average_dict(name=name, years=years_as_ints)
                 stats_dict['outs_above_avg'] = oaa_dict
@@ -346,20 +360,20 @@ class BaseballReferenceScraper:
             stats_dict['1B'] = int(stats_dict.get('H', 0)) - int(stats_dict.get('HR', 0)) - triples - doubles
             master_stats_dict[year] = stats_dict
         
-        if self.is_multi_year:
+        if is_multi_year:
             # COMBINE INDIVIDUAL YEAR DATA
-            stats_dict.update(self.__combine_multi_year_dict(master_stats_dict))
-            stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=self.years)
+            stats_dict.update(self.__combine_multi_year_dict(yearly_stats_dict=master_stats_dict, years=years_for_loop))
+            stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=years_for_loop)
         
         # PARSE ACCOLADES IN TOTAL
-        stats_dict['accolades'] = self.__accolades_dict(soup_for_homepage_stats=soup_for_homepage_stats, years_included=self.years)
+        stats_dict['accolades'] = self.__accolades_dict(soup_for_homepage_stats=soup_for_homepage_stats, years_included=years_for_loop)
 
         # STATS WINDOW DATA
         if self.stats_period.type.uses_game_logs:
             # STORE REG SEASON GAMES FOR HITTERS. NEEDED FOR SPEED/DEFENSE CALCS
             if self.stats_period.type.is_regular_season_games_stat_needed and stats_dict.get('type', 'n/a') == 'Hitter':
                 stats_dict['G_RS'] = stats_dict.get('G', 0)
-            game_log_data = self.game_log_data(type=type, years=self.years)
+            game_log_data = self.game_log_data(type=type, years=years_for_loop)
             if game_log_data:
                 stats_dict.update(game_log_data)
 
@@ -1396,7 +1410,7 @@ class BaseballReferenceScraper:
         
         return icon_threshold_bools
 
-    def __combine_multi_year_dict(self, yearly_stats_dict):
+    def __combine_multi_year_dict(self, yearly_stats_dict:dict, years: list[int]) -> dict:
         """Combine multiple years into one master final dataset
 
         Args:
@@ -1405,6 +1419,13 @@ class BaseballReferenceScraper:
         Returns:
           Flattened dictionary with combined stats
         """
+
+        # ENSURE ALL YEARS HAVE THE SAME TYPE
+        types = [stats.get('type', None) for stats in yearly_stats_dict.values() if stats.get('type', None)]
+        # GET MOST COMMON ELEMENT IN LIST
+        most_common_type = max(set(types), key=types.count)
+        yearly_stats_dict = { year: stats for year, stats in yearly_stats_dict.items() if stats.get('type', 'n/a') == most_common_type }
+
         column_aggs = {
             '1B': 'sum',
             '2B': 'sum',
@@ -1445,7 +1466,7 @@ class BaseballReferenceScraper:
         # FLATTEN MULTI YEAR STATS
         yearPd = pd.DataFrame.from_dict(yearly_stats_dict, orient='index')
         columns_to_remove = list(set(column_aggs.keys()) - set(yearPd.columns))
-        if max(self.years) < 2015:
+        if max(years) < 2015:
             columns_to_remove.append('sprint_speed')
         [column_aggs.pop(key) for key in columns_to_remove if key in column_aggs.keys()]
         avg_year = yearPd.groupby(by='name',as_index=False).agg(column_aggs)
@@ -1532,7 +1553,7 @@ class BaseballReferenceScraper:
         row = footer.find_all('tr')[0]
         return row
 
-    def __years_played_list(self, type:str, homepage_soup:BeautifulSoup) -> list[str]:
+    def __years_played_list(self, homepage_soup:BeautifulSoup) -> list[str]:
         """Parse the standard batting/pitching table to get a list of the years
            a player played in.
 
@@ -1542,10 +1563,18 @@ class BaseballReferenceScraper:
         Returns:
           List of years as strings
         """
-        table_prefix = 'batting' if type == 'Hitter' else 'pitching'
-        standard_table = homepage_soup.find('div', attrs = {'id': f'all_{table_prefix}_standard'})
-        year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard.')})
-        years_parsed = [year['id'].split('.')[-1] for year in year_soup_objects_list]
+        
+        # FIND ALL YEARS BATTING AND PITCHING
+        years_parsed: list[str] = []
+        for table_prefix in ['batting', 'pitching']:
+            standard_table = homepage_soup.find('div', attrs = {'id': f'all_{table_prefix}_standard'})
+            if standard_table:
+                year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard.')})
+                years_parsed += [year['id'].split('.')[-1] for year in year_soup_objects_list]
+        
+        # FILTER TO UNIQUE
+        years_parsed = list(set(years_parsed))
+
         return years_parsed
 
     def __team_w_most_games_played(self, type:str, homepage_soup:BeautifulSoup, years_filter_list:list[int]=[]):

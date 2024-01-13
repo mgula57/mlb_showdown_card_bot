@@ -2513,6 +2513,8 @@ class ShowdownPlayerCard(BaseModel):
             'SO': 'so_per_650_pa',
             'SB': 'SB',
         }
+        if self.is_pitcher:
+            stat_categories_dict['IP'] = 'ip'
 
         statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))
         slash_categories = ['batting_avg','onbase_perc','slugging_perc','onbase_plus_slugging']
