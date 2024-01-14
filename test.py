@@ -1,7 +1,7 @@
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
-from mlb_showdown_bot.enums.edition import Edition
-from mlb_showdown_bot.enums.sets import Set
+from mlb_showdown_bot.classes.sets import Set
+from mlb_showdown_bot.classes.images import Edition
 from termcolor import colored
 from time import sleep
 
@@ -36,7 +36,6 @@ if __name__ == "__main__":
     for player_inputs in inputs_to_test:
         result = 'SUCCESS'
         try:
-            sleep(5)
             name = player_inputs['name']
             year = player_inputs['year']
             edition = player_inputs['edition']
@@ -54,15 +53,16 @@ if __name__ == "__main__":
                     print_to_cli=False
                 )
                 showdown.card_image()
-                if showdown.img_loading_error:
+                if showdown.image.error:
                     result = 'FAILED'
                     failures += 1
-                    error_messages.append(f'{name}-{set.value}: {showdown.img_loading_error}')
+                    error_messages.append(f'{name}-{set.value}: {showdown.image.error}')
         except Exception as e:
             result = 'FAILED'
             failures += 1
             error_messages.append(f'{name}-{set.value}: {str(e)}')
         print(colored(f'{name}: {result}', 'red' if result == 'FAILED' else 'green'))
+        sleep(7)
 
     # PRINT RESULT
     pct_success = round((num_tests - failures) / num_tests * 100,2)
