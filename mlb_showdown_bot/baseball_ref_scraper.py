@@ -251,12 +251,21 @@ class BaseballReferenceScraper:
         years_played = self.__years_played_list(homepage_soup=soup_for_homepage_stats)
         years_played_as_ints = [int(y) for y in years_played]
 
-        # ACCOUNT FOR PRE-1901 CAREER CARDS THAT DONT HAVE FULL STATS AVAILABLE
+        # ACCOUNT FOR PRE-1914 CAREER CARDS THAT DONT HAVE FULL STATS AVAILABLE
         # TREAT AS IF THE USER INPUTTED THE EXACT YEAR RANGE INSTEAD OF CAREER.
-        if is_full_career and min(years_played_as_ints) < 1901:
+        if is_full_career and min(years_played_as_ints) < 1914:
             years_for_loop = years_played_as_ints
             is_multi_year = True
             is_full_career = False
+
+        # PARSE OVERALL TYPE(S) ACROSS YEAR(S)
+        positions_and_games = self.positions_and_games_played(soup_for_homepage_stats=soup_for_homepage_stats, years=years_for_loop)
+        overall_type = self.type(positions_dict=positions_and_games, year=self.year_input)
+
+        # ALSO QUERY ADVANCED STATS
+        page_suffix = '-bat' if overall_type == 'Hitter' else '-pitch'
+        url_advanced_stats = 'https://www.baseball-reference.com/players/{}/{}{}.shtml'.format(self.first_initial, self.baseball_ref_id, page_suffix)
+        soup_for_advanced_stats = self.__soup_for_url(url_advanced_stats, is_baseball_ref_page=True)
 
         # ITERATE THROUGH YEARS
         master_stats_dict = {}
@@ -298,8 +307,9 @@ class BaseballReferenceScraper:
             stats_dict['is_hof'] = is_hof
             stats_dict['is_rookie'] = False if is_full_career or is_multi_year or rookie_status_year is None else ( int(year) <= rookie_status_year )
             
-            # HITTING / HITTING AGAINST
-            advanced_stats = self.advanced_stats(type,year=year)
+            # ADVANCED STATS
+            # STORES HITTING AND HITTING AGAINST STATS THAT ARE NEEDED FOR CARD CREATION
+            advanced_stats = self.parse_advanced_stats(soup_for_advanced_stats=soup_for_advanced_stats, type=type, year=year)
             stats_dict.update(advanced_stats)
 
             # ICON THRESHOLDS
@@ -393,6 +403,53 @@ class BaseballReferenceScraper:
         
         return stats_dict
     
+    def __positions_table_records(self, soup_for_homepage_stats:BeautifulSoup, year:str) -> dict[str, dict]:
+        """Parse standard positions and fielding metrics into a dictionary.
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats on homepage.
+          year: Year for Player stats
+
+        Returns:
+          List of BeautifulSoup objects for each position and year.
+        """
+
+        is_full_career = year == 'CAREER'
+        if is_full_career:
+            fielding_table = soup_for_homepage_stats.find('div', attrs = {'id': 'div_standard_fielding'})
+            fielding_table_footer = fielding_table.find('tfoot')
+            return fielding_table_footer.find_all('tr')
+        else:
+            return soup_for_homepage_stats.find_all('tr', attrs = {'id': '{}:standard_fielding'.format(year)})
+        
+    def positions_and_games_played(self, soup_for_homepage_stats:BeautifulSoup, years:list[str]) -> list[str]:
+        """Parse standard positions and fielding metrics into a dictionary.
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats on homepage.
+          year: Year for Player stats
+
+        Returns:
+          Dict with positions and games played over the period of years. Ex: { 'C': {'g': 100}, '1B': {'g': 50} }
+        """
+        
+        positions_and_games_played = {}
+        for year in years:
+            fielding_metrics_by_position = self.__positions_table_records(soup_for_homepage_stats=soup_for_homepage_stats, year=year)
+            for position_data in fielding_metrics_by_position:
+                position_column = position_data.find('td', attrs={'data-stat':'pos'})
+                if position_column:
+                    position_name = position_column.get_text()
+                    if position_name != 'TOT':
+                        existing_games_played = positions_and_games_played.get(position_name, {}).get('g', 0)
+                        games_played_text = position_data.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
+                        games_played = int(games_played_text) if games_played_text != '' else 0
+
+                        existing_games_played += games_played
+                        positions_and_games_played[position_name] = {'g': existing_games_played}
+        
+        return positions_and_games_played
+    
     def positions_and_defense(self, soup_for_homepage_stats:BeautifulSoup, year:int) -> dict[str, dict]:
         """Parse standard positions and fielding metrics into a dictionary.
 
@@ -405,19 +462,15 @@ class BaseballReferenceScraper:
         """
 
         is_full_career = year == 'CAREER'
-        if is_full_career:
-            fielding_table = soup_for_homepage_stats.find('div', attrs = {'id': 'div_standard_fielding'})
-            fielding_table_footer = fielding_table.find('tfoot')
-            fielding_metrics_by_position = fielding_table_footer.find_all('tr')
-        else:
-            fielding_metrics_by_position = soup_for_homepage_stats.find_all('tr', attrs = {'id': '{}:standard_fielding'.format(year)})
+        fielding_metrics_by_position = self.__positions_table_records(soup_for_homepage_stats=soup_for_homepage_stats, year=year)
 
         positions_dict = {}
         for position_data in fielding_metrics_by_position:
-            is_position_found = position_data.find('td', attrs={'data-stat':'pos'})
-            if is_position_found:
-                position_name = position_data.find('td', attrs={'data-stat':'pos'}).get_text()
-                games_played = position_data.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
+            position_column = position_data.find('td', attrs={'data-stat':'pos'})
+            if position_column:
+                position_name = position_column.get_text()
+                games_played_text = position_data.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
+                games_played = int(games_played_text) if games_played_text != '' else 0
 
                 if position_name != 'TOT':
                     # DRS (2003+)
@@ -449,7 +502,7 @@ class BaseballReferenceScraper:
 
                     # UPDATE POSITION DICTIONARY
                     positions_dict[position_name] = {
-                        'g': int(games_played) if games_played != '' else 0,
+                        'g': games_played,
                         'tzr': total_zone_rating,
                         'drs': drs_rating,
                     }
@@ -871,12 +924,13 @@ class BaseballReferenceScraper:
         
         return is_match
 
-    def advanced_stats(self, type:str, year:str) -> dict:
+    def parse_advanced_stats(self, soup_for_advanced_stats:BeautifulSoup, type:str, year:str) -> dict:
         """Parse advanced stats page from baseball reference.
 
         Standard and ratio stats. For Pitchers, uses batting against table.
 
         Args:
+          soup_for_advanced_stats: BeautifulSoup object with all stats from advanced stats page.
           type: Player is Pitcher or Hitter.
           year: Year for Player stats
 
@@ -885,14 +939,7 @@ class BaseballReferenceScraper:
         """
 
         is_full_career = year == 'CAREER'
-
-        # SCRAPE ADVANCED STATS PAGE
-        page_suffix = '-bat' if type == 'Hitter' else '-pitch'
-        url_advanced_stats = 'https://www.baseball-reference.com/players/{}/{}{}.shtml'.format(self.first_initial, self.baseball_ref_id, page_suffix)
-        soup_for_advanced_stats = self.__soup_for_url(url_advanced_stats, is_baseball_ref_page=True)
-
         table_prefix = 'batting' if type == 'Hitter' else 'pitching'
-
         if is_full_career:
             standard_row = self.__get_career_totals_row(div_id=f'all_{table_prefix}_standard',soup_object=soup_for_advanced_stats)
             
@@ -1410,7 +1457,7 @@ class BaseballReferenceScraper:
         
         return icon_threshold_bools
 
-    def __combine_multi_year_dict(self, yearly_stats_dict:dict, years: list[int]) -> dict:
+    def __combine_multi_year_dict(self, yearly_stats_dict:dict[int: dict], years: list[int]) -> dict:
         """Combine multiple years into one master final dataset
 
         Args:
@@ -1479,6 +1526,13 @@ class BaseballReferenceScraper:
         avg_year['GO/AO'] = None if math.isnan(avg_year['GO/AO']) else avg_year['GO/AO']
 
         avg_year_dict = avg_year.iloc[0].to_dict()
+
+        # MANUALLY AGGREGATE IP IF PITCHER
+        # HANDLES CASES WHERE IP HAS DECIMALS
+        if most_common_type == 'Pitcher':
+            ip_list = [float(stats['IP']) for stats in yearly_stats_dict.values() if stats.get('IP', None)]
+            total_ip = self.__sum_ip(ip_list)
+            avg_year_dict['IP'] = total_ip
 
         # AGGREGATE DEFENSIVE METRICS
         avg_year_dict.update(self.__combine_multi_year_positions(yearly_stats_dict))
@@ -1713,7 +1767,7 @@ class BaseballReferenceScraper:
         
         # RETURN NONE IF FILE IS OVER 10 MINS OLD
         mins_since_modification = self.__file_mins_since_modification(path=full_path)
-        if mins_since_modification > 10.0 and not self.disable_cleaning_cache:
+        if mins_since_modification > 30.0 and not self.disable_cleaning_cache:
             return None
 
         file = open(full_path, 'r')
@@ -1742,7 +1796,7 @@ class BaseballReferenceScraper:
         # REMOVE STALE FILES
         self.__remove_old_files(folder_path=folder_path)
     
-    def __remove_old_files(self, folder_path:str, mins_cutoff:float = 10.0) -> None:
+    def __remove_old_files(self, folder_path:str, mins_cutoff:float = 30.0) -> None:
 
         # DISABLE CLEANING
         if self.disable_cleaning_cache:
@@ -1882,4 +1936,25 @@ class BaseballReferenceScraper:
             stats = [s for s in stats if len(str(s)) != 0]
             return sum(stats)
 
-    
+    def __sum_ip(self, ip_list: list[float]) -> float:
+        """Sum IP list with special handling for partial innings.
+        
+        Args:
+          ip_list: List of IP values as floats.
+
+        Returns:
+          Float with total IP.
+        """
+
+        if len(ip_list) == 0:
+            return 0
+
+        ip_decimal_multiplier = (3 + 1/3)
+        whole_numbers = sum([math.floor(ip) for ip in ip_list])
+        decimals_regular = sum([ (ip % 1) * ip_decimal_multiplier for ip in ip_list])
+        
+        decimal_baseball = math.floor(decimals_regular) + ( (decimals_regular % 1) / ip_decimal_multiplier )
+        total_ip = round(whole_numbers + decimal_baseball, 1)
+
+        return total_ip
+
