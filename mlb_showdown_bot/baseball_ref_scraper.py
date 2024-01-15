@@ -1517,15 +1517,24 @@ class BaseballReferenceScraper:
             columns_to_remove.append('sprint_speed')
         [column_aggs.pop(key) for key in columns_to_remove if key in column_aggs.keys()]
         avg_year = yearPd.groupby(by='name',as_index=False).agg(column_aggs)
-        # CALCULATE RATES
-        avg_year["batting_avg"] = round(avg_year['H'] / float(avg_year['AB']),3)
-        avg_year["onbase_perc"] = round((avg_year['H'] + avg_year['BB'] + avg_year['HBP']) / float(avg_year['AB'] + avg_year['BB'] + avg_year['HBP'] + avg_year['SF']),3)
-        avg_year["slugging_perc"] = round(avg_year['TB'] / avg_year['AB'],3)
-        avg_year["onbase_plus_slugging"] = round(avg_year["onbase_perc"] + avg_year["slugging_perc"],3)
-        avg_year['IF/FB'] = None if math.isnan(avg_year['IF/FB']) else avg_year['IF/FB']
-        avg_year['GO/AO'] = None if math.isnan(avg_year['GO/AO']) else avg_year['GO/AO']
-
         avg_year_dict = avg_year.iloc[0].to_dict()
+
+        # CALCULATE RATES
+        hits = float(avg_year_dict['H'])
+        ab = float(avg_year_dict['AB'])
+        bb = float(avg_year_dict['BB'])
+        hbp = float(avg_year_dict['HBP'])
+        sf = float(avg_year_dict['SF'])
+        tb = float(avg_year_dict['TB'])
+        if_fb = avg_year_dict['IF/FB']
+        go_ao = avg_year_dict['GO/AO']
+                   
+        avg_year_dict["batting_avg"] = round(hits / ab, 3)
+        avg_year_dict["onbase_perc"] = round((hits + bb + hbp) / (ab + bb + hbp + sf), 3)
+        avg_year_dict["slugging_perc"] = round(tb / ab, 3)
+        avg_year_dict["onbase_plus_slugging"] = round(avg_year_dict["onbase_perc"] + avg_year_dict["slugging_perc"],3)
+        avg_year_dict['IF/FB'] = None if math.isnan(if_fb) else if_fb
+        avg_year_dict['GO/AO'] = None if math.isnan(go_ao) else go_ao
 
         # MANUALLY AGGREGATE IP IF PITCHER
         # HANDLES CASES WHERE IP HAS DECIMALS
