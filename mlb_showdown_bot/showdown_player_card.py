@@ -151,6 +151,7 @@ class ShowdownPlayerCard(BaseModel):
                 is_dark_mode = data.get('is_dark_mode', False),
                 hide_team_logo = data.get('hide_team_logo', False),
                 use_secondary_color = data.get('use_secondary_color', False),
+                is_multi_colored = data.get('is_multi_colored', False),
                 nickname_index=data.get('nickname_index', None)
             )
             self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
@@ -1781,6 +1782,10 @@ class ShowdownPlayerCard(BaseModel):
         weight = self.set.command_out_accuracy_weighting(command=command, outs=outs)
         accuracy = accuracy * weight
 
+        # REDUCE ACCURACY FOR CHARTS WITH NON 0 REMAINING SLOTS
+        if chart.remaining_slots() != 0:
+            accuracy = -5.0
+
         return chart, accuracy, in_game_stats_for_400_pa
 
     def __out_results(self, gb_pct:float, popup_pct:float, out_slots_remaining:int, slg:float, era_override:Era = None) -> tuple[int, int, int]:
@@ -2513,6 +2518,8 @@ class ShowdownPlayerCard(BaseModel):
             'SO': 'so_per_650_pa',
             'SB': 'SB',
         }
+        if self.is_pitcher:
+            stat_categories_dict['IP'] = 'ip'
 
         statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))
         slash_categories = ['batting_avg','onbase_perc','slugging_perc','onbase_plus_slugging']
@@ -3157,7 +3164,8 @@ class ShowdownPlayerCard(BaseModel):
         image_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
         team_override = self.team_override_for_images
         background_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
-        team_background_image = Image.new('RGB', image_size, color=background_color)
+        team_colors = [self.__team_color_rgbs(is_secondary_color=is_secondary, team_override=team_override) for is_secondary in [False, True]]
+        team_background_image = self.__gradient_img(size=image_size, colors=team_colors) if self.image.is_multi_colored else Image.new('RGB', image_size, color=background_color)
         
         # ADD 2001 SET ADDITIONS
         if is_2001_set:
@@ -3410,25 +3418,28 @@ class ShowdownPlayerCard(BaseModel):
             if not self.is_pitcher:
                 paste_location = (paste_location[0] + 15, paste_location[1])
 
-            # ADD CHART ROUNDED RECT
+            # LOAD CHART CONTAINER IMAGE
             container_img_path = self.__template_img_path(f'{year}-ChartOutsContainer-{type}')
             container_img_black = Image.open(container_img_path)
+
+            # DEFINE COLOR(S) FOR CHART CONTAINER
             team_override = self.team_override_for_images
             fill_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
-            if self.image.special_edition == SpecialEdition.NATIONALITY:
-                colors = self.nationality.colors
-                if len(colors) >= 2:
-                    # GRADIENT
-                    gradient_img_width = self.player_sub_type.nationality_chart_gradient_img_width
-                    gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=colors)
-                    container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
-                    container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
-                else:
-                    # SOLID COLOR
-                    container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
+            is_multi_colored = self.image.is_multi_colored or ( self.image.special_edition == SpecialEdition.NATIONALITY and len(self.nationality.colors) > 2 )
+
+            if is_multi_colored:
+                # GRADIENT
+                team_colors = [self.__team_color_rgbs(is_secondary_color=is_secondary, team_override=team_override) for is_secondary in [True, False]]
+                colors = self.nationality.colors if self.image.special_edition == SpecialEdition.NATIONALITY else team_colors
+                gradient_img_width = self.player_sub_type.nationality_chart_gradient_img_width
+                gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=colors)
+                container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
+                container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
             else:
                 container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
-            use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color)
+
+            # ADD TEXT TO CONTAINER
+            use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color) and not is_multi_colored
             dark_mode_suffix = '-DARK' if use_dark_text else ''
             text_img = Image.open(self.__template_img_path(f'{year}-ChartOutsText-{type}{dark_mode_suffix}'))
             template_image.paste(container_img, (0,0), container_img)
@@ -4647,7 +4658,11 @@ class ShowdownPlayerCard(BaseModel):
                             self.__cache_downloaded_image(image=image, path=cached_image_path)
                             self.image.source.type = ImageSourceType.GOOGLE_DRIVE
                 case "COLOR":
-                    image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images))
+                    if self.image.is_multi_colored:
+                        colors = [self.__team_color_rgbs(is_secondary_color=is_secondary, ignore_team_overrides=True, team_override=self.team_override_for_images) for is_secondary in [False, True]]
+                        image = self.__gradient_img(colors=colors, size=card_size)
+                    else:
+                        image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images))
                 case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
