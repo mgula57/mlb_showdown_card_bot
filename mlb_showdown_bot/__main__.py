@@ -131,7 +131,7 @@ def main():
             era=args.era,
             expansion=args.expansion,
             edition=args.edition,
-            offset=args.offset,
+            chart_version=args.offset,
             player_image_url=args.image_url,
             player_image_path=args.image_path,
             card_img_output_folder_path=args.image_output_path,

@@ -1781,6 +1781,10 @@ class ShowdownPlayerCard(BaseModel):
         weight = self.set.command_out_accuracy_weighting(command=command, outs=outs)
         accuracy = accuracy * weight
 
+        # REDUCE ACCURACY FOR CHARTS WITH NON 0 REMAINING SLOTS
+        if chart.remaining_slots() != 0:
+            accuracy = -5.0
+
         return chart, accuracy, in_game_stats_for_400_pa
 
     def __out_results(self, gb_pct:float, popup_pct:float, out_slots_remaining:int, slg:float, era_override:Era = None) -> tuple[int, int, int]:
