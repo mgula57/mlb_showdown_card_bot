@@ -280,6 +280,14 @@ class BaseballReferenceScraper:
             # HAND / TYPE
             type = self.type(positions_dict=stats_dict['positions'],year=year)
 
+            # COVER THE CASES:
+            #   - NOT HAVING DATA FOR A PARTICULAR YEAR (EX: JOHN SMOLTZ 2000)
+            #   - TYPE NOT MATCHING OVERALL TYPE (ACROSS MULTIPLE YEARS IF APPLICABLE)
+            has_no_type = type is None
+            mismatching_type = type != overall_type
+            if has_no_type or mismatching_type:
+                continue
+
             # NATIONALITY
             nationality = self.nationality(soup_for_homepage_stats=soup_for_homepage_stats)
 
@@ -291,10 +299,6 @@ class BaseballReferenceScraper:
 
             # WAR
             stats_dict.update({'bWAR': self.__bWar(soup_for_homepage_stats, year, type)})
-
-            # COVER THE CASE OF NOT HAVING DATA FOR A PARTICULAR YEAR (EX: JOHN SMOLTZ 2000)
-            if not type:
-                continue
 
             name = self.player_name(soup_for_homepage_stats)
             stats_dict['type'] = type
