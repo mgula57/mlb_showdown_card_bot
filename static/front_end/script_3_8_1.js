@@ -738,6 +738,7 @@ $(function () {
             var ignore_showdown_library = moreOptionsSelected.includes("IgnoreShowdownLibrary");
             var ignore_cache = moreOptionsSelected.includes("IgnoreCache");
             var is_secondary_color = moreOptionsSelected.includes("SecondaryColor");
+            var is_multi_colored = moreOptionsSelected.includes("MultiColor");
 
             // NICKNAME INDEX
             var nickname_index = null;
@@ -781,6 +782,7 @@ $(function () {
                 parallel: image_parallel,
                 ignore_cache: ignore_cache,
                 is_secondary_color: is_secondary_color,
+                is_multi_colored: is_multi_colored,
                 nickname_index: nickname_index,
                 period: period,
                 period_start_date: periodStartDate,
