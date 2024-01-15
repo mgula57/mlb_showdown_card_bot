@@ -61,6 +61,10 @@ class PostgresDB:
             return []
         
         db_cursor = self.connection.cursor(cursor_factory=RealDictCursor)
+
+        # PRINT QUERY AND FILTER VALUES FOR DEBUGGING
+        # print(db_cursor.mogrify(query, filter_values).decode())
+
         try:
             db_cursor.execute(query, filter_values)
         except:
@@ -124,12 +128,13 @@ class PostgresDB:
         
         return (first_result_dict, load_time)
 
-    def fetch_all_stats_from_archive(self, year_list:list[int], exclude_records_with_stats:bool = True, historical_date:str = None) -> list[dict]:
-        """Query the stats_archive table for all player data for a list of years. 
-        Optionally filter the list for only rows where the stats column is empty.
-        
+    def fetch_all_stats_from_archive(self, year_list: list[int], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None) -> list[dict]:
+        """
+        Fetch stats archive data for a list of years.
+
         Args:
           year_list: List of years as integers. Convert to tuple before the query executes.
+          limit: Maximum number of rows to fetch. If None, fetch all rows.
           exclude_records_with_stats: Optionally filter the list for only rows where the stats column is empty. True by default.
           historical_date: Optional additional filter for snapshot date
 
@@ -141,17 +146,33 @@ class PostgresDB:
         values_to_filter = [tuple(year_list), historical_date]
         where_clause_values_equals_str = "=" if len(year_list) == 0 else "IN"
         conditions = [sql.SQL(' IS ' if col == "historical_date" and historical_date is None else f" {where_clause_values_equals_str} ").join([sql.Identifier(col), sql.Placeholder()]) for col in column_names_to_filter]
+        where_clause = sql.SQL(' AND ').join(conditions)
+
+        additional_conditions: list[sql.SQL] = []
+        # ADD ORDER BY
+        if order_by is not None:
+            order_by_clause = sql.SQL('ORDER BY {} DESC').format(sql.SQL(order_by))
+            additional_conditions.append(order_by_clause)
+
+        # ADD LIMIT
+        if limit is not None:
+            limit_clause = sql.SQL('LIMIT %s')
+            additional_conditions.append(limit_clause)
+            values_to_filter.append(limit)
+        
         if exclude_records_with_stats:
-            query = sql.SQL("SELECT * FROM {table} WHERE jsonb_extract_path(stats, 'bref_id') IS NULL AND {where_clause}") \
+            query = sql.SQL("SELECT * FROM {table} WHERE jsonb_extract_path(stats, 'bref_id') IS NULL AND {where_clause} {order_by_filter}") \
                         .format(
                             table=sql.Identifier("stats_archive"),
-                            where_clause=sql.SQL(' AND ').join(conditions)
+                            where_clause=where_clause,
+                            order_by_filter=sql.SQL(' ').join(additional_conditions)
                         )
         else:
-            query = sql.SQL("SELECT * FROM {table} WHERE {where_clause}") \
+            query = sql.SQL("SELECT * FROM {table} WHERE {where_clause} {order_by_filter}") \
                         .format(
                             table=sql.Identifier("stats_archive"),
-                            where_clause=sql.SQL(' AND ').join(conditions)
+                            where_clause=where_clause,
+                            order_by_filter=sql.SQL(' ').join(additional_conditions)
                         )
         filters = tuple(values_to_filter)
         return self.execute_query(query=query, filter_values=filters)

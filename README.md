@@ -35,7 +35,7 @@
     * [All-Star Game](#all-star-game)
     * [Rookie Season](#rookie-season)
     * [Holiday](#holiday)
-    * [Postseason] (#postseason)
+    * [Postseason](#postseason)
 * [New Sets](#new-sets)
 * [Parallels](#parallels)
 * [Period](#period)

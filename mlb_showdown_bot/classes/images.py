@@ -428,6 +428,7 @@ class ShowdownImage(BaseModel):
     use_secondary_color: bool = False
     error: Optional[str] = None
     nickname_index: Optional[int] = None
+    is_multi_colored: bool = False
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:

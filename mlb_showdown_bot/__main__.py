@@ -43,6 +43,7 @@ parser.add_argument('-dark','--dark_mode', action='store_true', help='Optionally
 parser.add_argument('-sypls','--set_year_plus_one', action='store_true', help='Optionally add one to the set year on 04/05 set.')
 parser.add_argument('-htl','--hide_team_logo', action='store_true', help='Optionally remove all team logos and branding.')
 parser.add_argument('-sc','--secondary_color', action='store_true', help='Used secondary team color.')
+parser.add_argument('-mc','--is_multi_colored', action='store_true', help='Use multiple colors for chart image (CLASSIC, EXPANDED only)')
 
 # STATS
 parser.add_argument('-sp','--stats_period', help='Period to use for stats. Allowed options are REGULAR,DATES,POST,SPLIT', default='REGULAR', type=str)
@@ -131,7 +132,7 @@ def main():
             era=args.era,
             expansion=args.expansion,
             edition=args.edition,
-            offset=args.offset,
+            chart_version=args.offset,
             player_image_url=args.image_url,
             player_image_path=args.image_path,
             card_img_output_folder_path=args.image_output_path,
@@ -147,6 +148,7 @@ def main():
             set_year_plus_one=args.set_year_plus_one,
             hide_team_logo=args.hide_team_logo,
             use_secondary_color=args.secondary_color,
+            is_multi_colored=args.is_multi_colored,
             source=data_source,
             disable_cache_cleaning=args.disable_cache_cleaning,
             nickname_index=args.nickname_index,
