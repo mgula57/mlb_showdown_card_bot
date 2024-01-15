@@ -1449,6 +1449,7 @@ class ShowdownPlayerCard(BaseModel):
                 accolades_rank_and_priority_tuples.append( (f"{slg_3_decimals} SLG%", 55, default_stat_priority) )
             # dWAR
             dWAR = self.stats.get('dWAR', 0.00)
+            dWAR = 0 if len(str(dWAR)) == 0 else dWAR
             if float(dWAR) >= (2.5 * num_seasons) and not self.is_substring_in_list('DWAR',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{dWAR} dWAR", 56, 10) )
         
@@ -3864,7 +3865,7 @@ class ShowdownPlayerCard(BaseModel):
                     border_color = colors.BLACK,
                     border_size = 9
                 )
-                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color) and self.set.year == '2022' and is_out_category
+                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color) and self.set.year == '2022' and is_out_category and not self.image.is_multi_colored
                 color_range = range_text if (is_wotc or is_out_category or self.image.is_dark_mode) and not use_dark_text else colors.BLACK
                 chart_text.paste(color_range, (chart_text_x, 0), range_text)
                 pitcher_spacing = 531 if is_wotc else 510
