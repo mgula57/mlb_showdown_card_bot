@@ -674,7 +674,6 @@ class ShowdownPlayerCard(BaseModel):
                             
                             # CHECK WHICH DEFENSIVE METRIC TO USE
                             is_drs_available = 'drs' in defensive_stats.keys()
-                            is_d_war_available = 'dWAR' in stats_dict.keys()
                             is_oaa_available = 'oaa' in defensive_stats.keys() and not use_drs_over_oaa
                             oaa = defensive_stats['oaa'] if is_oaa_available else None
                             # DRS
@@ -691,7 +690,7 @@ class ShowdownPlayerCard(BaseModel):
                             except:
                                 tzr = None
                             # DWAR
-                            dWar = float(stats_dict['dWAR']) if is_d_war_available else None
+                            dWar = float(0 if len(str(stats_dict.get('dWAR', 0))) == 0 else stats_dict.get('dWAR', 0))
                             
                             if is_oaa_available:
                                 metric = DefenseMetric.OAA
@@ -708,7 +707,7 @@ class ShowdownPlayerCard(BaseModel):
                             positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
                         except Exception as e:
-                            print(e)
+                            print(self.name, self.year, e)
                             in_game_defense = 0
                         positions_and_defense[position] = in_game_defense
                     else:
@@ -3085,7 +3084,7 @@ class ShowdownPlayerCard(BaseModel):
             card_image = self.__change_image_saturation(image=card_image, saturation=0.05)
 
         if self.image.error:
-            print(self.image.error)
+            print(self.name, self.year, self.image.error)
 
         self.save_image(image=card_image, start_time=start_time, show=show, img_name_suffix=img_name_suffix)
 
