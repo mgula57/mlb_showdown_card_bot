@@ -228,7 +228,7 @@ To display one of the other chart outputs, add the optional **offset**/ argument
 ### **Defense**
 
 #### _Hitters_
-Each player can have a maximum of **2 positions** or WOTC sets (2000-2005). That is expanded to **3 positions** for 2022 sets. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. For multi-year/career long cards, **25%** of games must be played at that position. The positions are then limited to the top 2 (3 if CLASSIC or EXPANDED set) by number of appearances. 
+Each player can have a maximum of **2 position slots** for WOTC sets (2000-2005). That is expanded to **3 positions** for 2022 sets. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. For multi-year/career long cards, **25%** of games must be played at that position. The positions are then limited to the top 2 (3 if CLASSIC or EXPANDED set) by number of appearances. 
 
 In WOTC sets (2000-2005), 2B/3B/SS can be combined to conform to 2 position slots. When combined, the average of the 2 positions will be used as the final value. Positions will be combined only if their in-game defensive ratings have a difference of 2 or less. For example if the player has SS+4 and 3B+1, they will stay separated.
 
