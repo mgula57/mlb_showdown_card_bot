@@ -48,6 +48,7 @@ mlb_showdown_bot/uploads/
 mlb_showdown_bot/output/
 mlb_showdown_bot/cache_data/
 mlb_showdown_sim/
+frontend/
 
 # FRONTEND
 frontend/node_modules/
