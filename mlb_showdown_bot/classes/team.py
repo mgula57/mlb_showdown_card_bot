@@ -867,8 +867,8 @@ class Team(str, Enum):
             }
             case 'TOR': return {
                 '1': list(range(1977,1997)),
-                '2': list(range(1997,2003)),
-                '3': list(range(2003,2012)),
+                '2': list(range(1997,2004)),
+                '3': list(range(2004,2012)),
             }
             case 'WSN': return {
                 '1': list(range(2005,2011)),
@@ -1037,6 +1037,7 @@ class Team(str, Enum):
                     case 'MIA-1': return (0, -100)
                     case 'PIT-4': return (0, -60)
                     case 'TBD' | 'TBD-1': return (-150, 0)
+                    case 'SDP-1': return (300, 0)
 
                     # OLD TEAMS
                     case 'MLN': return (-175, 0)
