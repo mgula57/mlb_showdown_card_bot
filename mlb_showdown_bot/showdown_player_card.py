@@ -2980,7 +2980,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # LOAD SHOWDOWN TEMPLATE
         showdown_template_frame_image = self.__template_image()
-        card_image.paste(showdown_template_frame_image,self.__coordinates_adjusted_for_bordering(coordinates=(0,0)),showdown_template_frame_image)
+        card_image.paste(showdown_template_frame_image,(0,0),showdown_template_frame_image)
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
@@ -3135,8 +3135,7 @@ class ShowdownPlayerCard(BaseModel):
         # IF 2000, ADD NAME CONTAINER
         if self.set == Set._2000:
             name_container = self.__2000_player_name_container_image()
-            paste_coordinates = self.__coordinates_adjusted_for_bordering((0,0), is_disabled = not has_border_already)
-            background_image.paste(name_container, paste_coordinates, name_container)
+            background_image.paste(name_container, (0,0), name_container)
 
         if self.image.parallel.is_team_background_black_and_white:
             background_image = self.__change_image_saturation(image=background_image, saturation=0.10)
@@ -3412,6 +3411,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # GET IMAGE WITH PLAYER COMMAND
         paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.COMMAND)
+        top_left_paste_location = self.__coordinates_adjusted_for_bordering(coordinates=(0,0), is_forced=True)
         if self.set.is_showdown_bot:
             # ADD TEXT + BACKGROUND AS IMAGE
             command_image = self.__command_image()
@@ -3442,13 +3442,13 @@ class ShowdownPlayerCard(BaseModel):
             use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color) and not is_multi_colored
             dark_mode_suffix = '-DARK' if use_dark_text else ''
             text_img = Image.open(self.__template_img_path(f'{year}-ChartOutsText-{type}{dark_mode_suffix}'))
-            template_image.paste(container_img, (0,0), container_img)
-            template_image.paste(text_img, (0,0), text_img)
+            template_image.paste(container_img, top_left_paste_location, container_img)
+            template_image.paste(text_img, top_left_paste_location, text_img)
         else:
             command_image_name = f"{year}-{type}-{str(self.chart.command)}"
             command_image = Image.open(self.__template_img_path(command_image_name))
             
-        template_image.paste(command_image, paste_location, command_image)
+        template_image.paste(command_image, self.__coordinates_adjusted_for_bordering(coordinates=paste_location, is_forced=True), command_image)
 
         # HANDLE MULTI POSITION TEMPLATES FOR 00/01 POSITION PLAYERS
         if self.set.is_00_01 and not self.is_pitcher:
@@ -3456,12 +3456,15 @@ class ShowdownPlayerCard(BaseModel):
             sizing = "-".join(['LARGE' if len(pos) > 4 else 'SMALL' for pos in positions_list])
             positions_points_template = f"0001-{type}-{sizing}"
             positions_points_image = Image.open(self.__template_img_path(positions_points_template))
-            template_image.paste(positions_points_image, (0,0), positions_points_image)
+            template_image.paste(positions_points_image, top_left_paste_location, positions_points_image)
         
         # ADD SHOWDOWN BOT LOGO AND ERA
         logo_img = self.__bot_logo_img()
         logo_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.BOT_LOGO)
-        template_image.paste(logo_img, logo_paste_location, logo_img)
+        template_image.paste(logo_img, self.__coordinates_adjusted_for_bordering(coordinates=logo_paste_location, is_forced=True), logo_img)
+
+        # CROP (IF NECESSARY)
+        template_image = self.__crop_template_image(template_image)
 
         return template_image
 
@@ -3515,7 +3518,9 @@ class ShowdownPlayerCard(BaseModel):
           PIL image object for 2000 name background/container
         """
         image_suffix = self.image.parallel.name_container_suffix_2000
-        return Image.open(self.__template_img_path(f"2000-Name{image_suffix}"))
+        name_container_image = Image.open(self.__template_img_path(f"2000-Name{image_suffix}"))
+
+        return self.__crop_template_image(name_container_image)
 
     def __2000_player_set_container_image(self) -> Image.Image:
         """Gets template asset image for 2000 set box.
@@ -5075,18 +5080,19 @@ class ShowdownPlayerCard(BaseModel):
 
         return path
 
-    def __coordinates_adjusted_for_bordering(self, coordinates:tuple[int,int], is_disabled:bool = False) -> tuple[int,int]:
+    def __coordinates_adjusted_for_bordering(self, coordinates:tuple[int,int], is_disabled:bool = False, is_forced:bool=False) -> tuple[int,int]:
         """Add padding to paste coordinates to account for a border on the image.
          
         Args:
           coordinates: Tuple for original coordinates (ex: (0,0))
           is_disabled: Return coordinates without an update
+          is_forced: Return coordinates with an update even if the image is not bordered.
 
         Returns:
           Updated tuple for adjusted coordinates.
         """
 
-        if not self.image.is_bordered or is_disabled:
+        if (not self.image.is_bordered and not is_forced) or is_disabled:
             return coordinates
         
         padding = self.set.card_border_padding
@@ -5146,6 +5152,22 @@ class ShowdownPlayerCard(BaseModel):
         
         pct = sum(results) / len(results)
         return pct
+
+    def __crop_template_image(self, image:Image.Image) -> Image.Image:
+        """Crops a full sized template image to it's proper size based on bordered vs unbordered output.
+
+        Args:
+          image: PIL image object to edit.
+
+        Returns:
+          Cropped PIL image object.
+        """
+
+        final_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
+        if image.size == final_size:
+            return image
+        
+        return self.__img_crop(image, final_size)
 
 
 # ------------------------------------------------------------------------
