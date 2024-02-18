@@ -1420,6 +1420,10 @@ class Set(str, Enum):
         return ''
 
     @property
+    def has_dark_mode_template(self) -> bool:
+        return self.value not in ['2004','2005',]
+
+    @property
     def use_alternate_team_logo(self) -> bool:
         return self.is_after_03
 

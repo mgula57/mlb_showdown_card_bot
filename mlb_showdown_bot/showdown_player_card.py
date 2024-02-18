@@ -3162,7 +3162,7 @@ class ShowdownPlayerCard(BaseModel):
         is_2001_set = self.set == Set._2001
         image_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
         team_override = self.team_override_for_images
-        background_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
+        background_color = (60,60,60,255) if self.image.is_dark_mode else self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
         team_colors = [self.__team_color_rgbs(is_secondary_color=is_secondary, team_override=team_override) for is_secondary in [False, True]]
         team_background_image = self.__gradient_img(size=image_size, colors=team_colors) if self.image.is_multi_colored else Image.new('RGB', image_size, color=background_color)
         
@@ -3381,6 +3381,7 @@ class ShowdownPlayerCard(BaseModel):
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
         is_04_05 = self.set.is_04_05
         edition_extension = ''
+        dark_mode_extension = '-DARK' if self.image.is_dark_mode and self.set.has_dark_mode_template else ''
         if is_04_05:
             # 04/05 HAS MORE TEMPLATE OPTIONS
             edition_extension = ''
@@ -3401,11 +3402,10 @@ class ShowdownPlayerCard(BaseModel):
 
             if self.image.parallel.color_override_04_05_chart:
                 edition_extension = f"-{self.image.parallel.color_override_04_05_chart}"
-            type_template = f'{year}-{type}{edition_extension}'
+            type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
         else:
             custom_extension = self.set.template_custom_extension(self.image.parallel)
-            dark_mode_extension = '-DARK' if self.set.is_showdown_bot and self.image.is_dark_mode else ''
             type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}{custom_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
 
@@ -3481,7 +3481,7 @@ class ShowdownPlayerCard(BaseModel):
         logo_img_with_text = Image.new('RGBA',img_size)
 
         # LOAD LOGO IMAGE
-        is_dark_mode = self.set.is_showdown_bot and self.image.is_dark_mode
+        is_dark_mode = self.image.is_dark_mode
         dark_mode_extension = '-DARK' if is_dark_mode else ''
         logo_size = self.set.template_component_size(TemplateImageComponent.BOT_LOGO)
         logo_img_name = f"BOT-LOGO{dark_mode_extension}"
@@ -3497,7 +3497,7 @@ class ShowdownPlayerCard(BaseModel):
         # ERA TEXT
         helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
         era_font = ImageFont.truetype(helvetica_neue_lt_path, size=70)
-        era_txt_color = "#b5b5b5" if self.set.is_showdown_bot and self.image.is_dark_mode else "#585858"
+        era_txt_color = "#b5b5b5" if is_dark_mode else "#585858"
         era_text = self.__text_image(text=self.era.value_no_era_suffix, size=(620, 100), font=era_font, alignment="center")
         text_paste_location = (0, 435) 
         
@@ -3740,7 +3740,7 @@ class ShowdownPlayerCard(BaseModel):
             # 2002 & 2003
 
             is_02 = self.set == Set._2002
-            color = colors.BLACK if is_02 else colors.WHITE
+            color = colors.WHITE if not is_02 or self.image.is_dark_mode else colors.BLACK
             if is_02:
                 helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
                 metadata_font = ImageFont.truetype(helvetica_neue_lt_path, size=120)
@@ -3894,7 +3894,7 @@ class ShowdownPlayerCard(BaseModel):
                 padding=0,
                 spacing=spacing
             )
-            color = colors.BLACK
+            color = colors.WHITE if self.image.is_dark_mode else colors.BLACK
             chart_text = chart_text.resize((255,1200), Image.ANTIALIAS)
 
         return chart_text, color
