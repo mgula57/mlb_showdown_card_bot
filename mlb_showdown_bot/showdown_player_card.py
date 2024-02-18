@@ -540,7 +540,7 @@ class ShowdownPlayerCard(BaseModel):
         return sorted(self.positions_and_defense_for_visuals.items(), key=lambda pos_and_def: (Position(pos_and_def[0]).ordering_index if pos_and_def[0] in position_enum_values else 0) )
     
     @property
-    def positions_list(self) -> [Position]:
+    def positions_list(self) -> list[Position]:
         """ List of player's in-game positions"""
         return list(self.positions_and_defense.keys())
 
@@ -5477,7 +5477,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return background
     
-    
+
 # ------------------------------------------------------------------------
 # SHOWDOWN IMAGE LIBRARY IMPORT
 # ------------------------------------------------------------------------
