@@ -3254,6 +3254,9 @@ class ShowdownPlayerCard(BaseModel):
             team_logo = Image.open(self.__team_logo_path(name=Team.MLB.logo_name(year=2023))).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
 
+        if self.set.is_team_logo_drop_shadow:
+            team_logo = self.__add_drop_shadow(image=team_logo)
+
         # ROTATE LOGO IF APPLICABLE
         if logo_rotation != 0:
             size_original = team_logo.size
@@ -5442,7 +5445,39 @@ class ShowdownPlayerCard(BaseModel):
 
         return rect_image
 
+    def __add_drop_shadow(self, image:Image.Image, blur_radius:int = 15) -> Image.Image:
+        """
+        Add a drop shadow to an image.
 
+        Args:
+            image: PIL image to add shadow to.
+            blur_radius: Radius of the shadow.
+
+        Returns:
+            PIL Image with drop shadow.
+        """
+
+        # ADD OPACITY PADDING TO IMAGE
+        image_width, image_height = image.size
+        image_w_padding = Image.new("RGBA", ( image_width + (blur_radius * 2), image_height + (blur_radius * 2) ))
+        image_w_padding.paste(image, (blur_radius, blur_radius) )
+        
+        # CREATE A BLANK BACKGROUND IMAGE THAT IS SLIGHTLY LARGER THAN THE ORIGINAL IMAGE
+        background = Image.new("RGBA", image_w_padding.size)
+
+        # GET ALPHA FOR THE ORIGINAL IMAGE
+        alpha = image_w_padding.split()[-1]
+        alpha_blur = alpha.filter(ImageFilter.BoxBlur(blur_radius))
+        shadow = Image.new(mode="RGB", size=alpha_blur.size)
+        shadow.putalpha(alpha_blur)
+
+        # PASTE THE SHADOW AND ORIGINAL IMAGE ONTO THE BACKGROUND
+        background.paste(shadow, (0,0), shadow)
+        background.paste(image_w_padding, (0,0), image_w_padding)
+
+        return background
+    
+    
 # ------------------------------------------------------------------------
 # SHOWDOWN IMAGE LIBRARY IMPORT
 # ------------------------------------------------------------------------

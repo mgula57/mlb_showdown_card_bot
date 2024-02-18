@@ -1488,6 +1488,10 @@ class Set(str, Enum):
     def is_split_image_long(self) -> bool:
         return not self.is_showdown_bot
 
+    @property
+    def is_team_logo_drop_shadow(self) -> bool:
+        return self.value in ['CLASSIC','EXPANDED']
+    
     # ---------------------------------------
     # PLAYER IMAGE
     # ---------------------------------------
