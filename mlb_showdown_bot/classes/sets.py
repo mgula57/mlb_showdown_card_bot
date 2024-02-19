@@ -1488,10 +1488,6 @@ class Set(str, Enum):
         return self.value == '2001'
     
     @property
-    def is_split_image_long(self) -> bool:
-        return not self.is_showdown_bot
-
-    @property
     def is_team_logo_drop_shadow(self) -> bool:
         return self.value in ['CLASSIC','EXPANDED']
     
@@ -1562,7 +1558,7 @@ class Set(str, Enum):
     # TEMPLATE IMAGE
     # ---------------------------------------
 
-    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None) -> tuple[int,int]:
+    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None, is_multi_year:bool=False, is_full_career:bool=False) -> tuple[int,int]:
         match component:
             case TemplateImageComponent.TEAM_LOGO:
                 match self.value:
@@ -1691,7 +1687,10 @@ class Set(str, Enum):
                     case '2002': return (290, 1850)
                     case '2003': return (380, 1775)
                     case '2004' | '2005': return (80, 1912)
-                    case 'CLASSIC' | 'EXPANDED': return (850,2000)
+                    case 'CLASSIC' | 'EXPANDED': 
+                        if is_full_career: return (865,1990)
+                        if is_multi_year: return (800,1990)
+                        return (925,1990)
 
     def template_component_size(self, component:TemplateImageComponent) -> tuple[int,int]:
         match component:
@@ -1773,17 +1772,21 @@ class Set(str, Enum):
 
         match component:
             case TemplateImageComponent.STYLE_TEXT:
-                match self.value:
-                    case 'CLASSIC' | 'EXPANDED': return dark_gray if is_dark_mode else dark_gray
+                match self:
+                    case Set.CLASSIC | Set.EXPANDED: return dark_gray if is_dark_mode else dark_gray
                     case _: return white
             case TemplateImageComponent.SET: # YEAR
-                match self.value:
-                    case 'CLASSIC' | 'EXPANDED': return mid_gray
+                match self:
+                    case Set.CLASSIC | Set.EXPANDED: return mid_gray
                     case _: return white
             case TemplateImageComponent.NUMBER:
-                match self.value:
-                    case '2003': return black
-                    case 'CLASSIC' | 'EXPANDED': return mid_gray
+                match self:
+                    case Set._2003: return black
+                    case Set.CLASSIC | Set.EXPANDED: return mid_gray
+                    case _: return white
+            case TemplateImageComponent.SPLIT:
+                match self:
+                    case Set.CLASSIC | Set.EXPANDED: return dark_gray if is_dark_mode else dark_gray
                     case _: return white
 
     def template_component_color(self, component: TemplateImageComponent, parallel: ImageParallel) -> str:

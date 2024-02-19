@@ -3071,7 +3071,7 @@ class ShowdownPlayerCard(BaseModel):
         # SPLIT/DATE RANGE
         if self.stats_period.type.show_text_on_card_image:
             split_image = self.__date_range_or_split_image()
-            paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SPLIT)
+            paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.SPLIT, is_multi_year=self.is_multi_year, is_full_career=self.is_full_career)
             card_image.paste(split_image, self.__coordinates_adjusted_for_bordering(paste_coordinates), split_image)
 
         # SAVE AND SHOW IMAGE
@@ -4498,18 +4498,21 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # OPEN BACKGROUND IMAGE
-        image_name = "DATE-RANGE-BG-LONG" if self.set.is_split_image_long else "DATE-RANGE-BG"
+        theme_ext = ''
+        if self.set.is_showdown_bot:
+            theme_ext = '-DARK' if self.image.is_dark_mode else '-LIGHT'
+        image_name = f"DATE-RANGE-BG{theme_ext}"
         split_image = Image.open(self.__template_img_path(image_name)).convert('RGBA')
 
         # SPLIT TEXT
         font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
-        size = 120 if self.set.is_split_image_long else 135
+        size = 120
         font = ImageFont.truetype(font_path, size=size)
 
         # GRAB TEXT
         match self.stats_period.type:
             case StatsPeriodType.POSTSEASON:
-                text = 'POSTSEASON' if self.set.is_split_image_long else 'POST'
+                text = 'POSTSEASON'
                 text_list = [text]
             case StatsPeriodType.DATE_RANGE:
                 text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
@@ -4521,60 +4524,18 @@ class ShowdownPlayerCard(BaseModel):
                 text_list = [text] if is_single_game else text_list
             case StatsPeriodType.SPLIT:
                 text = self.stats_period.split.upper()
-                text_no_slash = text.replace('/',' ')
                 text_list = [text]
-                text_split_by_word = text_no_slash.split(' ')
-                num_words = len(text_split_by_word)
-                if len(text) > 7 and num_words > 1 and not self.set.is_split_image_long:
-                    mid_point = int(num_words / 2)
-                    part_1 = ' '.join(text_split_by_word[:mid_point])
-                    part_2 = ' '.join(text_split_by_word[mid_point:])
-                    text_list = [part_1, part_2]
                 
-        num_words = len(text_list)
-        if self.set.is_split_image_long:
-            text = text if len(text) < 17 else f"{text[:13]}.."
-            text_image_large = self.__text_image(
-                text = text,
-                size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
-                font = font,
-                fill=colors.WHITE,
-                alignment = "center",
-            )
-            text_image = text_image_large.resize((280,240), Image.ANTIALIAS)
-            split_image.paste(text_image, (-5, 12), text_image)
-        else:
-            # ADD PERIOD
-            y_position = 5 if num_words > 1 else 25
-            for text in text_list:
-
-                # SKIP IF NONE
-                if text is None:
-                    continue
-                text = text if len(text) < 8 else f"{text[:6]}.."
-                
-                text_image_large = self.__text_image(
-                    text = text,
-                    size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
-                    font = font,
-                    fill=colors.WHITE,
-                    alignment = "center",
-                )
-                text_image = text_image_large.resize((140,120), Image.ANTIALIAS)
-                split_image.paste(text_image, (0, y_position), text_image)
-                y_position += 45
-
-            # ADD DASH
-            if self.stats_period.type == StatsPeriodType.DATE_RANGE and num_words > 1:
-                dash_image_large = self.__text_image(
-                    text = '-',
-                    size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
-                    font = font,
-                    fill=colors.WHITE,
-                    alignment = "center",
-                )
-                dash_image = dash_image_large.resize((140,120), Image.ANTIALIAS)
-                split_image.paste(dash_image, (0, 25), dash_image)
+        text = text if len(text) < 17 else f"{text[:13]}.."
+        text_color = self.set.template_component_font_color(TemplateImageComponent.SPLIT, is_dark_mode=self.image.is_dark_mode)
+        text_image_large = self.__text_image(
+            text = text,
+            size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
+            font = font,
+            alignment = "center",
+        )
+        text_image = text_image_large.resize((280,240), Image.ANTIALIAS)
+        split_image.paste(text_color, (-5, 12), text_image)
 
         return split_image
 
