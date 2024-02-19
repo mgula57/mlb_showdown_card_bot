@@ -1564,7 +1564,7 @@ class Set(str, Enum):
                     case '2002': return (80,1380)
                     case '2003': return (1179,1074)
                     case '2004' | '2005': return (1161,1425)
-                    case 'CLASSIC' | 'EXPANDED': return (1161,1365)
+                    case 'CLASSIC' | 'EXPANDED': return (1160,1330)
             case TemplateImageComponent.PLAYER_NAME:
                 match self.value:
                     case '2000': return (150,-1225)
@@ -1572,7 +1572,7 @@ class Set(str, Enum):
                     case '2002': return (1275,0)
                     case '2003': return (1365,0)
                     case '2004' | '2005': return (276,1605)
-                    case 'CLASSIC' | 'EXPANDED': return (325,1575)
+                    case 'CLASSIC' | 'EXPANDED': return (290,1570)
             case TemplateImageComponent.PLAYER_NAME_SMALL:
                 match self.value:
                     case '2000': return (165,-1225)
@@ -1580,21 +1580,21 @@ class Set(str, Enum):
                     case '2002': return (1285,0)
                     case '2003': return (1375,0)
                     case '2004' | '2005': return (276,1610)
-                    case 'CLASSIC' | 'EXPANDED': return (300,1575)
+                    case 'CLASSIC' | 'EXPANDED': return (265,1575)
             case TemplateImageComponent.CHART:
                 match self.value:
                     case '2000' | '2001': return (981,1335) if player_type.is_pitcher else (981,1317)
                     case '2002': return (948,1593)
                     case '2003': return (981,1518)
                     case '2004' | '2005': return (0,1779)
-                    case 'CLASSIC' | 'EXPANDED': return (40,1885)
+                    case 'CLASSIC' | 'EXPANDED': return (40,1903)
             case TemplateImageComponent.METADATA:
                 match self.value:
                     case '2000' | '2001': return (0,0)
                     case '2002': return (810,1605)
                     case '2003': return (825,1530)
                     case '2004' | '2005': return (282,1710)
-                    case 'CLASSIC' | 'EXPANDED': return (330,1670)
+                    case 'CLASSIC' | 'EXPANDED': return (320,1680)
             case TemplateImageComponent.SET:
                 match self.value:
                     case '2000' | '2001': return (129,2016)
@@ -1654,7 +1654,7 @@ class Set(str, Enum):
                     case 'CLASSIC' | 'EXPANDED': return (880,2010)
             case TemplateImageComponent.COMMAND:
                 match self.value:
-                    case 'CLASSIC' | 'EXPANDED': return (80,1540)
+                    case 'CLASSIC' | 'EXPANDED': return (75,1565)
                     case _: return (0,0)
             case TemplateImageComponent.STYLE:
                 match self.value:

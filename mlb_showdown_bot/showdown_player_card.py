@@ -3066,13 +3066,6 @@ class ShowdownPlayerCard(BaseModel):
             paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SPLIT)
             card_image.paste(split_image, self.__coordinates_adjusted_for_bordering(paste_coordinates), split_image)
 
-        # BETA TAG
-        # TO BE REMOVED AFTER TEST PERIOD
-        # if self.set.is_showdown_bot:
-        #     beta_img_path = self.__template_img_path('BETA')
-        #     beta_banner_image = Image.open(beta_img_path)
-        #     card_image.paste(beta_banner_image,(0,0),beta_banner_image)
-
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm or bordered
         final_size = self.set.card_size_bordered_final if self.image.is_bordered else self.set.card_size_final
@@ -3415,7 +3408,9 @@ class ShowdownPlayerCard(BaseModel):
         # GET IMAGE WITH PLAYER COMMAND
         paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.COMMAND)
         top_left_paste_location = self.__coordinates_adjusted_for_bordering(coordinates=(0,0), is_forced=True)
+        
         if self.set.is_showdown_bot:
+            
             # ADD TEXT + BACKGROUND AS IMAGE
             command_image = self.__command_image()
             if not self.is_pitcher:
@@ -3445,8 +3440,15 @@ class ShowdownPlayerCard(BaseModel):
             use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color) and not is_multi_colored
             dark_mode_suffix = '-DARK' if use_dark_text else ''
             text_img = Image.open(self.__template_img_path(f'{year}-ChartOutsText-{type}{dark_mode_suffix}'))
-            template_image.paste(container_img, top_left_paste_location, container_img)
-            template_image.paste(text_img, top_left_paste_location, text_img)
+            template_image.paste(container_img, (0,0), container_img)
+            template_image.paste(text_img, (0,0), text_img)
+
+            # ADD PTS BOX
+            secondary_color = self.__team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, team_override=team_override)
+            pts_box_img_black = Image.open(self.__template_img_path(f'{year}-PTS-Box'))
+            pts_box_img_team_color = self.__add_color_overlay_to_img(img=pts_box_img_black, color=secondary_color)
+            template_image.paste(pts_box_img_team_color, (0,0), pts_box_img_team_color)
+
         else:
             command_image_name = f"{year}-{type}-{str(self.chart.command)}"
             command_image = Image.open(self.__template_img_path(command_image_name))
@@ -3677,154 +3679,170 @@ class ShowdownPlayerCard(BaseModel):
         # COLOR WILL BE RETURNED
         color = colors.WHITE
 
-        if self.set.is_00_01:
-            # 2000 & 2001
+        match self.set:
+            case Set._2000 | Set._2001:
+                # 2000 & 2001
 
-            metadata_image = Image.new('RGBA', (1500, 2100), 255)
-            helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
-
-            # PITCHER AND HITTER SPECIFIC METADATA
-            if self.is_pitcher:
-                # POSITION
-                font_position = ImageFont.truetype(helvetica_neue_lt_path, size=72)
-                position = self.positions_list[0]
-                position_text = self.__text_image(text=position.value, size=(900, 300), font=font_position, alignment='center')
-                metadata_image.paste(colors.WHITE, (660,342), position_text)
-                # HAND | IP
-                font_hand_ip = ImageFont.truetype(helvetica_neue_lt_path, size=63)
-                hand_text = self.__text_image(text=self.hand.visual(self.is_pitcher), size=(900, 300), font=font_hand_ip)
-                metadata_image.paste(colors.WHITE, (1092,420), hand_text)
-                ip_text = self.__text_image(text='IP {}'.format(str(self.ip)), size=(900, 300), font=font_hand_ip)
-                metadata_image.paste(colors.WHITE, (1260,420), ip_text)
-            else:
-                # SPEED | HAND
-                is_variable_spd_2000 = self.set == Set._2000 and self.is_variable_speed_00_01
-                font_size_speed = 40 if is_variable_spd_2000 else 54
-                font_speed = ImageFont.truetype(helvetica_neue_lt_path, size=font_size_speed)
-                font_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
-                speed_text = self.__text_image(text=f'SPEED {self.speed.letter}', size=(900, 300), font=font_speed)
-                hand_text = self.__text_image(text=self.hand.value, size=(300, 300), font=font_hand)
-                metadata_image.paste(color, (969 if self.set == Set._2000 else 915, 345 if is_variable_spd_2000 else 342), speed_text)
-                metadata_image.paste(color, (1212,342), hand_text)
-                if self.set == Set._2001 or is_variable_spd_2000:
-                    # ADD # TO SPEED
-                    font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
-                    font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)
-                    speed_num_text = self.__text_image(
-                        text=str(self.speed.speed),
-                        size=(300, 300),
-                        font=font_speed_number
-                    )
-                    parenthesis_left = self.__text_image(text='(   )', size=(300, 300), font=font_parenthesis)
-                    metadata_image.paste(color, (1116,342), parenthesis_left)
-                    spd_number_x_position = 1138 if len(str(self.speed.speed)) < 2 else 1128
-                    metadata_image.paste(color, (spd_number_x_position,345), speed_num_text)
-                # POSITION(S)
-                font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)
-                y_position = 407
-                for index, (position, rating) in enumerate(self.positions_and_defense_img_order):
-                    dh_string = '   —' if self.set != Set._2000 else '   DH'
-                    position_rating_text = dh_string if position == 'DH' else '{} +{}'.format(position,str(rating))
-                    position_rating_image = self.__text_image(text=position_rating_text, size=(600, 300), font=font_position)
-                    x_adjust = 10 if index == 0 and len(position) < 5 and len(self.positions_and_defense_img_order) > 1 else 0
-                    x_position = (1083 if len(position) > 4 else 1161) + x_adjust
-                    x_position += 18 if position in ['C','CA'] and rating < 10 else 0 # CATCHER POSITIONING ADJUSTMENT
-                    metadata_image.paste(color, (x_position,y_position), position_rating_image)
-                    y_position += 84
-            # POINTS
-            text_size = 48 if self.points >= 1000 else 57
-            font_pts = ImageFont.truetype(helvetica_neue_lt_path, size=text_size)
-            pts_text = self.__text_image(text=str(self.points), size=(300, 300), font=font_pts, alignment = "right")
-            pts_y_pos = 576 if len(self.positions_and_defense_for_visuals) > 1 else 492
-            pts_x_pos = 969 if self.is_pitcher else 999
-            metadata_image.paste(color, (pts_x_pos,pts_y_pos), pts_text)
-
-        elif self.set in [Set._2002, Set._2003]:
-            # 2002 & 2003
-
-            is_02 = self.set == Set._2002
-            color = colors.WHITE if not is_02 or self.image.is_dark_mode else colors.BLACK
-            if is_02:
+                metadata_image = Image.new('RGBA', (1500, 2100), 255)
                 helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
-                metadata_font = ImageFont.truetype(helvetica_neue_lt_path, size=120)
-            else:
-                helvetica_neue_cond_bold_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
-                metadata_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=135)
 
-            metadata_text = self.__text_image(
-                text = self.__player_metadata_summary_text(),
-                size = (765, 2700),
-                font = metadata_font,
-                rotation = 0,
-                alignment = "right",
-                padding=0,
-                spacing= 57 if is_02 else 66
-            )
-            metadata_image = metadata_text.resize((255,900), Image.ANTIALIAS)
-        elif self.set.is_04_05:
-            # 2004 & 2005
-            metadata_font_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
-            metadata_font = ImageFont.truetype(metadata_font_path, size=144)
-            metadata_text_string = self.__player_metadata_summary_text(is_horizontal=True)
-            metadata_text = self.__text_image(
-                text = metadata_text_string,
-                size = (3600, 900),
-                font = metadata_font,
-                fill = colors.WHITE,
-                rotation = 0,
-                alignment = "left",
-                padding = 0,
-                has_border = True,
-                border_color = colors.BLACK,
-                border_size = 9
-            )
-            metadata_image = metadata_text.resize((1200,300), Image.ANTIALIAS)
-            # DONT WANT TO RETURN A COLOR (BECAUSE IT'S MULTI-COLORED)
-            # PASS THE IMAGE ITSELF AS THE COLOR
-            color = metadata_image
-        else:
-            metadata_image = Image.new('RGBA', (1400, 200), 255)
-            metadata_font_path = self.__font_path('HelveticaNeueCondensedBold')
-            metadata_font = ImageFont.truetype(metadata_font_path, size=170)
-            metadata_font_small = ImageFont.truetype(metadata_font_path, size=150)
-            metadata_text_list = self.__player_metadata_summary_text(is_horizontal=True, return_as_list=True)
-            current_x_position = 0
-            for index, category in enumerate(metadata_text_list):
-                category_length = len(metadata_text_list)
-                is_last = (index + 1) == category_length
-                is_small_text = is_last and len(category) > 17
-                category_font = metadata_font_small if is_small_text else metadata_font
+                # PITCHER AND HITTER SPECIFIC METADATA
+                if self.is_pitcher:
+                    # POSITION
+                    font_position = ImageFont.truetype(helvetica_neue_lt_path, size=72)
+                    position = self.positions_list[0]
+                    position_text = self.__text_image(text=position.value, size=(900, 300), font=font_position, alignment='center')
+                    metadata_image.paste(colors.WHITE, (660,342), position_text)
+                    # HAND | IP
+                    font_hand_ip = ImageFont.truetype(helvetica_neue_lt_path, size=63)
+                    hand_text = self.__text_image(text=self.hand.visual(self.is_pitcher), size=(900, 300), font=font_hand_ip)
+                    metadata_image.paste(colors.WHITE, (1092,420), hand_text)
+                    ip_text = self.__text_image(text='IP {}'.format(str(self.ip)), size=(900, 300), font=font_hand_ip)
+                    metadata_image.paste(colors.WHITE, (1260,420), ip_text)
+                else:
+                    # SPEED | HAND
+                    is_variable_spd_2000 = self.set == Set._2000 and self.is_variable_speed_00_01
+                    font_size_speed = 40 if is_variable_spd_2000 else 54
+                    font_speed = ImageFont.truetype(helvetica_neue_lt_path, size=font_size_speed)
+                    font_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
+                    speed_text = self.__text_image(text=f'SPEED {self.speed.letter}', size=(900, 300), font=font_speed)
+                    hand_text = self.__text_image(text=self.hand.value, size=(300, 300), font=font_hand)
+                    metadata_image.paste(color, (969 if self.set == Set._2000 else 915, 345 if is_variable_spd_2000 else 342), speed_text)
+                    metadata_image.paste(color, (1212,342), hand_text)
+                    if self.set == Set._2001 or is_variable_spd_2000:
+                        # ADD # TO SPEED
+                        font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
+                        font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)
+                        speed_num_text = self.__text_image(
+                            text=str(self.speed.speed),
+                            size=(300, 300),
+                            font=font_speed_number
+                        )
+                        parenthesis_left = self.__text_image(text='(   )', size=(300, 300), font=font_parenthesis)
+                        metadata_image.paste(color, (1116,342), parenthesis_left)
+                        spd_number_x_position = 1138 if len(str(self.speed.speed)) < 2 else 1128
+                        metadata_image.paste(color, (spd_number_x_position,345), speed_num_text)
+                    # POSITION(S)
+                    font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)
+                    y_position = 407
+                    for index, (position, rating) in enumerate(self.positions_and_defense_img_order):
+                        dh_string = '   —' if self.set != Set._2000 else '   DH'
+                        position_rating_text = dh_string if position == 'DH' else '{} +{}'.format(position,str(rating))
+                        position_rating_image = self.__text_image(text=position_rating_text, size=(600, 300), font=font_position)
+                        x_adjust = 10 if index == 0 and len(position) < 5 and len(self.positions_and_defense_img_order) > 1 else 0
+                        x_position = (1083 if len(position) > 4 else 1161) + x_adjust
+                        x_position += 18 if position in ['C','CA'] and rating < 10 else 0 # CATCHER POSITIONING ADJUSTMENT
+                        metadata_image.paste(color, (x_position,y_position), position_rating_image)
+                        y_position += 84
+                # POINTS
+                text_size = 48 if self.points >= 1000 else 57
+                font_pts = ImageFont.truetype(helvetica_neue_lt_path, size=text_size)
+                pts_text = self.__text_image(text=str(self.points), size=(300, 300), font=font_pts, alignment = "right")
+                pts_y_pos = 576 if len(self.positions_and_defense_for_visuals) > 1 else 492
+                pts_x_pos = 969 if self.is_pitcher else 999
+                metadata_image.paste(color, (pts_x_pos,pts_y_pos), pts_text)
+
+            case Set._2002 | Set._2003:
+                # 2002 & 2003
+                is_02 = self.set == Set._2002
+                color = colors.WHITE if not is_02 or self.image.is_dark_mode else colors.BLACK
+                if is_02:
+                    helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
+                    metadata_font = ImageFont.truetype(helvetica_neue_lt_path, size=120)
+                else:
+                    helvetica_neue_cond_bold_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
+                    metadata_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=135)
+
                 metadata_text = self.__text_image(
-                    text = category,
-                    size = (1500, 900),
-                    font = category_font,
+                    text = self.__player_metadata_summary_text(),
+                    size = (765, 2700),
+                    font = metadata_font,
+                    rotation = 0,
+                    alignment = "right",
+                    padding=0,
+                    spacing= 57 if is_02 else 66
+                )
+                metadata_image = metadata_text.resize((255,900), Image.ANTIALIAS)
+
+            case Set._2004 | Set._2005:
+                # 2004 & 2005
+                metadata_font_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
+                metadata_font = ImageFont.truetype(metadata_font_path, size=144)
+                metadata_text_string = self.__player_metadata_summary_text(is_horizontal=True)
+                metadata_text = self.__text_image(
+                    text = metadata_text_string,
+                    size = (3600, 900),
+                    font = metadata_font,
                     fill = colors.WHITE,
                     rotation = 0,
                     alignment = "left",
                     padding = 0,
+                    has_border = True,
+                    border_color = colors.BLACK,
+                    border_size = 9
                 )
-                metadata_text = metadata_text.resize((500,300), Image.ANTIALIAS)
-                y_position = 5 if is_small_text else 0
-                metadata_image.paste(metadata_text, (int(current_x_position),y_position), metadata_text)
-                category_font_width = category_font.getsize(category)[0] / 3.0
-                current_x_position += category_font_width
-                if not is_last:
-                    # DIVIDER
-                    divider_text = self.__text_image(
-                        text = '|',
-                        size = (900, 900),
+                metadata_image = metadata_text.resize((1200,300), Image.ANTIALIAS)
+                # DONT WANT TO RETURN A COLOR (BECAUSE IT'S MULTI-COLORED)
+                # PASS THE IMAGE ITSELF AS THE COLOR
+                color = metadata_image
+            case Set.CLASSIC | Set.EXPANDED:
+                metadata_image = Image.new('RGBA', (1400, 200), 255)
+                metadata_font_path = self.__font_path('HelveticaNeueCondensedBold')
+                metadata_font = ImageFont.truetype(metadata_font_path, size=170)
+                metadata_font_small = ImageFont.truetype(metadata_font_path, size=150)
+                metadata_text_list = self.__player_metadata_summary_text(is_horizontal=True, return_as_list=True)
+                current_x_position = 0
+                
+                for index, category in enumerate(metadata_text_list):
+
+                    is_pts = 'PT.' in category
+                    text_color = colors.GRAY if self.image.is_dark_mode else colors.BLACK
+                    if is_pts:
+                        # ADJUST BASED ON PTS TEXT
+                        if len(category) < 7:
+                            # EX: "70 PT."
+                            current_x_position += 30
+                        elif len(category) == 7:
+                            # EX: "470 PT."
+                            current_x_position += 15
+                        text_color = colors.WHITE
+
+                    category_length = len(metadata_text_list)
+                    is_last = (index + 1) == category_length
+                    is_small_text = is_last and len(category) > 17
+                    category_font = metadata_font_small if is_small_text else metadata_font
+
+                    metadata_text = self.__text_image(
+                        text = category,
+                        size = (1500, 900),
                         font = category_font,
-                        fill = colors.WHITE,
                         rotation = 0,
                         alignment = "left",
                         padding = 0,
                     )
-                    divider_text = divider_text.resize((300,300), Image.ANTIALIAS)
-                    metadata_image.paste((255,255,255,50), (int(current_x_position) + 30, 0), divider_text)
-                    current_x_position += 65
-                
+                    metadata_text = metadata_text.resize((500,300), Image.ANTIALIAS)
+                    y_position = 5 if is_small_text else 0
 
-            color = colors.GRAY if self.image.is_dark_mode else colors.BLACK
+                    metadata_image.paste(text_color, (int(current_x_position),y_position), metadata_text)
+                    category_font_width = category_font.getsize(category)[0] / 3.0
+                    current_x_position += category_font_width
+                    if not is_last and not is_pts:
+                        # DIVIDER
+                        divider_text = self.__text_image(
+                            text = '|',
+                            size = (900, 900),
+                            font = category_font,
+                            fill = colors.WHITE,
+                            rotation = 0,
+                            alignment = "left",
+                            padding = 0,
+                        )
+                        divider_text = divider_text.resize((300,300), Image.ANTIALIAS)
+                        divider_color = (105,105,105,255) if self.image.is_dark_mode else (194,194,194,255)
+                        metadata_image.paste(divider_color, (int(current_x_position) + 30, 0), divider_text)
+                    current_x_position += 65
+                    
+                color = metadata_image
 
         return metadata_image, color
 
@@ -4324,6 +4342,7 @@ class ShowdownPlayerCard(BaseModel):
         # ADD TEXT
         fill_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images)
         fill_color_hex = self.__rbgs_to_hex(rgbs=fill_color)
+        
         # SEPARATE 
         for index, char in enumerate(command):
             position_multiplier = 1 if (index + 1) == num_chars_command else -1
@@ -4336,6 +4355,10 @@ class ShowdownPlayerCard(BaseModel):
             )
             paste_location = (22,43) if self.is_pitcher else (x_position,28)
             background_img.paste(fill_color_hex, paste_location, command_text_img)
+
+        # RESIZE TO 85% OF ORIGINAL SIZE
+        img_size = (int(background_img.size[0] * 0.85), int(background_img.size[1] * 0.85))
+        background_img = background_img.resize(img_size, Image.ANTIALIAS)
 
         return background_img
 
