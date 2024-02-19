@@ -1683,7 +1683,7 @@ class Set(str, Enum):
                     case '2002': return (62,1900)
                     case '2003': return (655,1705)
                     case '2004' | '2005': return (1268,1965)
-                    case 'CLASSIC' | 'EXPANDED': return (1345,2000)
+                    case 'CLASSIC' | 'EXPANDED': return (1320,1975)
             case TemplateImageComponent.SPLIT:
                 match self.value:
                     case '2000': return (330, 1860)
@@ -1702,7 +1702,7 @@ class Set(str, Enum):
                     case '2002': return (450,450)
                     case '2003': return (270,270)
                     case '2004' | '2005': return (255,255)
-                    case 'CLASSIC' | 'EXPANDED': return (275,275)
+                    case 'CLASSIC' | 'EXPANDED': return (225,225)
             case TemplateImageComponent.PLAYER_NAME: 
                 match self.value:
                     case '2000': return (2100,300)
