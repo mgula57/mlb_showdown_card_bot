@@ -3035,7 +3035,7 @@ class ShowdownPlayerCard(BaseModel):
         card_image = self.__add_icons_to_image(card_image)
 
         # SET
-        set_image = self.__card_set_image()
+        set_image = self.__set_and_year_image()
         card_image.paste(set_image, self.__coordinates_adjusted_for_bordering((0,0)), set_image)
 
         # YEAR CONTAINER
@@ -3211,11 +3211,11 @@ class ShowdownPlayerCard(BaseModel):
             if self.name_length > 22 and self.set.is_showdown_bot:
                 
                 match self.image.edition:
-                    case Edition.ROOKIE_SEASON: adjustment = (0, -55)
-                    case Edition.NATIONALITY: adjustment = (10, -15)
-                    case Edition.COOPERSTOWN_COLLECTION: adjustment = (0, -35)
-                    case Edition.POSTSEASON: adjustment = (10, -80)
-                    case _: adjustment = (0, -32)
+                    case Edition.ROOKIE_SEASON: adjustment = (0, -70)
+                    case Edition.NATIONALITY: adjustment = (10, -30)
+                    case Edition.COOPERSTOWN_COLLECTION: adjustment = (0, -55)
+                    case Edition.POSTSEASON: adjustment = (10, -90)
+                    case _: adjustment = (0, -50)
                 
                 return (coords[0] + adjustment[0], coords[1] + adjustment[1])
             
@@ -3961,7 +3961,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return chart_text, color
 
-    def __card_set_image(self) -> Image.Image:
+    def __set_and_year_image(self) -> Image.Image:
         """Creates image with card number and year text. Always defaults to card No 1.
            Uses YEAR and not CONTEXT as the set year.
         Args:
@@ -3973,11 +3973,13 @@ class ShowdownPlayerCard(BaseModel):
 
         # FONT FOR SET
         helvetica_neue_cond_bold_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
-        font_size = 180 if self.set.is_showdown_bot else 135
+        helvetica_neue_extra_black_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        font_size = 150 if self.set.is_showdown_bot else 135
         set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size)
 
         set_image = Image.new('RGBA', (1500, 2100), 255)
         set_image_location = self.set.template_component_paste_coordinates(TemplateImageComponent.SET)
+        set_text_color = self.set.template_component_font_color(TemplateImageComponent.SET, is_dark_mode=self.image.is_dark_mode)
 
         if self.set.has_unified_set_and_year_strings:
             # SET AND NUMBER IN SAME STRING
@@ -3988,12 +3990,14 @@ class ShowdownPlayerCard(BaseModel):
                 alignment = "center"
             )
             set_text = set_text.resize((150,75), Image.ANTIALIAS)
-            set_image.paste(colors.WHITE, set_image_location, set_text)
+            set_image.paste(set_text_color, set_image_location, set_text)
         else:
             # DIFFERENT STYLES BETWEEN NUMBER AND SET
             # CARD YEAR
-            set_font_year = set_font
+            set_font_year = ImageFont.truetype(helvetica_neue_extra_black_path, size=180) if self.set.is_showdown_bot else set_font
             year_as_str = str(self.year)
+            alignment = "right" if self.set.is_showdown_bot else "center"
+            set_year_size = (900, 450) if self.set.is_showdown_bot else (525, 450)
             if self.is_multi_year and self.set.is_04_05:
                 # EMPTY YEAR
                 year_string = ''
@@ -4001,18 +4005,7 @@ class ShowdownPlayerCard(BaseModel):
                 year_string = 'ALL' if self.is_full_career else 'MLT'
                 set_image_location = (set_image_location[0]-5,set_image_location[1])
             elif self.is_multi_year and self.set.is_showdown_bot:
-                set_image_location = (set_image_location[0]-15,set_image_location[1])
-                if '-' in year_as_str:
-                    try:
-                        years_split = year_as_str.split('-')
-                        year_string = f"'{years_split[0][2:4]}-'{years_split[1][2:4]}"                        
-                    except:
-                        year_string = year_as_str
-                else:
-                    year_string = "CAREER" if self.is_full_career else year_as_str
-                    if self.is_full_career:
-                        set_font_year = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size-20)
-                        set_image_location = (set_image_location[0]-5,set_image_location[1]+3)
+                year_string = "CAREER" if self.is_full_career else year_as_str
             else:
                 try:
                     year_as_str = str(int(year_as_str) + (1 if self.image.add_one_to_set_year else 0))
@@ -4021,23 +4014,28 @@ class ShowdownPlayerCard(BaseModel):
                 year_string = year_as_str if self.set.is_showdown_bot else f"'{year_as_str[2:4]}"
             year_text = self.__text_image(
                 text = year_string,
-                size = (525, 450),
+                size = set_year_size,
                 font = set_font_year,
-                alignment = "left"
+                alignment = alignment
             )
-            year_text = year_text.resize((140,120), Image.ANTIALIAS)
-            set_image.paste(colors.WHITE, set_image_location, year_text)
+            year_text = year_text.resize((int(set_year_size[0] / 3.75), int(set_year_size[1] / 3.75)), Image.ANTIALIAS)
+            set_image.paste(set_text_color, set_image_location, year_text)
 
-            # CARD NUMBER
-            number_text = self.__text_image(
-                text = self.image.set_number,
-                size = (600, 450),
-                font = set_font,
-                alignment = "center"
-            )
-            number_text = number_text.resize((160,120), Image.ANTIALIAS)
-            number_color = colors.BLACK if self.set == Set._2003 else colors.WHITE
-            set_image.paste(number_color, self.set.template_component_paste_coordinates(TemplateImageComponent.NUMBER), number_text)
+            is_default = self.image.set_number == '—'
+            hide_set_number = is_default and self.set.is_showdown_bot
+            if not hide_set_number:
+                # CARD NUMBER
+                alignment = "left" if self.set.is_showdown_bot else "center"
+                number_text = self.__text_image(
+                    text = self.image.set_number,
+                    size = (600, 450),
+                    font = set_font,
+                    alignment = alignment
+                )
+                number_text = number_text.resize((160,120), Image.ANTIALIAS)
+                number_color = self.set.template_component_font_color(TemplateImageComponent.NUMBER, is_dark_mode=self.image.is_dark_mode)
+                number_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.NUMBER)
+                set_image.paste(number_color, number_paste_location, number_text)
 
         return set_image
 
@@ -4417,10 +4415,6 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images)
-        color_hex = self.__rbgs_to_hex(rgbs=color)
-        red, green, blue, _ = color
-        color_lightness = (red*0.299 + green*0.587 + blue*0.114)
-        is_shadow = color_lightness < 75 if self.image.is_dark_mode else color_lightness > 186
 
         # LOAD BACKGROUND
         theme_suffix = 'DARK' if self.image.is_dark_mode else 'LIGHT'

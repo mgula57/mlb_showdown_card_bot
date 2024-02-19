@@ -1571,7 +1571,7 @@ class Set(str, Enum):
                     case '2002': return (80,1380)
                     case '2003': return (1179,1074)
                     case '2004' | '2005': return (1161,1425)
-                    case 'CLASSIC' | 'EXPANDED': return (1160,1330)
+                    case 'CLASSIC' | 'EXPANDED': return (1160,1345)
             case TemplateImageComponent.PLAYER_NAME:
                 match self.value:
                     case '2000': return (150,-1225)
@@ -1608,7 +1608,7 @@ class Set(str, Enum):
                     case '2002': return (60,1860)
                     case '2003': return (93,1785)
                     case '2004' | '2005': return (1344,1911)
-                    case 'CLASSIC' | 'EXPANDED': return (1200,2020)
+                    case 'CLASSIC' | 'EXPANDED': return (1070,1995)
             case TemplateImageComponent.YEAR_CONTAINER:
                 match self.value:
                     case '2000' | '2001': return (1250,1865)
@@ -1620,7 +1620,7 @@ class Set(str, Enum):
                     case '2002': return (120,1785)
                     case '2003': return (116,1785)
                     case '2004' | '2005': return (1191,1911)
-                    case 'CLASSIC' | 'EXPANDED': return (1000,2020)
+                    case 'CLASSIC' | 'EXPANDED': return (355,2000)
             case TemplateImageComponent.SUPER_SEASON:
                 match self.value:
                     case '2000': return (1200,900)
@@ -1702,7 +1702,7 @@ class Set(str, Enum):
                     case '2002': return (450,450)
                     case '2003': return (270,270)
                     case '2004' | '2005': return (255,255)
-                    case 'CLASSIC' | 'EXPANDED': return (225,225)
+                    case 'CLASSIC' | 'EXPANDED': return (275,275)
             case TemplateImageComponent.PLAYER_NAME: 
                 match self.value:
                     case '2000': return (2100,300)
@@ -1764,11 +1764,27 @@ class Set(str, Enum):
                     case '2004' | '2005' | 'CLASSIC' | 'EXPANDED': return 75
 
     def template_component_font_color(self, component: TemplateImageComponent, is_dark_mode:bool=False) -> str:
+
+        # REUSED COLORS
+        black = "#000000"
+        white = "#FFFFFF"
+        dark_gray = "#767676"
+        mid_gray = "#888686"
+
         match component:
             case TemplateImageComponent.STYLE_TEXT:
                 match self.value:
-                    case 'CLASSIC' | 'EXPANDED': return "#767676" if is_dark_mode else "#767676"
-                    case _: return "#FFFFFF"
+                    case 'CLASSIC' | 'EXPANDED': return dark_gray if is_dark_mode else dark_gray
+                    case _: return white
+            case TemplateImageComponent.SET: # YEAR
+                match self.value:
+                    case 'CLASSIC' | 'EXPANDED': return mid_gray
+                    case _: return white
+            case TemplateImageComponent.NUMBER:
+                match self.value:
+                    case '2003': return black
+                    case 'CLASSIC' | 'EXPANDED': return mid_gray
+                    case _: return white
 
     def template_component_color(self, component: TemplateImageComponent, parallel: ImageParallel) -> str:
         """Return color string for a template image component """
