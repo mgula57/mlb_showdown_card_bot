@@ -2783,7 +2783,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return opponent_chart.values_as_list
 
-    def __player_metadata_summary_text(self, is_horizontal:bool=False, return_as_list:bool=False) -> str:
+    def __player_metadata_summary_text(self, is_horizontal:bool=False, return_as_list:bool=False, remove_space_defense:bool=False) -> str | list:
         """Creates a multi line string with all player metadata for card output.
 
         Args:
@@ -2793,7 +2793,7 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           String/list of output text for player info + stats
         """
-        positions_string = self.positions_and_defense_as_string(is_horizontal=is_horizontal)
+        positions_string = self.positions_and_defense_as_string(is_horizontal=is_horizontal, remove_space=remove_space_defense, is_extra_padding=remove_space_defense)
 
         ip = f'IP {self.ip}' if self.set.is_after_03 else f'{self.ip} IP'
         speed = f'SPD {self.speed.speed}' if self.set.is_showdown_bot else self.speed.full_string
@@ -2831,11 +2831,13 @@ class ShowdownPlayerCard(BaseModel):
         final_text = final_text.upper() if self.set.is_metadata_text_uppercased else final_text
         return final_text
 
-    def positions_and_defense_as_string(self, is_horizontal:bool=False) -> str:
+    def positions_and_defense_as_string(self, is_horizontal:bool=False, remove_space:bool=False, is_extra_padding:bool=False) -> str:
         """Creates a single line string with positions and defense.
 
         Args:
           is_horizontal: Optional boolean for horizontally formatted text (04/05)
+          remove_space: Optional boolean for removing space between positions and defense
+          is_extra_padding: Optional boolean for adding extra padding between positions
 
         Returns:
           String of output text for player's defensive stats
@@ -2855,9 +2857,10 @@ class ShowdownPlayerCard(BaseModel):
                     positions_string += dh_string
                 else:
                     is_last_element = position_num == len(self.positions_and_defense_for_visuals.keys())
-                    positions_separator = ' ' if is_horizontal else '\n'
+                    positions_separator = f' {" " if is_extra_padding else ""}' if is_horizontal else '\n'
                     fielding_plus = "" if fielding < 0 else "+"
-                    positions_string += f'{position} {fielding_plus}{fielding}{"" if is_last_element else positions_separator}'
+                    space = "" if remove_space else " "
+                    positions_string += f'{position}{space}{fielding_plus}{fielding}{"" if is_last_element else positions_separator}'
                 position_num += 1
         
         return positions_string
@@ -3428,9 +3431,9 @@ class ShowdownPlayerCard(BaseModel):
             if is_multi_colored:
                 # GRADIENT
                 team_colors = [self.__team_color_rgbs(is_secondary_color=is_secondary, team_override=team_override) for is_secondary in [True, False]]
-                colors = self.nationality.colors if self.image.special_edition == SpecialEdition.NATIONALITY else team_colors
+                team_colors = self.nationality.colors if self.image.special_edition == SpecialEdition.NATIONALITY else team_colors
                 gradient_img_width = self.player_sub_type.nationality_chart_gradient_img_width
-                gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=colors)
+                gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=team_colors)
                 container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
                 container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
             else:
@@ -3608,7 +3611,7 @@ class ShowdownPlayerCard(BaseModel):
                 padding = 3
                 has_border = True
                 border_color = colors.RED
-            case _:
+            case Set.CLASSIC | Set.EXPANDED:
                 name_rotation = 0
                 name_alignment = "left"
                 name_size = 80 if is_name_over_char_limit else 96
@@ -3790,7 +3793,7 @@ class ShowdownPlayerCard(BaseModel):
                 metadata_font_path = self.__font_path('HelveticaNeueCondensedBold')
                 metadata_font = ImageFont.truetype(metadata_font_path, size=170)
                 metadata_font_small = ImageFont.truetype(metadata_font_path, size=150)
-                metadata_text_list = self.__player_metadata_summary_text(is_horizontal=True, return_as_list=True)
+                metadata_text_list = self.__player_metadata_summary_text(is_horizontal=True, return_as_list=True, remove_space_defense=not self.set.is_space_between_position_and_defense)
                 current_x_position = 0
                 
                 for index, category in enumerate(metadata_text_list):
@@ -3805,7 +3808,8 @@ class ShowdownPlayerCard(BaseModel):
                         elif len(category) == 7:
                             # EX: "470 PT."
                             current_x_position += 15
-                        text_color = colors.WHITE
+                        use_dark_text = self.set.is_showdown_bot and self.team.use_dark_text(year=self.median_year, is_secondary=not self.image.use_secondary_color)
+                        text_color = colors.BLACK if use_dark_text else colors.WHITE
 
                     category_length = len(metadata_text_list)
                     is_last = (index + 1) == category_length
@@ -4380,8 +4384,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # LOAD BACKGROUND
         theme_suffix = 'DARK' if self.image.is_dark_mode else 'LIGHT'
-        shadow_suffix = '-SHADOW' if is_shadow else ''
-        bg_image_path = self.__template_img_path(f'STYLE-BG-{theme_suffix}{shadow_suffix}')
+        bg_image_path = self.__template_img_path(f'STYLE-BG-{theme_suffix}')
         bg_image = Image.open(bg_image_path)
 
         # BACKGROUND
@@ -4397,7 +4400,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # STYLE TEXT
         style_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
-        style_font = ImageFont.truetype(style_font_path, size=225)
+        style_font = ImageFont.truetype(style_font_path, size=155)
         style_text = self.__text_image(
             text = self.set.value,
             size = (1800, 300),
@@ -4405,8 +4408,9 @@ class ShowdownPlayerCard(BaseModel):
             alignment = "left"
         )
         style_text = style_text.resize((450,75), Image.ANTIALIAS)
+        style_text_color = self.set.template_component_font_color(TemplateImageComponent.STYLE_TEXT)
         style_text_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE_TEXT)
-        bg_image.paste(color_hex, style_text_paste_location, style_text)
+        bg_image.paste(style_text_color, style_text_paste_location, style_text)
                 
         return bg_image
 

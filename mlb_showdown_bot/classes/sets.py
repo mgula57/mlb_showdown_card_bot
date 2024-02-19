@@ -1470,7 +1470,10 @@ class Set(str, Enum):
 
     @property
     def small_name_text_length_cutoff(self) -> int:
-        return 18 if self.value == '2000' else 19
+        match self:
+            case Set._2000: return 18
+            case Set.CLASSIC | Set.EXPANDED: return 18
+            case _: return 19
     
     @property
     def has_unified_set_and_year_strings(self) -> bool:
@@ -1492,6 +1495,10 @@ class Set(str, Enum):
     def is_team_logo_drop_shadow(self) -> bool:
         return self.value in ['CLASSIC','EXPANDED']
     
+    @property
+    def is_space_between_position_and_defense(self) -> bool:
+        return self not in [Set.CLASSIC, Set.EXPANDED]
+
     # ---------------------------------------
     # PLAYER IMAGE
     # ---------------------------------------
@@ -1580,7 +1587,7 @@ class Set(str, Enum):
                     case '2002': return (1285,0)
                     case '2003': return (1375,0)
                     case '2004' | '2005': return (276,1610)
-                    case 'CLASSIC' | 'EXPANDED': return (265,1575)
+                    case 'CLASSIC' | 'EXPANDED': return (290,1585)
             case TemplateImageComponent.CHART:
                 match self.value:
                     case '2000' | '2001': return (981,1335) if player_type.is_pitcher else (981,1317)
@@ -1658,18 +1665,18 @@ class Set(str, Enum):
                     case _: return (0,0)
             case TemplateImageComponent.STYLE:
                 match self.value:
-                    case 'CLASSIC' | 'EXPANDED': return (60,1992)
+                    case 'CLASSIC' | 'EXPANDED': return (72,1980)
             case TemplateImageComponent.STYLE_LOGO_BG:
                 match self.value:
-                    case 'CLASSIC' | 'EXPANDED': return (255,5)
+                    case 'CLASSIC' | 'EXPANDED': return (180,4)
             case TemplateImageComponent.STYLE_LOGO:
                 match self.value:
-                    case 'CLASSIC': return (285,18)
-                    case 'EXPANDED': return (295,20)
+                    case 'CLASSIC': return (203,13)
+                    case 'EXPANDED': return (210,14)
             case TemplateImageComponent.STYLE_TEXT:
                 match self.value:
-                    case 'CLASSIC': return (38,27)
-                    case 'EXPANDED': return (15,27)
+                    case 'CLASSIC': return (35,20)
+                    case 'EXPANDED': return (15,20)
             case TemplateImageComponent.BOT_LOGO:
                 match self.value:
                     case '2000' | '2001': return (1250,1945)
@@ -1754,6 +1761,13 @@ class Set(str, Enum):
                     case '2002': return 25
                     case '2003': return 26
                     case '2004' | '2005' | 'CLASSIC' | 'EXPANDED': return 75
+
+    def template_component_font_color(self, component: TemplateImageComponent, is_dark_mode:bool=False) -> str:
+        match component:
+            case TemplateImageComponent.STYLE_TEXT:
+                match self.value:
+                    case 'CLASSIC' | 'EXPANDED': return "#767676" if is_dark_mode else "#767676"
+                    case _: return "#FFFFFF"
 
     def template_component_color(self, component: TemplateImageComponent, parallel: ImageParallel) -> str:
         """Return color string for a template image component """
