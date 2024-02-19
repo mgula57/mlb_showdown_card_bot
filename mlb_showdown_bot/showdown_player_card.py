@@ -623,6 +623,12 @@ class ShowdownPlayerCard(BaseModel):
         
         return self.name
 
+    @property
+    def name_length(self) -> int | float:
+        """Length of the name and icons combined. Count icons only for CLASSIC/EXPANDED."""
+        icons_len = len(self.icons) * 1.5 if self.set.is_showdown_bot else 0
+        return len(self.name_for_visuals) + icons_len
+
 
 # ------------------------------------------------------------------------
 # METADATA METHODS
@@ -2988,7 +2994,7 @@ class ShowdownPlayerCard(BaseModel):
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
         small_name_cutoff = self.set.small_name_text_length_cutoff
-        name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if len(self.name_for_visuals) >= small_name_cutoff and self.image.parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
+        name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if self.name_length >= small_name_cutoff and self.image.parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
         name_paste_location = self.set.template_component_paste_coordinates(name_image_component)
         if self.set.is_00_01:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
@@ -3026,8 +3032,7 @@ class ShowdownPlayerCard(BaseModel):
             card_image.paste(style_img, style_coordinates, style_img)
         
         # ICONS
-        if self.set.has_icons:
-            card_image = self.__add_icons_to_image(card_image)
+        card_image = self.__add_icons_to_image(card_image)
 
         # SET
         set_image = self.__card_set_image()
@@ -3200,6 +3205,22 @@ class ShowdownPlayerCard(BaseModel):
             - Coordinates for pasting team logo.
         """
 
+        def adjusted_paste_coords(coords: tuple[int,int]) -> tuple[int,int]:
+            
+            # ADJUST Y COORDINATES IF CLASSIC/EXPANDED AND LONG NAME
+            if self.name_length > 22 and self.set.is_showdown_bot:
+                
+                match self.image.edition:
+                    case Edition.ROOKIE_SEASON: adjustment = (0, -55)
+                    case Edition.NATIONALITY: adjustment = (10, -15)
+                    case Edition.COOPERSTOWN_COLLECTION: adjustment = (0, -35)
+                    case Edition.POSTSEASON: adjustment = (10, -80)
+                    case _: adjustment = (0, -32)
+                
+                return (coords[0] + adjustment[0], coords[1] + adjustment[1])
+            
+            return coords
+
         # SETUP IMAGE METADATA
         is_alternate = self.use_alternate_logo or force_use_alternate
         logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
@@ -3238,6 +3259,9 @@ class ShowdownPlayerCard(BaseModel):
                 if self.image.special_edition == SpecialEdition.NATIONALITY:
                     team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality.value}.png')
                     logo_size_multiplier = self.nationality.logo_size_multiplier
+                    if self.set.is_showdown_bot:
+                        logo_paste_coordinates = (logo_paste_coordinates[0] - 35, logo_paste_coordinates[1] + 10)
+
             team_logo = Image.open(team_logo_path).convert("RGBA")
             size_adjusted = tuple(int(v * logo_size_multiplier) for v in logo_size)
             if size_adjusted != logo_size:
@@ -3265,7 +3289,7 @@ class ShowdownPlayerCard(BaseModel):
         # RETURN STATIC LOGO IF IGNORE_DYNAMIC_ELEMENTS IS ENABLED
         # IGNORES ROOKIE SEASON, SUPER SEASON
         if ignore_dynamic_elements:
-            return team_logo, logo_paste_coordinates
+            return team_logo, adjusted_paste_coords(logo_paste_coordinates)
 
         # OVERRIDE IF SUPER SEASON
         if self.image.edition == Edition.SUPER_SEASON and not is_00_01:
@@ -3318,7 +3342,7 @@ class ShowdownPlayerCard(BaseModel):
             team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.set == Set._2002 else team_logo
             logo_paste_coordinates = self.set.template_component_paste_coordinates(component)
 
-        return team_logo, logo_paste_coordinates
+        return team_logo, adjusted_paste_coords(logo_paste_coordinates)
 
     def team_logo_for_background(self, team_override:Team = None) -> tuple[Image.Image, tuple[int,int]]:
         """Open and manipulate the team logo used for 2000/2001 team backgrounds.
@@ -3557,9 +3581,7 @@ class ShowdownPlayerCard(BaseModel):
         name_upper = "????? ?????" if self.image.parallel == ImageParallel.MYSTERY else self.name_for_visuals.upper()
         first, last = self.split_name(name=name_upper, is_nickname=self.is_using_nickname)
         name = first if self.set.has_split_first_and_last_names else name_upper
-        default_chart_char_cutoff = 19 if self.set == Set._2002 else 15
-        is_name_over_char_limit =  len(name) > default_chart_char_cutoff
-
+        is_name_over_char_limit = self.name_length >= self.set.small_name_text_length_cutoff
         futura_black_path = self.__font_path('Futura Black')
         helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
         helvetica_neue_cond_black_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
@@ -3662,7 +3684,22 @@ class ShowdownPlayerCard(BaseModel):
                 # ASSIGN THE TEXT ITSELF AS THE COLOR OBJECT
                 name_color = final_text
             case Set.CLASSIC | Set.EXPANDED:
+                
+                # CREATE NEW BACKGROUND TO ADD ICONS
                 name_color = colors.WHITE if self.image.is_dark_mode else colors.BLACK
+                name_w_icons_image = Image.new('RGBA', final_text.size)
+                name_w_icons_image.paste(name_color, (0,0), final_text)
+                
+                # ADD ICONS
+                starting_x = name_font.getsize(name)[0] + 15
+                for index, icon in enumerate(self.icons):
+                    position = self.set.icon_paste_coordinates(index+1)
+                    position = (position[0] + starting_x, position[1])
+                    icon_img = self.__icon_image_circle(icon.value)
+                    name_w_icons_image.paste(icon_img, position, icon_img)
+                
+                final_text = name_w_icons_image
+                name_color = final_text
 
         return final_text, name_color
 
@@ -4214,60 +4251,63 @@ class ShowdownPlayerCard(BaseModel):
           Updated PIL Image with icons for player.
         """
 
+        # DONT ADD IF NO ICONS OR IS CLASSIC/EXPANDED (ICONS ARE ADDED IN NAME TEXT FUNCTION)
+        if not self.set.has_icons or self.set.is_showdown_bot:
+            return player_image
+
         # ITERATE THROUGH AND PASTE ICONS
         for index, icon in enumerate(self.icons):
             position = self.set.icon_paste_coordinates(index+1)
-            if self.set.is_wotc:
-                icon_img_path = self.__template_img_path(f'{self.set.template_year}-{icon.value}')
-                icon_image = Image.open(icon_img_path)
-                # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
-                # EX: 'LF/RF' IS LONGER STRING THAN '3B'
-                if self.set.is_04_05:
-                    positions_list = self.positions_and_defense_for_visuals.keys()
-                    positions_over_4_char = len([pos for pos in positions_list if len(pos) > 4 and not self.is_pitcher])
-                    offset = 0
-                    if len(positions_list) > 1:
-                        # SHIFT ICONS TO RIGHT
-                        additional_padding = 40 * positions_over_4_char if positions_over_4_char > 0 else 0
-                        offset = 135 + additional_padding
-                    elif positions_over_4_char > 0:
-                        offset = 75
-                    elif 'CA' in positions_list:
-                        offset = 30
-                    position = (position[0] + offset, position[1])
-            else:
-                icon_image = self.__icon_image_circle(text=icon.value)
+            icon_img_path = self.__template_img_path(f'{self.set.template_year}-{icon.value}')
+            icon_image = Image.open(icon_img_path)
+
+            # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
+            # EX: 'LF/RF' IS LONGER STRING THAN '3B'
+            if self.set.is_04_05:
+                positions_list = self.positions_and_defense_for_visuals.keys()
+                positions_over_4_char = len([pos for pos in positions_list if len(pos) > 4 and not self.is_pitcher])
+                offset = 0
+                if len(positions_list) > 1:
+                    # SHIFT ICONS TO RIGHT
+                    additional_padding = 40 * positions_over_4_char if positions_over_4_char > 0 else 0
+                    offset = 135 + additional_padding
+                elif positions_over_4_char > 0:
+                    offset = 75
+                elif 'CA' in positions_list:
+                    offset = 30
+                position = (position[0] + offset, position[1])
+
             player_image.paste(icon_image, self.__coordinates_adjusted_for_bordering(position), icon_image)
 
         return player_image
 
-    def __icon_image_circle(self, text:str) -> Image.Image:
+    def __icon_image_circle(self, text:str, size:tuple[int,int] = (75,75)) -> Image.Image:
         """For CLASSIC and EXPANDED sets, generate a circle image with text for the icons.
 
         Args:
           text: String to show on the icon
+          size: Size of the icon image
 
         Returns:
           PIL Image for with icon text and background circle.
         """
         # CIRCLE
-        text_color = colors.WHITE
-        border_size = 9
+        bg_color = self.__team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, team_override=self.team_override_for_images)
+        text_color = colors.BLACK if self.team.use_dark_text(year=self.median_year, is_secondary=not self.image.use_secondary_color) else colors.WHITE
         icon_img = Image.new('RGBA',(220,220))
         draw = ImageDraw.Draw(icon_img)
         x1 = 20
         y1 = 20
         x2 = 190
         y2 = 190       
-        draw.ellipse((x1-border_size, y1-border_size, x2+border_size, y2+border_size), fill=text_color)
-        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images))
+        draw.ellipse((x1, y1, x2, y2), fill=bg_color)
 
         # ADD TEXT
         font_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
         font = ImageFont.truetype(font_path, size=120)
-        text_img = self.__text_image(text=text,size=(210,220),font=font,alignment='center',fill=text_color)
-        icon_img.paste(text_img, (0,60), text_img)
-        icon_img = icon_img.resize((80, 80), Image.ANTIALIAS)
+        text_img = self.__text_image(text=text,size=(210,220),font=font,alignment='center')
+        icon_img.paste(text_color, (0,60), text_img)
+        icon_img = icon_img.resize(size, Image.ANTIALIAS)
 
         return icon_img
         
@@ -5144,7 +5184,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # NATIONALITY COLOR
         if self.image.special_edition == SpecialEdition.NATIONALITY and not ignore_team_overrides:
-            return self.nationality.primary_color
+            return self.nationality.secondary_color if is_secondary_color else self.nationality.primary_color
         
         # SPECIAL EDITION COLOR
         special_edition_color = self.image.special_edition.color(league=self.league)

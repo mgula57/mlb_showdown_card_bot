@@ -44,7 +44,16 @@ class Nationality(Enum):
             return (0,0,0,0)
         
         return self.colors[0]
+    
+    @property
+    def secondary_color(self) -> tuple[int,int,int,int]:
+        num_colors = len(self.colors)
 
+        match num_colors:
+            case 0: return (0,0,0,0)
+            case 1: return self.primary_color
+            case _: return self.colors[1]
+        
     @property
     def colors(self) -> list[tuple[int,int,int,int]]:
         match self.value:

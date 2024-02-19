@@ -287,9 +287,9 @@ class Set(str, Enum):
 
             case '2004' | '2005' | 'CLASSIC' | 'EXPANDED':
                 is_04_05 = self.value in ['2004','2005']
-                starting_x = 1050 if is_04_05 else 440
-                starting_y = 1695 if is_04_05 else 2005
-                distance_between_icons = 75 if is_04_05 else 80
+                starting_x = 1050 if is_04_05 else 0
+                starting_y = 1695 if is_04_05 else -4
+                distance_between_icons = 75 if is_04_05 else 69
                 return (int(starting_x + ( (index - 1) * distance_between_icons )), starting_y)
 
 
@@ -1471,9 +1471,9 @@ class Set(str, Enum):
     @property
     def small_name_text_length_cutoff(self) -> int:
         match self:
-            case Set._2000: return 18
+            case Set._2000: return 19
             case Set.CLASSIC | Set.EXPANDED: return 18
-            case _: return 19
+            case _: return 20
     
     @property
     def has_unified_set_and_year_strings(self) -> bool:
@@ -1709,7 +1709,8 @@ class Set(str, Enum):
                     case '2001': return (1545,300)
                     case '2002': return (1395,300)
                     case '2003': return (3300,300)
-                    case '2004' | '2005' | 'CLASSIC' | 'EXPANDED': return (900, 300)
+                    case '2004' | '2005': return (900, 300)
+                    case 'CLASSIC' | 'EXPANDED': return (1150, 300)
             case TemplateImageComponent.SUPER_SEASON: 
                 match self.value:
                     case '2000' | '2001': return (312,480)
