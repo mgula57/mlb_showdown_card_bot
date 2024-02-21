@@ -4056,6 +4056,9 @@ class ShowdownPlayerCard(BaseModel):
             Y Adjustment for paste coordinates (applies to 00/01)
         """
 
+        if self.set.is_showdown_bot:
+            return self.__super_season_classic_expanded_image(), 0
+
         is_after_03 = self.set.is_after_03
         include_accolades = self.set.show_super_season_accolades
 
@@ -4146,6 +4149,83 @@ class ShowdownPlayerCard(BaseModel):
         # RESIZE
         super_season_image = super_season_image.resize(self.set.template_component_size(TemplateImageComponent.SUPER_SEASON), Image.ANTIALIAS)
         return super_season_image, y_coord_adjustment
+
+    def __super_season_classic_expanded_image(self) -> Image.Image:
+        """Creates image for optional super season attributes for Classic/Expanded sets.
+        
+        Args:
+          None
+
+        Returns:
+            PIL image object for super season logo + text.
+        """
+
+        # COLORS
+        primary_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images)
+        secondary_color = self.__team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, team_override=self.team_override_for_images)
+
+        # SECONDARY COLOR BACKGROUND
+        index = self.set.super_season_image_index
+        secondary_color_bg = Image.open(self.__template_img_path(f'Super Season-{index}-SECONDARY-BG'))
+        ss_image = Image.new('RGBA', secondary_color_bg.size)
+        ss_image.paste(secondary_color, (0,0), secondary_color_bg)
+
+        # PRIMARY COLOR BORDER
+        primary_color_border = Image.open(self.__template_img_path(f'Super Season-{index}-PRIMARY-BG'))
+        ss_image.paste(primary_color, (0,0), primary_color_border)
+
+        # BASEBALL CARD
+        baseball = Image.open(self.__template_img_path(f'Super Season-{index}-BASEBALL'))
+        ss_image.paste(baseball, (0,0), baseball)
+
+        # WHITE TEXT
+        white_border_and_text = Image.open(self.__template_img_path(f'Super Season-{index}-TEXT'))
+        ss_image.paste(white_border_and_text, (0,0), white_border_and_text)
+
+        # ACCOLADES
+        accolade_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        accolade_font = ImageFont.truetype(accolade_font_path, size=150)
+        use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=not self.image.use_secondary_color)
+        accolade_color = colors.BLACK if use_dark_text else colors.WHITE
+        y_position = 302
+        x_position = 72
+        for accolade in self.accolades[0:3]:
+            accolade_text = self.__text_image(
+                text = accolade,
+                size = (1065,150),
+                font = accolade_font,
+                alignment = "center",
+            )
+            accolade_text = accolade_text.resize((355, 50), Image.ANTIALIAS)
+            ss_image.paste(accolade_color, (x_position, y_position), accolade_text)
+            y_position += 57
+
+        # SEASON TEXT
+        year_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        year_font = ImageFont.truetype(year_font_path, size=290)
+        year_text_img = self.__text_image(
+            text = str(self.year),
+            size = (735,633),
+            font = year_font,
+            alignment = "center",
+        )
+        year_text_img = year_text_img.resize((245, 211), Image.ANTIALIAS)
+        ss_image.paste(colors.BLACK, (133, 73), year_text_img)
+
+        # TEAM LOGO
+        if not self.image.hide_team_logo:
+            logo_name = self.team.logo_name(year=self.median_year, is_alternate=False, set=self.set.value, is_dark=self.image.is_dark_mode)
+            team_logo_path = self.__team_logo_path(name=logo_name)
+            team_logo = Image.open(team_logo_path).convert("RGBA")
+            team_logo = team_logo.resize((125,125), Image.ANTIALIAS)
+            team_logo = self.__add_drop_shadow(image=team_logo, blur_radius=5)
+            ss_image.paste(team_logo, (185,468), team_logo)
+
+        # RESIZE
+        size = self.set.template_component_size(TemplateImageComponent.SUPER_SEASON)
+        ss_image = ss_image.resize(size, Image.ANTIALIAS)
+
+        return ss_image
 
     def __rookie_season_image(self) -> Image.Image:
         """Creates image for optional rookie season logo.

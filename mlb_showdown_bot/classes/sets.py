@@ -1627,7 +1627,7 @@ class Set(str, Enum):
                     case '2003': return (1041,786)
                     case '2004': return (1071,1164)
                     case '2005': return (1071,1164)
-                    case 'CLASSIC' | 'EXPANDED': return (1071,1275)
+                    case 'CLASSIC' | 'EXPANDED': return (1071,1150)
             case TemplateImageComponent.ROOKIE_SEASON:
                 match self.value:
                     case '2000': return (1200,1086)
@@ -1722,7 +1722,7 @@ class Set(str, Enum):
                     case '2002': return (468,720)
                     case '2003': return (390,600)
                     case '2004' | '2005': return (339,522)
-                    case 'CLASSIC' | 'EXPANDED': return (380,380)
+                    case 'CLASSIC' | 'EXPANDED': return (400,480)
             case TemplateImageComponent.ROOKIE_SEASON: 
                 match self.value:
                     case '2000': return (273,273)
