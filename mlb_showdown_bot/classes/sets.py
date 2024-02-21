@@ -5,14 +5,14 @@ try:
     from .player_position import PlayerType, PlayerSubType, Position
     from .metrics import Stat, PointsMetric
     from .value_range import ValueRange
-    from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel
+    from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
     from .chart import Chart
 except ImportError:
     from metadata import SpeedMetric
     from player_position import PlayerType, PlayerSubType, Position
     from metrics import Stat, PointsMetric
     from value_range import ValueRange
-    from images import PlayerImageComponent, TemplateImageComponent, ImageParallel
+    from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
     from chart import Chart
 
 
@@ -1558,7 +1558,7 @@ class Set(str, Enum):
     # TEMPLATE IMAGE
     # ---------------------------------------
 
-    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None, is_multi_year:bool=False, is_full_career:bool=False) -> tuple[int,int]:
+    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None, is_multi_year:bool=False, is_full_career:bool=False, expansion:Expansion = Expansion.BS) -> tuple[int,int]:
         match component:
             case TemplateImageComponent.TEAM_LOGO:
                 match self.value:
@@ -1616,7 +1616,9 @@ class Set(str, Enum):
                     case '2002': return (120,1785)
                     case '2003': return (116,1785)
                     case '2004' | '2005': return (1191,1911)
-                    case 'CLASSIC' | 'EXPANDED': return (355,2000)
+                    case 'CLASSIC' | 'EXPANDED':
+                        xadjust, yadjust = (-12, 0) if expansion == Expansion.TD else (0,0)
+                        return ( (465 if expansion.has_image else 355) + xadjust, 2000 + yadjust )
             case TemplateImageComponent.SUPER_SEASON:
                 match self.value:
                     case '2000': return (1200,900)
@@ -1651,10 +1653,14 @@ class Set(str, Enum):
             case TemplateImageComponent.EXPANSION:
                 match self.value:
                     case '2000' | '2001': return (1287,1855)
-                    case '2002': return (652,1770)
+                    case '2002': 
+                        xadjust, yadjust = (20, -17) if expansion == Expansion.TD else (0,0)
+                        return (652 + xadjust, 1770 + yadjust) 
                     case '2003': return (275,1782)
                     case '2004' | '2005': return (1060,1910)
-                    case 'CLASSIC' | 'EXPANDED': return (880,2010)
+                    case 'CLASSIC' | 'EXPANDED': 
+                        xadjust, yadjust = (0, -12) if expansion == Expansion.TD else (0,0)
+                        return (350 + xadjust, 1990 + yadjust)
             case TemplateImageComponent.COMMAND:
                 match self.value:
                     case 'CLASSIC' | 'EXPANDED': return (75,1565)

@@ -3052,20 +3052,11 @@ class ShowdownPlayerCard(BaseModel):
         # EXPANSION
         if self.image.expansion.has_image:
             expansion_image = self.__expansion_image()
-            expansion_location = self.set.template_component_paste_coordinates(TemplateImageComponent.EXPANSION)
+            expansion_location = self.set.template_component_paste_coordinates(component=TemplateImageComponent.EXPANSION, expansion=self.image.expansion)
             if self.image.show_year_text and self.set.is_00_01:
                 # IF YEAR CONTAINER EXISTS, MOVE OVER EXPANSION LOGO
                 expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
-            if self.set == Set._2002 and self.image.expansion == Expansion.TD:
-                expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
-            elif self.set.is_showdown_bot and self.image.expansion == Expansion.TD:
-                expansion_location = (expansion_location[0],expansion_location[1] - 12)
             
-            if self.stats_period.type.show_text_on_card_image and self.set.is_showdown_bot:
-                new_expansion_size = tuple(int(x * 0.85) for x in expansion_image.size)
-                expansion_image = expansion_image.resize(new_expansion_size, Image.ANTIALIAS)
-                expansion_location = (expansion_location[0] - 120, expansion_location[1] + 10)                
-
             card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
 
         # SPLIT/DATE RANGE
@@ -4034,7 +4025,7 @@ class ShowdownPlayerCard(BaseModel):
                 )
                 number_text = number_text.resize((160,120), Image.ANTIALIAS)
                 number_color = self.set.template_component_font_color(TemplateImageComponent.NUMBER, is_dark_mode=self.image.is_dark_mode)
-                number_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.NUMBER)
+                number_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.NUMBER, expansion=self.image.expansion)
                 set_image.paste(number_color, number_paste_location, number_text)
 
         return set_image
