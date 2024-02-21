@@ -4210,7 +4210,7 @@ class ShowdownPlayerCard(BaseModel):
             alignment = "center",
         )
         year_text_img = year_text_img.resize((245, 211), Image.ANTIALIAS)
-        ss_image.paste(colors.BLACK, (133, 73), year_text_img)
+        ss_image.paste(secondary_color, (133, 73), year_text_img)
 
         # TEAM LOGO
         if not self.image.hide_team_logo:
