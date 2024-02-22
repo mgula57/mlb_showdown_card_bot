@@ -1454,7 +1454,10 @@ class Set(str, Enum):
             case 'CLASSIC' | 'EXPANDED': return '3'
             case _: return '1'
 
-    def super_season_text_length_cutoff(self, index:int) -> int:
+    def super_season_text_length_cutoff(self, index:int = 1) -> int:
+        if self.is_showdown_bot:
+            return 14
+        
         match index:
             case 1: return 16 if self.is_after_03 else 19
             case 2: return 15 if self.is_after_03 else 19

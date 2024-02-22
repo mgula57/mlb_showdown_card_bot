@@ -4019,11 +4019,11 @@ class ShowdownPlayerCard(BaseModel):
                 alignment = "left" if self.set.is_showdown_bot else "center"
                 number_text = self.__text_image(
                     text = self.image.set_number,
-                    size = (600, 450),
+                    size = (600 if self.set.is_wotc else 430, 450),
                     font = set_font,
                     alignment = alignment
                 )
-                number_text = number_text.resize((160,120), Image.ANTIALIAS)
+                number_text = number_text.resize((int(number_text.size[0] / 3.75), int(number_text.size[1] / 3.75)), Image.ANTIALIAS)
                 number_color = self.set.template_component_font_color(TemplateImageComponent.NUMBER, is_dark_mode=self.image.is_dark_mode)
                 number_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.NUMBER, expansion=self.image.expansion)
                 set_image.paste(number_color, number_paste_location, number_text)
@@ -4178,39 +4178,54 @@ class ShowdownPlayerCard(BaseModel):
         baseball = Image.open(self.__template_img_path(f'Super Season-{index}-BASEBALL'))
         ss_image.paste(baseball, (0,0), baseball)
 
-        # WHITE TEXT
-        white_border_and_text = Image.open(self.__template_img_path(f'Super Season-{index}-TEXT'))
-        ss_image.paste(white_border_and_text, (0,0), white_border_and_text)
+        # WHITE FRAME
+        white_frame = Image.open(self.__template_img_path(f'Super Season-{index}-WHITE-FRAME'))
+        ss_image.paste(white_frame, (0,0), white_frame)
+
+        # TEXT
+        if self.is_full_career: ss_text = 'CAREER'
+        elif self.is_multi_year: ss_text = 'SUPER-SEASONS'
+        else: ss_text = 'SUPER-SEASON'
+        white_text = Image.open(self.__template_img_path(f'Super Season-{index}-TEXT-{ss_text}'))
+        ss_image.paste(white_text, (0,0), white_text)
 
         # ACCOLADES
         accolade_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
         accolade_font = ImageFont.truetype(accolade_font_path, size=150)
+        accolade_font_small = ImageFont.truetype(accolade_font_path, size=115)
         use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=not self.image.use_secondary_color)
         accolade_color = colors.BLACK if use_dark_text else colors.WHITE
         y_position = 302
         x_position = 72
-        for accolade in self.accolades[0:3]:
+        soft_length_cap = self.set.super_season_text_length_cutoff()
+        hard_length_cap = soft_length_cap + 4
+        accolades = [a for a in self.accolades if len(a) <= hard_length_cap]
+        for accolade in accolades[0:3]:
+            is_over_soft_cap = len(accolade) > soft_length_cap
+            font = accolade_font_small if is_over_soft_cap else accolade_font
             accolade_text = self.__text_image(
                 text = accolade,
                 size = (1065,150),
-                font = accolade_font,
+                font = font,
                 alignment = "center",
             )
             accolade_text = accolade_text.resize((355, 50), Image.ANTIALIAS)
-            ss_image.paste(accolade_color, (x_position, y_position), accolade_text)
-            y_position += 57
+            ss_image.paste(accolade_color, (x_position, y_position + (5 if is_over_soft_cap else 0)), accolade_text)
+            y_position += 55
 
         # SEASON TEXT
-        year_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
-        year_font = ImageFont.truetype(year_font_path, size=290)
-        year_text_img = self.__text_image(
-            text = str(self.year),
-            size = (735,633),
-            font = year_font,
-            alignment = "center",
-        )
-        year_text_img = year_text_img.resize((245, 211), Image.ANTIALIAS)
-        ss_image.paste(secondary_color, (133, 73), year_text_img)
+        if not self.is_full_career:
+            year_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+            year_font = ImageFont.truetype(year_font_path, size= 220 if self.is_multi_year else 290)
+            text = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}" if self.is_multi_year else str(self.year)
+            year_text_img = self.__text_image(
+                text = text,
+                size = (735,633),
+                font = year_font,
+                alignment = "center",
+            )
+            year_text_img = year_text_img.resize((245, 211), Image.ANTIALIAS)
+            ss_image.paste(secondary_color, (133, 88 if self.is_multi_year else 79), year_text_img)
 
         # TEAM LOGO
         if not self.image.hide_team_logo:
@@ -4218,8 +4233,8 @@ class ShowdownPlayerCard(BaseModel):
             team_logo_path = self.__team_logo_path(name=logo_name)
             team_logo = Image.open(team_logo_path).convert("RGBA")
             team_logo = team_logo.resize((125,125), Image.ANTIALIAS)
-            team_logo = self.__add_drop_shadow(image=team_logo, blur_radius=5)
-            ss_image.paste(team_logo, (185,468), team_logo)
+            team_logo = self.__add_drop_shadow(image=team_logo, blur_radius=10)
+            ss_image.paste(team_logo, (185,465), team_logo)
 
         # RESIZE
         size = self.set.template_component_size(TemplateImageComponent.SUPER_SEASON)
