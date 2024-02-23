@@ -75,6 +75,7 @@ def main():
 
     stats_period = StatsPeriod(
         type=args.stats_period,
+        year=year,
         start_date=args.start_date,
         end_date=args.end_date,
         split=args.split_name

@@ -289,7 +289,7 @@ def card_creator():
             name, year = random_player_id_and_year()
 
         # DEFINE PERIOD
-        stats_period = StatsPeriod(type=period_type, start_date=period_start_date, end_date=period_end_date, split=period_split)
+        stats_period = StatsPeriod(type=period_type, year=year, start_date=period_start_date, end_date=period_end_date, split=period_split)
 
         # -----------------
         # 2. QUERY PLAYER STATS

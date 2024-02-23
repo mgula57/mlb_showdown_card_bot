@@ -41,6 +41,7 @@ class StatsPeriod(BaseModel):
 
     # ATTRIBUTES
     type: StatsPeriodType = StatsPeriodType.REGULAR_SEASON
+    year: str = None
 
     # DATE RANGE
     start_date: Optional[date] = None
@@ -50,6 +51,18 @@ class StatsPeriod(BaseModel):
     split: Optional[str] = None
 
     def __init__(self, **data) -> None:
+
+        # CHANGE TO DATE RANGE IF MID-SEASON
+        type = StatsPeriodType(data.get('type', StatsPeriodType.REGULAR_SEASON.value))
+        try:
+            year = int(data.get('year', None))
+        except:
+            year = None
+        today = date.today()
+        if type == StatsPeriodType.REGULAR_SEASON and today.month < 10 and year == today.year:
+            data['type'] = StatsPeriodType.DATE_RANGE.value
+            data['start_date'] = f'{year}-03-01'
+            data['end_date'] = f'{year}-10-15'
 
         super().__init__(**data)
 
