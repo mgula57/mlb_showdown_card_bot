@@ -3356,8 +3356,9 @@ class ShowdownPlayerCard(BaseModel):
         logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
 
         # OPACITY
+        team_logo_path = self.__card_art_path('COOPERSTOWN') if team == Team.CCC and self.set == Set._2000 else self.__team_logo_path(logo_name)
         opacity = team.background_logo_opacity(set=self.set.value)
-        team_logo = Image.open(self.__team_logo_path(logo_name))
+        team_logo = Image.open(team_logo_path)
         team_logo_copy = team_logo.copy()
         team_logo_copy.putalpha(int(255 * opacity))
         team_logo.paste(team_logo_copy, team_logo)
