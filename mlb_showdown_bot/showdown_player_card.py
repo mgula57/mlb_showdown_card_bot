@@ -4657,8 +4657,8 @@ class ShowdownPlayerCard(BaseModel):
             image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.image.source.path)
             try:
                 player_img_uploaded_raw = Image.open(image_path).convert('RGBA')
-                player_img_user_uploaded = self.__center_and_crop(player_img_uploaded_raw, (1500,2100))
-                images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
+                player_img_user_uploaded, paste_coords = self.__user_uploaded_player_image_crop(player_img_uploaded_raw)
+                images_to_paste.append((player_img_user_uploaded, paste_coords))
                 player_img_user_upload_transparency_pct = self.__img_transparency_pct(player_img_user_uploaded)
             except Exception as err:
                 self.image.error = str(err)
@@ -4669,8 +4669,8 @@ class ShowdownPlayerCard(BaseModel):
             try:
                 response = requests.get(self.image.source.url)
                 player_img_raw = Image.open(BytesIO(response.content)).convert('RGBA')
-                player_img_user_uploaded = self.__center_and_crop(player_img_raw, (1500,2100))
-                images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
+                player_img_user_uploaded, paste_coords = self.__user_uploaded_player_image_crop(player_img_raw)
+                images_to_paste.append((player_img_user_uploaded, paste_coords))
                 player_img_user_upload_transparency_pct = self.__img_transparency_pct(player_img_user_uploaded)
             except Exception as err:
                 self.image.error = str(err)
@@ -5126,6 +5126,32 @@ class ShowdownPlayerCard(BaseModel):
         """
         image.save(path, quality=100)
 
+    def __user_uploaded_player_image_crop(self, image:Image.Image) -> tuple[Image.Image, tuple[int,int]]:
+        """Crop and center user uploaded player image
+        
+        Args:
+          image: PIL Image to crop and center.
+
+        Returns:
+          Tuple with PIL Image and coordinates for pasting.
+        """
+
+        # SIMPLY CROP IF NON-BORDERED
+        if not self.image.is_bordered:
+            return self.__center_and_crop(image, self.set.card_size), self.__coordinates_adjusted_for_bordering((0,0))
+
+        # CHECK IF IMAGE IS ALREADY SIZED CORRECTLY
+        original_size = image.size
+        if original_size == self.set.card_size_bordered:
+            return image, (0,0)
+        
+        # IF IMAGE IS SMALLER THAN THE BORDER, CROP TO REGULAR SIZE
+        if original_size[0] < self.set.card_size_bordered[0] or original_size[1] < self.set.card_size_bordered[1]:
+            return self.__center_and_crop(image, self.set.card_size), self.__coordinates_adjusted_for_bordering((0,0))
+        
+        # CROP AND CENTER TO BORDERED SIZE
+        return self.__center_and_crop(image, self.set.card_size_bordered), (0,0)
+    
 
 # ------------------------------------------------------------------------
 # IMAGE HELPER METHODS
