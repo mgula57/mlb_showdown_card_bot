@@ -4998,9 +4998,9 @@ class ShowdownPlayerCard(BaseModel):
                 if year_from_img_name == year:
                     # EXACT YEAR MATCH
                     match_score += 1
-                elif is_img_multi_year == False and self.is_multi_year == False:
+                elif is_img_multi_year == False:
                     year_img = float(year_from_img_name)
-                    year_self = float(year)
+                    year_self = float(self.median_year)
                     pct_diff = 1 - (abs(year_img - year_self) / year_self)
                     match_score += pct_diff
 
