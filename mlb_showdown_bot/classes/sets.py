@@ -1785,7 +1785,7 @@ class Set(str, Enum):
         match component:
             case TemplateImageComponent.STYLE_TEXT:
                 match self:
-                    case Set.CLASSIC | Set.EXPANDED: return dark_gray if is_dark_mode else dark_gray
+                    case Set.CLASSIC | Set.EXPANDED: return mid_gray if is_dark_mode else dark_gray
                     case _: return white
             case TemplateImageComponent.SET: # YEAR
                 match self:
@@ -1798,7 +1798,7 @@ class Set(str, Enum):
                     case _: return white
             case TemplateImageComponent.SPLIT:
                 match self:
-                    case Set.CLASSIC | Set.EXPANDED: return dark_gray if is_dark_mode else dark_gray
+                    case Set.CLASSIC | Set.EXPANDED: return mid_gray if is_dark_mode else dark_gray
                     case _: return white
 
     def template_component_color(self, component: TemplateImageComponent, parallel: ImageParallel) -> str:

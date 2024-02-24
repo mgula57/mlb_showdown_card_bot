@@ -4537,7 +4537,7 @@ class ShowdownPlayerCard(BaseModel):
             alignment = "left"
         )
         style_text = style_text.resize((450,75), Image.ANTIALIAS)
-        style_text_color = self.set.template_component_font_color(TemplateImageComponent.STYLE_TEXT)
+        style_text_color = self.set.template_component_font_color(component=TemplateImageComponent.STYLE_TEXT, is_dark_mode=self.image.is_dark_mode)
         style_text_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE_TEXT)
         bg_image.paste(style_text_color, style_text_paste_location, style_text)
                 
