@@ -566,6 +566,14 @@ class ShowdownPlayerCard(BaseModel):
             return int(self.year)
 
     @property
+    def year_range_str(self) -> str:
+        """ Year range string for the player. """
+        if self.is_multi_year:
+            return f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
+        else:
+            return self.year
+
+    @property
     def use_alternate_logo(self) -> bool:
         """ Alternate logos are used in 2004+ sets """
         return self.set.use_alternate_team_logo and not self.image.edition.use_edition_logo_as_team_logo
@@ -3988,11 +3996,11 @@ class ShowdownPlayerCard(BaseModel):
             # CARD YEAR
             set_font_year = ImageFont.truetype(helvetica_neue_extra_black_path, size=180) if self.set.is_showdown_bot else set_font
             year_as_str = str(self.year)
-            alignment = "right" if self.set.is_showdown_bot else "center"
+            alignment = "right" if self.set.is_showdown_bot else "left"
             set_year_size = (900, 450) if self.set.is_showdown_bot else (525, 450)
             if self.is_multi_year and self.set.is_04_05:
                 # EMPTY YEAR
-                year_string = ''
+                year_string = self.year_range_str
             elif (self.is_full_career or self.is_multi_year) and self.set == Set._2003:
                 year_string = 'ALL' if self.is_full_career else 'MLT'
                 set_image_location = (set_image_location[0]-5,set_image_location[1])
@@ -4127,7 +4135,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.is_multi_year:
             font_scaling = 0 if is_after_03 else 40
             if self.is_multi_year:
-                year_string = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
+                year_string = self.year_range_str
                 font_size = 130 + font_scaling
             super_season_year_font = ImageFont.truetype(super_season_year_path, size=font_size)
         else:
@@ -4218,7 +4226,7 @@ class ShowdownPlayerCard(BaseModel):
         if not self.is_full_career:
             year_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
             year_font = ImageFont.truetype(year_font_path, size= 220 if self.is_multi_year else 290)
-            text = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}" if self.is_multi_year else str(self.year)
+            text = self.year_range_str
             year_text_img = self.__text_image(
                 text = text,
                 size = (735,633),
@@ -4302,7 +4310,7 @@ class ShowdownPlayerCard(BaseModel):
             postseason_logo_image.paste(red_rect_image, red_rect_paste_coords)
 
             # DEFINE YEAR TEXT
-            year_range = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
+            year_range = self.year_range_str
             year_str = year_range if self.is_multi_year else self.year
 
             year_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
