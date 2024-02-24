@@ -3458,7 +3458,7 @@ class ShowdownPlayerCard(BaseModel):
                 team_colors = self.nationality.colors if self.image.special_edition == SpecialEdition.NATIONALITY else team_colors
                 gradient_img_width = self.player_sub_type.nationality_chart_gradient_img_width
                 gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=team_colors)
-                container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
+                container_img_black.paste(gradient_img_rect, self.__coordinates_adjusted_for_bordering(coordinates=(70, 1780), is_forced=True), gradient_img_rect)
                 container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
             else:
                 container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
