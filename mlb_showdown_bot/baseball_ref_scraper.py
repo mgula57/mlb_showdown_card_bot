@@ -15,6 +15,7 @@ from pprint import pprint
 from datetime import datetime
 from difflib import SequenceMatcher
 import unidecode
+from thefuzz import fuzz
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .classes.team import Team
@@ -87,7 +88,7 @@ class BaseballReferenceScraper:
             self.baseball_ref_id = name.split(' ')[0].lower()
         else:
             # CHECK DEFAULT CSV
-            default_bref_id = self.__check_for_default_bref_id(name)
+            default_bref_id = self.__check_for_default_bref_id(name=name, years=self.years)
             if default_bref_id:
                 self.baseball_ref_id = default_bref_id
             else:
@@ -105,28 +106,52 @@ class BaseballReferenceScraper:
 # ------------------------------------------------------------------------
 # SCRAPE WEBSITES
 
-    def __check_for_default_bref_id(self, name:str) -> str:
+    def __check_for_default_bref_id(self, name:str, years: list[str]) -> str:
         """Check for player name string in default csv with names and bref ids
 
         Purpose is to see if bot can avoid needing to scrape Google.
 
         Args:
           name: Full name of Player
+          years: List of years for Player stats
 
         Returns:
           BrefId (If found), otherwise None
         """ 
-        name_cleaned = name.replace("'", "").replace(".", "").lower().strip()
+        
+        # LOAD CSV
         player_id_filepath = os.path.join(Path(os.path.dirname(__file__)),'player_ids.csv')
         player_ids_pd = pd.read_csv(player_id_filepath)
-        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['name'] == name_cleaned]
+        max_year = player_ids_pd['year_end'].max()
+
+        # CLEAN NAME AND YEAR RANGE FOR CARD
+        name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip())
+        try:
+            year_ints = [int(y) for y in years]
+            year_start = min( min(year_ints), max_year)
+            year_end = min( max(year_ints), max_year)
+        except:
+            year_start = None
+            year_end = None
+
+        # FILTER PLAYERS FOR YEAR(S)
+        if year_start and year_end:
+            player_ids_pd = player_ids_pd.loc[(player_ids_pd['year_start'] <= year_end) & (player_ids_pd['year_end'] >= year_start)]
+        
+        # DEFINE SIMILARITY SCORE
+        player_ids_pd['name'] = player_ids_pd['name'].apply(lambda x: unidecode.unidecode(x))
+        player_ids_pd['similarity_score'] = player_ids_pd['name'].apply(lambda x: fuzz.ratio(name_cleaned, x))
+
+        # FILTER BY SIMILARITY SCORE
+        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['similarity_score'] > 86].sort_values(by=['similarity_score', 'pa', 'ip'], ascending=[False, False, False])
         results_count = len(player_ids_pd_filtered)
 
-        if results_count == 1:
-            bref_id = player_ids_pd_filtered['brefid'].max()
-            return bref_id if len(bref_id) > 0 else None
-        else:
+        if results_count == 0:
             return None
+        else:
+            # RETURN FIRST RESULT OF player_ids_pd_filtered
+            bref_id = player_ids_pd_filtered.head(1)['brefid'].values[0]
+            return bref_id if len(bref_id) > 0 else None
 
     def search_google_for_b_ref_id(self, name:str, year:str) -> str:
         """Convert name to a baseball reference Player ID.
@@ -211,7 +236,8 @@ class BaseballReferenceScraper:
           self.error = "502 - BAD GATEWAY"
           raise TimeoutError(self.error)
         if html.status_code == 429:
-          self.error = "429 - TOO MANY REQUESTS TO BASEBALL REFERENCE. PLEASE TRY AGAIN IN A FEW MINUTES."
+          website = url.split('//')[1].split('/')[0]
+          self.error = f"429 - TOO MANY REQUESTS TO {website}. PLEASE TRY AGAIN IN A FEW MINUTES."
           raise TimeoutError(self.error)
 
         return html.text
