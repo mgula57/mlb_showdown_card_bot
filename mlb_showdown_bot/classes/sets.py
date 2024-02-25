@@ -1478,6 +1478,8 @@ class Set(str, Enum):
     def small_name_text_length_cutoff(self) -> int:
         match self:
             case Set._2000: return 19
+            case Set._2002: return 18
+            case Set._2004 | Set._2005: return 18
             case Set.CLASSIC | Set.EXPANDED: return 18
             case _: return 20
     
