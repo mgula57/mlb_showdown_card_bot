@@ -603,7 +603,7 @@ class BaseballReferenceScraper:
                 # TOTAL WAR
                 war_object = player_value.find('td',attrs={'class':'right','data-stat':f"WAR{war_type_suffix}"})
                 war_rating = war_object.get_text() if war_object != None else 0
-            return war_rating
+            return float(war_rating)
         except:
             return 0.0
 
@@ -1173,7 +1173,7 @@ class BaseballReferenceScraper:
             stat = self.__convert_to_numeric(stat)
 
             if type == 'Pitcher':
-                pitching_categories = ['earned_run_avg','team_ID','G','GS','W','SV','IP','H','2B','3B','HR','BB','SO','HBP','whip','batters_faced','award_summary']
+                pitching_categories = ['earned_run_avg','team_ID','G','GS','W','SV','IP','ER','H','2B','3B','HR','BB','SO','HBP','whip','batters_faced','award_summary']
                 fill_zeros = ['GS','W','SV','H','2B','3B','HR','BB','SO','HBP','batters_faced']
                 if included_g_for_pitcher:
                     pitching_categories.append('G')
@@ -1527,6 +1527,8 @@ class BaseballReferenceScraper:
             'IP': 'sum',
             'SV': 'sum',
             'GS': 'sum',
+            'W': 'sum',
+            'ER': 'sum',
             'GO/AO': 'mean',
             'IF/FB': 'mean',
             'sprint_speed': 'mean',
@@ -1538,6 +1540,7 @@ class BaseballReferenceScraper:
             'is_hr_leader': 'max',
             'is_sb_leader': 'max',
             'award_summary': ','.join,
+            'bWAR': 'sum',
         }
 
         # FLATTEN MULTI YEAR STATS
@@ -1572,6 +1575,9 @@ class BaseballReferenceScraper:
             ip_list = [float(stats['IP']) for stats in yearly_stats_dict.values() if stats.get('IP', None)]
             total_ip = self.__sum_ip(ip_list)
             avg_year_dict['IP'] = total_ip
+
+            avg_year_dict['earned_run_avg'] = round(9 * avg_year_dict.get('ER', 0) / avg_year_dict.get('IP', 1), 3)
+            avg_year_dict['whip'] = round(( avg_year_dict.get('BB', 0) + avg_year_dict.get('H', 0) ) / avg_year_dict.get('IP', 0), 3)
 
         # AGGREGATE DEFENSIVE METRICS
         avg_year_dict.update(self.__combine_multi_year_positions(yearly_stats_dict))
@@ -1623,11 +1629,13 @@ class BaseballReferenceScraper:
             aggregated_positions[position] = updated_position_data
 
         # SUM DWAR
-        aggregated_dWar = statistics.median(dWar_list)
+        median_dWar = statistics.median(dWar_list)
+        total_dWar = sum(dWar_list)
 
         return {
             'positions': aggregated_positions,
-            'dWar': aggregated_dWar
+            'dWAR': median_dWar,
+            'dWAR_total': total_dWar,
         }
 
     def __get_career_totals_row(self, div_id:str, soup_object:BeautifulSoup) -> BeautifulSoup:
