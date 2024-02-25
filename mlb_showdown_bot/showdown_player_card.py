@@ -3442,10 +3442,10 @@ class ShowdownPlayerCard(BaseModel):
         # ADD YEAR TEXT IF COOPERSTOWN OR YEAR TEXT OPTION IF SELECTED
         text_enabled_for_set = ( is_04_05 and (is_cooperstown or self.image.show_year_text) ) or ( self.set.is_showdown_bot and self.image.show_year_text and self.image.edition != Edition.COOPERSTOWN_COLLECTION)
         if text_enabled_for_set and self.image.edition not in [Edition.ROOKIE_SEASON, Edition.SUPER_SEASON]:
-            
+            logo_size = team_logo.size
             new_logo = Image.new('RGBA', (logo_size[0] + 300, logo_size[1]))
             new_logo_coords = (150, 0)
-            new_logo.paste(team_logo, new_logo_coords, team_logo)
+            new_logo.paste(team_logo, new_logo_coords)
             font_name = 'BaskervilleBoldItalicBT' if is_cooperstown else 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique'
             year_font_path = self.__font_path(font_name)
             year_font = ImageFont.truetype(year_font_path, size=87)
@@ -3464,7 +3464,9 @@ class ShowdownPlayerCard(BaseModel):
                 has_border = True,
                 border_color = year_text_border_color
             )
-            year_coords = (0,195) if is_cooperstown else (-25, int(120 * logo_size_multiplier))
+            year_coords = (0,195) if is_cooperstown else (-10, int(120 * logo_size_multiplier))
+            adjustment_for_movement = adjusted_paste_coords((0,0))
+            year_coords = (year_coords[0], year_coords[1] - adjustment_for_movement[1])
             if is_cooperstown:
                 year_text_blurred = self.__text_image(
                     text = year_abbrev,
@@ -4808,7 +4810,6 @@ class ShowdownPlayerCard(BaseModel):
             if is_multi_year or is_period_box: metric_limit -= 1
             if StatHighlightsCategory.SLASHLINE in stat_categories and (is_expansion_img or is_set_num): metric_limit -= 1
             current_str = "  ".join(self.stat_highlights_list(stats=self.stats, limit=metric_limit))
-            print(len(current_str))
             if len(current_str) >= 45:
                 metric_limit -=1
         else:
