@@ -72,8 +72,9 @@ class CardLog(db.Model):
     period_end_date = db.Column(db.String(64))
     period_split = db.Column(db.String(64))
     is_multi_colored = db.Column(db.Boolean)
+    stat_highlights_type = db.Column(db.String(64))
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index, period, period_start_date, period_end_date, period_split, is_multi_colored):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index, period, period_start_date, period_end_date, period_split, is_multi_colored, stat_highlights_type):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -118,8 +119,9 @@ class CardLog(db.Model):
         self.period_end_date = period_end_date
         self.period_split = period_split
         self.is_multi_colored = is_multi_colored
+        self.stat_highlights_type = stat_highlights_type
 
-def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index, period, period_start_date, period_end_date, period_split, is_multi_colored):
+def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index, period, period_start_date, period_end_date, period_split, is_multi_colored, stat_highlights_type):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -164,7 +166,8 @@ def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansi
             period_start_date=period_start_date, 
             period_end_date=period_end_date, 
             period_split=period_split,
-            is_multi_colored=is_multi_colored
+            is_multi_colored=is_multi_colored,
+            stat_highlights_type=stat_highlights_type
         )
         db.session.add(card_log)
         db.session.commit()
@@ -221,6 +224,7 @@ def card_creator():
     ignore_cache: bool = None
     nickname_index: int = None
     is_multi_colored: bool = None
+    stat_highlights_type: str = None
 
     # RANDOMIZER
     is_random: bool = None
@@ -277,6 +281,7 @@ def card_creator():
         ignore_cache = request.args.get('ignore_cache', '').lower() == 'true'
         nickname_index = request.args.get('nickname_index', None)
         nickname_index = None if len(str(nickname_index or '')) == 0 else nickname_index
+        stat_highlights_type = request.args.get('stat_highlights_type', 'NONE')
 
         # DELAY SLIGHTLY IF IMG UPLOAD TO LET THE IMAGE FINISH UPLOADING
         if img_name:
@@ -347,6 +352,7 @@ def card_creator():
             date_override=date_override,
             use_secondary_color=is_secondary_color,
             is_multi_colored=is_multi_colored,
+            stat_highlights_type=stat_highlights_type,
             is_running_in_flask=True,
             source=data_source,
             nickname_index=nickname_index,
@@ -437,7 +443,8 @@ def card_creator():
             period_start_date=period_start_date,
             period_end_date=period_end_date,
             period_split=period_split,
-            is_multi_colored=is_multi_colored
+            is_multi_colored=is_multi_colored,
+            stat_highlights_type=stat_highlights_type
         )
         return jsonify(
             image_path=card_image_path,
@@ -508,7 +515,8 @@ def card_creator():
             period_start_date=period_start_date,
             period_end_date=period_end_date,
             period_split=period_split,
-            is_multi_colored=is_multi_colored
+            is_multi_colored=is_multi_colored,
+            stat_highlights_type=stat_highlights_type
         )
         return jsonify(
             image_path=None,

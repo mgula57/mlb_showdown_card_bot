@@ -2,6 +2,11 @@ from enum import Enum
 from pydantic import BaseModel, validator
 from typing import Optional
 
+try:
+    from .stat_highlights import StatHighlightsType, StatHighlightsCategory
+except ImportError:
+    from stat_highlights import StatHighlightsType, StatHighlightsCategory
+
 # ---------------------------------------
 # EDITION
 # ---------------------------------------
@@ -366,6 +371,7 @@ class TemplateImageComponent(Enum):
     STYLE_TEXT = "style_text"
     BOT_LOGO = "bot_logo"
     SPLIT = "split"
+    STAT_HIGHLIGHTS = "stat_highlights"
 
 # ---------------------------------------
 # IMAGE SOURCE
@@ -434,6 +440,7 @@ class ShowdownImage(BaseModel):
     error: Optional[str] = None
     nickname_index: Optional[int] = None
     is_multi_colored: bool = False
+    stat_highlights_type: StatHighlightsType = StatHighlightsType.NONE
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:

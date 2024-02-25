@@ -30,7 +30,7 @@ try:
     from .classes.metrics import DefenseMetric
     from .classes.nationality import Nationality
     from .classes.chart import ChartCategory
-    from .classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
+    from .classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
     from .classes.points import Points
     from .classes.metadata import Speed, SpeedLetter, Hand
     from .classes import colors
@@ -47,7 +47,7 @@ except ImportError:
     from classes.metrics import DefenseMetric
     from classes.nationality import Nationality
     from classes.chart import ChartCategory
-    from classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
+    from classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
     from classes.points import Points
     from classes.metadata import Speed, SpeedLetter, Hand
     from classes import colors
@@ -152,7 +152,8 @@ class ShowdownPlayerCard(BaseModel):
                 hide_team_logo = data.get('hide_team_logo', False),
                 use_secondary_color = data.get('use_secondary_color', False),
                 is_multi_colored = data.get('is_multi_colored', False),
-                nickname_index=data.get('nickname_index', None)
+                nickname_index=data.get('nickname_index', None),
+                stat_highlights_type=data.get('stat_highlights_type', 'NONE'),
             )
             self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
         
@@ -258,6 +259,36 @@ class ShowdownPlayerCard(BaseModel):
         # COMBINE BB AND HBP
         if 'HBP' in stats.keys():
             stats['BB'] = stats.get('BB',0) + stats.get('HBP',0)
+
+        # ADD FIP FOR PITCHERS
+        is_pitcher = stats.get('type', '') == 'Pitcher'
+        if is_pitcher and 'fip' not in stats.keys():
+
+            # PARSE YEAR LIST
+            # TODO: FIGURE OUT HOW TO NOT REPEAT THIS CODE
+            all_years_played:list[str] = stats.get('years_played', [])
+            year = values.get('year', '2000')
+            if year.upper() == 'CAREER': year_list = [int(year) for year in all_years_played]
+            elif '-' in year:
+                # RANGE OF YEARS
+                years = year.split('-')
+                year_start = int(years[0].strip())
+                year_end = int(years[1].strip())
+                year_list = list(range(year_start,year_end+1))
+            elif '+' in year: year_list = [int(x.strip()) for x in year.split('+')]
+            else: year_list = [int(year)]
+            
+            fip_constant = sc.FIP_CONSTANT.get(statistics.median(year_list), 3.2)
+            hr_weighted = 13 * stats.get('HR', 0)
+            bb_weighted = 3 * stats.get('BB', 0)
+            so_weighted = 2 * stats.get('SO', 0)
+            ip = stats.get('IP', 1)
+            stats['fip'] = round(( (hr_weighted + bb_weighted - so_weighted) / ip) + fip_constant, 2)
+            
+        # ADD K/9 FOR PITCHERS
+        if is_pitcher and 'strikeouts_per_nine' not in stats.keys():
+            k_per_9 = stats.get('SO', 0) * 9 / stats.get('IP', 1)
+            stats['strikeouts_per_nine'] = round(k_per_9, 2)
 
         return stats
     
@@ -2108,6 +2139,115 @@ class ShowdownPlayerCard(BaseModel):
         
         return stats_per_650_pa
 
+    def stat_highlights_list(self, stats:dict[str: any], limit:int) -> list[str]:
+        """Get the most relevant stats for a player.
+
+        Args:
+          limit: Number of stats to return.
+
+        Returns:
+          List of stats.
+        """
+
+        categories = self.player_sub_type.stat_highlight_categories(type=self.image.stat_highlights_type)
+        all_stats: list[str] = []
+        ignore_dwar = False
+        for category in categories:
+            stat_keys = category.stat_key_list
+            num_keys = len(stat_keys)
+            stat_name = category.value
+
+            # ADD RELEVANT STATS
+            stat_values: list[str] = []
+            for key in stat_keys:
+
+                # STATS DISABLED FOR MULTI YEAR
+                if self.is_multi_year and key in ['onbase_plus_slugging_plus']:
+                    continue
+
+                # STATS DISABLED FOR SPLIT/DATE/POSTSEASON
+                is_reg_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON
+                if not is_reg_season and key in ['onbase_plus_slugging_plus', 'bWAR', 'dWAR', ]:
+                    continue
+
+                # IGNORE dWAR IF OTHER DEFENSIVE METRIC WAS SHOWN
+                if key == 'dWAR' and ignore_dwar:
+                    continue
+
+                # IF DEFENSE, CHECK IN POSITIONS AND DEFENSE
+                if key in ['oaa', 'drs', 'tzr',] and len(self.positions_and_defense) == 1:
+                    if ( self.is_multi_year and key != 'oaa' ) or ( not is_reg_season ):
+                        continue
+                    position = list(self.positions_and_defense.keys())[0].value
+                    if position == Position.LFRF.value:
+                        position = 'OF'
+                    position_defense = self.stats.get('positions', {}).get(position, {}).get(key, None)
+                    if position_defense is not None:
+                        # SKIP IF OTHER METRICS AND DEFENSE IS BELOW AVG
+                        if self.image.stat_highlights_type == StatHighlightsType.ALL and position_defense < 1:
+                            continue
+                        stat_name = key.upper()
+                        num_keys = 1
+                        stat_values.append(self.__stat_formatted(key, position_defense))
+                        ignore_dwar = True
+                        break
+                    else:
+                        continue
+
+                # KEY CHANGES
+                if key == 'dWAR' and self.is_multi_year:
+                    key = 'dWAR_total'
+                    stat_name = 'dWAR'
+
+                # CHECK FOR VALUE
+                stat = stats.get(key, None)
+                if stat is None:
+                    continue
+                stat_formatted = self.__stat_formatted(key, stat)
+
+                # CHECK FOR VISIBILITY THRESHOLD
+                threshold = category.visibility_threshold
+                if not threshold:
+                    stat_values.append(stat_formatted)
+                    continue
+                stat_per_650 = float(stat) / (self.stats.get('PA', 650) / 650)
+                if stat_per_650 >= threshold:
+                    stat_values.append(stat_formatted)
+
+            # COMBINE IF MULTIPLE STATS IN ONE
+            # EX: .300/.415/.500
+            category_str = '/'.join(stat_values) if len(stat_values) > 0 else None
+
+            if category_str is None:
+                continue
+            
+            if num_keys == 1:
+                category_str = f"{category_str} {stat_name}"
+            all_stats.append(category_str)
+
+        return all_stats[:limit]
+
+    def __stat_formatted(self, category:str, value:float | int) -> str:
+        """Format a stat for display.
+
+        Args:
+          category: Stat category.
+          value: Stat value.
+
+        Returns:
+          Formatted stat string.
+        """
+
+        match category:
+            case 'batting_avg' | 'onbase_perc' | 'slugging_perc' | 'onbase_plus_slugging':
+                return f"{value:.3f}".replace('0.', '.')
+            case 'earned_run_avg' | 'whip' | 'fip':
+                return f"{value:.2f}"
+            case 'onbase_plus_slugging_plus':
+                return f"{value:.0f}"
+            case 'dWAR' | 'bWAR' | 'strikeouts_per_nine':
+                return f"{float(value):.1f}"
+            case _: return str(round(value))
 
 # ------------------------------------------------------------------------
 # PLAYER VALUE METHODS
@@ -2553,10 +2693,9 @@ class ShowdownPlayerCard(BaseModel):
                 key = full_name if source == 'projected' or full_name in slash_categories else abbr
                 multiplier = real_life_pa_ratio if 'per_650_pa' in key else 1.0
                 stat_raw = ( ( source_dict.get(key, 0) or 0 ) * multiplier ) if abbr != 'PA' else real_life_pa
-                stat_raw_cleaned = round(stat_raw, 3) if full_name in slash_categories else int(stat_raw)
-                stat_str = str(stat_raw_cleaned).replace('0.', '.') if stat_raw_cleaned != 0 else '-'
+                stat_str = self.__stat_formatted(category=full_name, value=stat_raw)
                 values.append(stat_str)
-                numeric_values.append(stat_raw_cleaned)
+                numeric_values.append(stat_raw)
             final_dict[source] = values
             all_numeric_value_lists.append(numeric_values)
         
@@ -3072,6 +3211,11 @@ class ShowdownPlayerCard(BaseModel):
             split_image = self.__date_range_or_split_image()
             paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.SPLIT, is_multi_year=self.is_multi_year, is_full_career=self.is_full_career)
             card_image.paste(split_image, self.__coordinates_adjusted_for_bordering(paste_coordinates), split_image)
+
+        # STAT HIGHLIGHTS
+        if self.image.stat_highlights_type.has_image:
+            stat_highlights_img, paste_coordinates = self.__stat_highlights_image()
+            card_image.paste(stat_highlights_img, self.__coordinates_adjusted_for_bordering(paste_coordinates), stat_highlights_img)
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm or bordered
@@ -4634,6 +4778,81 @@ class ShowdownPlayerCard(BaseModel):
 
         return split_image
 
+    def __stat_highlights_image(self) -> tuple[Image.Image, tuple[int,int]]:
+        """Create image for stat highlights section of card. 
+
+        Args:
+          None
+
+        Returns:
+          Tuple with:
+            - PIL image object for stat highlights.
+            - Coordinates for pasting to card image.
+        """
+
+        # FONTS
+        font_path = self.__font_path('HelveticaNeueCondensedBold')
+        font = ImageFont.truetype(font_path, size=140)
+
+        # CALCULATE METRIC LIMIT
+        is_expansion_img = self.image.expansion.has_image
+        is_set_num = self.image.set_number != self.set.default_set_number(self.year)
+        is_period_box = self.stats_period.type != StatsPeriodType.REGULAR_SEASON
+        is_multi_year = self.is_multi_year
+        stat_categories = self.player_sub_type.stat_highlight_categories(type=self.image.stat_highlights_type)
+
+        metric_limit = self.set.stat_highlights_metric_limit
+        is_year_and_stats_period_boxes = self.image.show_year_text and is_period_box
+        if self.set.is_showdown_bot:
+            if is_expansion_img and is_set_num: metric_limit -= 1
+            if is_multi_year or is_period_box: metric_limit -= 1
+            if StatHighlightsCategory.SLASHLINE in stat_categories and (is_expansion_img or is_set_num): metric_limit -= 1
+            current_str = "  ".join(self.stat_highlights_list(stats=self.stats, limit=metric_limit))
+            print(len(current_str))
+            if len(current_str) >= 45:
+                metric_limit -=1
+        else:
+            if is_period_box: metric_limit -= ( 2 if self.set.is_04_05 else 1 )
+            if is_year_and_stats_period_boxes and self.set == Set._2003:
+                metric_limit = 2
+
+        # BACKGROUND IMAGE
+        size = self.set.stat_highlight_container_size(
+            stats_limit=metric_limit, 
+            is_year_and_stats_period_boxes=is_year_and_stats_period_boxes,
+            is_expansion=is_expansion_img,
+            is_set_number=is_set_num,
+            is_period_box=is_period_box,
+            is_multi_year=self.is_multi_year,
+            is_full_career=self.is_full_career
+        )
+        bg_image = Image.open(self.__template_img_path(f'{self.set.template_year}-STAT-HIGHLIGHTS-{size}'))
+
+        # ADD TEXT
+        padding = 5
+        final_size = (bg_image.size[0] - (padding * 2), bg_image.size[1])
+        full_text = "  ".join(self.stat_highlights_list(stats=self.stats, limit=metric_limit))
+        
+        stat_text = self.__text_image(
+            text = full_text,
+            size = (final_size[0] * 4, final_size[1] * 4),
+            font = font,
+            alignment = "center"
+        )
+        stat_text = stat_text.resize(final_size, Image.ANTIALIAS)
+        text_color = self.set.template_component_font_color(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_dark_mode=self.image.is_dark_mode)
+        bg_image.paste(text_color, (padding, 3), stat_text)
+
+        # DEFINE PASTE COORDINATES
+        paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_multi_year=self.is_multi_year, is_full_career=self.is_full_career, is_regular_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON)
+        # IF CLASSIC/EXPANDED, MOVE X DEPENDING ON SET AND EXPANSION IMAGES
+        if self.set.is_showdown_bot:
+            x_adjustment = 0
+            if is_expansion_img: x_adjustment += 110
+            if is_set_num: x_adjustment += 112
+            paste_coordinates = (paste_coordinates[0] + x_adjustment, paste_coordinates[1])
+
+        return bg_image, paste_coordinates
 
 # ------------------------------------------------------------------------
 # AUTOMATED PLAYER IMAGE

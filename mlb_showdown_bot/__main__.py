@@ -44,6 +44,7 @@ parser.add_argument('-sypls','--set_year_plus_one', action='store_true', help='O
 parser.add_argument('-htl','--hide_team_logo', action='store_true', help='Optionally remove all team logos and branding.')
 parser.add_argument('-sc','--secondary_color', action='store_true', help='Used secondary team color.')
 parser.add_argument('-mc','--is_multi_colored', action='store_true', help='Use multiple colors for chart image (CLASSIC, EXPANDED only)')
+parser.add_argument('-sh', '--stat_highlights_type', help='Type of stat highlights to use. (OLD_SCHOOL, MODERN, ALL)', default='NONE', type=str)
 
 # STATS
 parser.add_argument('-sp','--stats_period', help='Period to use for stats. Allowed options are REGULAR,DATES,POST,SPLIT', default='REGULAR', type=str)
@@ -150,6 +151,7 @@ def main():
             hide_team_logo=args.hide_team_logo,
             use_secondary_color=args.secondary_color,
             is_multi_colored=args.is_multi_colored,
+            stat_highlights_type=args.stat_highlights_type,
             source=data_source,
             disable_cache_cleaning=args.disable_cache_cleaning,
             nickname_index=args.nickname_index,
@@ -159,7 +161,7 @@ def main():
 
     # PRINT TOTAL LOAD TIME
     total_load_time = (scraper.load_time if scraper.load_time else 0.00) + (showdown.load_time if showdown.load_time else 0.00) + (archive_load_time if archive_load_time else 0.0)
-    print(f"LOAD TIME: {total_load_time}s")
+    print(f"LOAD TIME: {total_load_time:.2f}s")
 
 if __name__ == "__main__":
     main()

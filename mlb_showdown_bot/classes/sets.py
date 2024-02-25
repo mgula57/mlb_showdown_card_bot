@@ -1561,10 +1561,36 @@ class Set(str, Enum):
         
 
     # ---------------------------------------
+    # STAT HIGHLIGHTS
+    # ---------------------------------------
+
+    @property
+    def stat_highlights_metric_limit(self) -> int:
+        match self.value:
+            case '2003': return 3
+            case '2004' | '2005': return 6
+            case 'CLASSIC' | 'EXPANDED': return 5
+            case _: return 4
+
+    def stat_highlight_container_size(self, stats_limit:int, is_year_and_stats_period_boxes:bool=False, is_expansion:bool=False, is_set_number:bool=False, is_period_box:bool=False, is_multi_year:bool=False, is_full_career:bool=False) -> str:
+        """ Return size class for stat highlight container (ex: LARGE, MEDIUM, SMALL) """
+        match self.value:
+            case 'CLASSIC' | 'EXPANDED':
+                # NOTE: PERIOD BOX IS COUNTED TWICE
+                num_extra_spaces = len([b for b in [is_set_number, is_expansion, is_period_box, is_period_box, is_multi_year or is_full_career] if b])
+                match num_extra_spaces:
+                    case 3 | 4: return 'SMALL'
+                    case 2: return 'MEDIUM'
+                    case 0 | 1: return 'LARGE'
+                    case _: return 'SMALL'
+            case '2003': return 'MEDIUM' if is_year_and_stats_period_boxes else 'LARGE'
+            case _: return 'LARGE' if stats_limit >= self.stat_highlights_metric_limit else 'MEDIUM'
+
+    # ---------------------------------------
     # TEMPLATE IMAGE
     # ---------------------------------------
 
-    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None, is_multi_year:bool=False, is_full_career:bool=False, expansion:Expansion = Expansion.BS) -> tuple[int,int]:
+    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None, is_multi_year:bool=False, is_full_career:bool=False, expansion:Expansion = Expansion.BS, is_regular_season:bool = True) -> tuple[int,int]:
         match component:
             case TemplateImageComponent.TEAM_LOGO:
                 match self.value:
@@ -1703,6 +1729,13 @@ class Set(str, Enum):
                         if is_full_career: return (865,1990)
                         if is_multi_year: return (800,1990)
                         return (925,1990)
+            case TemplateImageComponent.STAT_HIGHLIGHTS:
+                match self.value:
+                    case '2000' | '2001': return (330 if is_regular_season else 612, 1862)
+                    case '2002': return (290 if is_regular_season else 572, 1850)
+                    case '2003': return (77, 1712)
+                    case '2004' | '2005': return (80, 1912) if is_regular_season else (362, 1912)
+                    case 'CLASSIC' | 'EXPANDED': return (349, 1990)
 
     def template_component_size(self, component:TemplateImageComponent) -> tuple[int,int]:
         match component:
@@ -1796,7 +1829,7 @@ class Set(str, Enum):
                     case Set._2003: return black
                     case Set.CLASSIC | Set.EXPANDED: return mid_gray
                     case _: return white
-            case TemplateImageComponent.SPLIT:
+            case TemplateImageComponent.SPLIT | TemplateImageComponent.STAT_HIGHLIGHTS:
                 match self:
                     case Set.CLASSIC | Set.EXPANDED: return mid_gray if is_dark_mode else dark_gray
                     case _: return white

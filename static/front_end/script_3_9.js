@@ -749,6 +749,18 @@ $(function () {
             } else if (moreOptionsSelected.includes("Nickname-3")) {
                 nickname_index = 3
             }
+
+            // STAT HIGHLIGHTS
+            var is_stat_highlights_modern = moreOptionsSelected.includes("StatHighlightsModern");
+            var is_stat_highlights_old_school = moreOptionsSelected.includes("StatHighlightsOldSchool");
+            var stat_highlights = "NONE"
+            if (is_stat_highlights_modern & is_stat_highlights_old_school) {
+                stat_highlights = "ALL";
+            } else if (is_stat_highlights_modern) {
+                stat_highlights = "MODERN";
+            } else if (is_stat_highlights_old_school) {
+                stat_highlights = "OLD_SCHOOL";
+            }
             
             // PERIOD
             var period = $("#periodSelection :selected").val();
@@ -787,7 +799,8 @@ $(function () {
                 period: period,
                 period_start_date: periodStartDate,
                 period_end_date: periodEndDate,
-                period_split: periodSplit
+                period_split: periodSplit,
+                stat_highlights_type: stat_highlights
             }, function (data) {
                 showCardData(data)
             });
