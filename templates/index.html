@@ -95,7 +95,7 @@
                                        <!-- PERIOD -->
                                        <div class="col-6 col-md-6">
                                           <label for="periodSelection" style="color:Gray;"><b>Period</b></label>
-                                          <img for="periodSelection" src="static/interface/NEW.png" width=20 height=20 data-toggle="tooltip" data-placement="top" title="Period of time used for stats. Note that full season values will be used for stats unavailable daily. (ex: Sprint Speed, Defense)." >
+                                          <img for="periodSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Period of time used for stats. Note that full season values will be used for stats unavailable daily. (ex: Sprint Speed, Defense)." >
                                           <select id="periodSelection" class="form-select mb-3" aria-label=".form-select-lg example" onchange="changePeriodSection(this)">
                                              {% set period_dict = {
                                                 "REGULAR": "Regular Season",
@@ -231,6 +231,7 @@
                                        <div class="col-md-12" style="padding-bottom: 16px;">
                                           <div>
                                              <label style="color:Gray;"><b>Extras</b></label>
+                                             <img for="moreOptionsSelect" src="static/interface/NEW.png" width=20 height=20 >
                                              <select id="moreOptionsSelect" class="selectpicker" multiple title="(Optional)" data-style="btn-outline-secondary" data-size=10 data-width="100%">
                                                 <optgroup label="Gameplay">
                                                    <option value="VariableSpeed">Variable Speed ('00-'01)</option>
@@ -283,7 +284,7 @@
                                     <div class="row" id="auto">
                                        <div class="col-md-12" >
                                           <label style="color:Gray;"><b>Parallel</b></label>
-                                          <img for="parallelSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Parallels add unique style to your Showdown Cards. Available only for Auto-images." >
+                                          <img for="parallelSelection" src="static/interface/NEW.png" width=20 height=20 data-toggle="tooltip" data-placement="top" title="Parallels add unique style to your Showdown Cards. Available only for Auto-images." >
                                           <select id="parallelSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              {% set parallels_dict = {
                                                 "Base": "NONE",
