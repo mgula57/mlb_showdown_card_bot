@@ -1,5 +1,9 @@
 from enum import Enum
 from aenum import MultiValueEnum
+try:
+    from .stat_highlights import StatHighlightsCategory, StatHighlightsType
+except ImportError:
+    from stat_highlights import StatHighlightsCategory, StatHighlightsType
 
 class PlayerType(Enum):
 
@@ -38,7 +42,7 @@ class PlayerType(Enum):
         """Add parenthesis to the type"""
         return f"({self.name})"
         
-    
+
 class PlayerSubType(Enum):
 
     POSITION_PLAYER = 'position_player'
@@ -58,7 +62,76 @@ class PlayerSubType(Enum):
         match self.name:
             case 'RELIEF_PITCHER': return 120
             case _: return 500
-    
+
+        
+    # ---------------------------------------
+    # STATS
+    # ---------------------------------------
+
+    def stat_highlight_categories(self, type: StatHighlightsType) -> list[StatHighlightsCategory]:
+        match self:
+            case PlayerSubType.STARTING_PITCHER | self.RELIEF_PITCHER:
+                match type:
+                    case StatHighlightsType.OLD_SCHOOL: return [
+                        StatHighlightsCategory.W if self == self.STARTING_PITCHER else StatHighlightsCategory.SV,
+                        StatHighlightsCategory.ERA,
+                        StatHighlightsCategory.WHIP,
+                        StatHighlightsCategory.IP,
+                    ]
+                    case StatHighlightsType.MODERN: return [
+                        StatHighlightsCategory.ERA,
+                        StatHighlightsCategory.FIP,
+                        StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.K_9,
+                    ]
+                    case StatHighlightsType.ALL: return [
+                        StatHighlightsCategory.ERA,
+                        StatHighlightsCategory.WHIP,
+                        StatHighlightsCategory.IP,
+                        StatHighlightsCategory.SV,
+                        StatHighlightsCategory.K_9,
+                        StatHighlightsCategory.bWAR,
+                    ]
+                    case _: return []
+            case self.POSITION_PLAYER:
+                match type:
+                    case StatHighlightsType.OLD_SCHOOL: return [
+                        StatHighlightsCategory.SLASHLINE,
+                        StatHighlightsCategory.HR,
+                        StatHighlightsCategory.SB,
+                        StatHighlightsCategory.RBI,
+                        StatHighlightsCategory._2B,
+                        StatHighlightsCategory.H,
+                        StatHighlightsCategory._3B,
+                    ]
+                    case StatHighlightsType.MODERN: return [
+                        StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.OPS_PLUS,
+                        StatHighlightsCategory.DEFENSE,
+                        StatHighlightsCategory.dWAR,
+                        StatHighlightsCategory.HR,
+                        StatHighlightsCategory.SLASHLINE,
+                        StatHighlightsCategory.SB,
+                        StatHighlightsCategory._2B,
+                        StatHighlightsCategory._3B,
+                        StatHighlightsCategory.H,
+                    ]
+                    case StatHighlightsType.ALL: return [
+                        StatHighlightsCategory.SLASHLINE,
+                        StatHighlightsCategory.OPS_PLUS,
+                        StatHighlightsCategory.DEFENSE,
+                        StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.dWAR,
+                        StatHighlightsCategory.HR,
+                        StatHighlightsCategory.SB,
+                        StatHighlightsCategory.RBI,
+                        StatHighlightsCategory._2B,
+                        StatHighlightsCategory._3B,
+                        StatHighlightsCategory.H,
+                    ]
+                    case _: return []
+
+
 class Position(MultiValueEnum):
 
     CA = 'C', 'CA'
