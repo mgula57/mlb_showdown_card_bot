@@ -2,6 +2,11 @@ from enum import Enum
 from pydantic import BaseModel, validator
 from typing import Optional
 
+try:
+    from .stat_highlights import StatHighlightsType, StatHighlightsCategory
+except ImportError:
+    from stat_highlights import StatHighlightsType, StatHighlightsCategory
+
 # ---------------------------------------
 # EDITION
 # ---------------------------------------
@@ -107,6 +112,7 @@ class PlayerImageComponent(str, Enum):
     GOLD = "GOLD"
     GOLD_FRAME = "GOLD_FRAME"
     MOONLIGHT = "MOONLIGHT"
+    GALAXY = "GALAXY"
     WHITE_SMOKE = "WHITE_SMOKE"
     FLAMES = "FLAMES"
     WHITE_CIRCLE = "WHITE_CIRCLE"
@@ -148,6 +154,7 @@ class PlayerImageComponent(str, Enum):
             "GOLD_RUSH",
             "GOLD",
             "WHITE_SMOKE",
+            "GALAXY",
             "FLAMES",
             "WHITE_CIRCLE",
             "BLACK_CIRCLE",
@@ -195,6 +202,7 @@ class PlayerImageComponent(str, Enum):
             'GOLD_FRAME',
             'WHITE_SMOKE',
             'MOONLIGHT',
+            "GALAXY",
             'FLAMES',
             'TEAM_LOGO',
             'TEAM_COLOR',
@@ -265,6 +273,7 @@ class ImageParallel(str, Enum):
     TEAM_COLOR_BLAST = "TCB"
     MYSTERY = "MYSTERY"
     MOONLIGHT = "MOONLIGHT"
+    GALAXY = "GALAXY"
     NONE = "NONE"
 
     @classmethod
@@ -292,12 +301,13 @@ class ImageParallel(str, Enum):
                 if set == '2001':
                     comps_dict[PlayerImageComponent.TEAM_LOGO] = None
                 return comps_dict
+            case "GALAXY": return { PlayerImageComponent.GALAXY: PlayerImageComponent.GALAXY.name, PlayerImageComponent.BACKGROUND: None }
             case _: return {}
 
     @property
     def special_components_replacements(self) -> dict[str,str]:
         match self.name:
-            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD" | "GOLD_FRAME" | "MOONLIGHT": return { PlayerImageComponent.GLOW: PlayerImageComponent.SHADOW }
+            case "SAPPHIRE" | "WHITE_SMOKE" | "FLAMES" | "TEAM_COLOR_BLAST" | "GOLD_RUSH" | "GOLD" | "GOLD_FRAME" | "MOONLIGHT" | "GALAXY": return { PlayerImageComponent.GLOW: PlayerImageComponent.SHADOW }
             case _: return {}
     
     @property
@@ -361,6 +371,7 @@ class TemplateImageComponent(Enum):
     STYLE_TEXT = "style_text"
     BOT_LOGO = "bot_logo"
     SPLIT = "split"
+    STAT_HIGHLIGHTS = "stat_highlights"
 
 # ---------------------------------------
 # IMAGE SOURCE
@@ -429,6 +440,7 @@ class ShowdownImage(BaseModel):
     error: Optional[str] = None
     nickname_index: Optional[int] = None
     is_multi_colored: bool = False
+    stat_highlights_type: StatHighlightsType = StatHighlightsType.NONE
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:

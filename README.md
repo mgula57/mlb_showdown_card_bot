@@ -52,6 +52,7 @@
     * [Use Secondary Team Color](#use-secondary-team-color)
     * [Nicknames](#nicknames)
     * [Variable Speed](#variable-speed)
+* [Uploading Custom Images](#uploading-custom-images)
 * [Showdown Library](#showdown-library)
 * [Showdown Explorer](#showdown-explorer)
 * [Running Locally](#running-locally)
@@ -869,6 +870,16 @@ Replace the player's name with their nicknames sourced from [here](https://www.b
 
 Expands speed options for 2000 and 2001 sets to use the full range of numbers between 8 and 28.
 
+## Uploading Custom Images
+
+Tips for uploading your own custom images:
+
+ - Ideal image size is `1500x2100` for normal cards. For bordered cards, use `1644x2244`.
+ - For best results, use images with `300 PPI`
+ - Showdown bot will center and crop your image for you, so make sure the player is centered in the original.
+ - If image uploads fail, wait a few seconds and try again. Sometimes larger image will take 5-10 seconds to upload.
+ - For 2000/2001, cut out the player image for best results. Add an outer glow to match the original sets. The team background will be added automatically.
+
 ## Showdown Library 
 
 The Showdown Library is a backend system used to: 
@@ -876,7 +887,6 @@ The Showdown Library is a backend system used to:
 2. Allow Showdown fans access to cards more efficiently.
 3. Power advanced features.
 4. Centralize Showdown Bot data into one location.
-5. Enable Official Showdown Bot Set Releases.
 
 It leverages the combination of Firebase's Realtime Database and the Google Drive API to deliver realtime Showdown Cards without the need for on-demand processing. 
 

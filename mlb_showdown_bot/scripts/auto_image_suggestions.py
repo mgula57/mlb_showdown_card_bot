@@ -13,7 +13,7 @@ parser.add_argument('-hof','--hof', action='store_true', help='Only Hall of Fame
 parser.add_argument('-ys','--year_start', help='Optional year start filter', type=int, required=False, default=None)
 parser.add_argument('-ye','--year_end', help='Optional year end filter', type=int, required=False, default=None)
 parser.add_argument('-l','--limit', help='Optional limit', type=int, required=False, default=None)
-parser.add_argument('-yt', '--filter_year_threshold', help='Optional year threshold filter', required=False, action='store_true', default=False)
+parser.add_argument('-yt', '--year_threshold', help='Optional year threshold. Only includes images that are <= the threshold.', required=False, type=int, default=None)
 args = parser.parse_args()
 
 def fetch_image_file_list() -> list[str]:
@@ -64,7 +64,7 @@ for player in player_data:
     hof_str = 'HOF' if is_hof else ''
 
     # SKIP IF PLAYER IS IN IMAGE LIST
-    images = [image for image in image_list if bref_id in image and f'({team})' in image and (abs(int(image.split('-')[1]) - year) <= 7 if args.filter_year_threshold else True)]
+    images = [image for image in image_list if bref_id in image and f'({team})' in image and (abs(int(image.split('-')[1]) - year) <= args.year_threshold if args.year_threshold else True)]
     if len(images) > 0:
         continue
 

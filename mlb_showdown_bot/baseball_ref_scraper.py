@@ -15,6 +15,7 @@ from pprint import pprint
 from datetime import datetime
 from difflib import SequenceMatcher
 import unidecode
+from thefuzz import fuzz
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .classes.team import Team
@@ -87,7 +88,7 @@ class BaseballReferenceScraper:
             self.baseball_ref_id = name.split(' ')[0].lower()
         else:
             # CHECK DEFAULT CSV
-            default_bref_id = self.__check_for_default_bref_id(name)
+            default_bref_id = self.__check_for_default_bref_id(name=name, years=self.years)
             if default_bref_id:
                 self.baseball_ref_id = default_bref_id
             else:
@@ -105,28 +106,52 @@ class BaseballReferenceScraper:
 # ------------------------------------------------------------------------
 # SCRAPE WEBSITES
 
-    def __check_for_default_bref_id(self, name:str) -> str:
+    def __check_for_default_bref_id(self, name:str, years: list[str]) -> str:
         """Check for player name string in default csv with names and bref ids
 
         Purpose is to see if bot can avoid needing to scrape Google.
 
         Args:
           name: Full name of Player
+          years: List of years for Player stats
 
         Returns:
           BrefId (If found), otherwise None
         """ 
-        name_cleaned = name.replace("'", "").replace(".", "").lower().strip()
+        
+        # LOAD CSV
         player_id_filepath = os.path.join(Path(os.path.dirname(__file__)),'player_ids.csv')
         player_ids_pd = pd.read_csv(player_id_filepath)
-        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['name'] == name_cleaned]
+        max_year = player_ids_pd['year_end'].max()
+
+        # CLEAN NAME AND YEAR RANGE FOR CARD
+        name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip())
+        try:
+            year_ints = [int(y) for y in years]
+            year_start = min( min(year_ints), max_year)
+            year_end = min( max(year_ints), max_year)
+        except:
+            year_start = None
+            year_end = None
+
+        # FILTER PLAYERS FOR YEAR(S)
+        if year_start and year_end:
+            player_ids_pd = player_ids_pd.loc[(player_ids_pd['year_start'] <= year_end) & (player_ids_pd['year_end'] >= year_start)]
+        
+        # DEFINE SIMILARITY SCORE
+        player_ids_pd['name'] = player_ids_pd['name'].apply(lambda x: unidecode.unidecode(x))
+        player_ids_pd['similarity_score'] = player_ids_pd['name'].apply(lambda x: fuzz.ratio(name_cleaned, x))
+
+        # FILTER BY SIMILARITY SCORE
+        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['similarity_score'] > 86].sort_values(by=['similarity_score', 'pa', 'ip'], ascending=[False, False, False])
         results_count = len(player_ids_pd_filtered)
 
-        if results_count == 1:
-            bref_id = player_ids_pd_filtered['brefid'].max()
-            return bref_id if len(bref_id) > 0 else None
-        else:
+        if results_count == 0:
             return None
+        else:
+            # RETURN FIRST RESULT OF player_ids_pd_filtered
+            bref_id = player_ids_pd_filtered.head(1)['brefid'].values[0]
+            return bref_id if len(bref_id) > 0 else None
 
     def search_google_for_b_ref_id(self, name:str, year:str) -> str:
         """Convert name to a baseball reference Player ID.
@@ -211,7 +236,8 @@ class BaseballReferenceScraper:
           self.error = "502 - BAD GATEWAY"
           raise TimeoutError(self.error)
         if html.status_code == 429:
-          self.error = "429 - TOO MANY REQUESTS TO BASEBALL REFERENCE. PLEASE TRY AGAIN IN A FEW MINUTES."
+          website = url.split('//')[1].split('/')[0]
+          self.error = f"429 - TOO MANY REQUESTS TO {website}. PLEASE TRY AGAIN IN A FEW MINUTES."
           raise TimeoutError(self.error)
 
         return html.text
@@ -577,7 +603,7 @@ class BaseballReferenceScraper:
                 # TOTAL WAR
                 war_object = player_value.find('td',attrs={'class':'right','data-stat':f"WAR{war_type_suffix}"})
                 war_rating = war_object.get_text() if war_object != None else 0
-            return war_rating
+            return float(war_rating)
         except:
             return 0.0
 
@@ -1147,7 +1173,7 @@ class BaseballReferenceScraper:
             stat = self.__convert_to_numeric(stat)
 
             if type == 'Pitcher':
-                pitching_categories = ['earned_run_avg','team_ID','G','GS','W','SV','IP','H','2B','3B','HR','BB','SO','HBP','whip','batters_faced','award_summary']
+                pitching_categories = ['earned_run_avg','team_ID','G','GS','W','SV','IP','ER','H','2B','3B','HR','BB','SO','HBP','whip','batters_faced','award_summary']
                 fill_zeros = ['GS','W','SV','H','2B','3B','HR','BB','SO','HBP','batters_faced']
                 if included_g_for_pitcher:
                     pitching_categories.append('G')
@@ -1501,6 +1527,8 @@ class BaseballReferenceScraper:
             'IP': 'sum',
             'SV': 'sum',
             'GS': 'sum',
+            'W': 'sum',
+            'ER': 'sum',
             'GO/AO': 'mean',
             'IF/FB': 'mean',
             'sprint_speed': 'mean',
@@ -1512,6 +1540,7 @@ class BaseballReferenceScraper:
             'is_hr_leader': 'max',
             'is_sb_leader': 'max',
             'award_summary': ','.join,
+            'bWAR': 'sum',
         }
 
         # FLATTEN MULTI YEAR STATS
@@ -1546,6 +1575,9 @@ class BaseballReferenceScraper:
             ip_list = [float(stats['IP']) for stats in yearly_stats_dict.values() if stats.get('IP', None)]
             total_ip = self.__sum_ip(ip_list)
             avg_year_dict['IP'] = total_ip
+
+            avg_year_dict['earned_run_avg'] = round(9 * avg_year_dict.get('ER', 0) / avg_year_dict.get('IP', 1), 3)
+            avg_year_dict['whip'] = round(( avg_year_dict.get('BB', 0) + avg_year_dict.get('H', 0) ) / avg_year_dict.get('IP', 0), 3)
 
         # AGGREGATE DEFENSIVE METRICS
         avg_year_dict.update(self.__combine_multi_year_positions(yearly_stats_dict))
@@ -1597,11 +1629,13 @@ class BaseballReferenceScraper:
             aggregated_positions[position] = updated_position_data
 
         # SUM DWAR
-        aggregated_dWar = statistics.median(dWar_list)
+        median_dWar = statistics.median(dWar_list)
+        total_dWar = sum(dWar_list)
 
         return {
             'positions': aggregated_positions,
-            'dWar': aggregated_dWar
+            'dWAR': median_dWar,
+            'dWAR_total': total_dWar,
         }
 
     def __get_career_totals_row(self, div_id:str, soup_object:BeautifulSoup) -> BeautifulSoup:

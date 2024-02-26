@@ -5,14 +5,14 @@ try:
     from .player_position import PlayerType, PlayerSubType, Position
     from .metrics import Stat, PointsMetric
     from .value_range import ValueRange
-    from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel
+    from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
     from .chart import Chart
 except ImportError:
     from metadata import SpeedMetric
     from player_position import PlayerType, PlayerSubType, Position
     from metrics import Stat, PointsMetric
     from value_range import ValueRange
-    from images import PlayerImageComponent, TemplateImageComponent, ImageParallel
+    from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
     from chart import Chart
 
 
@@ -287,9 +287,9 @@ class Set(str, Enum):
 
             case '2004' | '2005' | 'CLASSIC' | 'EXPANDED':
                 is_04_05 = self.value in ['2004','2005']
-                starting_x = 1050 if is_04_05 else 440
-                starting_y = 1695 if is_04_05 else 2005
-                distance_between_icons = 75 if is_04_05 else 80
+                starting_x = 1050 if is_04_05 else 0
+                starting_y = 1695 if is_04_05 else -4
+                distance_between_icons = 75 if is_04_05 else 69
                 return (int(starting_x + ( (index - 1) * distance_between_icons )), starting_y)
 
 
@@ -310,6 +310,7 @@ class Set(str, Enum):
                 (10,2),(10,3),(10,4),(10,5),
                 (11,2),(11,3),
                 (12,0),(12,2),(12,3),
+                (13,0),(13,1),
             ]
             case '2001': return [
                 (4,5),(4,6),
@@ -321,6 +322,7 @@ class Set(str, Enum):
                 (10,2),(10,3),(10,4),
                 (11,2),(11,3),
                 (12,0),(12,2),(12,3),
+                (13,0),(13,1),
             ]
             case '2002': return [
                 (7,5),(7,6),(7,7),(7,8),(7,9),(7,10),
@@ -332,7 +334,7 @@ class Set(str, Enum):
                 (13,5),(13,6),(13,7),
                 (14,5),(14,6),(14,7),
                 (15,6),(15,7),
-                (16,0),(16,3),(16,4),(16,5),(16,6),
+                (16,0),(16,2),(16,3),(16,4),(16,5),(16,6),
             ]
             case '2003': return [
                 (7,8),(7,9),(7,10),
@@ -344,7 +346,7 @@ class Set(str, Enum):
                 (13,5),(13,6),(13,7),
                 (14,0),(14,2),(14,3),(14,5),(14,6),(14,7),
                 (15,6),(15,7),
-                (16,0),(16,3),(16,4),(16,5),(16,6),
+                (16,0),(16,2),(16,3),(16,4),(16,5),(16,6),
             ]
             case '2004' | '2005': return [
                 (7,8),(7,9),(7,10),(7,11),
@@ -356,7 +358,7 @@ class Set(str, Enum):
                 (13,5),(13,6),(13,7),
                 (14,5),(14,6),(14,7),
                 (15,6),(15,7),
-                (16,0),(16,3),(16,4),(16,5),(16,6),
+                (16,0),(16,2),(16,3),(16,4),(16,5),(16,6),
             ]
             case 'CLASSIC': return [
                 (4,5),(4,6),
@@ -368,6 +370,7 @@ class Set(str, Enum):
                 (10,2),(10,3),(10,4),(10,5),
                 (11,2),(11,3),(11,4),(11,5),
                 (12,0),(12,2),(12,3),(12,4),
+                (13,0),(13,1),
             ]
             case 'EXPANDED': return [
                 (7,7),(7,8),(7,9),
@@ -379,7 +382,7 @@ class Set(str, Enum):
                 (13,5),(13,6),(13,7),
                 (14,5),(14,6),(14,7),
                 (15,6),(15,7),(15,8),
-                (16,0),(16,3),(16,4),(16,5),(16,6),
+                (16,0),(16,2),(16,3),(16,4),(16,5),(16,6),
             ]
 
     @property
@@ -1420,6 +1423,10 @@ class Set(str, Enum):
         return ''
 
     @property
+    def has_dark_mode_template(self) -> bool:
+        return self.value not in ['2004','2005',]
+
+    @property
     def use_alternate_team_logo(self) -> bool:
         return self.is_after_03
 
@@ -1450,7 +1457,10 @@ class Set(str, Enum):
             case 'CLASSIC' | 'EXPANDED': return '3'
             case _: return '1'
 
-    def super_season_text_length_cutoff(self, index:int) -> int:
+    def super_season_text_length_cutoff(self, index:int = 1) -> int:
+        if self.is_showdown_bot:
+            return 14
+        
         match index:
             case 1: return 16 if self.is_after_03 else 19
             case 2: return 15 if self.is_after_03 else 19
@@ -1466,7 +1476,12 @@ class Set(str, Enum):
 
     @property
     def small_name_text_length_cutoff(self) -> int:
-        return 18 if self.value == '2000' else 19
+        match self:
+            case Set._2000: return 19
+            case Set._2002: return 18
+            case Set._2004 | Set._2005: return 18
+            case Set.CLASSIC | Set.EXPANDED: return 18
+            case _: return 20
     
     @property
     def has_unified_set_and_year_strings(self) -> bool:
@@ -1481,8 +1496,12 @@ class Set(str, Enum):
         return self.value == '2001'
     
     @property
-    def is_split_image_long(self) -> bool:
-        return not self.is_showdown_bot
+    def is_team_logo_drop_shadow(self) -> bool:
+        return self.value in ['CLASSIC','EXPANDED']
+    
+    @property
+    def is_space_between_position_and_defense(self) -> bool:
+        return self not in [Set.CLASSIC, Set.EXPANDED]
 
     # ---------------------------------------
     # PLAYER IMAGE
@@ -1544,10 +1563,36 @@ class Set(str, Enum):
         
 
     # ---------------------------------------
+    # STAT HIGHLIGHTS
+    # ---------------------------------------
+
+    @property
+    def stat_highlights_metric_limit(self) -> int:
+        match self.value:
+            case '2003': return 3
+            case '2004' | '2005': return 6
+            case 'CLASSIC' | 'EXPANDED': return 5
+            case _: return 4
+
+    def stat_highlight_container_size(self, stats_limit:int, is_year_and_stats_period_boxes:bool=False, is_expansion:bool=False, is_set_number:bool=False, is_period_box:bool=False, is_multi_year:bool=False, is_full_career:bool=False) -> str:
+        """ Return size class for stat highlight container (ex: LARGE, MEDIUM, SMALL) """
+        match self.value:
+            case 'CLASSIC' | 'EXPANDED':
+                # NOTE: PERIOD BOX IS COUNTED TWICE
+                num_extra_spaces = len([b for b in [is_set_number, is_expansion, is_period_box, is_period_box, is_multi_year or is_full_career] if b])
+                match num_extra_spaces:
+                    case 3 | 4: return 'SMALL'
+                    case 2: return 'MEDIUM'
+                    case 0 | 1: return 'LARGE'
+                    case _: return 'SMALL'
+            case '2003': return 'MEDIUM' if is_year_and_stats_period_boxes else 'LARGE'
+            case _: return 'LARGE' if stats_limit >= self.stat_highlights_metric_limit else 'MEDIUM'
+
+    # ---------------------------------------
     # TEMPLATE IMAGE
     # ---------------------------------------
 
-    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None) -> tuple[int,int]:
+    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None, is_multi_year:bool=False, is_full_career:bool=False, expansion:Expansion = Expansion.BS, is_regular_season:bool = True) -> tuple[int,int]:
         match component:
             case TemplateImageComponent.TEAM_LOGO:
                 match self.value:
@@ -1556,7 +1601,7 @@ class Set(str, Enum):
                     case '2002': return (80,1380)
                     case '2003': return (1179,1074)
                     case '2004' | '2005': return (1161,1425)
-                    case 'CLASSIC' | 'EXPANDED': return (1161,1365)
+                    case 'CLASSIC' | 'EXPANDED': return (1160,1345)
             case TemplateImageComponent.PLAYER_NAME:
                 match self.value:
                     case '2000': return (150,-1225)
@@ -1564,7 +1609,7 @@ class Set(str, Enum):
                     case '2002': return (1275,0)
                     case '2003': return (1365,0)
                     case '2004' | '2005': return (276,1605)
-                    case 'CLASSIC' | 'EXPANDED': return (325,1575)
+                    case 'CLASSIC' | 'EXPANDED': return (290,1570)
             case TemplateImageComponent.PLAYER_NAME_SMALL:
                 match self.value:
                     case '2000': return (165,-1225)
@@ -1572,28 +1617,28 @@ class Set(str, Enum):
                     case '2002': return (1285,0)
                     case '2003': return (1375,0)
                     case '2004' | '2005': return (276,1610)
-                    case 'CLASSIC' | 'EXPANDED': return (300,1575)
+                    case 'CLASSIC' | 'EXPANDED': return (290,1585)
             case TemplateImageComponent.CHART:
                 match self.value:
                     case '2000' | '2001': return (981,1335) if player_type.is_pitcher else (981,1317)
                     case '2002': return (948,1593)
                     case '2003': return (981,1518)
                     case '2004' | '2005': return (0,1779)
-                    case 'CLASSIC' | 'EXPANDED': return (40,1885)
+                    case 'CLASSIC' | 'EXPANDED': return (40,1903)
             case TemplateImageComponent.METADATA:
                 match self.value:
                     case '2000' | '2001': return (0,0)
                     case '2002': return (810,1605)
                     case '2003': return (825,1530)
                     case '2004' | '2005': return (282,1710)
-                    case 'CLASSIC' | 'EXPANDED': return (330,1670)
+                    case 'CLASSIC' | 'EXPANDED': return (320,1680)
             case TemplateImageComponent.SET:
                 match self.value:
                     case '2000' | '2001': return (129,2016)
                     case '2002': return (60,1860)
                     case '2003': return (93,1785)
                     case '2004' | '2005': return (1344,1911)
-                    case 'CLASSIC' | 'EXPANDED': return (1200,2020)
+                    case 'CLASSIC' | 'EXPANDED': return (1070,1995)
             case TemplateImageComponent.YEAR_CONTAINER:
                 match self.value:
                     case '2000' | '2001': return (1250,1865)
@@ -1605,7 +1650,9 @@ class Set(str, Enum):
                     case '2002': return (120,1785)
                     case '2003': return (116,1785)
                     case '2004' | '2005': return (1191,1911)
-                    case 'CLASSIC' | 'EXPANDED': return (1000,2020)
+                    case 'CLASSIC' | 'EXPANDED':
+                        xadjust, yadjust = (-12, 0) if expansion == Expansion.TD else (0,0)
+                        return ( (465 if expansion.has_image else 355) + xadjust, 2000 + yadjust )
             case TemplateImageComponent.SUPER_SEASON:
                 match self.value:
                     case '2000': return (1200,900)
@@ -1614,7 +1661,7 @@ class Set(str, Enum):
                     case '2003': return (1041,786)
                     case '2004': return (1071,1164)
                     case '2005': return (1071,1164)
-                    case 'CLASSIC' | 'EXPANDED': return (1071,1275)
+                    case 'CLASSIC' | 'EXPANDED': return (1071,1150)
             case TemplateImageComponent.ROOKIE_SEASON:
                 match self.value:
                     case '2000': return (1200,1086)
@@ -1640,35 +1687,39 @@ class Set(str, Enum):
             case TemplateImageComponent.EXPANSION:
                 match self.value:
                     case '2000' | '2001': return (1287,1855)
-                    case '2002': return (652,1770)
+                    case '2002': 
+                        xadjust, yadjust = (20, -17) if expansion == Expansion.TD else (0,0)
+                        return (652 + xadjust, 1770 + yadjust) 
                     case '2003': return (275,1782)
                     case '2004' | '2005': return (1060,1910)
-                    case 'CLASSIC' | 'EXPANDED': return (880,2010)
+                    case 'CLASSIC' | 'EXPANDED': 
+                        xadjust, yadjust = (0, -12) if expansion == Expansion.TD else (0,0)
+                        return (350 + xadjust, 1990 + yadjust)
             case TemplateImageComponent.COMMAND:
                 match self.value:
-                    case 'CLASSIC' | 'EXPANDED': return (80,1540)
+                    case 'CLASSIC' | 'EXPANDED': return (75,1565)
                     case _: return (0,0)
             case TemplateImageComponent.STYLE:
                 match self.value:
-                    case 'CLASSIC' | 'EXPANDED': return (60,1992)
+                    case 'CLASSIC' | 'EXPANDED': return (72,1980)
             case TemplateImageComponent.STYLE_LOGO_BG:
                 match self.value:
-                    case 'CLASSIC' | 'EXPANDED': return (255,5)
+                    case 'CLASSIC' | 'EXPANDED': return (180,4)
             case TemplateImageComponent.STYLE_LOGO:
                 match self.value:
-                    case 'CLASSIC': return (285,18)
-                    case 'EXPANDED': return (295,20)
+                    case 'CLASSIC': return (203,13)
+                    case 'EXPANDED': return (210,14)
             case TemplateImageComponent.STYLE_TEXT:
                 match self.value:
-                    case 'CLASSIC': return (38,27)
-                    case 'EXPANDED': return (15,27)
+                    case 'CLASSIC': return (35,20)
+                    case 'EXPANDED': return (15,20)
             case TemplateImageComponent.BOT_LOGO:
                 match self.value:
                     case '2000' | '2001': return (1250,1945)
                     case '2002': return (62,1900)
                     case '2003': return (655,1705)
                     case '2004' | '2005': return (1268,1965)
-                    case 'CLASSIC' | 'EXPANDED': return (1345,2000)
+                    case 'CLASSIC' | 'EXPANDED': return (1320,1975)
             case TemplateImageComponent.SPLIT:
                 match self.value:
                     case '2000': return (330, 1860)
@@ -1676,7 +1727,17 @@ class Set(str, Enum):
                     case '2002': return (290, 1850)
                     case '2003': return (380, 1775)
                     case '2004' | '2005': return (80, 1912)
-                    case 'CLASSIC' | 'EXPANDED': return (850,2000)
+                    case 'CLASSIC' | 'EXPANDED': 
+                        if is_full_career: return (865,1990)
+                        if is_multi_year: return (800,1990)
+                        return (925,1990)
+            case TemplateImageComponent.STAT_HIGHLIGHTS:
+                match self.value:
+                    case '2000' | '2001': return (330 if is_regular_season else 612, 1862)
+                    case '2002': return (290 if is_regular_season else 572, 1850)
+                    case '2003': return (77, 1712)
+                    case '2004' | '2005': return (80, 1912) if is_regular_season else (362, 1912)
+                    case 'CLASSIC' | 'EXPANDED': return (349, 1990)
 
     def template_component_size(self, component:TemplateImageComponent) -> tuple[int,int]:
         match component:
@@ -1694,14 +1755,15 @@ class Set(str, Enum):
                     case '2001': return (1545,300)
                     case '2002': return (1395,300)
                     case '2003': return (3300,300)
-                    case '2004' | '2005' | 'CLASSIC' | 'EXPANDED': return (900, 300)
+                    case '2004' | '2005': return (900, 300)
+                    case 'CLASSIC' | 'EXPANDED': return (1150, 300)
             case TemplateImageComponent.SUPER_SEASON: 
                 match self.value:
                     case '2000' | '2001': return (312,480)
                     case '2002': return (468,720)
                     case '2003': return (390,600)
                     case '2004' | '2005': return (339,522)
-                    case 'CLASSIC' | 'EXPANDED': return (380,380)
+                    case 'CLASSIC' | 'EXPANDED': return (400,480)
             case TemplateImageComponent.ROOKIE_SEASON: 
                 match self.value:
                     case '2000': return (273,273)
@@ -1746,6 +1808,33 @@ class Set(str, Enum):
                     case '2002': return 25
                     case '2003': return 26
                     case '2004' | '2005' | 'CLASSIC' | 'EXPANDED': return 75
+
+    def template_component_font_color(self, component: TemplateImageComponent, is_dark_mode:bool=False) -> str:
+
+        # REUSED COLORS
+        black = "#000000"
+        white = "#FFFFFF"
+        dark_gray = "#767676"
+        mid_gray = "#888686"
+
+        match component:
+            case TemplateImageComponent.STYLE_TEXT:
+                match self:
+                    case Set.CLASSIC | Set.EXPANDED: return mid_gray if is_dark_mode else dark_gray
+                    case _: return white
+            case TemplateImageComponent.SET: # YEAR
+                match self:
+                    case Set.CLASSIC | Set.EXPANDED: return mid_gray
+                    case _: return white
+            case TemplateImageComponent.NUMBER:
+                match self:
+                    case Set._2003: return black
+                    case Set.CLASSIC | Set.EXPANDED: return mid_gray
+                    case _: return white
+            case TemplateImageComponent.SPLIT | TemplateImageComponent.STAT_HIGHLIGHTS:
+                match self:
+                    case Set.CLASSIC | Set.EXPANDED: return mid_gray if is_dark_mode else dark_gray
+                    case _: return white
 
     def template_component_color(self, component: TemplateImageComponent, parallel: ImageParallel) -> str:
         """Return color string for a template image component """

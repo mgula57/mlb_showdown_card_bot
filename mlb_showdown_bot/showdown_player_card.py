@@ -30,7 +30,7 @@ try:
     from .classes.metrics import DefenseMetric
     from .classes.nationality import Nationality
     from .classes.chart import ChartCategory
-    from .classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
+    from .classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
     from .classes.points import Points
     from .classes.metadata import Speed, SpeedLetter, Hand
     from .classes import colors
@@ -47,7 +47,7 @@ except ImportError:
     from classes.metrics import DefenseMetric
     from classes.nationality import Nationality
     from classes.chart import ChartCategory
-    from classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage
+    from classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
     from classes.points import Points
     from classes.metadata import Speed, SpeedLetter, Hand
     from classes import colors
@@ -152,7 +152,8 @@ class ShowdownPlayerCard(BaseModel):
                 hide_team_logo = data.get('hide_team_logo', False),
                 use_secondary_color = data.get('use_secondary_color', False),
                 is_multi_colored = data.get('is_multi_colored', False),
-                nickname_index=data.get('nickname_index', None)
+                nickname_index=data.get('nickname_index', None),
+                stat_highlights_type=data.get('stat_highlights_type', 'NONE'),
             )
             self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
         
@@ -258,6 +259,36 @@ class ShowdownPlayerCard(BaseModel):
         # COMBINE BB AND HBP
         if 'HBP' in stats.keys():
             stats['BB'] = stats.get('BB',0) + stats.get('HBP',0)
+
+        # ADD FIP FOR PITCHERS
+        is_pitcher = stats.get('type', '') == 'Pitcher'
+        if is_pitcher and 'fip' not in stats.keys():
+
+            # PARSE YEAR LIST
+            # TODO: FIGURE OUT HOW TO NOT REPEAT THIS CODE
+            all_years_played:list[str] = stats.get('years_played', [])
+            year = values.get('year', '2000')
+            if year.upper() == 'CAREER': year_list = [int(year) for year in all_years_played]
+            elif '-' in year:
+                # RANGE OF YEARS
+                years = year.split('-')
+                year_start = int(years[0].strip())
+                year_end = int(years[1].strip())
+                year_list = list(range(year_start,year_end+1))
+            elif '+' in year: year_list = [int(x.strip()) for x in year.split('+')]
+            else: year_list = [int(year)]
+            
+            fip_constant = sc.FIP_CONSTANT.get(statistics.median(year_list), 3.2)
+            hr_weighted = 13 * stats.get('HR', 0)
+            bb_weighted = 3 * stats.get('BB', 0)
+            so_weighted = 2 * stats.get('SO', 0)
+            ip = stats.get('IP', 1)
+            stats['fip'] = round(( (hr_weighted + bb_weighted - so_weighted) / ip) + fip_constant, 2)
+            
+        # ADD K/9 FOR PITCHERS
+        if is_pitcher and 'strikeouts_per_nine' not in stats.keys():
+            k_per_9 = stats.get('SO', 0) * 9 / stats.get('IP', 1)
+            stats['strikeouts_per_nine'] = round(k_per_9, 2)
 
         return stats
     
@@ -540,7 +571,7 @@ class ShowdownPlayerCard(BaseModel):
         return sorted(self.positions_and_defense_for_visuals.items(), key=lambda pos_and_def: (Position(pos_and_def[0]).ordering_index if pos_and_def[0] in position_enum_values else 0) )
     
     @property
-    def positions_list(self) -> [Position]:
+    def positions_list(self) -> list[Position]:
         """ List of player's in-game positions"""
         return list(self.positions_and_defense.keys())
 
@@ -564,6 +595,14 @@ class ShowdownPlayerCard(BaseModel):
             return int(round(statistics.median(years_played_ints)))
         else:
             return int(self.year)
+
+    @property
+    def year_range_str(self) -> str:
+        """ Year range string for the player. """
+        if self.is_multi_year:
+            return f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
+        else:
+            return self.year
 
     @property
     def use_alternate_logo(self) -> bool:
@@ -622,6 +661,12 @@ class ShowdownPlayerCard(BaseModel):
             return self.nicknames[self.image.nickname_index - 1]
         
         return self.name
+
+    @property
+    def name_length(self) -> int | float:
+        """Length of the name and icons combined. Count icons only for CLASSIC/EXPANDED."""
+        icons_len = len(self.icons) * 1.5 if self.set.is_showdown_bot else 0
+        return len(self.name_for_visuals) + icons_len
 
 
 # ------------------------------------------------------------------------
@@ -2094,6 +2139,115 @@ class ShowdownPlayerCard(BaseModel):
         
         return stats_per_650_pa
 
+    def stat_highlights_list(self, stats:dict[str: any], limit:int) -> list[str]:
+        """Get the most relevant stats for a player.
+
+        Args:
+          limit: Number of stats to return.
+
+        Returns:
+          List of stats.
+        """
+
+        categories = self.player_sub_type.stat_highlight_categories(type=self.image.stat_highlights_type)
+        all_stats: list[str] = []
+        ignore_dwar = False
+        for category in categories:
+            stat_keys = category.stat_key_list
+            num_keys = len(stat_keys)
+            stat_name = category.value
+
+            # ADD RELEVANT STATS
+            stat_values: list[str] = []
+            for key in stat_keys:
+
+                # STATS DISABLED FOR MULTI YEAR
+                if self.is_multi_year and key in ['onbase_plus_slugging_plus']:
+                    continue
+
+                # STATS DISABLED FOR SPLIT/DATE/POSTSEASON
+                is_reg_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON
+                if not is_reg_season and key in ['onbase_plus_slugging_plus', 'bWAR', 'dWAR', ]:
+                    continue
+
+                # IGNORE dWAR IF OTHER DEFENSIVE METRIC WAS SHOWN
+                if key == 'dWAR' and ignore_dwar:
+                    continue
+
+                # IF DEFENSE, CHECK IN POSITIONS AND DEFENSE
+                if key in ['oaa', 'drs', 'tzr',] and len(self.positions_and_defense) == 1:
+                    if ( self.is_multi_year and key != 'oaa' ) or ( not is_reg_season ):
+                        continue
+                    position = list(self.positions_and_defense.keys())[0].value
+                    if position == Position.LFRF.value:
+                        position = 'OF'
+                    position_defense = self.stats.get('positions', {}).get(position, {}).get(key, None)
+                    if position_defense is not None:
+                        # SKIP IF OTHER METRICS AND DEFENSE IS BELOW AVG
+                        if self.image.stat_highlights_type == StatHighlightsType.ALL and position_defense < 1:
+                            continue
+                        stat_name = key.upper()
+                        num_keys = 1
+                        stat_values.append(self.__stat_formatted(key, position_defense))
+                        ignore_dwar = True
+                        break
+                    else:
+                        continue
+
+                # KEY CHANGES
+                if key == 'dWAR' and self.is_multi_year:
+                    key = 'dWAR_total'
+                    stat_name = 'dWAR'
+
+                # CHECK FOR VALUE
+                stat = stats.get(key, None)
+                if stat is None:
+                    continue
+                stat_formatted = self.__stat_formatted(key, stat)
+
+                # CHECK FOR VISIBILITY THRESHOLD
+                threshold = category.visibility_threshold
+                if not threshold:
+                    stat_values.append(stat_formatted)
+                    continue
+                stat_per_650 = float(stat) / (self.stats.get('PA', 650) / 650)
+                if stat_per_650 >= threshold:
+                    stat_values.append(stat_formatted)
+
+            # COMBINE IF MULTIPLE STATS IN ONE
+            # EX: .300/.415/.500
+            category_str = '/'.join(stat_values) if len(stat_values) > 0 else None
+
+            if category_str is None:
+                continue
+            
+            if num_keys == 1:
+                category_str = f"{category_str} {stat_name}"
+            all_stats.append(category_str)
+
+        return all_stats[:limit]
+
+    def __stat_formatted(self, category:str, value:float | int) -> str:
+        """Format a stat for display.
+
+        Args:
+          category: Stat category.
+          value: Stat value.
+
+        Returns:
+          Formatted stat string.
+        """
+
+        match category:
+            case 'batting_avg' | 'onbase_perc' | 'slugging_perc' | 'onbase_plus_slugging':
+                return f"{value:.3f}".replace('0.', '.')
+            case 'earned_run_avg' | 'whip' | 'fip':
+                return f"{value:.2f}"
+            case 'onbase_plus_slugging_plus':
+                return f"{value:.0f}"
+            case 'dWAR' | 'bWAR' | 'strikeouts_per_nine':
+                return f"{float(value):.1f}"
+            case _: return str(round(value))
 
 # ------------------------------------------------------------------------
 # PLAYER VALUE METHODS
@@ -2539,10 +2693,9 @@ class ShowdownPlayerCard(BaseModel):
                 key = full_name if source == 'projected' or full_name in slash_categories else abbr
                 multiplier = real_life_pa_ratio if 'per_650_pa' in key else 1.0
                 stat_raw = ( ( source_dict.get(key, 0) or 0 ) * multiplier ) if abbr != 'PA' else real_life_pa
-                stat_raw_cleaned = round(stat_raw, 3) if full_name in slash_categories else int(stat_raw)
-                stat_str = str(stat_raw_cleaned).replace('0.', '.') if stat_raw_cleaned != 0 else '-'
+                stat_str = self.__stat_formatted(category=full_name, value=stat_raw)
                 values.append(stat_str)
-                numeric_values.append(stat_raw_cleaned)
+                numeric_values.append(stat_raw)
             final_dict[source] = values
             all_numeric_value_lists.append(numeric_values)
         
@@ -2783,7 +2936,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return opponent_chart.values_as_list
 
-    def __player_metadata_summary_text(self, is_horizontal:bool=False, return_as_list:bool=False) -> str:
+    def __player_metadata_summary_text(self, is_horizontal:bool=False, return_as_list:bool=False, remove_space_defense:bool=False) -> str | list:
         """Creates a multi line string with all player metadata for card output.
 
         Args:
@@ -2793,7 +2946,7 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           String/list of output text for player info + stats
         """
-        positions_string = self.positions_and_defense_as_string(is_horizontal=is_horizontal)
+        positions_string = self.positions_and_defense_as_string(is_horizontal=is_horizontal, remove_space=remove_space_defense, is_extra_padding=remove_space_defense)
 
         ip = f'IP {self.ip}' if self.set.is_after_03 else f'{self.ip} IP'
         speed = f'SPD {self.speed.speed}' if self.set.is_showdown_bot else self.speed.full_string
@@ -2831,11 +2984,13 @@ class ShowdownPlayerCard(BaseModel):
         final_text = final_text.upper() if self.set.is_metadata_text_uppercased else final_text
         return final_text
 
-    def positions_and_defense_as_string(self, is_horizontal:bool=False) -> str:
+    def positions_and_defense_as_string(self, is_horizontal:bool=False, remove_space:bool=False, is_extra_padding:bool=False) -> str:
         """Creates a single line string with positions and defense.
 
         Args:
           is_horizontal: Optional boolean for horizontally formatted text (04/05)
+          remove_space: Optional boolean for removing space between positions and defense
+          is_extra_padding: Optional boolean for adding extra padding between positions
 
         Returns:
           String of output text for player's defensive stats
@@ -2855,9 +3010,10 @@ class ShowdownPlayerCard(BaseModel):
                     positions_string += dh_string
                 else:
                     is_last_element = position_num == len(self.positions_and_defense_for_visuals.keys())
-                    positions_separator = ' ' if is_horizontal else '\n'
+                    positions_separator = f' {" " if is_extra_padding else ""}' if is_horizontal else '\n'
                     fielding_plus = "" if fielding < 0 else "+"
-                    positions_string += f'{position} {fielding_plus}{fielding}{"" if is_last_element else positions_separator}'
+                    space = "" if remove_space else " "
+                    positions_string += f'{position}{space}{fielding_plus}{fielding}{"" if is_last_element else positions_separator}'
                 position_num += 1
         
         return positions_string
@@ -2980,12 +3136,12 @@ class ShowdownPlayerCard(BaseModel):
 
         # LOAD SHOWDOWN TEMPLATE
         showdown_template_frame_image = self.__template_image()
-        card_image.paste(showdown_template_frame_image,self.__coordinates_adjusted_for_bordering(coordinates=(0,0)),showdown_template_frame_image)
+        card_image.paste(showdown_template_frame_image,(0,0),showdown_template_frame_image)
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
         small_name_cutoff = self.set.small_name_text_length_cutoff
-        name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if len(self.name_for_visuals) >= small_name_cutoff and self.image.parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
+        name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if self.name_length >= small_name_cutoff and self.image.parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
         name_paste_location = self.set.template_component_paste_coordinates(name_image_component)
         if self.set.is_00_01:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
@@ -3023,11 +3179,10 @@ class ShowdownPlayerCard(BaseModel):
             card_image.paste(style_img, style_coordinates, style_img)
         
         # ICONS
-        if self.set.has_icons:
-            card_image = self.__add_icons_to_image(card_image)
+        card_image = self.__add_icons_to_image(card_image)
 
         # SET
-        set_image = self.__card_set_image()
+        set_image = self.__set_and_year_image()
         card_image.paste(set_image, self.__coordinates_adjusted_for_bordering((0,0)), set_image)
 
         # YEAR CONTAINER
@@ -3044,34 +3199,23 @@ class ShowdownPlayerCard(BaseModel):
         # EXPANSION
         if self.image.expansion.has_image:
             expansion_image = self.__expansion_image()
-            expansion_location = self.set.template_component_paste_coordinates(TemplateImageComponent.EXPANSION)
+            expansion_location = self.set.template_component_paste_coordinates(component=TemplateImageComponent.EXPANSION, expansion=self.image.expansion)
             if self.image.show_year_text and self.set.is_00_01:
                 # IF YEAR CONTAINER EXISTS, MOVE OVER EXPANSION LOGO
                 expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
-            if self.set == Set._2002 and self.image.expansion == Expansion.TD:
-                expansion_location = (expansion_location[0] + 20,expansion_location[1] - 17)
-            elif self.set.is_showdown_bot and self.image.expansion == Expansion.TD:
-                expansion_location = (expansion_location[0],expansion_location[1] - 12)
             
-            if self.stats_period.type.show_text_on_card_image and self.set.is_showdown_bot:
-                new_expansion_size = tuple(int(x * 0.85) for x in expansion_image.size)
-                expansion_image = expansion_image.resize(new_expansion_size, Image.ANTIALIAS)
-                expansion_location = (expansion_location[0] - 120, expansion_location[1] + 10)                
-
             card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
 
         # SPLIT/DATE RANGE
         if self.stats_period.type.show_text_on_card_image:
             split_image = self.__date_range_or_split_image()
-            paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.SPLIT)
+            paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.SPLIT, is_multi_year=self.is_multi_year, is_full_career=self.is_full_career)
             card_image.paste(split_image, self.__coordinates_adjusted_for_bordering(paste_coordinates), split_image)
 
-        # BETA TAG
-        # TO BE REMOVED AFTER TEST PERIOD
-        # if self.set.is_showdown_bot:
-        #     beta_img_path = self.__template_img_path('BETA')
-        #     beta_banner_image = Image.open(beta_img_path)
-        #     card_image.paste(beta_banner_image,(0,0),beta_banner_image)
+        # STAT HIGHLIGHTS
+        if self.image.stat_highlights_type.has_image:
+            stat_highlights_img, paste_coordinates = self.__stat_highlights_image()
+            card_image.paste(stat_highlights_img, self.__coordinates_adjusted_for_bordering(paste_coordinates), stat_highlights_img)
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm or bordered
@@ -3135,8 +3279,7 @@ class ShowdownPlayerCard(BaseModel):
         # IF 2000, ADD NAME CONTAINER
         if self.set == Set._2000:
             name_container = self.__2000_player_name_container_image()
-            paste_coordinates = self.__coordinates_adjusted_for_bordering((0,0), is_disabled = not has_border_already)
-            background_image.paste(name_container, paste_coordinates, name_container)
+            background_image.paste(name_container, (0,0), name_container)
 
         if self.image.parallel.is_team_background_black_and_white:
             background_image = self.__change_image_saturation(image=background_image, saturation=0.10)
@@ -3163,7 +3306,7 @@ class ShowdownPlayerCard(BaseModel):
         is_2001_set = self.set == Set._2001
         image_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
         team_override = self.team_override_for_images
-        background_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
+        background_color = (60,60,60,255) if self.image.is_dark_mode else self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
         team_colors = [self.__team_color_rgbs(is_secondary_color=is_secondary, team_override=team_override) for is_secondary in [False, True]]
         team_background_image = self.__gradient_img(size=image_size, colors=team_colors) if self.image.is_multi_colored else Image.new('RGB', image_size, color=background_color)
         
@@ -3205,6 +3348,22 @@ class ShowdownPlayerCard(BaseModel):
             - Coordinates for pasting team logo.
         """
 
+        def adjusted_paste_coords(coords: tuple[int,int]) -> tuple[int,int]:
+            
+            # ADJUST Y COORDINATES IF CLASSIC/EXPANDED AND LONG NAME
+            if self.name_length > 22 and self.set.is_showdown_bot:
+                
+                match self.image.edition:
+                    case Edition.ROOKIE_SEASON: adjustment = (0, -70)
+                    case Edition.NATIONALITY: adjustment = (10, -30)
+                    case Edition.COOPERSTOWN_COLLECTION: adjustment = (0, -55)
+                    case Edition.POSTSEASON: adjustment = (10, -90)
+                    case _: adjustment = (0, -50)
+                
+                return (coords[0] + adjustment[0], coords[1] + adjustment[1])
+            
+            return coords
+
         # SETUP IMAGE METADATA
         is_alternate = self.use_alternate_logo or force_use_alternate
         logo_name = self.team.logo_name(year=self.median_year, is_alternate=is_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
@@ -3243,6 +3402,9 @@ class ShowdownPlayerCard(BaseModel):
                 if self.image.special_edition == SpecialEdition.NATIONALITY:
                     team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'flags', f'{self.nationality.value}.png')
                     logo_size_multiplier = self.nationality.logo_size_multiplier
+                    if self.set.is_showdown_bot:
+                        logo_paste_coordinates = (logo_paste_coordinates[0] - 35, logo_paste_coordinates[1] + 10)
+
             team_logo = Image.open(team_logo_path).convert("RGBA")
             size_adjusted = tuple(int(v * logo_size_multiplier) for v in logo_size)
             if size_adjusted != logo_size:
@@ -3254,6 +3416,9 @@ class ShowdownPlayerCard(BaseModel):
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
             team_logo = Image.open(self.__team_logo_path(name=Team.MLB.logo_name(year=2023))).convert("RGBA")
             team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
+
+        if self.set.is_team_logo_drop_shadow:
+            team_logo = self.__add_drop_shadow(image=team_logo)
 
         # ROTATE LOGO IF APPLICABLE
         if logo_rotation != 0:
@@ -3267,7 +3432,7 @@ class ShowdownPlayerCard(BaseModel):
         # RETURN STATIC LOGO IF IGNORE_DYNAMIC_ELEMENTS IS ENABLED
         # IGNORES ROOKIE SEASON, SUPER SEASON
         if ignore_dynamic_elements:
-            return team_logo, logo_paste_coordinates
+            return team_logo, adjusted_paste_coords(logo_paste_coordinates)
 
         # OVERRIDE IF SUPER SEASON
         if self.image.edition == Edition.SUPER_SEASON and not is_00_01:
@@ -3277,10 +3442,10 @@ class ShowdownPlayerCard(BaseModel):
         # ADD YEAR TEXT IF COOPERSTOWN OR YEAR TEXT OPTION IF SELECTED
         text_enabled_for_set = ( is_04_05 and (is_cooperstown or self.image.show_year_text) ) or ( self.set.is_showdown_bot and self.image.show_year_text and self.image.edition != Edition.COOPERSTOWN_COLLECTION)
         if text_enabled_for_set and self.image.edition not in [Edition.ROOKIE_SEASON, Edition.SUPER_SEASON]:
-            
+            logo_size = team_logo.size
             new_logo = Image.new('RGBA', (logo_size[0] + 300, logo_size[1]))
             new_logo_coords = (150, 0)
-            new_logo.paste(team_logo, new_logo_coords, team_logo)
+            new_logo.paste(team_logo, new_logo_coords)
             font_name = 'BaskervilleBoldItalicBT' if is_cooperstown else 'Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique'
             year_font_path = self.__font_path(font_name)
             year_font = ImageFont.truetype(year_font_path, size=87)
@@ -3299,7 +3464,9 @@ class ShowdownPlayerCard(BaseModel):
                 has_border = True,
                 border_color = year_text_border_color
             )
-            year_coords = (0,195) if is_cooperstown else (-25, int(120 * logo_size_multiplier))
+            year_coords = (0,195) if is_cooperstown else (-10, int(120 * logo_size_multiplier))
+            adjustment_for_movement = adjusted_paste_coords((0,0))
+            year_coords = (year_coords[0], year_coords[1] - adjustment_for_movement[1])
             if is_cooperstown:
                 year_text_blurred = self.__text_image(
                     text = year_abbrev,
@@ -3320,7 +3487,7 @@ class ShowdownPlayerCard(BaseModel):
             team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.set == Set._2002 else team_logo
             logo_paste_coordinates = self.set.template_component_paste_coordinates(component)
 
-        return team_logo, logo_paste_coordinates
+        return team_logo, adjusted_paste_coords(logo_paste_coordinates)
 
     def team_logo_for_background(self, team_override:Team = None) -> tuple[Image.Image, tuple[int,int]]:
         """Open and manipulate the team logo used for 2000/2001 team backgrounds.
@@ -3343,8 +3510,9 @@ class ShowdownPlayerCard(BaseModel):
         logo_name = team.logo_name(year=self.median_year, is_alternate=use_alternate, set=self.set.value, is_dark=self.image.is_dark_mode)
 
         # OPACITY
+        team_logo_path = self.__card_art_path('COOPERSTOWN') if team == Team.CCC and self.set == Set._2000 else self.__team_logo_path(logo_name)
         opacity = team.background_logo_opacity(set=self.set.value)
-        team_logo = Image.open(self.__team_logo_path(logo_name))
+        team_logo = Image.open(team_logo_path)
         team_logo_copy = team_logo.copy()
         team_logo_copy.putalpha(int(255 * opacity))
         team_logo.paste(team_logo_copy, team_logo)
@@ -3382,11 +3550,12 @@ class ShowdownPlayerCard(BaseModel):
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
         is_04_05 = self.set.is_04_05
         edition_extension = ''
+        dark_mode_extension = '-DARK' if self.image.is_dark_mode and self.set.has_dark_mode_template else ''
         if is_04_05:
             # 04/05 HAS MORE TEMPLATE OPTIONS
             edition_extension = ''
             default_template_color = self.player_type.template_color_04_05
-            team_color_name = self.team.color_name(year=self.median_year, is_secondary=self.image.use_secondary_color)
+            team_color_name = self.team.color_name(year=self.median_year, is_secondary=self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
             if self.image.edition.template_color_0405:
                 edition_extension = f'-{self.image.edition.template_color_0405}'
             elif self.image.special_edition == SpecialEdition.NATIONALITY:
@@ -3402,17 +3571,19 @@ class ShowdownPlayerCard(BaseModel):
 
             if self.image.parallel.color_override_04_05_chart:
                 edition_extension = f"-{self.image.parallel.color_override_04_05_chart}"
-            type_template = f'{year}-{type}{edition_extension}'
+            type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
         else:
             custom_extension = self.set.template_custom_extension(self.image.parallel)
-            dark_mode_extension = '-DARK' if self.set.is_showdown_bot and self.image.is_dark_mode else ''
             type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}{custom_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
 
         # GET IMAGE WITH PLAYER COMMAND
         paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.COMMAND)
+        top_left_paste_location = self.__coordinates_adjusted_for_bordering(coordinates=(0,0), is_forced=True)
+        
         if self.set.is_showdown_bot:
+            
             # ADD TEXT + BACKGROUND AS IMAGE
             command_image = self.__command_image()
             if not self.is_pitcher:
@@ -3430,25 +3601,32 @@ class ShowdownPlayerCard(BaseModel):
             if is_multi_colored:
                 # GRADIENT
                 team_colors = [self.__team_color_rgbs(is_secondary_color=is_secondary, team_override=team_override) for is_secondary in [True, False]]
-                colors = self.nationality.colors if self.image.special_edition == SpecialEdition.NATIONALITY else team_colors
+                team_colors = self.nationality.colors if self.image.special_edition == SpecialEdition.NATIONALITY else team_colors
                 gradient_img_width = self.player_sub_type.nationality_chart_gradient_img_width
-                gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=colors)
-                container_img_black.paste(gradient_img_rect, (70, 1770), gradient_img_rect)
+                gradient_img_rect = self.__gradient_img(size=(gradient_img_width, 190), colors=team_colors)
+                container_img_black.paste(gradient_img_rect, self.__coordinates_adjusted_for_bordering(coordinates=(70, 1780), is_forced=True), gradient_img_rect)
                 container_img = self.__add_alpha_mask(img=container_img_black, mask_img=Image.open(container_img_path))
             else:
                 container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
 
             # ADD TEXT TO CONTAINER
-            use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color) and not is_multi_colored
+            use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot) and not is_multi_colored
             dark_mode_suffix = '-DARK' if use_dark_text else ''
             text_img = Image.open(self.__template_img_path(f'{year}-ChartOutsText-{type}{dark_mode_suffix}'))
             template_image.paste(container_img, (0,0), container_img)
             template_image.paste(text_img, (0,0), text_img)
+
+            # ADD PTS BOX
+            secondary_color = self.__team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, team_override=team_override)
+            pts_box_img_black = Image.open(self.__template_img_path(f'{year}-PTS-Box'))
+            pts_box_img_team_color = self.__add_color_overlay_to_img(img=pts_box_img_black, color=secondary_color)
+            template_image.paste(pts_box_img_team_color, (0,0), pts_box_img_team_color)
+
         else:
             command_image_name = f"{year}-{type}-{str(self.chart.command)}"
             command_image = Image.open(self.__template_img_path(command_image_name))
             
-        template_image.paste(command_image, paste_location, command_image)
+        template_image.paste(command_image, self.__coordinates_adjusted_for_bordering(coordinates=paste_location, is_forced=True), command_image)
 
         # HANDLE MULTI POSITION TEMPLATES FOR 00/01 POSITION PLAYERS
         if self.set.is_00_01 and not self.is_pitcher:
@@ -3456,12 +3634,15 @@ class ShowdownPlayerCard(BaseModel):
             sizing = "-".join(['LARGE' if len(pos) > 4 else 'SMALL' for pos in positions_list])
             positions_points_template = f"0001-{type}-{sizing}"
             positions_points_image = Image.open(self.__template_img_path(positions_points_template))
-            template_image.paste(positions_points_image, (0,0), positions_points_image)
+            template_image.paste(positions_points_image, top_left_paste_location, positions_points_image)
         
         # ADD SHOWDOWN BOT LOGO AND ERA
         logo_img = self.__bot_logo_img()
         logo_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.BOT_LOGO)
-        template_image.paste(logo_img, logo_paste_location, logo_img)
+        template_image.paste(logo_img, self.__coordinates_adjusted_for_bordering(coordinates=logo_paste_location, is_forced=True), logo_img)
+
+        # CROP (IF NECESSARY)
+        template_image = self.__crop_template_image(template_image)
 
         return template_image
 
@@ -3478,7 +3659,7 @@ class ShowdownPlayerCard(BaseModel):
         logo_img_with_text = Image.new('RGBA',img_size)
 
         # LOAD LOGO IMAGE
-        is_dark_mode = self.set.is_showdown_bot and self.image.is_dark_mode
+        is_dark_mode = self.image.is_dark_mode
         dark_mode_extension = '-DARK' if is_dark_mode else ''
         logo_size = self.set.template_component_size(TemplateImageComponent.BOT_LOGO)
         logo_img_name = f"BOT-LOGO{dark_mode_extension}"
@@ -3494,7 +3675,7 @@ class ShowdownPlayerCard(BaseModel):
         # ERA TEXT
         helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
         era_font = ImageFont.truetype(helvetica_neue_lt_path, size=70)
-        era_txt_color = "#b5b5b5" if self.set.is_showdown_bot and self.image.is_dark_mode else "#585858"
+        era_txt_color = "#b5b5b5" if is_dark_mode else "#585858"
         era_text = self.__text_image(text=self.era.value_no_era_suffix, size=(620, 100), font=era_font, alignment="center")
         text_paste_location = (0, 435) 
         
@@ -3515,7 +3696,9 @@ class ShowdownPlayerCard(BaseModel):
           PIL image object for 2000 name background/container
         """
         image_suffix = self.image.parallel.name_container_suffix_2000
-        return Image.open(self.__template_img_path(f"2000-Name{image_suffix}"))
+        name_container_image = Image.open(self.__template_img_path(f"2000-Name{image_suffix}"))
+
+        return self.__crop_template_image(name_container_image)
 
     def __2000_player_set_container_image(self) -> Image.Image:
         """Gets template asset image for 2000 set box.
@@ -3544,9 +3727,7 @@ class ShowdownPlayerCard(BaseModel):
         name_upper = "????? ?????" if self.image.parallel == ImageParallel.MYSTERY else self.name_for_visuals.upper()
         first, last = self.split_name(name=name_upper, is_nickname=self.is_using_nickname)
         name = first if self.set.has_split_first_and_last_names else name_upper
-        default_chart_char_cutoff = 19 if self.set == Set._2002 else 15
-        is_name_over_char_limit =  len(name) > default_chart_char_cutoff
-
+        is_name_over_char_limit = self.name_length >= self.set.small_name_text_length_cutoff
         futura_black_path = self.__font_path('Futura Black')
         helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
         helvetica_neue_cond_black_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
@@ -3598,7 +3779,7 @@ class ShowdownPlayerCard(BaseModel):
                 padding = 3
                 has_border = True
                 border_color = colors.RED
-            case _:
+            case Set.CLASSIC | Set.EXPANDED:
                 name_rotation = 0
                 name_alignment = "left"
                 name_size = 80 if is_name_over_char_limit else 96
@@ -3649,7 +3830,22 @@ class ShowdownPlayerCard(BaseModel):
                 # ASSIGN THE TEXT ITSELF AS THE COLOR OBJECT
                 name_color = final_text
             case Set.CLASSIC | Set.EXPANDED:
+                
+                # CREATE NEW BACKGROUND TO ADD ICONS
                 name_color = colors.WHITE if self.image.is_dark_mode else colors.BLACK
+                name_w_icons_image = Image.new('RGBA', final_text.size)
+                name_w_icons_image.paste(name_color, (0,0), final_text)
+                
+                # ADD ICONS
+                starting_x = name_font.getsize(name)[0] + 15
+                for index, icon in enumerate(self.icons):
+                    position = self.set.icon_paste_coordinates(index+1)
+                    position = (position[0] + starting_x, position[1])
+                    icon_img = self.__icon_image_circle(icon.value)
+                    name_w_icons_image.paste(icon_img, position, icon_img)
+                
+                final_text = name_w_icons_image
+                name_color = final_text
 
         return final_text, name_color
 
@@ -3669,154 +3865,171 @@ class ShowdownPlayerCard(BaseModel):
         # COLOR WILL BE RETURNED
         color = colors.WHITE
 
-        if self.set.is_00_01:
-            # 2000 & 2001
+        match self.set:
+            case Set._2000 | Set._2001:
+                # 2000 & 2001
 
-            metadata_image = Image.new('RGBA', (1500, 2100), 255)
-            helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
-
-            # PITCHER AND HITTER SPECIFIC METADATA
-            if self.is_pitcher:
-                # POSITION
-                font_position = ImageFont.truetype(helvetica_neue_lt_path, size=72)
-                position = self.positions_list[0]
-                position_text = self.__text_image(text=position.value, size=(900, 300), font=font_position, alignment='center')
-                metadata_image.paste(colors.WHITE, (660,342), position_text)
-                # HAND | IP
-                font_hand_ip = ImageFont.truetype(helvetica_neue_lt_path, size=63)
-                hand_text = self.__text_image(text=self.hand.visual(self.is_pitcher), size=(900, 300), font=font_hand_ip)
-                metadata_image.paste(colors.WHITE, (1092,420), hand_text)
-                ip_text = self.__text_image(text='IP {}'.format(str(self.ip)), size=(900, 300), font=font_hand_ip)
-                metadata_image.paste(colors.WHITE, (1260,420), ip_text)
-            else:
-                # SPEED | HAND
-                is_variable_spd_2000 = self.set == Set._2000 and self.is_variable_speed_00_01
-                font_size_speed = 40 if is_variable_spd_2000 else 54
-                font_speed = ImageFont.truetype(helvetica_neue_lt_path, size=font_size_speed)
-                font_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
-                speed_text = self.__text_image(text=f'SPEED {self.speed.letter}', size=(900, 300), font=font_speed)
-                hand_text = self.__text_image(text=self.hand.value, size=(300, 300), font=font_hand)
-                metadata_image.paste(color, (969 if self.set == Set._2000 else 915, 345 if is_variable_spd_2000 else 342), speed_text)
-                metadata_image.paste(color, (1212,342), hand_text)
-                if self.set == Set._2001 or is_variable_spd_2000:
-                    # ADD # TO SPEED
-                    font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
-                    font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)
-                    speed_num_text = self.__text_image(
-                        text=str(self.speed.speed),
-                        size=(300, 300),
-                        font=font_speed_number
-                    )
-                    parenthesis_left = self.__text_image(text='(   )', size=(300, 300), font=font_parenthesis)
-                    metadata_image.paste(color, (1116,342), parenthesis_left)
-                    spd_number_x_position = 1138 if len(str(self.speed.speed)) < 2 else 1128
-                    metadata_image.paste(color, (spd_number_x_position,345), speed_num_text)
-                # POSITION(S)
-                font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)
-                y_position = 407
-                for index, (position, rating) in enumerate(self.positions_and_defense_img_order):
-                    dh_string = '   —' if self.set != Set._2000 else '   DH'
-                    position_rating_text = dh_string if position == 'DH' else '{} +{}'.format(position,str(rating))
-                    position_rating_image = self.__text_image(text=position_rating_text, size=(600, 300), font=font_position)
-                    x_adjust = 10 if index == 0 and len(position) < 5 and len(self.positions_and_defense_img_order) > 1 else 0
-                    x_position = (1083 if len(position) > 4 else 1161) + x_adjust
-                    x_position += 18 if position in ['C','CA'] and rating < 10 else 0 # CATCHER POSITIONING ADJUSTMENT
-                    metadata_image.paste(color, (x_position,y_position), position_rating_image)
-                    y_position += 84
-            # POINTS
-            text_size = 48 if self.points >= 1000 else 57
-            font_pts = ImageFont.truetype(helvetica_neue_lt_path, size=text_size)
-            pts_text = self.__text_image(text=str(self.points), size=(300, 300), font=font_pts, alignment = "right")
-            pts_y_pos = 576 if len(self.positions_and_defense_for_visuals) > 1 else 492
-            pts_x_pos = 969 if self.is_pitcher else 999
-            metadata_image.paste(color, (pts_x_pos,pts_y_pos), pts_text)
-
-        elif self.set in [Set._2002, Set._2003]:
-            # 2002 & 2003
-
-            is_02 = self.set == Set._2002
-            color = colors.BLACK if is_02 else colors.WHITE
-            if is_02:
+                metadata_image = Image.new('RGBA', (1500, 2100), 255)
                 helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
-                metadata_font = ImageFont.truetype(helvetica_neue_lt_path, size=120)
-            else:
-                helvetica_neue_cond_bold_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
-                metadata_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=135)
 
-            metadata_text = self.__text_image(
-                text = self.__player_metadata_summary_text(),
-                size = (765, 2700),
-                font = metadata_font,
-                rotation = 0,
-                alignment = "right",
-                padding=0,
-                spacing= 57 if is_02 else 66
-            )
-            metadata_image = metadata_text.resize((255,900), Image.ANTIALIAS)
-        elif self.set.is_04_05:
-            # 2004 & 2005
-            metadata_font_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
-            metadata_font = ImageFont.truetype(metadata_font_path, size=144)
-            metadata_text_string = self.__player_metadata_summary_text(is_horizontal=True)
-            metadata_text = self.__text_image(
-                text = metadata_text_string,
-                size = (3600, 900),
-                font = metadata_font,
-                fill = colors.WHITE,
-                rotation = 0,
-                alignment = "left",
-                padding = 0,
-                has_border = True,
-                border_color = colors.BLACK,
-                border_size = 9
-            )
-            metadata_image = metadata_text.resize((1200,300), Image.ANTIALIAS)
-            # DONT WANT TO RETURN A COLOR (BECAUSE IT'S MULTI-COLORED)
-            # PASS THE IMAGE ITSELF AS THE COLOR
-            color = metadata_image
-        else:
-            metadata_image = Image.new('RGBA', (1400, 200), 255)
-            metadata_font_path = self.__font_path('HelveticaNeueCondensedBold')
-            metadata_font = ImageFont.truetype(metadata_font_path, size=170)
-            metadata_font_small = ImageFont.truetype(metadata_font_path, size=150)
-            metadata_text_list = self.__player_metadata_summary_text(is_horizontal=True, return_as_list=True)
-            current_x_position = 0
-            for index, category in enumerate(metadata_text_list):
-                category_length = len(metadata_text_list)
-                is_last = (index + 1) == category_length
-                is_small_text = is_last and len(category) > 17
-                category_font = metadata_font_small if is_small_text else metadata_font
+                # PITCHER AND HITTER SPECIFIC METADATA
+                if self.is_pitcher:
+                    # POSITION
+                    font_position = ImageFont.truetype(helvetica_neue_lt_path, size=72)
+                    position = self.positions_list[0]
+                    position_text = self.__text_image(text=position.value, size=(900, 300), font=font_position, alignment='center')
+                    metadata_image.paste(colors.WHITE, (660,342), position_text)
+                    # HAND | IP
+                    font_hand_ip = ImageFont.truetype(helvetica_neue_lt_path, size=63)
+                    hand_text = self.__text_image(text=self.hand.visual(self.is_pitcher), size=(900, 300), font=font_hand_ip)
+                    metadata_image.paste(colors.WHITE, (1092,420), hand_text)
+                    ip_text = self.__text_image(text='IP {}'.format(str(self.ip)), size=(900, 300), font=font_hand_ip)
+                    metadata_image.paste(colors.WHITE, (1260,420), ip_text)
+                else:
+                    # SPEED | HAND
+                    is_variable_spd_2000 = self.set == Set._2000 and self.is_variable_speed_00_01
+                    font_size_speed = 40 if is_variable_spd_2000 else 54
+                    font_speed = ImageFont.truetype(helvetica_neue_lt_path, size=font_size_speed)
+                    font_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
+                    speed_text = self.__text_image(text=f'SPEED {self.speed.letter}', size=(900, 300), font=font_speed)
+                    hand_text = self.__text_image(text=self.hand.value, size=(300, 300), font=font_hand)
+                    metadata_image.paste(color, (969 if self.set == Set._2000 else 915, 345 if is_variable_spd_2000 else 342), speed_text)
+                    metadata_image.paste(color, (1212,342), hand_text)
+                    if self.set == Set._2001 or is_variable_spd_2000:
+                        # ADD # TO SPEED
+                        font_speed_number = ImageFont.truetype(helvetica_neue_lt_path, size=40)
+                        font_parenthesis = ImageFont.truetype(helvetica_neue_lt_path, size=45)
+                        speed_num_text = self.__text_image(
+                            text=str(self.speed.speed),
+                            size=(300, 300),
+                            font=font_speed_number
+                        )
+                        parenthesis_left = self.__text_image(text='(   )', size=(300, 300), font=font_parenthesis)
+                        metadata_image.paste(color, (1116,342), parenthesis_left)
+                        spd_number_x_position = 1138 if len(str(self.speed.speed)) < 2 else 1128
+                        metadata_image.paste(color, (spd_number_x_position,345), speed_num_text)
+                    # POSITION(S)
+                    font_position = ImageFont.truetype(helvetica_neue_lt_path, size=78)
+                    y_position = 407
+                    for index, (position, rating) in enumerate(self.positions_and_defense_img_order):
+                        dh_string = '   —' if self.set != Set._2000 else '   DH'
+                        position_rating_text = dh_string if position == 'DH' else '{} +{}'.format(position,str(rating))
+                        position_rating_image = self.__text_image(text=position_rating_text, size=(600, 300), font=font_position)
+                        x_adjust = 10 if index == 0 and len(position) < 5 and len(self.positions_and_defense_img_order) > 1 else 0
+                        x_position = (1083 if len(position) > 4 else 1161) + x_adjust
+                        x_position += 18 if position in ['C','CA'] and rating < 10 else 0 # CATCHER POSITIONING ADJUSTMENT
+                        metadata_image.paste(color, (x_position,y_position), position_rating_image)
+                        y_position += 84
+                # POINTS
+                text_size = 48 if self.points >= 1000 else 57
+                font_pts = ImageFont.truetype(helvetica_neue_lt_path, size=text_size)
+                pts_text = self.__text_image(text=str(self.points), size=(300, 300), font=font_pts, alignment = "right")
+                pts_y_pos = 576 if len(self.positions_and_defense_for_visuals) > 1 else 492
+                pts_x_pos = 969 if self.is_pitcher else 999
+                metadata_image.paste(color, (pts_x_pos,pts_y_pos), pts_text)
+
+            case Set._2002 | Set._2003:
+                # 2002 & 2003
+                is_02 = self.set == Set._2002
+                color = colors.WHITE if not is_02 or self.image.is_dark_mode else colors.BLACK
+                if is_02:
+                    helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
+                    metadata_font = ImageFont.truetype(helvetica_neue_lt_path, size=120)
+                else:
+                    helvetica_neue_cond_bold_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
+                    metadata_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=135)
+
                 metadata_text = self.__text_image(
-                    text = category,
-                    size = (1500, 900),
-                    font = category_font,
+                    text = self.__player_metadata_summary_text(),
+                    size = (765, 2700),
+                    font = metadata_font,
+                    rotation = 0,
+                    alignment = "right",
+                    padding=0,
+                    spacing= 57 if is_02 else 66
+                )
+                metadata_image = metadata_text.resize((255,900), Image.ANTIALIAS)
+
+            case Set._2004 | Set._2005:
+                # 2004 & 2005
+                metadata_font_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
+                metadata_font = ImageFont.truetype(metadata_font_path, size=144)
+                metadata_text_string = self.__player_metadata_summary_text(is_horizontal=True)
+                metadata_text = self.__text_image(
+                    text = metadata_text_string,
+                    size = (3600, 900),
+                    font = metadata_font,
                     fill = colors.WHITE,
                     rotation = 0,
                     alignment = "left",
                     padding = 0,
+                    has_border = True,
+                    border_color = colors.BLACK,
+                    border_size = 9
                 )
-                metadata_text = metadata_text.resize((500,300), Image.ANTIALIAS)
-                y_position = 5 if is_small_text else 0
-                metadata_image.paste(metadata_text, (int(current_x_position),y_position), metadata_text)
-                category_font_width = category_font.getsize(category)[0] / 3.0
-                current_x_position += category_font_width
-                if not is_last:
-                    # DIVIDER
-                    divider_text = self.__text_image(
-                        text = '|',
-                        size = (900, 900),
+                metadata_image = metadata_text.resize((1200,300), Image.ANTIALIAS)
+                # DONT WANT TO RETURN A COLOR (BECAUSE IT'S MULTI-COLORED)
+                # PASS THE IMAGE ITSELF AS THE COLOR
+                color = metadata_image
+            case Set.CLASSIC | Set.EXPANDED:
+                metadata_image = Image.new('RGBA', (1400, 200), 255)
+                metadata_font_path = self.__font_path('HelveticaNeueCondensedBold')
+                metadata_font = ImageFont.truetype(metadata_font_path, size=170)
+                metadata_font_small = ImageFont.truetype(metadata_font_path, size=150)
+                metadata_text_list = self.__player_metadata_summary_text(is_horizontal=True, return_as_list=True, remove_space_defense=not self.set.is_space_between_position_and_defense)
+                current_x_position = 0
+                
+                for index, category in enumerate(metadata_text_list):
+
+                    is_pts = 'PT.' in category
+                    text_color = colors.GRAY if self.image.is_dark_mode else colors.BLACK
+                    if is_pts:
+                        # ADJUST BASED ON PTS TEXT
+                        if len(category) < 7:
+                            # EX: "70 PT."
+                            current_x_position += 30
+                        elif len(category) == 7:
+                            # EX: "470 PT."
+                            current_x_position += 15
+                        use_dark_text = self.set.is_showdown_bot and self.team.use_dark_text(year=self.median_year, is_secondary=not self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
+                        text_color = colors.BLACK if use_dark_text else colors.WHITE
+
+                    category_length = len(metadata_text_list)
+                    is_last = (index + 1) == category_length
+                    is_small_text = is_last and len(category) > 17
+                    category_font = metadata_font_small if is_small_text else metadata_font
+
+                    metadata_text = self.__text_image(
+                        text = category,
+                        size = (1500, 900),
                         font = category_font,
-                        fill = colors.WHITE,
                         rotation = 0,
                         alignment = "left",
                         padding = 0,
                     )
-                    divider_text = divider_text.resize((300,300), Image.ANTIALIAS)
-                    metadata_image.paste((255,255,255,50), (int(current_x_position) + 30, 0), divider_text)
-                    current_x_position += 65
-                
+                    metadata_text = metadata_text.resize((500,300), Image.ANTIALIAS)
+                    y_position = 5 if is_small_text else 0
 
-            color = colors.GRAY if self.image.is_dark_mode else colors.BLACK
+                    metadata_image.paste(text_color, (int(current_x_position),y_position), metadata_text)
+                    category_font_width = category_font.getsize(category)[0] / 3.0
+                    current_x_position += category_font_width
+                    if not is_last and not is_pts:
+                        # DIVIDER
+                        divider_text = self.__text_image(
+                            text = '|',
+                            size = (900, 900),
+                            font = category_font,
+                            fill = colors.WHITE,
+                            rotation = 0,
+                            alignment = "left",
+                            padding = 0,
+                        )
+                        divider_text = divider_text.resize((300,300), Image.ANTIALIAS)
+                        divider_color = (105,105,105,255) if self.image.is_dark_mode else (194,194,194,255)
+                        metadata_image.paste(divider_color, (int(current_x_position) + 30, 0), divider_text)
+                    current_x_position += 65
+                    
+                color = metadata_image
 
         return metadata_image, color
 
@@ -3864,7 +4077,7 @@ class ShowdownPlayerCard(BaseModel):
                     border_color = colors.BLACK,
                     border_size = 9
                 )
-                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color) and self.set.year == '2022' and is_out_category and not self.image.is_multi_colored
+                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot) and self.set.year == '2022' and is_out_category and not self.image.is_multi_colored
                 color_range = range_text if (is_wotc or is_out_category or self.image.is_dark_mode) and not use_dark_text else colors.BLACK
                 chart_text.paste(color_range, (chart_text_x, 0), range_text)
                 pitcher_spacing = 531 if is_wotc else 510
@@ -3889,12 +4102,12 @@ class ShowdownPlayerCard(BaseModel):
                 padding=0,
                 spacing=spacing
             )
-            color = colors.BLACK
+            color = colors.WHITE if self.image.is_dark_mode else colors.BLACK
             chart_text = chart_text.resize((255,1200), Image.ANTIALIAS)
 
         return chart_text, color
 
-    def __card_set_image(self) -> Image.Image:
+    def __set_and_year_image(self) -> Image.Image:
         """Creates image with card number and year text. Always defaults to card No 1.
            Uses YEAR and not CONTEXT as the set year.
         Args:
@@ -3906,11 +4119,13 @@ class ShowdownPlayerCard(BaseModel):
 
         # FONT FOR SET
         helvetica_neue_cond_bold_path = self.__font_path('Helvetica Neue 77 Bold Condensed')
-        font_size = 180 if self.set.is_showdown_bot else 135
+        helvetica_neue_extra_black_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        font_size = 150 if self.set.is_showdown_bot else 135
         set_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size)
 
         set_image = Image.new('RGBA', (1500, 2100), 255)
         set_image_location = self.set.template_component_paste_coordinates(TemplateImageComponent.SET)
+        set_text_color = self.set.template_component_font_color(TemplateImageComponent.SET, is_dark_mode=self.image.is_dark_mode)
 
         if self.set.has_unified_set_and_year_strings:
             # SET AND NUMBER IN SAME STRING
@@ -3921,31 +4136,22 @@ class ShowdownPlayerCard(BaseModel):
                 alignment = "center"
             )
             set_text = set_text.resize((150,75), Image.ANTIALIAS)
-            set_image.paste(colors.WHITE, set_image_location, set_text)
+            set_image.paste(set_text_color, set_image_location, set_text)
         else:
             # DIFFERENT STYLES BETWEEN NUMBER AND SET
             # CARD YEAR
-            set_font_year = set_font
+            set_font_year = ImageFont.truetype(helvetica_neue_extra_black_path, size=180) if self.set.is_showdown_bot else set_font
             year_as_str = str(self.year)
+            alignment = "right" if self.set.is_showdown_bot else "left"
+            set_year_size = (900, 450) if self.set.is_showdown_bot else (525, 450)
             if self.is_multi_year and self.set.is_04_05:
                 # EMPTY YEAR
-                year_string = ''
+                year_string = self.year_range_str
             elif (self.is_full_career or self.is_multi_year) and self.set == Set._2003:
                 year_string = 'ALL' if self.is_full_career else 'MLT'
                 set_image_location = (set_image_location[0]-5,set_image_location[1])
             elif self.is_multi_year and self.set.is_showdown_bot:
-                set_image_location = (set_image_location[0]-15,set_image_location[1])
-                if '-' in year_as_str:
-                    try:
-                        years_split = year_as_str.split('-')
-                        year_string = f"'{years_split[0][2:4]}-'{years_split[1][2:4]}"                        
-                    except:
-                        year_string = year_as_str
-                else:
-                    year_string = "CAREER" if self.is_full_career else year_as_str
-                    if self.is_full_career:
-                        set_font_year = ImageFont.truetype(helvetica_neue_cond_bold_path, size=font_size-20)
-                        set_image_location = (set_image_location[0]-5,set_image_location[1]+3)
+                year_string = "CAREER" if self.is_full_career else year_as_str
             else:
                 try:
                     year_as_str = str(int(year_as_str) + (1 if self.image.add_one_to_set_year else 0))
@@ -3954,23 +4160,28 @@ class ShowdownPlayerCard(BaseModel):
                 year_string = year_as_str if self.set.is_showdown_bot else f"'{year_as_str[2:4]}"
             year_text = self.__text_image(
                 text = year_string,
-                size = (525, 450),
+                size = set_year_size,
                 font = set_font_year,
-                alignment = "left"
+                alignment = alignment
             )
-            year_text = year_text.resize((140,120), Image.ANTIALIAS)
-            set_image.paste(colors.WHITE, set_image_location, year_text)
+            year_text = year_text.resize((int(set_year_size[0] / 3.75), int(set_year_size[1] / 3.75)), Image.ANTIALIAS)
+            set_image.paste(set_text_color, set_image_location, year_text)
 
-            # CARD NUMBER
-            number_text = self.__text_image(
-                text = self.image.set_number,
-                size = (600, 450),
-                font = set_font,
-                alignment = "center"
-            )
-            number_text = number_text.resize((160,120), Image.ANTIALIAS)
-            number_color = colors.BLACK if self.set == Set._2003 else colors.WHITE
-            set_image.paste(number_color, self.set.template_component_paste_coordinates(TemplateImageComponent.NUMBER), number_text)
+            is_default = self.image.set_number == '—'
+            hide_set_number = is_default and self.set.is_showdown_bot
+            if not hide_set_number:
+                # CARD NUMBER
+                alignment = "left" if self.set.is_showdown_bot else "center"
+                number_text = self.__text_image(
+                    text = self.image.set_number,
+                    size = (600 if self.set.is_wotc else 430, 450),
+                    font = set_font,
+                    alignment = alignment
+                )
+                number_text = number_text.resize((int(number_text.size[0] / 3.75), int(number_text.size[1] / 3.75)), Image.ANTIALIAS)
+                number_color = self.set.template_component_font_color(TemplateImageComponent.NUMBER, is_dark_mode=self.image.is_dark_mode)
+                number_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.NUMBER, expansion=self.image.expansion)
+                set_image.paste(number_color, number_paste_location, number_text)
 
         return set_image
 
@@ -3999,6 +4210,9 @@ class ShowdownPlayerCard(BaseModel):
             PIL image object for super season logo + text.
             Y Adjustment for paste coordinates (applies to 00/01)
         """
+
+        if self.set.is_showdown_bot:
+            return self.__super_season_classic_expanded_image(), 0
 
         is_after_03 = self.set.is_after_03
         include_accolades = self.set.show_super_season_accolades
@@ -4067,7 +4281,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.is_multi_year:
             font_scaling = 0 if is_after_03 else 40
             if self.is_multi_year:
-                year_string = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
+                year_string = self.year_range_str
                 font_size = 130 + font_scaling
             super_season_year_font = ImageFont.truetype(super_season_year_path, size=font_size)
         else:
@@ -4090,6 +4304,98 @@ class ShowdownPlayerCard(BaseModel):
         # RESIZE
         super_season_image = super_season_image.resize(self.set.template_component_size(TemplateImageComponent.SUPER_SEASON), Image.ANTIALIAS)
         return super_season_image, y_coord_adjustment
+
+    def __super_season_classic_expanded_image(self) -> Image.Image:
+        """Creates image for optional super season attributes for Classic/Expanded sets.
+        
+        Args:
+          None
+
+        Returns:
+            PIL image object for super season logo + text.
+        """
+
+        # COLORS
+        primary_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images)
+        secondary_color = self.__team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, team_override=self.team_override_for_images)
+
+        # SECONDARY COLOR BACKGROUND
+        index = self.set.super_season_image_index
+        secondary_color_bg = Image.open(self.__template_img_path(f'Super Season-{index}-SECONDARY-BG'))
+        ss_image = Image.new('RGBA', secondary_color_bg.size)
+        ss_image.paste(secondary_color, (0,0), secondary_color_bg)
+
+        # PRIMARY COLOR BORDER
+        primary_color_border = Image.open(self.__template_img_path(f'Super Season-{index}-PRIMARY-BG'))
+        ss_image.paste(primary_color, (0,0), primary_color_border)
+
+        # BASEBALL CARD
+        baseball = Image.open(self.__template_img_path(f'Super Season-{index}-BASEBALL'))
+        ss_image.paste(baseball, (0,0), baseball)
+
+        # WHITE FRAME
+        white_frame = Image.open(self.__template_img_path(f'Super Season-{index}-WHITE-FRAME'))
+        ss_image.paste(white_frame, (0,0), white_frame)
+
+        # TEXT
+        if self.is_full_career: ss_text = 'CAREER'
+        elif self.is_multi_year: ss_text = 'SUPER-SEASONS'
+        else: ss_text = 'SUPER-SEASON'
+        white_text = Image.open(self.__template_img_path(f'Super Season-{index}-TEXT-{ss_text}'))
+        ss_image.paste(white_text, (0,0), white_text)
+
+        # ACCOLADES
+        accolade_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+        accolade_font = ImageFont.truetype(accolade_font_path, size=150)
+        accolade_font_small = ImageFont.truetype(accolade_font_path, size=115)
+        use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=not self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
+        accolade_color = colors.BLACK if use_dark_text else colors.WHITE
+        y_position = 302
+        x_position = 72
+        soft_length_cap = self.set.super_season_text_length_cutoff()
+        hard_length_cap = soft_length_cap + 4
+        accolades = [a for a in self.accolades if len(a) <= hard_length_cap]
+        for accolade in accolades[0:3]:
+            is_over_soft_cap = len(accolade) > soft_length_cap
+            font = accolade_font_small if is_over_soft_cap else accolade_font
+            accolade_text = self.__text_image(
+                text = accolade,
+                size = (1065,150),
+                font = font,
+                alignment = "center",
+            )
+            accolade_text = accolade_text.resize((355, 50), Image.ANTIALIAS)
+            ss_image.paste(accolade_color, (x_position, y_position + (5 if is_over_soft_cap else 0)), accolade_text)
+            y_position += 55
+
+        # SEASON TEXT
+        if not self.is_full_career:
+            year_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
+            year_font = ImageFont.truetype(year_font_path, size= 220 if self.is_multi_year else 290)
+            text = self.year_range_str
+            year_text_img = self.__text_image(
+                text = text,
+                size = (735,633),
+                font = year_font,
+                alignment = "center",
+            )
+            year_text_img = year_text_img.resize((245, 211), Image.ANTIALIAS)
+            ss_image.paste(secondary_color, (133, 88 if self.is_multi_year else 79), year_text_img)
+
+        # TEAM LOGO
+        if not self.image.hide_team_logo:
+            logo_name = self.team.logo_name(year=self.median_year, is_alternate=False, set=self.set.value, is_dark=self.image.is_dark_mode)
+            team_logo_path = self.__team_logo_path(name=logo_name)
+            team_logo = Image.open(team_logo_path).convert("RGBA")
+            team_logo = team_logo.resize((125,125), Image.ANTIALIAS)
+            team_logo = self.__add_drop_shadow(image=team_logo, blur_radius=10)
+            ss_image.paste(team_logo, (185,465), team_logo)
+
+        # RESIZE
+        size = self.set.template_component_size(TemplateImageComponent.SUPER_SEASON)
+        ss_image = ss_image.resize(size, Image.ANTIALIAS)
+
+        return ss_image
 
     def __rookie_season_image(self) -> Image.Image:
         """Creates image for optional rookie season logo.
@@ -4150,7 +4456,7 @@ class ShowdownPlayerCard(BaseModel):
             postseason_logo_image.paste(red_rect_image, red_rect_paste_coords)
 
             # DEFINE YEAR TEXT
-            year_range = f"'{str(min(self.year_list))[2:4]}-'{str(max(self.year_list))[2:4]}"
+            year_range = self.year_range_str
             year_str = year_range if self.is_multi_year else self.year
 
             year_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
@@ -4184,60 +4490,63 @@ class ShowdownPlayerCard(BaseModel):
           Updated PIL Image with icons for player.
         """
 
+        # DONT ADD IF NO ICONS OR IS CLASSIC/EXPANDED (ICONS ARE ADDED IN NAME TEXT FUNCTION)
+        if not self.set.has_icons or self.set.is_showdown_bot:
+            return player_image
+
         # ITERATE THROUGH AND PASTE ICONS
         for index, icon in enumerate(self.icons):
             position = self.set.icon_paste_coordinates(index+1)
-            if self.set.is_wotc:
-                icon_img_path = self.__template_img_path(f'{self.set.template_year}-{icon.value}')
-                icon_image = Image.open(icon_img_path)
-                # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
-                # EX: 'LF/RF' IS LONGER STRING THAN '3B'
-                if self.set.is_04_05:
-                    positions_list = self.positions_and_defense_for_visuals.keys()
-                    positions_over_4_char = len([pos for pos in positions_list if len(pos) > 4 and not self.is_pitcher])
-                    offset = 0
-                    if len(positions_list) > 1:
-                        # SHIFT ICONS TO RIGHT
-                        additional_padding = 40 * positions_over_4_char if positions_over_4_char > 0 else 0
-                        offset = 135 + additional_padding
-                    elif positions_over_4_char > 0:
-                        offset = 75
-                    elif 'CA' in positions_list:
-                        offset = 30
-                    position = (position[0] + offset, position[1])
-            else:
-                icon_image = self.__icon_image_circle(text=icon.value)
+            icon_img_path = self.__template_img_path(f'{self.set.template_year}-{icon.value}')
+            icon_image = Image.open(icon_img_path)
+
+            # IN 2004/2005, ICON LOCATIONS DEPEND ON PLAYER POSITION LENGTH
+            # EX: 'LF/RF' IS LONGER STRING THAN '3B'
+            if self.set.is_04_05:
+                positions_list = self.positions_and_defense_for_visuals.keys()
+                positions_over_4_char = len([pos for pos in positions_list if len(pos) > 4 and not self.is_pitcher])
+                offset = 0
+                if len(positions_list) > 1:
+                    # SHIFT ICONS TO RIGHT
+                    additional_padding = 40 * positions_over_4_char if positions_over_4_char > 0 else 0
+                    offset = 135 + additional_padding
+                elif positions_over_4_char > 0:
+                    offset = 75
+                elif 'CA' in positions_list:
+                    offset = 30
+                position = (position[0] + offset, position[1])
+
             player_image.paste(icon_image, self.__coordinates_adjusted_for_bordering(position), icon_image)
 
         return player_image
 
-    def __icon_image_circle(self, text:str) -> Image.Image:
+    def __icon_image_circle(self, text:str, size:tuple[int,int] = (75,75)) -> Image.Image:
         """For CLASSIC and EXPANDED sets, generate a circle image with text for the icons.
 
         Args:
           text: String to show on the icon
+          size: Size of the icon image
 
         Returns:
           PIL Image for with icon text and background circle.
         """
         # CIRCLE
-        text_color = colors.WHITE
-        border_size = 9
+        bg_color = self.__team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, team_override=self.team_override_for_images)
+        text_color = colors.BLACK if self.team.use_dark_text(year=self.median_year, is_secondary=not self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot) else colors.WHITE
         icon_img = Image.new('RGBA',(220,220))
         draw = ImageDraw.Draw(icon_img)
         x1 = 20
         y1 = 20
         x2 = 190
         y2 = 190       
-        draw.ellipse((x1-border_size, y1-border_size, x2+border_size, y2+border_size), fill=text_color)
-        draw.ellipse((x1, y1, x2, y2), fill=self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images))
+        draw.ellipse((x1, y1, x2, y2), fill=bg_color)
 
         # ADD TEXT
         font_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
         font = ImageFont.truetype(font_path, size=120)
-        text_img = self.__text_image(text=text,size=(210,220),font=font,alignment='center',fill=text_color)
-        icon_img.paste(text_img, (0,60), text_img)
-        icon_img = icon_img.resize((80, 80), Image.ANTIALIAS)
+        text_img = self.__text_image(text=text,size=(210,220),font=font,alignment='center')
+        icon_img.paste(text_color, (0,60), text_img)
+        icon_img = icon_img.resize(size, Image.ANTIALIAS)
 
         return icon_img
         
@@ -4316,6 +4625,7 @@ class ShowdownPlayerCard(BaseModel):
         # ADD TEXT
         fill_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images)
         fill_color_hex = self.__rbgs_to_hex(rgbs=fill_color)
+        
         # SEPARATE 
         for index, char in enumerate(command):
             position_multiplier = 1 if (index + 1) == num_chars_command else -1
@@ -4328,6 +4638,10 @@ class ShowdownPlayerCard(BaseModel):
             )
             paste_location = (22,43) if self.is_pitcher else (x_position,28)
             background_img.paste(fill_color_hex, paste_location, command_text_img)
+
+        # RESIZE TO 85% OF ORIGINAL SIZE
+        img_size = (int(background_img.size[0] * 0.85), int(background_img.size[1] * 0.85))
+        background_img = background_img.resize(img_size, Image.ANTIALIAS)
 
         return background_img
 
@@ -4342,15 +4656,10 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=self.team_override_for_images)
-        color_hex = self.__rbgs_to_hex(rgbs=color)
-        red, green, blue, _ = color
-        color_lightness = (red*0.299 + green*0.587 + blue*0.114)
-        is_shadow = color_lightness < 75 if self.image.is_dark_mode else color_lightness > 186
 
         # LOAD BACKGROUND
         theme_suffix = 'DARK' if self.image.is_dark_mode else 'LIGHT'
-        shadow_suffix = '-SHADOW' if is_shadow else ''
-        bg_image_path = self.__template_img_path(f'STYLE-BG-{theme_suffix}{shadow_suffix}')
+        bg_image_path = self.__template_img_path(f'STYLE-BG-{theme_suffix}')
         bg_image = Image.open(bg_image_path)
 
         # BACKGROUND
@@ -4366,7 +4675,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # STYLE TEXT
         style_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
-        style_font = ImageFont.truetype(style_font_path, size=225)
+        style_font = ImageFont.truetype(style_font_path, size=155)
         style_text = self.__text_image(
             text = self.set.value,
             size = (1800, 300),
@@ -4374,8 +4683,9 @@ class ShowdownPlayerCard(BaseModel):
             alignment = "left"
         )
         style_text = style_text.resize((450,75), Image.ANTIALIAS)
+        style_text_color = self.set.template_component_font_color(component=TemplateImageComponent.STYLE_TEXT, is_dark_mode=self.image.is_dark_mode)
         style_text_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE_TEXT)
-        bg_image.paste(color_hex, style_text_paste_location, style_text)
+        bg_image.paste(style_text_color, style_text_paste_location, style_text)
                 
         return bg_image
 
@@ -4429,18 +4739,21 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # OPEN BACKGROUND IMAGE
-        image_name = "DATE-RANGE-BG-LONG" if self.set.is_split_image_long else "DATE-RANGE-BG"
+        theme_ext = ''
+        if self.set.is_showdown_bot:
+            theme_ext = '-DARK' if self.image.is_dark_mode else '-LIGHT'
+        image_name = f"DATE-RANGE-BG{theme_ext}"
         split_image = Image.open(self.__template_img_path(image_name)).convert('RGBA')
 
         # SPLIT TEXT
         font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
-        size = 120 if self.set.is_split_image_long else 135
+        size = 120
         font = ImageFont.truetype(font_path, size=size)
 
         # GRAB TEXT
         match self.stats_period.type:
             case StatsPeriodType.POSTSEASON:
-                text = 'POSTSEASON' if self.set.is_split_image_long else 'POST'
+                text = 'POSTSEASON'
                 text_list = [text]
             case StatsPeriodType.DATE_RANGE:
                 text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
@@ -4452,63 +4765,95 @@ class ShowdownPlayerCard(BaseModel):
                 text_list = [text] if is_single_game else text_list
             case StatsPeriodType.SPLIT:
                 text = self.stats_period.split.upper()
-                text_no_slash = text.replace('/',' ')
                 text_list = [text]
-                text_split_by_word = text_no_slash.split(' ')
-                num_words = len(text_split_by_word)
-                if len(text) > 7 and num_words > 1 and not self.set.is_split_image_long:
-                    mid_point = int(num_words / 2)
-                    part_1 = ' '.join(text_split_by_word[:mid_point])
-                    part_2 = ' '.join(text_split_by_word[mid_point:])
-                    text_list = [part_1, part_2]
                 
-        num_words = len(text_list)
-        if self.set.is_split_image_long:
-            text = text if len(text) < 17 else f"{text[:13]}.."
-            text_image_large = self.__text_image(
-                text = text,
-                size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
-                font = font,
-                fill=colors.WHITE,
-                alignment = "center",
-            )
-            text_image = text_image_large.resize((280,240), Image.ANTIALIAS)
-            split_image.paste(text_image, (-5, 12), text_image)
-        else:
-            # ADD PERIOD
-            y_position = 5 if num_words > 1 else 25
-            for text in text_list:
-
-                # SKIP IF NONE
-                if text is None:
-                    continue
-                text = text if len(text) < 8 else f"{text[:6]}.."
-                
-                text_image_large = self.__text_image(
-                    text = text,
-                    size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
-                    font = font,
-                    fill=colors.WHITE,
-                    alignment = "center",
-                )
-                text_image = text_image_large.resize((140,120), Image.ANTIALIAS)
-                split_image.paste(text_image, (0, y_position), text_image)
-                y_position += 45
-
-            # ADD DASH
-            if self.stats_period.type == StatsPeriodType.DATE_RANGE and num_words > 1:
-                dash_image_large = self.__text_image(
-                    text = '-',
-                    size = (525, 450), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
-                    font = font,
-                    fill=colors.WHITE,
-                    alignment = "center",
-                )
-                dash_image = dash_image_large.resize((140,120), Image.ANTIALIAS)
-                split_image.paste(dash_image, (0, 25), dash_image)
+        text = text if len(text) < 17 else f"{text[:13]}.."
+        text_color = self.set.template_component_font_color(TemplateImageComponent.SPLIT, is_dark_mode=self.image.is_dark_mode)
+        text_image_large = self.__text_image(
+            text = text,
+            size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
+            font = font,
+            alignment = "center",
+        )
+        text_image = text_image_large.resize((280,240), Image.ANTIALIAS)
+        split_image.paste(text_color, (-5, 12), text_image)
 
         return split_image
 
+    def __stat_highlights_image(self) -> tuple[Image.Image, tuple[int,int]]:
+        """Create image for stat highlights section of card. 
+
+        Args:
+          None
+
+        Returns:
+          Tuple with:
+            - PIL image object for stat highlights.
+            - Coordinates for pasting to card image.
+        """
+
+        # FONTS
+        font_path = self.__font_path('HelveticaNeueCondensedBold')
+        font = ImageFont.truetype(font_path, size=140)
+
+        # CALCULATE METRIC LIMIT
+        is_expansion_img = self.image.expansion.has_image
+        is_set_num = self.image.set_number != self.set.default_set_number(self.year)
+        is_period_box = self.stats_period.type != StatsPeriodType.REGULAR_SEASON
+        is_multi_year = self.is_multi_year
+        stat_categories = self.player_sub_type.stat_highlight_categories(type=self.image.stat_highlights_type)
+
+        metric_limit = self.set.stat_highlights_metric_limit
+        is_year_and_stats_period_boxes = self.image.show_year_text and is_period_box
+        if self.set.is_showdown_bot:
+            if is_expansion_img and is_set_num: metric_limit -= 1
+            if is_multi_year or is_period_box: metric_limit -= 1
+            if StatHighlightsCategory.SLASHLINE in stat_categories and (is_expansion_img or is_set_num): metric_limit -= 1
+            current_str = "  ".join(self.stat_highlights_list(stats=self.stats, limit=metric_limit))
+            if len(current_str) >= 45:
+                metric_limit -=1
+        else:
+            if is_period_box: metric_limit -= ( 2 if self.set.is_04_05 else 1 )
+            if is_year_and_stats_period_boxes and self.set == Set._2003:
+                metric_limit = 2
+
+        # BACKGROUND IMAGE
+        size = self.set.stat_highlight_container_size(
+            stats_limit=metric_limit, 
+            is_year_and_stats_period_boxes=is_year_and_stats_period_boxes,
+            is_expansion=is_expansion_img,
+            is_set_number=is_set_num,
+            is_period_box=is_period_box,
+            is_multi_year=self.is_multi_year,
+            is_full_career=self.is_full_career
+        )
+        bg_image = Image.open(self.__template_img_path(f'{self.set.template_year}-STAT-HIGHLIGHTS-{size}'))
+
+        # ADD TEXT
+        padding = 5
+        final_size = (bg_image.size[0] - (padding * 2), bg_image.size[1])
+        full_text = "  ".join(self.stat_highlights_list(stats=self.stats, limit=metric_limit))
+        
+        stat_text = self.__text_image(
+            text = full_text,
+            size = (final_size[0] * 4, final_size[1] * 4),
+            font = font,
+            alignment = "center"
+        )
+        stat_text = stat_text.resize(final_size, Image.ANTIALIAS)
+        text_color = self.set.template_component_font_color(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_dark_mode=self.image.is_dark_mode)
+        bg_image.paste(text_color, (padding, 3), stat_text)
+
+        # DEFINE PASTE COORDINATES
+        paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_multi_year=self.is_multi_year, is_full_career=self.is_full_career, is_regular_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON)
+        # IF CLASSIC/EXPANDED, MOVE X DEPENDING ON SET AND EXPANSION IMAGES
+        if self.set.is_showdown_bot:
+            x_adjustment = 0
+            if is_expansion_img: x_adjustment += 110
+            if is_set_num: x_adjustment += 112
+            paste_coordinates = (paste_coordinates[0] + x_adjustment, paste_coordinates[1])
+
+        return bg_image, paste_coordinates
 
 # ------------------------------------------------------------------------
 # AUTOMATED PLAYER IMAGE
@@ -4541,8 +4886,8 @@ class ShowdownPlayerCard(BaseModel):
             image_path = os.path.join(os.path.dirname(__file__), 'uploads', self.image.source.path)
             try:
                 player_img_uploaded_raw = Image.open(image_path).convert('RGBA')
-                player_img_user_uploaded = self.__center_and_crop(player_img_uploaded_raw, (1500,2100))
-                images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
+                player_img_user_uploaded, paste_coords = self.__user_uploaded_player_image_crop(player_img_uploaded_raw)
+                images_to_paste.append((player_img_user_uploaded, paste_coords))
                 player_img_user_upload_transparency_pct = self.__img_transparency_pct(player_img_user_uploaded)
             except Exception as err:
                 self.image.error = str(err)
@@ -4553,8 +4898,8 @@ class ShowdownPlayerCard(BaseModel):
             try:
                 response = requests.get(self.image.source.url)
                 player_img_raw = Image.open(BytesIO(response.content)).convert('RGBA')
-                player_img_user_uploaded = self.__center_and_crop(player_img_raw, (1500,2100))
-                images_to_paste.append((player_img_user_uploaded, default_img_paste_coordinates))
+                player_img_user_uploaded, paste_coords = self.__user_uploaded_player_image_crop(player_img_raw)
+                images_to_paste.append((player_img_user_uploaded, paste_coords))
                 player_img_user_upload_transparency_pct = self.__img_transparency_pct(player_img_user_uploaded)
             except Exception as err:
                 self.image.error = str(err)
@@ -4873,9 +5218,9 @@ class ShowdownPlayerCard(BaseModel):
                 if year_from_img_name == year:
                     # EXACT YEAR MATCH
                     match_score += 1
-                elif is_img_multi_year == False and self.is_multi_year == False:
+                elif is_img_multi_year == False:
                     year_img = float(year_from_img_name)
-                    year_self = float(year)
+                    year_self = float(self.median_year)
                     pct_diff = 1 - (abs(year_img - year_self) / year_self)
                     match_score += pct_diff
 
@@ -5010,6 +5355,32 @@ class ShowdownPlayerCard(BaseModel):
         """
         image.save(path, quality=100)
 
+    def __user_uploaded_player_image_crop(self, image:Image.Image) -> tuple[Image.Image, tuple[int,int]]:
+        """Crop and center user uploaded player image
+        
+        Args:
+          image: PIL Image to crop and center.
+
+        Returns:
+          Tuple with PIL Image and coordinates for pasting.
+        """
+
+        # SIMPLY CROP IF NON-BORDERED
+        if not self.image.is_bordered:
+            return self.__center_and_crop(image, self.set.card_size), self.__coordinates_adjusted_for_bordering((0,0))
+
+        # CHECK IF IMAGE IS ALREADY SIZED CORRECTLY
+        original_size = image.size
+        if original_size == self.set.card_size_bordered:
+            return image, (0,0)
+        
+        # IF IMAGE IS SMALLER THAN THE BORDER, CROP TO REGULAR SIZE
+        if original_size[0] < self.set.card_size_bordered[0] or original_size[1] < self.set.card_size_bordered[1]:
+            return self.__center_and_crop(image, self.set.card_size), self.__coordinates_adjusted_for_bordering((0,0))
+        
+        # CROP AND CENTER TO BORDERED SIZE
+        return self.__center_and_crop(image, self.set.card_size_bordered), (0,0)
+    
 
 # ------------------------------------------------------------------------
 # IMAGE HELPER METHODS
@@ -5075,18 +5446,19 @@ class ShowdownPlayerCard(BaseModel):
 
         return path
 
-    def __coordinates_adjusted_for_bordering(self, coordinates:tuple[int,int], is_disabled:bool = False) -> tuple[int,int]:
+    def __coordinates_adjusted_for_bordering(self, coordinates:tuple[int,int], is_disabled:bool = False, is_forced:bool=False) -> tuple[int,int]:
         """Add padding to paste coordinates to account for a border on the image.
          
         Args:
           coordinates: Tuple for original coordinates (ex: (0,0))
           is_disabled: Return coordinates without an update
+          is_forced: Return coordinates with an update even if the image is not bordered.
 
         Returns:
           Updated tuple for adjusted coordinates.
         """
 
-        if not self.image.is_bordered or is_disabled:
+        if (not self.image.is_bordered and not is_forced) or is_disabled:
             return coordinates
         
         padding = self.set.card_border_padding
@@ -5108,7 +5480,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # NATIONALITY COLOR
         if self.image.special_edition == SpecialEdition.NATIONALITY and not ignore_team_overrides:
-            return self.nationality.primary_color
+            return self.nationality.secondary_color if is_secondary_color else self.nationality.primary_color
         
         # SPECIAL EDITION COLOR
         special_edition_color = self.image.special_edition.color(league=self.league)
@@ -5116,7 +5488,7 @@ class ShowdownPlayerCard(BaseModel):
             return special_edition_color
         
         # GRAB FROM CURRENT TEAM COLORS
-        return team.color(year=self.median_year, is_secondary=is_secondary_color)
+        return team.color(year=self.median_year, is_secondary=is_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
 
     def __img_transparency_pct(self, image: Image.Image) -> float:
         """ Calculate what percent of an image is transparent/transclucent 
@@ -5146,6 +5518,22 @@ class ShowdownPlayerCard(BaseModel):
         
         pct = sum(results) / len(results)
         return pct
+
+    def __crop_template_image(self, image:Image.Image) -> Image.Image:
+        """Crops a full sized template image to it's proper size based on bordered vs unbordered output.
+
+        Args:
+          image: PIL image object to edit.
+
+        Returns:
+          Cropped PIL image object.
+        """
+
+        final_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
+        if image.size == final_size:
+            return image
+        
+        return self.__img_crop(image, final_size)
 
 
 # ------------------------------------------------------------------------
@@ -5420,6 +5808,38 @@ class ShowdownPlayerCard(BaseModel):
 
         return rect_image
 
+    def __add_drop_shadow(self, image:Image.Image, blur_radius:int = 15) -> Image.Image:
+        """
+        Add a drop shadow to an image.
+
+        Args:
+            image: PIL image to add shadow to.
+            blur_radius: Radius of the shadow.
+
+        Returns:
+            PIL Image with drop shadow.
+        """
+
+        # ADD OPACITY PADDING TO IMAGE
+        image_width, image_height = image.size
+        image_w_padding = Image.new("RGBA", ( image_width + (blur_radius * 2), image_height + (blur_radius * 2) ))
+        image_w_padding.paste(image, (blur_radius, blur_radius) )
+        
+        # CREATE A BLANK BACKGROUND IMAGE THAT IS SLIGHTLY LARGER THAN THE ORIGINAL IMAGE
+        background = Image.new("RGBA", image_w_padding.size)
+
+        # GET ALPHA FOR THE ORIGINAL IMAGE
+        alpha = image_w_padding.split()[-1]
+        alpha_blur = alpha.filter(ImageFilter.BoxBlur(blur_radius))
+        shadow = Image.new(mode="RGB", size=alpha_blur.size)
+        shadow.putalpha(alpha_blur)
+
+        # PASTE THE SHADOW AND ORIGINAL IMAGE ONTO THE BACKGROUND
+        background.paste(shadow, (0,0), shadow)
+        background.paste(image_w_padding, (0,0), image_w_padding)
+
+        return background
+    
 
 # ------------------------------------------------------------------------
 # SHOWDOWN IMAGE LIBRARY IMPORT

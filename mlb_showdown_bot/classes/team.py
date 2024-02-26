@@ -276,7 +276,7 @@ class Team(str, Enum):
             case 'PHA': return (0, 51, 160, 255)
             case 'PHI': return (232, 24, 40, 255)
             case 'PK': return (255, 196, 12, 255)
-            case 'PIT': return (253, 184, 39, 255)
+            case 'PIT': return (225, 164, 37, 255)
             case 'PRO': return (35, 31, 32, 255)
             case 'PS': return (192, 62, 51, 255)
             case 'PTG': return (203, 17, 66, 255)
@@ -429,9 +429,9 @@ class Team(str, Enum):
                 '4': (232, 24, 40, 255),
             }
             case 'PIT': return {
-                '1': (255, 199, 44, 255),
-                '2': (255, 199, 44, 255),
-                '3': (255, 199, 44, 255),
+                '1': (204, 159, 35, 255),
+                '2': (204, 159, 35, 255),
+                '3': (204, 159, 35, 255),
             }
             case 'SDP': return {
                 '1': (105, 63, 34, 255),
@@ -508,7 +508,7 @@ class Team(str, Enum):
             case 'OAK': return (239, 178, 30, 255)
             case 'PHI': return (0, 45, 114, 255)
             case 'PIT': return (39, 37, 31, 255)
-            case 'SDP': return (255, 196, 37, 255)
+            case 'SDP': return (219, 168, 32, 255)
             case 'SEA': return (0, 92, 92, 255)
             case 'SFG': return (39, 37, 31, 255)
             case 'STL': return (12, 35, 64, 255)
@@ -657,15 +657,20 @@ class Team(str, Enum):
             }
             case _: return {}
             
-    def color(self, year:int, is_secondary:bool=False) -> tuple[int,int,int,int]:        
+    def color(self, year:int, is_secondary:bool=False, is_showdown_bot_set:bool = False) -> tuple[int,int,int,int]:        
         logo_historical_index = self.logo_historical_index(year)
         default_color = self.secondary_color if is_secondary else self.primary_color
         historical_color_map = self.secondary_color_historical if is_secondary else self.primary_color_historical
         color_historical = historical_color_map.get(logo_historical_index, default_color)
+
+        # OVERRIDE YANKEES SECONDARY COLOR FOR CLASSIC/EXPANDED SETS
+        if self == Team.NYY and is_secondary and is_showdown_bot_set:
+            color_historical = (196, 206, 211, 255)
+
         return color_historical
 
-    def use_dark_text(self, year:int, is_secondary:bool) -> bool:
-        red, green, blue, _ = self.color(year=year, is_secondary=is_secondary)
+    def use_dark_text(self, year:int, is_secondary:bool, is_showdown_bot_set:bool=False) -> bool:
+        red, green, blue, _ = self.color(year=year, is_secondary=is_secondary, is_showdown_bot_set=is_showdown_bot_set)
         return (red*0.299 + green*0.587 + blue*0.114) > 186
         
     def __closest_color(self, requested_color: tuple[int,int,int]) -> str:
@@ -680,10 +685,10 @@ class Team(str, Enum):
         
         return min_colors[min(min_colors.keys())]
 
-    def color_name(self, year:int, is_secondary:bool) -> str:
+    def color_name(self, year:int, is_secondary:bool, is_showdown_bot_set:bool=False) -> str:
         """Name of color. Will return closest value if no match."""
         
-        requested_color = self.color(year=year, is_secondary=is_secondary)[0:3]
+        requested_color = self.color(year=year, is_secondary=is_secondary, is_showdown_bot_set=is_showdown_bot_set)[0:3]
         try:
             closest_name = actual_name = webcolors.rgb_to_name(requested_color)
         except ValueError:
@@ -942,6 +947,7 @@ class Team(str, Enum):
                     case 'ATL-A' | 'ATL-1' | 'BOS-2': return (1950, 1950)
                     case 'ARI-1': return (2300, 2300)
                     case 'BRO': return (1800, 1800)
+                    case 'CCC': return (1950, 2730)
                     case 'FLA': return (2300, 2300)
                     case 'MIN-2': return (2400, 2400)
                     case 'NYG': return (1800, 1800)
@@ -1028,6 +1034,7 @@ class Team(str, Enum):
                     case 'ARI': return (-100, 0)
                     case 'ARI-1': return (-50, 0)
                     case 'ATL-A' | 'ATL-1': return (-100,0)
+                    case 'CCC': return (0, 300)
                     case 'CHC-1': return (-50, 0)
                     case 'CHW-2': return (250, 0)
                     case 'CLE-3' | 'CLE-5': return (0, -75)
