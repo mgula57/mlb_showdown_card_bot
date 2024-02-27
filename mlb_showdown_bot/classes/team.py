@@ -671,7 +671,8 @@ class Team(str, Enum):
 
     def use_dark_text(self, year:int, is_secondary:bool, is_showdown_bot_set:bool=False) -> bool:
         red, green, blue, _ = self.color(year=year, is_secondary=is_secondary, is_showdown_bot_set=is_showdown_bot_set)
-        return (red*0.299 + green*0.587 + blue*0.114) > 186
+        brightness = (red*0.299 + green*0.587 + blue*0.114)
+        return brightness > 170
         
     def __closest_color(self, requested_color: tuple[int,int,int]) -> str:
         """Closest matched name of color given rgbs"""

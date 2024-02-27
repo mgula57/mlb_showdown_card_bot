@@ -3351,7 +3351,7 @@ class ShowdownPlayerCard(BaseModel):
         def adjusted_paste_coords(coords: tuple[int,int]) -> tuple[int,int]:
             
             # ADJUST Y COORDINATES IF CLASSIC/EXPANDED AND LONG NAME
-            if self.name_length > 22 and self.set.is_showdown_bot:
+            if self.name_length > 21 and self.set.is_showdown_bot:
                 
                 match self.image.edition:
                     case Edition.ROOKIE_SEASON: adjustment = (0, -70)
