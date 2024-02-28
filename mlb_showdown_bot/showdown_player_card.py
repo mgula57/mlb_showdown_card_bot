@@ -3610,7 +3610,7 @@ class ShowdownPlayerCard(BaseModel):
                 container_img = self.__add_color_overlay_to_img(img=container_img_black,color=fill_color)
 
             # ADD TEXT TO CONTAINER
-            use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot) and not is_multi_colored
+            use_dark_text = self.__use_dark_text(is_secondary=self.image.use_secondary_color) and not is_multi_colored
             dark_mode_suffix = '-DARK' if use_dark_text else ''
             text_img = Image.open(self.__template_img_path(f'{year}-ChartOutsText-{type}{dark_mode_suffix}'))
             template_image.paste(container_img, (0,0), container_img)
@@ -3991,7 +3991,7 @@ class ShowdownPlayerCard(BaseModel):
                         elif len(category) == 7:
                             # EX: "470 PT."
                             current_x_position += 15
-                        use_dark_text = self.set.is_showdown_bot and self.team.use_dark_text(year=self.median_year, is_secondary=not self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
+                        use_dark_text = self.set.is_showdown_bot and self.__use_dark_text(is_secondary=not self.image.use_secondary_color)
                         text_color = colors.BLACK if use_dark_text else colors.WHITE
 
                     category_length = len(metadata_text_list)
@@ -4077,7 +4077,7 @@ class ShowdownPlayerCard(BaseModel):
                     border_color = colors.BLACK,
                     border_size = 9
                 )
-                use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot) and self.set.year == '2022' and is_out_category and not self.image.is_multi_colored
+                use_dark_text = self.set.is_showdown_bot and is_out_category and not self.image.is_multi_colored and self.__use_dark_text(is_secondary=self.image.use_secondary_color)
                 color_range = range_text if (is_wotc or is_out_category or self.image.is_dark_mode) and not use_dark_text else colors.BLACK
                 chart_text.paste(color_range, (chart_text_x, 0), range_text)
                 pitcher_spacing = 531 if is_wotc else 510
@@ -4348,7 +4348,7 @@ class ShowdownPlayerCard(BaseModel):
         accolade_font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
         accolade_font = ImageFont.truetype(accolade_font_path, size=150)
         accolade_font_small = ImageFont.truetype(accolade_font_path, size=115)
-        use_dark_text = self.team.use_dark_text(year=self.median_year, is_secondary=not self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
+        use_dark_text = self.__use_dark_text(is_secondary=not self.image.use_secondary_color)
         accolade_color = colors.BLACK if use_dark_text else colors.WHITE
         y_position = 302
         x_position = 72
@@ -4532,7 +4532,7 @@ class ShowdownPlayerCard(BaseModel):
         """
         # CIRCLE
         bg_color = self.__team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, team_override=self.team_override_for_images)
-        text_color = colors.BLACK if self.team.use_dark_text(year=self.median_year, is_secondary=not self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot) else colors.WHITE
+        text_color = colors.BLACK if self.__use_dark_text(is_secondary=not self.image.use_secondary_color) else colors.WHITE
         icon_img = Image.new('RGBA',(220,220))
         draw = ImageDraw.Draw(icon_img)
         x1 = 20
@@ -5489,6 +5489,22 @@ class ShowdownPlayerCard(BaseModel):
         
         # GRAB FROM CURRENT TEAM COLORS
         return team.color(year=self.median_year, is_secondary=is_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
+
+    def __use_dark_text(self, is_secondary:bool, ignore_team_overrides:bool=False, team_override:Team=None) -> bool:
+        """Determines if text should be dark or light based on team color.
+
+        Args:
+          is_secondary_color: Optionally use secondary color instead of primary.
+          ignore_team_overrides: Boolean to optionally skip overrides.
+          team_override: Optionally use a different team. Used for some special editions like CC.
+
+        Returns:
+          Boolean for if text should be dark.
+        """
+
+        red, green, blue, _ = self.__team_color_rgbs(is_secondary_color=is_secondary, ignore_team_overrides=ignore_team_overrides, team_override=team_override)
+        brightness = (red*0.299 + green*0.587 + blue*0.114)
+        return brightness > 170
 
     def __img_transparency_pct(self, image: Image.Image) -> float:
         """ Calculate what percent of an image is transparent/transclucent 
