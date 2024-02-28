@@ -1275,7 +1275,8 @@ class BaseballReferenceScraper:
           Aggregated stats dict from game logs.
         """
         
-        type_ext = 'p' if type == 'Pitcher' else 'b'
+        is_pitcher = type == 'Pitcher'
+        type_ext = 'p' if is_pitcher else 'b'
         years = [int(y) if y != 'CAREER' else y for y in years]
         first_year = years[0]
         period_ext = "year=0&post=1" if self.stats_period.type == StatsPeriodType.POSTSEASON else f"year={first_year}"
@@ -1283,9 +1284,9 @@ class BaseballReferenceScraper:
         soup_game_log_page = self.__soup_for_url(url, is_baseball_ref_page=True)
 
         # CHECK FOR ROWS
-        type_prefix = 'pitching' if type == 'Pitcher' else 'batting'
+        type_prefix = 'pitching' if is_pitcher else 'batting'
         game_log_records = soup_game_log_page.find_all('tr', attrs={'id': re.compile(f'{type_prefix}_gamelogs.')})
-        included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF',]
+        included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF','RBI','player_game_result',]
         game_logs_parsed: list[dict] = [self.__parse_generic_bref_row(row=game_log, included_categories=included_categories) for game_log in game_log_records]
         
         # AGGREGATE DATA
@@ -1315,6 +1316,12 @@ class BaseballReferenceScraper:
                 game_log_data['GS'] = int(is_start)
                 if is_start:
                     game_log_data['IP_GS'] = game_log_data.get('IP', 0)
+            
+            # DECISION
+            decision_text = game_log_data.get('player_game_result', None)
+            if decision_text and is_pitcher:
+                is_win_decision = 'W' in str(decision_text)
+                game_log_data['W'] = int(is_win_decision)
 
             for category, stat in game_log_data.items():
                 # IF THE KEY IS NOT IN THE AGGREGATED_DATA DICTIONARY, ADD IT
