@@ -382,6 +382,7 @@ class ImageSourceType(str, Enum):
     LINK = 'Link'
     LOCAL_CACHE = 'Local Cache'
     GOOGLE_DRIVE = 'Google Drive'
+    LOCAL_DRIVE = 'Local Drive'
     EMPTY = 'EMPTY'
 
     def __repr__(self) -> str:
@@ -393,7 +394,7 @@ class ImageSourceType(str, Enum):
     
     @property
     def is_automated(self) -> bool:
-        return self.name in ['LOCAL_CACHE', 'GOOGLE_DRIVE']
+        return self.name in ['LOCAL_CACHE', 'GOOGLE_DRIVE', 'LOCAL_DRIVE']
     
     @property
     def is_empty(self) -> bool:
