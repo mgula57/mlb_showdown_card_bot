@@ -10,6 +10,8 @@ from postgres_db import PostgresDB
 
 parser = argparse.ArgumentParser(description="Search baseball reference for best auto images to add.")
 parser.add_argument('-hof','--hof', action='store_true', help='Only Hall of Fame Players', required=False)
+parser.add_argument('-v','--mvp', action='store_true', help='Only MVPs', required=False)
+parser.add_argument('-cy','--cya', action='store_true', help='Only CYAs', required=False)
 parser.add_argument('-ys','--year_start', help='Optional year start filter', type=int, required=False, default=None)
 parser.add_argument('-ye','--year_end', help='Optional year end filter', type=int, required=False, default=None)
 parser.add_argument('-l','--limit', help='Optional limit', type=int, required=False, default=None)
@@ -61,6 +63,9 @@ for player in player_data:
     team = player['team_id']
     bwar = player['stats']['bWAR']
     is_hof = player['stats'].get('is_hof', False)
+    awards = player['stats'].get('award_summary', '').split(',')
+    mvp_str = 'MVP' if 'MVP-1' in awards else ''
+    cy_str = 'CY' if 'CYA-1' in awards else ''
     hof_str = 'HOF' if is_hof else ''
 
     # SKIP IF PLAYER IS IN IMAGE LIST
@@ -72,5 +77,13 @@ for player in player_data:
     if args.hof and not is_hof:
         continue
 
+    # MVP CHECK
+    if args.mvp and 'MVP-1' not in awards:
+        continue
+
+    # CYA CHECK
+    if args.cya and 'CYA-1' not in awards:
+        continue
+
     # PRINT PLAYER'S NAME, TEAM, AND YEAR
-    print(f"{name} {team} {year} {bwar} {hof_str}")
+    print(f"{name} {team} {year} {bwar} {hof_str} {mvp_str} {cy_str}")

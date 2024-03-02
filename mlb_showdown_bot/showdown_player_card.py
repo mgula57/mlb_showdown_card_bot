@@ -4907,11 +4907,20 @@ class ShowdownPlayerCard(BaseModel):
         # ---- IMAGE FROM GOOGLE DRIVE -----
         file_service = None
         if player_img_user_uploaded is None:
-            search_for_universal_img = self.image.parallel != ImageParallel.MYSTERY
+            is_search_for_universal_img = self.image.parallel != ImageParallel.MYSTERY
             img_components_dict = self.__player_image_components_dict()
-            if search_for_universal_img:
-                folder_id = self.set.player_image_gdrive_folder_id
-                file_service, img_components_dict = self.__query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
+            if is_search_for_universal_img:
+                
+                # CHECK FOR LOCAL FOLDER 
+                local_folder_path = os.getenv('AUTO_IMAGE_PATH')
+
+                if local_folder_path:
+                    # USE LOCAL FOLDER AS DIRECTORY
+                    img_components_dict = self.__query_local_drive_for_auto_images(folder_path=local_folder_path, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
+                else:
+                    # USE FIREBASE AS DIRECTORY
+                    folder_id = self.set.player_image_gdrive_folder_id
+                    file_service, img_components_dict = self.__query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
             
             # ADD SILHOUETTE IF NECESSARY
             non_empty_components = [typ for typ in self.image_component_ordered_list if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
@@ -4996,7 +5005,14 @@ class ShowdownPlayerCard(BaseModel):
                         except:
                             image = None
 
-                    # 2. DOWNLOAD FROM GOOGLE DRIVE IF IMAGE IS NOT FOUND FROM CACHE.
+                    # 2. CHECK FOR IMAGE IN LOCAL DRIVE
+                    if image is None:
+                        try: image = Image.open(img_url).convert('RGBA')
+                        except: image = None
+                        if image:
+                            self.image.source.type = ImageSourceType.LOCAL_DRIVE
+
+                    # 3. DOWNLOAD FROM GOOGLE DRIVE IF IMAGE IS NOT FOUND FROM CACHE OR LOCAL DRIVE.
                     if image is None:
                         image = self.__download_google_drive_image(file_service=file_service,file_id=img_url)
                         if image:
@@ -5103,6 +5119,34 @@ class ShowdownPlayerCard(BaseModel):
 
         return player_img_components
 
+    def __query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int = None) -> dict[PlayerImageComponent, str]:
+        """Attempts to query local drive for a player image, if it does not exist use siloutte background.
+
+        Args:
+          folder_path: Path to folder where images are stored.
+          components_dict: Dict of all the image types to included in the image.
+          bref_id: Unique ID for the player.
+          year: Year(s) of card.
+
+        Returns:
+          Dict of image paths per component.
+        """
+
+        # CHECK FOR FOLDER
+        if not os.path.exists(folder_path):
+            return components_dict
+        
+        # CHECK FOR FILES
+        files = os.listdir(folder_path)
+        if not files:
+            return components_dict
+
+        # SEARCH FILES FOR BREF ID MATCHES
+        file_matches_bref_id = [{'id': os.path.join(folder_path, f), 'name': f } for f in files if f'({bref_id})' in f]
+        file_matches_metadata_dict = self.__img_file_matches_dict(files_metadata=file_matches_bref_id, components_dict=components_dict, bref_id=bref_id, year=year)
+        
+        return file_matches_metadata_dict
+
     def __query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int = None) -> tuple:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
@@ -5170,7 +5214,7 @@ class ShowdownPlayerCard(BaseModel):
         """ Iterate through gdrive files and find matches to the player and other settings defined by user.
          
         Args:
-          files_metadata: List of file metadata dicts from google drive.
+          files_metadata: List of file metadata dicts from google or local drive.
           components_dict: Dict of all the image types to included in the image.
           bref_id: Unique ID for the player.
           year: Year(s) of card.
@@ -5203,38 +5247,15 @@ class ShowdownPlayerCard(BaseModel):
 
         # ORDER EACH COMPONENT'S FILE LIST BY HOW WELL IT MATCHES PARAMETERS
         component_img_url_dict: dict[PlayerImageComponent, str] = {}
-        additional_substring_search_list = self.__img_match_keyword_list()
         for component, img_file_list in component_player_file_matches_dict.items():
             img_file_list = sorted(img_file_list, key = lambda i: len(i['name']), reverse=False)
             match_scores: dict[str, float] = {}
             for img_metadata in img_file_list:
-                img_name: str = img_metadata.get('name', None)
                 img_id: str = img_metadata.get('id', None)
-                match_score = sum(val in img_name for val in additional_substring_search_list)
-
-                # ADD DISTANCE FROM YEAR                
-                year_from_img_name = img_name.split(f"-")[1] if len(img_name.split(f"-")) > 1 else 1000
-                is_img_multi_year = len(year_from_img_name) > 4
-                if year_from_img_name == year:
-                    # EXACT YEAR MATCH
-                    match_score += 1
-                elif is_img_multi_year == False:
-                    year_img = float(year_from_img_name)
-                    year_self = float(self.median_year)
-                    pct_diff = 1 - (abs(year_img - year_self) / year_self)
-                    match_score += pct_diff
-
-                # ADD TYPE OVERRIDE
-                if self.player_type_override:
-                    if self.player_type_override.override_string in img_name.upper():
-                        match_score += 1
-
-                # IF POSTSEASON IMAGE BUT NOT POSTSEASON CARD, REDUCE ACCURACY
-                if '(POST)' in img_name and self.stats_period.type != StatsPeriodType.POSTSEASON:
-                    match_score -= 2
+                img_name: str = img_metadata.get('name', None)
                 
                 # ADD MATCH RATE SCORE
-                match_scores[img_id] = match_score
+                match_scores[img_id] = self.__image_name_match_score(img_name=img_name, year=year)
             
             # GET BEST MATCH
             sorted_matches = sorted(match_scores.items(), key=operator.itemgetter(1), reverse=True)
@@ -5245,6 +5266,43 @@ class ShowdownPlayerCard(BaseModel):
         components_dict.update(component_img_url_dict)
 
         return components_dict
+
+    def __image_name_match_score(self, img_name:str, year:int) -> float:
+        """Calculate the match score for a given image name.
+
+        Args:
+          image_name: Name of image to calculate match rating for.
+          year: Year of card.
+
+        Returns:
+          Float representing the match score for image name.
+        """
+
+        additional_substring_search_list = self.__img_match_keyword_list()
+        match_score = sum(val in img_name for val in additional_substring_search_list)
+
+        # ADD DISTANCE FROM YEAR                
+        year_from_img_name = img_name.split(f"-")[1] if len(img_name.split(f"-")) > 1 else 1000
+        is_img_multi_year = len(year_from_img_name) > 4
+        if year_from_img_name == year:
+            # EXACT YEAR MATCH
+            match_score += 1
+        elif is_img_multi_year == False:
+            year_img = float(year_from_img_name)
+            year_self = float(self.median_year)
+            pct_diff = 1 - (abs(year_img - year_self) / year_self)
+            match_score += pct_diff
+
+        # ADD TYPE OVERRIDE
+        if self.player_type_override:
+            if self.player_type_override.override_string in img_name.upper():
+                match_score += 1
+
+        # IF POSTSEASON IMAGE BUT NOT POSTSEASON CARD, REDUCE ACCURACY
+        if '(POST)' in img_name and self.stats_period.type != StatsPeriodType.POSTSEASON:
+            match_score -= 2
+
+        return match_score
 
     def __img_match_keyword_list(self) -> list[str]:
         """ Generate list of keywords to match again google drive image
