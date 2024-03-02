@@ -5490,19 +5490,18 @@ class ShowdownPlayerCard(BaseModel):
         # GRAB FROM CURRENT TEAM COLORS
         return team.color(year=self.median_year, is_secondary=is_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
 
-    def __use_dark_text(self, is_secondary:bool, ignore_team_overrides:bool=False, team_override:Team=None) -> bool:
+    def __use_dark_text(self, is_secondary:bool, ignore_team_overrides:bool=False) -> bool:
         """Determines if text should be dark or light based on team color.
 
         Args:
           is_secondary_color: Optionally use secondary color instead of primary.
           ignore_team_overrides: Boolean to optionally skip overrides.
-          team_override: Optionally use a different team. Used for some special editions like CC.
 
         Returns:
           Boolean for if text should be dark.
         """
 
-        red, green, blue, _ = self.__team_color_rgbs(is_secondary_color=is_secondary, ignore_team_overrides=ignore_team_overrides, team_override=team_override)
+        red, green, blue, _ = self.__team_color_rgbs(is_secondary_color=is_secondary, ignore_team_overrides=ignore_team_overrides, team_override=self.team_override_for_images)
         brightness = (red*0.299 + green*0.587 + blue*0.114)
         return brightness > 170
 
