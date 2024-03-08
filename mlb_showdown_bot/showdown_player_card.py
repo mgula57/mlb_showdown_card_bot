@@ -87,7 +87,7 @@ class ShowdownPlayerCard(BaseModel):
     ignore_cache: bool = False
     disable_cache_cleaning: bool = False
     date_override: Optional[str] = None
-    test_numbers: Optional[tuple[int,int]] = None
+    test_numbers: Optional[tuple[int | float , int | float]] = None
     command_out_override: Optional[tuple[int,int]] = None
     is_variable_speed_00_01: bool = False
     is_wotc: bool = False
@@ -2540,8 +2540,10 @@ class ShowdownPlayerCard(BaseModel):
            - Dict with categorical accuracy and differences.
         """
 
-        chart_w_combined_command_outs = self.chart
+        chart_w_combined_command_outs = { k.lower(): v for k,v in self.chart.values.items() }
         chart_w_combined_command_outs['command-outs'] = '{}-{}'.format(self.chart.command,self.chart.outs)
+        chart_w_combined_command_outs['onbase_perc'] = self.projected.get('onbase_perc', 0)
+        chart_w_combined_command_outs['slugging_perc'] = self.projected.get('slugging_perc', 0)
         chart_w_combined_command_outs['spd'] = self.speed.speed
         chart_w_combined_command_outs['defense'] = int(list(self.positions_and_defense.values())[0])
         

@@ -5,20 +5,20 @@ from time import sleep
 import os
 from pathlib import Path
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
+from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard, Set, ChartCategory
 from mlb_showdown_bot.classes.team import Team
 from mlb_showdown_bot.classes.icon import Icon
-import mlb_showdown_bot.showdown_constants as sc
+from mlb_showdown_bot.postgres_db import PlayerArchive
 
 class ShowdownSetAccuracy:
 
 # ------------------------------------------------------------------------
 # INIT
 
-    def __init__(self, context, real_player_stats_cache, wotc_card_outputs, command_control_combo=None, is_only_command_outs_accuracy=False, ignore_volatile_categories=False, is_pts_only=False,use_wotc_command_outs=False,command_out_combos=[]):
-        self.context = context
-        self.real_player_stats_cache = real_player_stats_cache
-        self.wotc_card_outputs = wotc_card_outputs
+    def __init__(self, set: Set, real_stats: list[PlayerArchive], wotc_cards: dict[str, ShowdownPlayerCard], command_control_combo=None, is_only_command_outs_accuracy=False, ignore_volatile_categories=False, is_pts_only=False,use_wotc_command_outs=False,command_out_combos=[]):
+        self.set = set
+        self.real_stats = real_stats
+        self.wotc_cards = wotc_cards
         self.command_control_combo = command_control_combo
         self.is_only_command_outs_accuracy = is_only_command_outs_accuracy
         self.ignore_volatile_categories = ignore_volatile_categories
@@ -52,57 +52,55 @@ class ShowdownSetAccuracy:
         category_above_below_for_command_outs = {}
         positional_above_below = {}
         positional_accuracies = {}
-        players_excluded_from_testing = sc.EXCLUDED_PLAYERS_FOR_TESTING[str(self.context)]
+        player_ids_to_skip = [
+            '2004-spoonti01-2005-BS', # TIM SPOONEYBARGER
+            '2004-hernaru03-2005-BS', # RUNELVYS HERNANDEZ
+        ]
 
-        for index, wotc_player_card in self.wotc_card_outputs.iterrows():
+        for id, wotc_card in self.wotc_cards.items():
             
-            name_year_string = '{} - {}'.format(wotc_player_card.Name,str(wotc_player_card.Year))
-            is_player_stats_in_cache = name_year_string in self.real_player_stats_cache.NameAndYear.values
+            # SKIP CERTAIN PLAYERS
+            if id in player_ids_to_skip:
+                continue
 
-            if is_player_stats_in_cache:
-                # HAVE ALREADY SCRAPED DATA LOCALLY
-                real_player_stats = self.real_player_stats_cache[self.real_player_stats_cache.NameAndYear == name_year_string]
-                real_player_stats = real_player_stats.where(pd.notnull(real_player_stats), 0)
-                real_player_stats = real_player_stats.to_dict('records')[0]
-            else:
-                # NEED TO SCRAPE FROM BASEBALL REFERENCE
-                if wotc_player_card.Name in players_excluded_from_testing:
-                    print('Skipping - {}'.format(wotc_player_card.Name))
-                    continue
-                try:
-                    print('Scraping - {} stats for {}'.format(wotc_player_card.Name, str(wotc_player_card.Year - 1)))
-                    scraper = BaseballReferenceScraper(wotc_player_card.Name,str(self.context-1))
-                    real_player_stats = scraper.player_statline()
-                    real_player_stats['NameAndYear'] = name_year_string
-                    self.real_player_stats_cache = self.real_player_stats_cache.append(pd.DataFrame.from_records([real_player_stats]), sort=False)
-                    sleep(10) # DO NOT WANT TO MAKE TOO MANY QUICK REQUESTS TO BASEBALL REFERENCE
-                except:
-                    continue
+            # GET REAL STATS
+            player_matches = [pa.stats for pa in self.real_stats if pa.bref_id in id]
+            if len(player_matches) == 0:
+                raise Exception(f'No stats found for {wotc_card.name} (id: {id})')
+            real_player_stats: dict[str, any] = next(iter(player_matches))
             
             # USER CAN TEST CHART WITH CORRECT WOTC COMMAND/OUTS
             command_out_override = None
             if self.use_wotc_command_outs:
-                command_out_override = (wotc_player_card.OnbaseOrControl,wotc_player_card.OUTS)
+                command_out_override = (wotc_card.chart.command, wotc_card.chart.outs)
 
-            my_player_card = ShowdownPlayerCard(wotc_player_card.Name,str(self.context-1),real_player_stats,str(self.context),test_numbers=self.command_control_combo, run_stats= self.is_pts_only==False, offset=0,command_out_override=command_out_override)
+            showdown_bot_card = ShowdownPlayerCard(
+                name = wotc_card.name,
+                year = str(int(self.set.year) - 1),
+                stats = real_player_stats,
+                set = self.set,
+                test_numbers = self.command_control_combo, 
+                run_stats = self.is_pts_only==False, 
+                command_out_override = command_out_override
+            )
             
             # IF CALCULATING POINTS, WE WANT TO USE ORIGINAL SET STATS
             if self.is_pts_only:
-                my_player_card = self.__convert_wotc_to_showdown_player_object(wotc_player_card, my_player_card)
-            wotc_player_card_dict = self.__parse_player_card_categories_for_accuracy(wotc_player_card=wotc_player_card, is_pitcher=my_player_card.is_pitcher)
-            command_outs_str = '{}-{}'.format(my_player_card.chart['command'],my_player_card.chart['outs'])
+                showdown_bot_card = wotc_card
+            
+            wotc_card_dict = self.__parse_player_card_categories_for_accuracy(wotc_card=wotc_card, is_pitcher=showdown_bot_card.is_pitcher)
+            command_outs_str = f'{showdown_bot_card.chart.command}-{showdown_bot_card.chart.outs}'
 
             # ---- APPEND TO ACCURACY TRACKING OBJECTS ----
             if self.command_out_combos != [''] and command_outs_str not in self.command_out_combos:
                 continue
             else:
                 if self.is_pts_only:
-                    print(my_player_card.points - wotc_player_card.PTS, wotc_player_card.Name,('Me', my_player_card.points),('WOTC', wotc_player_card.PTS)) 
-                    # my_player_card.print_player()
+                    print(showdown_bot_card.points - wotc_card.points, wotc_card.name, ('Me', showdown_bot_card.points),('WOTC', wotc_card.points)) 
                 else:
-                    print(wotc_player_card.Name,('Me', my_player_card.chart['command'], my_player_card.chart['outs']),('WOTC', wotc_player_card.OnbaseOrControl, wotc_player_card.OUTS))
+                    print(wotc_card.name, ('Me', showdown_bot_card.chart.command, showdown_bot_card.chart.outs),('WOTC', wotc_card.chart.command, wotc_card.chart.outs))
             
-            accuracy, categorical_accuracy, categorical_above_below = my_player_card.accuracy_against_wotc(wotc_card_dict=wotc_player_card_dict, is_pts_only=self.is_pts_only)
+            accuracy, categorical_accuracy, categorical_above_below = showdown_bot_card.accuracy_against_wotc(wotc_card_dict=wotc_card_dict, is_pts_only=self.is_pts_only)
             sum_of_card_accuracy += accuracy
 
             # ADD TO COMMAND OUT CATEGORY
@@ -115,7 +113,7 @@ class ShowdownSetAccuracy:
                     category_above_below_for_command_outs[command_outs_str] = [categorical_above_below]
 
                 # ADD TO POSITIONS
-                for position in my_player_card.positions_and_defense.keys():
+                for position in showdown_bot_card.positions_and_defense.keys():
                     if position in positional_accuracies.keys():
                         positional_accuracies[position].append(categorical_accuracy['points'])
                         positional_above_below[position].append(categorical_above_below)
@@ -127,13 +125,13 @@ class ShowdownSetAccuracy:
             is_perfect = accuracy == 1
             if is_perfect:
                 num_perfect_match += 1
-                perfect_match_players.append(wotc_player_card.Name)
+                perfect_match_players.append(wotc_card.name)
             
             # CARD IS MATCH FOR COMMAND-OUTS
             is_command_match = categorical_accuracy['command-outs'] == 1.0
             if is_command_match:
                 category_accuracies_for_command_matches.append(categorical_accuracy)
-                command_match_players.append(wotc_player_card.Name)
+                command_match_players.append(wotc_card.name)
                 category_above_below_list_for_matches.append(categorical_above_below)
 
             category_accuracies.append(categorical_accuracy)
@@ -204,10 +202,6 @@ class ShowdownSetAccuracy:
                     category_dict_for_matches[above_or_below] = sum(player[category][above_or_below] for player in category_above_below_list_for_matches) / denominator_matches if denominator_matches != 0 else 1
                 categories_above_below_summarized[category] = category_dict
                 categories_above_below_summarized_for_matches[category] = category_dict_for_matches
-        
-        # STORE NEWLY CACHED PLAYERS IF ANY
-        cache_destination_path = os.path.join(Path(os.path.dirname(__file__)),'cache','player_cache.csv')
-        self.real_player_stats_cache.to_csv(cache_destination_path, index= False)
 
         return (
             sum_of_card_accuracy, 
@@ -224,123 +218,49 @@ class ShowdownSetAccuracy:
             all_positions_above_below_summarized,
         )
 
-    def __parse_player_card_categories_for_accuracy(self,wotc_player_card,is_pitcher):
+    def __parse_player_card_categories_for_accuracy(self,wotc_card: ShowdownPlayerCard, is_pitcher:bool):
         """Creates dictionary of WOTC card output for only the categories used to calculate
         card accuracy.
 
         Args:
-          wotc_player_card: Pandas DataFrame row for WOTC official player card.
+          wotc_card: Showdown Card from WOTC
           is_pitcher: Boolean for whether the player is a pitcher.
         Returns:
           Dict of player attributes used in accuracy comparison.
         """
             
-        wotc_player_card_dict = {
-            'command-outs': '{}-{}'.format(int(wotc_player_card.OnbaseOrControl),int(wotc_player_card.OUTS))
+        wotc_card_dict = {
+            'command-outs': '{}-{}'.format(int(wotc_card.chart.command),int(wotc_card.chart.outs)),
         }
 
         # IF TESTING FOR POINTS
         if self.is_pts_only:
-            wotc_player_card_dict['points'] = int(wotc_player_card['PTS'])
-            return wotc_player_card_dict
+            wotc_card_dict['points'] = wotc_card.points
+            return wotc_card_dict
 
         if not self.is_only_command_outs_accuracy:
-            wotc_player_card_dict.update({
-                '1b': int(wotc_player_card['1B']),
-                '2b': int(wotc_player_card['2B']) if int(wotc_player_card['2B']) < 21 else 0,
-                'bb': int(wotc_player_card['BB']),
-                'fb': int(wotc_player_card['FB']),
-                'gb': int(wotc_player_card['GB']),
-                'hr': int(wotc_player_card['HR']) if int(wotc_player_card['HR']) < 21 else 0,
-                'so': int(wotc_player_card['SO']),
-            })
-            if is_pitcher:
-                wotc_player_card_dict.update({'pu': int(wotc_player_card['PU'])})
-            else:
-                wotc_player_card_dict.update({
-                    '1b+': int(wotc_player_card['1B+']),
-                    '3b': int(wotc_player_card['3B']) if int(wotc_player_card['3B']) < 21 else 0,
-                    'spd': int(wotc_player_card['Speed']),
-                    'defense': int(wotc_player_card['Fielding1'])
+            categories = [ChartCategory._1B, ChartCategory._2B, ChartCategory.BB, ChartCategory.FB, ChartCategory.GB, ChartCategory.HR, ChartCategory.SO,]
+            categories += [ChartCategory.PU] if is_pitcher else [ChartCategory._1B_PLUS, ChartCategory._3B,]
+            wotc_card_dict.update({category.value.lower(): wotc_card.chart.values.get(category) for category in categories})
+            if not is_pitcher:
+                wotc_card_dict.update({
+                    'spd': wotc_card.speed.speed,
+                    'defense': list(wotc_card.positions_and_defense.values())[0]
                 })
-        
+
+            wotc_card_dict.update({
+                'onbase_perc': wotc_card.projected.get('onbase_perc', 0),
+                'slugging_perc': wotc_card.projected.get('slugging_perc', 0),
+            })
+                        
         # REMOVE EXCLUDED CATEGORIES
         if self.ignore_volatile_categories:
             if not is_pitcher:
-                wotc_player_card_dict['1b'] = wotc_player_card_dict['1b'] + wotc_player_card_dict['1b+']
+                wotc_card_dict['1b'] = wotc_card_dict['1b'] + wotc_card_dict['1b+']
             excluded_categories = ['so', 'gb', 'fb', '1b+', 'pu']
             
                 
             for category in excluded_categories:
-                if category in wotc_player_card_dict.keys():
-                    del wotc_player_card_dict[category]
-        return wotc_player_card_dict
-
-    def __convert_wotc_to_showdown_player_object(self,wotc_player_card,my_player_card:ShowdownPlayerCard) -> ShowdownPlayerCard:
-        """Creates Showdown Player Card Generator object version of WOTC stats
-
-        Args:
-          wotc_player_card: Pandas DataFrame row for WOTC official player card.
-          my_player_card: Showdown Player Card Generator object
-
-        Returns:
-          Showdown Player Card Generator object w/ WOTC stats
-        """
-
-        # ADD CLASS ATTRIBUTES NEEDED TO CALCULATE POINTS
-        team_cleaned = wotc_player_card.Team.replace('LA(A)', 'LAA')\
-                        .replace('CHI(N)','CHC').replace('NY(N)','NYM').replace('NY(A)','NYY')\
-                        .replace('CHI(A)','CHW').replace('LA(N)','LAD').replace('KC', 'KCR') \
-                        .replace('SD','SDP').replace('SF','SFG').replace('TB','TBD')
-        my_player_card.team = Team(team_cleaned)
-        my_player_card.is_pitcher = wotc_player_card.Type == 'Pitcher'
-        my_player_card.hand = wotc_player_card.Hand
-        my_player_card.chart = {
-            '1b': 0 if wotc_player_card['1B'] > 20 else wotc_player_card['1B'],
-            '1b+': wotc_player_card['1B+'],
-            '2b': wotc_player_card['2B For Calcs'],
-            '3b': wotc_player_card['3B For Calcs'],
-            'bb': wotc_player_card['BB'],
-            'command': wotc_player_card.OnbaseOrControl,
-            'fb': wotc_player_card['FB'],
-            'gb': wotc_player_card['GB'],
-            'hr': wotc_player_card['HR For Calcs'],
-            'outs': wotc_player_card.OUTS,
-            'pu': wotc_player_card['PU'],
-            'so': wotc_player_card['SO'],
-        }
-        opponent_chart, my_advantages_per_20, opponent_advantages_per_20 = my_player_card.opponent_stats_for_calcs(command=wotc_player_card.OnbaseOrControl)
-        chart_results_per_400_pa = my_player_card.chart_to_results_per_400_pa(my_player_card.chart, my_advantages_per_20, opponent_chart, opponent_advantages_per_20)
-        my_player_card.projected = my_player_card.projected_statline(stats_per_400_pa=chart_results_per_400_pa,command=wotc_player_card.OnbaseOrControl)
-        rep = {"SP": "STARTER", "RP": "RELIEVER", "CL": "CLOSER"}
-        position_1 = str(wotc_player_card.Position1)            
-        if position_1 in rep.keys():
-            position_1 = rep[position_1]
-        defense = {position_1: wotc_player_card.Fielding1}
-        if wotc_player_card.Position2 is not None and not str(wotc_player_card.Position2) == 'nan':
-            defense[str(wotc_player_card.Position2)] = wotc_player_card.Fielding2
-        if wotc_player_card.Position3 is not None and not str(wotc_player_card.Position3) == 'nan':
-            defense[str(wotc_player_card.Position3)] = wotc_player_card.Fielding3
-        if int(self.context) > 2001 and 'C' in defense.keys():
-            defense['CA'] = defense['C']
-            del defense['C']
-
-        my_player_card.positions_and_defense = defense
-        my_player_card.ip = int(wotc_player_card.IP)
-        icons = [wotc_player_card.Icon1, wotc_player_card.Icon2, wotc_player_card.Icon3, wotc_player_card.Icon4]
-        icons = [str(x) for x in icons if str(x) != 'nan']
-        icons = [Icon(x) for x in icons]
-        my_player_card.icons = icons
-        my_player_card.chart_ranges = my_player_card.ranges_for_chart(my_player_card.chart, 5.0, 5.0, 5.0)
-        my_player_card.speed = wotc_player_card.Speed
-        if wotc_player_card.Speed < 12:
-            letter = 'C'
-        elif wotc_player_card.Speed < 18:
-            letter = 'B'
-        else:
-            letter = 'A'
-        my_player_card.speed_letter = letter
-        my_player_card.points = my_player_card.point_value(projected=my_player_card.projected,
-                                                            positions_and_defense=defense,
-                                                            speed_or_ip=my_player_card.ip if my_player_card.is_pitcher else wotc_player_card.Speed)
-        return my_player_card
+                if category in wotc_card_dict.keys():
+                    del wotc_card_dict[category]
+        return wotc_card_dict
