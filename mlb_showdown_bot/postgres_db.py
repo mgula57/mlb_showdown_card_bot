@@ -4,11 +4,37 @@ from psycopg2.extras import RealDictCursor
 from psycopg2.extensions import AsIs
 from psycopg2 import sql
 from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .classes.stats_period import StatsPeriodType
 except ImportError:    
     from classes.stats_period import StatsPeriodType
+
+class PlayerArchive(BaseModel):
+    id: str
+    year: int
+    bref_id: str
+    historical_date: Optional[str]
+    name: str
+    player_type: str
+    player_type_override: Optional[str]
+    is_two_way: bool = False
+    primary_positions: list[str]
+    secondary_positions: list[str]
+    g: int
+    gs: int
+    pa: Optional[int]
+    ip: Optional[float]
+    lg_id: str
+    team_id: str
+    team_id_list: list[str]
+    team_games_played_dict: dict
+    team_override: Optional[str]
+    created_date: datetime
+    modified_date: datetime
+    stats: dict
 
 class PostgresDB:
 
@@ -73,7 +99,7 @@ class PostgresDB:
 
         return output
     
-    def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:str = None, type_override:str = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.REGULAR_SEASON) -> tuple[dict, float]:
+    def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:str = None, type_override:str = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.REGULAR_SEASON) -> tuple[PlayerArchive, float]:
         """Query the stats_archive table for a particular player's data from a single year
         
         Args:
@@ -108,7 +134,7 @@ class PostgresDB:
         concat_str_list = [component for component in id_components if component is not None]
         player_stats_id: str = "-".join(concat_str_list).lower()
 
-        query = sql.SQL("SELECT stats FROM {table} WHERE {column} = %s ORDER BY modified_date DESC;") \
+        query = sql.SQL("SELECT * FROM {table} WHERE {column} = %s ORDER BY modified_date DESC;") \
                     .format(
                         table=sql.Identifier("stats_archive"),
                         column=sql.Identifier("id")
@@ -118,17 +144,18 @@ class PostgresDB:
         if len(query_results_list) == 0:
             return default_return_tuple
         
-        # IF EMPTY DICT, RETURN NONE INSTEAD
-        first_result_dict = query_results_list[0].get('stats', {})
-        if len(first_result_dict) == 0:
+        # IF EMPTY STATS, RETURN NONE INSTEAD
+        first_result_dict = query_results_list[0]
+        first_player_archive = PlayerArchive(**first_result_dict)
+        if len(first_player_archive.stats) == 0:
             return default_return_tuple
         
         end_time = datetime.now()
         load_time = round((end_time - start_time).total_seconds(),2)
         
-        return (first_result_dict, load_time)
+        return (first_player_archive, load_time)
 
-    def fetch_all_stats_from_archive(self, year_list: list[int], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None) -> list[dict]:
+    def fetch_all_stats_from_archive(self, year_list: list[int], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None) -> list[PlayerArchive]:
         """
         Fetch stats archive data for a list of years.
 
@@ -175,7 +202,9 @@ class PostgresDB:
                             order_by_filter=sql.SQL(' ').join(additional_conditions)
                         )
         filters = tuple(values_to_filter)
-        return self.execute_query(query=query, filter_values=filters)
+        results = self.execute_query(query=query, filter_values=filters)
+
+        return [PlayerArchive(**row) for row in results]
     
     def fetch_player_year_list_from_archive(self, players_stats_ids: list[str]) -> list[dict]:
         """Query the stats_archive table for all player data for given a list of player_stats_ids ('{bref_id}-{year}')

@@ -6,14 +6,12 @@ from pathlib import Path
 # MY PACKAGES
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
-    from .firebase import Firebase
     from .baseball_ref_scraper import BaseballReferenceScraper
     from .showdown_player_card import ShowdownPlayerCard
     from .classes.stats_period import StatsPeriod
     from .postgres_db import PostgresDB
 except ImportError:
     # USE LOCAL IMPORT 
-    from firebase import Firebase
     from baseball_ref_scraper import BaseballReferenceScraper
     from showdown_player_card import ShowdownPlayerCard
     from classes.stats_period import StatsPeriod
@@ -87,10 +85,10 @@ def main():
     #  1. ARCHIVE: HISTORICAL DATA IN POSTGRES DB
     #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
     postgres_db = PostgresDB(is_archive=True)
-    archived_statline, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
+    player_archive, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
     postgres_db.close_connection()
-    if archived_statline:
-        statline = archived_statline
+    if player_archive:
+        statline = player_archive.stats
         data_source = 'Archive'
     else:
         statline = scraper.player_statline()
