@@ -99,20 +99,21 @@ def main():
     if args.is_wotc:
 
         # LOAD FROM JSON
-        file_path = os.path.join(Path(os.path.dirname(__file__)),'wotc_cards.json')
+        file_path = os.path.join(Path(os.path.dirname(__file__)), 'data', 'wotc_player_card_set.json')
         with open(file_path, "r") as json_file:
-            wotc_data = json.load(json_file)
-        
+            wotc_set_data = json.load(json_file)
+
         # MATCH ON ID
         fields = [args.year, scraper.baseball_ref_id, args.set, args.expansion,]
         if scraper.player_type_override:
             fields.append(scraper.player_type_override)
         showdown_card_id = "-".join(fields)
 
-        wotc_card:dict = wotc_data.get(showdown_card_id, None)
-        if wotc_card:
-            wotc_card['stats'] = statline
-            showdown = ShowdownPlayerCard(**wotc_card)
+        # GET CARD
+        wotc_card_data: dict = wotc_set_data.get('cards', {}).get(showdown_card_id, None)
+        if wotc_card_data:
+            showdown = ShowdownPlayerCard(**wotc_card_data)
+            showdown.stats = statline
             showdown.accolades = showdown.parse_accolades()
             showdown.print_player()
             if args.show_image:

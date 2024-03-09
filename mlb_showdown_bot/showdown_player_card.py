@@ -114,7 +114,7 @@ class ShowdownPlayerCard(BaseModel):
     icons: list[Icon] = None
     projected: dict = {}
     points_breakdown: Points = Points()
-    points: int = 0.0
+    points: int = 0
 
 # ------------------------------------------------------------------------
 # INIT
