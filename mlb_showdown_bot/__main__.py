@@ -113,8 +113,6 @@ def main():
         wotc_card_data: dict = wotc_set_data.get('cards', {}).get(showdown_card_id, None)
         if wotc_card_data:
             showdown = ShowdownPlayerCard(**wotc_card_data)
-            showdown.stats = statline
-            showdown.accolades = showdown.parse_accolades()
             showdown.print_player()
             if args.show_image:
                 showdown.card_image(show=True)

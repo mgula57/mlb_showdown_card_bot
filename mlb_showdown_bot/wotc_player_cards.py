@@ -1,3 +1,4 @@
+import math
 from pydantic import BaseModel
 from math import isnan
 import pandas as pd
@@ -5,9 +6,11 @@ import os, json
 from pathlib import Path
 
 try:
-    from showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion
+    from .showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion
+    from .postgres_db import PostgresDB, PlayerArchive
 except ImportError:
     from showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion
+    from postgres_db import PostgresDB, PlayerArchive
 
 # ------------------------------
 # WOTC PLAYER CARD
@@ -17,7 +20,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
 
     points_estimated: int = 0
 
-    def __init__(self, is_data_from_gsheet:bool = False, **data):
+    def __init__(self, is_data_from_gsheet:bool = False, stats:dict = None, **data):
 
         # DATA IS ALREADY CONVERTED
         if not is_data_from_gsheet:
@@ -93,11 +96,14 @@ class WotcPlayerCard(ShowdownPlayerCard):
         # INIT WITH DATA
         super().__init__(**data)
 
+        self.stats = stats or {}
+
         # ADD PROJECTIONS
         proj_opponent_chart, proj_my_advantages_per_20, proj_opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=self.chart.command)
         chart_results_per_400_pa = self.chart_to_results_per_400_pa(chart=self.chart, my_advantages_per_20=proj_my_advantages_per_20, opponent_chart=proj_opponent_chart, opponent_advantages_per_20=proj_opponent_advantages_per_20)
-        self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command, pa=650)
-        
+        self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command, pa=self.stats.get('PA', 650))
+        self.accolades = self.parse_accolades()
+
         # ADD ESTIMATED PTS
         self.points_estimated = self.calculate_points(projected=self.projected, positions_and_defense=self.positions_and_defense, speed_or_ip=self.ip if self.is_pitcher else self.speed.speed).total_points
 
@@ -134,8 +140,16 @@ class WotcPlayerCardSet(BaseModel):
         set_values = [int(s.year) for s in self.sets]
         df_wotc_cards = df_wotc_cards[df_wotc_cards['Set'].isin(set_values) & df_wotc_cards['Expansion'].isin(expansion_values)]
 
+        # GET DISTINCT VALUES FROM THE 'SS YEAR' COLUMN
+        ss_year_values = [int(s) for s in df_wotc_cards['SS Year'].unique() if math.isnan(s) == False]
+
         # CONVERT TO LIST OF DICTS
         list_of_dicts: list[dict[str, any]] = df_wotc_cards.to_dict(orient='records')
+
+        # LOAD PLAYER STATS FROM ARCHIVE DB
+        postgres_db = PostgresDB(is_archive=True)
+        year_list = [y-1 for y in set_values] + ss_year_values
+        real_player_stats_archive: list[PlayerArchive] = postgres_db.fetch_all_stats_from_archive(year_list=year_list, exclude_records_with_stats=False)
 
         # CREATE LIST OF SHOWDOWN OBJECTS
         converted_cards: list[WotcPlayerCard] = {}
@@ -147,7 +161,20 @@ class WotcPlayerCardSet(BaseModel):
 
             print(f"  {index:<4}/{total_cards}  {gsheet_row['Name']:<30}", end="\r")
 
-            card = WotcPlayerCard(is_data_from_gsheet=True, **gsheet_row)
+            # ADD STATS FROM ARCHIVE
+            bref_id = gsheet_row.get('BRef Id', '')
+            expansion = gsheet_row.get('Expansion', 'N/A')
+            ss_year = None if math.isnan(gsheet_row.get('SS Year', 0)) else int(gsheet_row.get('SS Year', 0))
+            set_year = int(gsheet_row.get('Set', 2000)) - 1
+            year = ss_year or set_year
+            archive_id = f'{year}-{bref_id}'
+            stats: dict = None
+            if expansion == Expansion.BS.value or ss_year:
+                player_archive = next((p for p in real_player_stats_archive if p.id == archive_id), None)
+                if player_archive:
+                    stats = player_archive.stats
+
+            card = WotcPlayerCard(is_data_from_gsheet=True, stats=stats, **gsheet_row)
             converted_cards[card.id] = card
         
         self.cards = converted_cards
