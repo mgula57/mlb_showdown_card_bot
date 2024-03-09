@@ -13,7 +13,7 @@ for type in PlayerType:
     for set in Set:
         print(f'---- {set.value} {type} ----')
         for era in Era:
-            excluded = era in [Era.STEROID]
+            excluded = era in []
             if not excluded:
             
                 chart = set.baseline_chart(player_type=type, era=era)

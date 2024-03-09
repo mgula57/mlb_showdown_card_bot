@@ -178,12 +178,12 @@ class ShowdownPlayerCard(BaseModel):
             self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,
                                                                               stats_per_400_pa=stats_for_400_pa,
                                                                               offset=int(self.chart_version))
-            self.projected: dict = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command)
+            self.projected: dict = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command, pa=self.stats.get('PA', 650))
 
             # FOR PTS, USE STEROID ERA OPPONENT
             proj_opponent_chart, proj_my_advantages_per_20, proj_opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=self.chart.command, era_override=Era.STEROID)
-            projections_for_pts_per_400_pa = self.chart_to_results_per_400_pa(chart=self.chart, my_advantages_per_20=proj_my_advantages_per_20, opponent_chart=proj_opponent_chart, opponent_advantages_per_20=proj_opponent_advantages_per_20, era_override=Era.STEROID)
-            projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=self.chart.command)
+            projections_for_pts_per_400_pa = self.chart_to_results_per_400_pa(chart=self.chart, my_advantages_per_20=proj_my_advantages_per_20, opponent_chart=proj_opponent_chart, opponent_advantages_per_20=proj_opponent_advantages_per_20)
+            projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=self.chart.command, pa=650)
 
             self.points_breakdown: Points = self.calculate_points(projected=projections_for_pts,
                                             positions_and_defense=self.positions_and_defense,
@@ -1738,7 +1738,6 @@ class ShowdownPlayerCard(BaseModel):
             trpl_per_400_pa = round(stats_for_400_pa.get('3b_per_400_pa', 0), 4),
             hr_per_400_pa = round(stats_for_400_pa.get('hr_per_400_pa', 0), 4)
         )
-
         for category, results_per_400_pa in stats_for_400_pa.items():
             if '_per_400_pa' in category and category != 'h_per_400_pa':
 
@@ -1810,7 +1809,7 @@ class ShowdownPlayerCard(BaseModel):
         chart.generate_range_strings()
 
         # CHECK ACCURACY COMPARED TO REAL LIFE
-        in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20, era_override=era_override)
+        in_game_stats_for_400_pa = self.chart_to_results_per_400_pa(chart,my_advantages_per_20,opponent_chart,opponent_advantages_per_20)
         weights = self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type)
         accuracy, _, _ = self.accuracy_between_dicts(
             actuals_dict=stats_for_400_pa,
@@ -2011,7 +2010,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return rate
 
-    def chart_to_results_per_400_pa(self, chart:Chart, my_advantages_per_20:float, opponent_chart:Chart, opponent_advantages_per_20:float, era_override:Era = None) -> dict:
+    def chart_to_results_per_400_pa(self, chart:Chart, my_advantages_per_20:float, opponent_chart:Chart, opponent_advantages_per_20:float) -> dict:
         """Predict real stats given Showdown in game chart.
 
         Args:
@@ -2019,14 +2018,12 @@ class ShowdownPlayerCard(BaseModel):
           my_advantages_per_20: Number of advantages my Player gets out of 20 (i.e. 5). Can be a float.
           opponent_chart: Dict for chart of baseline opponent.
           opponent_advantages_per_20: Number of advantages opponent gets out of 20 (i.e. 15). Can be a float.
-          era_override: Optionally override the era used for baseline opponents.
 
         Returns:
           Dict with stats per 400 Plate Appearances.
         """
 
         # MATCHUP VALUES
-        command_out_matchup = self.__onbase_control_outs(chart.command, chart.outs, era_override=era_override)
         strikeouts_per_400_pa = self.__result_occurances_per_400_pa(my_results=chart.num_values(ChartCategory.SO),
                                                                     opponent_results=opponent_chart.num_values(ChartCategory.SO),
                                                                     my_advantages_per_20=my_advantages_per_20,
@@ -2051,19 +2048,19 @@ class ShowdownPlayerCard(BaseModel):
                                                                    opponent_results=opponent_chart.num_values(ChartCategory.HR),
                                                                    my_advantages_per_20=my_advantages_per_20,
                                                                    opponent_advantages_per_20=opponent_advantages_per_20)
-        hits_per_400_pa = round(singles_per_400_pa) \
-                            + round(doubles_per_400_pa) \
-                            + round(triples_per_400_pa) \
-                            + round(home_runs_per_400_pa)
+        hits_per_400_pa = singles_per_400_pa \
+                            + doubles_per_400_pa \
+                            + triples_per_400_pa \
+                            + home_runs_per_400_pa
         # SLASH LINE
 
         # BA
         batting_avg = hits_per_400_pa / (400.0 - walks_per_400_pa)
 
         # OBP
-        onbase_results_per_400_pa = round(walks_per_400_pa) + hits_per_400_pa
-        obp = onbase_results_per_400_pa / 400.0
-        obp = self.__obp_for_command_outs(command_out_matchup)
+        onbase_results_per_400_pa = walks_per_400_pa + hits_per_400_pa
+        obp = onbase_results_per_400_pa / 400.0        
+
         # SLG
         slugging_pct = self.__slugging_pct(ab=400-walks_per_400_pa,
                                            singles=singles_per_400_pa,
@@ -2079,6 +2076,7 @@ class ShowdownPlayerCard(BaseModel):
             '3b_per_400_pa': triples_per_400_pa,
             'hr_per_400_pa': home_runs_per_400_pa,
             'h_per_400_pa': hits_per_400_pa,
+            'ab_per_400_pa': 400 - walks_per_400_pa,
             'batting_avg': batting_avg,
             'onbase_perc': obp,
             'slugging_perc': slugging_pct,
@@ -2104,40 +2102,42 @@ class ShowdownPlayerCard(BaseModel):
         """ Calculate Slugging Pct"""
         return (singles + (2 * doubles) + (3 * triples) + (4 * homers)) / ab
 
-    def projected_statline(self, stats_per_400_pa:dict, command: int) -> dict:
-        """Predicted season stats (650 PA)
+    def projected_statline(self, stats_per_400_pa:dict[str, int | float], command:int, pa: int = 650) -> dict:
+        """Predicted season stats. Convert values to player's real PA.
 
         Args:
           stats_per_400_pa: Stats and Ratios weighted for every 400 plate appearances.
           command: Player Onbase or Control
+          pa: Number of Plate Appearances to be converted to.
 
         Returns:
-          Dict with stats for 650 PA.
+          Dict with stats for player's real PA.
         """
 
-        stats_per_650_pa = {}
+        stats_for_real_pa: dict[str, int | float] = {'PA': pa}
 
         for category, value in stats_per_400_pa.items():
             if 'per_400_pa' in category:
-                # CONVERT TO 650 PA
-                stats_per_650_pa[category.replace('400', '650')] = round(value * 650 / 400,2)
+                # CONVERT TO REAL PA
+                pa_multiplier = pa / 400.0
+                stats_for_real_pa[category.replace('_per_400_pa', '').upper()] = round(value * pa_multiplier, 4)
             else:
                 # PCT VALUE (OBP, SLG, BA, ...)
-                stats_per_650_pa[category] = round(value,4)
+                stats_for_real_pa[category] = round(value,4)
 
         # ADD OPS
-        keys = stats_per_650_pa.keys()
+        keys = stats_for_real_pa.keys()
         has_slg_and_obp = 'onbase_perc' in keys and 'slugging_perc' in keys
         if has_slg_and_obp:
-            stats_per_650_pa['onbase_plus_slugging'] = round(stats_per_650_pa['onbase_perc'] + stats_per_650_pa['slugging_perc'], 4)
+            stats_for_real_pa['onbase_plus_slugging'] = round(stats_for_real_pa['onbase_perc'] + stats_for_real_pa['slugging_perc'], 4)
 
         # ADD shOPS+ (SHOWDOWN OPS+ EQUIVALENT)
         try:
-            stats_per_650_pa['onbase_plus_slugging_plus'] = self.calculate_shOPS_plus(command=command, proj_obp=stats_per_650_pa['onbase_perc'], proj_slg=stats_per_650_pa['slugging_perc'])
+            stats_for_real_pa['onbase_plus_slugging_plus'] = self.calculate_shOPS_plus(command=command, proj_obp=stats_for_real_pa['onbase_perc'], proj_slg=stats_for_real_pa['slugging_perc'])
         except:
-            stats_per_650_pa['onbase_plus_slugging_plus'] = None
+            stats_for_real_pa['onbase_plus_slugging_plus'] = None
         
-        return stats_per_650_pa
+        return stats_for_real_pa
 
     def stat_highlights_list(self, stats:dict[str: any], limit:int) -> list[str]:
         """Get the most relevant stats for a player.
@@ -2666,36 +2666,31 @@ class ShowdownPlayerCard(BaseModel):
             'OPS+': 'onbase_plus_slugging_plus',
             'PA': 'PA',
             'AB': 'AB',
-            '1B': '1b_per_650_pa',
-            '2B': '2b_per_650_pa',
-            '3B': '3b_per_650_pa',
-            'HR': 'hr_per_650_pa',
-            'BB': 'bb_per_650_pa',
-            'SO': 'so_per_650_pa',
+            'H': 'H',
+            '1B': '1B',
+            '2B': '2B',
+            '3B': '3B',
+            'HR': 'HR',
+            'BB': 'BB',
+            'SO': 'SO',
             'SB': 'SB',
         }
         if self.is_pitcher:
             stat_categories_dict['IP'] = 'ip'
-
         statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))
-        slash_categories = ['batting_avg','onbase_perc','slugging_perc','onbase_plus_slugging']
         final_dict = {
             'projected': [],
             'stats': [],
         }
-        real_life_pa = int(self.stats.get('PA', 0))
-        real_life_pa_ratio = real_life_pa / 650.0
         all_numeric_value_lists = []
         for source in final_dict.keys():
             source_dict = getattr(self, source)
             src_value_name = source.replace('stats', 'real').replace('projected', 'proj').upper()
             values = [src_value_name]
             numeric_values = []
-            for abbr, full_name in stat_categories_dict.items():
-                key = full_name if source == 'projected' or full_name in slash_categories else abbr
-                multiplier = real_life_pa_ratio if 'per_650_pa' in key else 1.0
-                stat_raw = ( ( source_dict.get(key, 0) or 0 ) * multiplier ) if abbr != 'PA' else real_life_pa
-                stat_str = self.__stat_formatted(category=full_name, value=stat_raw)
+            for key in stat_categories_dict.values():
+                stat_raw = source_dict.get(key, 0) or 0
+                stat_str = self.__stat_formatted(category=key, value=stat_raw)
                 values.append(stat_str)
                 numeric_values.append(stat_raw)
             final_dict[source] = values

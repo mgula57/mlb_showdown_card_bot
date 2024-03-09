@@ -94,5 +94,5 @@ class PointsMetric(Enum):
             case 'ONBASE': return 'onbase_perc'
             case 'AVERAGE': return 'batting_avg'
             case 'SLUGGING': return 'slugging_perc'
-            case 'HOME_RUNS': return 'hr_per_650_pa'
+            case 'HOME_RUNS': return 'HR'
             case _: return None

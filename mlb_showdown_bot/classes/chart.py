@@ -67,6 +67,10 @@ class Chart(BaseModel):
         return 'Control' if self.is_pitcher else 'Onbase'
 
     @property
+    def command_outs_concat(self) -> str:
+        return f'{self.command}-{self.outs}'
+
+    @property
     def values_as_list(self) -> list[list[str, str]]:
         """Convert chart values and command/outs to list of lists"""
         values_list = [ [self.command_name, str(self.command)], ['outs', str(self.outs)] ]

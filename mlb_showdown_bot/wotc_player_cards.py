@@ -96,7 +96,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
         # ADD PROJECTIONS
         proj_opponent_chart, proj_my_advantages_per_20, proj_opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=self.chart.command)
         chart_results_per_400_pa = self.chart_to_results_per_400_pa(chart=self.chart, my_advantages_per_20=proj_my_advantages_per_20, opponent_chart=proj_opponent_chart, opponent_advantages_per_20=proj_opponent_advantages_per_20)
-        self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command)
+        self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command, pa=650)
         
         # ADD ESTIMATED PTS
         self.points_estimated = self.calculate_points(projected=self.projected, positions_and_defense=self.positions_and_defense, speed_or_ip=self.ip if self.is_pitcher else self.speed.speed).total_points
