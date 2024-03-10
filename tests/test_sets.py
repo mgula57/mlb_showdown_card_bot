@@ -1,6 +1,7 @@
 import argparse
-import sys
-sys.path.insert(0, '/Users/matthewgula/Documents/Python/mlb_showdown_card_bot/') # COMMENT WHEN OUT OF DEVELOPMENT
+import os, sys
+from pathlib import Path
+sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
 from mlb_showdown_bot.classes.sets import Set, Era, PlayerType
 from mlb_showdown_bot.classes.chart import ChartCategory
 

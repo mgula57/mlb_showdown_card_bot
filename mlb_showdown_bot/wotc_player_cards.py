@@ -4,6 +4,7 @@ from math import isnan
 import pandas as pd
 import os, json
 from pathlib import Path
+from rich.progress import track
 
 try:
     from .showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion
@@ -116,6 +117,7 @@ class WotcPlayerCardSet(BaseModel):
     
     sets: list[Set] = [s for s in Set if s.is_wotc]
     expansions: list[Expansion] = [e for e in Expansion]
+    player_types: list[PlayerType] = [t for t in PlayerType]
     local_file_path: str = os.path.join(Path(os.path.dirname(__file__)), 'data', 'wotc_player_card_set.json')
     cards: dict[str, WotcPlayerCard] = {}
 
@@ -138,7 +140,8 @@ class WotcPlayerCardSet(BaseModel):
         # FILTER PANDAS FOR CARDS IN SETS AND EXPANSIONS LIST
         expansion_values = [e.value for e in self.expansions]
         set_values = [int(s.year) for s in self.sets]
-        df_wotc_cards = df_wotc_cards[df_wotc_cards['Set'].isin(set_values) & df_wotc_cards['Expansion'].isin(expansion_values)]
+        player_type_values = [t.value for t in self.player_types]
+        df_wotc_cards = df_wotc_cards[df_wotc_cards['Set'].isin(set_values) & df_wotc_cards['Expansion'].isin(expansion_values) & df_wotc_cards['Player Type'].isin(player_type_values)]
 
         # GET DISTINCT VALUES FROM THE 'SS YEAR' COLUMN
         ss_year_values = [int(s) for s in df_wotc_cards['SS Year'].unique() if math.isnan(s) == False]
@@ -153,13 +156,10 @@ class WotcPlayerCardSet(BaseModel):
 
         # CREATE LIST OF SHOWDOWN OBJECTS
         converted_cards: list[WotcPlayerCard] = {}
-        total_cards = len(list_of_dicts)
-        for index, gsheet_row in enumerate(list_of_dicts, 1):
+        for gsheet_row in track(list_of_dicts, description="Converting WOTC Player Cards"):
 
             if int(gsheet_row.get('Set', 0)) < 2002 and gsheet_row.get('Expansion') == 'PM':
                 continue
-
-            print(f"  {index:<4}/{total_cards}  {gsheet_row['Name']:<30}", end="\r")
 
             # ADD STATS FROM ARCHIVE
             bref_id = gsheet_row.get('BRef Id', '')
