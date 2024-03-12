@@ -4,9 +4,9 @@ import cloudscraper
 from bs4 import BeautifulSoup
 from pprint import pprint
 import sys
-
-sys.path.append('..')
-from postgres_db import PostgresDB
+from pathlib import Path
+sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
+from postgres_db import PostgresDB, PlayerArchive
 
 parser = argparse.ArgumentParser(description="Search baseball reference for best auto images to add.")
 parser.add_argument('-hof','--hof', action='store_true', help='Only Hall of Fame Players', required=False)
@@ -29,7 +29,7 @@ def fetch_image_file_list() -> list[str]:
             file_names.append(name)
     return file_names
 
-def fetch_player_data() -> list[dict]:
+def fetch_player_data() -> list[PlayerArchive]:
 
     # LIST OF YEAR INTS FROM 1900 TO NOW
     year_list = list(range(1900, 2024))
@@ -56,20 +56,16 @@ image_list = fetch_image_file_list()
 player_data = fetch_player_data()
 
 for player in player_data:
-
-    name = player['name']
-    bref_id = player['bref_id']
-    year = player['year']
-    team = player['team_id']
-    bwar = player['stats']['bWAR']
-    is_hof = player['stats'].get('is_hof', False)
-    awards = player['stats'].get('award_summary', '').split(',')
+    
+    bwar = player.stats.get('bWAR', 0)
+    is_hof = player.stats.get('is_hof', False)
+    awards = player.stats.get('award_summary', '').split(',')
     mvp_str = 'MVP' if 'MVP-1' in awards else ''
     cy_str = 'CY' if 'CYA-1' in awards else ''
     hof_str = 'HOF' if is_hof else ''
 
     # SKIP IF PLAYER IS IN IMAGE LIST
-    images = [image for image in image_list if bref_id in image and f'({team})' in image and (abs(int(image.split('-')[1]) - year) <= args.year_threshold if args.year_threshold else True)]
+    images = [image for image in image_list if player.bref_id in image and f'({player.team_id})' in image and (abs(int(image.split('-')[1]) - player.year) <= args.year_threshold if args.year_threshold else True)]
     if len(images) > 0:
         continue
 
@@ -86,4 +82,4 @@ for player in player_data:
         continue
 
     # PRINT PLAYER'S NAME, TEAM, AND YEAR
-    print(f"{name} {team} {year} {bwar} {hof_str} {mvp_str} {cy_str}")
+    print(f"{player.name} {player.team_id} {player.year} {bwar} {hof_str} {mvp_str} {cy_str}")
