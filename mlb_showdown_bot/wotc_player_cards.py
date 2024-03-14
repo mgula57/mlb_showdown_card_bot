@@ -7,10 +7,10 @@ from pathlib import Path
 from rich.progress import track
 
 try:
-    from .showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion
+    from .showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType
     from .postgres_db import PostgresDB, PlayerArchive
 except ImportError:
-    from showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion
+    from showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType
     from postgres_db import PostgresDB, PlayerArchive
 
 # ------------------------------

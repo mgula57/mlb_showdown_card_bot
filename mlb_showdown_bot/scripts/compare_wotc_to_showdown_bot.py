@@ -6,12 +6,12 @@ from pathlib import Path
 from prettytable import PrettyTable
 from statistics import mean, median
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
-from wotc_player_cards import WotcPlayerCardSet, WotcPlayerCard, Set, PlayerType, ShowdownPlayerCard
+from wotc_player_cards import WotcPlayerCardSet, WotcPlayerCard, Set, PlayerType, PlayerSubType, ShowdownPlayerCard
 
 import argparse
 parser = argparse.ArgumentParser(description="Convert Original WOTC MLB Showdown Card Data to Showdown Bot Cards.")
 parser.add_argument('-s','--sets', type=str, help='Sets to test (ex: 2000, 2001, 2005)', default='2000,2001,2002,2003,2004,2005')
-parser.add_argument('-t','--types', type=str, help='Types to test (Pitcher, Hitter)', default='Hitter,Pitcher')
+parser.add_argument('-t','--types', type=str, help='Types to test (position_player, starting_pitcher, relief_pitcher)', default='position_player,starting_pitcher,relief_pitcher')
 parser.add_argument('-e','--expansions', type=str, help='Expansions to test (ex: BS)', default='BS')
 parser.add_argument('-p','--show_players', action='store_true', help='Show player level breakdown')
 parser.add_argument('-nm','--names', type=str, help='List of names to show', default='')
@@ -27,6 +27,7 @@ class Stat(Enum):
     SLG = "slugging_perc"
     COMMAND = "command"
     SPEED = "speed"
+    POINTS = "points"
     PU = "PU"
     SO = "SO"
     GB = "GB"
@@ -38,10 +39,10 @@ class Stat(Enum):
     _3B = "3B"
     HR = "HR"
 
-    def is_valid_for_type(self, type: PlayerType) -> bool:
+    def is_valid_for_type(self, type: PlayerSubType) -> bool:
         match self:
-            case Stat.PU: return type == PlayerType.PITCHER
-            case Stat.SPEED | Stat._3B | Stat._1B_PLUS: return type == PlayerType.HITTER
+            case Stat.PU: return type.is_pitcher
+            case Stat.SPEED | Stat._3B | Stat._1B_PLUS: return not type.is_pitcher
             case _: return True
 
     @property
@@ -55,7 +56,7 @@ class Stat(Enum):
     def overall_accuracy_weight(self) -> float:
         match self :
             case Stat.OBP: return 3
-            case Stat.SO | Stat.PU | Stat.GB | Stat.FB: return 0.33
+            case Stat.SO | Stat.PU | Stat.GB | Stat.FB | Stat._1B_PLUS: return 0.33
             case _: return 1
 
     @property
@@ -65,12 +66,13 @@ class Stat(Enum):
             case Stat.OBP | Stat.SLG: return "projected"
             case Stat.COMMAND: return "chart"
             case Stat.SPEED: return "speed"
+            case Stat.POINTS: return "points"
             case _: return "chart.values"
 
     @property
     def label(self) -> str:
         match self:
-            case Stat.OBP | Stat.SLG | Stat.COMMAND | Stat.SPEED: return self.name
+            case Stat.OBP | Stat.SLG | Stat.COMMAND | Stat.SPEED | Stat.POINTS: return self.name
             case _: return self.value
 
 
@@ -154,9 +156,12 @@ class CardComparison(BaseModel):
     def __init__(self, **data) -> None:
         super().__init__(**data)
 
-        stat_to_compare = [s for s in Stat if s.is_valid_for_type(self.wotc.player_type)]
+        stat_to_compare = [s for s in Stat if s.is_valid_for_type(self.wotc.player_sub_type)]
         for stat in stat_to_compare:
             match stat.attribute_source:
+                case "points":
+                    wotc_stat = self.wotc.points
+                    showdown_stat = self.wotc.points_estimated
                 case "projected":
                     wotc_stat = self.wotc.projected.get(stat.value, 0)
                     showdown_stat = self.showdown.projected.get(stat.value, 0)
@@ -196,27 +201,31 @@ class CardComparison(BaseModel):
             table.add_row([stat.name, comparison.wotc, comparison.showdown, round(comparison.diff, 3), f'{comparison.accuracy:.2%}', f'{comparison.classification.value}'])
         print(table)
 
-
+def color_classification(accuracy: float, green_cutoff: float = 0.9, yellow_cutoff: float = 0.7) -> ConsoleColor:
+    if accuracy > green_cutoff: return ConsoleColor.GREEN
+    elif accuracy > yellow_cutoff: return ConsoleColor.YELLOW
+    else: return ConsoleColor.RED
 
 # ------------------------------
 # 1. LOAD WOTC CARDS
 # ------------------------------
 set_list: list[Set] = [Set(s) for s in args.sets.split(',')]
 expansion_list: list[str] = args.expansions.split(',')
-player_types_list: list[PlayerType] = [PlayerType(t) for t in args.types.split(',')]
+player_sub_types_list: list[PlayerSubType] = [PlayerSubType(t) for t in args.types.split(',')]
+player_types_list: list[PlayerType] = ([PlayerType.HITTER] if any([not t.is_pitcher for t in player_sub_types_list]) else []) + ([PlayerType.PITCHER] if any([t.is_pitcher for t in player_sub_types_list]) else [])
 wotc_player_card_set = WotcPlayerCardSet(sets=set_list, expansions=expansion_list, player_types=player_types_list)
 
 # ------------------------------
 # 2. LOOP THROUGH SETS, TYPES, CARDS
 # ------------------------------
-all_set_comparisons_dict: dict[Set, dict[PlayerType, list[CardComparison]]] = {}
+all_set_comparisons_dict: dict[Set, dict[PlayerSubType, list[CardComparison]]] = {}
 
 for set in set_list:
     
-    for type in player_types_list:
+    for type in player_sub_types_list:
         stats_for_type = [s for s in Stat if s.is_valid_for_type(type)]
         set_comparisons: list[CardComparison] = []
-        set_type_player_set = {id: card for id, card in wotc_player_card_set.cards.items() if card.set == set and card.player_type == type}
+        set_type_player_set = {id: card for id, card in wotc_player_card_set.cards.items() if card.set == set and card.player_sub_type == type}
         for index, (id, wotc) in enumerate(set_type_player_set.items(), 1):
             
             # SKIP IF NO STATS
@@ -261,9 +270,9 @@ for set in set_list:
         # ------------------------------
 
         # CREATE TABLE
-        print(f"\n\n{set} SUMMARY ({type.value})\n")
+        print(f"\n\n{set} SUMMARY ({type.name.replace('_', ' ')}S)\n")
         table = PrettyTable()
-        table.field_names = ['Stat', 'Avg Diff', 'Med Diff', 'Avg Accuracy', 'Above', 'Below', 'Match', 'Largest Diff']
+        table.field_names = ['Stat', 'Avg Diff', 'Avg Accuracy', 'Above', 'Below', 'Match', 'Match %', 'Largest Diff']
 
         # LOOP THROUGH STATS
         for stat in stats_for_type:
@@ -273,26 +282,21 @@ for set in set_list:
             
             # AGGREGATE
             avg_diff = mean([sc.diff for sc in stat_comps])
-            median_diff = median([sc.diff for sc in stat_comps])
             avg_accuracy = mean([sc.accuracy for sc in stat_comps])
             above = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.ABOVE])
             below = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.BELOW])
             match = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.MATCH])
+            match_pct = match / len(stat_comps)
             largest_diff = round(max([sc.abs_diff for sc in stat_comps]),3) or 0
             largest_diff_name = f"{next((c.wotc.name for c in set_comparisons if c.stat_comparisons[stat].abs_diff == largest_diff), '')} ({largest_diff})"
 
-            # ACCURACY COLOR
-            if avg_accuracy > 0.90: accuracy_color = ConsoleColor.GREEN
-            elif avg_accuracy > 0.70: accuracy_color = ConsoleColor.YELLOW
-            else: accuracy_color = ConsoleColor.RED
-
-            # AVG DIFF COLOR
-            if avg_accuracy > 0.95: diff_color = ConsoleColor.GREEN
-            elif avg_diff > 0: diff_color = ConsoleColor.YELLOW
-            else: diff_color = ConsoleColor.RED
+            # COLORS
+            accuracy_color = color_classification(accuracy=avg_accuracy)
+            diff_color = color_classification(accuracy=avg_accuracy, green_cutoff=0.95, yellow_cutoff=0.0)
+            match_color = color_classification(accuracy=match_pct, green_cutoff=0.80, yellow_cutoff=0.35)
 
             # ADD TO TABLE
-            table.add_row([stat.label, f'{diff_color.value}{round(avg_diff, 3):.3f}{ConsoleColor.END.value}', round(median_diff, 3), f'{accuracy_color.value}{avg_accuracy:.2%}{ConsoleColor.END.value}', above, below, match, largest_diff_name])
+            table.add_row([stat.label, f'{diff_color.value}{round(avg_diff, 3):.3f}{ConsoleColor.END.value}', f'{accuracy_color.value}{avg_accuracy:.2%}{ConsoleColor.END.value}', above, below, match, f'{match_color.value}{match_pct:.2%}{ConsoleColor.END.value}', largest_diff_name])
 
         # OVERALL ACCURACY
         all_accuracy = [c.weighted_accuracy for c in set_comparisons]
@@ -300,7 +304,7 @@ for set in set_list:
         least_accurate = list(sorted(set_comparisons, key=lambda x: x.weighted_accuracy))[0:3]
         largest_diff_names = ', '.join([f'{c.wotc.name} ({c.weighted_accuracy:.2%})' for c in least_accurate])
         overall_accuracy = mean(all_accuracy)
-        table.add_row(['Overall', '', '', f'{overall_accuracy:.2%}', '', '', matches, largest_diff_names])
+        table.add_row(['Overall', '', f'{overall_accuracy:.2%}', '', '', matches, '', largest_diff_names])
         print(table)
 
         # ------------------------------
@@ -328,5 +332,5 @@ if len(set_list) > 1:
             elif overall_set_accuracy > 0.75: accuracy_color = ConsoleColor.YELLOW
             else: accuracy_color = ConsoleColor.RED
 
-            table.add_row([set.value, player_type.value, f'{accuracy_color.value}{overall_set_accuracy:.2%}{ConsoleColor.END.value}'])
+            table.add_row([set.value, player_type.name, f'{accuracy_color.value}{overall_set_accuracy:.2%}{ConsoleColor.END.value}'])
     print(table)

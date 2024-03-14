@@ -50,6 +50,10 @@ class PlayerSubType(Enum):
     RELIEF_PITCHER = 'relief_pitcher'
 
     @property
+    def is_pitcher(self) -> bool:
+        return self.name in ['STARTING_PITCHER', 'RELIEF_PITCHER']
+
+    @property
     def ip_under_5_negative_multiplier(self) -> float:
         return 1.5 if self.name == 'STARTING_PITCHER' else 1.0
     
