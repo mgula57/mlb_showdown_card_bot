@@ -1,7 +1,7 @@
 import argparse
 import sys, os
 from pathlib import Path
-sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent.parent))
+sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
 from wotc_player_cards import WotcPlayerCardSet, Set
 
 parser = argparse.ArgumentParser(description="Convert Original WOTC MLB Showdown Card Data to Showdown Bot Cards.")

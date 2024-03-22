@@ -181,12 +181,18 @@ class WotcPlayerCardSet(BaseModel):
         return
 
     def export_to_local_file(self) -> None:
-        """Export cards locally to a file"""
+        """Export cards locally to files: json and csv"""
         
+        # JSON
         json_data = self.model_dump(mode="json", exclude_none=True)
         with open(self.local_file_path, "w") as json_file:
             json.dump(json_data, json_file, indent=4, ensure_ascii=False)
 
+        # CSV
+        dict_list = [card.as_json() for card in self.cards.values()]
+        df = pd.json_normalize(dict_list, sep='.', max_level=None)
+        df.to_csv(self.local_file_path.replace('.json', '.csv'))
+        
         print("Exported WOTC Player Cards to local file.")
 
     @property
