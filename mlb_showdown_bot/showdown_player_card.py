@@ -4932,7 +4932,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.set == Set._2000:
             if player_img_user_uploaded and player_img_user_upload_transparency_pct < 0.30:
                 name_container = self.__2000_player_name_container_image()
-                images_to_paste.append((name_container, default_img_paste_coordinates))
+                images_to_paste.append((name_container, (0,0)))
             set_container = self.__2000_player_set_container_image()
             images_to_paste.append((set_container, default_img_paste_coordinates))
 
