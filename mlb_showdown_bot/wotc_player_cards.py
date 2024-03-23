@@ -7,10 +7,10 @@ from pathlib import Path
 from rich.progress import track
 
 try:
-    from .showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType
+    from .showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points
     from .postgres_db import PostgresDB, PlayerArchive
 except ImportError:
-    from showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType
+    from showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points
     from postgres_db import PostgresDB, PlayerArchive
 
 # ------------------------------
@@ -19,6 +19,7 @@ except ImportError:
 class WotcPlayerCard(ShowdownPlayerCard):
     """Expansion of the ShowdownPlayerCard class to include WOTC specific fields"""
 
+    points_estimated_breakdown: Points = Points()
     points_estimated: int = 0
 
     def __init__(self, is_data_from_gsheet:bool = False, stats:dict = None, **data):
@@ -106,7 +107,8 @@ class WotcPlayerCard(ShowdownPlayerCard):
         self.accolades = self.parse_accolades()
 
         # ADD ESTIMATED PTS
-        self.points_estimated = self.calculate_points(projected=self.projected, positions_and_defense=self.positions_and_defense, speed_or_ip=self.ip if self.is_pitcher else self.speed.speed).total_points
+        self.points_estimated_breakdown = self.calculate_points(projected=self.projected, positions_and_defense=self.positions_and_defense, speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
+        self.points_estimated = self.points_estimated_breakdown.total_points
 
 
 # ------------------------------

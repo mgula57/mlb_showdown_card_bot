@@ -40,5 +40,5 @@ class Points(BaseModel):
         breakdown_categories = ['ba','obp','slg','hr','defense','speed','ip','icons','out_distribution','bonus',]
         other_attributes = ['command_out_multiplier', 'normalizer', 'multi_inning_mutliplier']
         all_categories = breakdown_categories + other_attributes
-        return "  ".join(f"{cat.replace('_',' ').upper()}:{round(getattr(self, cat, 0), 2)}" for cat in all_categories if getattr(self, cat, 0) != (1.0 if cat in other_attributes else 0.0) )
+        return "  ".join(f"{cat.replace('_',' ').upper()}:{round(getattr(self, cat, 0), 2)}" for cat in all_categories if (getattr(self, cat, 0) != 1.0 if cat in other_attributes else True))
     

@@ -1,15 +1,18 @@
 
 # CURRENT
-from mlb_showdown_bot_prod.showdown_player_card import ShowdownPlayerCard as ShowdownPlayerCardCurrent
-from mlb_showdown_bot_prod.baseball_ref_scraper import BaseballReferenceScraper as BaseballReferenceScraperCurrent
+from mlb_showdown_bot_pip.showdown_player_card import ShowdownPlayerCard as ShowdownPlayerCardCurrent
+from mlb_showdown_bot_pip.version import __version__ as current_version
 
 # NEW
-from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard as ShowdownPlayerCardNew
-from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper as BaseballReferenceScraperNew
-from mlb_showdown_bot.postgres_db import PostgresDB
+from pathlib import Path
+import os, sys
+sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
+from mlb_showdown_bot.showdown_player_card import Set, ShowdownPlayerCard as ShowdownPlayerCardNew
+from mlb_showdown_bot.postgres_db import PostgresDB, PlayerArchive
+from mlb_showdown_bot.version import __version__ as old_version
 
-from mlb_showdown_bot.classes.images import Edition
-from mlb_showdown_bot.classes.sets import Set
+if old_version == current_version:
+    raise Exception(f"Versions are the same | {old_version} | {current_version}")
 
 import argparse
 from pprint import pprint
@@ -29,19 +32,19 @@ if __name__ == "__main__":
     sets_as_list = [Set(set) for set in args.sets.replace(' ','').split(',')]
     postgres_db = PostgresDB(is_archive=True)
     player_list = postgres_db.fetch_all_stats_from_archive(year_list=years_as_list, exclude_records_with_stats=False)
-    player_stats_list = [p for p in player_list if p.get('stats', None)]
+    player_stats_list: list[PlayerArchive] = [p for p in player_list if p.stats is not None]
     postgres_db.close_connection()
 
     for set in sets_as_list:
 
         all_failures = {}
         num_players = len(player_stats_list)
-        for player_data in player_stats_list:
+        for player_archive in player_stats_list:
 
             # PLAYER
-            name = player_data['name']
-            year = str(player_data['year'])
-            stats = player_data.get('stats', {}).copy()
+            name = player_archive.name
+            year = str(player_archive.year)
+            stats = player_archive.stats.copy()
 
             # --- NEW ---
             try:
@@ -54,16 +57,6 @@ if __name__ == "__main__":
                 )
             except Exception as e:
                 print(name, '(new)', e)
-            
-            # TRANSFORM STATS FOR OLD 
-            stats_positions: dict = stats.get('positions', {})
-            for index, (position, def_stats_dict) in enumerate(stats_positions.items(), start=1):
-                stats[f"Position{index}"] = position
-                for def_stat, value in def_stats_dict.items():
-                    if def_stat != 'oaa':
-                        replacement_key = def_stat.replace('tzr', 'tz')
-                        stats[f"{replacement_key}Position{index}"] = value
-            stats.pop('positions', None)
         
             # --- OLD ---
             try:
@@ -71,11 +64,12 @@ if __name__ == "__main__":
                     name=name,
                     year=year,
                     stats=stats,
-                    context=set.value,
+                    set=set,
                     print_to_cli=False
                 )
             except Exception as e:
                 print(name, '(old)', e)
+                continue
         
             # CHECK FOR MATCH
 
@@ -84,7 +78,7 @@ if __name__ == "__main__":
 
             # COMMAND/OUTS
             new_command_outs = f"{showdown_new.chart.command}-{showdown_new.chart.outs}"
-            old_command_outs = f"{showdown_current.chart['command']}-{showdown_current.chart['outs']}"
+            old_command_outs = f"{showdown_current.chart.command}-{showdown_current.chart.outs}"
             if new_command_outs != old_command_outs:
                 player_match_failures['command-outs'] = {'new': new_command_outs, 'old': old_command_outs}
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from prettytable import PrettyTable
 from statistics import mean, median
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
-from wotc_player_cards import WotcPlayerCardSet, WotcPlayerCard, Set, PlayerType, PlayerSubType, ShowdownPlayerCard
+from wotc_player_cards import WotcPlayerCardSet, WotcPlayerCard, Set, PlayerType, PlayerSubType, ShowdownPlayerCard, ChartCategory, Era
 
 import argparse
 parser = argparse.ArgumentParser(description="Convert Original WOTC MLB Showdown Card Data to Showdown Bot Cards.")
@@ -201,6 +201,7 @@ class CardComparison(BaseModel):
             table.add_row([stat.name, comparison.wotc, comparison.showdown, round(comparison.diff, 3), f'{comparison.accuracy:.2%}', f'{comparison.classification.value}'])
         print(table)
 
+
 def color_classification(accuracy: float, green_cutoff: float = 0.9, yellow_cutoff: float = 0.7) -> ConsoleColor:
     if accuracy > green_cutoff: return ConsoleColor.GREEN
     elif accuracy > yellow_cutoff: return ConsoleColor.YELLOW
@@ -223,6 +224,14 @@ all_set_comparisons_dict: dict[Set, dict[PlayerSubType, list[CardComparison]]] =
 for set in set_list:
     
     for type in player_sub_types_list:
+
+        # CHECK OPPONENT CHART ADDS UP TO 20
+        parent_type = PlayerType.HITTER if type.is_pitcher else PlayerType.PITCHER
+        opponent_chart = set.baseline_chart(player_type=parent_type, era=Era.STEROID)
+        remaining_slots = round(opponent_chart.remaining_slots(excluded_categories=[ChartCategory.SO]) - opponent_chart.outs, 2)
+        if remaining_slots != 0:
+            rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {parent_type.value}[/yellow] ({20-remaining_slots})")
+
         stats_for_type = [s for s in Stat if s.is_valid_for_type(type)]
         set_comparisons: list[CardComparison] = []
         set_type_player_set = {id: card for id, card in wotc_player_card_set.cards.items() if card.set == set and card.player_sub_type == type}
@@ -288,7 +297,7 @@ for set in set_list:
             match = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.MATCH])
             match_pct = match / len(stat_comps)
             largest_diff = round(max([sc.abs_diff for sc in stat_comps]),3) or 0
-            largest_diff_name = f"{next((c.wotc.name for c in set_comparisons if c.stat_comparisons[stat].abs_diff == largest_diff), '')} ({largest_diff})"
+            largest_diff_name = f"{next((c.wotc.name for c in set_comparisons if round(c.stat_comparisons[stat].abs_diff,3) == round(largest_diff,3)), '')} ({largest_diff})"
 
             # COLORS
             accuracy_color = color_classification(accuracy=avg_accuracy)
