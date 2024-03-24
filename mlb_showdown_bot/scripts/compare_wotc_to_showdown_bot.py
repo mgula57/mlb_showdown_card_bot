@@ -286,10 +286,11 @@ for set in set_list:
         
         # TYPE BASED DATA
         stats_for_type = [s for s in Stat if s.is_valid_for_type(type)]
-        opponent_chart = set.baseline_chart(player_type=type, era=Era.STEROID)
+        opponent_type = PlayerType.HITTER if type.is_pitcher else PlayerType.PITCHER
+        opponent_chart = set.baseline_chart(player_type=opponent_type, era=Era.STEROID)
         remaining_slots = round(opponent_chart.remaining_slots(excluded_categories=[ChartCategory.SO]) - opponent_chart.outs, 2)
         if remaining_slots != 0:
-            rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {type.value}[/yellow] ({20-remaining_slots}/20). Please fill the remaining {remaining_slots}")
+            rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {opponent_type.value}[/yellow] ({20-remaining_slots}/20). Please fill the remaining {remaining_slots}")
 
         sub_types = [st for st in type.sub_types if st in player_sub_types_filter]
         all_subtype_comps: list[StatComparison] = []

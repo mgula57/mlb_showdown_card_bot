@@ -604,6 +604,12 @@ class Set(str, Enum):
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
                             case Era.STEROID | Era.POST_STEROID: return 1.00
                             case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
+                    case '2001':
+                        match era:
+                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
+                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
+                            case Era.STEROID | Era.POST_STEROID: return 1.15
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.00
                     case '2001' | '2002' | '2003' | '2004' | '2005':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
@@ -729,11 +735,11 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
-                            case PointsMetric.DEFENSE: return 65
-                            case PointsMetric.SPEED: return 60
-                            case PointsMetric.ONBASE: return 190
-                            case PointsMetric.AVERAGE: return 50
-                            case PointsMetric.SLUGGING: return 165
+                            case PointsMetric.DEFENSE: return 60
+                            case PointsMetric.SPEED: return 65
+                            case PointsMetric.ONBASE: return 242
+                            case PointsMetric.AVERAGE: return 45
+                            case PointsMetric.SLUGGING: return 120
                             case PointsMetric.HOME_RUNS: return 45
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
@@ -998,28 +1004,35 @@ class Set(str, Enum):
                             case '6-15': return 1.05
                             case '4-15': return 1.2
             case '2001':
-                match command_out_str:
-                    case '10-4': return 1.05
-                    case '10-2': return 0.96
-                    case '9-5': return 1.05
-                    case '9-3': return 0.925
-                    case '8-4': return 0.925
-                    case '8-3': return 0.90
-                    case '7-4': return 0.90
-                    case '7-3': return 0.90
-
-                    case '1-18': return 0.90
-                    case '2-17': return 0.92
-                    case '2-18': return 0.92
-                    case '3-17': return 0.85
-                    case '3-18': return 0.92
-                    case '4-14': return 1.15
-                    case '4-15': return 1.15
-                    case '4-18': return 0.95
-                    case '5-14': return 1.25
-                    case '6-14': return 1.05
-                    case '6-15': return 1.05
-                    case '5-17': return 0.99
+                match subtype:
+                    case PlayerSubType.POSITION_PLAYER:
+                        match command_out_str:
+                            case '11-3': return 1.04
+                            case '11-2': return 1.01
+                            case '10-4': return 1.08
+                            case '10-2': return 0.99
+                            case '9-5': return 1.12
+                            case '9-4': return 1.02
+                            case '9-3': return 0.95
+                            case '8-4': return 0.925
+                            case '8-3': return 0.90
+                            case '7-4': return 0.90
+                            case '7-3': return 0.90
+                            case '6-5' | '6-6': return 1.05
+                    case _:
+                        match command_out_str:
+                            case '1-18': return 0.90
+                            case '2-17': return 0.92
+                            case '2-18': return 0.92
+                            case '3-17': return 0.85
+                            case '3-18': return 0.92
+                            case '4-14': return 1.15
+                            case '4-15': return 1.15
+                            case '4-18': return 0.95
+                            case '5-14': return 1.25
+                            case '6-14': return 1.05
+                            case '6-15': return 1.05
+                            case '5-17': return 0.99
             case '2002':
                 match command_out_str:
                     case '10-7': return 0.85
@@ -1234,7 +1247,7 @@ class Set(str, Enum):
     @property
     def pts_use_max_for_defense(self) -> bool:
         """Some sets use a max defensive PT value for multi-position players, others do not."""
-        return self.value in ['2000']
+        return self.value in ['2000', '2001']
 
     # ---------------------------------------
     # POINTS RANGES FOR PERCENTILES
@@ -1264,7 +1277,7 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.240, max = 0.400)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.360)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.290, max = 0.450)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.295, max = 0.450)
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.360)
@@ -1350,7 +1363,7 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.340, max = 0.500)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.345, max = 0.500)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.350, max = 0.545)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.355, max = 0.545)
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.340, max = 0.490)
@@ -2110,15 +2123,15 @@ class Set(str, Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=3.0,
-                                    outs=16.0,
+                                    command=3.06,
+                                    outs=15.90,
                                     values={
-                                        'SO': 4.1,
-                                        'BB': 1.35,
-                                        '1B': 2.0,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.11,
+                                        'SO': 3.95,
+                                        'BB': 1.38,
+                                        '1B': 1.94,
+                                        '2B': 0.65,
+                                        '3B': 0.01,
+                                        'HR': 0.12,
                                     }
                                 )
                             case Era.POST_STEROID:
