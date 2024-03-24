@@ -4,44 +4,7 @@ try:
     from .stat_highlights import StatHighlightsCategory, StatHighlightsType
 except ImportError:
     from stat_highlights import StatHighlightsCategory, StatHighlightsType
-
-class PlayerType(Enum):
-
-    PITCHER = 'Pitcher'
-    HITTER = 'Hitter'
-
-    @classmethod
-    def _missing_(cls, _):
-        return cls.HITTER
-
-    @property
-    def is_pitcher(self) -> bool:
-        return self.name == 'PITCHER'
-    
-    @property
-    def is_hitter(self) -> bool:
-        return self.name == 'HITTER'
-    
-    # ---------------------------------------
-    # IMAGES
-    # ---------------------------------------
-
-    @property
-    def template_color_04_05(self) -> str:
-        return 'BLUE' if self.is_pitcher else 'GREEN'
-    
-    @property
-    def override_user_input_substrings(self) -> list[str]:
-        """List of allowable strings for the user to input to designate a type override."""
-        match self.name:
-            case "PITCHER": return ['PITCHER', 'PITCHING',]
-            case "HITTER": return ['HITTER', 'HITTING',]
-    
-    @property
-    def override_string(self) -> str:
-        """Add parenthesis to the type"""
-        return f"({self.name})"
-        
+     
 
 class PlayerSubType(Enum):
 
@@ -134,6 +97,48 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.H,
                     ]
                     case _: return []
+
+
+class PlayerType(Enum):
+
+    PITCHER = 'Pitcher'
+    HITTER = 'Hitter'
+
+    @classmethod
+    def _missing_(cls, _):
+        return cls.HITTER
+
+    @property
+    def is_pitcher(self) -> bool:
+        return self.name == 'PITCHER'
+    
+    @property
+    def is_hitter(self) -> bool:
+        return self.name == 'HITTER'
+    
+    # ---------------------------------------
+    # IMAGES
+    # ---------------------------------------
+
+    @property
+    def template_color_04_05(self) -> str:
+        return 'BLUE' if self.is_pitcher else 'GREEN'
+    
+    @property
+    def override_user_input_substrings(self) -> list[str]:
+        """List of allowable strings for the user to input to designate a type override."""
+        match self.name:
+            case "PITCHER": return ['PITCHER', 'PITCHING',]
+            case "HITTER": return ['HITTER', 'HITTING',]
+    
+    @property
+    def override_string(self) -> str:
+        """Add parenthesis to the type"""
+        return f"({self.name})"
+    
+    @property
+    def sub_types(self) -> list[PlayerSubType]:
+        return [PlayerSubType.POSITION_PLAYER] if self.is_hitter else [PlayerSubType.STARTING_PITCHER, PlayerSubType.RELIEF_PITCHER]
 
 
 class Position(MultiValueEnum):

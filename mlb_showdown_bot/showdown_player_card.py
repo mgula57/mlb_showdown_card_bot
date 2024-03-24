@@ -1783,7 +1783,7 @@ class ShowdownPlayerCard(BaseModel):
                     # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
                     chart_results_decimal = chart_results % 1
                     era = era_override if era_override else self.era
-                    rounded_results = round(chart_results) if chart_results_decimal > era.hr_rounding_cutoff else math.floor(chart_results)
+                    rounded_results = round(chart_results) if chart_results_decimal > self.set.hr_rounding_cutoff(era) else math.floor(chart_results)
                 else:                    
                     rounded_results = round(chart_results)
                 # PITCHERS SHOULD ALWAYS GET 0 FOR 3B
@@ -2286,7 +2286,7 @@ class ShowdownPlayerCard(BaseModel):
         points = Points()
 
         # PARSE POSITION MULTIPLIER
-        pts_multiplier = self.set.pts_command_out_multiplier(command=self.chart.command, outs=self.chart.outs)
+        pts_multiplier = self.set.pts_command_out_multiplier(command=self.chart.command, outs=self.chart.outs, subtype=self.player_sub_type)
         points.command_out_multiplier = pts_multiplier
 
         # SLASH LINE VALUE
