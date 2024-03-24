@@ -7,10 +7,10 @@ from pathlib import Path
 from rich.progress import track
 
 try:
-    from .showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points
+    from .showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points, Position
     from .postgres_db import PostgresDB, PlayerArchive
 except ImportError:
-    from showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points
+    from showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points, Position
     from postgres_db import PostgresDB, PlayerArchive
 
 # ------------------------------
@@ -99,6 +99,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
         super().__init__(**data)
 
         self.stats = stats or {}
+        self.positions_and_defense_string = self.positions_and_defense_as_string(is_horizontal=True)
 
         # ADD PROJECTIONS
         proj_opponent_chart, proj_my_advantages_per_20, proj_opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=self.chart.command)
@@ -156,6 +157,11 @@ class WotcPlayerCardSet(BaseModel):
         year_list = [y-1 for y in set_values] + ss_year_values
         real_player_stats_archive: list[PlayerArchive] = postgres_db.fetch_all_stats_from_archive(year_list=year_list, exclude_records_with_stats=False)
 
+        # MAKE LIST OF ARCHIVE IDS TO IGNORE STATS FOR. DUE TO WOTC USING MULTIPLE YEARS FOR THEM.
+        ignore_stats: list[str] = [
+            '2000-mcgwima01' # MARK MCGWIRE 2001
+        ]
+
         # CREATE LIST OF SHOWDOWN OBJECTS
         converted_cards: list[WotcPlayerCard] = {}
         for gsheet_row in track(list_of_dicts, description="Converting WOTC Player Cards"):
@@ -171,7 +177,7 @@ class WotcPlayerCardSet(BaseModel):
             year = ss_year or set_year
             archive_id = f'{year}-{bref_id}'
             stats: dict = None
-            if expansion == Expansion.BS.value or ss_year:
+            if (expansion == Expansion.BS.value or ss_year) and archive_id not in ignore_stats:
                 player_archive = next((p for p in real_player_stats_archive if p.id == archive_id), None)
                 if player_archive:
                     stats = player_archive.stats

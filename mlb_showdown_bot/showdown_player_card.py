@@ -105,6 +105,7 @@ class ShowdownPlayerCard(BaseModel):
     image: ShowdownImage = ShowdownImage()
     chart: Chart = None
     positions_and_defense: dict[Position, int] = {}
+    positions_and_defense_string: str = ''
     positions_and_real_life_ratings: dict[str, dict[DefenseMetric, Union[float, int]]] = {}
     command_out_accuracies: dict[str, float] = {}
     ip:int = None
@@ -162,6 +163,7 @@ class ShowdownPlayerCard(BaseModel):
 
             # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
             self.positions_and_defense: dict[Position, int] = self.__positions_and_defense(stats_dict=self.stats)
+            self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
             self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats.get('IP', 0)), games=self.stats.get('G', 0), games_started=self.stats.get('GS', 0), ip_per_start=self.stats.get('IP/GS', 0))
             self.hand: Hand = self.__handedness(hand_raw=self.stats.get('hand', None))
             self.speed: Speed = self.__speed(sprint_speed=self.stats.get('sprint_speed', None), stolen_bases=self.stats.get('SB', 0) / ( self.stats.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats.get('SB',''))) == 0, games=self.stats.get('G', 0))
@@ -544,7 +546,7 @@ class ShowdownPlayerCard(BaseModel):
             return positions_and_defense_as_str
         
         positions_to_combine = self.__find_position_combination_opportunity(self.positions_and_defense)
-        positions_to_combine_as_str = [pos.value for pos in positions_to_combine]
+        positions_to_combine_as_str = [pos.value for pos in positions_to_combine] if positions_to_combine else None
         if positions_to_combine is None:
             return positions_and_defense_as_str
         positions_to_combine_str =  "/".join(positions_to_combine_as_str)
@@ -668,6 +670,22 @@ class ShowdownPlayerCard(BaseModel):
         icons_len = len(self.icons) * 1.5 if self.set.is_showdown_bot else 0
         return len(self.name_for_visuals) + icons_len
 
+    @property
+    def last_name(self) -> str:
+        """Last name of the player"""
+        
+        # RETURN FULL LAST NAME IF SUFFIX IS FOUND
+        last_name_suffixes = [' Jr.', ' Sr.', ' II', ' III', ' IV', ' V']
+        if any(suffix.lower() in self.name.lower() for suffix in last_name_suffixes):
+            return self.name.split(' ', 1)[-1]
+        
+        return self.name.split()[-1]
+
+    @property
+    def first_initial(self) -> str:
+        """First initial of the player"""
+        return self.name[0]
+    
 
 # ------------------------------------------------------------------------
 # METADATA METHODS
@@ -2276,10 +2294,12 @@ class ShowdownPlayerCard(BaseModel):
 
         # SLASHLNE METRICS (AND HR IF HITTER)
         slash_metrics = [PointsMetric.ONBASE, PointsMetric.AVERAGE, PointsMetric.SLUGGING] + ([] if self.is_pitcher else [PointsMetric.HOME_RUNS])
+        projected_pa_multiplier = 650 / self.stats.get('PA', 650)
         for slash_metric in slash_metrics:
             # OBP
             range = self.set.pts_range_for_metric(metric=slash_metric, player_sub_type=self.player_sub_type)
-            percentile = range.percentile(value=projected.get(slash_metric.metric_name_bref), is_desc=self.is_pitcher, allow_negative=allow_negatives)
+            stat_value = projected.get(slash_metric.metric_name_bref) * (projected_pa_multiplier if slash_metric == PointsMetric.HOME_RUNS else 1)
+            percentile = range.percentile(value=stat_value, is_desc=self.is_pitcher, allow_negative=allow_negatives)
             pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=slash_metric)
             setattr(points, slash_metric.points_breakdown_attr_name, round(pts_weight * percentile * pts_multiplier, 3))
 
@@ -2291,20 +2311,27 @@ class ShowdownPlayerCard(BaseModel):
         spd_ip_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=spd_ip_category) * ip_under_5_negative_multiplier
         setattr(points, spd_ip_category.points_breakdown_attr_name, round(spd_ip_weight * spd_ip_percentile, 3))
 
+        # DEFENSE (NON-PITCHERS)
         if not self.is_pitcher:
-            # AVERAGE POINT VALUE ACROSS POSITIONS
-            defense_points = 0
+
+            # GET LIST OF ALL DEFENSE POINTS
+            defense_points_list: list[float] = []
             for position, fielding in positions_and_defense.items():
                 if position != Position.DH:
                     percentile = fielding / self.set.position_defense_max(position=position)
                     position_pts = percentile * self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.DEFENSE)
                     position_pts = position_pts * self.set.pts_positional_defense_weight(position=Position(position))
-                    defense_points += position_pts
-            use_avg = list(positions_and_defense.keys()) == [Position.CF, Position.LFRF] or list(positions_and_defense.keys()) == [Position.LFRF, Position.CF]
-            num_positions_w_non_zero_def = len([pos for pos, df in positions_and_defense.items() if df != 0])
-            num_positions = max(num_positions_w_non_zero_def, 1)
-            avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else ( (num_positions + 2) / 3.0))
-            points.defense = round(avg_points_per_position,3)
+                    defense_points_list.append(position_pts)
+            # TAKE MAX OR AVG DEPENDING ON THE SET
+            if self.set.pts_use_max_for_defense:
+                points.defense = round(max(defense_points_list),3) if len(defense_points_list) > 0 else 0
+            else:
+                defense_points = sum(defense_points_list) if len(defense_points_list) > 0 else 0
+                use_avg = list(positions_and_defense.keys()) == [Position.CF, Position.LFRF] or list(positions_and_defense.keys()) == [Position.LFRF, Position.CF]
+                num_positions_w_non_zero_def = len([pos for pos, df in positions_and_defense.items() if df != 0])
+                num_positions = max(num_positions_w_non_zero_def, 1)
+                avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else ( (num_positions + 2) / 3.0))
+                points.defense = round(avg_points_per_position,3)
 
         # CLOSER BONUS (00 ONLY)
         apply_closer_bonus = self.has_position(Position.CL) and self.set == Set._2000

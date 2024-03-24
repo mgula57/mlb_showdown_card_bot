@@ -4,15 +4,18 @@ from rich import print as rprint
 import sys, os
 from pathlib import Path
 from prettytable import PrettyTable
-from statistics import mean, median
+from statistics import mean
+import pandas as pd
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
-from wotc_player_cards import WotcPlayerCardSet, WotcPlayerCard, Set, PlayerType, PlayerSubType, ShowdownPlayerCard, ChartCategory, Era
+from wotc_player_cards import WotcPlayerCardSet, WotcPlayerCard, Set, PlayerType, PlayerSubType, ShowdownPlayerCard, ChartCategory, Era, Position
 
 import argparse
 parser = argparse.ArgumentParser(description="Convert Original WOTC MLB Showdown Card Data to Showdown Bot Cards.")
 parser.add_argument('-s','--sets', type=str, help='Sets to test (ex: 2000, 2001, 2005)', default='2000,2001,2002,2003,2004,2005')
 parser.add_argument('-t','--types', type=str, help='Types to test (position_player, starting_pitcher, relief_pitcher)', default='position_player,starting_pitcher,relief_pitcher')
 parser.add_argument('-e','--expansions', type=str, help='Expansions to test (ex: BS)', default='BS')
+parser.add_argument('-ptr','--point_range', type=str, help='Range of points to include', default=None)
+parser.add_argument('-pos','--positions', type=str, help='List of positions to include, separated by a comma', default=None)
 parser.add_argument('-p','--show_players', action='store_true', help='Show player level breakdown')
 parser.add_argument('-nm','--names', type=str, help='List of names to show', default='')
 args = parser.parse_args()
@@ -212,6 +215,8 @@ def color_classification(accuracy: float, green_cutoff: float = 0.9, yellow_cuto
 # ------------------------------
 set_list: list[Set] = [Set(s) for s in args.sets.split(',')]
 expansion_list: list[str] = args.expansions.split(',')
+pts_split = args.point_range.split('-') if args.point_range else None
+points_included: list[int] = list(range(int(pts_split[0]), int(pts_split[1]) + 1, 10)) if pts_split else None
 player_sub_types_list: list[PlayerSubType] = [PlayerSubType(t) for t in args.types.split(',')]
 player_types_list: list[PlayerType] = ([PlayerType.HITTER] if any([not t.is_pitcher for t in player_sub_types_list]) else []) + ([PlayerType.PITCHER] if any([t.is_pitcher for t in player_sub_types_list]) else [])
 wotc_player_card_set = WotcPlayerCardSet(sets=set_list, expansions=expansion_list, player_types=player_types_list)
@@ -230,7 +235,7 @@ for set in set_list:
         opponent_chart = set.baseline_chart(player_type=parent_type, era=Era.STEROID)
         remaining_slots = round(opponent_chart.remaining_slots(excluded_categories=[ChartCategory.SO]) - opponent_chart.outs, 2)
         if remaining_slots != 0:
-            rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {parent_type.value}[/yellow] ({20-remaining_slots})")
+            rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {parent_type.value}[/yellow] ({20-remaining_slots}/20). Please fill the remaining {remaining_slots}")
 
         stats_for_type = [s for s in Stat if s.is_valid_for_type(type)]
         set_comparisons: list[CardComparison] = []
@@ -244,6 +249,17 @@ for set in set_list:
             # SKIP IF PA < 200
             if (wotc.stats.get('PA', 0) < 300 or wotc.stats.get('G', 0) < 100 ) and wotc.player_type == PlayerType.HITTER:
                 continue
+
+            # SKIP IF POINTS OUTSIDE RANGE
+            if points_included:
+                if wotc.points not in points_included: 
+                    continue
+
+            # SKIP IF NOT IN POSITION FILTER
+            if args.positions:
+                included_positions = [Position(p) for p in args.positions.split(',')]
+                if not any([True for p in wotc.positions_and_defense.keys() if p in included_positions]):
+                    continue
 
             # CREATE SHOWDOWN BOT CARD FROM STATS
             showdown_bot = ShowdownPlayerCard(
@@ -281,7 +297,7 @@ for set in set_list:
         # CREATE TABLE
         print(f"\n\n{set} SUMMARY ({type.name.replace('_', ' ')}S)\n")
         table = PrettyTable()
-        table.field_names = ['Stat', 'Avg Diff', 'Avg Accuracy', 'Above', 'Below', 'Match', 'Match %', 'Largest Diff']
+        table.field_names = ['Stat', 'Avg Diff', 'Avg Accuracy', 'Above', 'Below', 'Ratio', 'Match (0s)', 'Match', 'Match %', 'Largest Diff']
 
         # LOOP THROUGH STATS
         for stat in stats_for_type:
@@ -290,14 +306,24 @@ for set in set_list:
             stat_comps = [c.stat_comparisons[stat] for c in set_comparisons if stat in c.stat_comparisons]
             
             # AGGREGATE
-            avg_diff = mean([sc.diff for sc in stat_comps])
+            avg_diff = mean([abs(sc.diff) if stat == Stat.POINTS else sc.diff for sc in stat_comps])
             avg_accuracy = mean([sc.accuracy for sc in stat_comps])
             above = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.ABOVE])
             below = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.BELOW])
             match = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.MATCH])
-            match_pct = match / len(stat_comps)
+            match_zeros = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.MATCH and sc.wotc == 0])
+            matches_no_zeros = match - match_zeros
+            match_pool = len(stat_comps) - match_zeros
+            match_pct = matches_no_zeros / match_pool
+
+            # ABOVE/BELOW/BALANCED
+            above_below_ratio = above / (above + below) if above + below > 0 else 0
+            is_balanced = (above_below_ratio > 0.48 and above_below_ratio < 0.52) or match_pct > 0.85 or abs(above - below) < 5
+            above_below = 'BALANCED' if is_balanced else 'BELOW' if above_below_ratio < 0.5 else 'ABOVE'
+            above_below_color = ConsoleColor.GREEN if above_below == 'BALANCED' else ConsoleColor.RED if above_below == 'ABOVE' else ConsoleColor.YELLOW
+
             largest_diff = round(max([sc.abs_diff for sc in stat_comps]),3) or 0
-            largest_diff_name = f"{next((c.wotc.name for c in set_comparisons if round(c.stat_comparisons[stat].abs_diff,3) == round(largest_diff,3)), '')} ({largest_diff})"
+            largest_diff_name = f"{next((f'{c.wotc.first_initial}. {c.wotc.last_name}' for c in set_comparisons if round(c.stat_comparisons[stat].abs_diff,3) == round(largest_diff,3)), '')} ({largest_diff})"
 
             # COLORS
             accuracy_color = color_classification(accuracy=avg_accuracy)
@@ -305,15 +331,19 @@ for set in set_list:
             match_color = color_classification(accuracy=match_pct, green_cutoff=0.80, yellow_cutoff=0.35)
 
             # ADD TO TABLE
-            table.add_row([stat.label, f'{diff_color.value}{round(avg_diff, 3):.3f}{ConsoleColor.END.value}', f'{accuracy_color.value}{avg_accuracy:.2%}{ConsoleColor.END.value}', above, below, match, f'{match_color.value}{match_pct:.2%}{ConsoleColor.END.value}', largest_diff_name])
+            table.add_row(
+                [stat.label, f'{diff_color.value}{round(avg_diff, 3):.3f}{ConsoleColor.END.value}', f'{accuracy_color.value}{avg_accuracy:.2%}{ConsoleColor.END.value}', 
+                 above, below, f'{above_below_color.value}{above_below}{ConsoleColor.END.value}', 
+                 match_zeros, match, 
+                 f'{match_color.value}{match_pct:.2%}{ConsoleColor.END.value}', largest_diff_name])
 
         # OVERALL ACCURACY
         all_accuracy = [c.weighted_accuracy for c in set_comparisons]
         matches = len([c for c in set_comparisons if c.weighted_accuracy == 1.0])
         least_accurate = list(sorted(set_comparisons, key=lambda x: x.weighted_accuracy))[0:3]
-        largest_diff_names = ', '.join([f'{c.wotc.name} ({c.weighted_accuracy:.2%})' for c in least_accurate])
+        largest_diff_names = '\n'.join([f'{c.wotc.first_initial}. {c.wotc.last_name} ({c.weighted_accuracy:.2%})' for c in least_accurate])
         overall_accuracy = mean(all_accuracy)
-        table.add_row(['Overall', '', f'{overall_accuracy:.2%}', '', '', matches, '', largest_diff_names])
+        table.add_row(['Overall', '', f'{overall_accuracy:.2%}', '', '', '', '', matches, '', largest_diff_names])
         print(table)
 
         # ------------------------------

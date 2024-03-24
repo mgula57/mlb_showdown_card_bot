@@ -117,7 +117,8 @@ def main():
             if args.show_image:
                 showdown.card_image(show=True)
             pts = showdown.calculate_points(projected=showdown.projected, positions_and_defense=showdown.positions_and_defense, speed_or_ip=showdown.ip if showdown.is_pitcher else showdown.speed.speed)
-            print(f"Projected PTS: {pts.total_points}  Actual PTS: {showdown.points}  Diff: {showdown.points - pts.total_points}")
+            print(f"\nProjected PTS: {pts.total_points}  Actual PTS: {showdown.points}  Diff: {showdown.points - pts.total_points}")
+            print(f"{pts.breakdown_str}")
 
     # CREATE SHOWDOWN CARD FROM STATLINE
     stats_period = scraper.stats_period or stats_period
