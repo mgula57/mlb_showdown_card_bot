@@ -754,10 +754,10 @@ class Set(str, Enum):
                             case PointsMetric.HOME_RUNS: return 45
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
-                            case PointsMetric.IP: return 115
-                            case PointsMetric.ONBASE: return 470
+                            case PointsMetric.IP: return 110
+                            case PointsMetric.ONBASE: return 500
                             case PointsMetric.AVERAGE: return 35
-                            case PointsMetric.SLUGGING: return 255
+                            case PointsMetric.SLUGGING: return 215
                             case PointsMetric.OUT_DISTRIBUTION: return 30
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
@@ -1033,17 +1033,17 @@ class Set(str, Enum):
                     case _:
                         match command_out_str:
                             case '1-18': return 0.90
-                            case '2-17': return 0.92
-                            case '2-18': return 0.92
-                            case '3-17': return 0.85
+                            case '2-17': return 0.90
+                            case '2-18': return 0.90
+                            case '3-17': return 0.90
                             case '3-18': return 0.92
-                            case '4-14': return 1.15
-                            case '4-15': return 1.15
+                            case '4-14': return 1.20
+                            case '4-15': return 1.05
                             case '4-18': return 0.95
                             case '5-14': return 1.25
+                            case '5-15': return 1.10
                             case '6-14': return 1.05
                             case '6-15': return 1.05
-                            case '5-17': return 0.99
             case '2002':
                 match command_out_str:
                     case '10-7': return 0.85
@@ -1133,7 +1133,7 @@ class Set(str, Enum):
             case '2001' | 'CLASSIC':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return True
-                    case PlayerSubType.STARTING_PITCHER: return False
+                    case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return False
             case '2002':
                 match player_sub_type:
@@ -1174,7 +1174,7 @@ class Set(str, Enum):
             case '2001':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 0.65
-                    case PlayerSubType.STARTING_PITCHER: return 0.70
+                    case PlayerSubType.STARTING_PITCHER: return 0.72
                     case PlayerSubType.RELIEF_PITCHER: return 0.72
             case '2002':
                 match player_sub_type:

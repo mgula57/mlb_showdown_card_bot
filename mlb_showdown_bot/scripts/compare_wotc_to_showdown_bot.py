@@ -21,6 +21,7 @@ parser.add_argument('-ptr','--point_range', type=str, help='Range of points to i
 parser.add_argument('-pos','--positions', type=str, help='List of positions to include, separated by a comma', default=None)
 parser.add_argument('-p','--show_players', action='store_true', help='Show player level breakdown')
 parser.add_argument('-nm','--names', type=str, help='List of names to show', default='')
+parser.add_argument('-obp','--show_obp', action='store_true', help='Show OBP Breakdown')
 parser.add_argument('-ex', '--export', action='store_true', help='Export to file')
 args = parser.parse_args()
 
@@ -381,7 +382,7 @@ for set in set_list:
             # ------------------------------
                 
             # OBP AVGS PER COMMAND/OUTS
-            if not args.is_pitchers_combined or not type.is_pitcher:
+            if (not args.is_pitchers_combined or not type.is_pitcher) and args.show_obp:
                 obp_table = onbase_table(comparisons=set_comparisons)
                 print(f"\n\n{set} ONBASE SUMMARY ({sub_type.name.replace('_', ' ')}S)")
                 print(obp_table)
@@ -403,9 +404,10 @@ for set in set_list:
         # CROSS SUBTYPE TOTALS
         if args.is_pitchers_combined and type.is_pitcher:
 
-            obp_table = onbase_table(comparisons=all_subtype_comps)
-            print(f"\n\n{set} ONBASE SUMMARY ({type.name.replace('_', ' ')}S)")
-            print(obp_table)
+            if args.show_obp:
+                obp_table = onbase_table(comparisons=all_subtype_comps)
+                print(f"\n\n{set} ONBASE SUMMARY ({type.name.replace('_', ' ')}S)")
+                print(obp_table)
 
             table = accuracy_table(stats=stats_for_type, comparisons=all_subtype_comps)
             print(f"\n\n{set} SUMMARY ({type.name.replace('_', ' ')}S)")
