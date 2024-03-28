@@ -1310,9 +1310,9 @@
             },
             "points": 130,
             "points_estimated_breakdown": {
-                "ba": 11.275,
-                "obp": 31.711,
-                "slg": 71.796,
+                "ba": 10.022,
+                "obp": 66.3,
+                "slg": 53.419,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -1320,12 +1320,12 @@
                 "icons": 0.0,
                 "out_distribution": 5.3,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 120
+            "points_estimated": 140
         },
         "2000-kennead01-2001-BS": {
             "year": "2000",
@@ -1777,9 +1777,9 @@
             },
             "points": 210,
             "points_estimated_breakdown": {
-                "ba": 12.221,
-                "obp": 9.439,
-                "slg": 78.906,
+                "ba": 9.311,
+                "obp": 41.959,
+                "slg": 50.323,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -1787,7 +1787,7 @@
                 "icons": 0.0,
                 "out_distribution": 16.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.6
@@ -2256,9 +2256,9 @@
             },
             "points": 120,
             "points_estimated_breakdown": {
-                "ba": 19.98,
-                "obp": 33.523,
-                "slg": 93.017,
+                "ba": 16.8,
+                "obp": 66.3,
+                "slg": 65.468,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -2266,12 +2266,12 @@
                 "icons": 0.0,
                 "out_distribution": -12.4,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
-                "normalizer": 1.057,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 130
+            "points_estimated": 140
         },
         "2000-petkoma01-2001-BS": {
             "year": "2000",
@@ -2487,9 +2487,9 @@
             },
             "points": 180,
             "points_estimated_breakdown": {
-                "ba": 6.343,
-                "obp": 70.818,
-                "slg": 72.797,
+                "ba": 4.8,
+                "obp": 95.752,
+                "slg": 46.113,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -2498,11 +2498,11 @@
                 "out_distribution": 26.2,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 1.057,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 180
+            "points_estimated": 170
         },
         "2000-salmoti01-2001-BS": {
             "year": "2000",
@@ -5725,9 +5725,9 @@
             },
             "points": 110,
             "points_estimated_breakdown": {
-                "ba": 28.236,
-                "obp": 32.979,
-                "slg": 109.836,
+                "ba": 24.133,
+                "obp": 66.3,
+                "slg": 78.581,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -5735,8 +5735,8 @@
                 "icons": 0.0,
                 "out_distribution": -12.4,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
-                "normalizer": 1.04,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
@@ -5959,9 +5959,9 @@
             },
             "points": 170,
             "points_estimated_breakdown": {
-                "ba": 31.202,
-                "obp": 50.332,
-                "slg": 141.378,
+                "ba": 23.156,
+                "obp": 76.924,
+                "slg": 87.823,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -5969,12 +5969,12 @@
                 "icons": 0.0,
                 "out_distribution": -16.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 0.98,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 210
+            "points_estimated": 170
         },
         "2000-morgami01-2001-BS": {
             "year": "2000",
@@ -6204,8 +6204,8 @@
             "points": 70,
             "points_estimated_breakdown": {
                 "ba": 0.0,
-                "obp": 0.0,
-                "slg": 28.47,
+                "obp": 24.745,
+                "slg": 19.065,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -6218,7 +6218,7 @@
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 50
+            "points_estimated": 70
         },
         "2000-schilcu01-2001-BS": {
             "year": "2000",
@@ -6933,9 +6933,9 @@
             },
             "points": 210,
             "points_estimated_breakdown": {
-                "ba": 11.506,
-                "obp": 107.077,
-                "slg": 96.719,
+                "ba": 9.311,
+                "obp": 134.079,
+                "slg": 65.516,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -6944,11 +6944,11 @@
                 "out_distribution": -5.0,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.989,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 210
+            "points_estimated": 200
         },
         "2000-willima04-2001-BS": {
             "year": "2000",
@@ -10955,9 +10955,9 @@
             },
             "points": 200,
             "points_estimated_breakdown": {
-                "ba": 25.925,
-                "obp": 71.341,
-                "slg": 121.506,
+                "ba": 23.311,
+                "obp": 107.99,
+                "slg": 91.452,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -10965,12 +10965,12 @@
                 "icons": 0.0,
                 "out_distribution": 5.3,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
-                "normalizer": 0.989,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 220
+            "points_estimated": 230
         },
         "2000-rockejo01-2001-BS": {
             "year": "2000",
@@ -11188,9 +11188,9 @@
             },
             "points": 130,
             "points_estimated_breakdown": {
-                "ba": 27.304,
-                "obp": 26.4,
-                "slg": 129.268,
+                "ba": 21.356,
+                "obp": 57.559,
+                "slg": 84.629,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -11199,11 +11199,11 @@
                 "out_distribution": -17.5,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 1.023,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 170
+            "points_estimated": 150
         },
         "2000-surhob.01-2001-BS": {
             "year": "2000",
@@ -12912,9 +12912,9 @@
             },
             "points": 170,
             "points_estimated_breakdown": {
-                "ba": 9.612,
-                "obp": 53.854,
-                "slg": 98.847,
+                "ba": 6.667,
+                "obp": 76.924,
+                "slg": 57.387,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -12922,12 +12922,12 @@
                 "icons": 0.0,
                 "out_distribution": 10.0,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 1.049,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 170
+            "points_estimated": 150
         },
         "2000-hubbatr01-2001-BS": {
             "year": "2000",
@@ -15380,9 +15380,9 @@
             },
             "points": 100,
             "points_estimated_breakdown": {
-                "ba": 19.953,
-                "obp": 51.359,
-                "slg": 41.173,
+                "ba": 14.511,
+                "obp": 76.924,
+                "slg": 25.065,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -15390,7 +15390,7 @@
                 "icons": 0.0,
                 "out_distribution": 3.3,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
@@ -16086,9 +16086,9 @@
             },
             "points": 170,
             "points_estimated_breakdown": {
-                "ba": 6.343,
-                "obp": 70.818,
-                "slg": 72.797,
+                "ba": 4.8,
+                "obp": 95.752,
+                "slg": 46.113,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -16097,11 +16097,11 @@
                 "out_distribution": 7.5,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 1.057,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 160
+            "points_estimated": 150
         },
         "2000-evereca01-2001-BS": {
             "year": "2000",
@@ -16578,9 +16578,9 @@
             },
             "points": 220,
             "points_estimated_breakdown": {
-                "ba": 17.162,
-                "obp": 121.419,
-                "slg": 96.375,
+                "ba": 14.133,
+                "obp": 149.545,
+                "slg": 66.435,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -16589,7 +16589,7 @@
                 "out_distribution": -0.6,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.971,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
@@ -17588,9 +17588,9 @@
             },
             "points": 250,
             "points_estimated_breakdown": {
-                "ba": 11.506,
-                "obp": 107.077,
-                "slg": 96.719,
+                "ba": 9.311,
+                "obp": 134.079,
+                "slg": 65.516,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -17599,11 +17599,11 @@
                 "out_distribution": 13.8,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.989,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 230
+            "points_estimated": 220
         },
         "2000-martipe02-2001-BS": {
             "year": "2000",
@@ -19339,9 +19339,9 @@
             },
             "points": 130,
             "points_estimated_breakdown": {
-                "ba": 14.778,
-                "obp": 66.99,
-                "slg": 24.279,
+                "ba": 11.822,
+                "obp": 95.752,
+                "slg": 16.258,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -19354,7 +19354,7 @@
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 110
+            "points_estimated": 130
         },
         "2000-buforda01-2001-BS": {
             "year": "2000",
@@ -20748,9 +20748,9 @@
             },
             "points": 170,
             "points_estimated_breakdown": {
-                "ba": 20.238,
-                "obp": 52.093,
-                "slg": 119.72,
+                "ba": 14.511,
+                "obp": 76.924,
+                "slg": 71.855,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -20758,12 +20758,12 @@
                 "icons": 0.0,
                 "out_distribution": 3.3,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 1.014,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 200
+            "points_estimated": 170
         },
         "2000-liebejo01-2001-BS": {
             "year": "2000",
@@ -21994,9 +21994,9 @@
             },
             "points": 160,
             "points_estimated_breakdown": {
-                "ba": 12.221,
-                "obp": 9.439,
-                "slg": 78.906,
+                "ba": 9.311,
+                "obp": 41.959,
+                "slg": 50.323,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -22004,7 +22004,7 @@
                 "icons": 0.0,
                 "out_distribution": -3.3,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.6
@@ -23443,9 +23443,9 @@
             },
             "points": 270,
             "points_estimated_breakdown": {
-                "ba": 24.814,
-                "obp": 114.991,
-                "slg": 139.071,
+                "ba": 21.578,
+                "obp": 149.545,
+                "slg": 101.226,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -23454,7 +23454,7 @@
                 "out_distribution": -6.5,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.92,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
@@ -23678,9 +23678,9 @@
             },
             "points": 200,
             "points_estimated_breakdown": {
-                "ba": 23.901,
-                "obp": 65.65,
-                "slg": 138.723,
+                "ba": 19.511,
+                "obp": 95.752,
+                "slg": 94.79,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -23689,11 +23689,11 @@
                 "out_distribution": 1.2,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.98,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 230
+            "points_estimated": 210
         },
         "2000-johnsch04-2001-BS": {
             "year": "2000",
@@ -25592,9 +25592,9 @@
             },
             "points": 90,
             "points_estimated_breakdown": {
-                "ba": 4.25,
-                "obp": 31.711,
-                "slg": 32.191,
+                "ba": 3.778,
+                "obp": 66.3,
+                "slg": 23.952,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -25602,12 +25602,12 @@
                 "icons": 0.0,
                 "out_distribution": -0.6,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 70
+            "points_estimated": 90
         },
         "2000-singlch01-2001-BS": {
             "year": "2000",
@@ -26853,9 +26853,9 @@
             },
             "points": 230,
             "points_estimated_breakdown": {
-                "ba": 23.901,
-                "obp": 65.65,
-                "slg": 138.723,
+                "ba": 19.511,
+                "obp": 95.752,
+                "slg": 94.79,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -26864,11 +26864,11 @@
                 "out_distribution": 20.0,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.98,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 250
+            "points_estimated": 230
         },
         "2000-booneaa01-2001-BS": {
             "year": "2000",
@@ -27563,9 +27563,9 @@
             },
             "points": 200,
             "points_estimated_breakdown": {
-                "ba": 20.238,
-                "obp": 52.093,
-                "slg": 119.72,
+                "ba": 14.511,
+                "obp": 76.924,
+                "slg": 71.855,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -27573,12 +27573,12 @@
                 "icons": 0.0,
                 "out_distribution": 16.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 1.014,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 210
+            "points_estimated": 180
         },
         "2000-griffke02-2001-BS": {
             "year": "2000",
@@ -29492,9 +29492,9 @@
             },
             "points": 160,
             "points_estimated_breakdown": {
-                "ba": 15.242,
-                "obp": 69.095,
-                "slg": 90.478,
+                "ba": 11.822,
+                "obp": 95.752,
+                "slg": 58.742,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -29503,11 +29503,11 @@
                 "out_distribution": -5.0,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 1.031,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 170
+            "points_estimated": 160
         },
         "2000-taubeed01-2001-BS": {
             "year": "2000",
@@ -32736,9 +32736,9 @@
             },
             "points": 190,
             "points_estimated_breakdown": {
-                "ba": 9.612,
-                "obp": 53.854,
-                "slg": 98.847,
+                "ba": 6.667,
+                "obp": 76.924,
+                "slg": 57.387,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -32746,12 +32746,12 @@
                 "icons": 0.0,
                 "out_distribution": 10.0,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 1.049,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 170
+            "points_estimated": 150
         },
         "2000-loftoke01-2001-BS": {
             "year": "2000",
@@ -34276,9 +34276,9 @@
             },
             "points": 250,
             "points_estimated_breakdown": {
-                "ba": 20.381,
-                "obp": 104.292,
-                "slg": 114.658,
+                "ba": 16.933,
+                "obp": 134.079,
+                "slg": 79.742,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -34287,11 +34287,11 @@
                 "out_distribution": 13.8,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.963,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 250
+            "points_estimated": 240
         },
         "2000-astacpe01-2001-BS": {
             "year": "2000",
@@ -36550,9 +36550,9 @@
             },
             "points": 260,
             "points_estimated_breakdown": {
-                "ba": 20.381,
-                "obp": 104.292,
-                "slg": 114.658,
+                "ba": 16.933,
+                "obp": 134.079,
+                "slg": 79.742,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -36561,11 +36561,11 @@
                 "out_distribution": 20.0,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.963,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 260
+            "points_estimated": 250
         },
         "2000-maynebr01-2001-BS": {
             "year": "2000",
@@ -37785,9 +37785,9 @@
             },
             "points": 260,
             "points_estimated_breakdown": {
-                "ba": 21.568,
-                "obp": 153.301,
-                "slg": 117.103,
+                "ba": 19.111,
+                "obp": 191.1,
+                "slg": 86.855,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -37796,7 +37796,7 @@
                 "out_distribution": -12.4,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.903,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
@@ -38241,9 +38241,9 @@
             },
             "points": 130,
             "points_estimated_breakdown": {
-                "ba": 17.913,
-                "obp": 27.064,
-                "slg": 110.318,
+                "ba": 13.667,
+                "obp": 57.559,
+                "slg": 70.452,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -38252,11 +38252,11 @@
                 "out_distribution": 1.2,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 1.049,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 160
+            "points_estimated": 140
         },
         "2000-ausmubr01-2001-BS": {
             "year": "2000",
@@ -40700,9 +40700,9 @@
             },
             "points": 160,
             "points_estimated_breakdown": {
-                "ba": 8.893,
-                "obp": 27.727,
-                "slg": 92.141,
+                "ba": 6.622,
+                "obp": 57.559,
+                "slg": 57.435,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -40711,11 +40711,11 @@
                 "out_distribution": 7.5,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 1.074,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 140
+            "points_estimated": 130
         },
         "2000-moehlbr01-2001-BS": {
             "year": "2000",
@@ -41913,9 +41913,9 @@
             },
             "points": 140,
             "points_estimated_breakdown": {
-                "ba": 2.712,
-                "obp": 9.439,
-                "slg": 58.8,
+                "ba": 2.067,
+                "obp": 41.959,
+                "slg": 37.5,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -41923,12 +41923,12 @@
                 "icons": 0.0,
                 "out_distribution": 16.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 90
+            "points_estimated": 100
         },
         "2000-castilu01-2001-BS": {
             "year": "2000",
@@ -43615,9 +43615,9 @@
             },
             "points": 170,
             "points_estimated_breakdown": {
-                "ba": 12.919,
-                "obp": 9.978,
-                "slg": 120.23,
+                "ba": 9.311,
+                "obp": 41.959,
+                "slg": 72.532,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -43625,12 +43625,12 @@
                 "icons": 0.0,
                 "out_distribution": 23.3,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
-                "normalizer": 1.057,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 170
+            "points_estimated": 150
         },
         "2000-lowelmi01-2001-BS": {
             "year": "2000",
@@ -46782,8 +46782,8 @@
             "points": 40,
             "points_estimated_breakdown": {
                 "ba": 0.0,
-                "obp": 0.0,
-                "slg": 23.755,
+                "obp": 19.769,
+                "slg": 12.726,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -46791,12 +46791,12 @@
                 "icons": 0.0,
                 "out_distribution": -1.4,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.25,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 20
+            "points_estimated": 30
         },
         "2000-doteloc01-2001-BS": {
             "year": "2000",
@@ -47018,8 +47018,8 @@
             },
             "points": 30,
             "points_estimated_breakdown": {
-                "ba": 10.937,
-                "obp": 19.945,
+                "ba": 8.333,
+                "obp": 51.238,
                 "slg": 0.0,
                 "hr": 0.0,
                 "defense": 0.0,
@@ -47028,12 +47028,12 @@
                 "icons": 0.0,
                 "out_distribution": -15.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 20
+            "points_estimated": 40
         },
         "2000-elartsc01-2001-BS": {
             "year": "2000",
@@ -49488,9 +49488,9 @@
             },
             "points": 80,
             "points_estimated_breakdown": {
-                "ba": 18.9,
-                "obp": 31.711,
-                "slg": 61.455,
+                "ba": 16.8,
+                "obp": 66.3,
+                "slg": 45.726,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -49498,12 +49498,12 @@
                 "icons": 0.0,
                 "out_distribution": -0.6,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 110
+            "points_estimated": 130
         },
         "2000-damonjo01-2001-BS": {
             "year": "2000",
@@ -51680,9 +51680,9 @@
             },
             "points": 290,
             "points_estimated_breakdown": {
-                "ba": 9.612,
-                "obp": 53.854,
-                "slg": 98.847,
+                "ba": 6.667,
+                "obp": 76.924,
+                "slg": 57.387,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -51690,12 +51690,12 @@
                 "icons": 0.0,
                 "out_distribution": 16.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 1.049,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.6
             },
-            "points_estimated": 280
+            "points_estimated": 240
         },
         "2000-suppaje01-2001-BS": {
             "year": "2000",
@@ -52908,9 +52908,9 @@
             },
             "points": 210,
             "points_estimated_breakdown": {
-                "ba": 18.105,
-                "obp": 73.197,
-                "slg": 105.736,
+                "ba": 15.867,
+                "obp": 107.99,
+                "slg": 77.565,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -52918,8 +52918,8 @@
                 "icons": 0.0,
                 "out_distribution": 22.9,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
-                "normalizer": 1.014,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
@@ -56122,9 +56122,9 @@
             },
             "points": 170,
             "points_estimated_breakdown": {
-                "ba": 10.73,
-                "obp": 76.29,
-                "slg": 64.623,
+                "ba": 9.022,
+                "obp": 107.99,
+                "slg": 45.484,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -56132,12 +56132,12 @@
                 "icons": 0.0,
                 "out_distribution": -0.6,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
-                "normalizer": 1.057,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 150
+            "points_estimated": 160
         },
         "2000-sheffga01-2001-BS": {
             "year": "2000",
@@ -56639,9 +56639,9 @@
             },
             "points": 90,
             "points_estimated_breakdown": {
-                "ba": 4.25,
-                "obp": 31.711,
-                "slg": 32.191,
+                "ba": 3.778,
+                "obp": 66.3,
+                "slg": 23.952,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -56649,12 +56649,12 @@
                 "icons": 0.0,
                 "out_distribution": -0.6,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 70
+            "points_estimated": 90
         },
         "2000-belliro01-2001-BS": {
             "year": "2000",
@@ -57833,9 +57833,9 @@
             },
             "points": 100,
             "points_estimated_breakdown": {
-                "ba": 14.778,
-                "obp": 66.99,
-                "slg": 24.279,
+                "ba": 11.822,
+                "obp": 95.752,
+                "slg": 16.258,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -57848,7 +57848,7 @@
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 100
+            "points_estimated": 120
         },
         "2000-grissma02-2001-BS": {
             "year": "2000",
@@ -59264,9 +59264,9 @@
             },
             "points": 160,
             "points_estimated_breakdown": {
-                "ba": 22.971,
-                "obp": 20.401,
-                "slg": 136.43,
+                "ba": 17.111,
+                "obp": 51.238,
+                "slg": 85.065,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -59274,12 +59274,12 @@
                 "icons": 0.0,
                 "out_distribution": 5.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
-                "normalizer": 1.023,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 190
+            "points_estimated": 160
         },
         "2000-loretma01-2001-BS": {
             "year": "2000",
@@ -59988,9 +59988,9 @@
             },
             "points": 180,
             "points_estimated_breakdown": {
-                "ba": 9.612,
-                "obp": 53.854,
-                "slg": 98.847,
+                "ba": 6.667,
+                "obp": 76.924,
+                "slg": 57.387,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -59998,12 +59998,12 @@
                 "icons": 0.0,
                 "out_distribution": 10.0,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 1.049,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 170
+            "points_estimated": 150
         },
         "2000-canizja01-2001-BS": {
             "year": "2000",
@@ -60933,9 +60933,9 @@
             },
             "points": 180,
             "points_estimated_breakdown": {
-                "ba": 9.612,
-                "obp": 53.854,
-                "slg": 98.847,
+                "ba": 6.667,
+                "obp": 76.924,
+                "slg": 57.387,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -60943,12 +60943,12 @@
                 "icons": 0.0,
                 "out_distribution": 10.0,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 1.049,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 170
+            "points_estimated": 150
         },
         "2000-hockide01-2001-BS": {
             "year": "2000",
@@ -63636,9 +63636,9 @@
             },
             "points": 210,
             "points_estimated_breakdown": {
-                "ba": 14.475,
-                "obp": 87.446,
-                "slg": 119.106,
+                "ba": 11.156,
+                "obp": 111.755,
+                "slg": 76.839,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -63646,12 +63646,12 @@
                 "icons": 0.0,
                 "out_distribution": -16.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
-                "normalizer": 0.989,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 200
+            "points_estimated": 180
         },
         "2000-barremi01-2001-BS": {
             "year": "2000",
@@ -65841,9 +65841,9 @@
             },
             "points": 120,
             "points_estimated_breakdown": {
-                "ba": 8.278,
-                "obp": 25.81,
-                "slg": 55.711,
+                "ba": 6.622,
+                "obp": 57.559,
+                "slg": 37.306,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -65856,7 +65856,7 @@
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 100
+            "points_estimated": 120
         },
         "2000-lirafe01-2001-BS": {
             "year": "2000",
@@ -66071,8 +66071,8 @@
             "points": 40,
             "points_estimated_breakdown": {
                 "ba": 0.0,
-                "obp": 0.0,
-                "slg": 8.526,
+                "obp": 19.231,
+                "slg": 5.71,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -66085,7 +66085,7 @@
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 20
+            "points_estimated": 40
         },
         "2000-mordemi01-2001-BS": {
             "year": "2000",
@@ -66772,9 +66772,9 @@
             },
             "points": 130,
             "points_estimated_breakdown": {
-                "ba": 11.275,
-                "obp": 31.711,
-                "slg": 71.796,
+                "ba": 10.022,
+                "obp": 66.3,
+                "slg": 53.419,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -66782,12 +66782,12 @@
                 "icons": 0.0,
                 "out_distribution": 5.3,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 120
+            "points_estimated": 140
         },
         "2000-vazquja01-2001-BS": {
             "year": "2000",
@@ -68021,9 +68021,9 @@
             },
             "points": 230,
             "points_estimated_breakdown": {
-                "ba": 34.194,
-                "obp": 114.991,
-                "slg": 130.23,
+                "ba": 29.733,
+                "obp": 149.545,
+                "slg": 94.79,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -68032,11 +68032,11 @@
                 "out_distribution": -12.4,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.92,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 270
+            "points_estimated": 260
         },
         "2000-bordimi01-2001-BS": {
             "year": "2000",
@@ -70767,9 +70767,9 @@
             },
             "points": 160,
             "points_estimated_breakdown": {
-                "ba": 24.528,
-                "obp": 67.373,
-                "slg": 108.934,
+                "ba": 19.511,
+                "obp": 95.752,
+                "slg": 72.532,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -70778,11 +70778,11 @@
                 "out_distribution": 1.2,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 1.006,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 200
+            "points_estimated": 190
         },
         "2000-whiteri01-2001-BS": {
             "year": "2000",
@@ -71001,9 +71001,9 @@
             },
             "points": 360,
             "points_estimated_breakdown": {
-                "ba": 20.381,
-                "obp": 104.292,
-                "slg": 114.658,
+                "ba": 16.933,
+                "obp": 134.079,
+                "slg": 79.742,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -71012,11 +71012,11 @@
                 "out_distribution": 7.5,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.963,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.6
             },
-            "points_estimated": 390
+            "points_estimated": 380
         },
         "2000-zeileto01-2001-BS": {
             "year": "2000",
@@ -71998,9 +71998,9 @@
             },
             "points": 120,
             "points_estimated_breakdown": {
-                "ba": 12.221,
-                "obp": 9.439,
-                "slg": 78.906,
+                "ba": 9.311,
+                "obp": 41.959,
+                "slg": 50.323,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -72008,7 +72008,7 @@
                 "icons": 0.0,
                 "out_distribution": 16.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
@@ -73730,9 +73730,9 @@
             },
             "points": 220,
             "points_estimated_breakdown": {
-                "ba": 35.045,
-                "obp": 81.38,
-                "slg": 160.124,
+                "ba": 29.022,
+                "obp": 111.755,
+                "slg": 111.0,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -73740,12 +73740,12 @@
                 "icons": 0.0,
                 "out_distribution": -3.3,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
-                "normalizer": 0.92,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 270
+            "points_estimated": 250
         },
         "2000-o'neipa01-2001-BS": {
             "year": "2000",
@@ -74758,9 +74758,9 @@
             },
             "points": 300,
             "points_estimated_breakdown": {
-                "ba": 24.494,
-                "obp": 133.691,
-                "slg": 133.892,
+                "ba": 21.911,
+                "obp": 172.272,
+                "slg": 100.258,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -74769,7 +74769,7 @@
                 "out_distribution": 7.5,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.894,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
@@ -77800,9 +77800,9 @@
             },
             "points": 230,
             "points_estimated_breakdown": {
-                "ba": 11.187,
-                "obp": 20.401,
-                "slg": 149.235,
+                "ba": 8.333,
+                "obp": 51.238,
+                "slg": 93.048,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -77810,12 +77810,12 @@
                 "icons": 0.0,
                 "out_distribution": 5.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
-                "normalizer": 1.023,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 190
+            "points_estimated": 160
         },
         "2000-longte01-2001-BS": {
             "year": "2000",
@@ -78265,9 +78265,9 @@
             },
             "points": 210,
             "points_estimated_breakdown": {
-                "ba": 23.901,
-                "obp": 65.65,
-                "slg": 138.723,
+                "ba": 19.511,
+                "obp": 95.752,
+                "slg": 94.79,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -78276,11 +78276,11 @@
                 "out_distribution": 7.5,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.98,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 240
+            "points_estimated": 220
         },
         "2000-muldema01-2001-BS": {
             "year": "2000",
@@ -79731,9 +79731,9 @@
             },
             "points": 10,
             "points_estimated_breakdown": {
-                "ba": 5.868,
-                "obp": 0.0,
-                "slg": 3.071,
+                "ba": 3.756,
+                "obp": 19.769,
+                "slg": 1.645,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -79741,12 +79741,12 @@
                 "icons": 0.0,
                 "out_distribution": -8.6,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.25,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 10
+            "points_estimated": 20
         },
         "2000-burrepa01-2001-BS": {
             "year": "2000",
@@ -80927,9 +80927,9 @@
             },
             "points": 120,
             "points_estimated_breakdown": {
-                "ba": 12.221,
-                "obp": 9.439,
-                "slg": 78.906,
+                "ba": 9.311,
+                "obp": 41.959,
+                "slg": 50.323,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -80937,7 +80937,7 @@
                 "icons": 0.0,
                 "out_distribution": 16.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
@@ -81883,9 +81883,9 @@
             },
             "points": 190,
             "points_estimated_breakdown": {
-                "ba": 9.612,
-                "obp": 53.854,
-                "slg": 98.847,
+                "ba": 6.667,
+                "obp": 76.924,
+                "slg": 57.387,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -81893,12 +81893,12 @@
                 "icons": 0.0,
                 "out_distribution": 16.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 1.049,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 180
+            "points_estimated": 160
         },
         "2000-persoro01-2001-BS": {
             "year": "2000",
@@ -85500,9 +85500,9 @@
             },
             "points": 20,
             "points_estimated_breakdown": {
-                "ba": 9.833,
+                "ba": 6.556,
                 "obp": 0.0,
-                "slg": 73.703,
+                "slg": 41.129,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -85510,12 +85510,12 @@
                 "icons": 0.0,
                 "out_distribution": 5.7,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.2,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 90
+            "points_estimated": 50
         },
         "2000-silvajo01-2001-BS": {
             "year": "2000",
@@ -85730,8 +85730,8 @@
             "points": 50,
             "points_estimated_breakdown": {
                 "ba": 0.0,
-                "obp": 0.0,
-                "slg": 28.47,
+                "obp": 24.745,
+                "slg": 19.065,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -85744,7 +85744,7 @@
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 30
+            "points_estimated": 50
         },
         "2000-vandejo02-2001-BS": {
             "year": "2000",
@@ -86219,9 +86219,9 @@
             },
             "points": 140,
             "points_estimated_breakdown": {
-                "ba": 19.98,
-                "obp": 33.523,
-                "slg": 93.017,
+                "ba": 16.8,
+                "obp": 66.3,
+                "slg": 65.468,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -86229,8 +86229,8 @@
                 "icons": 0.0,
                 "out_distribution": 5.3,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
-                "normalizer": 1.057,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
@@ -86685,9 +86685,9 @@
             },
             "points": 40,
             "points_estimated_breakdown": {
-                "ba": 5.083,
-                "obp": 0.0,
-                "slg": 42.849,
+                "ba": 4.067,
+                "obp": 24.745,
+                "slg": 28.694,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -86700,7 +86700,7 @@
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 50
+            "points_estimated": 60
         },
         "2000-boonebr01-2001-BS": {
             "year": "2000",
@@ -87852,9 +87852,9 @@
             },
             "points": 290,
             "points_estimated_breakdown": {
-                "ba": 15.941,
-                "obp": 138.817,
-                "slg": 117.151,
+                "ba": 13.733,
+                "obp": 172.272,
+                "slg": 84.484,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -87863,7 +87863,7 @@
                 "out_distribution": -11.2,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.929,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
@@ -89528,9 +89528,9 @@
             },
             "points": 220,
             "points_estimated_breakdown": {
-                "ba": 30.111,
-                "obp": 48.571,
-                "slg": 174.693,
+                "ba": 23.156,
+                "obp": 76.924,
+                "slg": 112.452,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -89538,12 +89538,12 @@
                 "icons": 0.0,
                 "out_distribution": 10.0,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 0.946,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 260
+            "points_estimated": 220
         },
         "2000-williwo02-2001-BS": {
             "year": "2000",
@@ -91486,9 +91486,9 @@
             },
             "points": 130,
             "points_estimated_breakdown": {
-                "ba": 28.236,
-                "obp": 32.979,
-                "slg": 109.836,
+                "ba": 24.133,
+                "obp": 66.3,
+                "slg": 78.581,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -91496,8 +91496,8 @@
                 "icons": 0.0,
                 "out_distribution": -0.6,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
-                "normalizer": 1.04,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
@@ -92991,9 +92991,9 @@
             },
             "points": 330,
             "points_estimated_breakdown": {
-                "ba": 28.634,
-                "obp": 143.113,
-                "slg": 156.582,
+                "ba": 27.178,
+                "obp": 191.1,
+                "slg": 124.403,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -93002,11 +93002,11 @@
                 "out_distribution": -6.5,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.843,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 320
+            "points_estimated": 340
         },
         "2000-ortizru01-2001-BS": {
             "year": "2000",
@@ -93701,9 +93701,9 @@
             },
             "points": 190,
             "points_estimated_breakdown": {
-                "ba": 23.901,
-                "obp": 65.65,
-                "slg": 138.723,
+                "ba": 19.511,
+                "obp": 95.752,
+                "slg": 94.79,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -93712,11 +93712,11 @@
                 "out_distribution": -11.2,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.98,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 220
+            "points_estimated": 200
         },
         "2000-rueteki01-2001-BS": {
             "year": "2000",
@@ -96913,9 +96913,9 @@
             },
             "points": 160,
             "points_estimated_breakdown": {
-                "ba": 20.238,
-                "obp": 52.093,
-                "slg": 119.72,
+                "ba": 14.511,
+                "obp": 76.924,
+                "slg": 71.855,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -96923,12 +96923,12 @@
                 "icons": 0.0,
                 "out_distribution": -3.3,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 1.014,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 190
+            "points_estimated": 160
         },
         "2000-rhodear01-2001-BS": {
             "year": "2000",
@@ -97155,9 +97155,9 @@
             },
             "points": 250,
             "points_estimated_breakdown": {
-                "ba": 24.814,
-                "obp": 114.991,
-                "slg": 139.071,
+                "ba": 21.578,
+                "obp": 149.545,
+                "slg": 101.226,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -97166,11 +97166,11 @@
                 "out_distribution": -0.6,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.92,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 280
+            "points_estimated": 270
         },
         "2000-rodrial01-2001-BS": {
             "year": "2000",
@@ -97686,9 +97686,9 @@
             },
             "points": 240,
             "points_estimated_breakdown": {
-                "ba": 29.598,
-                "obp": 101.507,
-                "slg": 133.333,
+                "ba": 25.267,
+                "obp": 134.079,
+                "slg": 95.274,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -97697,11 +97697,11 @@
                 "out_distribution": -5.0,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.937,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 260
+            "points_estimated": 250
         },
         "2000-seleaa01-2001-BS": {
             "year": "2000",
@@ -101819,9 +101819,9 @@
             },
             "points": 140,
             "points_estimated_breakdown": {
-                "ba": 11.275,
-                "obp": 31.711,
-                "slg": 71.796,
+                "ba": 10.022,
+                "obp": 66.3,
+                "slg": 53.419,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -101829,12 +101829,12 @@
                 "icons": 0.0,
                 "out_distribution": 11.2,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 130
+            "points_estimated": 140
         },
         "2000-veresda01-2001-BS": {
             "year": "2000",
@@ -102056,9 +102056,9 @@
             },
             "points": 190,
             "points_estimated_breakdown": {
-                "ba": 20.238,
-                "obp": 52.093,
-                "slg": 119.72,
+                "ba": 14.511,
+                "obp": 76.924,
+                "slg": 71.855,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -102066,12 +102066,12 @@
                 "icons": 0.0,
                 "out_distribution": 10.0,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.1,
-                "normalizer": 1.014,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 200
+            "points_estimated": 170
         },
         "2000-vinafe01-2001-BS": {
             "year": "2000",
@@ -103237,9 +103237,9 @@
             },
             "points": 10,
             "points_estimated_breakdown": {
-                "ba": 18.9,
-                "obp": 31.711,
-                "slg": 8.259,
+                "ba": 16.8,
+                "obp": 66.3,
+                "slg": 6.145,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -103247,12 +103247,12 @@
                 "icons": 0.0,
                 "out_distribution": -18.2,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 40
+            "points_estimated": 70
         },
         "2000-flahejo01-2001-BS": {
             "year": "2000",
@@ -103955,9 +103955,9 @@
             },
             "points": 120,
             "points_estimated_breakdown": {
-                "ba": 8.278,
-                "obp": 25.81,
-                "slg": 55.711,
+                "ba": 6.622,
+                "obp": 57.559,
+                "slg": 37.306,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -103970,7 +103970,7 @@
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 100
+            "points_estimated": 110
         },
         "2000-johnsru01-2001-BS": {
             "year": "2000",
@@ -105857,8 +105857,8 @@
             },
             "points": 40,
             "points_estimated_breakdown": {
-                "ba": 8.278,
-                "obp": 25.81,
+                "ba": 6.622,
+                "obp": 57.559,
                 "slg": 0.0,
                 "hr": 0.0,
                 "defense": 0.0,
@@ -105872,7 +105872,7 @@
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.6
             },
-            "points_estimated": 60
+            "points_estimated": 100
         },
         "2000-alicelu01-2001-BS": {
             "year": "2000",
@@ -106822,9 +106822,9 @@
             },
             "points": 170,
             "points_estimated_breakdown": {
-                "ba": 10.73,
-                "obp": 76.29,
-                "slg": 64.623,
+                "ba": 9.022,
+                "obp": 107.99,
+                "slg": 45.484,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -106832,12 +106832,12 @@
                 "icons": 0.0,
                 "out_distribution": 17.1,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
-                "normalizer": 1.057,
+                "command_out_multiplier": 1.0,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 170
+            "points_estimated": 180
         },
         "2000-curtich01-2001-BS": {
             "year": "2000",
@@ -109257,9 +109257,9 @@
             },
             "points": 180,
             "points_estimated_breakdown": {
-                "ba": 0.554,
-                "obp": 19.945,
-                "slg": 83.837,
+                "ba": 0.422,
+                "obp": 51.238,
+                "slg": 53.468,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -109267,12 +109267,12 @@
                 "icons": 0.0,
                 "out_distribution": 20.0,
                 "bonus": 0.0,
-                "command_out_multiplier": 1.05,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 120
+            "points_estimated": 130
         },
         "2000-wettejo01-2001-BS": {
             "year": "2000",
@@ -109496,9 +109496,9 @@
             },
             "points": 40,
             "points_estimated_breakdown": {
-                "ba": 5.083,
-                "obp": 0.0,
-                "slg": 42.849,
+                "ba": 4.067,
+                "obp": 24.745,
+                "slg": 28.694,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -109511,7 +109511,7 @@
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 50
+            "points_estimated": 60
         },
         "2000-batisto01-2001-BS": {
             "year": "2000",
@@ -111452,9 +111452,9 @@
             },
             "points": 140,
             "points_estimated_breakdown": {
-                "ba": 8.893,
-                "obp": 27.727,
-                "slg": 92.141,
+                "ba": 6.622,
+                "obp": 57.559,
+                "slg": 57.435,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -111463,11 +111463,11 @@
                 "out_distribution": 1.2,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 1.074,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 130
+            "points_estimated": 120
         },
         "2000-kochbi01-2001-BS": {
             "year": "2000",
@@ -111685,9 +111685,9 @@
             },
             "points": 250,
             "points_estimated_breakdown": {
-                "ba": 11.506,
-                "obp": 107.077,
-                "slg": 96.719,
+                "ba": 9.311,
+                "obp": 134.079,
+                "slg": 65.516,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -111696,7 +111696,7 @@
                 "out_distribution": 7.5,
                 "bonus": 0.0,
                 "command_out_multiplier": 1.0,
-                "normalizer": 0.989,
+                "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
@@ -112631,9 +112631,9 @@
             },
             "points": 100,
             "points_estimated_breakdown": {
-                "ba": 4.25,
-                "obp": 31.711,
-                "slg": 32.191,
+                "ba": 3.778,
+                "obp": 66.3,
+                "slg": 23.952,
                 "hr": 0.0,
                 "defense": 0.0,
                 "speed": 0.0,
@@ -112641,12 +112641,12 @@
                 "icons": 0.0,
                 "out_distribution": 11.2,
                 "bonus": 0.0,
-                "command_out_multiplier": 0.9,
+                "command_out_multiplier": 1.0,
                 "normalizer": 1.0,
                 "allow_negatives": false,
                 "multi_inning_mutliplier": 1.0
             },
-            "points_estimated": 80
+            "points_estimated": 110
         },
         "2000-stewash01-2001-BS": {
             "year": "2000",
