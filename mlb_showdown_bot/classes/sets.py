@@ -1153,11 +1153,6 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return False
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
-            case '2001':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return False
-                    case PlayerSubType.STARTING_PITCHER: return True
-                    case PlayerSubType.RELIEF_PITCHER: return False
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return False
@@ -1180,7 +1175,7 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 1.0
                     case PlayerSubType.STARTING_PITCHER: return 0.72
-                    case PlayerSubType.RELIEF_PITCHER: return 1.00
+                    case PlayerSubType.RELIEF_PITCHER: return 0.95
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 1.0
@@ -1215,7 +1210,6 @@ class Set(str, Enum):
     def pts_normalizer_weighting(self, player_sub_type:PlayerSubType) -> float:
         if player_sub_type == PlayerSubType.RELIEF_PITCHER:
             match self.value:
-                case '2001' | 'CLASSIC': return 1.5
                 case _: return 2.0
 
         return 1.0
