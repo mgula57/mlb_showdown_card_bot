@@ -143,7 +143,7 @@ class BaseballReferenceScraper:
         player_ids_pd['similarity_score'] = player_ids_pd['name'].apply(lambda x: fuzz.ratio(name_cleaned, x))
 
         # FILTER BY SIMILARITY SCORE
-        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['similarity_score'] > 86].sort_values(by=['similarity_score', 'pa', 'ip'], ascending=[False, False, False])
+        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['similarity_score'] > 86].sort_values(by=['similarity_score', 'bwar', 'pa', 'ip'], ascending=[False, False, False, False])
         results_count = len(player_ids_pd_filtered)
 
         if results_count == 0:
