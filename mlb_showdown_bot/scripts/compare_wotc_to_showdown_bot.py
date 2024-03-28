@@ -101,6 +101,7 @@ class ConsoleColor(Enum):
     RED = '\033[91m'
     GREEN = '\033[92m'
     YELLOW = '\033[93m'
+    BLACK = '\033[30m'
     END = '\033[0m'
 
 
@@ -236,8 +237,7 @@ def onbase_table(comparisons: list[CardComparison]) -> PrettyTable:
         # AVG OBP
         wotc_avg_obp = mean(obp_dict.get('wotc', [])) if len(obp_dict.get('wotc', [])) > 0 else 0
         bot_avg_obp = mean(obp_dict.get('showdown', [])) if len(obp_dict.get('showdown', [])) > 0 else 0
-        if wotc_avg_obp == 0 or bot_avg_obp == 0:
-            continue
+        is_one_sided = wotc_avg_obp == 0 or bot_avg_obp == 0
         
         # RANGE
         wotc_obp_range = f"{min(obp_dict['wotc']):.3f} - {max(obp_dict['wotc']):.3f}" if len(obp_dict.get('wotc', [])) > 0 else 0
@@ -249,10 +249,10 @@ def onbase_table(comparisons: list[CardComparison]) -> PrettyTable:
 
         # DIFF AND ACCURACY
         diff = bot_avg_obp - wotc_avg_obp
-        accuracy = 1 - ( abs(diff) / ((wotc_avg_obp + bot_avg_obp) / 2) )
-        accuracy_color = color_classification(accuracy=accuracy, green_cutoff=0.99, yellow_cutoff=0.96)
-        classification = StatDiffClassification.MATCH if accuracy >= 0.99 else StatDiffClassification.BELOW if diff < 0 else StatDiffClassification.ABOVE
-        classification_color = ConsoleColor.RED if classification == StatDiffClassification.ABOVE else ConsoleColor.YELLOW if classification == StatDiffClassification.BELOW else ConsoleColor.GREEN
+        accuracy = 0.00 if is_one_sided else 1 - ( abs(diff) / ((wotc_avg_obp + bot_avg_obp) / 2) )
+        accuracy_color = ConsoleColor.BLACK if is_one_sided else color_classification(accuracy=accuracy, green_cutoff=0.99, yellow_cutoff=0.96)
+        classification = StatDiffClassification.MATCH if accuracy >= 0.99 or is_one_sided else StatDiffClassification.BELOW if diff < 0 else StatDiffClassification.ABOVE
+        classification_color = ConsoleColor.BLACK if is_one_sided else ConsoleColor.RED if classification == StatDiffClassification.ABOVE else ConsoleColor.YELLOW if classification == StatDiffClassification.BELOW else ConsoleColor.GREEN
         table.add_row([
             command_outs, f'{wotc_avg_obp:.3f}', f'{bot_avg_obp:.3f}', f'{diff:.3f}', 
             f'{accuracy_color.value}{accuracy:.2%}{ConsoleColor.END.value}', 
