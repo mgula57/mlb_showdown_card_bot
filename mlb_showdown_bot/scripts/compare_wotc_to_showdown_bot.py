@@ -2,8 +2,10 @@ from pydantic import BaseModel
 from enum import Enum
 from rich import print as rprint
 import sys, os
+import statistics
 from pathlib import Path
 from prettytable import PrettyTable
+from pprint import pprint
 from statistics import mean
 import pandas as pd
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
@@ -19,6 +21,7 @@ parser.add_argument('-ptr','--point_range', type=str, help='Range of points to i
 parser.add_argument('-pos','--positions', type=str, help='List of positions to include, separated by a comma', default=None)
 parser.add_argument('-p','--show_players', action='store_true', help='Show player level breakdown')
 parser.add_argument('-nm','--names', type=str, help='List of names to show', default='')
+parser.add_argument('-ex', '--export', action='store_true', help='Export to file')
 args = parser.parse_args()
 
 # ------------------------------
@@ -210,7 +213,53 @@ def color_classification(accuracy: float, green_cutoff: float = 0.9, yellow_cuto
     if accuracy > green_cutoff: return ConsoleColor.GREEN
     elif accuracy > yellow_cutoff: return ConsoleColor.YELLOW
     else: return ConsoleColor.RED
+    
+def onbase_table(comparisons: list[CardComparison]) -> PrettyTable:
+    obps_for_command_outs: dict[str, dict[str, list[float]]] = {}
+    for source in ['wotc', 'showdown']:
+        for c in comparisons:
+            card = c.wotc if source == 'wotc' else c.showdown
+            key = card.chart.command_outs_concat
+            real_obp = card.stats.get('onbase_perc', 0.00)
+            command_out_obp_dict = obps_for_command_outs.get(key, {})
+            if key not in obps_for_command_outs:
+                obps_for_command_outs[key] = command_out_obp_dict
+            source_obp_list = command_out_obp_dict.get(source, [])
+            source_obp_list.append(real_obp)
+            obps_for_command_outs[key][source] = source_obp_list
+    table = PrettyTable()
+    table.field_names = ['Command-Outs', 'WOTC', 'BOT', 'Diff', 'Accuracy', 'Classification', 'WOTC Range', 'BOT Range', 'WOTC Count', 'BOT Count']
+    sorted_obps_for_command_outs = sorted(obps_for_command_outs.items(), key=lambda x: statistics.mean(x[1].get('showdown', [0])), reverse=True)
+    for command_outs, obp_dict in sorted_obps_for_command_outs:
+        
+        # AVG OBP
+        wotc_avg_obp = mean(obp_dict.get('wotc', [])) if len(obp_dict.get('wotc', [])) > 0 else 0
+        bot_avg_obp = mean(obp_dict.get('showdown', [])) if len(obp_dict.get('showdown', [])) > 0 else 0
+        if wotc_avg_obp == 0 or bot_avg_obp == 0:
+            continue
+        
+        # RANGE
+        wotc_obp_range = f"{min(obp_dict['wotc']):.3f} - {max(obp_dict['wotc']):.3f}" if len(obp_dict.get('wotc', [])) > 0 else 0
+        bot_obp_range = f"{min(obp_dict['showdown']):.3f} - {max(obp_dict['showdown']):.3f}" if len(obp_dict.get('showdown', [])) > 0 else 0
 
+        # COUNTS
+        wotc_count = len(obp_dict.get('wotc', []))
+        bot_count = len(obp_dict.get('showdown', []))
+
+        # DIFF AND ACCURACY
+        diff = bot_avg_obp - wotc_avg_obp
+        accuracy = 1 - ( abs(diff) / ((wotc_avg_obp + bot_avg_obp) / 2) )
+        accuracy_color = color_classification(accuracy=accuracy, green_cutoff=0.99, yellow_cutoff=0.96)
+        classification = StatDiffClassification.MATCH if accuracy >= 0.99 else StatDiffClassification.BELOW if diff < 0 else StatDiffClassification.ABOVE
+        classification_color = ConsoleColor.RED if classification == StatDiffClassification.ABOVE else ConsoleColor.YELLOW if classification == StatDiffClassification.BELOW else ConsoleColor.GREEN
+        table.add_row([
+            command_outs, f'{wotc_avg_obp:.3f}', f'{bot_avg_obp:.3f}', f'{diff:.3f}', 
+            f'{accuracy_color.value}{accuracy:.2%}{ConsoleColor.END.value}', 
+            f'{classification_color.value}{classification.value}{ConsoleColor.END.value}',
+            wotc_obp_range, bot_obp_range,
+            wotc_count, bot_count
+        ])
+    return table
 
 def accuracy_table(stats: list[Stat], comparisons: list[CardComparison]) -> PrettyTable:
     table = PrettyTable()
@@ -273,7 +322,9 @@ pts_split = args.point_range.split('-') if args.point_range else None
 points_included: list[int] = list(range(int(pts_split[0]), int(pts_split[1]) + 1, 10)) if pts_split else None
 player_sub_types_filter: list[PlayerSubType] = [PlayerSubType(t) for t in args.types.split(',')]
 player_types_list: list[PlayerType] = ([PlayerType.HITTER] if any([not t.is_pitcher for t in player_sub_types_filter]) else []) + ([PlayerType.PITCHER] if any([t.is_pitcher for t in player_sub_types_filter]) else [])
-wotc_player_card_set = WotcPlayerCardSet(sets=set_list, expansions=expansion_list, player_types=player_types_list)
+wotc_player_card_set = WotcPlayerCardSet(sets=set_list, expansions=expansion_list, player_types=[t for t in PlayerType] if args.export else player_types_list)
+if args.export:
+    wotc_player_card_set.export_to_local_file()
 
 # ------------------------------
 # 2. LOOP THROUGH SETS, TYPES, CARDS
@@ -300,24 +351,13 @@ for set in set_list:
             set_type_player_set = {id: card for id, card in wotc_player_card_set.cards.items() if card.set == set and card.player_sub_type == sub_type}
             for index, (id, wotc) in enumerate(set_type_player_set.items(), 1):
                 
-                # SKIP IF NO STATS
-                if len(wotc.stats) == 0:
+                # SKIP IF PLAYER FALLS UNDER FILTERS
+                is_no_stats = len(wotc.stats) == 0
+                is_small_sample_size = (wotc.stats.get('PA', 0) < 300 or wotc.stats.get('G', 0) < 100 ) and wotc.player_type == PlayerType.HITTER
+                is_excluded_pts_filter = False if not points_included else wotc.points not in points_included
+                is_excluded_positions_filter = False if not args.positions else not any([True for p in wotc.positions_and_defense.keys() if p in [Position(p) for p in args.positions.split(',')]])
+                if is_small_sample_size or is_no_stats or is_excluded_pts_filter:
                     continue
-
-                # SKIP IF PA < 200
-                if (wotc.stats.get('PA', 0) < 300 or wotc.stats.get('G', 0) < 100 ) and wotc.player_type == PlayerType.HITTER:
-                    continue
-
-                # SKIP IF POINTS OUTSIDE RANGE
-                if points_included:
-                    if wotc.points not in points_included: 
-                        continue
-
-                # SKIP IF NOT IN POSITION FILTER
-                if args.positions:
-                    included_positions = [Position(p) for p in args.positions.split(',')]
-                    if not any([True for p in wotc.positions_and_defense.keys() if p in included_positions]):
-                        continue
 
                 # CREATE SHOWDOWN BOT CARD FROM STATS
                 showdown_bot = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=wotc.stats)
@@ -339,10 +379,16 @@ for set in set_list:
             # ------------------------------
             # 3. SUMMARIZE SET ACCURACY
             # ------------------------------
+                
+            # OBP AVGS PER COMMAND/OUTS
+            if not args.is_pitchers_combined or not type.is_pitcher:
+                obp_table = onbase_table(comparisons=set_comparisons)
+                print(f"\n\n{set} ONBASE SUMMARY ({sub_type.name.replace('_', ' ')}S)")
+                print(obp_table)
 
             # CREATE ACCURACY TABLE
             table = accuracy_table(stats=stats_for_type, comparisons=set_comparisons)
-            print(f"\n\n{set} SUMMARY ({sub_type.name.replace('_', ' ')}S)\n")
+            print(f"\n\n{set} SUMMARY ({sub_type.name.replace('_', ' ')}S)")
             print(table)
 
             # ------------------------------
@@ -352,12 +398,17 @@ for set in set_list:
             updated_set_comparisons = all_set_comparisons_dict.get(set, {})
             current_type_set_comps = updated_set_comparisons.get(type_value, [])
             updated_set_comparisons[type_value] = current_type_set_comps + set_comparisons
-            all_set_comparisons_dict[set] = updated_set_comparisons
+            all_set_comparisons_dict[set] = updated_set_comparisons            
         
         # CROSS SUBTYPE TOTALS
         if args.is_pitchers_combined and type.is_pitcher:
+
+            obp_table = onbase_table(comparisons=all_subtype_comps)
+            print(f"\n\n{set} ONBASE SUMMARY ({type.name.replace('_', ' ')}S)")
+            print(obp_table)
+
             table = accuracy_table(stats=stats_for_type, comparisons=all_subtype_comps)
-            print(f"\n\n{set} SUMMARY ({type.name.replace('_', ' ')}S)\n")
+            print(f"\n\n{set} SUMMARY ({type.name.replace('_', ' ')}S)")
             print(table)
 
 # ------------------------------
@@ -380,3 +431,5 @@ if len(set_list) > 1:
 
             table.add_row([set.value, player_type, f'{accuracy_color.value}{overall_set_accuracy:.2%}{ConsoleColor.END.value}'])
     print(table)
+
+# CONVERT TO FILE IN OUTPUT FOLDER

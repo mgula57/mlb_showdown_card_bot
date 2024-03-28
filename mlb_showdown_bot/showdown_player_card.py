@@ -173,8 +173,7 @@ class ShowdownPlayerCard(BaseModel):
             # CONVERT STATS TO PER 400 PA
             # MAKES MATH EASIER (20 SIDED DICE)
             stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=self.stats)
-
-            command_out_combos = [self.command_out_override] if self.command_out_override else self.__top_accurate_command_out_combos(obp=float(self.stats['onbase_perc']), num_results=5)
+            command_out_combos = [self.command_out_override] if self.command_out_override else self.__top_accurate_command_out_combos(obp=float(self.stats['onbase_perc']), num_results=10)
 
             self.chart: Chart = None
             self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,

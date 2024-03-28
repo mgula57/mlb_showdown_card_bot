@@ -453,6 +453,7 @@ class Set(str, Enum):
                     case '1-18': return 0.975
                     case '2-18': return 0.97
                     case '3-18' | '4-18': return 0.98
+                    case '3-16': return 0.997
             case '2003':
                 match command_out_str: 
                     case '1-18': return 0.99
@@ -507,7 +508,7 @@ class Set(str, Enum):
     
     def chart_accuracy_slashline_weights(self, player_sub_type:PlayerSubType) -> dict[str, float]:
         match self.value:
-            case '2000' | '2001':
+            case '2000':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return {
                         Stat.OBP.value: 3.0,
@@ -516,6 +517,16 @@ class Set(str, Enum):
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
                         Stat.OBP.value: 2.0,
                         Stat.SLG.value: 1.0,
+                    }
+            case '2001':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return {
+                        Stat.OBP.value: 3.0,
+                        Stat.SLG.value: 1.0,
+                    }
+                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
+                        Stat.OBP.value: 3.0,
+                        Stat.SLG.value: 2.0,
                     }
             case '2002':
                 match player_sub_type:
@@ -586,7 +597,7 @@ class Set(str, Enum):
     def pu_multiplier(self) -> float:
         match self.value:
             case '2000': return 2.1
-            case '2001': return 2.5
+            case '2001': return 2.8
             case '2002': return 2.8
             case '2003': return 2.2
             case '2004': return 2.05
@@ -692,7 +703,7 @@ class Set(str, Enum):
         match era:
             case Era.STEROID: 
                 match self:
-                    case Set._2000: return 0.5
+                    case Set._2000 | Set._2001: return 0.5
                     case _: return 0.85
             case Era.STATCAST | Era.PITCH_CLOCK: return 0.70
             case _: return 0.75
@@ -3156,8 +3167,8 @@ class Set(str, Enum):
                                     outs=4.0,
                                     values={
                                         'SO': 0.45,
-                                        'BB': 4.42,
-                                        '1B': 7.28,
+                                        'BB': 4.47,
+                                        '1B': 7.33,
                                         '1B+': 0.6,
                                         '2B': 1.5,
                                         '3B': 0.2,
@@ -3307,16 +3318,16 @@ class Set(str, Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=7.8,
-                                    outs=3.9,
+                                    command=8.0,
+                                    outs=4.1,
                                     values={
-                                        'SO': 1.31,
-                                        'BB': 4.45,
-                                        '1B': 6.7,
-                                        '1B+': 0.63,
-                                        '2B': 1.95,
-                                        '3B': 0.2,
-                                        'HR': 2.0,
+                                        'SO': 1.50,
+                                        'BB': 4.90,
+                                        '1B': 6.76,
+                                        '1B+': 0.52,
+                                        '2B': 1.45,
+                                        '3B': 0.25,
+                                        'HR': 2.02,
                                     }
                                 )
                             case Era.POST_STEROID: 
