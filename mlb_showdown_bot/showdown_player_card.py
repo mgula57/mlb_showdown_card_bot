@@ -1777,7 +1777,6 @@ class ShowdownPlayerCard(BaseModel):
                 rounded_results = 10 if chart_category == ChartCategory.HR and rounded_results > 10 else rounded_results
                 # MAX 2B RESULTS AT 12
                 rounded_results = 12 if chart_category == ChartCategory._2B and rounded_results > 12 else rounded_results
-                print(rounded_results, chart_category)
                 chart.values[chart_category] = rounded_results
 
         # FILL "OUT" CATEGORIES (PU, GB, FB)
