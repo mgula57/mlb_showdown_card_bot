@@ -1777,6 +1777,7 @@ class ShowdownPlayerCard(BaseModel):
                 rounded_results = 10 if chart_category == ChartCategory.HR and rounded_results > 10 else rounded_results
                 # MAX 2B RESULTS AT 12
                 rounded_results = 12 if chart_category == ChartCategory._2B and rounded_results > 12 else rounded_results
+                print(rounded_results, chart_category)
                 chart.values[chart_category] = rounded_results
 
         # FILL "OUT" CATEGORIES (PU, GB, FB)
@@ -1866,7 +1867,7 @@ class ShowdownPlayerCard(BaseModel):
             # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
             pu_multiplier = self.set.pu_multiplier
             pu_outs = 0 if not self.is_pitcher else int(math.ceil(air_outs*popup_pct*pu_multiplier))
-            pu_outs = air_outs if pu_outs > air_outs else pu_outs
+            pu_outs = int(air_outs if pu_outs > air_outs else pu_outs)
             fb_outs = int(air_outs-pu_outs)
         else:
             fb_outs = 0
