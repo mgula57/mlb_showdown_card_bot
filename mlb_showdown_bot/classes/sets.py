@@ -396,7 +396,7 @@ class Set(str, Enum):
                 (6,14),(6,15),(6,16),(6,17),(6,18),(6,19),(6,20),
             ]
             case '2002': return [
-                (1,15),(1,16),(1,17),(1,18),
+                (1,15),(1,16),(1,17),(1,18),(1,19),
                 (2,15),(2,16),(2,17),(2,18),(2,19),
                 (3,15),(3,16),(3,17),(3,18),(3,19),
                 (4,14),(4,15),(4,16),(4,17),(4,18),(4,19),
@@ -458,6 +458,9 @@ class Set(str, Enum):
                 match command_out_str:
                     case '11-5': return 0.99
                     case '9-5': return 0.99
+                    case '1-19': return 0.99
+                    case '2-18': return 0.99
+                    case '1-18': return 0.99
             case '2003':
                 match command_out_str: 
                     case '1-18': return 0.99
@@ -538,8 +541,8 @@ class Set(str, Enum):
                         Stat.OBP.value: 1.0,
                     }
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 2.0,
-                        Stat.SLG.value: 1.0,
+                        Stat.OBP.value: 3.0,
+                        Stat.SLG.value: 2.0,
                     }
             case '2003':
                 match player_sub_type:
@@ -662,7 +665,7 @@ class Set(str, Enum):
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
-                            case Era.STEROID: return 0.91
+                            case Era.STEROID: return 0.88
                             case Era.POST_STEROID: return 0.90
                             case Era.STATCAST | Era.PITCH_CLOCK: return 0.85
                     case '2003' | '2004' | '2005':
@@ -3482,16 +3485,16 @@ class Set(str, Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=9.4,
-                                    outs=6.0,
+                                    command=10.0,
+                                    outs=6.7,
                                     values={
-                                        'SO': 2.09,
-                                        'BB': 3.35,
-                                        '1B': 6.0,
-                                        '1B+': 0.2,
-                                        '2B': 1.94,
-                                        '3B': 0.24,
-                                        'HR': 1.52,
+                                        'SO': 2.20,
+                                        'BB': 3.75,
+                                        '1B': 6.50,
+                                        '1B+': 0.36,
+                                        '2B': 1.65,
+                                        '3B': 0.09,
+                                        'HR': 0.95,
                                     }
                                 )
                             case Era.POST_STEROID: 

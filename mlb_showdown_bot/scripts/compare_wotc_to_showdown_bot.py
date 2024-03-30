@@ -264,7 +264,7 @@ def onbase_table(comparisons: list[CardComparison]) -> PrettyTable:
 
 def accuracy_table(stats: list[Stat], comparisons: list[CardComparison]) -> PrettyTable:
     table = PrettyTable()
-    table.field_names = ['Stat', 'Avg Diff', 'Avg Accuracy', 'Above', 'Below', 'Ratio', 'Match (0s)', 'Match', 'Match %', 'Largest Diff']
+    table.field_names = ['Stat', 'Avg Diff', 'Avg Accuracy', 'Above', 'Below', 'Ratio', 'Match (0s)', 'Match', 'Tot', 'Match %', 'Largest Diff']
 
     # LOOP THROUGH STATS
     for stat in stats:
@@ -301,16 +301,17 @@ def accuracy_table(stats: list[Stat], comparisons: list[CardComparison]) -> Pret
         table.add_row(
             [stat.label, f'{diff_color.value}{round(avg_diff, 3):.3f}{ConsoleColor.END.value}', f'{accuracy_color.value}{avg_accuracy:.2%}{ConsoleColor.END.value}', 
             above, below, f'{above_below_color.value}{above_below}{ConsoleColor.END.value}', 
-            match_zeros, match, 
+            match_zeros, match, match_pool,
             f'{match_color.value}{match_pct:.2%}{ConsoleColor.END.value}', largest_diff_name])
 
     # OVERALL ACCURACY
     all_accuracy = [c.weighted_accuracy for c in comparisons]
+    total = len(all_accuracy)
     matches = len([c for c in comparisons if c.weighted_accuracy == 1.0])
     least_accurate = list(sorted(comparisons, key=lambda x: x.weighted_accuracy))[0:3]
     largest_diff_names = '\n'.join([f'{c.wotc.first_initial}. {c.wotc.last_name} ({c.weighted_accuracy:.2%})' for c in least_accurate])
     overall_accuracy = mean(all_accuracy)
-    table.add_row(['Overall', '', f'{overall_accuracy:.2%}', '', '', '', '', matches, '', largest_diff_names])
+    table.add_row(['Overall', '', f'{overall_accuracy:.2%}', '', '', '', '', matches, total, '', largest_diff_names])
     
     return table
 
