@@ -1882,7 +1882,7 @@ class ShowdownPlayerCard(BaseModel):
             # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
             pu_multiplier = self.set.pu_multiplier
             pu_outs = 0 if not self.is_pitcher else int(math.ceil(air_outs*popup_pct*pu_multiplier))
-            pu_outs = air_outs if pu_outs > air_outs else pu_outs
+            pu_outs = int(air_outs if pu_outs > air_outs else pu_outs)
             fb_outs = int(air_outs-pu_outs)
         else:
             fb_outs = 0
