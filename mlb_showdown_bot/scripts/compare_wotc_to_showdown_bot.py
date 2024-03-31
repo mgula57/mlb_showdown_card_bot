@@ -324,7 +324,7 @@ pts_split = args.point_range.split('-') if args.point_range else None
 points_included: list[int] = list(range(int(pts_split[0]), int(pts_split[1]) + 1, 10)) if pts_split else None
 player_sub_types_filter: list[PlayerSubType] = [PlayerSubType(t) for t in args.types.split(',')]
 player_types_list: list[PlayerType] = ([PlayerType.HITTER] if any([not t.is_pitcher for t in player_sub_types_filter]) else []) + ([PlayerType.PITCHER] if any([t.is_pitcher for t in player_sub_types_filter]) else [])
-wotc_player_card_set = WotcPlayerCardSet(sets=set_list, expansions=expansion_list, player_types=[t for t in PlayerType] if args.export else player_types_list)
+wotc_player_card_set = WotcPlayerCardSet(sets=set_list, player_types=[t for t in PlayerType] if args.export else player_types_list)
 if args.export:
     wotc_player_card_set.export_to_local_file()
 
@@ -350,7 +350,7 @@ for set in set_list:
         for sub_type in sub_types:
             
             set_comparisons: list[CardComparison] = []
-            set_type_player_set = {id: card for id, card in wotc_player_card_set.cards.items() if card.set == set and card.player_sub_type == sub_type}
+            set_type_player_set = {id: card for id, card in wotc_player_card_set.cards.items() if card.set == set and card.player_sub_type == sub_type and card.image.expansion in expansion_list}
             for index, (id, wotc) in enumerate(set_type_player_set.items(), 1):
                 
                 # SKIP IF PLAYER FALLS UNDER FILTERS

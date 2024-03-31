@@ -120,14 +120,18 @@ class Chart(BaseModel):
 
             # HANDLE RANGES > 20
             if self.is_expanded and range_end >= 20 and self.is_pitcher:
-                add_to_1b, num_of_results_2b = self.__calculate_ranges_over_20(dbl_per_400_pa, hr_per_400_pa)
+                add_to_bb, add_to_1b, add_to_2b = self.__calculate_ranges_over_20(dbl_per_400_pa, hr_per_400_pa)
                 # DEFINE OVER 20 RANGES
-                if category == ChartCategory._1B:
-                    category_results += add_to_1b
-                    range_end = current_chart_index + category_results - 1
-                elif category == ChartCategory._2B:
-                    category_results += num_of_results_2b
-                    range_end = current_chart_index + category_results - 1
+                match category:
+                    case ChartCategory.BB:
+                        category_results += add_to_bb
+                        range_end = current_chart_index + category_results - 1                    
+                    case ChartCategory._1B:
+                        category_results += add_to_1b
+                        range_end = current_chart_index + category_results - 1
+                    case ChartCategory._2B:
+                        category_results += add_to_2b
+                        range_end = current_chart_index + category_results - 1
             
             # HANDLE ERRORS WITH SMALL SAMPLE SIZE 2000/2001 FOR SMALL ONBASE
             if not self.is_expanded and range_end > 20:
@@ -158,7 +162,7 @@ class Chart(BaseModel):
         else:
             self.ranges = chart_ranges
 
-    def __calculate_ranges_over_20(self, dbl_per_400_pa:float, hr_per_400_pa:float) -> tuple[int, int]:
+    def __calculate_ranges_over_20(self, dbl_per_400_pa:float, hr_per_400_pa:float) -> tuple[int, int, int]:
         """Calculates starting points of 2B and HR ranges for post 2001 cards
            whose charts expand past 20.
 
@@ -167,12 +171,12 @@ class Chart(BaseModel):
           hr_per_400_pa: Number of HR results every 400 PA
 
         Returns:
-          Tuple of 1b_additions, 2b results
+          Tuple of bb_additions, 1b_additions, 2b results
         """
 
         if self.is_range_start_populated:
             hr_start = self.hr_range_start
-            dbl_start = self.dbl_range_start or hr_start
+            dbl_start = self.dbl_range_start
         else:
             # HR
             if hr_per_400_pa >= 13:
@@ -200,11 +204,25 @@ class Chart(BaseModel):
             else:
                 dbl_start = 24
 
-        add_to_1b = dbl_start - 21
-        hr_start_final = hr_start if (dbl_start < hr_start or self.is_range_start_populated) else dbl_start + 1
-        num_of_results_2b = hr_start_final - dbl_start
+        add_to_bb = 0
+        add_to_1b = (dbl_start if dbl_start else hr_start) - 21
+        add_to_2b = 0
 
-        return add_to_1b, num_of_results_2b
+        # 0 2B RESULTS
+        is_2b_results_and_no_hr = self.num_values(ChartCategory._2B) > 0 and self.num_values(ChartCategory.HR) == 0 and hr_start
+        if is_2b_results_and_no_hr:
+            add_to_2b = hr_start - 21
+        elif dbl_start:
+            hr_start = hr_start if (dbl_start < hr_start or self.is_range_start_populated) else dbl_start + 1
+            add_to_2b = hr_start - dbl_start - 1            
+        elif hr_start is not None:
+            if self.values.get(ChartCategory._1B, 0) == 0 and self.values.get(ChartCategory._2B, 0) == 0:
+                add_to_bb = hr_start - 21
+                add_to_1b = 0
+            else:
+                add_to_1b = hr_start - 21
+
+        return add_to_bb, add_to_1b, add_to_2b
 
     def __hitter_chart_above_20(self, current_chart_ranges:dict[ChartCategory, str], dbl_per_400_pa:float, trpl_per_400_pa:float, hr_per_400_pa:float) -> dict[str, str]:
         """If a hitter has remaining result categories above 20, populate them.
