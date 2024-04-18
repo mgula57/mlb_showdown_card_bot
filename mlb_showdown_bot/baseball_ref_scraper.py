@@ -347,7 +347,7 @@ class BaseballReferenceScraper:
             stats_dict.update(icon_threshold_bools)
             
             # FILL BLANKS IF NEEDED
-            keys_to_fill = ['SH','GIDP','IBB','HBP','SF']
+            keys_to_fill = ['SH','GIDP','IBB','HBP','SF','SB','CS',]
             for key in keys_to_fill:
                 if key in stats_dict.keys():
                     raw_value = stats_dict[key]
