@@ -1,5 +1,5 @@
 from enum import Enum
-
+import numpy as np
 try:
     from .metadata import SpeedMetric
     from .player_position import PlayerType, PlayerSubType, Position
@@ -458,9 +458,6 @@ class Set(str, Enum):
                 match command_out_str:
                     case '11-5': return 0.99
                     case '9-5': return 0.99
-                    case '1-19': return 0.99
-                    case '2-18': return 0.99
-                    case '1-18': return 0.99
             case '2003':
                 match command_out_str: 
                     case '1-18': return 0.99
@@ -513,6 +510,14 @@ class Set(str, Enum):
         # DEFAULT TO 1.0
         return 1.00
     
+    def test_command_out_combinations(self, is_pitcher:bool) -> list[tuple[int,int]]:
+        hitter_command_range = np.arange(8, 11, 0.1).tolist() if self.has_expanded_chart else np.arange(6, 9, 0.1).tolist()
+        hitter_out_range = np.arange(5, 8, 0.1).tolist() if self.has_expanded_chart else np.arange(2, 5, 0.1).tolist()
+        command_range = np.arange(1, 5, 0.1).tolist() if is_pitcher else hitter_command_range
+        outs_range = np.arange(15, 18, 0.1).tolist() if is_pitcher else hitter_out_range
+        all_combos = [(c, o) for c in command_range for o in outs_range]
+        return all_combos
+
     def chart_accuracy_slashline_weights(self, player_sub_type:PlayerSubType) -> dict[str, float]:
         match self.value:
             case '2000':
@@ -541,8 +546,9 @@ class Set(str, Enum):
                         Stat.OBP.value: 1.0,
                     }
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 2.0,
+                        Stat.OBP.value: 2.0,
+                        Stat.SLG.value: 1.0,
+                        Stat.OPS.value: 3.0,
                     }
             case '2003':
                 match player_sub_type:
@@ -3495,16 +3501,16 @@ class Set(str, Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=10.0,
-                                    outs=6.7,
+                                    command=9.0,
+                                    outs=6.3,
                                     values={
                                         'SO': 2.20,
-                                        'BB': 3.75,
-                                        '1B': 6.50,
-                                        '1B+': 0.36,
-                                        '2B': 1.65,
-                                        '3B': 0.09,
-                                        'HR': 0.95,
+                                        'BB': 3.95,
+                                        '1B': 6.35,
+                                        '1B+': 0.50,
+                                        '2B': 1.75,
+                                        '3B': 0.15,
+                                        'HR': 1.00,
                                     }
                                 )
                             case Era.POST_STEROID: 

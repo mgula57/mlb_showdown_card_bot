@@ -1,6 +1,7 @@
 from enum import Enum
 from pydantic import BaseModel
 from typing import Union, Optional
+from pprint import pprint
 
 # ---------------------------------------
 # CHART CATEGORY
@@ -22,6 +23,16 @@ class ChartCategory(str, Enum):
     @property
     def is_out(self) -> bool:
         return self.value in ['PU', 'SO', 'GB', 'FB']
+    
+    @property
+    def is_over_21_results_included_in_projection(self) -> bool:
+        return self.value in ['HR']
+    
+    @property
+    def expanded_over_20_result_factor_multiplier(self) -> float:
+        match self:
+            case ChartCategory.HR: return 1.0
+            case _: return 0.0
 
 # ---------------------------------------
 # CHART
@@ -44,8 +55,14 @@ class Chart(BaseModel):
     trpl_range_start: Optional[int] = None
     hr_range_start: Optional[int] = None
 
+    results: list[ChartCategory] = []
+    stats_per_400_pa: dict[ChartCategory, float] = {}
+    opponent: Optional['Chart'] = None
+
     def __init__(self, **data) -> None:
         super().__init__(**data)
+        if len(self.values) > 0 and len(self.results) == 0:
+            self.generate_results_list()
         self.generate_range_strings()
 
     @property
@@ -85,11 +102,246 @@ class Chart(BaseModel):
     def is_range_start_populated(self) -> bool:
         return self.hr_range_start
 
+    @property
+    def hr_start(self) -> int:
+        return len([r for r in self.results if r != ChartCategory.HR]) + 1
+
+    # ---------------------------------------
+    # ADVANTAGES
+    # ---------------------------------------
+
+    @property
+    def my_advantages_per_20(self) -> int | float:
+        hitter_advantages = (self.opponent.command - self.command) * (1 if self.is_pitcher else -1)
+        if not self.is_pitcher:
+            return hitter_advantages
+        return 20 - hitter_advantages
+    
+    @property
+    def opponent_advantages_per_20(self) -> int | float:
+        return 20 - self.my_advantages_per_20
+
+    # ---------------------------------------
+    # RESULTS
+    # ---------------------------------------
+
+    def num_results_projected(self, category:ChartCategory) -> float:
+
+        results_per_400_pa = self.stats_per_400_pa.get(category, 0)
+        if results_per_400_pa == 0:
+            return 0
+        opponent_values = self.opponent.num_values(category)
+        results_from_opponent_chart = self.opponent_advantages_per_20 * opponent_values
+        remaining_results = results_per_400_pa - results_from_opponent_chart
+        if remaining_results < 0:
+            return 0
+        chart_results = remaining_results / self.my_advantages_per_20
+
+        return chart_results
+
+    def generate_results_list(self) -> None:
+        """Convert chart values dict to list of Chart Results
+        Add 21+ results for expanded charts
+
+        Args:
+            None
+
+        Returns:
+            List of Chart categories up to 30
+        """
+
+        # 1-20 RESULTS
+        results_list: list[ChartCategory] = []
+        for chart_category in ChartCategory:
+            results = self.num_values(chart_category)
+            if results > 0:
+                results_list += [chart_category] * int(results)
+        last_result = results_list[-1]
+
+        # FILL 21-30 WITH LAST RESULT
+        fill_with_last_result = not self.is_expanded or last_result == ChartCategory.HR or not self.is_pitcher
+        if fill_with_last_result:
+            # FILL WITH LAST RESULT
+            results_list += [last_result] * (30 - len(results_list))
+            self.results = results_list
+            return
+        
+        over_20_results: list[ChartCategory] = [ChartCategory.HR]
+
+        # CALCULATE HR START
+        hr_projected_result_slots = self.num_results_projected(ChartCategory.HR)
+        hr_result_slots = 0
+        for i in range(8, 0, -1):
+            result_factor = self.result_factor(num_past_20=i, category=ChartCategory.HR)
+            hr_result_slots += result_factor
+            over_20_results.append(ChartCategory.HR)
+
+            # CHECK IF NEXT RESULT WILL PUT US OVER PROJECTED
+            if hr_result_slots + result_factor >= hr_projected_result_slots:
+                break
+
+        if len(over_20_results) >= 10:
+            # REVERSE OVER 20 RESULTS
+            over_20_results = over_20_results[::-1]
+            self.results = results_list + over_20_results[:10]
+            return 
+        
+        # FILL IN REMAINING SLOTS
+        if self.set == '2002':
+            # FILL REMAINING SLOTS WITH LAST RESULT
+            remaining_slots = max(10 - len(over_20_results), 0)
+            over_20_results += [last_result] * remaining_slots
+            over_20_results = over_20_results[::-1]
+
+        self.results = results_list + over_20_results[:10]
+        return 
+
+    def result_factor(self, num_past_20:int, category: ChartCategory) -> float:
+        """Calculate probability of over 20 result for expanded charts"""
+
+        # REDUCE PROBABILITIES FOR HIGHER COMMAND
+        max_command = 5 if self.is_pitcher else 16
+        command_percentile = min(self.command / max_command, 1)
+        starting_denominator = 10
+        max_addition = 30
+        final_starting_point = starting_denominator + (max_addition * (1-command_percentile))
+        return (1 / (final_starting_point + num_past_20)) * category.expanded_over_20_result_factor_multiplier
+
+    def total_over_20_results(self, category:ChartCategory) -> int:
+        """Calculate total number of over 20 results. Weigh number by result factor based on index"""
+
+        # NONE FOR CLASSIC
+        if not self.is_expanded:
+            return 0
+        
+        total_results = 0
+        for i, result in enumerate(self.results[21:30]):
+            if result == category:
+                total_results += self.result_factor(num_past_20=i, category=category)
+        return total_results
+    
+    # ---------------------------------------
+    # REAL STATS
+    # ---------------------------------------
+
+    def projected_stats_per_400_pa(self) -> dict:
+        """Predict real stats given Showdown in game chart.
+
+        Args:
+          chart: Chart object.
+
+        Returns:
+          Dict with stats per 400 Plate Appearances.
+        """
+
+        # MATCHUP VALUES
+        strikeouts_per_400_pa = self.projected_stats_for_category(ChartCategory.SO)
+        walks_per_400_pa = strikeouts_per_400_pa = self.projected_stats_for_category(ChartCategory.BB)
+        singles_per_400_pa = self.projected_stats_for_category(ChartCategory._1B) + self.projected_stats_for_category(ChartCategory._1B_PLUS)
+        doubles_per_400_pa = self.projected_stats_for_category(ChartCategory._2B)
+        triples_per_400_pa = self.projected_stats_for_category(ChartCategory._3B)
+        home_runs_per_400_pa = self.projected_stats_for_category(ChartCategory.HR)
+        hits_per_400_pa = singles_per_400_pa \
+                            + doubles_per_400_pa \
+                            + triples_per_400_pa \
+                            + home_runs_per_400_pa
+        # SLASH LINE
+
+        # BA
+        batting_avg = hits_per_400_pa / (400.0 - walks_per_400_pa)
+
+        # OBP
+        onbase_results_per_400_pa = walks_per_400_pa + hits_per_400_pa
+        obp = onbase_results_per_400_pa / 400.0
+
+        # SLG
+        slugging_pct = self.__slugging_pct(ab=400-walks_per_400_pa,
+                                           singles=singles_per_400_pa,
+                                           doubles=doubles_per_400_pa,
+                                           triples=triples_per_400_pa,
+                                           homers=home_runs_per_400_pa)
+        # GROUP ESTIMATIONS IN DICTIONARY
+        results_per_400_pa = {
+            'so_per_400_pa': strikeouts_per_400_pa,
+            'bb_per_400_pa': walks_per_400_pa,
+            '1b_per_400_pa': singles_per_400_pa,
+            '2b_per_400_pa': doubles_per_400_pa,
+            '3b_per_400_pa': triples_per_400_pa,
+            'hr_per_400_pa': home_runs_per_400_pa,
+            'h_per_400_pa': hits_per_400_pa,
+            'ab_per_400_pa': 400 - walks_per_400_pa,
+            'batting_avg': batting_avg,
+            'onbase_perc': obp,
+            'slugging_perc': slugging_pct,
+            'onbase_plus_slugging': obp + slugging_pct,
+        }
+
+        return results_per_400_pa
+
+    def projected_stats_for_category(self, category:ChartCategory, pa: int = 400) -> int | float:
+
+        my_results = self.num_values(category) + self.total_over_20_results(category)
+        opponent_results = self.opponent.num_values(category)
+        pa_multiplier = pa / 400
+        return ( (my_results * self.my_advantages_per_20) + (opponent_results * self.opponent_advantages_per_20) ) * pa_multiplier
+
+    def __slugging_pct(self, ab:float, singles:float, doubles:float, triples:float, homers:float)  -> float:
+        """ Calculate Slugging Pct"""
+        return (singles + (2 * doubles) + (3 * triples) + (4 * homers)) / ab
+    
     # ---------------------------------------
     # RANGES
     # ---------------------------------------
 
     def generate_range_strings(self) -> None:
+        """Use the current chart results list to generate string representations for the chart.
+
+        Args:
+          None
+          
+        Returns:
+          None - Stores final dictionary in self.
+        """
+
+        if len(self.values) == 0 or len(self.ranges) > 0:
+            return
+
+        # CONVERT LIST TO DICT OF COUNTS
+        # EX: [SO, SO, SO, GB, GB, FB, BB, 1B, 2B, HR] -> {SO: 3, GB: 2, FB: 1, BB: 1, 1B: 1, 2B: 1, HR: 1}
+        chart_values = {}
+        result_list = self.results if self.is_expanded else self.results[:20]
+        for result in result_list:
+            chart_values[result] = chart_values.get(result, 0) + 1
+        
+        # ITERATE THROUGH CHART CATEGORIES AND GENERATE RANGES
+        current_chart_index = 1
+        chart_ranges: dict[ChartCategory, str] = {}
+        for category in self.categories_list:
+            category_results = chart_values.get(category, 0)
+            range_end = current_chart_index + category_results - 1
+                
+            if category == ChartCategory.HR and self.is_expanded:
+                # ADD PLUS AFTER HR
+                range = '{}+'.format(str(current_chart_index))
+            elif category_results == 0:
+                # EMPTY RANGE
+                range = '—'
+            elif category_results == 1:
+                # RANGE IS CURRENT INDEX
+                range = str(current_chart_index)
+                current_chart_index += 1
+            else:
+                # MULTIPLE RESULTS
+                range_start = current_chart_index
+                range = '{}–{}'.format(range_start,range_end)
+                current_chart_index = range_end + 1
+
+            chart_ranges[category] = range
+        
+        self.ranges = chart_ranges
+        return
+
+    def generate_range_strings_old(self) -> None:
         """Use the current chart to generate string representations for the chart 
         Ex: 
           - SO: 3 -> SO: 1-3

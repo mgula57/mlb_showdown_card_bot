@@ -64,6 +64,7 @@ class Stat(Enum):
     BA = 'batting_avg'
     OBP = 'onbase_perc'
     SLG = 'slugging_perc'
+    OPS = 'onbase_plus_slugging'
 
 class PointsMetric(Enum):
 

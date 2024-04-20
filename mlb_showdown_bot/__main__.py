@@ -87,12 +87,18 @@ def main():
     postgres_db = PostgresDB(is_archive=True)
     player_archive, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
     postgres_db.close_connection()
+    statline: dict[str: any] = None
     if player_archive:
         statline = player_archive.stats
         data_source = 'Archive'
     else:
-        statline = scraper.player_statline()
-        data_source = scraper.source
+        try:
+            statline = scraper.player_statline()
+            data_source = scraper.source
+        except Exception as e:
+            if not args.is_wotc:
+                print("Error loading statline")
+                print(e)
 
     # WOTC CARD
     showdown: ShowdownPlayerCard = None

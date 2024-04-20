@@ -104,10 +104,6 @@ class PlayerType(Enum):
     PITCHER = 'Pitcher'
     HITTER = 'Hitter'
 
-    @classmethod
-    def _missing_(cls, _):
-        return cls.HITTER
-
     @property
     def is_pitcher(self) -> bool:
         return self.name == 'PITCHER'
