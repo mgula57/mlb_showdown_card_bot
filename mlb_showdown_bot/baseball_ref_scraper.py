@@ -1331,11 +1331,13 @@ class BaseballReferenceScraper:
                     # IF THE KEY IS ALREADY PRESENT, APPEND THE VALUE TO THE LIST
                     aggregated_data_into_lists[category].append(stat)
                     
-        aggregated_data = { k.replace('batters_faced', 'PA'): self.__aggregate_stats_list(category=k, stats=v) for k,v in aggregated_data_into_lists.items() if k != 'earned_run_avg'}
+        stats_agg_type = {
+            'team_ID': 'last',
+        }
+        aggregated_data = { k.replace('batters_faced', 'PA'): self.__aggregate_stats_list(category=k, stats=v, str_agg_type=stats_agg_type.get(k, 'mode')) for k,v in aggregated_data_into_lists.items() if k != 'earned_run_avg'}
 
         # CHECK FOR NO-DATA
         if len(aggregated_data) == 0:
-            pprint(aggregated_data)
             self.warnings.append(self.stats_period.empty_message)
             self.stats_period.reset()
             return None
