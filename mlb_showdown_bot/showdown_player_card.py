@@ -183,7 +183,7 @@ class ShowdownPlayerCard(BaseModel):
 
             # FOR PTS, USE STEROID ERA OPPONENT
             chart_for_pts = self.chart.model_copy()
-            chart_for_pts.opponent = self.set.baseline_chart(player_type=PlayerType.HITTER if self.is_pitcher else PlayerType.PITCHER, era=Era.STEROID)
+            chart_for_pts.opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=Era.STEROID)
             projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa()
             projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
 
@@ -440,7 +440,7 @@ class ShowdownPlayerCard(BaseModel):
           None
 
         Returns:
-          String for full player type ('position_player', 'tarting_pitcher', 'relief_pitcher').
+          String for full player type ('position_player', 'starting_pitcher', 'relief_pitcher').
         """
         # PARSE PLAYER TYPE
         if self.player_type.is_pitcher:
@@ -1615,43 +1615,15 @@ class ShowdownPlayerCard(BaseModel):
         for combo in command_out_combos:
             command = combo[0]
             outs = combo[1]
-            command_out_matchup = self.__onbase_control_outs(command, outs)
-            predicted_obp = self.__obp_for_command_outs(command_out_matchup)
+            opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era)
+            predicted_obp = self.__obp_for_command_out_matchup(my_command=command, my_outs=outs, opponent_chart=opponent)
             key = (command, outs)
             combo_and_obps[key] = predicted_obp
 
         return combo_and_obps
 
-    def __onbase_control_outs(self, command:int=0, outs:int=0, era_override:Era = None) -> dict[str, int]:
-        """Give information needed to perform calculations of results.
-           These numbers are needed to predict obp, home_runs, ...
-
-        Args:
-          command: The Onbase or Control number of player.
-          outs: The number of out results on the player's chart.
-          era_override: Optionally override the era used for baseline opponents.
-
-        Returns:
-          Dict object with onbase, control, pitcher outs, hitter outs
-        """
-        era = era_override if era_override else self.era
-        baseline_hitter = self.set.baseline_chart(player_type=PlayerType.HITTER, era=era)
-        baseline_pitcher = self.set.baseline_chart(player_type=PlayerType.PITCHER, era=era)
-        onbase_baseline = baseline_hitter.command if self.test_numbers is None else self.test_numbers[0]
-        hitter_outs_baseline = baseline_hitter.outs if self.test_numbers is None else self.test_numbers[1]
-        control_baseline = baseline_pitcher.command if self.test_numbers is None else self.test_numbers[0]
-        pitcher_outs_baseline = baseline_pitcher.outs if self.test_numbers is None else self.test_numbers[1]
-
-        return {
-            'onbase': command if not self.is_pitcher else onbase_baseline,
-            'hitterOuts': outs if not self.is_pitcher else hitter_outs_baseline,
-            'control': command if self.is_pitcher else control_baseline,
-            'pitcherOuts': outs if self.is_pitcher else pitcher_outs_baseline
-        }
-
     def opponent_stats_for_calcs(self, command:int, era_override:Era = None) -> tuple[Chart, float, float]:
-        """Convert __onbase_control_outs info to be specific to self.
-           Used to derive:
+        """Used to derive:
              1. opponent_chart
              2. my_advantages_per_20
              3. opponent_advantages_per_20
@@ -1665,32 +1637,33 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         era = era_override if era_override else self.era
+        opponent_chart = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=era)
         if not self.is_pitcher:
-            opponent_chart = self.set.baseline_chart(player_type=PlayerType.PITCHER, era=era)
-            my_advantages_per_20 = command-self.__onbase_control_outs(era_override=era_override)['control']
+            my_advantages_per_20 = command - opponent_chart.command
             opponent_advantages_per_20 = 20 - my_advantages_per_20
         else:
-            opponent_chart = self.set.baseline_chart(player_type=PlayerType.HITTER, era=era)
-            opponent_advantages_per_20 = self.__onbase_control_outs(era_override=era_override)['onbase']-command
+            opponent_advantages_per_20 = opponent_chart.command - command
             my_advantages_per_20 = 20 - opponent_advantages_per_20
 
         return opponent_chart, my_advantages_per_20, opponent_advantages_per_20
 
-    def __obp_for_command_outs(self, command_out_matchup:dict[str, float]) -> float:
+    def __obp_for_command_out_matchup(self, my_command: int, my_outs: int, opponent_chart: Chart) -> float:
         """Calc OBP for command out matchup
 
         Args:
-          command_out_matchup: Dictionary of onbase, control, outs from hitter and pitcher
+            my_command: Command for current player
+            my_outs: Outs for current player
+            opponent_chart: Chart for opponent
 
         Returns:
           Float with obp for given command out matchup.
         """
         predicted_obp = round(
             self.__pct_rate_for_result(
-                onbase = command_out_matchup['onbase'],
-                control = command_out_matchup['control'],
-                num_results_hitter_chart = 20-command_out_matchup['hitterOuts'],
-                num_results_pitcher_chart = 20-command_out_matchup['pitcherOuts']
+                onbase = opponent_chart.command if self.is_pitcher else my_command,
+                control = my_command if self.is_pitcher else opponent_chart.command,
+                num_results_hitter_chart = 20 - (opponent_chart.outs if self.is_pitcher else my_outs),
+                num_results_pitcher_chart = 20 - (my_outs if self.is_pitcher else opponent_chart.outs),
             ),
             5
         )
@@ -2584,6 +2557,7 @@ class ShowdownPlayerCard(BaseModel):
             values = [src_value_name]
             numeric_values = []
             for key in stat_categories_dict.values():
+                
                 stat_raw = source_dict.get(key, 0) or 0
                 stat_str = self.__stat_formatted(category=key, value=stat_raw)
                 values.append(stat_str)
@@ -2823,8 +2797,7 @@ class ShowdownPlayerCard(BaseModel):
           Multi-dimensional list of avg opponent chart results.
         """
 
-        opponent_type = PlayerType.HITTER if self.is_pitcher else PlayerType.PITCHER
-        opponent_chart: Chart = self.set.baseline_chart(player_type=opponent_type, era=self.era)
+        opponent_chart: Chart = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era)
 
         return opponent_chart.values_as_list
 

@@ -1925,7 +1925,10 @@ class Set(str, Enum):
     # BASELINE PLAYERS
     # ---------------------------------------
 
-    def baseline_chart(self, player_type:PlayerType, era:Era) -> Chart:
+    def opponent_chart(self, player_sub_type:PlayerSubType, era:Era) -> Chart:
+        return self.baseline_chart(player_type=player_sub_type.parent_type.opponent_type, era=era, command_boost=player_sub_type.opponent_command_boost(set=self.value))
+
+    def baseline_chart(self, player_type:PlayerType, era:Era, command_boost:float = 0.0) -> Chart:
         match player_type:
             case PlayerType.PITCHER:
                 match self.value:
@@ -3501,10 +3504,10 @@ class Set(str, Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=9.0,
+                                    command=9.1 + command_boost,
                                     outs=6.3,
                                     values={
-                                        'SO': 2.20,
+                                        'SO': 1.90,
                                         'BB': 3.95,
                                         '1B': 6.35,
                                         '1B+': 0.50,

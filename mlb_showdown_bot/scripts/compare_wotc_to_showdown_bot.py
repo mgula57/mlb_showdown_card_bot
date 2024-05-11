@@ -94,6 +94,7 @@ class StatDiffClassification(Enum):
     ABOVE = "ABOVE"
     BELOW = "BELOW"
     MATCH = "MATCH"
+    NONE = "NONE"
 
     @property
     def color(self) -> str:
@@ -125,7 +126,7 @@ class StatComparison(BaseModel):
         if self.stat.is_all_or_nothing:
             self.diff = 1 if self.wotc == self.bot else 0
             self.accuracy = 1 if self.wotc == self.bot else 0
-            self.classification = StatDiffClassification.MATCH if self.diff == 1 else StatDiffClassification.BELOW
+            self.classification = StatDiffClassification.MATCH if self.diff == 1 else (StatDiffClassification.NONE if self.stat.is_all_or_nothing else StatDiffClassification.BELOW)
             return 
 
         # CALC DIFF AND ASSIGN CLASSIFICATION
@@ -436,15 +437,17 @@ for set in set_list:
         
         # TYPE BASED DATA
         stats_for_type = [s for s in Stat if s.is_valid_for_type(type)]
-        opponent_type = PlayerType.HITTER if type.is_pitcher else PlayerType.PITCHER
-        opponent_chart = set.baseline_chart(player_type=opponent_type, era=Era.STEROID)
-        remaining_slots = round(opponent_chart.remaining_slots(excluded_categories=[ChartCategory.SO]) - opponent_chart.outs, 2)
-        if remaining_slots != 0:
-            rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {opponent_type.value}[/yellow] ({20-remaining_slots}/20). Please fill the remaining {remaining_slots}")
 
         sub_types = [st for st in type.sub_types if st in player_sub_types_filter]
         all_subtype_comps: list[StatComparison] = []
         for sub_type in sub_types:
+
+            # CHECK OPPONENT CHART
+            opponent_type = type.opponent_type
+            opponent_chart = set.opponent_chart(player_sub_type=sub_type, era=Era.STEROID)
+            remaining_slots = round(opponent_chart.remaining_slots(excluded_categories=[ChartCategory.SO]) - opponent_chart.outs, 2)
+            if remaining_slots != 0:
+                rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {opponent_type.value}[/yellow] ({20-remaining_slots}/20). Please fill the remaining {remaining_slots}")
             
             set_comparisons: list[CardComparison] = []
             set_type_player_set = {id: card for id, card in wotc_player_card_set.cards.items() if card.set == set and card.player_sub_type == sub_type and card.image.expansion in expansion_list}

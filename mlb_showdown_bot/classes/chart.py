@@ -199,13 +199,17 @@ class Chart(BaseModel):
     def result_factor(self, num_past_20:int, category: ChartCategory) -> float:
         """Calculate probability of over 20 result for expanded charts"""
 
-        # REDUCE PROBABILITIES FOR HIGHER COMMAND
-        max_command = 5 if self.is_pitcher else 16
-        command_percentile = min(self.command / max_command, 1)
-        starting_denominator = 10
-        max_addition = 30
-        final_starting_point = starting_denominator + (max_addition * (1-command_percentile))
-        return (1 / (final_starting_point + num_past_20)) * category.expanded_over_20_result_factor_multiplier
+        match self.set:
+            case '2002': 
+                # REDUCE PROBABILITIES FOR HIGHER COMMAND
+                max_command = 5 if self.is_pitcher else 16
+                command_percentile = min(self.command / max_command, 1)
+                starting_denominator = 15
+                max_addition = 30
+                final_starting_point = starting_denominator + (max_addition * (1-command_percentile))
+                return (1 / (final_starting_point + num_past_20)) * category.expanded_over_20_result_factor_multiplier
+            case _:
+                return 0.0
 
     def total_over_20_results(self, category:ChartCategory) -> int:
         """Calculate total number of over 20 results. Weigh number by result factor based on index"""
@@ -236,7 +240,7 @@ class Chart(BaseModel):
 
         # MATCHUP VALUES
         strikeouts_per_400_pa = self.projected_stats_for_category(ChartCategory.SO)
-        walks_per_400_pa = strikeouts_per_400_pa = self.projected_stats_for_category(ChartCategory.BB)
+        walks_per_400_pa = self.projected_stats_for_category(ChartCategory.BB)
         singles_per_400_pa = self.projected_stats_for_category(ChartCategory._1B) + self.projected_stats_for_category(ChartCategory._1B_PLUS)
         doubles_per_400_pa = self.projected_stats_for_category(ChartCategory._2B)
         triples_per_400_pa = self.projected_stats_for_category(ChartCategory._3B)

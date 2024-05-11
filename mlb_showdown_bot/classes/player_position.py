@@ -13,6 +13,10 @@ class PlayerSubType(Enum):
     RELIEF_PITCHER = 'relief_pitcher'
 
     @property
+    def parent_type(self) -> 'PlayerType':
+        return PlayerType.HITTER if self == self.POSITION_PLAYER else PlayerType.PITCHER
+
+    @property
     def is_pitcher(self) -> bool:
         return self.name in ['STARTING_PITCHER', 'RELIEF_PITCHER']
 
@@ -98,6 +102,17 @@ class PlayerSubType(Enum):
                     ]
                     case _: return []
 
+    # ---------------------------------------
+    # OPPONENT CHART
+    # ---------------------------------------
+
+    def opponent_command_boost(self, set: str) -> float:
+        match self:
+            case self.RELIEF_PITCHER:
+                match set:
+                    case '2002': return 0.50
+                    case _: return 0.0
+            case _: return 0.0
 
 class PlayerType(Enum):
 
@@ -106,11 +121,15 @@ class PlayerType(Enum):
 
     @property
     def is_pitcher(self) -> bool:
-        return self.name == 'PITCHER'
+        return self == self.PITCHER
     
     @property
     def is_hitter(self) -> bool:
-        return self.name == 'HITTER'
+        return self == self.HITTER
+    
+    @property
+    def opponent_type(self) -> bool:
+        return self.HITTER if self == self.PITCHER else self.PITCHER
     
     # ---------------------------------------
     # IMAGES
