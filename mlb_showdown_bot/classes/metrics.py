@@ -76,6 +76,7 @@ class PointsMetric(Enum):
     HOME_RUNS = 'home_runs'
     IP = 'ip'
     OUT_DISTRIBUTION = 'out_distribution'
+    COMMAND = 'command'
 
     @property
     def points_breakdown_attr_name(self) -> str:
@@ -88,6 +89,7 @@ class PointsMetric(Enum):
             case 'HOME_RUNS': return 'hr'
             case 'IP': return 'ip'
             case 'OUT_DISTRIBUTION': return 'out_distribution'
+            case 'COMMAND': return 'command'
 
     @property
     def metric_name_bref(self) -> str:

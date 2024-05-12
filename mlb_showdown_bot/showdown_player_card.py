@@ -2189,16 +2189,16 @@ class ShowdownPlayerCard(BaseModel):
         # SLASH LINE VALUE
         allow_negatives = self.set.pts_allow_negatives(self.player_sub_type)
 
-        # SLASHLNE METRICS (AND HR IF HITTER)
-        slash_metrics = [PointsMetric.ONBASE, PointsMetric.AVERAGE, PointsMetric.SLUGGING] + ([] if self.is_pitcher else [PointsMetric.HOME_RUNS])
+        # NORMAL PERCENTILES
+        metrics = [PointsMetric.ONBASE, PointsMetric.AVERAGE, PointsMetric.SLUGGING, PointsMetric.HOME_RUNS, PointsMetric.COMMAND]
         projected_pa_multiplier = 650 / self.stats.get('PA', 650)
-        for slash_metric in slash_metrics:
-            # OBP
-            range = self.set.pts_range_for_metric(metric=slash_metric, player_sub_type=self.player_sub_type)
-            stat_value = projected.get(slash_metric.metric_name_bref) * (projected_pa_multiplier if slash_metric == PointsMetric.HOME_RUNS else 1)
-            percentile = range.percentile(value=stat_value, is_desc=self.is_pitcher, allow_negative=allow_negatives)
-            pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=slash_metric)
-            setattr(points, slash_metric.points_breakdown_attr_name, round(pts_weight * percentile * pts_multiplier, 3))
+        for metric in metrics:
+            range = self.set.pts_range_for_metric(metric=metric, player_sub_type=self.player_sub_type)
+            value = self.chart.command if metric == PointsMetric.COMMAND else projected.get(metric.metric_name_bref)
+            stat_value = value * (projected_pa_multiplier if metric == PointsMetric.HOME_RUNS else 1)
+            percentile = range.percentile(value=stat_value, is_desc=self.is_pitcher and metric != PointsMetric.COMMAND, allow_negative=allow_negatives)
+            pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=metric)
+            setattr(points, metric.points_breakdown_attr_name, round(pts_weight * percentile * pts_multiplier, 3))
 
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
         spd_ip_category = PointsMetric.IP if self.is_pitcher else PointsMetric.SPEED

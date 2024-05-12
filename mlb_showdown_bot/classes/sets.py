@@ -735,7 +735,7 @@ class Set(str, Enum):
     def pts_normalizer_upper_limit(self) -> int:
         return 800
     
-    def pts_metric_weight(self, player_sub_type:PlayerSubType, metric:PointsMetric) -> dict[PointsMetric, int]:
+    def pts_metric_weight(self, player_sub_type:PlayerSubType, metric:PointsMetric) -> int:
         match self.value:
             case '2000':
                 match player_sub_type:
@@ -798,17 +798,19 @@ class Set(str, Enum):
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 100
-                            case PointsMetric.ONBASE: return 290
+                            case PointsMetric.ONBASE: return 310
                             case PointsMetric.AVERAGE: return 45
-                            case PointsMetric.SLUGGING: return 210
+                            case PointsMetric.SLUGGING: return 170
                             case PointsMetric.OUT_DISTRIBUTION: return 20
+                            case PointsMetric.COMMAND: return 60
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHER
-                            case PointsMetric.ONBASE: return 100
+                            case PointsMetric.ONBASE: return 130
                             case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 85
+                            case PointsMetric.SLUGGING: return 60
                             case PointsMetric.OUT_DISTRIBUTION: return 10
+                            case PointsMetric.COMMAND: return 45
             case '2003': 
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
@@ -930,6 +932,8 @@ class Set(str, Enum):
                             case PointsMetric.SLUGGING: return 105
                             case PointsMetric.OUT_DISTRIBUTION: return 10
 
+        return 0
+    
     def pts_positional_defense_weight(self, position:Position) -> float:
         match self.value:
             case '2000':
@@ -1070,13 +1074,18 @@ class Set(str, Enum):
                             case '10-7': return 0.85
                     case PlayerSubType.STARTING_PITCHER:
                         match command_out_str:
-                            case '3-16': return 1.25
-                            case '1-19' | '2-19' | '3-19' | '4-19': return 0.95
+                            case '3-16': return 1.00
+                            case '1-19' | '3-19' | '4-19': return 0.95
                             case '1-18' | '2-18': return 0.95
-                            case '2-17' | '3-17' | '1-17': return 0.95
+                            case '3-17' | '1-17': return 0.95
+                            case '2-17': return 0.85
+                            case '4-17' | '5-17': return 1.1
                             case '6-18': return 0.95
                         if command >= 4 and outs < 17:
                             return 1.1
+                    case PlayerSubType.RELIEF_PITCHER:
+                        match command_out_str:
+                            case '5-18' | '6-18': return 1.05
             case '2003':
                 match command_out_str:
                     case '10-5': return 1.12
@@ -1208,7 +1217,7 @@ class Set(str, Enum):
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 1.0
-                    case PlayerSubType.STARTING_PITCHER: return 0.97
+                    case PlayerSubType.STARTING_PITCHER: return 0.98
                     case PlayerSubType.RELIEF_PITCHER: return 0.85
             case '2003':
                 match player_sub_type:
@@ -1304,6 +1313,8 @@ class Set(str, Enum):
                 return self.pts_speed_or_ip_percentile_range(player_sub_type=player_sub_type)
             case PointsMetric.HOME_RUNS:
                 return self.pts_hr_percentile_range
+            case PointsMetric.COMMAND:
+                return self.pts_command_percentile_range(player_sub_type=player_sub_type)
 
     def pts_obp_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
         match self.value:
@@ -1319,8 +1330,8 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.295, max = 0.450)
             case '2002':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.360)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.250, max = 0.360)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.240, max = 0.390)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.250, max = 0.355)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.285, max = 0.450)
             case '2003':
                 match player_sub_type:
@@ -1443,6 +1454,15 @@ class Set(str, Enum):
             case PlayerSubType.STARTING_PITCHER:
                 return ValueRange(min = 5, max = 8) # IP
 
+    def pts_command_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
+        match player_sub_type:
+            case PlayerSubType.POSITION_PLAYER:
+                onbase_min = 9 if self.has_expanded_chart else 6
+                onbase_max = 14 if self.has_expanded_chart else 11
+                return ValueRange(min = onbase_min, max = onbase_max)
+            case PlayerSubType.RELIEF_PITCHER | PlayerSubType.STARTING_PITCHER:
+                return ValueRange(min = 2, max = 6)
+            
     @property
     def pts_hr_percentile_range(self) -> ValueRange:
         return ValueRange(min = 10, max = 35)
