@@ -204,9 +204,6 @@ class WotcPlayerCardSet(BaseModel):
 
             if is_in_set_filter and is_in_expansion_filter and is_in_player_type_filter:
 
-                # UPDATE CARD WITH NEW WRIGHTS
-                # if card_data['name'] == 'Nick Neugebauer':
-
                 card = WotcPlayerCard(data_source=self.source, update_projections=True, **card_data)
                 updated_cards[id] = card
 
@@ -279,7 +276,13 @@ class WotcPlayerCardSet(BaseModel):
 
         # CSV
         if 'csv' in formats:
-            dict_list = [card.as_json() for card in self.cards.values()]
+            dict_list: list[dict] = []
+            for card in self.cards.values():
+                card_dict = card.as_json()
+                # EXCLUDE ACCOLADES
+                # THEY CAUSE TABLE IMPORT ISSUES
+                card_dict['stats'].pop('accolades', None)
+                dict_list.append(card_dict)
             df = pd.json_normalize(dict_list, sep='.', max_level=None)
             df.to_csv(self.local_file_path.replace('.json', '.csv'))
         
