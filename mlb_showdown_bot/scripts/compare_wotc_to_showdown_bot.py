@@ -559,6 +559,8 @@ if args.export:
     flattened_stat_comp_data: list[dict] = []
     for card_comp in flattened_comparisons:
         data = card_comp.as_json()
+        for stat_to_pop in ['accolades', 'years_played', 'summary',]:
+            data['stats'].pop(stat_to_pop, None)
         flattened_stat_comp_data.append(data)
         for stat_comp in card_comp.stat_comparisons.values():
             stat_data = stat_comp.model_dump(mode="json")

@@ -190,7 +190,7 @@ class Set(str, Enum):
                 case '2000': return 1.21
                 case '2001': return 1.22
                 case '2002': return 1.25
-                case '2003': return 0.95
+                case '2003': return 0.962
                 case '2004': return 0.98
                 case _: return 1.0
         
@@ -465,6 +465,8 @@ class Set(str, Enum):
                     case '3-17': return 0.99
                     case '3-18': return 0.99
                     case '4-18': return 0.98
+                    case '14-0': return 0.98
+                    case '15-7': return 0.98
             case '2004':
                 match command_out_str: 
                     case '1-18': return 0.98
@@ -543,7 +545,8 @@ class Set(str, Enum):
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 1.0,
+                        Stat.OBP.value: 3.0,
+                        Stat.SLG.value: 1.0,
                     }
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
                         Stat.OBP.value: 2.0,
@@ -553,7 +556,9 @@ class Set(str, Enum):
             case '2003':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 1.0,
+                        Stat.OBP.value: 3.0,
+                        Stat.SLG.value: 1.0,
+                        Stat.OPS.value: 1.0,
                     }
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
                         Stat.OBP.value: 3.0,
@@ -640,7 +645,13 @@ class Set(str, Enum):
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.20
                             case Era.STEROID | Era.POST_STEROID: return 1.17
                             case Era.STATCAST | Era.PITCH_CLOCK: return 1.10
-                    case '2003' | '2004' | '2005':
+                    case '2003':
+                        match era:
+                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
+                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
+                            case Era.STEROID | Era.POST_STEROID: return 1.05
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.00
+                    case '2004' | '2005':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
@@ -727,6 +738,11 @@ class Set(str, Enum):
             case Era.STATCAST | Era.PITCH_CLOCK: return 0.70
             case _: return 0.75
 
+    @property
+    def is_batting_avg_command_out_multiplier(self) -> bool:
+        """Returns True if the set has a batting average multiplier"""
+        return self in [Set._2003, Set._2004, Set._2005, Set.EXPANDED]
+
     # ---------------------------------------
     # POINTS
     # ---------------------------------------
@@ -735,6 +751,12 @@ class Set(str, Enum):
     def pts_normalizer_upper_limit(self) -> int:
         return 800
     
+    def pts_normalizer_cutoff(self, player_sub_type: PlayerSubType) -> int:
+        match player_sub_type:
+            case PlayerSubType.RELIEF_PITCHER: return 120
+            case PlayerSubType.STARTING_PITCHER: return 500
+            case PlayerSubType.POSITION_PLAYER: return 800 if self == Set._2003 else 500
+
     def pts_metric_weight(self, player_sub_type:PlayerSubType, metric:PointsMetric) -> int:
         match self.value:
             case '2000':
@@ -815,12 +837,12 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
-                            case PointsMetric.DEFENSE: return 60
-                            case PointsMetric.SPEED: return 55
-                            case PointsMetric.ONBASE: return 160
-                            case PointsMetric.AVERAGE: return 50
-                            case PointsMetric.SLUGGING: return 160
-                            case PointsMetric.HOME_RUNS: return 60
+                            case PointsMetric.DEFENSE: return 65
+                            case PointsMetric.SPEED: return 70
+                            case PointsMetric.ONBASE: return 190
+                            case PointsMetric.AVERAGE: return 40
+                            case PointsMetric.SLUGGING: return 190
+                            case PointsMetric.HOME_RUNS: return 50
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 70
@@ -1180,7 +1202,7 @@ class Set(str, Enum):
                     case PlayerSubType.RELIEF_PITCHER: return True
             case '2003' | '2004' | '2005' | 'EXPANDED':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return True
+                    case PlayerSubType.POSITION_PLAYER: return False
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
     
@@ -1196,6 +1218,11 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return False
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return False
+            case '2003':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return True
+                    case PlayerSubType.STARTING_PITCHER: return True
+                    case PlayerSubType.RELIEF_PITCHER: return True
             case _:
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return False
@@ -1221,7 +1248,7 @@ class Set(str, Enum):
                     case PlayerSubType.RELIEF_PITCHER: return 0.85
             case '2003':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 1.0
+                    case PlayerSubType.POSITION_PLAYER: return 0.88
                     case PlayerSubType.STARTING_PITCHER: return 0.72
                     case PlayerSubType.RELIEF_PITCHER: return 0.70
             case '2004':
@@ -1337,7 +1364,7 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.390)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.400)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.270, max = 0.425)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.285, max = 0.430)
             case '2004':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.370)
@@ -2477,15 +2504,15 @@ class Set(str, Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=3.9,
-                                    outs=16.3,
+                                    command=4.20,
+                                    outs=16.0,
                                     values={
-                                        'SO': 3.65,
-                                        'BB': 1.2,
-                                        '1B': 1.93,
-                                        '2B': 0.54,
-                                        '3B': 0.13,
-                                        'HR': 0.28,
+                                        'SO': 3.75,
+                                        'BB': 1.29,
+                                        '1B': 1.74,
+                                        '2B': 0.55,
+                                        '3B': 0.12,
+                                        'HR': 0.30,
                                     }
                                 )
                             case Era.POST_STEROID: 

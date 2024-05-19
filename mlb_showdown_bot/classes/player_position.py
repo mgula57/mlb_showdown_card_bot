@@ -27,13 +27,6 @@ class PlayerSubType(Enum):
     @property
     def nationality_chart_gradient_img_width(self) -> int:
         return 475 if self.value == 'position_player' else 680
-    
-    @property
-    def pts_normalizer_cutoff(self) -> int:
-        match self.name:
-            case 'RELIEF_PITCHER': return 120
-            case _: return 500
-
         
     # ---------------------------------------
     # STATS

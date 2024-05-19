@@ -2289,7 +2289,7 @@ class ShowdownPlayerCard(BaseModel):
             pts_to_compare = round(points.total_points_unrounded, -1)
 
         # RETURN CURRENT OBJECT IF LESS THAN CUTOFF
-        if pts_to_compare < self.player_sub_type.pts_normalizer_cutoff:
+        if pts_to_compare < self.set.pts_normalizer_cutoff(player_sub_type=self.player_sub_type):
             return points
 
         normalizer_value_range = ValueRange(min=median, max=upper_limit)
