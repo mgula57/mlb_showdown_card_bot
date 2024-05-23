@@ -1081,9 +1081,11 @@ class BaseballReferenceScraper:
         current_categories = stats_data.keys()
         if 'PA' not in current_categories:
             stats_data['is_stats_estimate'] = True
+
             # CHECK FOR BATTERS FACED
             bf = stats_data.get('batters_faced',0)
-            if bf > 0:
+            is_bf_above_than_hits_and_bb = bf > ( stats_data.get('H', 0) + stats_data.get('BB', 0) ) # ACCOUNTS FOR BLANK BF ON PARTIAL SEASONS
+            if bf > 0 and is_bf_above_than_hits_and_bb:
                 stats_data['PA'] = bf
             # ESTIMATE PA AGAINST
             else:
@@ -1774,7 +1776,7 @@ class BaseballReferenceScraper:
         """
 
         # TEAM OVERRIDE IS NONE, RETURN NONE
-        if not team:
+        if not team or soup_object is None:
             return None
 
         # FIND ALL OPPORTUNITIES
