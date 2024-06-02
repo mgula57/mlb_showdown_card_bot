@@ -6,14 +6,14 @@ try:
     from .metrics import Stat, PointsMetric
     from .value_range import ValueRange
     from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
-    from .chart import Chart
+    from .chart import Chart, ChartCategory
 except ImportError:
     from metadata import SpeedMetric
     from player_position import PlayerType, PlayerSubType, Position
     from metrics import Stat, PointsMetric
     from value_range import ValueRange
     from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
-    from chart import Chart
+    from chart import Chart, ChartCategory
 
 
 class Era(Enum):
@@ -563,6 +563,7 @@ class Set(str, Enum):
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
                         Stat.OBP.value: 3.0,
                         Stat.SLG.value: 1.0,
+                        Stat.OPS.value: 1.0,
                     }
             case '2004':
                 match player_sub_type:
@@ -729,14 +730,23 @@ class Set(str, Enum):
             case '2003' | '2004': return 10.5
             case '2005' | 'EXPANDED': return 9.75
 
-    def hr_rounding_cutoff(self, era:Era) -> int:
-        match era:
-            case Era.STEROID: 
-                match self:
-                    case Set._2000 | Set._2001: return 0.5
-                    case _: return 0.85
-            case Era.STATCAST | Era.PITCH_CLOCK: return 0.70
-            case _: return 0.75
+    def chart_rounding_cutoff(self, player_type: PlayerType, category: ChartCategory, era:Era) -> float:
+        match category:
+            case ChartCategory.HR:
+                if player_type.is_pitcher:
+                    match era:
+                        case Era.STEROID: 
+                            match self:
+                                case Set._2000 | Set._2001: return 0.5
+                                case _: return 0.85
+                        case Era.STATCAST | Era.PITCH_CLOCK: return 0.70
+                        case _: return 0.75
+            case ChartCategory._2B:
+                if player_type.is_pitcher:
+                    match self:
+                        case Set._2000 | Set._2001 | Set.CLASSIC: return 0.50
+                        case _: return 0.8
+        return 0.5
 
     @property
     def is_batting_avg_command_out_multiplier(self) -> bool:
@@ -3706,16 +3716,16 @@ class Set(str, Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=8.6,
+                                    command=8.0,
                                     outs=7.2,
                                     values={
                                         'SO': 2.1,
-                                        'BB': 3.0,
-                                        '1B': 6.57,
-                                        '1B+': 0.28,
-                                        '2B': 1.55,
-                                        '3B': 0.32,
-                                        'HR': 1.75,
+                                        'BB': 3.15,
+                                        '1B': 6.25,
+                                        '1B+': 0.40,
+                                        '2B': 1.50,
+                                        '3B': 0.30,
+                                        'HR': 1.25,
                                     }
                                 )
                             case Era.POST_STEROID: 

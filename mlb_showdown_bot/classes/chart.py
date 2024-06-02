@@ -28,11 +28,14 @@ class ChartCategory(str, Enum):
     def is_over_21_results_included_in_projection(self) -> bool:
         return self.value in ['HR']
     
-    @property
-    def expanded_over_20_result_factor_multiplier(self) -> float:
+    def expanded_over_20_result_factor_multiplier(self, set: str) -> float:
+        # FOR 2002, ONLY WEIGHT HR
+        if set == '2002':
+            return 1.0 if self == ChartCategory.HR else 0.0
+        
         match self:
-            case ChartCategory.HR: return 1.0
-            case _: return 0.0
+            case ChartCategory._1B: return 0.0
+            case _: return 1.0
 
 # ---------------------------------------
 # CHART
@@ -126,6 +129,14 @@ class Chart(BaseModel):
     # ---------------------------------------
 
     def num_results_projected(self, category:ChartCategory) -> float:
+        """Project real life results for a given category based on chart values.
+        
+        Args:
+            category: ChartCategory to results for
+        
+        Returns:
+            Number of projected results for the category.
+        """
 
         results_per_400_pa = self.stats_per_400_pa.get(category, 0)
         if results_per_400_pa == 0:
@@ -138,6 +149,32 @@ class Chart(BaseModel):
         chart_results = remaining_results / self.my_advantages_per_20
 
         return chart_results
+
+    def __num_21_plus_chart_results(self, category:ChartCategory, start:int) -> list[ChartCategory]:
+        """Calculate number of 21+ results for expanded charts for a particular category.
+        
+        Args:
+            category: ChartCategory to calculate 21+ results for.
+            start: Which chart result index (ex: 28) to start at.
+        
+        Returns:
+            List of chart results added to over_20_results.
+        """
+
+        over_20_results_added: list[ChartCategory] = []
+        sub_21_projected_results = self.num_results_projected(category)
+        projected_result_added = 0
+        plus_21_range_start = start - 20
+        for i in range(plus_21_range_start, 0, -1):
+            result_factor = self.result_factor(num_past_20=i, category=category)
+            projected_result_added += result_factor
+            over_20_results_added.append(category)
+
+            # CHECK IF NEXT RESULT WILL PUT US OVER PROJECTED
+            if projected_result_added + result_factor >= sub_21_projected_results:
+                break
+        
+        return over_20_results_added
 
     def generate_results_list(self) -> None:
         """Convert chart values dict to list of Chart Results
@@ -166,20 +203,11 @@ class Chart(BaseModel):
             self.results = results_list
             return
         
-        over_20_results: list[ChartCategory] = [ChartCategory.HR]
+        over_20_results: list[ChartCategory] = [ChartCategory.HR] * 2
 
         # CALCULATE HR START
-        hr_projected_result_slots = self.num_results_projected(ChartCategory.HR)
-        hr_result_slots = 0
-        for i in range(8, 0, -1):
-            result_factor = self.result_factor(num_past_20=i, category=ChartCategory.HR)
-            hr_result_slots += result_factor
-            over_20_results.append(ChartCategory.HR)
-
-            # CHECK IF NEXT RESULT WILL PUT US OVER PROJECTED
-            if hr_result_slots + result_factor >= hr_projected_result_slots:
-                break
-
+        hr_max_pitcher = 30 - len(over_20_results)
+        over_20_results += self.__num_21_plus_chart_results(ChartCategory.HR, start=hr_max_pitcher)
         if len(over_20_results) >= 10:
             # REVERSE OVER 20 RESULTS
             over_20_results = over_20_results[::-1]
@@ -187,29 +215,52 @@ class Chart(BaseModel):
             return 
         
         # FILL IN REMAINING SLOTS
-        if self.set == '2002':
-            # FILL REMAINING SLOTS WITH LAST RESULT
-            remaining_slots = max(10 - len(over_20_results), 0)
-            over_20_results += [last_result] * remaining_slots
-            over_20_results = over_20_results[::-1]
+        remaining_slots = max(10 - len(over_20_results), 0)
+        match self.set:
+            case '2002':
+                # FILL REMAINING SLOTS WITH LAST RESULT
+                over_20_results += [last_result] * remaining_slots
+                
+            case '2003':
+                # FILL IN 2B, 1B, BB
+                for category in [ChartCategory._2B, ChartCategory._1B, ChartCategory.BB]:
+                    remaining_slots = max(10 - len(over_20_results), 0)
+                    if remaining_slots == 0:
+                        continue
+                    
+                    if category == last_result:
+                        over_20_results += [category] * remaining_slots
+                    else:
+                        over_20_results += self.__num_21_plus_chart_results(category, start=20 + remaining_slots)
 
+        # REVERSE OVER 20 RESULTS AND STORE IN SELF
+        over_20_results = over_20_results[::-1]
         self.results = results_list + over_20_results[:10]
+
         return 
 
     def result_factor(self, num_past_20:int, category: ChartCategory) -> float:
         """Calculate probability of over 20 result for expanded charts"""
+        pitcher_max = 5 if self.set == '2002' else 6
+        max_command = pitcher_max if self.is_pitcher else 16
+        command_percentile = min(self.command / max_command, 1)
 
+        # REDUCE PROBABILITIES FOR HIGHER COMMAND
+        # STARTING DENOMINATOR: DENOMINATOR FOR HIGHEST COMMAND (EX: 6, 16)
+        # MAX_ADDITION: SMALLEST DENOMINATOR ADDITION POSSIBLE. APPLIES TO LOWEST COMMAND.
         match self.set:
             case '2002': 
-                # REDUCE PROBABILITIES FOR HIGHER COMMAND
-                max_command = 5 if self.is_pitcher else 16
-                command_percentile = min(self.command / max_command, 1)
                 starting_denominator = 15
                 max_addition = 30
-                final_starting_point = starting_denominator + (max_addition * (1-command_percentile))
-                return (1 / (final_starting_point + num_past_20)) * category.expanded_over_20_result_factor_multiplier
+            case '2003':
+                starting_denominator = 13
+                max_addition = 33
             case _:
-                return 0.0
+                starting_denominator = 15
+                max_addition = 30
+        
+        final_starting_point = starting_denominator + (max_addition * (1-command_percentile))
+        return (1 / (final_starting_point + num_past_20)) * category.expanded_over_20_result_factor_multiplier(self.set)
 
     def total_over_20_results(self, category:ChartCategory) -> int:
         """Calculate total number of over 20 results. Weigh number by result factor based on index"""

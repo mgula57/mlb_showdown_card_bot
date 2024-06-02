@@ -379,7 +379,7 @@ def accuracy_table(stats: list[Stat], comparisons: list[CardComparison]) -> Pret
         match_zeros = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.MATCH and sc.wotc == 0])
         matches_no_zeros = match - match_zeros
         match_pool = len(stat_comps) - match_zeros
-        match_pct = matches_no_zeros / match_pool
+        match_pct = matches_no_zeros / match_pool if match_pool > 0 else 0
 
         # ABOVE/BELOW/BALANCED
         above_below_ratio = above / (above + below) if above + below > 0 else 0

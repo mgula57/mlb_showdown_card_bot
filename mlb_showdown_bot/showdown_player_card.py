@@ -1760,14 +1760,10 @@ class ShowdownPlayerCard(BaseModel):
             chart_results = chart_results if chart_results > 0 else 0
 
             # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
-            if self.is_pitcher and chart_category == ChartCategory.HR and chart_results < 1.0:
-                # TRADITIONAL ROUNDING CAUSES TOO MANY PITCHER HR RESULTS
-                chart_results_decimal = chart_results % 1
-                era = era_override if era_override else self.era
-                rounded_results = round(chart_results) if chart_results_decimal > self.set.hr_rounding_cutoff(era) else math.floor(chart_results)
-            else:                    
-                rounded_results = round(chart_results)
-            # PITCHERS SHOULD ALWAYS GET 0 FOR 3B
+            chart_results_decimal = chart_results % 1
+            era = era_override if era_override else self.era
+            chart_rounding_cutoff = self.set.chart_rounding_cutoff(player_type=self.player_type, category=chart_category, era=era)
+            rounded_results = math.ceil(chart_results) if chart_results_decimal > chart_rounding_cutoff else math.floor(chart_results)
             rounded_results = 0 if self.is_pitcher and chart_category == ChartCategory._3B else rounded_results
             # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
             rounded_results = 12 if chart_category == ChartCategory.BB and rounded_results > 13 else rounded_results
