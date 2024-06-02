@@ -105,13 +105,18 @@ class WotcPlayerCard(ShowdownPlayerCard):
                         chart_results += [chart_results[-1]] * 10
                     else:
                         # FILL IN ANY DIFFERENCES WITH THE LAST CATEGORY
-                        first_cat = list(cats_above_20_dict.keys())[0]
+                        categories_w_above_20_values = list(cats_above_20_dict.keys())
+                        first_cat = categories_w_above_20_values[0]
                         first_cat_start = cats_above_20_dict.get(first_cat, 0)
                         if first_cat_start > 21:
                             chart_results += [last_category] * (first_cat_start - 21)
                         for category, start in cats_above_20_dict.items():
-                            current_index = len(chart_results)
-                            chart_results += [category] * (start - current_index)
+                            # CHECK NEXT CATEGORY'S START VALUE
+                            next_category = categories_w_above_20_values[categories_w_above_20_values.index(category) + 1] if category != categories_w_above_20_values[-1] else None
+                            next_category_start = cats_above_20_dict.get(next_category, 0) if next_category else 30
+                            
+                            chart_results += [category] * (next_category_start - start)
+
                         if len(chart_results) < 30:
                             chart_results += [chart_results[-1]] * (30 - len(chart_results))
                 opponent_chart = set.opponent_chart(player_sub_type=player_sub_type, era=Era.STEROID)
