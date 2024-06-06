@@ -165,15 +165,36 @@ class Chart(BaseModel):
         sub_21_projected_results = self.num_results_projected(category)
         projected_result_added = 0
         plus_21_range_start = start - 20
-        for i in range(plus_21_range_start, 0, -1):
-            result_factor = self.result_factor(num_past_20=i, category=category)
-            projected_result_added += result_factor
-            over_20_results_added.append(category)
-
-            # CHECK IF NEXT RESULT WILL PUT US OVER PROJECTED
-            if projected_result_added + result_factor >= sub_21_projected_results:
-                break
         
+        for i in range(plus_21_range_start, 0, -1):
+            match self.set:
+                case '2002' | '2003':
+                    result_factor = self.result_factor(num_past_20=i, category=category)
+                    projected_result_added += result_factor
+                    over_20_results_added.append(category)
+
+                    # CHECK IF NEXT RESULT WILL PUT US OVER PROJECTED
+                    if projected_result_added + result_factor >= sub_21_projected_results:
+                        break
+                case _: 
+
+                    over_20_results_added.append(category)
+                    # **** Last left off: HR Starts are too low on Bot
+                    if i == 8: # SKIP 28, START AT 27
+                        continue
+                    
+                    slots_in = start - i
+                    slot_incremental = 0.03 if slots_in == 1 else 0.06
+                    projected_result_added += slot_incremental
+
+                    if sub_21_projected_results == 0:
+                        break
+
+                    # CHECK IF NEXT RESULT WILL PUT US OVER PROJECTED
+                    next_addition = projected_result_added + slot_incremental
+                    if projected_result_added + next_addition >= sub_21_projected_results:
+                        break
+
         return over_20_results_added
 
     def generate_results_list(self) -> None:
@@ -221,7 +242,7 @@ class Chart(BaseModel):
                 # FILL REMAINING SLOTS WITH LAST RESULT
                 over_20_results += [last_result] * remaining_slots
                 
-            case '2003':
+            case _:
                 # FILL IN 2B, 1B, BB
                 for category in [ChartCategory._2B, ChartCategory._1B, ChartCategory.BB]:
                     remaining_slots = max(10 - len(over_20_results), 0)

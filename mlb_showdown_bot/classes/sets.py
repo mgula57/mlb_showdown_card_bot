@@ -3871,16 +3871,16 @@ class Set(str, Enum):
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=9.05,
+                                    command=9.00,
                                     outs=7.5,
                                     values={
                                         'SO': 2.3,
                                         'BB': 2.95,
-                                        '1B': 6.59,
+                                        '1B': 6.75,
                                         '1B+': 0.12,
-                                        '2B': 1.25,
-                                        '3B': 0.17,
-                                        'HR': 1.6,
+                                        '2B': 1.5,
+                                        '3B': 0.18,
+                                        'HR': 1.0,
                                     }
                                 )
                             case Era.POST_STEROID: 
@@ -4031,11 +4031,11 @@ class Set(str, Enum):
                                     values={
                                         'SO': 2.4,
                                         'BB': 3.3,
-                                        '1B': 6.0,
+                                        '1B': 6.59,
                                         '1B+': 0.12,
-                                        '2B': 1.3,
+                                        '2B': 1.5,
                                         '3B': 0.19,
-                                        'HR': 1.4,
+                                        'HR': 1.0,
                                     }
                                 )
                             case Era.POST_STEROID: 
