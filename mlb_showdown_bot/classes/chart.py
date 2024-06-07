@@ -166,10 +166,10 @@ class Chart(BaseModel):
         projected_result_added = 0
         plus_21_range_start = start - 20
         
-        for i in range(plus_21_range_start, 0, -1):
+        for num_past_20 in range(plus_21_range_start, 0, -1):
             match self.set:
                 case '2002' | '2003':
-                    result_factor = self.result_factor(num_past_20=i, category=category)
+                    result_factor = self.result_factor(num_past_20=num_past_20, category=category)
                     projected_result_added += result_factor
                     over_20_results_added.append(category)
 
@@ -179,20 +179,15 @@ class Chart(BaseModel):
                 case _: 
 
                     over_20_results_added.append(category)
-                    # **** Last left off: HR Starts are too low on Bot
-                    if i == 8: # SKIP 28, START AT 27
-                        continue
-                    
-                    slots_in = start - i
-                    slot_incremental = 0.03 if slots_in == 1 else 0.06
-                    projected_result_added += slot_incremental
-
                     if sub_21_projected_results == 0:
                         break
-
+                    
+                    slot_value = self.__slot_value(num_past_20=num_past_20)
+                    projected_result_added += slot_value
+                    
+                    next_addition = projected_result_added + self.__slot_value(num_past_20=num_past_20-1)
                     # CHECK IF NEXT RESULT WILL PUT US OVER PROJECTED
-                    next_addition = projected_result_added + slot_incremental
-                    if projected_result_added + next_addition >= sub_21_projected_results:
+                    if projected_result_added >= sub_21_projected_results:
                         break
 
         return over_20_results_added
@@ -260,6 +255,23 @@ class Chart(BaseModel):
 
         return 
 
+    def __slot_value(self, num_past_20: int) -> float:
+        """Determine how many slots a result over 20 is valued at"""
+        
+        # Return 0 if CLASSIC
+        if not self.is_expanded:
+            return 0
+        
+        match self.set:
+            case _:
+                if num_past_20 >= 8: return 0
+                elif num_past_20 == 7: return 0.03
+                else:
+                    _slot_value = 0.03
+                    for i in range(1, 8-num_past_20):
+                        _slot_value += 0.06
+                    return _slot_value
+
     def result_factor(self, num_past_20:int, category: ChartCategory) -> float:
         """Calculate probability of over 20 result for expanded charts"""
         pitcher_max = 5 if self.set == '2002' else 6
@@ -291,9 +303,17 @@ class Chart(BaseModel):
             return 0
         
         total_results = 0
-        for i, result in enumerate(self.results[21:30]):
-            if result == category:
-                total_results += self.result_factor(num_past_20=i, category=category)
+        last_category_under_21 = self.results[19]
+        for i, result in enumerate(self.results[20:30], 1):
+            
+            if result == category and last_category_under_21 != category:
+                match self.set:
+                    case '2002' | '2003':
+                        total_results += self.result_factor(num_past_20=i, category=category)
+                    case _:
+                        total_results += self.__slot_value(num_past_20=i)
+
+        
         return total_results
     
     # ---------------------------------------

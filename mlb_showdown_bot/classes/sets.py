@@ -584,6 +584,7 @@ class Set(str, Enum):
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
                         Stat.OBP.value: 3.0,
                         Stat.SLG.value: 1.0,
+                        Stat.OPS.value: 1.0,
                     }
             case 'CLASSIC' | 'EXPANDED':
                 match player_sub_type:
@@ -745,6 +746,7 @@ class Set(str, Enum):
                 if player_type.is_pitcher:
                     match self:
                         case Set._2000 | Set._2001 | Set.CLASSIC: return 0.50
+                        case Set._2004 | Set._2005 | Set.EXPANDED: return 0.60
                         case _: return 0.8
         return 0.5
 
@@ -4027,15 +4029,15 @@ class Set(str, Enum):
                                     set=self.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.0,
-                                    outs=7.3,
+                                    outs=7.5,
                                     values={
-                                        'SO': 2.4,
-                                        'BB': 3.3,
-                                        '1B': 6.59,
-                                        '1B+': 0.12,
-                                        '2B': 1.5,
-                                        '3B': 0.19,
-                                        'HR': 1.0,
+                                        'SO': 2.40,
+                                        'BB': 3.70,
+                                        '1B': 5.90,
+                                        '1B+': 0.50,
+                                        '2B': 1.00,
+                                        '3B': 0.20,
+                                        'HR': 1.20,
                                     }
                                 )
                             case Era.POST_STEROID: 
