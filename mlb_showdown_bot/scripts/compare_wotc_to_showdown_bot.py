@@ -38,6 +38,7 @@ class Stat(Enum):
     SPEED = "speed"
     POINTS = "points"
     HR_START = "hr_start"
+    _2B_START = "_2b_start"
     PU = "PU"
     SO = "SO"
     GB = "GB"
@@ -55,7 +56,7 @@ class Stat(Enum):
 
     def is_valid_for_type(self, type: PlayerType) -> bool:
         match self:
-            case Stat.PU | Stat.HR_START: return type.is_pitcher
+            case Stat.PU | Stat.HR_START | Stat._2B_START: return type.is_pitcher
             case Stat.SPEED | Stat._3B | Stat._1B_PLUS: return not type.is_pitcher
             case _: return True
 
@@ -78,7 +79,7 @@ class Stat(Enum):
         """Name of attribute on the Showdown Bot object to get stat"""
         match self :
             case Stat.OBP | Stat.SLG: return "projected"
-            case Stat.COMMAND | Stat.HR_START | Stat.COMMAND_OUTS: return "chart"
+            case Stat.COMMAND | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return "chart"
             case Stat.SPEED: return "speed"
             case Stat.POINTS: return "points"
             case _: return "chart.values"
@@ -86,7 +87,7 @@ class Stat(Enum):
     @property
     def label(self) -> str:
         match self:
-            case Stat.OBP | Stat.SLG | Stat.COMMAND | Stat.SPEED | Stat.POINTS | Stat.HR_START | Stat.COMMAND_OUTS: return self.name
+            case Stat.OBP | Stat.SLG | Stat.COMMAND | Stat.SPEED | Stat.POINTS | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return self.name
             case _: return self.value
 
 
@@ -189,7 +190,7 @@ class CardComparison(BaseModel):
                     bot_stat = self.bot.projected.get(stat.value, 0)
                 case "chart":
                     wotc_stat = getattr(self.wotc.chart, stat.value)
-                    bot_stat = getattr(self.bot_matching_command_outs.chart, stat.value) if stat in [Stat.HR_START] else getattr(self.bot.chart, stat.value) 
+                    bot_stat = getattr(self.bot_matching_command_outs.chart, stat.value) if stat in [Stat.HR_START, Stat._2B_START] else getattr(self.bot.chart, stat.value) 
                 case "speed":
                     wotc_stat = getattr(self.wotc.speed, stat.value)
                     bot_stat = getattr(self.bot.speed, stat.value)

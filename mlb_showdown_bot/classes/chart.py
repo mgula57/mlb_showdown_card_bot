@@ -109,6 +109,10 @@ class Chart(BaseModel):
     def hr_start(self) -> int:
         return len([r for r in self.results if r != ChartCategory.HR]) + 1
 
+    @property
+    def _2b_start(self) -> int:
+        return len([ r for r in self.results if r not in [ChartCategory.HR, ChartCategory._2B] ]) + 1
+
     # ---------------------------------------
     # ADVANTAGES
     # ---------------------------------------
