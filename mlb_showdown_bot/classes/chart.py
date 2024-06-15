@@ -189,9 +189,12 @@ class Chart(BaseModel):
                     slot_value = self.__slot_value(num_past_20=num_past_20)
                     projected_result_added += slot_value
                     
-                    next_addition = projected_result_added + self.__slot_value(num_past_20=num_past_20-1)
+                    next_addition = self.__slot_value(num_past_20=num_past_20-1)
+                    check_vs_next_value = category in [ChartCategory._2B]
+                    comparison_results = projected_result_added + (next_addition if check_vs_next_value else 0)
+
                     # CHECK IF NEXT RESULT WILL PUT US OVER PROJECTED
-                    if projected_result_added >= sub_21_projected_results:
+                    if comparison_results >= sub_21_projected_results:
                         break
 
         return over_20_results_added
@@ -310,7 +313,7 @@ class Chart(BaseModel):
         last_category_under_21 = self.results[19]
         for i, result in enumerate(self.results[20:30], 1):
             
-            if result == category and last_category_under_21 != category:
+            if result == category: #and last_category_under_21 != category:
                 match self.set:
                     case '2002' | '2003':
                         total_results += self.result_factor(num_past_20=i, category=category)
