@@ -34,6 +34,7 @@ class Stat(Enum):
     COMMAND_OUTS = "command_outs_concat"
     OBP = "onbase_perc"
     SLG = "slugging_perc"
+    OPS = "onbase_plus_slugging"
     COMMAND = "command"
     SPEED = "speed"
     POINTS = "points"
@@ -65,6 +66,7 @@ class Stat(Enum):
         match self :
             case Stat.OBP: return 5
             case Stat.SLG: return 5
+            case Stat.OPS: return 5
             case _: return 1
     
     @property
@@ -78,7 +80,7 @@ class Stat(Enum):
     def attribute_source(self) -> str:
         """Name of attribute on the Showdown Bot object to get stat"""
         match self :
-            case Stat.OBP | Stat.SLG: return "projected"
+            case Stat.OBP | Stat.SLG | Stat.OPS: return "projected"
             case Stat.COMMAND | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return "chart"
             case Stat.SPEED: return "speed"
             case Stat.POINTS: return "points"
@@ -87,7 +89,7 @@ class Stat(Enum):
     @property
     def label(self) -> str:
         match self:
-            case Stat.OBP | Stat.SLG | Stat.COMMAND | Stat.SPEED | Stat.POINTS | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return self.name
+            case Stat.OBP | Stat.OPS | Stat.SLG | Stat.COMMAND | Stat.SPEED | Stat.POINTS | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return self.name
             case _: return self.value
 
 
@@ -158,7 +160,7 @@ class StatComparison(BaseModel):
             return 0
         
         # SPECIAL CASES
-        if denominator in [0.5, 1.5] and self.stat not in [Stat.OBP, Stat.SLG]:
+        if denominator in [0.5, 1.5] and self.stat not in [Stat.OBP, Stat.SLG, Stat.OPS]:
             denominator = 1.0
             difference -= 0.5
         
@@ -232,7 +234,7 @@ class CardComparison(BaseModel):
 
         data: dict = {}
         wotc_fields_to_include = ['name', 'set', 'year', 'player_type',]
-        common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed',]
+        common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed', 'chart.ranges']
         for type in ['wotc', 'bot']:
             card: ShowdownPlayerCard = getattr(self, type)
             data.update({f'{type}_{field}': (getattr(getattr(card, field.split('.')[0]), field.split('.')[1]) if '.' in field else getattr(card, field)) for field in common_fields_to_include})
