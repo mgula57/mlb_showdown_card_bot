@@ -8,6 +8,7 @@ import json
 import statistics
 import pandas as pd
 import ast
+import unidecode
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from oauth2client.service_account import ServiceAccountCredentials
@@ -655,12 +656,15 @@ class ShowdownPlayerCard(BaseModel):
 
     @property
     def name_for_visuals(self) -> str:
-        """Returns name that is used for visuals, accounting for custom nicknames"""
+        """Returns name that is used for visuals, accounting for custom nicknames.
+        
+        Remove accents to make sure name can be displayed in any font.
+        """
 
         if self.is_using_nickname:
-            return self.nicknames[self.image.nickname_index - 1]
+            return unidecode.unidecode(self.nicknames[self.image.nickname_index - 1])
         
-        return self.name
+        return unidecode.unidecode(self.name)
 
     @property
     def name_length(self) -> int | float:
