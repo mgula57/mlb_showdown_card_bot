@@ -176,11 +176,10 @@ class ShowdownPlayerCard(BaseModel):
             stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=self.stats)
             command_out_combos = [self.command_out_override] if self.command_out_override else self.__top_accurate_command_out_combos(obp=float(self.stats['onbase_perc']), num_results=10)
 
-            self.chart: Chart = None
-            self.chart, chart_results_per_400_pa = self.__most_accurate_chart(command_out_combos=command_out_combos,
-                                                                              stats_per_400_pa=stats_for_400_pa,
-                                                                              offset=int(self.chart_version))
-            self.projected: dict = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command, pa=self.stats.get('PA', 650))
+            self.chart: Chart = self.__most_accurate_chart(command_out_combos=command_out_combos,
+                                                            stats_per_400_pa=stats_for_400_pa,
+                                                            offset=int(self.chart_version))
+            self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa(), command=self.chart.command, pa=self.stats.get('PA', 650))
 
             # FOR PTS, USE STEROID ERA OPPONENT
             chart_for_pts = self.chart.model_copy()
@@ -1626,31 +1625,6 @@ class ShowdownPlayerCard(BaseModel):
 
         return combo_and_obps
 
-    def opponent_stats_for_calcs(self, command:int, era_override:Era = None) -> tuple[Chart, float, float]:
-        """Used to derive:
-             1. opponent_chart
-             2. my_advantages_per_20
-             3. opponent_advantages_per_20
-
-        Args:
-          command: The Onbase or Control number of player.
-          era_override: Optionally override the era used for baseline opponents.
-
-        Returns:
-          Tuple with opponent_chart, my_advantages_per_20, opponent_advantages_per_20
-        """
-
-        era = era_override if era_override else self.era
-        opponent_chart = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=era)
-        if not self.is_pitcher:
-            my_advantages_per_20 = command - opponent_chart.command
-            opponent_advantages_per_20 = 20 - my_advantages_per_20
-        else:
-            opponent_advantages_per_20 = opponent_chart.command - command
-            my_advantages_per_20 = 20 - opponent_advantages_per_20
-
-        return opponent_chart, my_advantages_per_20, opponent_advantages_per_20
-
     def __obp_for_command_out_matchup(self, my_command: int, my_outs: int, opponent_chart: Chart) -> float:
         """Calc OBP for command out matchup
 
@@ -1678,7 +1652,7 @@ class ShowdownPlayerCard(BaseModel):
 # CHART METHODS
 # ------------------------------------------------------------------------
 
-    def __most_accurate_chart(self, command_out_combos: list[tuple[int, int]], stats_per_400_pa:dict, offset:int) -> tuple[Chart, dict]:
+    def __most_accurate_chart(self, command_out_combos: list[tuple[int, int]], stats_per_400_pa:dict, offset:int) -> Chart:
         """Compare accuracy of all the command/outs combinations.
 
         Args:
@@ -1693,254 +1667,37 @@ class ShowdownPlayerCard(BaseModel):
           A dictionary containing real life metrics (obp, slg, ...) per 400 PA.
         """
 
-        chart_and_accuracies = []
+        charts: list[Chart] = []
 
         for command_out_tuple in command_out_combos:
             command = command_out_tuple[0]
             outs = command_out_tuple[1]
-            chart, accuracy, projected = self.__chart_with_accuracy(
-                                            command=command,
-                                            outs=outs,
-                                            stats_for_400_pa=stats_per_400_pa
-                                          )
-            chart_and_accuracies.append( (command_out_tuple, chart, accuracy, projected) )
-
-        chart_and_accuracies.sort(key=operator.itemgetter(2),reverse=True)
-        best_chart = chart_and_accuracies[offset][1]
-        self.command_out_accuracies = { f"{ca[0][0]}-{ca[0][1]}": round(ca[2],4) for ca in chart_and_accuracies }
-        projected_stats_for_best_chart = chart_and_accuracies[offset][3]
-
-        return best_chart, projected_stats_for_best_chart
-
-    def __chart_with_accuracy(self, command:int, outs:int, stats_for_400_pa:dict, era_override:Era = None) -> tuple[Chart, float, dict]:
-        """Create Player's chart and compare back to input stats.
-
-        Args:
-          command: Onbase (Hitter) or Control (Pitcher) of the Player.
-          outs: Number of Outs on the Player's chart.
-          stats_per_400_pa: Dict with number of results for a given
-                            category per 400 PA (ex: {'hr_per_400_pa': 23.65})
-          era_override: Optionally override the era used for baseline opponents.
-
-        Returns:
-          - Chart Object.
-          - Accuracy of chart compared to original input.
-          - Dict of Player's chart converted to real stat output.
-        """
-
-        # NEED THE OPPONENT'S CHART TO CALCULATE NUM OF RESULTS FOR RESULT
-        opponent_chart, my_advantages_per_20, opponent_advantages_per_20 = self.opponent_stats_for_calcs(command=command, era_override=era_override)
-        chart_results_per_400_pa = {k[:2].upper() : v for k, v in stats_for_400_pa.items() if '_per_400_pa' in k and k != 'h_per_400_pa'}
-
-        # CREATE THE CHART DICTIONARY
-        chart = Chart(
-            is_pitcher=self.is_pitcher, 
-            set=self.set.value, 
-            command=command, 
-            outs=outs, 
-            is_expanded=self.set.has_expanded_chart, 
-            dbl_per_400_pa = round(stats_for_400_pa.get('2b_per_400_pa', 0), 4),
-            trpl_per_400_pa = round(stats_for_400_pa.get('3b_per_400_pa', 0), 4),
-            hr_per_400_pa = round(stats_for_400_pa.get('hr_per_400_pa', 0), 4),
-            stats_per_400_pa = {k:v for k,v in chart_results_per_400_pa.items() if k != 'SB'},
-            opponent = opponent_chart,
-        )
-        for category_name, results_per_400_pa in chart_results_per_400_pa.items():
-
-            # STOLEN BASES HAS NO OPPONENT RESULTS
-            if category_name == 'SB':
-                chart.sb = round(results_per_400_pa / stats_for_400_pa['pct_of_400_pa'], 3)
-                continue              
-        
-            # CALCULATE NUM OF RESULTS
-            chart_category = ChartCategory(category_name)
-            opponent_values = opponent_chart.num_values(chart_category)
-            chart_results = (results_per_400_pa - (opponent_advantages_per_20*opponent_values)) / my_advantages_per_20
             
-            if chart_category == ChartCategory.SO:
-                chart_results = self.__so_results(current_so=chart_results, num_out_slots=outs)
-            
-            # HANDLE CASE OF < 0
-            chart_results = chart_results if chart_results > 0 else 0
+            # CREATE THE CHART
+            chart = Chart(
+                command=command, 
+                outs=outs, 
+                opponent=self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era),
+                set=self.set.value,
+                era=self.era.value,
+                is_expanded=self.set.has_expanded_chart,
+                gb_multiplier=self.set.gb_multiplier(player_type=self.player_type, era=self.era),
+                pu_multiplier=self.set.pu_multiplier,
+                pa=self.stats.get('pa', 400),
+                stats_per_400_pa=stats_per_400_pa,
+                is_pitcher=self.is_pitcher,
+                stat_accuracy_weights=self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type),
+                command_out_accuracy_weights=self.set.command_out_accuracy_weighting(command=command, outs=outs),
+            )
 
-            # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
-            chart_results_decimal = chart_results % 1
-            era = era_override if era_override else self.era
-            chart_rounding_cutoff = self.set.chart_rounding_cutoff(player_type=self.player_type, category=chart_category, era=era)
-            rounded_results = math.ceil(chart_results) if chart_results_decimal > chart_rounding_cutoff else math.floor(chart_results)
-            rounded_results = 0 if self.is_pitcher and chart_category == ChartCategory._3B else rounded_results
-            # CHECK FOR BARRY BONDS EFFECT (HUGE WALK)
-            rounded_results = 12 if chart_category == ChartCategory.BB and rounded_results > 13 else rounded_results
-            # MAX HR RESULTS AT 10
-            rounded_results = 10 if chart_category == ChartCategory.HR and rounded_results > 10 else rounded_results
-            # MAX 2B RESULTS AT 12
-            rounded_results = 12 if chart_category == ChartCategory._2B and rounded_results > 12 else rounded_results
-            chart.values[chart_category] = rounded_results
+            charts.append(chart)
 
-        # FILL "OUT" CATEGORIES (PU, GB, FB)
-        out_slots_remaining = outs - float(chart.num_values(ChartCategory.SO))
-        pu, gb, fb = self.__out_results(
-                        gb_pct=stats_for_400_pa.get('GO/AO', None),
-                        popup_pct=stats_for_400_pa.get('IF/FB', None),
-                        out_slots_remaining=out_slots_remaining,
-                        slg=stats_for_400_pa.get('slugging_perc', None),
-                        era_override=era_override
-                    )
-        chart.values.update({
-            ChartCategory.PU: pu,
-            ChartCategory.GB: gb,
-            ChartCategory.FB: fb,
-        })
+        # FIND MOST ACCURATE CHART
+        charts.sort(key=lambda x: x.accuracy, reverse=True)
+        best_chart = charts[offset]
+        self.command_out_accuracies = { f"{ca.command_outs_concat}": round(ca.accuracy,4) for ca in charts }
 
-        # CALCULATE HOW MANY SPOTS ARE LEFT TO FILL 1B AND 1B+
-        remaining_slots = chart.remaining_slots(excluded_categories=[ChartCategory._1B])
-        chart.check_and_fix_value_overage(excluded_categories=[ChartCategory._1B])
-        remaining_slots = chart.remaining_slots(excluded_categories=[ChartCategory._1B]) # RE-CHECK
-        remaining_slots_qad = 0 if remaining_slots < 0 else remaining_slots
-
-        # FILL 1B AND 1B+
-        stolen_bases = int(stats_for_400_pa.get('sb_per_400_pa',0))
-        single_results, single_plus_results = self.__single_and_single_plus_results(remaining_slots_qad,stolen_bases,command)
-        chart.values.update({
-            ChartCategory._1B: single_results,
-            ChartCategory._1B_PLUS: single_plus_results,
-        })
-        chart.generate_results_list()
-        chart.generate_range_strings()
-
-        # CHECK ACCURACY COMPARED TO REAL LIFE
-        in_game_stats_for_400_pa = chart.projected_stats_per_400_pa()
-        weights = self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type)
-        accuracy = self.accuracy_between_dicts(
-            actuals_dict=stats_for_400_pa,
-            measurements_dict=in_game_stats_for_400_pa,
-            weights=weights,
-            only_use_weight_keys=True
-        )
-        
-        # QA: CHANGE ACCURACY TO 0 IF CHART DOESN'T ADD UP TO 20
-        accuracy = 0.0 if chart.is_num_values_over_20 else accuracy
-
-        # ADD WEIGHTING OF ACCURACY
-        # LIMITS AMOUNT OF RESULTS PER SET FOR CERTAIN COMMAND/OUT COMBINATIONS
-        weight = self.set.command_out_accuracy_weighting(command=command, outs=outs)
-        accuracy = accuracy * weight
-
-        # REDUCE ACCURACY FOR CHARTS WITH NON 0 REMAINING SLOTS
-        if chart.remaining_slots() != 0:
-            accuracy = -5.0
-
-        return chart, accuracy, in_game_stats_for_400_pa
-
-    def __out_results(self, gb_pct:float, popup_pct:float, out_slots_remaining:int, slg:float, era_override:Era = None) -> tuple[int, int, int]:
-        """Determine distribution of out results for Player.
-
-        Args:
-          gb_pct: Percent Ground Outs vs Air Outs.
-          popup_pct: Percent hitting into a popup.
-          out_slots_remaining: Total # Outs - SO
-          slg: Real-life stats slugging percent.
-          era_override: Optionally override the era used for baseline opponents.
-
-        Returns:
-          Tuple of PU, GB, FB out result ints.
-        """
-
-        # SET DEFAULTS FOR EMPTY DATA, BASED ON SLG
-        if gb_pct is None or popup_pct is None:
-            slg_range = ValueRange(min = 0.250, max = 0.500)
-            slg_percentile = slg_range.percentile(value=slg)
-            multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
-            gb_pct = gb_pct if gb_pct else round(1.5 * max(multiplier, 0.5),3)
-            popup_pct = popup_pct if popup_pct else round(0.16 * max(multiplier, 0.5),3)
-
-        era = era_override if era_override else self.era
-        if out_slots_remaining > 0:
-            # MULTIPLIERS SERVE TO CORRECT TOWARDS WOTC
-            # REPLACE HAVING DEFAULT FOR OPPONENT CHART
-            gb_multiplier = self.set.gb_multiplier(player_type=self.player_type, era=era)
-            # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
-            gb_outs = int(round((out_slots_remaining / (gb_pct + 1)) * gb_pct * gb_multiplier))
-            air_outs = out_slots_remaining - gb_outs
-            # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
-            pu_multiplier = self.set.pu_multiplier
-            pu_outs = 0 if not self.is_pitcher else int(math.ceil(air_outs*popup_pct*pu_multiplier))
-            pu_outs = int(air_outs if pu_outs > air_outs else pu_outs)
-            fb_outs = int(air_outs-pu_outs)
-        else:
-            fb_outs = 0
-            pu_outs = 0
-            gb_outs = 0
-
-        return pu_outs, gb_outs, fb_outs
-
-    def __so_results(self, current_so:int, num_out_slots:int) -> int:
-        """Update SO chart value to account for outliers and maximums
-
-        Args:
-          current_so: Number of slots currently occupied
-          num_out_slots: Total numbers of slots for outs available.
-
-        Returns:
-          Updated SO chart slots.
-        """
-
-        # FOR PITCHERS, SIMPLY RETURN CURRENT SO NUMBER
-        if self.is_pitcher:
-            return min(current_so, num_out_slots)
-        
-        # --- HITTERS ---
-        hard_limit_hitter = min(num_out_slots, self.set.hitter_so_results_hard_cap)
-        soft_limit_hitter = self.set.hitter_so_results_soft_cap
-        
-        # IF HITTER'S STRIKEOUTS ARE UNDER SOFT LIMIT, RETURN CURRENT RESULTS
-        if current_so < soft_limit_hitter:
-            return min(current_so, hard_limit_hitter)
-        
-        # IF PLAYER HAS SMALL SAMPLE SIZE, USE SOFT LIMIT AS HARD CAP
-        real_pa = self.stats.get('PA', 400)
-        if real_pa < 100:
-            return min(current_so, hard_limit_hitter, soft_limit_hitter)
-        
-        # IF PLAYER IS OVER THE SOFT LIMIT, SCALE BACK RESULTS TOWARDS SOFT CAP AND USE FLOOR INSTEAD OF ROUND
-        if current_so > soft_limit_hitter:
-            multiplier = 0.80
-            current_so *= multiplier
-            current_so = max(soft_limit_hitter, current_so) # MAKE SURE MULTIPLIER DOESN'T MOVE CARD UNDER SOFT LIMIT
-            current_so = math.floor(current_so)
-            return min(current_so, hard_limit_hitter)
-
-        return min(current_so, hard_limit_hitter)
-
-    def __single_and_single_plus_results(self, remaining_slots:int, sb:int, command:int) -> tuple[int, int]:
-        """Fill 1B and 1B+ categories on chart.
-
-        Args:
-          remaining_slots: Remaining slots out of 20.
-          sb: Stolen bases per 400 PA
-          command: Player's Onbase number
-
-        Returns:
-          Tuple of 1B, 1B+ result ints.
-        """
-
-        # PITCHER HAS NO 1B+
-        if self.is_pitcher:
-            return remaining_slots, 0
-
-        # DIVIDE STOLEN BASES PER 400 PA BY A SCALER BASED ON ONBASE #
-        onbase_range = ValueRange(min=self.set.min_onbase_single_plus, max=self.set.max_onbase_single_plus)
-        min_denominator = self.set.hitter_single_plus_denominator_minimum
-        max_denominator = self.set.hitter_single_plus_denominator_maximum
-        onbase_pctile = onbase_range.percentile(value=command)
-        single_plus_denominator = min_denominator + ( (max_denominator-min_denominator) * onbase_pctile )
-        single_plus_results_raw = math.trunc(sb / single_plus_denominator)
-
-        # MAKE SURE 1B+ IS NOT OVER REMAINING SLOTS
-        single_plus_results = single_plus_results_raw if single_plus_results_raw <= remaining_slots else remaining_slots
-        single_results = remaining_slots - single_plus_results
-
-        return single_results, single_plus_results
+        return best_chart
 
 # ------------------------------------------------------------------------
 # REAL LIFE STATS METHODS
@@ -2383,51 +2140,6 @@ class ShowdownPlayerCard(BaseModel):
 # ------------------------------------------------------------------------
 # GENERIC METHODS
 # ------------------------------------------------------------------------
-
-    def accuracy_between_dicts(self, actuals_dict:dict, measurements_dict:dict, weights:dict={}, all_or_nothing:list[str]=[], only_use_weight_keys:bool=False, era_override:Era = None) -> tuple[float, dict, dict]:
-        """Compare two dictionaries of numbers to get overall difference
-
-        Args:
-          actuals_dict: First Dictionary. Use this dict to get keys to compare.
-          measurements_dict: Second Dictionary.
-          weights: X times to count certain category (ex: 3x for command)
-          all_or_nothing: List of category names to compare as a boolean 1 or 0 instead
-                          of pct difference.
-          only_use_weight_keys: Bool for whether to only count an accuracy there is a weight associated
-          era_override: Optionally override the era used for baseline opponents.
-
-        Returns:
-          Float for overall accuracy
-        """
-
-        denominator = len((weights if only_use_weight_keys else actuals_dict).keys())
-        accuracies = 0
-
-        # CALCULATE CATEGORICAL ACCURACY
-        metrics_and_accuracies: dict[str, float] = {}
-        for key, value1 in actuals_dict.items():
-            
-            evaluate_key = key in measurements_dict.keys()
-            evaluate_key = key in weights.keys() if only_use_weight_keys else evaluate_key
-            if evaluate_key:
-                value2 = measurements_dict[key]
-
-                if key in all_or_nothing:
-                    accuracy_for_key = 1 if value1 == value2 else 0
-                else:
-                    accuracy_for_key = self.__relative_pct_accuracy(actual=value1, measurement=value2)
-
-                # APPLY WEIGHTS
-                weight = float(weights[key]) if key in weights.keys() else 1
-                denominator += (weight - 1) if key in weights.keys() else 0
-                weighted_accuracy = (accuracy_for_key * weight)
-                accuracies += weighted_accuracy
-
-                metrics_and_accuracies[key] = round(accuracy_for_key, 3)
-
-        overall_accuracy = accuracies / denominator
-
-        return overall_accuracy
 
     def __relative_pct_accuracy(self, actual:float, measurement:float) -> float:
         """ CALCULATE ACCURACY BETWEEN 2 NUMBERS"""

@@ -172,14 +172,6 @@ class Set(str, Enum):
         match self.value:
             case '2002': return 13
             case _: return 12
-
-    @property
-    def min_onbase_single_plus(self) -> int:
-        return 4 if self.has_classic_chart else 7
-    
-    @property
-    def max_onbase_single_plus(self) -> int:
-        return 12 if self.has_classic_chart else 16
     
     def speed_metric_multiplier(self, metric: SpeedMetric, use_variable_speed_multiplier:bool) -> float:
         if use_variable_speed_multiplier:
@@ -701,54 +693,6 @@ class Set(str, Enum):
                             case Era.STEROID: return 1.00
                             case Era.POST_STEROID: return 0.95
                             case Era.STATCAST | Era.PITCH_CLOCK: return 0.90
-
-    @property
-    def hitter_so_results_soft_cap(self) -> int:
-        match self.value:
-            case '2002': return 4
-            case _: return 3
-
-    @property
-    def hitter_so_results_hard_cap(self) -> int:
-        match self.value:
-            case '2000': return 5
-            case '2002': return 7
-            case _: return 6
-
-    @property
-    def hitter_single_plus_denominator_minimum(self) -> float:
-        match self.value:
-            case '2000' | '2001' | 'CLASSIC': return 3.2
-            case '2002': return 7.0
-            case '2003': return 6.0
-            case '2004' | '2005' | 'EXPANDED': return 5.5
-    
-    @property
-    def hitter_single_plus_denominator_maximum(self) -> float:
-        match self.value:
-            case '2000' | '2001' | 'CLASSIC': return 9.6
-            case '2002': return 10.5
-            case '2003' | '2004': return 10.5
-            case '2005' | 'EXPANDED': return 9.75
-
-    def chart_rounding_cutoff(self, player_type: PlayerType, category: ChartCategory, era:Era) -> float:
-        match category:
-            case ChartCategory.HR:
-                if player_type.is_pitcher:
-                    match era:
-                        case Era.STEROID: 
-                            match self:
-                                case Set._2000 | Set._2001: return 0.5
-                                case _: return 0.85
-                        case Era.STATCAST | Era.PITCH_CLOCK: return 0.70
-                        case _: return 0.75
-            case ChartCategory._2B:
-                if player_type.is_pitcher:
-                    match self:
-                        case Set._2000 | Set._2001 | Set.CLASSIC: return 0.50
-                        case Set._2004 | Set._2005 | Set.EXPANDED: return 0.60
-                        case _: return 0.8
-        return 0.5
 
     @property
     def is_batting_avg_command_out_multiplier(self) -> bool:
@@ -1997,6 +1941,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.0,
                                     outs=15.85,
@@ -2013,6 +1958,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.10,
                                     outs=15.75,
@@ -2029,6 +1975,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=15.90,
@@ -2045,6 +1992,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.10,
                                     outs=16.00,
@@ -2061,6 +2009,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.00,
@@ -2077,6 +2026,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=2.9,
                                     outs=15.85,
@@ -2093,6 +2043,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.10,
@@ -2109,6 +2060,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.25,
                                     outs=16.00,
@@ -2125,6 +2077,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.24,
                                     outs=16.00,
@@ -2143,6 +2096,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,                                    
                                     is_expanded=self.has_expanded_chart,
                                     command=3.0,
                                     outs=15.90,
@@ -2159,6 +2113,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.05,
                                     outs=15.80,
@@ -2175,6 +2130,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=15.80,
@@ -2191,6 +2147,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.1,
                                     outs=16.1,
@@ -2207,6 +2164,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.05,
@@ -2223,6 +2181,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.06,
                                     outs=15.90,
@@ -2239,6 +2198,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.1,
@@ -2255,6 +2215,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.1,
@@ -2271,6 +2232,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.0,
@@ -2289,6 +2251,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.5,
                                     outs=16.2,
@@ -2305,6 +2268,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.30,
@@ -2321,6 +2285,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.10,
                                     outs=16.60,
@@ -2337,6 +2302,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.20,
                                     outs=16.80,
@@ -2353,6 +2319,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.35,
                                     outs=16.65,
@@ -2369,6 +2336,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.28,
                                     outs=16.7,
@@ -2385,6 +2353,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.80,
@@ -2401,6 +2370,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.45,
                                     outs=16.90,
@@ -2417,6 +2387,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.45,
                                     outs=16.80,
@@ -2435,6 +2406,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.7,
                                     outs=16.0,
@@ -2451,6 +2423,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.70,
                                     outs=15.70,
@@ -2467,6 +2440,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.90,
                                     outs=15.90,
@@ -2483,6 +2457,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=16.00,
@@ -2499,6 +2474,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.95,
                                     outs=16.00,
@@ -2515,6 +2491,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.20,
                                     outs=16.0,
@@ -2531,6 +2508,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.15,
                                     outs=15.95,
@@ -2547,6 +2525,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.25,
                                     outs=16.00,
@@ -2563,6 +2542,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.23,
                                     outs=16.00,
@@ -2581,6 +2561,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.60,
                                     outs=16.00,
@@ -2597,6 +2578,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.50,
                                     outs=15.70,
@@ -2613,6 +2595,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.80,
                                     outs=15.80,
@@ -2629,6 +2612,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.95,
@@ -2645,6 +2629,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.70,
                                     outs=15.90,
@@ -2661,6 +2646,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.85,
                                     outs=16.35,
@@ -2677,6 +2663,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.90,
                                     outs=16.00,
@@ -2693,6 +2680,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=16.00,
@@ -2709,6 +2697,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.95,
@@ -2727,6 +2716,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.60,
                                     outs=16.10,
@@ -2743,6 +2733,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.50,
                                     outs=15.70,
@@ -2759,6 +2750,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.80,
                                     outs=15.85,
@@ -2775,6 +2767,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.85,
@@ -2791,6 +2784,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.75,
                                     outs=15.90,
@@ -2807,6 +2801,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.9,
                                     outs=16.2,
@@ -2823,6 +2818,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.90,
@@ -2839,6 +2835,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.15,
                                     outs=15.90,
@@ -2855,6 +2852,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.10,
                                     outs=15.90,
@@ -2873,6 +2871,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.20,
                                     outs=16.0,
@@ -2889,6 +2888,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=2.99,
                                     outs=15.70,
@@ -2905,6 +2905,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=2.95,
                                     outs=15.90,
@@ -2921,6 +2922,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.05,
                                     outs=16.1,
@@ -2937,6 +2939,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.05,
                                     outs=16.1,
@@ -2953,6 +2956,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.0,
@@ -2969,6 +2973,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.1,
@@ -2985,6 +2990,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.1,
@@ -3001,6 +3007,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.25,
                                     outs=16.1,
@@ -3019,6 +3026,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.0,
                                     outs=15.8,
@@ -3035,6 +3043,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.60,
                                     outs=15.65,
@@ -3051,6 +3060,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.90,
                                     outs=15.80,
@@ -3067,6 +3077,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.90,
@@ -3083,6 +3094,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.80,
                                     outs=16.05,
@@ -3099,6 +3111,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.2,
                                     outs=16.2,
@@ -3115,6 +3128,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.0,
                                     outs=16.0,
@@ -3131,6 +3145,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.2,
                                     outs=16.1,
@@ -3147,6 +3162,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.15,
                                     outs=16.1,
@@ -3167,6 +3183,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.6,
                                     outs=4.0,
@@ -3184,6 +3201,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.77,
                                     outs=4.0,
@@ -3201,6 +3219,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=3.60,
@@ -3218,6 +3237,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.35,
                                     outs=3.85,
@@ -3235,6 +3255,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.40,
                                     outs=4.10,
@@ -3252,6 +3273,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.0,
                                     outs=4.0,
@@ -3269,6 +3291,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.25,
                                     outs=3.90,
@@ -3286,6 +3309,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.2,
                                     outs=3.90,
@@ -3303,6 +3327,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.35,
                                     outs=3.90,
@@ -3322,6 +3347,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.6,
                                     outs=4.0,
@@ -3339,6 +3365,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.75,
                                     outs=3.8,
@@ -3356,6 +3383,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=3.90,
@@ -3373,6 +3401,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.41,
                                     outs=4.15,
@@ -3390,6 +3419,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.55,
                                     outs=4.00,
@@ -3407,6 +3437,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.0,
                                     outs=4.1,
@@ -3424,6 +3455,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.4,
                                     outs=4.1,
@@ -3441,6 +3473,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.3,
                                     outs=4.0,
@@ -3458,6 +3491,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.4,
                                     outs=4.0,
@@ -3477,6 +3511,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.25,
                                     outs=6.0,
@@ -3494,6 +3529,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.7,
                                     outs=6.0,
@@ -3511,6 +3547,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.45,
                                     outs=6.00,
@@ -3528,6 +3565,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.30,
                                     outs=6.10,
@@ -3545,6 +3583,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.4,
                                     outs=6.00,
@@ -3562,6 +3601,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.1 + command_boost,
                                     outs=6.3,
@@ -3579,6 +3619,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.2,
                                     outs=6.10,
@@ -3596,6 +3637,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.10,
                                     outs=6.00,
@@ -3613,6 +3655,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.20,
                                     outs=6.00,
@@ -3632,6 +3675,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.0,
                                     outs=6.0,
@@ -3649,6 +3693,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.65,
                                     outs=6.05,
@@ -3666,6 +3711,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.20,
                                     outs=6.00,
@@ -3683,6 +3729,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.95,
                                     outs=6.20,
@@ -3700,6 +3747,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.10,
                                     outs=6.15,
@@ -3717,6 +3765,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.0,
                                     outs=7.2,
@@ -3734,6 +3783,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.90,
                                     outs=6.40,
@@ -3751,6 +3801,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.75,
                                     outs=6.30,
@@ -3768,6 +3819,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.85,
                                     outs=6.30,
@@ -3787,6 +3839,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.30,
                                     outs=7.00,
@@ -3804,6 +3857,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.70,
                                     outs=6.50,
@@ -3821,6 +3875,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.50,
                                     outs=6.80,
@@ -3838,6 +3893,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.0,
@@ -3855,6 +3911,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.35,
@@ -3872,6 +3929,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.00,
                                     outs=7.5,
@@ -3889,6 +3947,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.20,
                                     outs=7.2,
@@ -3906,6 +3965,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.00,
                                     outs=7.2,
@@ -3923,6 +3983,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.15,
                                     outs=7.1,
@@ -3942,6 +4003,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.1,
@@ -3959,6 +4021,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.70,
                                     outs=6.55,
@@ -3976,6 +4039,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.45,
                                     outs=6.75,
@@ -3993,6 +4057,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.1,
@@ -4010,6 +4075,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.40,
                                     outs=7.15,
@@ -4027,6 +4093,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.5,
                                     outs=7.5,
@@ -4044,6 +4111,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.25,
                                     outs=7.00,
@@ -4061,6 +4129,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.0,
                                     outs=7.0,
@@ -4078,6 +4147,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.1,
                                     outs=7.0,
@@ -4097,6 +4167,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.80,
                                     outs=4.05,
@@ -4114,6 +4185,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.75,
                                     outs=3.8,
@@ -4131,6 +4203,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.50,
                                     outs=3.95,
@@ -4148,6 +4221,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.42,
                                     outs=4.10,
@@ -4165,6 +4239,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.60,
                                     outs=4.1,
@@ -4182,6 +4257,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.5,
                                     outs=4.0,
@@ -4199,6 +4275,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=4.1,
@@ -4216,6 +4293,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.3,
                                     outs=4.0,
@@ -4233,6 +4311,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=4.0,
@@ -4252,6 +4331,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.7,
                                     outs=7.0,
@@ -4269,6 +4349,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.85,
                                     outs=6.50,
@@ -4286,6 +4367,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.5,
                                     outs=6.65,
@@ -4303,6 +4385,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.5,
                                     outs=6.9,
@@ -4320,6 +4403,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.50,
                                     outs=7.15,
@@ -4337,6 +4421,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.5,
                                     outs=7.4,
@@ -4354,6 +4439,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.0,
@@ -4371,6 +4457,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.2,
                                     outs=7.1,
@@ -4388,6 +4475,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.0,
