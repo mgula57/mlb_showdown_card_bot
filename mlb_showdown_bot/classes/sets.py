@@ -2806,12 +2806,15 @@ class Set(str, Enum):
                                     command=3.9,
                                     outs=16.2,
                                     values={
+                                        'PU': 1.75,
                                         'SO': 3.87,
+                                        'GB': 6.90,
+                                        'FB': 3.68,
                                         'BB': 1.25,
-                                        '1B': 2.05,
+                                        '1B': 2.34,
                                         '2B': 0.50,
-                                        '3B': 0.09,
-                                        'HR': 0.33,
+                                        '3B': 0.03,
+                                        'HR': 0.10,
                                     }
                                 )
                             case Era.POST_STEROID:

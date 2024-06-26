@@ -2,6 +2,7 @@ from enum import Enum
 from pydantic import BaseModel
 from typing import Union, Optional
 from pprint import pprint
+import numpy as np
 import math
 
 try:
@@ -31,6 +32,23 @@ class ChartCategory(str, Enum):
         return self.value in ['PU', 'SO', 'GB', 'FB']
     
     @property
+    def is_filled_in_desc_order(self) -> bool:
+        """Check if category is filled in descending order. Outs and BB are filled in ascending order."""
+        return not self.is_out and self != ChartCategory.BB
+
+    def is_valid_for_type(self, is_pitcher:bool) -> bool:
+        """Check if category is valid for player type"""
+        if is_pitcher:
+            return self not in [ChartCategory._1B_PLUS, ChartCategory._3B]
+        else:
+            return self not in [ChartCategory.PU]
+
+    @property
+    def is_assigned_based_on_rate_stats(self) -> bool:
+        """True if chart values are based on real stats per 400 PA"""
+        return self.value in ['SO', 'BB', '2B', '3B', 'HR',]
+
+    @property
     def is_over_21_results_included_in_projection(self) -> bool:
         return self.value in ['HR']
     
@@ -42,15 +60,6 @@ class ChartCategory(str, Enum):
             case ChartCategory.HR: return 10
             case ChartCategory._2B: return 12
             case _: return 20
-
-    def expanded_over_20_result_factor_multiplier(self, set: str) -> float:
-        # FOR 2002, ONLY WEIGHT HR
-        if set == '2002':
-            return 1.0 if self == ChartCategory.HR else 0.0
-        
-        match self:
-            case ChartCategory._1B: return 0.0
-            case _: return 1.0
 
     def rounding_cutoff(self, is_pitcher:bool, is_expanded:bool, era:str) -> float:
         """Decimal to round up at.
@@ -71,7 +80,7 @@ class ChartCategory(str, Enum):
                         case _: return 0.75
         return 0.5
 
-    
+
 # ---------------------------------------
 # CHART
 # ---------------------------------------
@@ -80,10 +89,10 @@ class Chart(BaseModel):
 
     # CHART
     command: Union[int, float]
-    outs: Union[int, float]
+    outs: Union[int, float] = 0
     values: dict[ChartCategory, Union[int, float]] = {}
+    results: dict[int, ChartCategory] = {}
     ranges: dict[ChartCategory, str] = {}
-    results: list[ChartCategory] = []
     sb: float = 0.0
 
     # SET METADATA
@@ -106,14 +115,10 @@ class Chart(BaseModel):
 
     def __init__(self, **data) -> None:
         super().__init__(**data)
-        
+
         # POPULATE VALUES DICT
         if len(self.values) == 0:
-            self.generate_values_dict()
-
-        # POPULATE RESULTS LIST
-        if len(self.values) > 0 and len(self.results) == 0:
-            self.generate_results_list()
+            self.generate_values_and_results()
 
         # POPULATE ACCURACY
         if len(self.stats_per_400_pa) > 0:
@@ -141,7 +146,7 @@ class Chart(BaseModel):
 
     @property
     def command_outs_concat(self) -> str:
-        return f'{self.command}-{self.outs}'
+        return f'{self.command}-{(self.outs / self.sub_21_per_slot_worth):.0f}'
 
     @property
     def values_as_list(self) -> list[list[str, str]]:
@@ -150,6 +155,52 @@ class Chart(BaseModel):
         values_list += [[category.value, str(round(value,2))] for category, value in self.values.items()]
         return values_list
     
+    @property
+    def slot_values(self) -> dict[int, float]:
+        
+        # EACH SLOT IS WORTH 1 FOR CLASSIC
+        if not self.is_expanded:
+            return { i: 1 for i in range(1, 21) }
+        
+        # EXPANDED CHARTS
+        slot_values_dict: dict[int, float] = { i: self.sub_21_per_slot_worth for i in range(1, 21) }
+
+        # FILL 21+ SLOTS WITH A GEOMETRIC PROGRESSION, STARTING AT 0.5
+        # EX: 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625, 0.001953125, 0.0009765625
+        # THE FORMULA OF A GEOMETRIC PROGRESSION IS: a * r^(n-1) 
+        # EX: 21:  0.5 * 0.5 ^ 0 = 0.5
+        #     22:  0.5 * 0.5 ^ 1 = 0.25
+        #     23:  0.5 * 0.5 ^ 2 = 0.125
+        slot_values_dict.update( {( 20 + i ): ( 0.5 * pow(0.5, (i-1)) ) for i in range(1, 11)} )
+
+        # FILL THE 30TH SLOT WITH THE REMAINING VALUE
+        # ALLOWS THE VALUE TO ADD UP TO EXACTLY 20
+        remaining_value = 20 - sum(slot_values_dict.values())
+        slot_values_dict[30] += remaining_value
+
+        return slot_values_dict
+
+    @property
+    def sub_21_per_slot_worth(self) -> float:
+        if not self.is_expanded:
+            return 1
+        
+        return 0.99
+
+    @property
+    def sub_21_total_possible_slots(self) -> float:
+        if not self.is_expanded:
+            return 20
+        
+        return 20 * self.sub_21_per_slot_worth
+
+    @property
+    def total_possible_slots(self) -> int:
+        if not self.is_expanded:
+            return 20
+        
+        return 30
+
     @property
     def gb_pct(self) -> float:
         return round(self.num_values(ChartCategory.GB) / self.outs, 3)
@@ -165,15 +216,15 @@ class Chart(BaseModel):
     @property
     def hitter_so_results_soft_cap(self) -> int:
         match self.set:
-            case '2002': return 4
-            case _: return 3
+            case '2002': return 4 * self.sub_21_per_slot_worth
+            case _: return 3 * self.sub_21_per_slot_worth
 
     @property
     def hitter_so_results_hard_cap(self) -> int:
         match self.set:
-            case '2000': return 5
-            case '2002': return 7
-            case _: return 6
+            case '2000': return 5 * self.sub_21_per_slot_worth
+            case '2002': return 7 * self.sub_21_per_slot_worth
+            case _: return 6 * self.sub_21_per_slot_worth
 
     @property
     def hitter_single_plus_denominator_minimum(self) -> float:
@@ -195,115 +246,93 @@ class Chart(BaseModel):
     # GENERATE CHART ATTRIBUTES
     # ---------------------------------------
 
-    def generate_values_dict(self) -> None:
+    def generate_values_and_results(self) -> None:
         """Generate values dictionary and store to self
 
         """
 
-        for stat, results_per_400_pa in self.stats_per_400_pa.items():
+        def add_results_to_dict(category:ChartCategory, num_results:int, current_chart_index:int) -> None:
+            iterator = -1 if category.is_filled_in_desc_order else 1
+            for i in range(current_chart_index, current_chart_index + ( (num_results+1) * iterator), iterator):
+                self.results[i] = category
 
-            # SKIP IF NOT CHART CATEGORY
-            category_name = stat[:2].upper()
-            if category_name not in [c.value for c in ChartCategory]:
-                continue
+        def fill_chart_categories(categories: list[ChartCategory], is_reversed:bool = False) -> None:
+            current_chart_index = self.total_possible_slots if is_reversed else 1
+            for chart_category in categories:
 
-            # STOLEN BASES HAS NO OPPONENT RESULTS
-            if category_name == 'SB':
-                self.sb = round(results_per_400_pa / self.stats_per_400_pa['pct_of_400_pa'], 3)
-                continue
+                # SKIP 1B+, THAT IS FILLED LATER
+                if chart_category in [ChartCategory._1B_PLUS]: continue
+
+                # DEFINE LIMIT FOR CATEGORY
+                category_limit = chart_category.slot_limit * self.sub_21_per_slot_worth
+                is_out_max = self.outs if chart_category.is_out else 20 - self.outs
+                category_remaining = is_out_max - sum([v for k,v in self.values.items() if k.is_out == chart_category.is_out])
+                max_values = min(category_limit, category_remaining)
+                min_values = category_remaining if chart_category == ChartCategory._1B else None
+
+                # CALCULATE VALUES
+                values, results = self.calc_chart_category_values_from_rate_stats(category=chart_category, current_chart_index=current_chart_index, max_values=max_values, min_values=min_values)
+                
+                # IF SINGLE, SPLIT INTO 1B AND 1B+
+                if chart_category == ChartCategory._1B and not self.is_pitcher:
+                    single_plus_values, single_plus_results = self.__single_plus_values_and_results(total_1B_values=values, current_chart_index=current_chart_index)
+                    self.values[ChartCategory._1B_PLUS] = single_plus_values
+                    add_results_to_dict(category=ChartCategory._1B_PLUS, num_results=single_plus_results, current_chart_index=current_chart_index)
+                    current_chart_index -= single_plus_results
+                    values -= single_plus_values
+                    results -= single_plus_results
+                
+                self.values[chart_category] = values
+                add_results_to_dict(category=chart_category, num_results=results, current_chart_index=current_chart_index)
+                current_chart_index += (results * -1 if chart_category.is_filled_in_desc_order else results)
+                
+        # CALCULATE OUTS BASED ON COMMAND
+        obp = self.stats_per_400_pa.get('onbase_perc', 0)
+        results_per_400_pa = 400 * obp
+        opponent_values = 20 - self.opponent.outs
+        my_onbase_values = (results_per_400_pa - (self.opponent_advantages_per_20 * opponent_values)) / self.my_advantages_per_20
+        my_out_values = max(20 - my_onbase_values, 0)
         
-            # CHART CATEGORY ENUM
-            chart_category = ChartCategory(category_name)
+        # CALC OUTS FOR SLOT SIZE
+        self.outs, _ = self.values_and_results(my_out_values)
 
-            # SKIP 3B IF PITCHER
-            if self.is_pitcher and chart_category == ChartCategory._3B:
-                self.values[chart_category] = 0
-                continue
+        # ITERATE THROUGH CHART CATEGORIES
+        all_categories = self.categories_list
+        out_categories = [c for c in all_categories if not c.is_filled_in_desc_order]
+        non_out_categories = [c for c in all_categories if c.is_filled_in_desc_order][::-1] # REVERSE NON OUTS TO START WITH HR
+        fill_chart_categories(out_categories)
+        fill_chart_categories(non_out_categories, is_reversed=True)
 
-            opponent_values = self.opponent.num_values(chart_category)
-            chart_results = (results_per_400_pa - (self.opponent_advantages_per_20 * opponent_values)) / self.my_advantages_per_20
+        return
 
-            if chart_category == ChartCategory.SO:
-                chart_results = self.__so_results(current_so=chart_results, num_out_slots=self.outs)
-            
-            # HANDLE CASE OF < 0
-            chart_results = max(chart_results, 0)
-
-            # WE ROUND THE PREDICTED RESULTS (2.4 -> 2, 2.5 -> 3)
-            chart_results_decimal = chart_results % 1
-            chart_rounding_cutoff = chart_category.rounding_cutoff(is_pitcher=self.is_pitcher, is_expanded=self.is_expanded, era=self.era)
-            rounded_results = math.ceil(chart_results) if chart_results_decimal > chart_rounding_cutoff else math.floor(chart_results)            
-            
-            # LIMIT RESULTS TO CHART CATEGORY SLOT LIMIT
-            rounded_results = min(rounded_results, chart_category.slot_limit)
-            
-            # STORE VALUES
-            self.values[chart_category] = rounded_results
-
-        # FILL "OUT" CATEGORIES (PU, GB, FB)
-        out_slots_remaining = self.outs - float(self.num_values(ChartCategory.SO))
-        pu, gb, fb = self.__out_results(out_slots_remaining=out_slots_remaining)
-        self.values.update({
-            ChartCategory.PU: pu,
-            ChartCategory.GB: gb,
-            ChartCategory.FB: fb,
-        })
-
-        # CALCULATE HOW MANY SPOTS ARE LEFT TO FILL 1B AND 1B+
-        remaining_slots = self.remaining_slots(excluded_categories=[ChartCategory._1B])
-        self.check_and_fix_value_overage(excluded_categories=[ChartCategory._1B])
-        remaining_slots = self.remaining_slots(excluded_categories=[ChartCategory._1B]) # RE-CHECK
-        remaining_slots_qad = 0 if remaining_slots < 0 else remaining_slots
-
-        # FILL 1B AND 1B+
-        stolen_bases = int(self.stats_per_400_pa.get('sb_per_400_pa',0))
-        single_results, single_plus_results = self.__single_and_single_plus_results(remaining_slots=remaining_slots_qad, sb=stolen_bases)
-        self.values.update({
-            ChartCategory._1B: single_results,
-            ChartCategory._1B_PLUS: single_plus_results,
-        })
-
-    def __out_results(self, out_slots_remaining:int) -> tuple[int, int, int]:
-        """Determine distribution of out results for Player.
+    def calc_chart_category_values_from_rate_stats(self, category:ChartCategory, current_chart_index:int, max_values:float, min_values:float=None) -> Union[float | int]:
+        """Get chart category values based on rate stats
 
         Args:
-          gb_pct: Percent Ground Outs vs Air Outs.
-          popup_pct: Percent hitting into a popup.
-          out_slots_remaining: Total # Outs - SO
-          slg: Real-life stats slugging percent.
-          era_override: Optionally override the era used for baseline opponents.
+            category: Chart category to get values for.
+            current_chart_index: Current index in chart.
+            max_values: Max number of values to fill.
+            min_values: Min number of values to fill.
 
         Returns:
-          Tuple of PU, GB, FB out result ints.
+            Float of chart category values.
         """
 
-        # SET DEFAULTS FOR EMPTY DATA, BASED ON SLG
-        gb_pct = self.stats_per_400_pa.get('GO/AO', None)
-        popup_pct = self.stats_per_400_pa.get('IF/FB', None)
-        if gb_pct is None or popup_pct is None:
-            slg_range = ValueRange(min = 0.250, max = 0.500)
-            slg_percentile = slg_range.percentile(value=self.stats_per_400_pa.get('slugging_perc', None))
-            multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
-            gb_pct = gb_pct if gb_pct else round(1.5 * max(multiplier, 0.5),3)
-            popup_pct = popup_pct if popup_pct else round(0.16 * max(multiplier, 0.5),3)
+        real_results_per_400_pa = self.stats_per_400_pa.get(f'{category.value.lower()}_per_400_pa', 0)
+        opponent_values = self.opponent.num_values(category)
+        chart_values = max( (real_results_per_400_pa - (self.opponent_advantages_per_20 * opponent_values)) / self.my_advantages_per_20, 0 )
+        
+        # LIMIT RESULTS TO CHART CATEGORY SLOT LIMIT
+        chart_values = max( min(chart_values, max_values) , min_values if min_values else 0)
+        chart_values_rounded, results = self.values_and_results(value=chart_values, category=category, current_chart_index=current_chart_index)
 
-        if out_slots_remaining > 0:
-            # SPLIT UP REMAINING SLOTS BETWEEN GROUND AND AIR OUTS
-            gb_outs = int(round((out_slots_remaining / (gb_pct + 1)) * gb_pct * self.gb_multiplier))
-            air_outs = out_slots_remaining - gb_outs
-            # FOR PU, ADD A MULTIPLIER TO ALIGN MORE WITH OLD SCHOOL CARDS
-            pu_multiplier = self.pu_multiplier
-            pu_outs = 0 if not self.is_pitcher else int(math.ceil(air_outs*popup_pct*pu_multiplier))
-            pu_outs = int(air_outs if pu_outs > air_outs else pu_outs)
-            fb_outs = int(air_outs-pu_outs)
-        else:
-            fb_outs = 0
-            pu_outs = 0
-            gb_outs = 0
+        if category == ChartCategory.SO:
+            chart_values_rounded = self.__so_values(current_so=chart_values_rounded, num_out_slots=self.outs)
+            results = int(round(chart_values_rounded / self.sub_21_per_slot_worth))
 
-        return pu_outs, gb_outs, fb_outs
+        return chart_values_rounded, results
 
-    def __so_results(self, current_so:int, num_out_slots:int) -> int:
+    def __so_values(self, current_so:int, num_out_slots:int) -> Union[int, float]:
         """Update SO chart value to account for outliers and maximums
 
         Args:
@@ -341,99 +370,74 @@ class Chart(BaseModel):
 
         return min(current_so, hard_limit_hitter)
 
-    def __single_and_single_plus_results(self, remaining_slots:int, sb:int) -> tuple[int, int]:
-        """Fill 1B and 1B+ categories on chart.
+    def __single_plus_values_and_results(self, total_1B_values:int, current_chart_index:int) -> tuple[Union[int, float], int]:
+        """Fill 1B+ values on chart.
 
         Args:
-          remaining_slots: Remaining slots out of 20.
-          sb: Stolen bases per 400 PA
+          total_1B_values: Total 1B and 1B+ slots.
+          current_chart_index: Current index in chart.
 
         Returns:
-          Tuple of 1B, 1B+ result ints.
+          Number of 1B+ chart slots.
         """
 
         # PITCHER HAS NO 1B+
         if self.is_pitcher:
-            return remaining_slots, 0
+            return 0
 
         # DIVIDE STOLEN BASES PER 400 PA BY A SCALER BASED ON ONBASE #
+        sb = self.stats_per_400_pa.get('sb_per_400_pa', 0)
         min_onbase = 7 if self.is_expanded else 4
         max_onbase = 16 if self.is_expanded else 12
         onbase_range = ValueRange(min=min_onbase, max=max_onbase)
         min_denominator = self.hitter_single_plus_denominator_minimum
         max_denominator = self.hitter_single_plus_denominator_maximum
         onbase_pctile = onbase_range.percentile(value=self.command)
+        
+        # POPULATE 1B+ RESULTS
         single_plus_denominator = min_denominator + ( (max_denominator-min_denominator) * onbase_pctile )
-        single_plus_results_raw = math.trunc(sb / single_plus_denominator)
+        single_plus_values_raw = min(math.trunc(sb / single_plus_denominator), total_1B_values)
+        single_plus_values_rounded, single_plus_results = self.values_and_results(value=single_plus_values_raw, category=ChartCategory._1B_PLUS, current_chart_index=current_chart_index)
 
-        # MAKE SURE 1B+ IS NOT OVER REMAINING SLOTS
-        single_plus_results = single_plus_results_raw if single_plus_results_raw <= remaining_slots else remaining_slots
-        single_results = remaining_slots - single_plus_results
+        return single_plus_values_rounded, single_plus_results
 
-        return single_results, single_plus_results
-
-    def generate_results_list(self) -> None:
-        """Convert chart values dict to list of Chart Results
-        Add 21+ results for expanded charts
+    def values_and_results(self, value:float, category:ChartCategory = None, current_chart_index:int = None) -> tuple[float, int]:
+        """Round value to nearest slot worth. Return rounded value and number of slots filled.
 
         Args:
-            None
+            value: Value to round.
+            category: Chart category to round for.
+            current_chart_index: Current index in chart. Will effect rounding
 
         Returns:
-            List of Chart categories up to 30
+            Tuple of rounded value and number of slots filled.
         """
 
-        # 1-20 RESULTS
-        results_list: list[ChartCategory] = []
-        for chart_category in ChartCategory:
-            results = self.num_values(chart_category)
-            if results > 0:
-                results_list += [chart_category] * int(results)
-        last_result = results_list[-1]
-
-        # FILL 21-30 WITH LAST RESULT
-        fill_with_last_result = not self.is_expanded or last_result == ChartCategory.HR or not self.is_pitcher
-        if fill_with_last_result:
-            # FILL WITH LAST RESULT
-            results_list += [last_result] * (30 - len(results_list))
-            self.results = results_list
-            return
+        # ROUND TO NEAREST SLOT WORTH
+        raw_value = round(value / self.sub_21_per_slot_worth) * self.sub_21_per_slot_worth
+        raw_results = int(round(raw_value / self.sub_21_per_slot_worth))
+        if category is None or not self.is_expanded:
+            return raw_value, raw_results
         
-        over_20_results: list[ChartCategory] = [ChartCategory.HR] * 2
-
-        # CALCULATE HR START
-        hr_max_pitcher = 30 - len(over_20_results)
-        over_20_results += self.__num_21_plus_chart_results(ChartCategory.HR, start=hr_max_pitcher)
-        if len(over_20_results) >= 10:
-            # REVERSE OVER 20 RESULTS
-            over_20_results = over_20_results[::-1]
-            self.results = results_list + over_20_results[:10]
-            return 
+        # ROUND TO NEAREST SLOT WORTH
+        if category.is_out or current_chart_index is None:
+            return raw_value, raw_results
         
-        # FILL IN REMAINING SLOTS
-        remaining_slots = max(10 - len(over_20_results), 0)
-        match self.set:
-            case '2002':
-                # FILL REMAINING SLOTS WITH LAST RESULT
-                over_20_results += [last_result] * remaining_slots
-                
-            case _:
-                # FILL IN 2B, 1B, BB
-                for category in [ChartCategory._2B, ChartCategory._1B, ChartCategory.BB]:
-                    remaining_slots = max(10 - len(over_20_results), 0)
-                    if remaining_slots == 0:
-                        continue
-                    
-                    if category == last_result:
-                        over_20_results += [category] * remaining_slots
-                    else:
-                        over_20_results += self.__num_21_plus_chart_results(category, start=20 + remaining_slots)
-
-        # REVERSE OVER 20 RESULTS AND STORE IN SELF
-        over_20_results = over_20_results[::-1]
-        self.results = results_list + over_20_results[:10]
-
-        return 
+        # ITERATE THROUGH EACH SLOT WORTH RESULT AND ROUND
+        end = 1 if category.is_filled_in_desc_order else self.total_possible_slots
+        iterator = -1 if category.is_filled_in_desc_order else 1
+        value_updated = 0
+        num_results = 0
+        for i in range(current_chart_index, end, iterator):
+            slot_value = self.__slot_value(index=i)
+            next_slot_value = self.__slot_value(index=i + iterator)
+            rounded_vs_original_diff = (value_updated + slot_value) - value
+            if rounded_vs_original_diff >= (next_slot_value / 2):
+                break
+            value_updated += slot_value
+            num_results += 1
+        
+        return value_updated, num_results
 
     def generate_range_strings(self) -> None:
         """Use the current chart results list to generate string representations for the chart.
@@ -451,7 +455,8 @@ class Chart(BaseModel):
         # CONVERT LIST TO DICT OF COUNTS
         # EX: [SO, SO, SO, GB, GB, FB, BB, 1B, 2B, HR] -> {SO: 3, GB: 2, FB: 1, BB: 1, 1B: 1, 2B: 1, HR: 1}
         chart_values = {}
-        result_list = self.results if self.is_expanded else self.results[:20]
+        results_list = list(self.results.values())
+        result_list = results_list if self.is_expanded else results_list[:20]
         for result in result_list:
             chart_values[result] = chart_values.get(result, 0) + 1
         
@@ -481,7 +486,6 @@ class Chart(BaseModel):
             chart_ranges[category] = range
         
         self.ranges = chart_ranges
-        return
     
 
     # ---------------------------------------
@@ -492,26 +496,37 @@ class Chart(BaseModel):
         """Calculate accuracy of chart based on accuracy weights. Store to self."""
         
         # CHECK ACCURACY COMPARED TO REAL LIFE
-        in_game_stats_per_400_pa = self.projected_stats_per_400_pa()
+        in_game_stats_per_400_pa = self.projected_stats_per_400_pa
         weights = self.stat_accuracy_weights
-        accuracy = self.__accuracy_between_dicts(
+        accuracy = round(self.__accuracy_between_dicts(
             actuals_dict=self.stats_per_400_pa,
             measurements_dict=in_game_stats_per_400_pa,
             weights=weights,
             only_use_weight_keys=True
-        )
-        
-        # QA: CHANGE ACCURACY TO 0 IF CHART DOESN'T ADD UP TO 20
-        accuracy = 0.0 if self.is_num_values_over_20 else accuracy
+        ), 4)
 
         # ADD WEIGHTING OF ACCURACY
         # LIMITS AMOUNT OF RESULTS PER SET FOR CERTAIN COMMAND/OUT COMBINATIONS
         weight = self.command_out_accuracy_weight
         accuracy = accuracy * weight
 
-        # REDUCE ACCURACY FOR CHARTS WITH NON 0 REMAINING SLOTS
-        if self.remaining_slots() != 0:
-            accuracy = -5.0
+        # REDUCE ACCURACY FOR CHARTS WITH NUM OUTS OUT OF NORM
+        if self.is_pitcher:
+            out_min = 14 if self.is_expanded else 14
+            out_max = 18 if self.is_expanded else 18
+            command_outlier_upper_bound = 6 if self.is_expanded else 6
+            command_outlier_lower_bound = 1 if self.is_expanded else 1
+        else:
+            out_min = 5 if self.is_expanded else 2
+            out_max = 7 if self.is_expanded else 5
+            command_outlier_upper_bound = 15 if self.is_expanded else 11
+            command_outlier_lower_bound = 9 if self.is_expanded else 5
+
+        outs = self.outs / self.sub_21_per_slot_worth
+        is_outside_out_bounds = outs < out_min or outs > out_max
+        is_outlier = (self.command <= command_outlier_lower_bound and outs > out_max) or (self.command >= command_outlier_upper_bound and outs < out_max)
+        if is_outside_out_bounds and not is_outlier:
+            accuracy /= 2
 
         self.accuracy = accuracy
 
@@ -608,121 +623,17 @@ class Chart(BaseModel):
 
         return chart_results
 
-    def __num_21_plus_chart_results(self, category:ChartCategory, start:int) -> list[ChartCategory]:
-        """Calculate number of 21+ results for expanded charts for a particular category.
-        
-        Args:
-            category: ChartCategory to calculate 21+ results for.
-            start: Which chart result index (ex: 28) to start at.
-        
-        Returns:
-            List of chart results added to over_20_results.
-        """
-
-        over_20_results_added: list[ChartCategory] = []
-        sub_21_projected_results = self.num_results_projected(category)
-        projected_result_added = 0
-        plus_21_range_start = start - 20
-        
-        for num_past_20 in range(plus_21_range_start, 0, -1):
-            match self.set:
-                case '2002' | '2003':
-                    result_factor = self.result_factor(num_past_20=num_past_20, category=category)
-                    projected_result_added += result_factor
-                    over_20_results_added.append(category)
-
-                    # CHECK IF NEXT RESULT WILL PUT US OVER PROJECTED
-                    if projected_result_added + result_factor >= sub_21_projected_results:
-                        break
-                case _: 
-
-                    over_20_results_added.append(category)
-                    if sub_21_projected_results == 0:
-                        break
-                    
-                    slot_value = self.__slot_value(num_past_20=num_past_20)
-                    projected_result_added += slot_value
-                    
-                    next_addition = self.__slot_value(num_past_20=num_past_20-1)
-                    check_vs_next_value = category in [ChartCategory._2B]
-                    comparison_results = projected_result_added + (next_addition if check_vs_next_value else 0)
-
-                    # CHECK IF NEXT RESULT WILL PUT US OVER PROJECTED
-                    if comparison_results >= sub_21_projected_results:
-                        break
-
-        return over_20_results_added
-
-    def __slot_value(self, num_past_20: int) -> float:
+    def __slot_value(self, index:int) -> float:
         """Determine how many slots a result over 20 is valued at"""
-        
-        # Return 0 if CLASSIC
-        if not self.is_expanded:
-            return 0
-        
-        match self.set:
-            case _:
-                if num_past_20 >= 8: return 0
-                elif num_past_20 == 7: return 0.03
-                else:
-                    _slot_value = 0.03
-                    for i in range(1, 8-num_past_20):
-                        _slot_value += 0.06
-                    return _slot_value
-
-    def result_factor(self, num_past_20:int, category: ChartCategory) -> float:
-        """Calculate probability of over 20 result for expanded charts"""
-        pitcher_max = 5 if self.set == '2002' else 6
-        max_command = pitcher_max if self.is_pitcher else 16
-        command_percentile = min(self.command / max_command, 1)
-
-        # REDUCE PROBABILITIES FOR HIGHER COMMAND
-        # STARTING DENOMINATOR: DENOMINATOR FOR HIGHEST COMMAND (EX: 6, 16)
-        # MAX_ADDITION: SMALLEST DENOMINATOR ADDITION POSSIBLE. APPLIES TO LOWEST COMMAND.
-        match self.set:
-            case '2002': 
-                starting_denominator = 15
-                max_addition = 30
-            case '2003':
-                starting_denominator = 13
-                max_addition = 33
-            case _:
-                starting_denominator = 15
-                max_addition = 30
-        
-        final_starting_point = starting_denominator + (max_addition * (1-command_percentile))
-        return (1 / (final_starting_point + num_past_20)) * category.expanded_over_20_result_factor_multiplier(self.set)
-
-    def total_over_20_results(self, category:ChartCategory) -> int:
-        """Calculate total number of over 20 results. Weigh number by result factor based on index"""
-
-        # NONE FOR CLASSIC
-        if not self.is_expanded:
-            return 0
-        
-        total_results = 0
-        last_category_under_21 = self.results[19]
-        for i, result in enumerate(self.results[20:30], 1):
-            
-            if result == category: #and last_category_under_21 != category:
-                match self.set:
-                    case '2002' | '2003':
-                        total_results += self.result_factor(num_past_20=i, category=category)
-                    case _:
-                        total_results += self.__slot_value(num_past_20=i)
-
-        
-        return total_results
+        return self.slot_values.get(index, 0)
     
     # ---------------------------------------
     # REAL STATS
     # ---------------------------------------
 
+    @property
     def projected_stats_per_400_pa(self) -> dict:
         """Predict real stats given Showdown in game chart.
-
-        Args:
-          chart: Chart object.
 
         Returns:
           Dict with stats per 400 Plate Appearances.
@@ -735,6 +646,9 @@ class Chart(BaseModel):
         doubles_per_400_pa = self.projected_stats_for_category(ChartCategory._2B)
         triples_per_400_pa = self.projected_stats_for_category(ChartCategory._3B)
         home_runs_per_400_pa = self.projected_stats_for_category(ChartCategory.HR)
+        popups_per_400_pa = self.projected_stats_for_category(ChartCategory.PU)
+        groundouts_per_400_pa = self.projected_stats_for_category(ChartCategory.GB)
+        fly_ball_outs_per_400_pa = self.projected_stats_for_category(ChartCategory.FB)
         hits_per_400_pa = singles_per_400_pa \
                             + doubles_per_400_pa \
                             + triples_per_400_pa \
@@ -757,6 +671,9 @@ class Chart(BaseModel):
         # GROUP ESTIMATIONS IN DICTIONARY
         results_per_400_pa = {
             'so_per_400_pa': strikeouts_per_400_pa,
+            'pu_per_400_pa': popups_per_400_pa,
+            'gb_per_400_pa': groundouts_per_400_pa,
+            'fb_per_400_pa': fly_ball_outs_per_400_pa,
             'bb_per_400_pa': walks_per_400_pa,
             '1b_per_400_pa': singles_per_400_pa,
             '2b_per_400_pa': doubles_per_400_pa,
@@ -774,7 +691,7 @@ class Chart(BaseModel):
 
     def projected_stats_for_category(self, category:ChartCategory, pa: int = 400) -> int | float:
 
-        my_results = self.num_values(category) + self.total_over_20_results(category)
+        my_results = self.num_values(category)
         opponent_results = self.opponent.num_values(category)
         pa_multiplier = pa / 400
         return ( (my_results * self.my_advantages_per_20) + (opponent_results * self.opponent_advantages_per_20) ) * pa_multiplier
@@ -792,44 +709,37 @@ class Chart(BaseModel):
         """List of ranges ordered as strings"""
         return [self.ranges[category] for category in self.categories_list]
     
+
     # ---------------------------------------
-    # QA
+    # GB/PU PERCENTS
     # ---------------------------------------
-    
-    def remaining_slots(self, excluded_categories:list[ChartCategory] = []) -> int:
-        """ Calculate how many chart slots remain.
-        
-        Args:
-          excluded_categories: Optional list of categories to exclude from the count.
-        
-        Returns:
-          Int for remaining slots.
-        """
-
-        return 20 - (sum([v for c, v in self.values.items() if c not in excluded_categories]))
-    
-    def check_and_fix_value_overage(self, excluded_categories:list[ChartCategory] = []) -> None:
-        """ If there are over 20 chart slots used, attempt to fix by reducing BB.
-        
-        Args:
-          excluded_categories: Optional list of categories to exclude from the count.
-        
-        Returns:
-          None
-        """
-
-        remaining_slots = self.remaining_slots(excluded_categories=excluded_categories)
-
-        # CHART IS COMPLIANT, RETURN
-        if remaining_slots >= 0:
-            return
-
-        # FIX BARRY BONDS EFFECT (HUGE WALK)
-        walk_results = self.num_values(ChartCategory.BB)
-        if walk_results >= abs(remaining_slots):
-            self.values[ChartCategory.BB] = walk_results - abs(remaining_slots)
 
     @property
-    def is_num_values_over_20(self) -> bool:
-        return self.remaining_slots() < 0
+    def slg_multiplier_for_ratios(self) -> float:
+        """Calculate percentile of slugging percent"""
+        slg_range = ValueRange(min = 0.250, max = 0.500)
+        slg_percentile = slg_range.percentile(value=self.stats_per_400_pa.get('slugging_perc', None))
+        multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
+        return multiplier
+
+    @property
+    def gb_pct(self) -> float:
+        """Calculate gb -> fb ratio. Fills gaps if data is not available of bref"""
+        gb_pct = self.stats_per_400_pa.get('GO/AO', None)
+        if gb_pct is None:
+            multiplier = self.slg_multiplier_for_ratios
+            gb_pct = gb_pct if gb_pct else round(1.5 * max(multiplier, 0.5),3)
+    
+        return gb_pct
+    
+    @property
+    def pu_pct(self) -> float:
+        """Calculate infield fb -> outfield fb ratio. Fills gaps if data is not available of bref"""
+        pu_pct = self.stats_per_400_pa.get('IF/FB', None)
+        if pu_pct is None:
+            multiplier = self.slg_multiplier_for_ratios
+            popup_pct = popup_pct if popup_pct else round(0.16 * max(multiplier, 0.5),3)
+    
+        return pu_pct
+
     

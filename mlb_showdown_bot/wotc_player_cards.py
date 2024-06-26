@@ -150,7 +150,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
         self.chart.opponent = opponent_chart
         
         # ADD PROJECTIONS
-        chart_results_per_400_pa = self.chart.projected_stats_per_400_pa()
+        chart_results_per_400_pa = self.chart.projected_stats_per_400_pa
         self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command, pa=self.stats.get('PA', 650))
         self.accolades = self.parse_accolades()
 
