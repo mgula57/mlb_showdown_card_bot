@@ -660,6 +660,13 @@ class BaseballReferenceScraper:
             name_string = metadata.find('span').get_text()
         else:
             name_string = name_object.find('span').get_text()
+
+        # FIX POTENTIAL ENCODING ISSUES
+        try:
+            name_string = name_string.encode('iso-8859-1').decode('utf-8')
+        except:
+            self.error = 'Could not encode name string.'
+
         return name_string
 
     def nationality(self, soup_for_homepage_stats:BeautifulSoup) -> str:
