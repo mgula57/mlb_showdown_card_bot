@@ -1,8 +1,9 @@
 import argparse
 from tests.tests import analyze_baseline_weights
+from mlb_showdown_bot.showdown_player_card import Set, PlayerType
 
 parser = argparse.ArgumentParser(description="Test accuracy of Showdown Bot set compared to original WOC set")
-parser.add_argument('-c','--context', help='The showdown set meta to use (2000-2005)', default='2000')
+parser.add_argument('-s','--set', help='The showdown set meta to use (2000-2005)', default='2000')
 parser.add_argument('-t','--type', help='Choose either Hitter or Pitcher to test',default='Hitter')
 parser.add_argument('-cb','--is_current_baseline', action='store_true', help='Set to True to test for accuracy of current baseline weights, otherwise iterates through all possible weights')
 parser.add_argument('-ex','--exclude_volatile', action='store_true', help='Set to True to leave out categories such as out results and 1b+ from tests')
@@ -16,11 +17,11 @@ args = parser.parse_args()
 
 if __name__ == "__main__":
     # TEST SET ACCURACY
-    analyze_baseline_weights(context=int(args.context), 
-                             type=args.type, 
+    analyze_baseline_weights(set=Set(args.set), 
+                             type=PlayerType(args.type), 
                              is_testing_current_baseline=args.is_current_baseline,
                              ignore_volatile_categories=args.exclude_volatile,
                              is_pts_only=args.only_pts,
-                             position_filters=[str(item) for item in args.positions.split(',')],
+                             position_filters=[str(item) for item in args.positions.split(',') if item != ''],
                              use_wotc_command_outs=args.use_wotc,
                              command_out_combos=[str(item) for item in args.command_outs.split(',')])

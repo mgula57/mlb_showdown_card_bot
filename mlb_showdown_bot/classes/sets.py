@@ -1,19 +1,19 @@
 from enum import Enum
-
+import numpy as np
 try:
     from .metadata import SpeedMetric
     from .player_position import PlayerType, PlayerSubType, Position
     from .metrics import Stat, PointsMetric
     from .value_range import ValueRange
     from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
-    from .chart import Chart
+    from .chart import Chart, ChartCategory
 except ImportError:
     from metadata import SpeedMetric
     from player_position import PlayerType, PlayerSubType, Position
     from metrics import Stat, PointsMetric
     from value_range import ValueRange
     from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
-    from chart import Chart
+    from chart import Chart, ChartCategory
 
 
 class Era(Enum):
@@ -58,16 +58,6 @@ class Era(Enum):
     @property
     def value_no_era_suffix(self) -> str:
         return self.value.replace(' ERA', '')
-
-    @property
-    def hr_rounding_cutoff(self) -> float:
-        match self.name:
-            case 'STEROID': return 0.85
-            case 'STATCAST' | 'PITCH_CLOCK': return 0.70
-            case _: return 0.75
-
-
-
 
 
 
@@ -182,14 +172,6 @@ class Set(str, Enum):
         match self.value:
             case '2002': return 13
             case _: return 12
-
-    @property
-    def min_onbase_single_plus(self) -> int:
-        return 4 if self.has_classic_chart else 7
-    
-    @property
-    def max_onbase_single_plus(self) -> int:
-        return 12 if self.has_classic_chart else 16
     
     def speed_metric_multiplier(self, metric: SpeedMetric, use_variable_speed_multiplier:bool) -> float:
         if use_variable_speed_multiplier:
@@ -199,8 +181,8 @@ class Set(str, Enum):
             match self.value:
                 case '2000': return 1.21
                 case '2001': return 1.22
-                case '2002': return 1.2
-                case '2003': return 0.95
+                case '2002': return 1.25
+                case '2003': return 0.962
                 case '2004': return 0.98
                 case _: return 1.0
         
@@ -373,7 +355,7 @@ class Set(str, Enum):
                 (13,0),(13,1),
             ]
             case 'EXPANDED': return [
-                (7,7),(7,8),(7,9),
+                (7,7),(7,8),(7,9),(7,10),(7,11),(7,12),
                 (8,5),(8,6),(8,7),(8,8),(8,9),(8,10),(8,11),
                 (9,5),(9,6),(9,7),(9,8),(9,9),(9,10),(9,11),
                 (10,5),(10,6),(10,7),(10,8),
@@ -406,7 +388,7 @@ class Set(str, Enum):
                 (6,14),(6,15),(6,16),(6,17),(6,18),(6,19),(6,20),
             ]
             case '2002': return [
-                (1,15),(1,16),(1,17),(1,18),
+                (1,15),(1,16),(1,17),(1,18),(1,19),
                 (2,15),(2,16),(2,17),(2,18),(2,19),
                 (3,15),(3,16),(3,17),(3,18),(3,19),
                 (4,14),(4,15),(4,16),(4,17),(4,18),(4,19),
@@ -463,6 +445,11 @@ class Set(str, Enum):
                     case '1-18': return 0.975
                     case '2-18': return 0.97
                     case '3-18' | '4-18': return 0.98
+                    case '3-16': return 0.997
+            case '2002':
+                match command_out_str:
+                    case '11-5': return 0.99
+                    case '9-5': return 0.99
             case '2003':
                 match command_out_str: 
                     case '1-18': return 0.99
@@ -470,6 +457,8 @@ class Set(str, Enum):
                     case '3-17': return 0.99
                     case '3-18': return 0.99
                     case '4-18': return 0.98
+                    case '14-0': return 0.98
+                    case '15-7': return 0.98
             case '2004':
                 match command_out_str: 
                     case '1-18': return 0.98
@@ -515,9 +504,17 @@ class Set(str, Enum):
         # DEFAULT TO 1.0
         return 1.00
     
+    def test_command_out_combinations(self, is_pitcher:bool) -> list[tuple[int,int]]:
+        hitter_command_range = np.arange(8, 11, 0.1).tolist() if self.has_expanded_chart else np.arange(6, 9, 0.1).tolist()
+        hitter_out_range = np.arange(5, 8, 0.1).tolist() if self.has_expanded_chart else np.arange(2, 5, 0.1).tolist()
+        command_range = np.arange(1, 5, 0.1).tolist() if is_pitcher else hitter_command_range
+        outs_range = np.arange(15, 18, 0.1).tolist() if is_pitcher else hitter_out_range
+        all_combos = [(c, o) for c in command_range for o in outs_range]
+        return all_combos
+
     def chart_accuracy_slashline_weights(self, player_sub_type:PlayerSubType) -> dict[str, float]:
         match self.value:
-            case '2000' | '2001':
+            case '2000':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return {
                         Stat.OBP.value: 3.0,
@@ -526,24 +523,39 @@ class Set(str, Enum):
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
                         Stat.OBP.value: 2.0,
                         Stat.SLG.value: 1.0,
+                    }
+            case '2001':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return {
+                        Stat.OBP.value: 3.0,
+                        Stat.SLG.value: 1.0,
+                    }
+                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
+                        Stat.OBP.value: 3.0,
+                        Stat.SLG.value: 2.0,
                     }
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 1.0,
+                        Stat.OBP.value: 3.0,
+                        Stat.SLG.value: 1.0,
                     }
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
                         Stat.OBP.value: 2.0,
                         Stat.SLG.value: 1.0,
+                        Stat.OPS.value: 3.0,
                     }
             case '2003':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 1.0,
+                        Stat.OBP.value: 3.0,
+                        Stat.SLG.value: 1.0,
+                        Stat.OPS.value: 1.0,
                     }
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
                         Stat.OBP.value: 3.0,
                         Stat.SLG.value: 1.0,
+                        Stat.OPS.value: 1.0,
                     }
             case '2004':
                 match player_sub_type:
@@ -564,6 +576,7 @@ class Set(str, Enum):
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
                         Stat.OBP.value: 3.0,
                         Stat.SLG.value: 1.0,
+                        Stat.OPS.value: 1.0,
                     }
             case 'CLASSIC' | 'EXPANDED':
                 match player_sub_type:
@@ -595,8 +608,8 @@ class Set(str, Enum):
     @property
     def pu_multiplier(self) -> float:
         match self.value:
-            case '2000': return 2.25
-            case '2001': return 2.5
+            case '2000': return 2.1
+            case '2001': return 2.8
             case '2002': return 2.8
             case '2003': return 2.2
             case '2004': return 2.05
@@ -614,11 +627,29 @@ class Set(str, Enum):
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
                             case Era.STEROID | Era.POST_STEROID: return 1.00
                             case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
-                    case '2001' | '2002' | '2003' | '2004' | '2005':
+                    case '2001':
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
-                            case Era.STEROID | Era.POST_STEROID: return 1.10
+                            case Era.STEROID | Era.POST_STEROID: return 1.15
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.00
+                    case '2002':
+                        match era:
+                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.25
+                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.20
+                            case Era.STEROID | Era.POST_STEROID: return 1.17
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.10
+                    case '2003':
+                        match era:
+                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
+                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
+                            case Era.STEROID | Era.POST_STEROID: return 1.05
+                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.00
+                    case '2004' | '2005':
+                        match era:
+                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
+                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
+                            case Era.STEROID | Era.POST_STEROID: return 1.00
                             case Era.STATCAST | Era.PITCH_CLOCK: return 1.00
                     case 'CLASSIC' | 'EXPANDED':
                         match era:
@@ -645,7 +676,7 @@ class Set(str, Enum):
                         match era:
                             case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
                             case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
-                            case Era.STEROID: return 0.91
+                            case Era.STEROID: return 0.88
                             case Era.POST_STEROID: return 0.90
                             case Era.STATCAST | Era.PITCH_CLOCK: return 0.85
                     case '2003' | '2004' | '2005':
@@ -664,33 +695,9 @@ class Set(str, Enum):
                             case Era.STATCAST | Era.PITCH_CLOCK: return 0.90
 
     @property
-    def hitter_so_results_soft_cap(self) -> int:
-        match self.value:
-            case '2002': return 4
-            case _: return 3
-
-    @property
-    def hitter_so_results_hard_cap(self) -> int:
-        match self.value:
-            case '2000': return 5
-            case '2002': return 7
-            case _: return 6
-
-    @property
-    def hitter_single_plus_denominator_minimum(self) -> float:
-        match self.value:
-            case '2000' | '2001' | 'CLASSIC': return 3.2
-            case '2002': return 7.0
-            case '2003': return 6.0
-            case '2004' | '2005' | 'EXPANDED': return 5.5
-    
-    @property
-    def hitter_single_plus_denominator_maximum(self) -> float:
-        match self.value:
-            case '2000' | '2001' | 'CLASSIC': return 9.6
-            case '2002': return 11.0
-            case '2003' | '2004': return 10.5
-            case '2005' | 'EXPANDED': return 9.75
+    def is_batting_avg_command_out_multiplier(self) -> bool:
+        """Returns True if the set has a batting average multiplier"""
+        return self in [Set._2003, Set._2004, Set._2005, Set.EXPANDED]
 
     # ---------------------------------------
     # POINTS
@@ -700,90 +707,98 @@ class Set(str, Enum):
     def pts_normalizer_upper_limit(self) -> int:
         return 800
     
-    def pts_metric_weight(self, player_sub_type:PlayerSubType, metric:PointsMetric) -> dict[PointsMetric, int]:
+    def pts_normalizer_cutoff(self, player_sub_type: PlayerSubType) -> int:
+        match player_sub_type:
+            case PlayerSubType.RELIEF_PITCHER: return 120
+            case PlayerSubType.STARTING_PITCHER: return 500
+            case PlayerSubType.POSITION_PLAYER: return 800 if self == Set._2003 else 500
+
+    def pts_metric_weight(self, player_sub_type:PlayerSubType, metric:PointsMetric) -> int:
         match self.value:
             case '2000':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
                             case PointsMetric.DEFENSE: return 75
-                            case PointsMetric.SPEED: return 75
-                            case PointsMetric.ONBASE: return 200
-                            case PointsMetric.AVERAGE: return 40
-                            case PointsMetric.SLUGGING: return 165
-                            case PointsMetric.HOME_RUNS: return 35
+                            case PointsMetric.SPEED: return 60
+                            case PointsMetric.ONBASE: return 240
+                            case PointsMetric.AVERAGE: return 60
+                            case PointsMetric.SLUGGING: return 130
+                            case PointsMetric.HOME_RUNS: return 50
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 105
                             case PointsMetric.ONBASE: return 485
                             case PointsMetric.AVERAGE: return 55
-                            case PointsMetric.SLUGGING: return 210
+                            case PointsMetric.SLUGGING: return 220
                             case PointsMetric.OUT_DISTRIBUTION: return 30
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 110
-                            case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 90
-                            case PointsMetric.OUT_DISTRIBUTION: return 20
+                            case PointsMetric.ONBASE: return 100
+                            case PointsMetric.AVERAGE: return 10
+                            case PointsMetric.SLUGGING: return 95
+                            case PointsMetric.OUT_DISTRIBUTION: return 10
             case '2001':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
-                            case PointsMetric.DEFENSE: return 65
-                            case PointsMetric.SPEED: return 60
-                            case PointsMetric.ONBASE: return 190
-                            case PointsMetric.AVERAGE: return 50
-                            case PointsMetric.SLUGGING: return 165
+                            case PointsMetric.DEFENSE: return 60
+                            case PointsMetric.SPEED: return 65
+                            case PointsMetric.ONBASE: return 242
+                            case PointsMetric.AVERAGE: return 45
+                            case PointsMetric.SLUGGING: return 120
                             case PointsMetric.HOME_RUNS: return 45
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
-                            case PointsMetric.IP: return 115
-                            case PointsMetric.ONBASE: return 470
+                            case PointsMetric.IP: return 110
+                            case PointsMetric.ONBASE: return 500
                             case PointsMetric.AVERAGE: return 35
-                            case PointsMetric.SLUGGING: return 255
+                            case PointsMetric.SLUGGING: return 215
                             case PointsMetric.OUT_DISTRIBUTION: return 30
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 174
-                            case PointsMetric.AVERAGE: return 25
-                            case PointsMetric.SLUGGING: return 112
+                            case PointsMetric.ONBASE: return 195
+                            case PointsMetric.AVERAGE: return 20
+                            case PointsMetric.SLUGGING: return 75
                             case PointsMetric.OUT_DISTRIBUTION: return 20
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
-                            case PointsMetric.DEFENSE: return 70
-                            case PointsMetric.SPEED: return 65
-                            case PointsMetric.ONBASE: return 170
+                            case PointsMetric.DEFENSE: return 65
+                            case PointsMetric.SPEED: return 70
+                            case PointsMetric.ONBASE: return 245
                             case PointsMetric.AVERAGE: return 40
-                            case PointsMetric.SLUGGING: return 160
-                            case PointsMetric.HOME_RUNS: return 40
+                            case PointsMetric.SLUGGING: return 110
+                            case PointsMetric.HOME_RUNS: return 50
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 100
-                            case PointsMetric.ONBASE: return 330
+                            case PointsMetric.ONBASE: return 310
                             case PointsMetric.AVERAGE: return 45
-                            case PointsMetric.SLUGGING: return 280
+                            case PointsMetric.SLUGGING: return 170
                             case PointsMetric.OUT_DISTRIBUTION: return 20
+                            case PointsMetric.COMMAND: return 60
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHER
-                            case PointsMetric.ONBASE: return 100
+                            case PointsMetric.ONBASE: return 130
                             case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 85
+                            case PointsMetric.SLUGGING: return 60
                             case PointsMetric.OUT_DISTRIBUTION: return 10
+                            case PointsMetric.COMMAND: return 45
             case '2003': 
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
-                            case PointsMetric.DEFENSE: return 60
-                            case PointsMetric.SPEED: return 55
-                            case PointsMetric.ONBASE: return 160
-                            case PointsMetric.AVERAGE: return 50
-                            case PointsMetric.SLUGGING: return 160
-                            case PointsMetric.HOME_RUNS: return 60
+                            case PointsMetric.DEFENSE: return 65
+                            case PointsMetric.SPEED: return 70
+                            case PointsMetric.ONBASE: return 190
+                            case PointsMetric.AVERAGE: return 40
+                            case PointsMetric.SLUGGING: return 190
+                            case PointsMetric.HOME_RUNS: return 50
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 70
@@ -895,6 +910,8 @@ class Set(str, Enum):
                             case PointsMetric.SLUGGING: return 105
                             case PointsMetric.OUT_DISTRIBUTION: return 10
 
+        return 0
+    
     def pts_positional_defense_weight(self, position:Position) -> float:
         match self.value:
             case '2000':
@@ -965,56 +982,88 @@ class Set(str, Enum):
                     case Position.IF: return 1.0
         return 1.0
 
-    def pts_command_out_multiplier(self, command:int, outs:int) -> float:
+    def pts_command_out_multiplier(self, command:int, outs:int, subtype: PlayerSubType) -> float:
         command_out_str = f"{command}-{outs}"
         match self.value:
             case '2000':
-                match command_out_str:
-                    case '10-5': return 1.15
-                    case '10-4': return 1.08
-                    case '10-2': return 0.95
-                    case '9-5': return 1.08
-                    case '8-5': return 1.06
-                    case '8-3': return 0.90
-                    case '7-3': return 0.90
-
-                    case '5-17': return 0.97
-                    case '4-14': return  1.1
-                    case '4-15': return 1.06
-                    case '4-16': return 0.98
-                    case '4-17': return 0.925
-                    case '3-18': return 0.90
-                    case '3-17': return 0.97
-                    case '3-16': return 0.97
-                    case '3-15': return 1.1
-                    case '2-18': return 0.92
+                match subtype:
+                    case PlayerSubType.POSITION_PLAYER:
+                        match command_out_str:
+                            case '10-5': return 1.15
+                            case '10-4': return 1.08
+                            case '10-2': return 0.95
+                            case '9-5': return 1.08
+                            case '8-5': return 1.06
+                            case '8-3': return 0.95
+                            case '7-3': return 0.95
+                            case '5-2' | '5-3' | '5-4' | '5-5': return 1.1
+                    case PlayerSubType.STARTING_PITCHER:
+                        match command_out_str:
+                            case '6-15': return 1.05
+                            case '5-17': return 0.97
+                            case '5-15': return 1.05
+                            case '4-14': return 1.1
+                            case '4-15': return 1.1
+                            case '4-17': return 0.925
+                            case '3-18': return 0.90
+                            case '3-17': return 0.97
+                            case '3-15': return 1.20
+                            case '2-18': return 0.92
+                            case '0-18': return 0.95
+                            case '0-17': return 0.95
+                    case PlayerSubType.RELIEF_PITCHER:
+                        match command_out_str:
+                            case '6-15': return 1.05
+                            case '4-15': return 1.2
             case '2001':
-                match command_out_str:
-                    case '10-4': return 1.05
-                    case '10-2': return 0.96
-                    case '9-5': return 1.05
-                    case '9-3': return 0.925
-                    case '8-4': return 0.925
-                    case '8-3': return 0.90
-                    case '7-4': return 0.90
-                    case '7-3': return 0.90
-
-                    case '1-18': return 0.90
-                    case '2-17': return 0.92
-                    case '2-18': return 0.92
-                    case '3-17': return 0.85
-                    case '3-18': return 0.92
-                    case '4-14': return 1.15
-                    case '4-15': return 1.15
-                    case '4-18': return 0.95
-                    case '5-14': return 1.25
-                    case '6-14': return 1.05
-                    case '6-15': return 1.05
-                    case '5-17': return 0.99
+                match subtype:
+                    case PlayerSubType.POSITION_PLAYER:
+                        match command_out_str:
+                            case '11-3': return 1.04
+                            case '11-2': return 1.01
+                            case '10-4': return 1.08
+                            case '10-2': return 0.99
+                            case '9-5': return 1.12
+                            case '9-4': return 1.02
+                            case '9-3': return 0.95
+                            case '8-4': return 0.925
+                            case '8-3': return 0.90
+                            case '7-4': return 0.90
+                            case '7-3': return 0.90
+                            case '6-5' | '6-6': return 1.05
+                    case PlayerSubType.STARTING_PITCHER:
+                        match command_out_str:
+                            case '1-18': return 0.90
+                            case '2-17': return 0.90
+                            case '2-18': return 0.90
+                            case '3-17': return 0.90
+                            case '3-18': return 0.92
+                            case '4-14': return 1.20
+                            case '4-15': return 1.05
+                            case '4-18': return 0.95
+                            case '5-14': return 1.25
+                            case '5-15': return 1.10
+                            case '6-14': return 1.05
+                            case '6-15': return 1.05
             case '2002':
-                match command_out_str:
-                    case '10-7': return 0.85
-                    case '3-16': return 1.25
+                match subtype:
+                    case PlayerSubType.POSITION_PLAYER:
+                        match command_out_str:
+                            case '10-7': return 0.85
+                    case PlayerSubType.STARTING_PITCHER:
+                        match command_out_str:
+                            case '3-16': return 1.00
+                            case '1-19' | '3-19' | '4-19': return 0.95
+                            case '1-18' | '2-18': return 0.95
+                            case '3-17' | '1-17': return 0.95
+                            case '2-17': return 0.85
+                            case '4-17' | '5-17': return 1.1
+                            case '6-18': return 0.95
+                        if command >= 4 and outs < 17:
+                            return 1.1
+                    case PlayerSubType.RELIEF_PITCHER:
+                        match command_out_str:
+                            case '5-18' | '6-18': return 1.05
             case '2003':
                 match command_out_str:
                     case '10-5': return 1.12
@@ -1100,26 +1149,36 @@ class Set(str, Enum):
             case '2001' | 'CLASSIC':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return True
-                    case PlayerSubType.STARTING_PITCHER: return False
+                    case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return False
             case '2002':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return False
-                    case PlayerSubType.STARTING_PITCHER: return False
+                    case PlayerSubType.POSITION_PLAYER: return True
+                    case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
             case '2003' | '2004' | '2005' | 'EXPANDED':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return True
+                    case PlayerSubType.POSITION_PLAYER: return False
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
     
     def pts_normalize_towards_median(self, player_sub_type:PlayerSubType) -> bool:
         match self.value:
+            case '2000':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return False
+                    case PlayerSubType.STARTING_PITCHER: return True
+                    case PlayerSubType.RELIEF_PITCHER: return True
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return False
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return False
+            case '2003':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return True
+                    case PlayerSubType.STARTING_PITCHER: return True
+                    case PlayerSubType.RELIEF_PITCHER: return True
             case _:
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return False
@@ -1130,49 +1189,48 @@ class Set(str, Enum):
         match self.value:
             case '2000':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.70
-                    case PlayerSubType.STARTING_PITCHER: return 0.75
-                    case PlayerSubType.RELIEF_PITCHER: return 0.55
+                    case PlayerSubType.POSITION_PLAYER: return 1.0
+                    case PlayerSubType.STARTING_PITCHER: return 0.79
+                    case PlayerSubType.RELIEF_PITCHER: return 0.75
             case '2001':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.65
-                    case PlayerSubType.STARTING_PITCHER: return 0.70
-                    case PlayerSubType.RELIEF_PITCHER: return 0.72
+                    case PlayerSubType.POSITION_PLAYER: return 1.0
+                    case PlayerSubType.STARTING_PITCHER: return 0.72
+                    case PlayerSubType.RELIEF_PITCHER: return 0.95
             case '2002':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.85
-                    case PlayerSubType.STARTING_PITCHER: return 0.85
+                    case PlayerSubType.POSITION_PLAYER: return 1.0
+                    case PlayerSubType.STARTING_PITCHER: return 0.98
                     case PlayerSubType.RELIEF_PITCHER: return 0.85
             case '2003':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.85
+                    case PlayerSubType.POSITION_PLAYER: return 0.88
                     case PlayerSubType.STARTING_PITCHER: return 0.72
                     case PlayerSubType.RELIEF_PITCHER: return 0.70
             case '2004':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.65
+                    case PlayerSubType.POSITION_PLAYER: return 1.0
                     case PlayerSubType.STARTING_PITCHER: return 0.80
                     case PlayerSubType.RELIEF_PITCHER: return 0.675
             case '2005':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.65
+                    case PlayerSubType.POSITION_PLAYER: return 1.0
                     case PlayerSubType.STARTING_PITCHER: return 0.78
                     case PlayerSubType.RELIEF_PITCHER: return 0.74
             case 'CLASSIC':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.65
+                    case PlayerSubType.POSITION_PLAYER: return 1.0
                     case PlayerSubType.STARTING_PITCHER: return 0.70
                     case PlayerSubType.RELIEF_PITCHER: return 0.72
             case 'EXPANDED':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.65
+                    case PlayerSubType.POSITION_PLAYER: return 1.0
                     case PlayerSubType.STARTING_PITCHER: return 0.80
                     case PlayerSubType.RELIEF_PITCHER: return 0.77
 
     def pts_normalizer_weighting(self, player_sub_type:PlayerSubType) -> float:
         if player_sub_type == PlayerSubType.RELIEF_PITCHER:
             match self.value:
-                case '2001' | 'CLASSIC': return 1.5
                 case _: return 2.0
 
         return 1.0
@@ -1185,7 +1243,7 @@ class Set(str, Enum):
         match self.value:
             case '2000':
                 match ip:
-                    case 2: return 1.90
+                    case 2: return 2.00
                     case 3: return 2.55
             case '2001':
                 match ip:
@@ -1217,6 +1275,11 @@ class Set(str, Enum):
                     case 3: return 2.01
         return 1.0
 
+    @property
+    def pts_use_max_for_defense(self) -> bool:
+        """Some sets use a max defensive PT value for multi-position players, others do not."""
+        return self.value in ['2000', '2001']
+
     # ---------------------------------------
     # POINTS RANGES FOR PERCENTILES
     # ---------------------------------------
@@ -1233,29 +1296,31 @@ class Set(str, Enum):
                 return self.pts_speed_or_ip_percentile_range(player_sub_type=player_sub_type)
             case PointsMetric.HOME_RUNS:
                 return self.pts_hr_percentile_range
+            case PointsMetric.COMMAND:
+                return self.pts_command_percentile_range(player_sub_type=player_sub_type)
 
     def pts_obp_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
         match self.value:
             case '2000':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.390)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.400)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.270, max = 0.430)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.245, max = 0.385)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.190, max = 0.43)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.280, max = 0.450)
             case '2001':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.240, max = 0.400)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.360)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.290, max = 0.450)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.385)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.295, max = 0.450)
             case '2002':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.360)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.250, max = 0.360)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.260, max = 0.450)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.240, max = 0.390)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.250, max = 0.355)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.285, max = 0.450)
             case '2003':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.390)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.400)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.270, max = 0.425)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.285, max = 0.430)
             case '2004':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.370)
@@ -1325,13 +1390,13 @@ class Set(str, Enum):
             case '2000':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.350, max = 0.500)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.530)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.300, max = 0.600)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.350, max = 0.550)
             case '2001':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.340, max = 0.500)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.345, max = 0.500)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.350, max = 0.545)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.355, max = 0.545)
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.340, max = 0.490)
@@ -1366,12 +1431,21 @@ class Set(str, Enum):
     def pts_speed_or_ip_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
         match player_sub_type:
             case PlayerSubType.POSITION_PLAYER:
-                return ValueRange(min = 10, max = 20) # SPEED
+                return ValueRange(min = 12, max = 20) if self in [Set._2000] else ValueRange(min = 10, max = 20)
             case PlayerSubType.RELIEF_PITCHER:
                 return ValueRange(min = 1, max = 2) # IP
             case PlayerSubType.STARTING_PITCHER:
                 return ValueRange(min = 5, max = 8) # IP
 
+    def pts_command_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
+        match player_sub_type:
+            case PlayerSubType.POSITION_PLAYER:
+                onbase_min = 9 if self.has_expanded_chart else 6
+                onbase_max = 14 if self.has_expanded_chart else 11
+                return ValueRange(min = onbase_min, max = onbase_max)
+            case PlayerSubType.RELIEF_PITCHER | PlayerSubType.STARTING_PITCHER:
+                return ValueRange(min = 2, max = 6)
+            
     @property
     def pts_hr_percentile_range(self) -> ValueRange:
         return ValueRange(min = 10, max = 35)
@@ -1854,7 +1928,10 @@ class Set(str, Enum):
     # BASELINE PLAYERS
     # ---------------------------------------
 
-    def baseline_chart(self, player_type:PlayerType, era:Era) -> Chart:
+    def opponent_chart(self, player_sub_type:PlayerSubType, era:Era) -> Chart:
+        return self.baseline_chart(player_type=player_sub_type.parent_type.opponent_type, era=era, command_boost=player_sub_type.opponent_command_boost(set=self.value))
+
+    def baseline_chart(self, player_type:PlayerType, era:Era, command_boost:float = 0.0) -> Chart:
         match player_type:
             case PlayerType.PITCHER:
                 match self.value:
@@ -1864,6 +1941,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.0,
                                     outs=15.85,
@@ -1880,6 +1958,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.10,
                                     outs=15.75,
@@ -1896,6 +1975,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=15.90,
@@ -1912,6 +1992,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.10,
                                     outs=16.00,
@@ -1928,6 +2009,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.00,
@@ -1944,22 +2026,24 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=3.0,
-                                    outs=15.75,
+                                    command=2.9,
+                                    outs=15.85,
                                     values={
-                                        'SO': 4.5,
-                                        'BB': 1.35,
-                                        '1B': 1.95,
-                                        '2B': 0.67,
+                                        'SO': 4.40,
+                                        'BB': 1.39,
+                                        '1B': 2.04,
+                                        '2B': 0.66,
                                         '3B': 0.00,
-                                        'HR': 0.08
+                                        'HR': 0.06,
                                     }
                                 )
                             case Era.POST_STEROID:
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.10,
@@ -1976,6 +2060,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.25,
                                     outs=16.00,
@@ -1992,6 +2077,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.24,
                                     outs=16.00,
@@ -2010,6 +2096,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,                                    
                                     is_expanded=self.has_expanded_chart,
                                     command=3.0,
                                     outs=15.90,
@@ -2026,6 +2113,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.05,
                                     outs=15.80,
@@ -2042,6 +2130,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=15.80,
@@ -2058,6 +2147,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.1,
                                     outs=16.1,
@@ -2074,6 +2164,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.05,
@@ -2090,22 +2181,24 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=3.0,
-                                    outs=16.0,
+                                    command=3.06,
+                                    outs=15.90,
                                     values={
-                                        'SO': 4.1,
-                                        'BB': 1.35,
-                                        '1B': 2.0,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.11,
+                                        'SO': 3.95,
+                                        'BB': 1.38,
+                                        '1B': 1.94,
+                                        '2B': 0.65,
+                                        '3B': 0.01,
+                                        'HR': 0.12,
                                     }
                                 )
                             case Era.POST_STEROID:
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.1,
@@ -2122,6 +2215,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.1,
@@ -2138,6 +2232,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.0,
@@ -2156,6 +2251,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.5,
                                     outs=16.2,
@@ -2172,6 +2268,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.30,
@@ -2188,6 +2285,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.10,
                                     outs=16.60,
@@ -2204,6 +2302,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.20,
                                     outs=16.80,
@@ -2220,6 +2319,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.35,
                                     outs=16.65,
@@ -2236,15 +2336,16 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=3.3,
+                                    command=3.28,
                                     outs=16.7,
                                     values={
-                                        'SO': 4.20,
-                                        'BB': 1.05,
-                                        '1B': 1.40,
-                                        '2B': 0.51,
-                                        '3B': 0.01,
+                                        'SO': 4.05,
+                                        'BB': 1.09,
+                                        '1B': 1.56,
+                                        '2B': 0.52,
+                                        '3B': 0.00,
                                         'HR': 0.13,
                                     }
                                 )
@@ -2252,6 +2353,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.80,
@@ -2268,6 +2370,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.45,
                                     outs=16.90,
@@ -2284,6 +2387,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.45,
                                     outs=16.80,
@@ -2302,6 +2406,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.7,
                                     outs=16.0,
@@ -2318,6 +2423,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.70,
                                     outs=15.70,
@@ -2334,6 +2440,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.90,
                                     outs=15.90,
@@ -2350,6 +2457,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=16.00,
@@ -2366,6 +2474,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.95,
                                     outs=16.00,
@@ -2382,22 +2491,24 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=3.9,
-                                    outs=16.3,
+                                    command=4.20,
+                                    outs=16.0,
                                     values={
-                                        'SO': 3.65,
-                                        'BB': 1.2,
-                                        '1B': 1.93,
-                                        '2B': 0.54,
-                                        '3B': 0.13,
-                                        'HR': 0.28,
+                                        'SO': 3.75,
+                                        'BB': 1.29,
+                                        '1B': 1.74,
+                                        '2B': 0.55,
+                                        '3B': 0.12,
+                                        'HR': 0.30,
                                     }
                                 )
                             case Era.POST_STEROID: 
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.15,
                                     outs=15.95,
@@ -2414,6 +2525,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.25,
                                     outs=16.00,
@@ -2430,6 +2542,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.23,
                                     outs=16.00,
@@ -2448,6 +2561,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.60,
                                     outs=16.00,
@@ -2464,6 +2578,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.50,
                                     outs=15.70,
@@ -2480,6 +2595,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.80,
                                     outs=15.80,
@@ -2496,6 +2612,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.95,
@@ -2512,6 +2629,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.70,
                                     outs=15.90,
@@ -2528,6 +2646,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.85,
                                     outs=16.35,
@@ -2544,6 +2663,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.90,
                                     outs=16.00,
@@ -2560,6 +2680,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=16.00,
@@ -2576,6 +2697,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.95,
@@ -2594,6 +2716,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.60,
                                     outs=16.10,
@@ -2610,6 +2733,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.50,
                                     outs=15.70,
@@ -2626,6 +2750,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.80,
                                     outs=15.85,
@@ -2642,6 +2767,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.85,
@@ -2658,6 +2784,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.75,
                                     outs=15.90,
@@ -2674,22 +2801,27 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.9,
                                     outs=16.2,
                                     values={
+                                        'PU': 1.75,
                                         'SO': 3.87,
+                                        'GB': 6.90,
+                                        'FB': 3.68,
                                         'BB': 1.25,
-                                        '1B': 2.05,
+                                        '1B': 2.34,
                                         '2B': 0.50,
-                                        '3B': 0.09,
-                                        'HR': 0.33,
+                                        '3B': 0.03,
+                                        'HR': 0.10,
                                     }
                                 )
                             case Era.POST_STEROID:
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.90,
@@ -2706,6 +2838,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.15,
                                     outs=15.90,
@@ -2722,6 +2855,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.10,
                                     outs=15.90,
@@ -2740,6 +2874,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.20,
                                     outs=16.0,
@@ -2756,6 +2891,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=2.99,
                                     outs=15.70,
@@ -2772,6 +2908,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=2.95,
                                     outs=15.90,
@@ -2788,6 +2925,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.05,
                                     outs=16.1,
@@ -2804,6 +2942,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.05,
                                     outs=16.1,
@@ -2820,6 +2959,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.0,
@@ -2836,6 +2976,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.00,
                                     outs=16.1,
@@ -2852,6 +2993,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.3,
                                     outs=16.1,
@@ -2868,6 +3010,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.25,
                                     outs=16.1,
@@ -2886,6 +3029,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.0,
                                     outs=15.8,
@@ -2902,6 +3046,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.60,
                                     outs=15.65,
@@ -2918,6 +3063,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.90,
                                     outs=15.80,
@@ -2934,6 +3080,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.00,
                                     outs=15.90,
@@ -2950,6 +3097,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=3.80,
                                     outs=16.05,
@@ -2966,6 +3114,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.2,
                                     outs=16.2,
@@ -2982,6 +3131,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.0,
                                     outs=16.0,
@@ -2998,6 +3148,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.2,
                                     outs=16.1,
@@ -3014,6 +3165,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=4.15,
                                     outs=16.1,
@@ -3034,6 +3186,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.6,
                                     outs=4.0,
@@ -3051,6 +3204,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.77,
                                     outs=4.0,
@@ -3068,6 +3222,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=3.60,
@@ -3085,6 +3240,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.35,
                                     outs=3.85,
@@ -3102,6 +3258,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.40,
                                     outs=4.10,
@@ -3119,23 +3276,25 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=7.7,
-                                    outs=3.7,
+                                    command=8.0,
+                                    outs=4.0,
                                     values={
-                                        'SO': 0.2,
-                                        'BB': 4.4,
-                                        '1B': 6.65,
-                                        '1B+': 0.41,
-                                        '2B': 1.94,
-                                        '3B': 0.30,
-                                        'HR': 1.98,
+                                        'SO': 0.45,
+                                        'BB': 4.47,
+                                        '1B': 7.33,
+                                        '1B+': 0.6,
+                                        '2B': 1.5,
+                                        '3B': 0.2,
+                                        'HR': 1.9,
                                     }
                                 )
                             case Era.POST_STEROID: 
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.25,
                                     outs=3.90,
@@ -3153,6 +3312,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.2,
                                     outs=3.90,
@@ -3170,6 +3330,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.35,
                                     outs=3.90,
@@ -3189,6 +3350,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.6,
                                     outs=4.0,
@@ -3206,6 +3368,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.75,
                                     outs=3.8,
@@ -3223,6 +3386,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=3.90,
@@ -3240,6 +3404,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.41,
                                     outs=4.15,
@@ -3257,6 +3422,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.55,
                                     outs=4.00,
@@ -3274,23 +3440,25 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=7.8,
-                                    outs=3.9,
+                                    command=8.0,
+                                    outs=4.1,
                                     values={
-                                        'SO': 1.31,
-                                        'BB': 4.45,
-                                        '1B': 6.7,
-                                        '1B+': 0.63,
-                                        '2B': 1.95,
-                                        '3B': 0.2,
-                                        'HR': 2.0,
+                                        'SO': 1.50,
+                                        'BB': 4.90,
+                                        '1B': 6.76,
+                                        '1B+': 0.52,
+                                        '2B': 1.45,
+                                        '3B': 0.25,
+                                        'HR': 2.02,
                                     }
                                 )
                             case Era.POST_STEROID: 
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.4,
                                     outs=4.1,
@@ -3308,6 +3476,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.3,
                                     outs=4.0,
@@ -3325,6 +3494,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.4,
                                     outs=4.0,
@@ -3344,6 +3514,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.25,
                                     outs=6.0,
@@ -3361,6 +3532,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.7,
                                     outs=6.0,
@@ -3378,6 +3550,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.45,
                                     outs=6.00,
@@ -3395,6 +3568,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.30,
                                     outs=6.10,
@@ -3412,6 +3586,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.4,
                                     outs=6.00,
@@ -3429,23 +3604,25 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=9.4,
-                                    outs=6.0,
+                                    command=9.1 + command_boost,
+                                    outs=6.3,
                                     values={
-                                        'SO': 2.09,
-                                        'BB': 3.35,
-                                        '1B': 6.0,
-                                        '1B+': 0.2,
-                                        '2B': 1.94,
-                                        '3B': 0.24,
-                                        'HR': 1.52,
+                                        'SO': 1.90,
+                                        'BB': 3.95,
+                                        '1B': 6.35,
+                                        '1B+': 0.50,
+                                        '2B': 1.75,
+                                        '3B': 0.15,
+                                        'HR': 1.00,
                                     }
                                 )
                             case Era.POST_STEROID: 
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.2,
                                     outs=6.10,
@@ -3463,6 +3640,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.10,
                                     outs=6.00,
@@ -3480,6 +3658,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.20,
                                     outs=6.00,
@@ -3499,6 +3678,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.0,
                                     outs=6.0,
@@ -3516,6 +3696,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.65,
                                     outs=6.05,
@@ -3533,6 +3714,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.20,
                                     outs=6.00,
@@ -3550,6 +3732,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.95,
                                     outs=6.20,
@@ -3567,6 +3750,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.10,
                                     outs=6.15,
@@ -3584,23 +3768,25 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=8.6,
+                                    command=8.0,
                                     outs=7.2,
                                     values={
                                         'SO': 2.1,
-                                        'BB': 3.0,
-                                        '1B': 6.57,
-                                        '1B+': 0.28,
-                                        '2B': 1.55,
-                                        '3B': 0.32,
-                                        'HR': 1.75,
+                                        'BB': 3.15,
+                                        '1B': 6.25,
+                                        '1B+': 0.40,
+                                        '2B': 1.50,
+                                        '3B': 0.30,
+                                        'HR': 1.25,
                                     }
                                 )
                             case Era.POST_STEROID: 
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.90,
                                     outs=6.40,
@@ -3618,6 +3804,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.75,
                                     outs=6.30,
@@ -3635,6 +3822,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=8.85,
                                     outs=6.30,
@@ -3654,6 +3842,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.30,
                                     outs=7.00,
@@ -3671,6 +3860,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.70,
                                     outs=6.50,
@@ -3688,6 +3878,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.50,
                                     outs=6.80,
@@ -3705,6 +3896,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.0,
@@ -3722,6 +3914,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.35,
@@ -3739,23 +3932,25 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=9.05,
+                                    command=9.00,
                                     outs=7.5,
                                     values={
                                         'SO': 2.3,
                                         'BB': 2.95,
-                                        '1B': 6.59,
+                                        '1B': 6.75,
                                         '1B+': 0.12,
-                                        '2B': 1.25,
-                                        '3B': 0.17,
-                                        'HR': 1.6,
+                                        '2B': 1.5,
+                                        '3B': 0.18,
+                                        'HR': 1.0,
                                     }
                                 )
                             case Era.POST_STEROID: 
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.20,
                                     outs=7.2,
@@ -3773,6 +3968,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.00,
                                     outs=7.2,
@@ -3790,6 +3986,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.15,
                                     outs=7.1,
@@ -3809,6 +4006,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.1,
@@ -3826,6 +4024,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.70,
                                     outs=6.55,
@@ -3843,6 +4042,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.45,
                                     outs=6.75,
@@ -3860,6 +4060,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.1,
@@ -3877,6 +4078,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.40,
                                     outs=7.15,
@@ -3894,23 +4096,25 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=9.0,
-                                    outs=7.3,
+                                    command=8.5,
+                                    outs=7.5,
                                     values={
-                                        'SO': 2.4,
-                                        'BB': 3.3,
-                                        '1B': 6.0,
-                                        '1B+': 0.12,
-                                        '2B': 1.3,
-                                        '3B': 0.19,
-                                        'HR': 1.4,
+                                        'SO': 2.40,
+                                        'BB': 4.75,
+                                        '1B': 4.85,
+                                        '1B+': 0.50,
+                                        '2B': 1.00,
+                                        '3B': 0.20,
+                                        'HR': 1.20,
                                     }
                                 )
                             case Era.POST_STEROID: 
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.25,
                                     outs=7.00,
@@ -3928,6 +4132,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.0,
                                     outs=7.0,
@@ -3945,6 +4150,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.1,
                                     outs=7.0,
@@ -3964,6 +4170,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.80,
                                     outs=4.05,
@@ -3981,6 +4188,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.75,
                                     outs=3.8,
@@ -3998,6 +4206,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.50,
                                     outs=3.95,
@@ -4015,6 +4224,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.42,
                                     outs=4.10,
@@ -4032,6 +4242,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.60,
                                     outs=4.1,
@@ -4049,6 +4260,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.5,
                                     outs=4.0,
@@ -4066,6 +4278,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=4.1,
@@ -4083,6 +4296,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.3,
                                     outs=4.0,
@@ -4100,6 +4314,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=7.45,
                                     outs=4.0,
@@ -4119,6 +4334,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.7,
                                     outs=7.0,
@@ -4136,6 +4352,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.85,
                                     outs=6.50,
@@ -4153,6 +4370,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.5,
                                     outs=6.65,
@@ -4170,6 +4388,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.5,
                                     outs=6.9,
@@ -4187,6 +4406,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.50,
                                     outs=7.15,
@@ -4204,6 +4424,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.5,
                                     outs=7.4,
@@ -4221,6 +4442,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.0,
@@ -4238,6 +4460,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.2,
                                     outs=7.1,
@@ -4255,6 +4478,7 @@ class Set(str, Enum):
                                 return Chart(
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
+                                    era=era.value,
                                     is_expanded=self.has_expanded_chart,
                                     command=9.35,
                                     outs=7.0,

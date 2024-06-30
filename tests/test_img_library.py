@@ -2,10 +2,14 @@ import argparse
 import os
 
 parser = argparse.ArgumentParser(description="Test automated images folder for compliance.")
-parser.add_argument('-p','--path', help='Path to the folder for testing', required=True, type=str)
 args = parser.parse_args()
 
-files_list = os.listdir(args.path)
+# PATH
+path = os.getenv('AUTO_IMAGE_PATH', None)
+if path is None:
+    raise ValueError("AUTO_IMAGE_PATH environment variable not set.")
+
+files_list = os.listdir(path)
 files_list = [file for file in files_list if file not in ['.DS_Store'] and not ('Icon' in file and '.png' not in file)]
 total_files = len(files_list)
 

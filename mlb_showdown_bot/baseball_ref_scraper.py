@@ -143,7 +143,7 @@ class BaseballReferenceScraper:
         player_ids_pd['similarity_score'] = player_ids_pd['name'].apply(lambda x: fuzz.ratio(name_cleaned, x))
 
         # FILTER BY SIMILARITY SCORE
-        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['similarity_score'] > 86].sort_values(by=['similarity_score', 'pa', 'ip'], ascending=[False, False, False])
+        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['similarity_score'] > 86].sort_values(by=['similarity_score', 'bwar', 'pa', 'ip'], ascending=[False, False, False, False])
         results_count = len(player_ids_pd_filtered)
 
         if results_count == 0:
@@ -1349,9 +1349,17 @@ class BaseballReferenceScraper:
         # ADD FIRST AND LAST GAME DATES
         game_dates = aggregated_data_into_lists.get('date_game', None)
         if game_dates:
-            aggregated_data['first_game_date'] = str(game_dates[0]).upper().split(' (', 1)[0]
-            aggregated_data['last_game_date'] = str(game_dates[-1]).upper().split(' (', 1)[0]
+            first_game_date_str: str = str(game_dates[0]).upper().split(' (', 1)[0]
+            last_game_date_str: str = str(game_dates[-1]).upper().split(' (', 1)[0]
+            aggregated_data['first_game_date'] = first_game_date_str
+            aggregated_data['last_game_date'] = last_game_date_str
 
+            # UPDATE STATS PERIOD OBJECT WITH EXACT GAME DATES
+            try:
+                self.stats_period.start_date = datetime.strptime(f'{first_game_date_str} {self.year_input}', "%b %d %Y").date()
+                self.stats_period.end_date = datetime.strptime(f'{last_game_date_str} {self.year_input}', "%b %d %Y").date()
+            except:
+                pass
         
         return aggregated_data
 

@@ -4,44 +4,7 @@ try:
     from .stat_highlights import StatHighlightsCategory, StatHighlightsType
 except ImportError:
     from stat_highlights import StatHighlightsCategory, StatHighlightsType
-
-class PlayerType(Enum):
-
-    PITCHER = 'Pitcher'
-    HITTER = 'Hitter'
-
-    @classmethod
-    def _missing_(cls, _):
-        return cls.HITTER
-
-    @property
-    def is_pitcher(self) -> bool:
-        return self.name == 'PITCHER'
-    
-    @property
-    def is_hitter(self) -> bool:
-        return self.name == 'HITTER'
-    
-    # ---------------------------------------
-    # IMAGES
-    # ---------------------------------------
-
-    @property
-    def template_color_04_05(self) -> str:
-        return 'BLUE' if self.is_pitcher else 'GREEN'
-    
-    @property
-    def override_user_input_substrings(self) -> list[str]:
-        """List of allowable strings for the user to input to designate a type override."""
-        match self.name:
-            case "PITCHER": return ['PITCHER', 'PITCHING',]
-            case "HITTER": return ['HITTER', 'HITTING',]
-    
-    @property
-    def override_string(self) -> str:
-        """Add parenthesis to the type"""
-        return f"({self.name})"
-        
+     
 
 class PlayerSubType(Enum):
 
@@ -50,19 +13,20 @@ class PlayerSubType(Enum):
     RELIEF_PITCHER = 'relief_pitcher'
 
     @property
+    def parent_type(self) -> 'PlayerType':
+        return PlayerType.HITTER if self == self.POSITION_PLAYER else PlayerType.PITCHER
+
+    @property
+    def is_pitcher(self) -> bool:
+        return self.name in ['STARTING_PITCHER', 'RELIEF_PITCHER']
+
+    @property
     def ip_under_5_negative_multiplier(self) -> float:
         return 1.5 if self.name == 'STARTING_PITCHER' else 1.0
     
     @property
     def nationality_chart_gradient_img_width(self) -> int:
         return 475 if self.value == 'position_player' else 680
-    
-    @property
-    def pts_normalizer_cutoff(self) -> int:
-        match self.name:
-            case 'RELIEF_PITCHER': return 120
-            case _: return 500
-
         
     # ---------------------------------------
     # STATS
@@ -130,6 +94,59 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.H,
                     ]
                     case _: return []
+
+    # ---------------------------------------
+    # OPPONENT CHART
+    # ---------------------------------------
+
+    def opponent_command_boost(self, set: str) -> float:
+        match self:
+            case self.RELIEF_PITCHER:
+                match set:
+                    case '2002': return 0.50
+                    case _: return 0.0
+            case _: return 0.0
+
+class PlayerType(Enum):
+
+    PITCHER = 'Pitcher'
+    HITTER = 'Hitter'
+
+    @property
+    def is_pitcher(self) -> bool:
+        return self == self.PITCHER
+    
+    @property
+    def is_hitter(self) -> bool:
+        return self == self.HITTER
+    
+    @property
+    def opponent_type(self) -> bool:
+        return self.HITTER if self == self.PITCHER else self.PITCHER
+    
+    # ---------------------------------------
+    # IMAGES
+    # ---------------------------------------
+
+    @property
+    def template_color_04_05(self) -> str:
+        return 'BLUE' if self.is_pitcher else 'GREEN'
+    
+    @property
+    def override_user_input_substrings(self) -> list[str]:
+        """List of allowable strings for the user to input to designate a type override."""
+        match self.name:
+            case "PITCHER": return ['PITCHER', 'PITCHING',]
+            case "HITTER": return ['HITTER', 'HITTING',]
+    
+    @property
+    def override_string(self) -> str:
+        """Add parenthesis to the type"""
+        return f"({self.name})"
+    
+    @property
+    def sub_types(self) -> list[PlayerSubType]:
+        return [PlayerSubType.POSITION_PLAYER] if self.is_hitter else [PlayerSubType.STARTING_PITCHER, PlayerSubType.RELIEF_PITCHER]
 
 
 class Position(MultiValueEnum):
