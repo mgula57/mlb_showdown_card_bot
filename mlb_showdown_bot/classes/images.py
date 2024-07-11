@@ -92,6 +92,11 @@ class PlayerImageComponent(str, Enum):
     BACKGROUND = "BG"
     CUSTOM_BACKGROUND = "CUSTOM BG"
     CUSTOM_FOREGROUND = "CUSTOM FG"
+    CUSTOM_FOREGROUND_1 = "CUSTOM FG 1"
+    CUSTOM_FOREGROUND_2 = "CUSTOM FG 2"
+    CUSTOM_FOREGROUND_3 = "CUSTOM FG 3"
+    CUSTOM_FOREGROUND_4 = "CUSTOM FG 4"
+    CUSTOM_FOREGROUND_5 = "CUSTOM FG 5"
     SHADOW = "SHADOW"
     GLOW = "GLOW"
     CUT = "CUT"
@@ -145,6 +150,11 @@ class PlayerImageComponent(str, Enum):
             "SUPER_SEASON",
             "CUSTOM_BACKGROUND",
             "CUSTOM_FOREGROUND",
+            "CUSTOM_FOREGROUND_1",
+            "CUSTOM_FOREGROUND_2",
+            "CUSTOM_FOREGROUND_3",
+            "CUSTOM_FOREGROUND_4",
+            "CUSTOM_FOREGROUND_5",
             "GRADIENT",
             "RAINBOW_FOIL",
             "SAPPHIRE",
@@ -190,7 +200,7 @@ class PlayerImageComponent(str, Enum):
             'CUSTOM_BACKGROUND',
             'COOPERSTOWN',
             'SUPER_SEASON',
-            "POSTSEASON",
+            'POSTSEASON',
             'DARKENER',
             'GRADIENT',
             'RAINBOW_FOIL',
@@ -213,6 +223,11 @@ class PlayerImageComponent(str, Enum):
             'GLOW',
             'CUT',
             'CUSTOM_FOREGROUND',
+            "CUSTOM_FOREGROUND_1",
+            "CUSTOM_FOREGROUND_2",
+            "CUSTOM_FOREGROUND_3",
+            "CUSTOM_FOREGROUND_4",
+            "CUSTOM_FOREGROUND_5",
             'SILHOUETTE',
         ]
         return ordered_list.index(self.name) if self.name in ordered_list else None
@@ -224,6 +239,7 @@ class PlayerImageComponent(str, Enum):
 class SpecialEdition(str, Enum):
     
     ASG_2023 = "ASG 2023"
+    ASG_2024 = "ASG 2024"
     COOPERSTOWN_COLLECTION = "CC"
     SUPER_SEASON = "SS"
     TEAM_COLOR_BLAST_DARK = "TCBD"
@@ -244,12 +260,31 @@ class SpecialEdition(str, Enum):
             
     @property
     def image_component_saturation_adjustments_dict(self) -> dict[PlayerImageComponent, float]:
+        """Adjusts the saturation of the image components for the special edition image."""
         match self:
             case SpecialEdition.COOPERSTOWN_COLLECTION | SpecialEdition.POSTSEASON: return {
                 PlayerImageComponent.BACKGROUND: 0.33,
             }
             case SpecialEdition.SUPER_SEASON: return {
                 PlayerImageComponent.BACKGROUND: 0.75,
+            }
+        return {}
+    
+    def image_component_color_overlay_dict(self, primary_color:tuple[int,int,int,int], secondary_color:tuple[int,int,int,int]) -> dict[PlayerImageComponent, tuple[int,int,int,int]]:
+        """Returns dict of image components that need to be colored for this special edition image.
+        
+        Args:
+            primary_color (tuple[int,int,int,int]): The primary color to use for the overlay.
+            secondary_color (tuple[int,int,int,int]): The secondary color to use for the overlay.
+
+        Returns:
+            dict[PlayerImageComponent, float]: Dict of image components that need to be colored for this special edition image.
+        """
+        match self:
+            case SpecialEdition.ASG_2024: return {
+                PlayerImageComponent.CUSTOM_FOREGROUND: primary_color,
+                PlayerImageComponent.CUSTOM_FOREGROUND_2: primary_color,
+                PlayerImageComponent.CUSTOM_FOREGROUND_3: secondary_color,
             }
         return {}
 
@@ -445,8 +480,13 @@ class ShowdownImage(BaseModel):
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:
+
             if self.edition == Edition.ALL_STAR_GAME and year == '2023':
                 self.special_edition = SpecialEdition.ASG_2023
+                return 
+            
+            if self.edition == Edition.ALL_STAR_GAME and year == '2024':
+                self.special_edition = SpecialEdition.ASG_2024
                 return 
             
             if self.edition == Edition.SUPER_SEASON and is_04_05:

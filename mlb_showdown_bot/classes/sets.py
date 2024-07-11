@@ -5,14 +5,14 @@ try:
     from .player_position import PlayerType, PlayerSubType, Position
     from .metrics import Stat, PointsMetric
     from .value_range import ValueRange
-    from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
+    from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
     from .chart import Chart
 except ImportError:
     from metadata import SpeedMetric
     from player_position import PlayerType, PlayerSubType, Position
     from metrics import Stat, PointsMetric
     from value_range import ValueRange
-    from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
+    from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
     from chart import Chart
 
 
@@ -1543,12 +1543,31 @@ class Set(str, Enum):
                 case '2002' | '2003' | '2004' | '2005': return [PlayerImageComponent.BACKGROUND]
                 case 'CLASSIC' | 'EXPANDED': return [PlayerImageComponent.BACKGROUND, PlayerImageComponent.SHADOW]
 
-    def player_image_component_crop_adjustment(self, component: PlayerImageComponent) -> tuple[int,int]:
+    def player_image_component_crop_adjustment(self, component: PlayerImageComponent, special_edition: SpecialEdition) -> tuple[int,int]:
+        """Return crop adjustment for player image component and special edition.
+        
+        Args:
+            component: PlayerImageComponent
+            special_edition: SpecialEdition
+
+        Returns:
+            tuple[int,int]: (x,y) crop adjustment coordinates
+        """
+
+        # COMPONENTS
         match component:
             case PlayerImageComponent.GOLD_FRAME:
                 match self.value:
                     case '2000': return (-20, 0)
         
+        # SPECIAL EDITIONS
+        match special_edition:
+            case SpecialEdition.ASG_2024:
+                if 'CUSTOM_FOREGROUND' in component.name:
+                    match self:
+                        case Set._2000 | Set._2001: return (0, -20)
+                        case _: return (0, 80)
+
         return None
     
     def player_image_component_size_adjustment(self, component: PlayerImageComponent) -> float:
@@ -1561,6 +1580,25 @@ class Set(str, Enum):
         
         return None
         
+    def player_image_component_sort_index_adjustment(self, component: PlayerImageComponent, special_edition: SpecialEdition) -> int:
+        """Returns customized sort order for certain image components for this special edition image.
+        
+        Args:
+            component: PlayerImageComponent
+            special_edition: SpecialEdition
+
+        Returns:
+            int: sort index adjustment
+        """
+        
+        match special_edition:
+            case SpecialEdition.ASG_2024:
+                match self:
+                    case _:
+                        if 'CUSTOM_FOREGROUND' in component.name:
+                            return PlayerImageComponent.CUSTOM_BACKGROUND.layering_index
+        
+        return None
 
     # ---------------------------------------
     # STAT HIGHLIGHTS

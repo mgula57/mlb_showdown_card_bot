@@ -613,7 +613,14 @@ class ShowdownPlayerCard(BaseModel):
     @property
     def image_component_ordered_list(self) -> list[PlayerImageComponent]:
         all_image_components = [c for c in PlayerImageComponent if c.layering_index is not None]
-        return list(sorted(all_image_components, key=lambda comp: comp.layering_index))
+
+        sorted_list = list(sorted(all_image_components, key=lambda comp: comp.layering_index))
+
+        # SPECIAL EDITION CHANGES
+        if self.image.special_edition != SpecialEdition.NONE:
+            sorted_list = list( sorted( all_image_components, key=lambda comp: (self.set.player_image_component_sort_index_adjustment(comp, self.image.special_edition) or comp.layering_index, comp.layering_index) ) )
+
+        return sorted_list
 
     @property
     def team_override_for_images(self) -> Team:
@@ -3256,7 +3263,7 @@ class ShowdownPlayerCard(BaseModel):
         background_image = None
         if self.image.special_edition == SpecialEdition.NATIONALITY:
             custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality.value}.png")
-        elif self.image.special_edition == SpecialEdition.ASG_2023:
+        elif self.image.special_edition in [SpecialEdition.ASG_2023, SpecialEdition.ASG_2024]:
             custom_image_path = self.__card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
 
         # CUSTOM BACKGROUND 
@@ -4984,11 +4991,15 @@ class ShowdownPlayerCard(BaseModel):
                     player_crop_size = (int(player_crop_size[0] * size_growth_multiplier[0]), int(player_crop_size[1] * size_growth_multiplier[1]))
             default_crop_size = card_size
 
+            # COLORS
+            primary_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+            secondary_color = self.__team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+
             # MOVE CROP WINDOW IF NECESSARY
             default_crop_adjustment = (0,0)
             if self.set in [Set._2002, Set._2003] and img_component.crop_adjustment_02_03 is not None:
                 default_crop_adjustment = img_component.crop_adjustment_02_03
-            set_crop_adjustment_for_component = self.set.player_image_component_crop_adjustment(img_component)
+            set_crop_adjustment_for_component = self.set.player_image_component_crop_adjustment(component=img_component, special_edition=self.image.special_edition)
             if set_crop_adjustment_for_component:                
                 default_crop_adjustment = set_crop_adjustment_for_component
 
@@ -5027,7 +5038,7 @@ class ShowdownPlayerCard(BaseModel):
                         colors = [self.__team_color_rgbs(is_secondary_color=is_secondary, ignore_team_overrides=True, team_override=self.team_override_for_images) for is_secondary in [False, True]]
                         image = self.__gradient_img(colors=colors, size=card_size)
                     else:
-                        image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images))
+                        image = Image.new(mode='RGBA',size=card_size,color=primary_color)
                 case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
@@ -5047,7 +5058,13 @@ class ShowdownPlayerCard(BaseModel):
                 if img_component.load_source == "DOWNLOAD":
                     is_img_download_error = True
                 continue
-            
+
+            # COLOR OVERLAY
+            image_component_color_overlay_dict = self.image.special_edition.image_component_color_overlay_dict(primary_color=primary_color, secondary_color=secondary_color)
+            color_overlay_for_component = image_component_color_overlay_dict.get(img_component, None)
+            if color_overlay_for_component:
+                image = self.__add_color_overlay_to_img(img=image, color=color_overlay_for_component)
+
             # ADJUST SATURATION
             saturation_adjustment = self.image.special_edition.image_component_saturation_adjustments_dict
             saturation_adjustment.update(self.image.parallel.image_type_saturations_dict)
@@ -5386,7 +5403,7 @@ class ShowdownPlayerCard(BaseModel):
             components_dict[PlayerImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
         
-        # ALL STAR
+        # ALL STAR 2023
         if self.image.special_edition == SpecialEdition.ASG_2023 and not self.set.is_00_01:
             components_dict = { c:v for c, v in special_components_for_context.items() if not c.is_loaded_via_download }
             components_dict.update({
@@ -5395,6 +5412,20 @@ class ShowdownPlayerCard(BaseModel):
             })
             if self.set.is_after_03:
                 components_dict[PlayerImageComponent.CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
+            return components_dict
+        
+        # ALL STAR 2024
+        if self.image.special_edition == SpecialEdition.ASG_2024:
+            components_dict = { c:v for c, v in special_components_for_context.items() if not c.is_loaded_via_download }
+            components_dict.update({
+                PlayerImageComponent.SHADOW: None,
+                PlayerImageComponent.CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2024-BG-{self.league}'),
+                PlayerImageComponent.CUSTOM_FOREGROUND: self.__card_art_path(f'ASG-2024-BOTTOM-COLOR'),
+                PlayerImageComponent.CUSTOM_FOREGROUND_1: self.__card_art_path(f'ASG-2024-TEXAS-TEXT'),
+                PlayerImageComponent.CUSTOM_FOREGROUND_2: self.__card_art_path(f'ASG-2024-BAR-1'),
+                PlayerImageComponent.CUSTOM_FOREGROUND_3: self.__card_art_path(f'ASG-2024-BAR-2'),
+                PlayerImageComponent.CUSTOM_FOREGROUND_4: self.__card_art_path(f'ASG-2024-STAR'),
+            })
             return components_dict
 
         # CLASSIC/EXPANDED
