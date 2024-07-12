@@ -259,6 +259,14 @@ class SpecialEdition(str, Enum):
                 return colors_dict.get(league, None)
             
     @property
+    def hide_2000_player_name(self) -> bool:
+        return self in [SpecialEdition.ASG_2024]
+
+    @property
+    def has_full_bleed_background(self) -> bool:
+        return self in [SpecialEdition.ASG_2024]
+
+    @property
     def image_component_saturation_adjustments_dict(self) -> dict[PlayerImageComponent, float]:
         """Adjusts the saturation of the image components for the special edition image."""
         match self:
