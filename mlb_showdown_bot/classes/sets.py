@@ -1503,6 +1503,14 @@ class Set(str, Enum):
     def is_space_between_position_and_defense(self) -> bool:
         return self not in [Set.CLASSIC, Set.EXPANDED]
 
+    def is_special_edition_name_styling(self, special_edition:SpecialEdition) -> bool:
+        # SPECIAL EDITIONS
+        match special_edition:
+            case SpecialEdition.ASG_2024:
+                return self.value in ['2000','2001']
+        
+        return False
+
     # ---------------------------------------
     # PLAYER IMAGE
     # ---------------------------------------
@@ -1513,9 +1521,10 @@ class Set(str, Enum):
     
     def player_image_crop_size(self, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
         match self.value:
+            case '2000': return (1500,2100)
             case '2001': return (1200,1680)
             case '2002' | '2003': return (1305,1827)
-            case '2000' | '2004' | '2005': 
+            case '2004' | '2005': 
                 if special_edition == SpecialEdition.ASG_2024: return (1350,1890)
                 else: return (1500,2100)
             case 'CLASSIC' | 'EXPANDED': return (1200,1680)
@@ -1625,7 +1634,7 @@ class Set(str, Enum):
     # TEMPLATE IMAGE
     # ---------------------------------------
 
-    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None, is_multi_year:bool=False, is_full_career:bool=False, expansion:Expansion = Expansion.BS, is_regular_season:bool = True) -> tuple[int,int]:
+    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None, is_multi_year:bool=False, is_full_career:bool=False, expansion:Expansion = Expansion.BS, is_regular_season:bool = True, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
         match component:
             case TemplateImageComponent.TEAM_LOGO:
                 match self.value:
@@ -1636,6 +1645,8 @@ class Set(str, Enum):
                     case '2004' | '2005': return (1161,1425)
                     case 'CLASSIC' | 'EXPANDED': return (1160,1345)
             case TemplateImageComponent.PLAYER_NAME:
+                if special_edition == SpecialEdition.ASG_2024 and self in [Set._2000, Set._2001]:
+                    return (360, 1565)
                 match self.value:
                     case '2000': return (150,-1225)
                     case '2001': return (105,0)
@@ -1644,6 +1655,8 @@ class Set(str, Enum):
                     case '2004' | '2005': return (276,1605)
                     case 'CLASSIC' | 'EXPANDED': return (290,1570)
             case TemplateImageComponent.PLAYER_NAME_SMALL:
+                if special_edition == SpecialEdition.ASG_2024 and self in [Set._2000, Set._2001]:
+                    return (360, 1565)
                 match self.value:
                     case '2000': return (165,-1225)
                     case '2001': return (105,0)

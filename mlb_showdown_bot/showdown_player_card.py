@@ -3153,8 +3153,9 @@ class ShowdownPlayerCard(BaseModel):
         name_text, color = self.__player_name_text_image()
         small_name_cutoff = self.set.small_name_text_length_cutoff
         name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if self.name_length >= small_name_cutoff and self.image.parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
-        name_paste_location = self.set.template_component_paste_coordinates(name_image_component)
-        if self.set.is_00_01:
+        name_paste_location = self.set.template_component_paste_coordinates(component=name_image_component, special_edition=self.image.special_edition)
+        is_special_style = self.set.is_special_edition_name_styling(self.image.edition)
+        if self.set.is_00_01 and not is_special_style:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
             shadow_paste_coordinates = (name_paste_location[0] + 6, name_paste_location[1] + 6)
@@ -3162,7 +3163,8 @@ class ShowdownPlayerCard(BaseModel):
         card_image.paste(color, self.__coordinates_adjusted_for_bordering(name_paste_location),  name_text)
 
         # ADD TEAM LOGO
-        disable_team_logo = self.image.hide_team_logo or (self.image.edition.has_additional_logo_00_01 and self.set == Set._2000)
+        is_2000_logo_override = self.image.edition.has_additional_logo_00_01 and self.set == Set._2000 and self.image.special_edition != SpecialEdition.ASG_2024
+        disable_team_logo = self.image.hide_team_logo or is_2000_logo_override
         if not disable_team_logo:
             team_logo, team_logo_coords = self.__team_logo_image()
             card_image.paste(team_logo, self.__coordinates_adjusted_for_bordering(team_logo_coords), team_logo)
@@ -3413,6 +3415,12 @@ class ShowdownPlayerCard(BaseModel):
         is_edition_static_logo = self.image.edition in [Edition.ROOKIE_SEASON, Edition.POSTSEASON]
         logo_size_multiplier = 1.0
 
+        # OVERRIDE SIZE/PASTE LOCATION FOR SPECIAL EDITIONS
+        if self.set == Set._2000 and self.image.special_edition == SpecialEdition.ASG_2024:
+            # USE 2001 SETTINGS FOR 2000 ASG 2024
+            logo_size = Set._2001.template_component_size(TemplateImageComponent.TEAM_LOGO)
+            logo_paste_coordinates = Set._2001.template_component_paste_coordinates(TemplateImageComponent.TEAM_LOGO)
+
         # USE INPUT SIZE IF IT EXISTS
         if size:
             logo_size = size
@@ -3597,7 +3605,7 @@ class ShowdownPlayerCard(BaseModel):
             elif self.image.special_edition == SpecialEdition.NATIONALITY:
                 edition_extension = f'-{self.nationality.template_color}'
             elif self.image.special_edition == SpecialEdition.ASG_2024:
-                edition_extension = f'-GRAY'
+                edition_extension = f'-GRAY-DARK'
             elif self.image.parallel == ImageParallel.TEAM_COLOR_BLAST and team_color_name:
                 edition_extension = f'-{team_color_name}'
             elif self.image.parallel.template_color_04_05:
@@ -3778,6 +3786,10 @@ class ShowdownPlayerCard(BaseModel):
         border_color = None
         overlay_image_path = None
 
+        # SPECIAL EDITION NAMING
+        if self.set.is_special_edition_name_styling(self.image.special_edition):
+            return self.__player_name_special_edition_text_image(first=first, last=last)
+
         # DEFINE ATTRIBUTES BASED ON CONTEXT
         match self.set:
             case Set._2000:
@@ -3886,6 +3898,54 @@ class ShowdownPlayerCard(BaseModel):
                 name_color = final_text
 
         return final_text, name_color
+
+    def __player_name_special_edition_text_image(self, first:str, last:str | Image.Image) -> tuple[Image.Image, str]:
+        """Updates player name image and color for 
+
+        Args:
+            first: First name of player.
+            last: Last name of player.
+
+        Returns:
+          Tuple
+            - PIL image object for Player's name.
+            - Hex Color of text as a String or Image object.
+        """
+
+        # RETURN NONE IF NOT APPLICABLE TO SET/EDITION
+        if not self.set.is_special_edition_name_styling(self.image.special_edition):
+            return None, None
+        
+        match self.image.special_edition:
+            
+            # USE TEXAS FONT FOR ASG 2024
+            case SpecialEdition.ASG_2024:
+                name_font_path = self.__font_path('Texas')
+                font_frame_width = 705
+                name_text_img = Image.new('RGBA', (font_frame_width, 300))
+                for name_part in tuple([first, last]):
+
+                    # NAME LENGTH HANDLING
+                    name_length = len(name_part)
+                    name_length_limit = 7 if name_part == last else 14
+                    name_length_percentile = (name_length - name_length_limit) / ( (name_length_limit * 1.65) - name_length_limit )
+                    name_length_percentile = 1 - min( max(name_length_percentile, 0) , 1)
+                    name_length_multiplier = 0.35 + (0.65 * name_length_percentile)
+
+                    font_size = int( (150 if name_part == last else 80) * (name_length_multiplier) )
+                    name_font = ImageFont.truetype(name_font_path, size=font_size)
+                    
+                    text = self.__text_image(text=name_part, size=(font_frame_width, 200), font=name_font, fill="#ffffff")
+                    paste_location = (5, 0) if name_part == first else (5, int( 75 + (20 * name_length_multiplier) ))
+                    name_text_img.paste(text, paste_location, text)
+                
+                # ADD DROP SHADOW
+                name_text_img = self.__add_drop_shadow(image=name_text_img)
+                name_color = name_text_img
+
+                return name_text_img, name_color
+            
+        return None, None
 
     def __metadata_image(self) -> tuple[Image.Image, str]:
         """Creates PIL image for player metadata. Different across sets.
