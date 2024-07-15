@@ -1521,7 +1521,9 @@ class Set(str, Enum):
     
     def player_image_crop_size(self, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
         match self.value:
-            case '2000': return (1500,2100)
+            case '2000':
+                if special_edition == SpecialEdition.ASG_2024: return (1200,1680) # MATCH 01 IF ASG
+                else: return (1500,2100)
             case '2001': return (1200,1680)
             case '2002' | '2003': return (1305,1827)
             case '2004' | '2005': 
@@ -1531,8 +1533,10 @@ class Set(str, Enum):
 
     def player_image_crop_adjustment(self, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
         match self.value:
-            case '2000': return (-25,-300)
-            case '2001': return (-35,-460)
+            case '2000':
+                if special_edition == SpecialEdition.ASG_2024: return (-35,-460) # MATCH 01 IF ASG
+                else: return (-25,-300)
+            case '2001': return 
             case '2002': return (75,-250)
             case '2003': return (75,-150)
             case '2004' | '2005': 

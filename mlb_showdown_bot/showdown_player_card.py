@@ -3925,18 +3925,18 @@ class ShowdownPlayerCard(BaseModel):
                 name_text_img = Image.new('RGBA', (font_frame_width, 300))
                 for name_part in tuple([first, last]):
 
-                    # NAME LENGTH HANDLING
-                    name_length = len(name_part)
-                    name_length_limit = 7 if name_part == last else 14
-                    name_length_percentile = (name_length - name_length_limit) / ( (name_length_limit * 1.65) - name_length_limit )
-                    name_length_percentile = 1 - min( max(name_length_percentile, 0) , 1)
-                    name_length_multiplier = 0.35 + (0.65 * name_length_percentile)
-
-                    font_size = int( (150 if name_part == last else 80) * (name_length_multiplier) )
+                    # NAME LENGTH HANDLING                    
+                    font_size = int( (145 if name_part == last else 80) )
                     name_font = ImageFont.truetype(name_font_path, size=font_size)
+
+                    # ESIMATE FONT SIZING
+                    text_width, _ = self.__estimate_text_size(name_part, name_font)
+                    name_length_multiplier = max( 1 - ( max( text_width - font_frame_width, 0) / font_frame_width ), 0.25)
+                    new_font_size = int( font_size * name_length_multiplier )
+                    new_name_font = ImageFont.truetype(name_font_path, size=new_font_size)
                     
-                    text = self.__text_image(text=name_part, size=(font_frame_width, 200), font=name_font, fill="#ffffff")
-                    paste_location = (5, 0) if name_part == first else (5, int( 75 + (20 * name_length_multiplier) ))
+                    text = self.__text_image(text=name_part, size=(font_frame_width, 200), font=new_name_font, fill="#ffffff")
+                    paste_location = (5, 0) if name_part == first else (5, int( 75 + (30 * (1-name_length_multiplier)) ))
                     name_text_img.paste(text, paste_location, text)
                 
                 # ADD DROP SHADOW
@@ -5816,6 +5816,26 @@ class ShowdownPlayerCard(BaseModel):
             return combined_image_rotated
         else:
             return rotated_text_layer
+
+    def __estimate_text_size(self, text:str, font:ImageFont.ImageFont) -> tuple[int,int]:
+        """Estimate the length of text in pixels.
+        
+        Args:
+            text: Text to estimate length of.
+            font: Font object to use for estimation.
+
+        Returns:
+            Tuple with width and height of text.
+        """
+
+        # Create an Image object to draw text on
+        img = Image.new('RGB', (1, 1), color=(255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        
+        # Calculate the size of the text
+        text_width, text_height = draw.textsize(text, font=font)
+        
+        return text_width, text_height
 
     def __round_corners(self, image:Image.Image, radius:int) -> Image.Image:
         """Round corners of a given image to a certain radius.
