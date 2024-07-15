@@ -663,8 +663,8 @@ class Team(str, Enum):
         historical_color_map = self.secondary_color_historical if is_secondary else self.primary_color_historical
         color_historical = historical_color_map.get(logo_historical_index, default_color)
 
-        # OVERRIDE YANKEES SECONDARY COLOR FOR CLASSIC/EXPANDED SETS
-        if self == Team.NYY and is_secondary and is_showdown_bot_set:
+        # OVERRIDE YANKEES SECONDARY COLOR FOR > 2005 YEARS
+        if self == Team.NYY and is_secondary and year > 2005:
             color_historical = (196, 206, 211, 255)
 
         return color_historical
