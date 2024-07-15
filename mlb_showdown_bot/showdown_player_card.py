@@ -613,7 +613,14 @@ class ShowdownPlayerCard(BaseModel):
     @property
     def image_component_ordered_list(self) -> list[PlayerImageComponent]:
         all_image_components = [c for c in PlayerImageComponent if c.layering_index is not None]
-        return list(sorted(all_image_components, key=lambda comp: comp.layering_index))
+
+        sorted_list = list(sorted(all_image_components, key=lambda comp: comp.layering_index))
+
+        # SPECIAL EDITION CHANGES
+        if self.image.special_edition != SpecialEdition.NONE:
+            sorted_list = list( sorted( all_image_components, key=lambda comp: (self.set.player_image_component_sort_index_adjustment(comp, self.image.special_edition) or comp.layering_index, comp.layering_index) ) )
+
+        return sorted_list
 
     @property
     def team_override_for_images(self) -> Team:
@@ -3146,8 +3153,9 @@ class ShowdownPlayerCard(BaseModel):
         name_text, color = self.__player_name_text_image()
         small_name_cutoff = self.set.small_name_text_length_cutoff
         name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if self.name_length >= small_name_cutoff and self.image.parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
-        name_paste_location = self.set.template_component_paste_coordinates(name_image_component)
-        if self.set.is_00_01:
+        name_paste_location = self.set.template_component_paste_coordinates(component=name_image_component, special_edition=self.image.special_edition)
+        is_special_style = self.set.is_special_edition_name_styling(self.image.edition)
+        if self.set.is_00_01 and not is_special_style:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
             shadow_paste_coordinates = (name_paste_location[0] + 6, name_paste_location[1] + 6)
@@ -3155,7 +3163,8 @@ class ShowdownPlayerCard(BaseModel):
         card_image.paste(color, self.__coordinates_adjusted_for_bordering(name_paste_location),  name_text)
 
         # ADD TEAM LOGO
-        disable_team_logo = self.image.hide_team_logo or (self.image.edition.has_additional_logo_00_01 and self.set == Set._2000)
+        is_2000_logo_override = self.image.edition.has_additional_logo_00_01 and self.set == Set._2000 and self.image.special_edition != SpecialEdition.ASG_2024
+        disable_team_logo = self.image.hide_team_logo or is_2000_logo_override
         if not disable_team_logo:
             team_logo, team_logo_coords = self.__team_logo_image()
             card_image.paste(team_logo, self.__coordinates_adjusted_for_bordering(team_logo_coords), team_logo)
@@ -3252,12 +3261,35 @@ class ShowdownPlayerCard(BaseModel):
         default_image_path = self.__template_img_path(f'Default Background - {self.set.template_year}{dark_mode_suffix}')
         
         # CHECK FOR CUSTOM LOCAL IMAGE ASSET (EX: NATIONALITY, ASG)
-        custom_image_path = None
-        background_image = None
-        if self.image.special_edition == SpecialEdition.NATIONALITY:
-            custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality.value}.png")
-        elif self.image.special_edition == SpecialEdition.ASG_2023:
-            custom_image_path = self.__card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
+        custom_image_path: str = None
+        background_image: Image.Image = None
+        match self.image.special_edition:
+            case SpecialEdition.NATIONALITY:
+                custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality.value}.png")
+            case SpecialEdition.ASG_2023:
+                custom_image_path = self.__card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
+            case SpecialEdition.ASG_2024:
+                # CREATE SPECIAL ASG 2024 BACKGROUND
+                asg_img_asset_paths_dict = {
+                    PlayerImageComponent.CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2024-BG-{self.league}'),
+                    PlayerImageComponent.CUSTOM_FOREGROUND: self.__card_art_path(f'ASG-2024-BOTTOM-COLOR'),
+                    PlayerImageComponent.CUSTOM_FOREGROUND_1: self.__card_art_path(f'ASG-2024-TEXAS-TEXT'),
+                    PlayerImageComponent.CUSTOM_FOREGROUND_2: self.__card_art_path(f'ASG-2024-BAR-1'),
+                    PlayerImageComponent.CUSTOM_FOREGROUND_3: self.__card_art_path(f'ASG-2024-BAR-2'),
+                    PlayerImageComponent.CUSTOM_FOREGROUND_4: self.__card_art_path(f'ASG-2024-STAR'),
+                }
+                for component, path in asg_img_asset_paths_dict.items():
+                    
+                    # ASSIGN FIRST IMAGE AS BACKGROUND
+                    if component == PlayerImageComponent.CUSTOM_BACKGROUND:
+                        background_image = Image.open(path)
+                        continue
+
+                    # ADD TO EXISTING BG
+                    image = Image.open(path)
+                    image = self.__apply_image_component_style_adjustments(image=image, component=component)
+                    background_image.paste(image, (0,0), image)
+
 
         # CUSTOM BACKGROUND 
         if custom_image_path:
@@ -3266,9 +3298,11 @@ class ShowdownPlayerCard(BaseModel):
             except:
                 background_image = None
 
-            if background_image:
-                if background_image.size != (1500, 2100):
-                    background_image = self.__img_crop(background_image, (1500, 2100))
+        # CROP IMAGE
+        if background_image:
+            crop_size = self.set.card_size_bordered if self.image.special_edition.has_full_bleed_background and self.image.is_bordered else self.set.card_size
+            if background_image.size != crop_size:
+                background_image = self.__img_crop(background_image, crop_size)
         
         # 2000/2001: CREATE TEAM LOGO BACKGROUND IMAGE
         if background_image is None and is_00_01_set:
@@ -3281,7 +3315,7 @@ class ShowdownPlayerCard(BaseModel):
         has_border_already = background_image.size == self.set.card_size_bordered
 
         # IF 2000, ADD NAME CONTAINER
-        if self.set == Set._2000:
+        if self.set == Set._2000 and not self.image.special_edition.hide_2000_player_name:
             name_container = self.__2000_player_name_container_image()
             background_image.paste(name_container, (0,0), name_container)
 
@@ -3380,6 +3414,12 @@ class ShowdownPlayerCard(BaseModel):
         is_all_star_game = self.image.edition == Edition.ALL_STAR_GAME
         is_edition_static_logo = self.image.edition in [Edition.ROOKIE_SEASON, Edition.POSTSEASON]
         logo_size_multiplier = 1.0
+
+        # OVERRIDE SIZE/PASTE LOCATION FOR SPECIAL EDITIONS
+        if self.set == Set._2000 and self.image.special_edition == SpecialEdition.ASG_2024:
+            # USE 2001 SETTINGS FOR 2000 ASG 2024
+            logo_size = Set._2001.template_component_size(TemplateImageComponent.TEAM_LOGO)
+            logo_paste_coordinates = Set._2001.template_component_paste_coordinates(TemplateImageComponent.TEAM_LOGO)
 
         # USE INPUT SIZE IF IT EXISTS
         if size:
@@ -3564,6 +3604,8 @@ class ShowdownPlayerCard(BaseModel):
                 edition_extension = f'-{self.image.edition.template_color_0405}'
             elif self.image.special_edition == SpecialEdition.NATIONALITY:
                 edition_extension = f'-{self.nationality.template_color}'
+            elif self.image.special_edition == SpecialEdition.ASG_2024:
+                edition_extension = f'-GRAY-DARK'
             elif self.image.parallel == ImageParallel.TEAM_COLOR_BLAST and team_color_name:
                 edition_extension = f'-{team_color_name}'
             elif self.image.parallel.template_color_04_05:
@@ -3744,6 +3786,10 @@ class ShowdownPlayerCard(BaseModel):
         border_color = None
         overlay_image_path = None
 
+        # SPECIAL EDITION NAMING
+        if self.set.is_special_edition_name_styling(self.image.special_edition):
+            return self.__player_name_special_edition_text_image(first=first, last=last)
+
         # DEFINE ATTRIBUTES BASED ON CONTEXT
         match self.set:
             case Set._2000:
@@ -3852,6 +3898,54 @@ class ShowdownPlayerCard(BaseModel):
                 name_color = final_text
 
         return final_text, name_color
+
+    def __player_name_special_edition_text_image(self, first:str, last:str | Image.Image) -> tuple[Image.Image, str]:
+        """Updates player name image and color for 
+
+        Args:
+            first: First name of player.
+            last: Last name of player.
+
+        Returns:
+          Tuple
+            - PIL image object for Player's name.
+            - Hex Color of text as a String or Image object.
+        """
+
+        # RETURN NONE IF NOT APPLICABLE TO SET/EDITION
+        if not self.set.is_special_edition_name_styling(self.image.special_edition):
+            return None, None
+        
+        match self.image.special_edition:
+            
+            # USE TEXAS FONT FOR ASG 2024
+            case SpecialEdition.ASG_2024:
+                name_font_path = self.__font_path('Texas')
+                font_frame_width = 705
+                name_text_img = Image.new('RGBA', (font_frame_width, 300))
+                for name_part in tuple([first, last]):
+
+                    # NAME LENGTH HANDLING                    
+                    font_size = int( (145 if name_part == last else 80) )
+                    name_font = ImageFont.truetype(name_font_path, size=font_size)
+
+                    # ESIMATE FONT SIZING
+                    text_width, _ = self.__estimate_text_size(name_part, name_font)
+                    name_length_multiplier = max( 1 - ( max( text_width - font_frame_width, 0) / font_frame_width ), 0.25)
+                    new_font_size = int( font_size * name_length_multiplier )
+                    new_name_font = ImageFont.truetype(name_font_path, size=new_font_size)
+                    
+                    text = self.__text_image(text=name_part, size=(font_frame_width, 200), font=new_name_font, fill="#ffffff")
+                    paste_location = (5, 0) if name_part == first else (5, int( 75 + (30 * (1-name_length_multiplier)) ))
+                    name_text_img.paste(text, paste_location, text)
+                
+                # ADD DROP SHADOW
+                name_text_img = self.__add_drop_shadow(image=name_text_img)
+                name_color = name_text_img
+
+                return name_text_img, name_color
+            
+        return None, None
 
     def __metadata_image(self) -> tuple[Image.Image, str]:
         """Creates PIL image for player metadata. Different across sets.
@@ -4937,7 +5031,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # IF 2000, ADD SET CONTAINER AND NAME CONTAINER IF USER UPLOADED IMAGE THATS NOT TRANSPARENT
         if self.set == Set._2000:
-            if player_img_user_uploaded and player_img_user_upload_transparency_pct < 0.30:
+            if player_img_user_uploaded and player_img_user_upload_transparency_pct < 0.30 and not self.image.special_edition.hide_2000_player_name:
                 name_container = self.__2000_player_name_container_image()
                 images_to_paste.append((name_container, (0,0)))
             set_container = self.__2000_player_set_container_image()
@@ -4974,10 +5068,11 @@ class ShowdownPlayerCard(BaseModel):
             card_width, card_height = card_size
             default_card_width, default_card_height = self.set.card_size
             size_growth_multiplier = ( card_width / default_card_width, card_height / default_card_height)
-            original_crop_size = self.set.player_image_crop_size
+            original_crop_size = self.set.player_image_crop_size(special_edition=self.image.special_edition)
             player_crop_size = (int(original_crop_size[0] * size_growth_multiplier[0]), int(original_crop_size[1] * size_growth_multiplier[1])) if self.image.is_bordered else original_crop_size
-            special_crop_adjustment = self.set.player_image_crop_adjustment
-            if self.set.is_showdown_bot and (self.image.special_edition == SpecialEdition.ASG_2023 or self.image.parallel == ImageParallel.TEAM_COLOR_BLAST):
+            special_crop_adjustment = self.set.player_image_crop_adjustment(special_edition=self.image.special_edition)
+            is_size_increase_bot_set = self.set.is_showdown_bot and (self.image.special_edition == SpecialEdition.ASG_2023 or self.image.parallel == ImageParallel.TEAM_COLOR_BLAST)
+            if is_size_increase_bot_set:
                 player_crop_size = (1275, 1785) #TODO: MAKE THIS DYNAMIC
                 special_crop_adjustment = (0,int((1785 - 2100) / 2))
                 if self.image.is_bordered:
@@ -4988,7 +5083,7 @@ class ShowdownPlayerCard(BaseModel):
             default_crop_adjustment = (0,0)
             if self.set in [Set._2002, Set._2003] and img_component.crop_adjustment_02_03 is not None:
                 default_crop_adjustment = img_component.crop_adjustment_02_03
-            set_crop_adjustment_for_component = self.set.player_image_component_crop_adjustment(img_component)
+            set_crop_adjustment_for_component = self.set.player_image_component_crop_adjustment(component=img_component, special_edition=self.image.special_edition)
             if set_crop_adjustment_for_component:                
                 default_crop_adjustment = set_crop_adjustment_for_component
 
@@ -5027,7 +5122,8 @@ class ShowdownPlayerCard(BaseModel):
                         colors = [self.__team_color_rgbs(is_secondary_color=is_secondary, ignore_team_overrides=True, team_override=self.team_override_for_images) for is_secondary in [False, True]]
                         image = self.__gradient_img(colors=colors, size=card_size)
                     else:
-                        image = Image.new(mode='RGBA',size=card_size,color=self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images))
+                        primary_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+                        image = Image.new(mode='RGBA',size=card_size,color=primary_color)
                 case "CARD_ART" | "SILHOUETTE":
                     image = Image.open(img_url).convert('RGBA')
                 case "TEAM_LOGOS":
@@ -5047,19 +5143,9 @@ class ShowdownPlayerCard(BaseModel):
                 if img_component.load_source == "DOWNLOAD":
                     is_img_download_error = True
                 continue
-            
-            # ADJUST SATURATION
-            saturation_adjustment = self.image.special_edition.image_component_saturation_adjustments_dict
-            saturation_adjustment.update(self.image.parallel.image_type_saturations_dict)
-            if len(saturation_adjustment) > 0:
-                component_adjustment_factor = saturation_adjustment.get(img_component, None)
-                if component_adjustment_factor:
-                    image = self.__change_image_saturation(image=image, saturation=component_adjustment_factor)
 
-            # ADJUST OPACITY
-            if img_component.opacity < 1.0:
-                opacity_255_scale = int(255 * img_component.opacity)
-                image.putalpha(opacity_255_scale)
+            # APPLY COLOR, SATURATION, OPACITY ADJUSTMENTS
+            image = self.__apply_image_component_style_adjustments(image=image, component=img_component)
 
             # ADJUST SIZE
             size_adjustment_for_set = self.set.player_image_component_size_adjustment(img_component)
@@ -5122,6 +5208,42 @@ class ShowdownPlayerCard(BaseModel):
             player_img_components.append((image, paste_coordinates))
 
         return player_img_components
+
+    def __apply_image_component_style_adjustments(self, image:Image.Image, component:PlayerImageComponent) -> Image.Image:
+        """
+        Apply style adjustments to image component. 
+        Separated as a function because this can apply to both the BG image and the player image.
+        
+        Args:
+            image: PIL image object to apply adjustments to.
+            component: Image component to apply adjustments to.
+
+        Returns:
+            PIL image object with adjustments applied.
+        """
+
+        # COLOR OVERLAY
+        primary_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+        secondary_color = self.__team_color_rgbs(is_secondary_color=not self.image.use_secondary_color, ignore_team_overrides=True, team_override=self.team_override_for_images)
+        image_component_color_overlay_dict = self.image.special_edition.image_component_color_overlay_dict(primary_color=primary_color, secondary_color=secondary_color)
+        color_overlay_for_component = image_component_color_overlay_dict.get(component, None)
+        if color_overlay_for_component:
+            image = self.__add_color_overlay_to_img(img=image, color=color_overlay_for_component)
+
+        # ADJUST SATURATION
+        saturation_adjustment = self.image.special_edition.image_component_saturation_adjustments_dict
+        saturation_adjustment.update(self.image.parallel.image_type_saturations_dict)
+        if len(saturation_adjustment) > 0:
+            component_adjustment_factor = saturation_adjustment.get(component, None)
+            if component_adjustment_factor:
+                image = self.__change_image_saturation(image=image, saturation=component_adjustment_factor)
+
+        # ADJUST OPACITY
+        if component.opacity < 1.0:
+            opacity_255_scale = int(255 * component.opacity)
+            image.putalpha(opacity_255_scale)
+
+        return image
 
     def __query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int = None) -> dict[PlayerImageComponent, str]:
         """Attempts to query local drive for a player image, if it does not exist use siloutte background.
@@ -5386,7 +5508,7 @@ class ShowdownPlayerCard(BaseModel):
             components_dict[PlayerImageComponent.SUPER_SEASON] = self.__card_art_path('SUPER SEASON')
             return components_dict
         
-        # ALL STAR
+        # ALL STAR 2023
         if self.image.special_edition == SpecialEdition.ASG_2023 and not self.set.is_00_01:
             components_dict = { c:v for c, v in special_components_for_context.items() if not c.is_loaded_via_download }
             components_dict.update({
@@ -5395,6 +5517,25 @@ class ShowdownPlayerCard(BaseModel):
             })
             if self.set.is_after_03:
                 components_dict[PlayerImageComponent.CUSTOM_FOREGROUND] = self.__card_art_path(f'ASG-2023-FG')
+            return components_dict
+        
+        # ALL STAR 2024
+        if self.image.special_edition == SpecialEdition.ASG_2024:
+            components_dict = { c:v for c, v in special_components_for_context.items() if not c.is_loaded_via_download }
+            components_dict.update({
+                PlayerImageComponent.SHADOW: None,
+                PlayerImageComponent.CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2024-BG-{self.league}'),
+                PlayerImageComponent.CUSTOM_FOREGROUND: self.__card_art_path(f'ASG-2024-BOTTOM-COLOR'),
+                PlayerImageComponent.CUSTOM_FOREGROUND_1: self.__card_art_path(f'ASG-2024-TEXAS-TEXT'),
+                PlayerImageComponent.CUSTOM_FOREGROUND_2: self.__card_art_path(f'ASG-2024-BAR-1'),
+                PlayerImageComponent.CUSTOM_FOREGROUND_3: self.__card_art_path(f'ASG-2024-BAR-2'),
+                PlayerImageComponent.CUSTOM_FOREGROUND_4: self.__card_art_path(f'ASG-2024-STAR'),
+            })
+
+            # REMOVE PLAYER NAME CONTAINER FOR 2000 SET
+            if self.set == Set._2000:
+                components_dict.pop(PlayerImageComponent.NAME_CONTAINER_2000, None)
+
             return components_dict
 
         # CLASSIC/EXPANDED
@@ -5675,6 +5816,26 @@ class ShowdownPlayerCard(BaseModel):
             return combined_image_rotated
         else:
             return rotated_text_layer
+
+    def __estimate_text_size(self, text:str, font:ImageFont.ImageFont) -> tuple[int,int]:
+        """Estimate the length of text in pixels.
+        
+        Args:
+            text: Text to estimate length of.
+            font: Font object to use for estimation.
+
+        Returns:
+            Tuple with width and height of text.
+        """
+
+        # Create an Image object to draw text on
+        img = Image.new('RGB', (1, 1), color=(255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        
+        # Calculate the size of the text
+        text_width, text_height = draw.textsize(text, font=font)
+        
+        return text_width, text_height
 
     def __round_corners(self, image:Image.Image, radius:int) -> Image.Image:
         """Round corners of a given image to a certain radius.
