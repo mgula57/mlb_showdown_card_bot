@@ -1536,7 +1536,7 @@ class Set(str, Enum):
             case '2000':
                 if special_edition == SpecialEdition.ASG_2024: return (-35,-460) # MATCH 01 IF ASG
                 else: return (-25,-300)
-            case '2001': return 
+            case '2001': return (-35,-460)
             case '2002': return (75,-250)
             case '2003': return (75,-150)
             case '2004' | '2005': 
