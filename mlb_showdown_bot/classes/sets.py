@@ -1627,7 +1627,8 @@ class Set(str, Enum):
                 # NOTE: PERIOD BOX IS COUNTED TWICE
                 num_extra_spaces = len([b for b in [is_set_number, is_expansion, is_period_box, is_period_box, is_multi_year or is_full_career] if b])
                 match num_extra_spaces:
-                    case 3 | 4: return 'SMALL'
+                    case 4: return 'SMALL'
+                    case 3: return 'SMALL+'
                     case 2: return 'MEDIUM'
                     case 0 | 1: return 'LARGE'
                     case _: return 'SMALL'
