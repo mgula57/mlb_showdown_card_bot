@@ -145,6 +145,7 @@ class ShowdownPlayerCard(BaseModel):
                 source = ImageSource(url=data.get('player_image_url', None), path=data.get('player_image_path', None)),
                 parallel = data.get('parallel', ImageParallel.NONE),
                 output_folder_path = data.get('card_img_output_folder_path', '') if len(data.get('card_img_output_folder_path', '')) > 0 else os.path.join(os.path.dirname(__file__), 'output'),
+                set_name = data.get('set_name', None),
                 set_number = data.get('set_number', '') if data.get('set_number', '') != '' else self.set.default_set_number(self.year),
                 add_one_to_set_year = data.get('set_year_plus_one', False) and self.set.is_eligibile_for_year_plus_one,
                 show_year_text = data.get('show_year_text', False) and self.set.is_eligibile_for_year_container,
@@ -4925,6 +4926,8 @@ class ShowdownPlayerCard(BaseModel):
             is_multi_year=self.is_multi_year,
             is_full_career=self.is_full_career
         )
+        if self.set.is_showdown_bot and size == 'SMALL+':
+            metric_limit = min(metric_limit, 3)
         bg_image = Image.open(self.__template_img_path(f'{self.set.template_year}-STAT-HIGHLIGHTS-{size}'))
 
         # ADD TEXT
