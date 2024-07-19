@@ -33,7 +33,7 @@ class BaseballReferenceScraper:
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, name:str, year:str, stats_period:StatsPeriod = StatsPeriod(), ignore_cache:bool=False, disable_cleaning_cache:bool=False) -> None:
+    def __init__(self, name:str, year:str, stats_period:StatsPeriod = StatsPeriod(), ignore_cache:bool=False, disable_cleaning_cache:bool=False, cache_folder_path:str=None, disable_stats_period_range_updates:bool=False) -> None:
 
         self.year_input = year.upper()
         is_full_career = year.upper() == 'CAREER'
@@ -55,8 +55,10 @@ class BaseballReferenceScraper:
         self.error = None
         self.warnings: list[str] = []
         self.source = None
+        self.cache_folder_path = cache_folder_path or os.path.join(Path(os.path.dirname(__file__)),'cache_data')
         self.ignore_cache = ignore_cache
         self.disable_cleaning_cache = disable_cleaning_cache
+        self.disable_stats_period_range_updates = disable_stats_period_range_updates
         self.load_time = None
         self.stats_period = stats_period
         
@@ -1362,11 +1364,12 @@ class BaseballReferenceScraper:
             aggregated_data['last_game_date'] = last_game_date_str
 
             # UPDATE STATS PERIOD OBJECT WITH EXACT GAME DATES
-            try:
-                self.stats_period.start_date = datetime.strptime(f'{first_game_date_str} {self.year_input}', "%b %d %Y").date()
-                self.stats_period.end_date = datetime.strptime(f'{last_game_date_str} {self.year_input}', "%b %d %Y").date()
-            except:
-                pass
+            if not self.disable_stats_period_range_updates:
+                try:
+                    self.stats_period.start_date = datetime.strptime(f'{first_game_date_str} {self.year_input}', "%b %d %Y").date()
+                    self.stats_period.end_date = datetime.strptime(f'{last_game_date_str} {self.year_input}', "%b %d %Y").date()
+                except:
+                    pass
         
         return aggregated_data
 
@@ -1831,7 +1834,7 @@ class BaseballReferenceScraper:
           Dictionary of locally cached player data.
         """
 
-        folder_path = os.path.join(Path(os.path.dirname(__file__)), 'cache_data')
+        folder_path = self.cache_folder_path
         full_path = os.path.join(folder_path, filename)
 
         # RETURN NONE IF FILE DOES NOT EXIST
@@ -1861,7 +1864,7 @@ class BaseballReferenceScraper:
         Returns:
           None
         """
-        folder_path = os.path.join(Path(os.path.dirname(__file__)), 'cache_data')
+        folder_path = self.cache_folder_path
         full_path = os.path.join(folder_path, filename)
         with open(full_path, "w", encoding="utf-8") as file:
             json.dump(data, file, indent=2, ensure_ascii=False)

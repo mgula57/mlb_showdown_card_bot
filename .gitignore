@@ -43,6 +43,7 @@ __pycache__/
 tests/cache/player_cache.csv
 tests/image_output/
 mlb_showdown_bot/scripts/output/
+mlb_showdown_bot/scripts/cache/
 mlb_showdown_bot/data/*
 static/output/
 mlb_showdown_bot/uploads/
