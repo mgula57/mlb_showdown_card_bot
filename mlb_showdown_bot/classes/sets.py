@@ -5,14 +5,14 @@ try:
     from .player_position import PlayerType, PlayerSubType, Position
     from .metrics import Stat, PointsMetric
     from .value_range import ValueRange
-    from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
+    from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
     from .chart import Chart, ChartCategory
 except ImportError:
     from metadata import SpeedMetric
     from player_position import PlayerType, PlayerSubType, Position
     from metrics import Stat, PointsMetric
     from value_range import ValueRange
-    from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion
+    from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
     from chart import Chart, ChartCategory
 
 
@@ -1577,6 +1577,14 @@ class Set(str, Enum):
     def is_space_between_position_and_defense(self) -> bool:
         return self not in [Set.CLASSIC, Set.EXPANDED]
 
+    def is_special_edition_name_styling(self, special_edition:SpecialEdition) -> bool:
+        # SPECIAL EDITIONS
+        match special_edition:
+            case SpecialEdition.ASG_2024:
+                return self.value in ['2000','2001']
+        
+        return False
+
     # ---------------------------------------
     # PLAYER IMAGE
     # ---------------------------------------
@@ -1585,23 +1593,31 @@ class Set(str, Enum):
     def player_image_gdrive_folder_id(self) -> str:
         return '1htwN6r-9QNHJzg6Jq56dGXuJxD2QNaGv' # UNIVERSAL
     
-    @property
-    def player_image_crop_size(self) -> tuple[int,int]:
+    def player_image_crop_size(self, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
         match self.value:
+            case '2000':
+                if special_edition == SpecialEdition.ASG_2024: return (1200,1680) # MATCH 01 IF ASG
+                else: return (1500,2100)
             case '2001': return (1200,1680)
             case '2002' | '2003': return (1305,1827)
-            case '2000' | '2004' | '2005': return (1500,2100)
+            case '2004' | '2005': 
+                if special_edition == SpecialEdition.ASG_2024: return (1350,1890)
+                else: return (1500,2100)
             case 'CLASSIC' | 'EXPANDED': return (1200,1680)
 
-    @property
-    def player_image_crop_adjustment(self) -> tuple[int,int]:
+    def player_image_crop_adjustment(self, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
         match self.value:
-            case '2000': return (-25,-300)
+            case '2000':
+                if special_edition == SpecialEdition.ASG_2024: return (-35,-460) # MATCH 01 IF ASG
+                else: return (-25,-300)
             case '2001': return (-35,-460)
             case '2002': return (75,-250)
             case '2003': return (75,-150)
-            case 'CLASSIC' | 'EXPANDED': return (0,int((self.player_image_crop_size[1] - 2100) / 2))
-            case _: return (0,0)
+            case '2004' | '2005': 
+                if special_edition == SpecialEdition.ASG_2024: return (0,int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
+                else: return (0,0)
+            case 'CLASSIC' | 'EXPANDED': return (0,int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
+            
 
     def player_image_components_list(self, is_special:bool=False) -> list[PlayerImageComponent]:
         if is_special:
@@ -1617,7 +1633,18 @@ class Set(str, Enum):
                 case '2002' | '2003' | '2004' | '2005': return [PlayerImageComponent.BACKGROUND]
                 case 'CLASSIC' | 'EXPANDED': return [PlayerImageComponent.BACKGROUND, PlayerImageComponent.SHADOW]
 
-    def player_image_component_crop_adjustment(self, component: PlayerImageComponent) -> tuple[int,int]:
+    def player_image_component_crop_adjustment(self, component: PlayerImageComponent, special_edition: SpecialEdition) -> tuple[int,int]:
+        """Return crop adjustment for player image component and special edition.
+        
+        Args:
+            component: PlayerImageComponent
+            special_edition: SpecialEdition
+
+        Returns:
+            tuple[int,int]: (x,y) crop adjustment coordinates
+        """
+
+        # COMPONENTS
         match component:
             case PlayerImageComponent.GOLD_FRAME:
                 match self.value:
@@ -1635,6 +1662,25 @@ class Set(str, Enum):
         
         return None
         
+    def player_image_component_sort_index_adjustment(self, component: PlayerImageComponent, special_edition: SpecialEdition) -> int:
+        """Returns customized sort order for certain image components for this special edition image.
+        
+        Args:
+            component: PlayerImageComponent
+            special_edition: SpecialEdition
+
+        Returns:
+            int: sort index adjustment
+        """
+        
+        match special_edition:
+            case SpecialEdition.ASG_2024:
+                match self:
+                    case _:
+                        if 'CUSTOM_FOREGROUND' in component.name:
+                            return PlayerImageComponent.CUSTOM_BACKGROUND.layering_index
+        
+        return None
 
     # ---------------------------------------
     # STAT HIGHLIGHTS
@@ -1655,7 +1701,8 @@ class Set(str, Enum):
                 # NOTE: PERIOD BOX IS COUNTED TWICE
                 num_extra_spaces = len([b for b in [is_set_number, is_expansion, is_period_box, is_period_box, is_multi_year or is_full_career] if b])
                 match num_extra_spaces:
-                    case 3 | 4: return 'SMALL'
+                    case 4: return 'SMALL'
+                    case 3: return 'SMALL+'
                     case 2: return 'MEDIUM'
                     case 0 | 1: return 'LARGE'
                     case _: return 'SMALL'
@@ -1666,7 +1713,7 @@ class Set(str, Enum):
     # TEMPLATE IMAGE
     # ---------------------------------------
 
-    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None, is_multi_year:bool=False, is_full_career:bool=False, expansion:Expansion = Expansion.BS, is_regular_season:bool = True) -> tuple[int,int]:
+    def template_component_paste_coordinates(self, component:TemplateImageComponent, player_type:PlayerType=None, is_multi_year:bool=False, is_full_career:bool=False, expansion:Expansion = Expansion.BS, is_regular_season:bool = True, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
         match component:
             case TemplateImageComponent.TEAM_LOGO:
                 match self.value:
@@ -1677,6 +1724,8 @@ class Set(str, Enum):
                     case '2004' | '2005': return (1161,1425)
                     case 'CLASSIC' | 'EXPANDED': return (1160,1345)
             case TemplateImageComponent.PLAYER_NAME:
+                if special_edition == SpecialEdition.ASG_2024 and self in [Set._2000, Set._2001]:
+                    return (360, 1565)
                 match self.value:
                     case '2000': return (150,-1225)
                     case '2001': return (105,0)
@@ -1685,6 +1734,8 @@ class Set(str, Enum):
                     case '2004' | '2005': return (276,1605)
                     case 'CLASSIC' | 'EXPANDED': return (290,1570)
             case TemplateImageComponent.PLAYER_NAME_SMALL:
+                if special_edition == SpecialEdition.ASG_2024 and self in [Set._2000, Set._2001]:
+                    return (360, 1565)
                 match self.value:
                     case '2000': return (165,-1225)
                     case '2001': return (105,0)
