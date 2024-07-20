@@ -229,7 +229,7 @@ To display one of the other chart outputs, add the optional **offset**/ argument
 ### **Defense**
 
 #### _Hitters_
-Each player can have a maximum of **2 position slots** for WOTC sets (2000-2005). That is expanded to **3 positions** for 2022 sets. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. For multi-year/career long cards, **25%** of games must be played at that position. The positions are then limited to the top 2 (3 if CLASSIC or EXPANDED set) by number of appearances. 
+Each player can have a maximum of **2 position slots** for WOTC sets (2000-2005). That is expanded to **3 positions** for CLASSIC/EXPANDED sets. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. For multi-year/career long cards, **25%** of games must be played at that position. The positions are then limited to the top 2 (3 if CLASSIC or EXPANDED set) by number of appearances. 
 
 In WOTC sets (2000-2005), 2B/3B/SS can be combined to conform to 2 position slots. When combined, the average of the 2 positions will be used as the final value. Positions will be combined only if their in-game defensive ratings have a difference of 2 or less. For example if the player has SS+4 and 3B+1, they will stay separated.
 
@@ -485,7 +485,7 @@ Hitters
 
 shOPS+ takes a player's projected in-game OPS and normalizes it across the entire set in that year (26 players/team). It adjusts a player's OPS slightly to account for a typical Showdown manager's tendency to draft higher Onbase/Control cards. A score of 100 is league average, and 175 is 75% better than the league average.
 
-For example, Yandy Diaz's **2022 CLASSIC** card (10 Onbase) had a projected .838 OPS, which was 48% better than the 2022 MLB average after being adjusted to account for higher control pitching. As a result, his shOPS+ was 148.
+For example, Yandy Diaz's 2022 **CLASSIC** card (10 Onbase) had a projected .838 OPS, which was 48% better than the 2022 MLB average after being adjusted to account for higher control pitching. As a result, his shOPS+ was 148.
 
 
 **Calculation:**
@@ -499,7 +499,7 @@ For example, Yandy Diaz's **2022 CLASSIC** card (10 Onbase) had a projected .838
 
 The `Command Adjustment Factor` is a way for shOPS+ to account for normal Showdown draft tendencies. Managers tend to weight gaining the advantage over number of outs on their player's chart. One player's stats against the "avg" player in a set may not match the typical card drafted in a real Showdown draft setting.
 
-For example, let's compare **Mike Clevinger** vs **Blake Snell** in the **2022-CLASSIC** set.
+For example, let's compare **Mike Clevinger** vs **Blake Snell** in the **CLASSIC** set.
 
 ![Image](./static/interface/shOPSComparison.png)
 
@@ -524,7 +524,7 @@ Use Editions to add style variety to your cards. There are currently 6 different
 
 Cooperstown theme is available on all sets. It replaces the player's team logo with a the official Cooperstown Collection logo, changes the template color in 04/05 sets, and some certain players adds new player art.
 
-Custom player art is available in 2003, 2004, and 2005 sets. 2022 sets will use the official Cooperstown color scheme in the chart.
+Custom player art is available in 2003, 2004, and 2005 sets. CLASSIC/EXPANDED sets will use the official Cooperstown color scheme in the chart.
 
 ### **Super Season**
 
@@ -668,7 +668,7 @@ List of supported countries:
  - Taiwan
  - Curacao
 
-2004 and 2005 sets feature a special red template, as well as a grid pattern in the background of select players. 2022 sets feature a new gradient design for the outs portion of player charts.
+2004 and 2005 sets feature a special red template, as well as a grid pattern in the background of select players. CLASSIC/EXPANDED sets feature a new gradient design for the outs portion of player charts.
 
 ### **All-Star Game**
 
@@ -680,7 +680,7 @@ All Star Game logos are available on all sets for all seasons since 1980. Since 
 
 ![Image](./static/interface/RookiePlayers.png)
 
-Rookie Season replaces a player's team logo with a custom rookie season icon. Some players in 2022 CLASSIC/EXPANDED sets also have special edition flashback card art shown above.
+Rookie Season replaces a player's team logo with a custom rookie season icon. Some players in CLASSIC/EXPANDED sets also have special edition flashback card art shown above.
 
 ### **Holiday**
 
@@ -701,7 +701,7 @@ Adds postseason logo to images. Only available when the Postseason period is sel
 
 ### **Design**
 
-The 2022 set design takes elements from classic MLB Showdown sets and adds a modern twist, resulting in a streamlined design that will look great with any background image. Chart and Command colors will change from team to team, creating a blend of 2000/2001's color with 2004/2005's simplicity.
+The CLASSIC/EXPANDED set designs takes elements from classic MLB Showdown sets and add a modern twist, resulting in a streamlined design that will look great with any background image. Chart and Command colors will change from team to team, creating a blend of 2000/2001's color with 2004/2005's simplicity.
 
 
 ![Image](./static/interface/Example2022Headliner.png)
@@ -725,7 +725,7 @@ Changes from 2001 set:
 - **PITCHER CHART HRS**: To account for an increase in HRs, the minimum requirement for HR on a pitcher's chart has decreased, resulting in more HR results.
 - **MORE COMMAND-OUT COMBINATIONS**: In order to increase variety and accuracy of cards, more possible Onbase/Control + Out combinations have been added. For example it is possible to have a 4 Control pitcher with 19 outs, or a 9 Onbase hitter with 6 Outs. This will help increase balance of low onbase and high SLG hitters (ex: Javy Baez), who under normal Showdown constraints were constrained to lower Onbase numbers.
 - **STRIKEOUTS**: The number of strikeouts on a hitters chart should slightly decrease, with the assumption that pitcher charts will have more SO results than in 2000-2001.
-- **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2018 Francisco Lindor goes from +5 SS in 2001 set to +7 SS in 2022 set. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
+- **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2018 Francisco Lindor goes from +5 SS in 2001 set to +7 SS in CLASSIC/EXPANDED sets. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
 - **NUMBER OF POSITIONS**: Now a player has a maximum of 3 available positions. This provides more value to super utility players like Ben Zobrist and Kris Bryant.
 
 ### **Expanded Style**
@@ -738,12 +738,12 @@ Changes from 2005 set:
 - **PITCHER CHART HRS**: To account for an increase in HRs, the minimum requirement for HR on a pitcher's chart has decreased, resulting in more HR results.
 - **MORE COMMAND-OUT COMBINATIONS**: In order to increase variety and accuracy of cards, more possible Onbase/Control + Out combinations have been added. For example it is possible to have a 4 Control pitcher with 19 outs, or a 10 Onbase hitter with 8 Outs. This will help increase balance of low onbase and high SLG hitters (ex: Javy Baez), who under normal Showdown constraints were constrained to lower Onbase numbers.
 - **STRIKEOUTS**: The number of strikeouts on a hitters chart should slightly decrease, with the assumption that pitcher charts will have more SO results than in 2002-2005.
-- **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2021 Francisco Lindor goes from +3 SS in 2005 set to +4 SS in 2022 set. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
+- **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2021 Francisco Lindor goes from +3 SS in 2005 set to +4 SS in CLASSIC/EXPANDED sets. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
 - **NUMBER OF POSITIONS**: Now a player has a maximum of 3 available positions. This provides more value to super utility players like Ben Zobrist and Kris Bryant.
 
 ### **Dark Mode**
 
-There is now an additional option for **Dark Mode**, available on 2022 Classic and Expanded sets only. Works with any player!
+There is now an additional option for **Dark Mode**, available on all sets. Works with any player!
 
 ![Image](./static/interface/Example2022LightVsDark.png)
 
@@ -908,7 +908,7 @@ List of reasons it will not used pre-stored image:
 ----
 ## Showdown Explorer
 
-The Showdown Explorer tool leverages the power of the Showdown Library to provide the user with the ability to discover and explore cards from 1900-2022.
+The Showdown Explorer tool leverages the power of the Showdown Library to provide the user with the ability to discover and explore cards from 1900-Present.
 
 _In depth walkthroughs and guides will be linked here in a future update._
 
