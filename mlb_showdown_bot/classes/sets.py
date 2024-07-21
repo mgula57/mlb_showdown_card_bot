@@ -2854,7 +2854,7 @@ class Set(str, Enum):
                                     set=self.value,
                                     era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=3.9,
+                                    command=4.0,
                                     outs=16.2,
                                     values={
                                         'PU': 1.75,

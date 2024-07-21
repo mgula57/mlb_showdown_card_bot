@@ -207,11 +207,11 @@ class Chart(BaseModel):
     
     @property
     def hr_start(self) -> int:
-        return len([r for r in self.results if r != ChartCategory.HR]) + 1
+        return len([r for r in self.results.keys() if r != ChartCategory.HR]) + 1
 
     @property
     def _2b_start(self) -> int:
-        return len([ r for r in self.results if r not in [ChartCategory.HR, ChartCategory._2B] ]) + 1
+        return len([ r for r in self.results.keys() if r not in [ChartCategory.HR, ChartCategory._2B] ]) + 1
 
     @property
     def hitter_so_results_soft_cap(self) -> int:

@@ -55,7 +55,7 @@ class Stat(Enum):
     def is_all_or_nothing(self) -> bool:
         return self in [Stat.COMMAND_OUTS]
 
-    def is_valid_for_type(self, type: PlayerType) -> bool:
+    def is_valid_for_type(self, type: PlayerSubType) -> bool:
         match self:
             case Stat.PU | Stat.HR_START | Stat._2B_START: return type.is_pitcher
             case Stat.SPEED | Stat._3B | Stat._1B_PLUS: return not type.is_pitcher
@@ -181,8 +181,8 @@ class CardComparison(BaseModel):
     def __init__(self, **data) -> None:
         super().__init__(**data)
 
-        stat_to_compare = [s for s in Stat if s.is_valid_for_type(self.wotc.player_sub_type)]
-        for stat in stat_to_compare:
+        stats_to_compare = [s for s in Stat if s.is_valid_for_type(self.wotc.player_sub_type)]
+        for stat in stats_to_compare:
             match stat.attribute_source:
                 case "points":
                     wotc_stat = self.wotc.points
@@ -372,10 +372,12 @@ def accuracy_table(stats: list[Stat], comparisons: list[CardComparison]) -> Pret
         
         # GET ALL COMPARISONS FOR STAT
         stat_comps = [c.stat_comparisons[stat] for c in comparisons if stat in c.stat_comparisons]
-        
+
         # AGGREGATE
-        avg_diff = mean([abs(sc.diff) if stat == Stat.POINTS else sc.diff for sc in stat_comps])
-        avg_accuracy = mean([sc.accuracy for sc in stat_comps])
+        diffs_list = [abs(sc.diff) if stat == Stat.POINTS else sc.diff for sc in stat_comps]
+        avg_diff = mean(diffs_list) if len(diffs_list) > 0 else 0
+        accuracy_comps = [sc.accuracy for sc in stat_comps]
+        avg_accuracy = mean(accuracy_comps) if len(accuracy_comps) > 0 else 0
         above = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.ABOVE])
         below = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.BELOW])
         match = sum([1 for sc in stat_comps if sc.classification == StatDiffClassification.MATCH])
@@ -448,7 +450,7 @@ for set in set_list:
             # CHECK OPPONENT CHART
             opponent_type = type.opponent_type
             opponent_chart = set.opponent_chart(player_sub_type=sub_type, era=Era.STEROID)
-            remaining_slots = round(opponent_chart.remaining_slots(excluded_categories=[ChartCategory.SO]) - opponent_chart.outs, 2)
+            remaining_slots = round(sum(opponent_chart.values.values()), 2)
             if remaining_slots != 0:
                 rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {opponent_type.value}[/yellow] ({20-remaining_slots}/20). Please fill the remaining {remaining_slots}")
             

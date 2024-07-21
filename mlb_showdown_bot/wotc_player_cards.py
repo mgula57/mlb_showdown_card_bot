@@ -119,15 +119,17 @@ class WotcPlayerCard(ShowdownPlayerCard):
 
                         if len(chart_results) < 30:
                             chart_results += [chart_results[-1]] * (30 - len(chart_results))
+                chart_results_dict = {i: cat for i, cat in enumerate(chart_results, start=1)}
                 opponent_chart = set.opponent_chart(player_sub_type=player_sub_type, era=Era.STEROID)
                 chart = Chart(
                     is_pitcher = player_type.is_pitcher,
                     set = set.value,
+                    era = Era.STEROID.value,
                     is_expanded = set.has_expanded_chart,
                     command = data['command'],
                     outs = data['outs'],
                     values = chart_values,
-                    results = chart_results,
+                    results = chart_results_dict,
                     opponent = opponent_chart,
                 )
                 data['chart'] = chart
@@ -263,6 +265,8 @@ class WotcPlayerCardSet(BaseModel):
                 player_archive = next((p for p in real_player_stats_archive if p.id == archive_id), None)
                 if player_archive:
                     stats = player_archive.stats
+                if not player_archive:
+                    print(f'No stats found for {archive_id}')
 
             card = WotcPlayerCard(data_source=WotcDataSource.GSHEET, update_projections=True, stats=stats, **gsheet_row)
             converted_cards[card.id] = card
