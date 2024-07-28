@@ -57,7 +57,7 @@ class Stat(Enum):
 
     def is_valid_for_type(self, type: PlayerSubType) -> bool:
         match self:
-            case Stat.PU | Stat.HR_START | Stat._2B_START: return type.is_pitcher
+            case Stat.PU | Stat._2B_START: return type.is_pitcher
             case Stat.SPEED | Stat._3B | Stat._1B_PLUS: return not type.is_pitcher
             case _: return True
 
@@ -450,9 +450,16 @@ for set in set_list:
             # CHECK OPPONENT CHART
             opponent_type = type.opponent_type
             opponent_chart = set.opponent_chart(player_sub_type=sub_type, era=Era.STEROID)
-            remaining_slots = round(sum(opponent_chart.values.values()), 2)
-            if remaining_slots != 0:
-                rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {opponent_type.value}[/yellow] ({20-remaining_slots}/20). Please fill the remaining {remaining_slots}")
+            filled_slots = round(sum(opponent_chart.values.values()), 2)
+            if filled_slots != 20:
+                remaining_slots = 20 - filled_slots
+                suggestion_str = 'remove' if remaining_slots < 0 else 'add'
+                rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {opponent_type.value}[/yellow] ({filled_slots}/20). Please {suggestion_str} {abs(round(remaining_slots,2))} slots")
+            
+            chart_outs = round(sum([v for c, v in opponent_chart.values.items() if c.is_out]), 2)
+            listed_outs = opponent_chart.outs
+            if chart_outs != listed_outs:
+                rprint(f"\n[yellow]Outs do not match for {set.value} {opponent_type.value}[/yellow] ({chart_outs}/{listed_outs})")
             
             set_comparisons: list[CardComparison] = []
             set_type_player_set = {id: card for id, card in wotc_player_card_set.cards.items() if card.set == set and card.player_sub_type == sub_type and card.image.expansion in expansion_list}

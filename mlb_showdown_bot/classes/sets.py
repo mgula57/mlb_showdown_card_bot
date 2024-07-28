@@ -2854,18 +2854,18 @@ class Set(str, Enum):
                                     set=self.value,
                                     era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=4.0,
-                                    outs=16.2,
+                                    command=4.35,
+                                    outs=16.0,
                                     values={
                                         'PU': 1.75,
-                                        'SO': 3.87,
-                                        'GB': 6.90,
-                                        'FB': 3.68,
-                                        'BB': 1.25,
-                                        '1B': 2.34,
-                                        '2B': 0.50,
-                                        '3B': 0.03,
-                                        'HR': 0.10,
+                                        'SO': 3.85,
+                                        'GB': 5.80,
+                                        'FB': 4.60,
+                                        'BB': 1.35,
+                                        '1B': 1.75,
+                                        '2B': 0.60,
+                                        '3B': 0.12,
+                                        'HR': 0.20,
                                     }
                                 )
                             case Era.POST_STEROID:

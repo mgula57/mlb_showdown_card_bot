@@ -116,6 +116,9 @@ class Chart(BaseModel):
     def __init__(self, **data) -> None:
         super().__init__(**data)
 
+        if data.get('convert_from_wotc', None):
+            self.generate_values_and_results_from_wotc_data(results_list=data.get('convert_from_wotc', None))
+
         # POPULATE VALUES DICT
         if len(self.values) == 0:
             self.generate_values_and_results()
@@ -164,14 +167,23 @@ class Chart(BaseModel):
         
         # EXPANDED CHARTS
         slot_values_dict: dict[int, float] = { i: self.sub_21_per_slot_worth for i in range(1, 21) }
-
-        # FILL 21+ SLOTS WITH A GEOMETRIC PROGRESSION, STARTING AT 0.5
+        
+        # FILL 21+ SLOTS WITH A GEOMETRIC PROGRESSION, STARTING AT THE REMAINING VALUE / 2
         # EX: 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625, 0.001953125, 0.0009765625
         # THE FORMULA OF A GEOMETRIC PROGRESSION IS: a * r^(n-1) 
         # EX: 21:  0.5 * 0.5 ^ 0 = 0.5
         #     22:  0.5 * 0.5 ^ 1 = 0.25
         #     23:  0.5 * 0.5 ^ 2 = 0.125
-        slot_values_dict.update( {( 20 + i ): ( 0.5 * pow(0.5, (i-1)) ) for i in range(1, 11)} )
+
+        slot_values_21_plus: dict[int, float] = {}
+        remaining_value = 20 - sum(slot_values_dict.values())
+        starting_value = remaining_value * 0.5
+        for i in range(21, 31):
+            value = starting_value * pow(0.5, (i-21))
+            remaining_value = 20 - sum(slot_values_dict.values()) - sum(slot_values_21_plus.values())
+            slot_values_21_plus[i] = min(value, remaining_value)
+        
+        slot_values_dict.update(slot_values_21_plus)
 
         # FILL THE 30TH SLOT WITH THE REMAINING VALUE
         # ALLOWS THE VALUE TO ADD UP TO EXACTLY 20
@@ -185,7 +197,10 @@ class Chart(BaseModel):
         if not self.is_expanded:
             return 1
         
-        return 0.99
+        if self.is_pitcher:
+            return 0.95
+        
+        return 0.97
 
     @property
     def sub_21_total_possible_slots(self) -> float:
@@ -207,7 +222,7 @@ class Chart(BaseModel):
     
     @property
     def hr_start(self) -> int:
-        return len([r for r in self.results.keys() if r != ChartCategory.HR]) + 1
+        return len([i for i, c in self.results.items() if c != ChartCategory.HR]) + 1
 
     @property
     def _2b_start(self) -> int:
@@ -426,18 +441,21 @@ class Chart(BaseModel):
         # ITERATE THROUGH EACH SLOT WORTH RESULT AND ROUND
         end = 1 if category.is_filled_in_desc_order else self.total_possible_slots
         iterator = -1 if category.is_filled_in_desc_order else 1
-        value_updated = 0
+        values_total = 0
         num_results = 0
+        diff_last_index = max(value, 0)
         for i in range(current_chart_index, end, iterator):
             slot_value = self.__slot_value(index=i)
-            next_slot_value = self.__slot_value(index=i + iterator)
-            rounded_vs_original_diff = (value_updated + slot_value) - value
-            if rounded_vs_original_diff >= (next_slot_value / 2):
+            new_potential_total_value = values_total + slot_value
+            new_potential_value_vs_original = abs(new_potential_total_value - value)
+            is_out_of_bounds = category == ChartCategory.HR and i >= 27
+            if new_potential_value_vs_original > diff_last_index and not is_out_of_bounds:
                 break
-            value_updated += slot_value
+            values_total = new_potential_total_value
             num_results += 1
+            diff_last_index = new_potential_value_vs_original
         
-        return value_updated, num_results
+        return values_total, num_results
 
     def generate_range_strings(self) -> None:
         """Use the current chart results list to generate string representations for the chart.
@@ -578,7 +596,7 @@ class Chart(BaseModel):
 
                 metrics_and_accuracies[key] = round(accuracy_for_key, 3)
 
-        overall_accuracy = accuracies / denominator
+        overall_accuracy = accuracies / denominator if denominator > 0 else 0
 
         return overall_accuracy
 
@@ -742,4 +760,20 @@ class Chart(BaseModel):
     
         return pu_pct
 
-    
+    # ---------------------------------------
+    # CONVERT FROM WOTC
+    # ---------------------------------------
+
+    def generate_values_and_results_from_wotc_data(self, results_list:list[ChartCategory]) -> None:
+        """Convert WOTC data to chart values and results"""
+
+        # CONVERT WOTC DATA TO CHART DATA
+        chart_values = {}
+        for index, category in enumerate(results_list, start=1):
+            self.results[index] = category
+            current_values_for_category = chart_values.get(category, 0)
+            slot_value = self.__slot_value(index=index)
+            current_values_for_category += slot_value
+            chart_values[category] = current_values_for_category
+        
+        self.values = chart_values

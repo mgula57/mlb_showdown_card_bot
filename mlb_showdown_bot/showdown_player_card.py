@@ -175,7 +175,7 @@ class ShowdownPlayerCard(BaseModel):
 
             # CONVERT STATS TO PER 400 PA
             # MAKES MATH EASIER (20 SIDED DICE)
-            stats_for_400_pa = self.__stats_per_n_pa(plate_appearances=400, stats=self.stats)
+            stats_for_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats)
 
             self.chart: Chart = self.__most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version))
             self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats.get('PA', 650))
@@ -1692,7 +1692,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return stats
 
-    def __stats_per_n_pa(self, plate_appearances:int, stats:dict) -> dict:
+    def stats_per_n_pa(self, plate_appearances:int, stats:dict) -> dict:
         """Season stats per every n Plate Appearances.
 
         Args:
@@ -1702,6 +1702,8 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           Dict of stats weighted for n PA.
         """
+        if len(stats) == 0:
+            return {}
 
         # SUBTRACT SACRIFICES?
         sh = stats.get('SH', 0)

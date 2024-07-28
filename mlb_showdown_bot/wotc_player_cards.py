@@ -119,7 +119,6 @@ class WotcPlayerCard(ShowdownPlayerCard):
 
                         if len(chart_results) < 30:
                             chart_results += [chart_results[-1]] * (30 - len(chart_results))
-                chart_results_dict = {i: cat for i, cat in enumerate(chart_results, start=1)}
                 opponent_chart = set.opponent_chart(player_sub_type=player_sub_type, era=Era.STEROID)
                 chart = Chart(
                     is_pitcher = player_type.is_pitcher,
@@ -128,9 +127,8 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     is_expanded = set.has_expanded_chart,
                     command = data['command'],
                     outs = data['outs'],
-                    values = chart_values,
-                    results = chart_results_dict,
                     opponent = opponent_chart,
+                    convert_from_wotc = chart_results,
                 )
                 data['chart'] = chart
                 data['stats'] = {'type': player_type.value}
@@ -138,10 +136,14 @@ class WotcPlayerCard(ShowdownPlayerCard):
                 # INIT WITH DATA
                 super().__init__(**data)
 
-                self.stats = stats or {}
+                self.stats = self.add_estimates_to_stats(stats=stats) if stats else {}
                 self.positions_and_defense_string = self.positions_and_defense_as_string(is_horizontal=True)
 
-        if update_projections:
+                stats_per_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats)
+                self.chart.stats_per_400_pa = stats_per_400_pa
+                self.chart.generate_accuracy_rating()
+
+        if update_projections and len(self.stats) > 0:
             self.update_projections()
 
     def update_projections(self) -> None:
