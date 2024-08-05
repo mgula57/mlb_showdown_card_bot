@@ -84,7 +84,7 @@ class Stat(Enum):
             case Stat.COMMAND | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return "chart"
             case Stat.SPEED: return "speed"
             case Stat.POINTS: return "points"
-            case _: return "chart.values"
+            case _: return "chart.category_results_count_dict"
 
     @property
     def label(self) -> str:
@@ -196,9 +196,9 @@ class CardComparison(BaseModel):
                 case "speed":
                     wotc_stat = getattr(self.wotc.speed, stat.value)
                     bot_stat = getattr(self.bot.speed, stat.value)
-                case "chart.values":
-                    wotc_stat = self.wotc.chart.values.get(stat.value, 0)
-                    bot_stat = self.bot_matching_command_outs.chart.values.get(stat.value, 0)
+                case "chart.category_results_count_dict":
+                    wotc_stat = self.wotc.chart.category_results_count_dict.get(stat.value, 0)
+                    bot_stat = self.bot_matching_command_outs.chart.category_results_count_dict.get(stat.value, 0)
             
             self.stat_comparisons[stat] = StatComparison(
                 stat=stat,

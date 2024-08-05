@@ -1599,23 +1599,36 @@ class ShowdownPlayerCard(BaseModel):
         command_options = list(set([ c for c,_ in self.set.command_out_combinations(player_type=self.player_type) ]))
         for command in command_options:
             
-            # CREATE THE CHART
-            chart = Chart(
-                command=command, 
-                opponent=self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era),
-                set=self.set.value,
-                era=self.era.value,
-                is_expanded=self.set.has_expanded_chart,
-                gb_multiplier=self.set.gb_multiplier(player_type=self.player_type, era=self.era),
-                pu_multiplier=self.set.pu_multiplier,
-                pa=self.stats.get('pa', 400),
-                stats_per_400_pa=stats_per_400_pa,
-                is_pitcher=self.is_pitcher,
-                stat_accuracy_weights=self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type),
-                command_out_accuracy_weights=self.set.command_out_accuracy_weighting(command=command, outs=0), # TODO: UPDATE THIS
-            )
+            # CREATE CHART WITH COMMAND/OUT COMBO
+            # SEE ACCURACY WHEN OVERESTIMATING OBP VS UNDERESTIMATING OBP WHEN ROUNDING # OF OUTS
+            for use_alternate_outs in [False, True]:
+                
+                outs = 0
+                if use_alternate_outs:
+                    # CHECK FOR LAST CHART'S OUT VALUE AND PROJECTED VS ACTUAL
+                    outs = max( chart.outs + ( chart.sub_21_per_slot_worth * (-1 if chart.is_overestimating_obp else 1) ), 0 )
 
-            charts.append(chart)
+                    # IF OUTS DIDN'T CHANGE, NO NEED TO RECALCULATE
+                    if outs == chart.outs:
+                        continue
+
+                chart = Chart(
+                    command=command, 
+                    outs=outs,
+                    opponent=self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era),
+                    set=self.set.value,
+                    era=self.era.value,
+                    is_expanded=self.set.has_expanded_chart,
+                    gb_multiplier=self.set.gb_multiplier(player_type=self.player_type, era=self.era),
+                    pu_multiplier=self.set.pu_multiplier,
+                    pa=self.stats.get('pa', 400),
+                    stats_per_400_pa=stats_per_400_pa,
+                    is_pitcher=self.is_pitcher,
+                    stat_accuracy_weights=self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type),
+                    command_out_accuracy_weights=self.set.command_out_accuracy_weighting(command=command, outs=0), # TODO: UPDATE THIS
+                )
+
+                charts.append(chart)
 
         # FIND MOST ACCURATE CHART
         charts.sort(key=lambda x: x.accuracy, reverse=True)

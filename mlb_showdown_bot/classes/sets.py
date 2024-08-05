@@ -2850,22 +2850,22 @@ class Set(str, Enum):
                                 )
                             case Era.STEROID:
                                 return Chart(
+                                    is_baseline = True,
                                     is_pitcher=player_type.is_pitcher,
                                     set=self.value,
                                     era=era.value,
                                     is_expanded=self.has_expanded_chart,
-                                    command=4.35,
-                                    outs=16.0,
+                                    command=3.80,
                                     values={
-                                        'PU': 1.75,
-                                        'SO': 3.85,
-                                        'GB': 5.80,
-                                        'FB': 4.60,
-                                        'BB': 1.35,
-                                        '1B': 1.75,
-                                        '2B': 0.60,
-                                        '3B': 0.12,
-                                        'HR': 0.20,
+                                        'PU': 0.74,
+                                        'SO': 3.96,
+                                        'GB': 6.27,
+                                        'FB': 5.42,
+                                        'BB': 0.80,
+                                        '1B': 2.10,
+                                        '2B': 0.54,
+                                        '3B': 0.10,
+                                        'HR': 0.07,
                                     }
                                 )
                             case Era.POST_STEROID:

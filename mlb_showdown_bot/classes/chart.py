@@ -116,6 +116,12 @@ class Chart(BaseModel):
     def __init__(self, **data) -> None:
         super().__init__(**data)
 
+        # POPULATE OUTS IF BASELINE CHART
+        if self.outs == 0 and data.get('is_baseline', False):
+            out_value_list = [v for k,v in self.values.items() if k.is_out]
+            self.outs = sum(out_value_list) if len(out_value_list) > 0 else 0
+
+        # CONVERT FROM WOTC DATA
         if data.get('convert_from_wotc', None):
             self.generate_values_and_results_from_wotc_data(results_list=data.get('convert_from_wotc', None))
 
@@ -229,6 +235,15 @@ class Chart(BaseModel):
         return len([ r for r in self.results.keys() if r not in [ChartCategory.HR, ChartCategory._2B] ]) + 1
 
     @property
+    def category_results_count_dict(self) -> dict[ChartCategory, int]:
+        """Sum of values under 21, rounded to nearest whole number"""
+        final_dict: dict[ChartCategory, int] = {}
+        for slot_num, category in self.results.items():
+            if slot_num > 20: continue
+            final_dict[category] = final_dict.get(category, 0) + 1
+        return final_dict
+
+    @property
     def hitter_so_results_soft_cap(self) -> int:
         match self.set:
             case '2002': return 4 * self.sub_21_per_slot_worth
@@ -261,7 +276,7 @@ class Chart(BaseModel):
     # GENERATE CHART ATTRIBUTES
     # ---------------------------------------
 
-    def generate_values_and_results(self) -> None:
+    def generate_values_and_results(self, is_alternate_outs:bool=False) -> None:
         """Generate values dictionary and store to self
 
         """
@@ -287,7 +302,7 @@ class Chart(BaseModel):
 
                 # CALCULATE VALUES
                 values, results = self.calc_chart_category_values_from_rate_stats(category=chart_category, current_chart_index=current_chart_index, max_values=max_values, min_values=min_values)
-                
+
                 # IF SINGLE, SPLIT INTO 1B AND 1B+
                 if chart_category == ChartCategory._1B and not self.is_pitcher:
                     single_plus_values, single_plus_results = self.__single_plus_values_and_results(total_1B_values=values, current_chart_index=current_chart_index)
@@ -309,7 +324,8 @@ class Chart(BaseModel):
         my_out_values = max(20 - my_onbase_values, 0)
         
         # CALC OUTS FOR SLOT SIZE
-        self.outs, _ = self.values_and_results(my_out_values)
+        if self.outs == 0:
+            self.outs, _ = self.values_and_results(value=my_out_values)
 
         # ITERATE THROUGH CHART CATEGORIES
         all_categories = self.categories_list
@@ -339,6 +355,11 @@ class Chart(BaseModel):
         
         # LIMIT RESULTS TO CHART CATEGORY SLOT LIMIT
         chart_values = max( min(chart_values, max_values) , min_values if min_values else 0)
+        
+        # IF ITS A BOOKEND CATEGORY (FB, 1B) FILL WITH REMAINING VALUES
+        if category == ChartCategory.FB:
+            chart_values = max(max_values, chart_values)
+
         chart_values_rounded, results = self.values_and_results(value=chart_values, category=category, current_chart_index=current_chart_index)
 
         if category == ChartCategory.SO:
@@ -431,6 +452,8 @@ class Chart(BaseModel):
         # ROUND TO NEAREST SLOT WORTH
         raw_value = round(value / self.sub_21_per_slot_worth) * self.sub_21_per_slot_worth
         raw_results = int(round(raw_value / self.sub_21_per_slot_worth))
+
+        # SKIP ROUNDING IF CATEGORY IS NONE (EX: OUTS) OR CHART IS NOT EXPANDED
         if category is None or not self.is_expanded:
             return raw_value, raw_results
         
@@ -717,6 +740,11 @@ class Chart(BaseModel):
     def __slugging_pct(self, ab:float, singles:float, doubles:float, triples:float, homers:float)  -> float:
         """ Calculate Slugging Pct"""
         return (singles + (2 * doubles) + (3 * triples) + (4 * homers)) / ab
+    
+    @property
+    def is_overestimating_obp(self) -> bool:
+        """Check if chart is overestimating OBP"""
+        return self.stats_per_400_pa.get('onbase_perc', 0) > self.projected_stats_per_400_pa.get('onbase_perc', 0)
     
     # ---------------------------------------
     # RANGES
