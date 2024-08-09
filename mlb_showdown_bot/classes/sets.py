@@ -1979,9 +1979,38 @@ class Set(str, Enum):
     # BASELINE PLAYERS
     # ---------------------------------------
 
-    def opponent_chart(self, player_sub_type:PlayerSubType, era:Era) -> Chart:
-        return self.baseline_chart(player_type=player_sub_type.parent_type.opponent_type, era=era, command_boost=player_sub_type.opponent_command_boost(set=self.value))
+    def opponent_chart(self, player_sub_type:PlayerSubType, era:Era, year_list: list[int]) -> Chart:
+        chart = self.wotc_baseline_chart(player_sub_type.parent_type.opponent_type)
+        chart.adjust_for_era(era.value, year_list=year_list)
+        return chart
 
+    def wotc_baseline_chart(self, player_type: PlayerType) -> Chart:
+        match player_type:
+            case PlayerType.PITCHER:
+                match self:
+                    case Set._2005:
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=3.75,
+                            values={
+                                'PU': 0.65,
+                                'SO': 4.17,
+                                'GB': 6.40,
+                                'FB': 5.33,
+                                'BB': 0.74,
+                                '1B': 2.06,
+                                '2B': 0.50,
+                                '3B': 0.10,
+                                'HR': 0.05,
+                            }
+                        )
+            case PlayerType.HITTER:
+                """"""
+            
     def baseline_chart(self, player_type:PlayerType, era:Era, command_boost:float = 0.0) -> Chart:
         match player_type:
             case PlayerType.PITCHER:

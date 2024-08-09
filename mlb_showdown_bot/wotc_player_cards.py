@@ -119,7 +119,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
 
                         if len(chart_results) < 30:
                             chart_results += [chart_results[-1]] * (30 - len(chart_results))
-                opponent_chart = set.opponent_chart(player_sub_type=player_sub_type, era=Era.STEROID)
+                opponent_chart = set.wotc_baseline_chart(player_type.opponent_type)
                 chart = Chart(
                     is_pitcher = player_type.is_pitcher,
                     set = set.value,
@@ -150,7 +150,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
         """Update projections based on current Showdown Bot weights"""
 
         # UPDATE OPPONENT CHART
-        opponent_chart = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=Era.STEROID)
+        opponent_chart = self.set.wotc_baseline_chart(self.player_type.opponent_type)
         self.chart.opponent = opponent_chart
         
         # ADD PROJECTIONS

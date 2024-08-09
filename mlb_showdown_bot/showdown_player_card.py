@@ -182,7 +182,7 @@ class ShowdownPlayerCard(BaseModel):
 
             # FOR PTS, USE STEROID ERA OPPONENT
             chart_for_pts = self.chart.model_copy()
-            chart_for_pts.opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=Era.STEROID)
+            chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type)
             projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
             projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
 
@@ -1615,7 +1615,7 @@ class ShowdownPlayerCard(BaseModel):
                 chart = Chart(
                     command=command, 
                     outs=outs,
-                    opponent=self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era),
+                    opponent=self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=self.year_list),
                     set=self.set.value,
                     era=self.era.value,
                     is_expanded=self.set.has_expanded_chart,
@@ -1673,8 +1673,8 @@ class ShowdownPlayerCard(BaseModel):
         obp = float(stats['onbase_perc']) if len(str(stats['onbase_perc'])) > 0 else 1.0
         slg = float(stats['slugging_perc']) if len(str(stats['slugging_perc'])) > 0 else 1.0
         ops = obp + slg
-        if_fb = stats.get('IF/FB', replacement_ratio('IF/FB', slg))
-        go_ao = stats.get('GO/AO', replacement_ratio('GO/AO', slg))
+        if_fb = stats.get('IF/FB', replacement_ratio('IF/FB', slg)) or replacement_ratio('IF/FB', slg)
+        go_ao = stats.get('GO/AO', replacement_ratio('GO/AO', slg)) or replacement_ratio('GO/AO', slg)
 
         stats.update({
             'batting_avg': ba,
@@ -2464,9 +2464,7 @@ class ShowdownPlayerCard(BaseModel):
           Multi-dimensional list of avg opponent chart results.
         """
 
-        opponent_chart: Chart = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era)
-
-        return opponent_chart.values_as_list
+        return self.chart.opponent.values_as_list
 
     def __player_metadata_summary_text(self, is_horizontal:bool=False, return_as_list:bool=False, remove_space_defense:bool=False) -> str | list:
         """Creates a multi line string with all player metadata for card output.

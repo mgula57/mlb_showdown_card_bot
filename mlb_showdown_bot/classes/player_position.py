@@ -121,7 +121,7 @@ class PlayerType(Enum):
         return self == self.HITTER
     
     @property
-    def opponent_type(self) -> bool:
+    def opponent_type(self) -> 'PlayerType':
         return self.HITTER if self == self.PITCHER else self.PITCHER
     
     # ---------------------------------------

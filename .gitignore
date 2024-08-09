@@ -44,7 +44,7 @@ tests/cache/player_cache.csv
 tests/image_output/
 mlb_showdown_bot/scripts/output/
 mlb_showdown_bot/scripts/cache/
-mlb_showdown_bot/data/*
+mlb_showdown_bot/data/wotc*
 static/output/
 mlb_showdown_bot/uploads/
 mlb_showdown_bot/output/

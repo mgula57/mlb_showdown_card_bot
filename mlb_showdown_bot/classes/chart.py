@@ -2,7 +2,9 @@ from enum import Enum
 from pydantic import BaseModel
 from typing import Union, Optional
 from pprint import pprint
-import numpy as np
+import pandas as pd
+import os
+from pathlib import Path
 import math
 
 try:
@@ -108,6 +110,9 @@ class Chart(BaseModel):
     pa: int = 400
     stats_per_400_pa: dict[str, float] = {}
 
+    # ERA ADJUSTMENT
+    obp_adjustment_factor: float = 1.0
+
     # ACCURACY
     stat_accuracy_weights: dict[str, float] = {}
     command_out_accuracy_weight: float = 1.0
@@ -117,9 +122,9 @@ class Chart(BaseModel):
         super().__init__(**data)
 
         # POPULATE OUTS IF BASELINE CHART
-        if self.outs == 0 and data.get('is_baseline', False):
-            out_value_list = [v for k,v in self.values.items() if k.is_out]
-            self.outs = sum(out_value_list) if len(out_value_list) > 0 else 0
+        is_baseline_chart = data.get('is_baseline', False)
+        if self.outs == 0 and is_baseline_chart:
+            self.update_outs_from_values()            
 
         # CONVERT FROM WOTC DATA
         if data.get('convert_from_wotc', None):
@@ -528,6 +533,10 @@ class Chart(BaseModel):
         
         self.ranges = chart_ranges
     
+    def update_outs_from_values(self) -> None:
+        """Update outs based on values"""
+        out_value_list = [v for k,v in self.values.items() if k.is_out]
+        self.outs = sum(out_value_list) if len(out_value_list) > 0 else 0
 
     # ---------------------------------------
     # ACCURACY
@@ -805,3 +814,77 @@ class Chart(BaseModel):
             chart_values[category] = current_values_for_category
         
         self.values = chart_values
+
+    # ---------------------------------------
+    # ERA ADJUSTMENT
+    # ---------------------------------------
+
+    def adjust_for_era(self, era:str, year_list:list[int]) -> None:
+        """Adjust chart values for era. Used for baseline charts.
+        
+        Args:
+            era: Era to adjust for.
+            year_list: List of years to use for MLB Averages.
+
+        Returns:
+            None
+        """
+
+        def mlb_pct_change_between_eras(stat: str, diff_reduction_multiplier:float = 1.0) -> float:
+            stat_during_wotc = mlb_avgs_original_set.get(stat, None)
+            stat_to_adjust_to = mlb_avgs.get(stat, None)
+            stat_avg = (stat_to_adjust_to + stat_during_wotc) / 2
+            diff_reduced = (stat_to_adjust_to - stat_during_wotc) * diff_reduction_multiplier
+            pct_change = ( diff_reduced / stat_avg )
+
+            # REVERSE PCT CHANGE FOR PITCHERS
+            if self.is_pitcher:
+                pct_change = -1 * pct_change
+
+            return pct_change
+        
+        # LOAD MLB AVERAGES FOR ERA
+        mlb_avgs_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'data', 'mlb_averages.csv')
+        mlb_avgs_df = pd.read_csv(mlb_avgs_path)
+        for col in mlb_avgs_df.columns:
+            if col != 'Year':
+                mlb_avgs_df[col] = mlb_avgs_df[col].astype(float)
+
+        # FILTER FOR ORIGINAL YEAR
+        match self.set:
+            case 'CLASSIC': set_year = 2000
+            case 'EXPANDED': set_year = 2004
+            case _: set_year = int(self.set) - 1
+        mlb_avgs_original_set = mlb_avgs_df[mlb_avgs_df['Year'] == set_year].mean().to_dict()
+
+        # FILTER YEAR COLUMN IN YEAR LIST
+        mlb_avgs_df = mlb_avgs_df[mlb_avgs_df['Year'].isin(year_list)]
+
+        # AVERAGE FOR ENTIRE ERA
+        mlb_avgs = mlb_avgs_df.mean().to_dict()
+
+        # ADJUST OUTS BASED ON OBP
+        obp_pct_change = mlb_pct_change_between_eras(stat='OBP', diff_reduction_multiplier=0.4) # HALFED BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED
+
+        # DEFINE OBP ADJUSTMENT FACTOR, UPDATE OUTS AND ONBASE RESULTS
+        self.obp_adjustment_factor = round(1 + obp_pct_change, 3)
+        self.command = round(self.command * self.obp_adjustment_factor, 2)
+        updated_values = {}
+        for category, value in self.values.items():
+            updated_values[category] = round(value * (self.obp_adjustment_factor if category.is_out else (1 / self.obp_adjustment_factor) ), 4)
+
+        # ADJUST ONBASE CATEGORIES
+        # IGNORE 1B+ BECAUSE IT'S CALCULATED AT THE END
+        onbase_categories = [ChartCategory.BB, ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]
+        for category in onbase_categories:
+            category_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat=category.value, diff_reduction_multiplier=0.4)
+            updated_values[category] = round(updated_values[category] * (1 - category_pct_diff_vs_wotc), 4)
+        
+        # ADJUST 1B TO MAKE SURE THE TOTAL EQUALS 20
+        if sum(updated_values.values()) != 20:
+            updated_values[ChartCategory._1B] += ( 20 - sum(updated_values.values()) )
+
+        # UPDATE SELF
+        self.values = updated_values
+        self.update_outs_from_values()
+        self.era = era
