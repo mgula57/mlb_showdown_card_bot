@@ -1721,8 +1721,11 @@ class Set(str, Enum):
                     case '2001': return (78,1584)
                     case '2002': return (80,1380)
                     case '2003': return (1179,1074)
-                    case '2004' | '2005': return (1161,1425)
+                    case '2004' | '2005': return (1180,1460)
                     case 'CLASSIC' | 'EXPANDED': return (1160,1345)
+            case TemplateImageComponent.COOPERSTOWN:
+                match self.value:
+                    case '2004' | '2005': return (981,1335)
             case TemplateImageComponent.PLAYER_NAME:
                 if special_edition == SpecialEdition.ASG_2024 and self in [Set._2000, Set._2001]:
                     return (360, 1565)
@@ -1872,7 +1875,7 @@ class Set(str, Enum):
                     case '2001': return (255,255)
                     case '2002': return (450,450)
                     case '2003': return (270,270)
-                    case '2004' | '2005': return (255,255)
+                    case '2004' | '2005': return (200,200)
                     case 'CLASSIC' | 'EXPANDED': return (275,275)
             case TemplateImageComponent.PLAYER_NAME: 
                 match self.value:

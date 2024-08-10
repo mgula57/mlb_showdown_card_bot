@@ -2953,7 +2953,7 @@ class ShowdownPlayerCard(BaseModel):
                 is_wide_logo = logo_name == 'ASG-2022'
                 if is_04_05 and is_cooperstown:
                     logo_size = (330,330)
-                    logo_paste_coordinates = (logo_paste_coordinates[0] - 180,logo_paste_coordinates[1] - 105)
+                    logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.COOPERSTOWN)
                 elif is_wide_logo and is_all_star_game:
                     logo_size = (logo_size[0] + 85, logo_size[1] + 85)
                     x_movement = -40 if self.set.is_00_01 else -85
