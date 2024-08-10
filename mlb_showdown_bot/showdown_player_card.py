@@ -1597,6 +1597,7 @@ class ShowdownPlayerCard(BaseModel):
         charts: list[Chart] = []
 
         command_options = list(set([ c for c,_ in self.set.command_out_combinations(player_type=self.player_type) ]))
+        opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=self.year_list)
         for command in command_options:
             
             # CREATE CHART WITH COMMAND/OUT COMBO
@@ -1615,7 +1616,7 @@ class ShowdownPlayerCard(BaseModel):
                 chart = Chart(
                     command=command, 
                     outs=outs,
-                    opponent=self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=self.year_list),
+                    opponent=opponent,
                     set=self.set.value,
                     era=self.era.value,
                     is_expanded=self.set.has_expanded_chart,

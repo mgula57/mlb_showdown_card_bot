@@ -846,6 +846,17 @@ class Chart(BaseModel):
 
             return pct_change
         
+        # CHECK FOR YEAR MATCH WITH WOTC SETS
+        match self.set:
+            case 'CLASSIC': set_year = 2000
+            case 'EXPANDED': set_year = 2004
+            case _: set_year = int(self.set) - 1
+        
+        # DONT ADJUST IF ERA IS THE SAME
+        if len(year_list) == 1:
+            if set_year == year_list[0]:
+                return
+        
         # LOAD MLB AVERAGES FOR ERA
         mlb_avgs_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'data', 'mlb_averages.csv')
         mlb_avgs_df = pd.read_csv(mlb_avgs_path)
@@ -854,10 +865,6 @@ class Chart(BaseModel):
                 mlb_avgs_df[col] = mlb_avgs_df[col].astype(float)
 
         # FILTER FOR ORIGINAL YEAR
-        match self.set:
-            case 'CLASSIC': set_year = 2000
-            case 'EXPANDED': set_year = 2004
-            case _: set_year = int(self.set) - 1
         mlb_avgs_original_set = mlb_avgs_df[mlb_avgs_df['Year'] == set_year].mean().to_dict()
 
         # FILTER YEAR COLUMN IN YEAR LIST
