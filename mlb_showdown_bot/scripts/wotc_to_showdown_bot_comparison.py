@@ -443,12 +443,12 @@ for set in set_list:
         # TYPE BASED DATA
         stats_for_type = [s for s in Stat if s.is_valid_for_type(type)]
 
-        sub_types = [st for st in type.sub_types if st in player_sub_types_filter]
+        sub_types = [st for st in type.sub_types]
         all_subtype_comps: list[StatComparison] = []
-        for sub_type in PlayerSubType:
+        for sub_type in sub_types:
 
             # PRINT OUTPUT
-            print_output = sub_type in sub_types
+            print_output = sub_type in player_sub_types_filter
 
             # CHECK OPPONENT CHART
             opponent_type = type.opponent_type

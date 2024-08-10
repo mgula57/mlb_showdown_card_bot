@@ -145,6 +145,10 @@ class Chart(BaseModel):
         self.generate_range_strings()
 
     @property
+    def is_hitter(self) -> bool:
+        return not self.is_pitcher
+
+    @property
     def categories_list(self) -> list[ChartCategory]:
         if self.is_pitcher:
             # 2000 HAS 'SO' FIRST, ALL OTHER YEARS HAVE 'PU' FIRST
@@ -285,10 +289,8 @@ class Chart(BaseModel):
     # GENERATE CHART ATTRIBUTES
     # ---------------------------------------
 
-    def generate_values_and_results(self, is_alternate_outs:bool=False) -> None:
-        """Generate values dictionary and store to self
-
-        """
+    def generate_values_and_results(self) -> None:
+        """Generate values dictionary and store to self """
 
         def add_results_to_dict(category:ChartCategory, num_results:int, current_chart_index:int) -> None:
             iterator = -1 if category.is_filled_in_desc_order else 1
@@ -343,6 +345,40 @@ class Chart(BaseModel):
         fill_chart_categories(out_categories)
         fill_chart_categories(non_out_categories, is_reversed=True)
 
+        # MAKE ADJUSTMENTS IF NECESSARY-
+        obp_pct_diff = self.__stat_projected_vs_real_pct_diff('onbase_perc')
+        slg_pct_diff = self.__stat_projected_vs_real_pct_diff('slugging_perc')
+        ops_pct_diff = self.__stat_projected_vs_real_pct_diff('onbase_plus_slugging')
+
+        # UNDER IN SLG AND OPS BUT CLOSE IN OBP
+        # INCREASE EITHER 2B, 3B, OR HR BY 1 AND DECREASE 1B BY 1
+        is_under_in_slg_and_ops = slg_pct_diff < 0 and ops_pct_diff < 0 and abs(obp_pct_diff) < 0.02 and abs(slg_pct_diff) > 0.01 and self.num_values(ChartCategory._1B) >= self.sub_21_per_slot_worth
+        if is_under_in_slg_and_ops and self.is_hitter:
+            category_pct_diffs: dict[ChartCategory, float] = {}
+            for slg_cat in [ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]:
+                if self.stats_per_400_pa.get(slg_cat.value.lower() + '_per_400_pa', 0) < 5: continue
+                pct_diff = self.__stat_projected_vs_real_pct_diff(slg_cat.value.lower() + '_per_400_pa')
+                if pct_diff < 0: category_pct_diffs[slg_cat] = pct_diff
+
+            if len(category_pct_diffs) > 0:
+                # UPDATE VALUES
+                category_biggest_diff = min(category_pct_diffs, key=category_pct_diffs.get)
+                slots_category_biggest_diff = [index for index, cat in self.results.items() if cat == category_biggest_diff and index <= 20]
+                min_slot_index_category_biggest_diff = min(slots_category_biggest_diff) if len(slots_category_biggest_diff) > 0 else None
+                if min_slot_index_category_biggest_diff:
+                    
+                    self.values[ChartCategory._1B] -= self.sub_21_per_slot_worth
+                    self.values[category_biggest_diff] += self.sub_21_per_slot_worth
+                    
+                    slot_indexes_1B = [index for index, cat in self.results.items() if cat == ChartCategory._1B and index <= 20]
+                    max_slot_index_1b = max(slot_indexes_1B) if len(slot_indexes_1B) > 0 else None
+                    if max_slot_index_1b:
+                        updated_results: dict[int, ChartCategory] = {}
+                        for index in self.results.keys():
+                            if index >= max_slot_index_1b and index < min_slot_index_category_biggest_diff:
+                                updated_results[index] = self.results[index + 1]
+                        self.results.update(updated_results)
+                
         return
 
     def calc_chart_category_values_from_rate_stats(self, category:ChartCategory, current_chart_index:int, max_values:float, min_values:float=None) -> Union[float | int]:
@@ -635,6 +671,16 @@ class Chart(BaseModel):
         overall_accuracy = accuracies / denominator if denominator > 0 else 0
         
         return overall_accuracy
+
+    def __pct_diff(self, value_1, value_2) -> float:
+        """Calculate percentage difference between two values"""
+        return (value_1 - value_2) / ((value_1 + value_2) / 2)
+
+    def __stat_projected_vs_real_pct_diff(self, stat:str) -> float:
+        """Calculate projected vs real stat"""
+        real_stat = self.stats_per_400_pa.get(stat, 0)
+        projected_stat = self.projected_stats_per_400_pa.get(stat, 0)
+        return self.__pct_diff(projected_stat, real_stat)
 
     # ---------------------------------------
     # ADVANTAGES

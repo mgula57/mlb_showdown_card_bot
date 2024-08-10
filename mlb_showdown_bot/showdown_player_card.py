@@ -84,7 +84,7 @@ class ShowdownPlayerCard(BaseModel):
     version: str = __version__
     source: str = 'Baseball Reference'
     is_stats_estimate: bool = False
-    chart_version:int = 0
+    chart_version:int = 1
     ignore_cache: bool = False
     disable_cache_cleaning: bool = False
     date_override: Optional[str] = None
