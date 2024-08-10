@@ -690,7 +690,8 @@ class Chart(BaseModel):
           Dict with stats per 400 Plate Appearances.
         """
 
-        # MATCHUP VALUES
+        # ----- COUNTING STATS -----
+
         strikeouts_per_400_pa = self.projected_stats_for_category(ChartCategory.SO)
         walks_per_400_pa = self.projected_stats_for_category(ChartCategory.BB)
         singles_per_400_pa = self.projected_stats_for_category(ChartCategory._1B) + self.projected_stats_for_category(ChartCategory._1B_PLUS)
@@ -704,17 +705,24 @@ class Chart(BaseModel):
                             + doubles_per_400_pa \
                             + triples_per_400_pa \
                             + home_runs_per_400_pa
-        # SLASH LINE
+        
+        # ----- SLASH LINE -----
+
+        # DEFINE AT BATS
+        # REMOVE REAL LIFE SACRIFICE FLIES FROM FLY BALL OUTS
+        sacrifice_hits_per_400_pa = self.stats_per_400_pa.get('sh_per_400_pa', 0)
+        sacrifice_flies_per_400_pa = self.stats_per_400_pa.get('sf_per_400_pa', 0)
+        at_bats = (400.0 - walks_per_400_pa - sacrifice_hits_per_400_pa - sacrifice_flies_per_400_pa)
 
         # BA
-        batting_avg = hits_per_400_pa / (400.0 - walks_per_400_pa)
+        batting_avg = hits_per_400_pa / at_bats
 
         # OBP
         onbase_results_per_400_pa = walks_per_400_pa + hits_per_400_pa
         obp = onbase_results_per_400_pa / 400.0
 
         # SLG
-        slugging_pct = self.__slugging_pct(ab=400-walks_per_400_pa,
+        slugging_pct = self.__slugging_pct(ab=at_bats,
                                            singles=singles_per_400_pa,
                                            doubles=doubles_per_400_pa,
                                            triples=triples_per_400_pa,
@@ -731,7 +739,9 @@ class Chart(BaseModel):
             '3b_per_400_pa': triples_per_400_pa,
             'hr_per_400_pa': home_runs_per_400_pa,
             'h_per_400_pa': hits_per_400_pa,
-            'ab_per_400_pa': 400 - walks_per_400_pa,
+            'sh_per_400_pa': sacrifice_hits_per_400_pa,
+            'sf_per_400_pa': sacrifice_flies_per_400_pa,
+            'ab_per_400_pa': at_bats,
             'batting_avg': batting_avg,
             'onbase_perc': obp,
             'slugging_perc': slugging_pct,

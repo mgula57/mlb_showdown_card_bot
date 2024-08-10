@@ -572,6 +572,7 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return {
                         Stat.OBP.value: 2.5,
                         Stat.SLG.value: 1.0,
+                        Stat.OPS.value: 1.0,
                     }
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
                         Stat.OBP.value: 3.0,

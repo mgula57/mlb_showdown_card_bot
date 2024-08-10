@@ -1733,7 +1733,7 @@ class ShowdownPlayerCard(BaseModel):
         })
 
         # ADD RESULT OCCURANCES PER N PA
-        chart_result_categories = ['SO','PU','GB','FB','BB','1B','2B','3B','HR','SB','H']
+        chart_result_categories = ['SO','PU','GB','FB','BB','1B','2B','3B','HR','SB','H', 'SF', 'SH']
         for category in chart_result_categories:
             key = f'{category.lower()}_per_{plate_appearances}_pa'
             stat_value = int(stats[category]) if len(str(stats[category])) > 0 else 0
@@ -2211,6 +2211,8 @@ class ShowdownPlayerCard(BaseModel):
             'FB': 'FB',
             'GB': 'GB',
             'PU': 'PU',
+            'SF': 'SF',
+            'SH': 'SH',
         }
         if self.is_pitcher:
             stat_categories_dict['IP'] = 'ip'
