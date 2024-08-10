@@ -392,8 +392,8 @@ def accuracy_table(stats: list[Stat], comparisons: list[CardComparison]) -> Pret
         above_below = 'BALANCED' if is_balanced else 'BELOW' if above_below_ratio < 0.5 else 'ABOVE'
         above_below_color = ConsoleColor.GREEN if above_below == 'BALANCED' else ConsoleColor.RED if above_below == 'ABOVE' else ConsoleColor.YELLOW
 
-        largest_diff = round(max([sc.abs_diff for sc in stat_comps]),3) or 0
-        largest_diff_name = f"{next((f'{c.wotc.first_initial}. {c.wotc.last_name}' for c in comparisons if round(c.stat_comparisons[stat].abs_diff,3) == round(largest_diff,3)), '')} ({largest_diff})"
+        largest_diff = round(max([sc.abs_diff for sc in stat_comps]) if len(stat_comps) > 0 else 0,3) or 0
+        largest_diff_name = f"{next((f'{c.wotc.first_initial}. {c.wotc.last_name}' for c in comparisons if round(c.stat_comparisons[stat].abs_diff if stat in c.stat_comparisons else 0,3) == round(largest_diff,3)), '')} ({largest_diff})"
 
         # COLORS
         accuracy_color = color_classification(accuracy=avg_accuracy)
@@ -438,14 +438,17 @@ all_set_comparisons_dict: dict[Set, dict[str, list[CardComparison]]] = {}
 
 for set in set_list:
     
-    for type in player_types_list:
+    for type in PlayerType:
         
         # TYPE BASED DATA
         stats_for_type = [s for s in Stat if s.is_valid_for_type(type)]
 
         sub_types = [st for st in type.sub_types if st in player_sub_types_filter]
         all_subtype_comps: list[StatComparison] = []
-        for sub_type in sub_types:
+        for sub_type in PlayerSubType:
+
+            # PRINT OUTPUT
+            print_output = sub_type in sub_types
 
             # CHECK OPPONENT CHART
             opponent_type = type.opponent_type
@@ -454,12 +457,14 @@ for set in set_list:
             if filled_slots != 20:
                 remaining_slots = 20 - filled_slots
                 suggestion_str = 'remove' if remaining_slots < 0 else 'add'
-                rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {opponent_type.value}[/yellow] ({filled_slots}/20). Please {suggestion_str} {abs(round(remaining_slots,2))} slots")
+                if print_output:
+                    rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {opponent_type.value}[/yellow] ({filled_slots}/20). Please {suggestion_str} {abs(round(remaining_slots,2))} slots")
             
             chart_outs = round(sum([v for c, v in opponent_chart.values.items() if c.is_out]), 2)
             listed_outs = opponent_chart.outs
             if chart_outs != listed_outs:
-                rprint(f"\n[yellow]Outs do not match for {set.value} {opponent_type.value}[/yellow] ({chart_outs}/{listed_outs})")
+                if print_output:
+                    rprint(f"\n[yellow]Outs do not match for {set.value} {opponent_type.value}[/yellow] ({chart_outs}/{listed_outs})")
             
             set_comparisons: list[CardComparison] = []
             set_type_player_set = {id: card for id, card in wotc_player_card_set.cards.items() if card.set == set and card.player_sub_type == sub_type and card.image.expansion in expansion_list}
@@ -489,7 +494,7 @@ for set in set_list:
 
                 # PRINT
                 show_player = ( args.names == '' or wotc.name in args.names ) and args.show_players
-                if show_player:
+                if show_player and print_output:
                     comparison.print_table()
 
             # ADD TO SUBTYPES COMBO (FOR PITCHERS)
@@ -503,17 +508,20 @@ for set in set_list:
             # OBP AVGS PER COMMAND/OUTS
             if (not args.is_pitchers_combined or not type.is_pitcher) and args.show_obp:
                 obp_table = onbase_table(comparisons=set_comparisons)
-                print(f"\n\n{set} ONBASE SUMMARY ({sub_type.name.replace('_', ' ')}S)")
-                print(obp_table)
+                if print_output:
+                    print(f"\n\n{set} ONBASE SUMMARY ({sub_type.name.replace('_', ' ')}S)")
+                    print(obp_table)
 
                 suggested_table = suggested_command_out_opponent(set=set, is_pitcher=type.is_pitcher, comparisons=set_comparisons)
-                print(f"\n\n{set} SUGGESTED ONBASE SUMMARY ({type.name.replace('_', ' ')}S)")
-                print(suggested_table)
+                if print_output:
+                    print(f"\n\n{set} SUGGESTED ONBASE SUMMARY ({type.name.replace('_', ' ')}S)")
+                    print(suggested_table)
 
             # CREATE ACCURACY TABLE
             table = accuracy_table(stats=stats_for_type, comparisons=set_comparisons)
-            print(f"\n\n{set} SUMMARY ({sub_type.name.replace('_', ' ')}S)")
-            print(table)
+            if print_output:
+                print(f"\n\n{set} SUMMARY ({sub_type.name.replace('_', ' ')}S)")
+                print(table)
 
             # ------------------------------
             # 4. ADD TO CROSS SET STATS
@@ -529,16 +537,19 @@ for set in set_list:
 
             if args.show_obp:
                 obp_table = onbase_table(comparisons=all_subtype_comps)
-                print(f"\n\n{set} ONBASE SUMMARY ({type.name.replace('_', ' ')}S)")
-                print(obp_table)
+                if print_output:
+                    print(f"\n\n{set} ONBASE SUMMARY ({type.name.replace('_', ' ')}S)")
+                    print(obp_table)
 
                 suggested_table = suggested_command_out_opponent(set=set, is_pitcher=type.is_pitcher, comparisons=all_subtype_comps)
-                print(f"\n\n{set} SUGGESTED ONBASE SUMMARY ({type.name.replace('_', ' ')}S)")
-                print(suggested_table)
+                if print_output:
+                    print(f"\n\n{set} SUGGESTED ONBASE SUMMARY ({type.name.replace('_', ' ')}S)")
+                    print(suggested_table)
 
             table = accuracy_table(stats=stats_for_type, comparisons=all_subtype_comps)
-            print(f"\n\n{set} SUMMARY ({type.name.replace('_', ' ')}S)")
-            print(table)
+            if print_output:
+                print(f"\n\n{set} SUMMARY ({type.name.replace('_', ' ')}S)")
+                print(table)
 
 # ------------------------------
 # 5. SUMMARIZE ACROSS ALL SETS

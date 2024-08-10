@@ -262,13 +262,14 @@ class WotcPlayerCardSet(BaseModel):
             set_year = int(gsheet_row.get('Set', 2000)) - 1
             year = ss_year or set_year
             archive_id = f'{year}-{bref_id}'
+            name = gsheet_row.get('Name', 'N/A')
             stats: dict = None
             if (expansion == Expansion.BS.value or ss_year) and archive_id not in ignore_stats:
                 player_archive = next((p for p in real_player_stats_archive if p.id == archive_id), None)
                 if player_archive:
                     stats = player_archive.stats
                 if not player_archive:
-                    print(f'No stats found for {archive_id}')
+                    print(f'No stats found for {year} {name}')
 
             card = WotcPlayerCard(data_source=WotcDataSource.GSHEET, update_projections=True, stats=stats, **gsheet_row)
             converted_cards[card.id] = card
