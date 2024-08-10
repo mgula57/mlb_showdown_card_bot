@@ -2181,6 +2181,7 @@ class ShowdownPlayerCard(BaseModel):
 
         print(f"\n{self.points} PTS | {positions_string}| {ip_or_speed} {icon_string}")
         print(self.points_breakdown.breakdown_str)
+        print(" | ".join([f"{co}-{round(pct * 100, 2)}%" for index, (co, pct) in enumerate(self.command_out_accuracies.items()) if index < 5]) )
 
         print(f"\n{self.chart.command} {self.command_type.upper()}")
 

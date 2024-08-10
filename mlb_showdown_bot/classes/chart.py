@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Union, Optional
 from pprint import pprint
 import pandas as pd
+import numpy as np
 import os
 from pathlib import Path
 import math
@@ -576,7 +577,7 @@ class Chart(BaseModel):
         is_outside_out_bounds = outs < out_min or outs > out_max
         is_outlier = (self.command <= command_outlier_lower_bound and outs > out_max) or (self.command >= command_outlier_upper_bound and outs < out_max)
         if is_outside_out_bounds and not is_outlier:
-            accuracy /= 2
+            accuracy *= 0.99 - (0.005 * abs(outs - out_max))
 
         self.accuracy = accuracy
 
@@ -611,14 +612,14 @@ class Chart(BaseModel):
                 if key in all_or_nothing:
                     accuracy_for_key = 1 if value1 == value2 else 0
                 else:
-                    denominator = value1
+                    key_denominator = value1
                     # ACCURACY IS 100% IF BOTH ARE EQUAL (IF STATEMENT TO AVOID 0'S)
                     if value1 == value2:
                         accuracy_for_key = 1.0
                     else:
                         # CAN'T DIVIDE BY 0, SO USE OTHER VALUE AS BENCHMARK
-                        if value1 == 0: denominator = value2
-                        accuracy_for_key = (value1 - abs(value1 - value2) ) / denominator
+                        if value1 == 0: key_denominator = value2
+                        accuracy_for_key = (value1 - abs(value1 - value2) ) / key_denominator
 
                 # APPLY WEIGHTS
                 weight = float(weights[key]) if key in weights.keys() else 1
@@ -629,7 +630,7 @@ class Chart(BaseModel):
                 metrics_and_accuracies[key] = round(accuracy_for_key, 3)
 
         overall_accuracy = accuracies / denominator if denominator > 0 else 0
-
+        
         return overall_accuracy
 
     # ---------------------------------------
@@ -830,15 +831,17 @@ class Chart(BaseModel):
             None
         """
 
-        def mlb_pct_change_between_eras(stat: str, diff_reduction_multiplier:float = 1.0) -> float:
+        def mlb_pct_change_between_eras(stat: str, diff_reduction_multiplier:float = 1.0, default_value:float = None, ignore_pitcher_flip:bool = False) -> float:
             stat_during_wotc = mlb_avgs_original_set.get(stat, None)
-            stat_to_adjust_to = mlb_avgs.get(stat, None)
+            stat_to_adjust_to = mlb_avgs.get(stat, default_value)
+            if np.isnan(stat_to_adjust_to):
+                stat_to_adjust_to = default_value
             stat_avg = (stat_to_adjust_to + stat_during_wotc) / 2
             diff_reduced = (stat_to_adjust_to - stat_during_wotc) * diff_reduction_multiplier
             pct_change = ( diff_reduced / stat_avg )
 
             # REVERSE PCT CHANGE FOR PITCHERS
-            if self.is_pitcher:
+            if self.is_pitcher and not ignore_pitcher_flip:
                 pct_change = -1 * pct_change
 
             return pct_change
@@ -873,7 +876,8 @@ class Chart(BaseModel):
         for category, value in self.values.items():
             updated_values[category] = round(value * (self.obp_adjustment_factor if category.is_out else (1 / self.obp_adjustment_factor) ), 4)
 
-        # ADJUST ONBASE CATEGORIES
+        # ------ ADJUST ONBASE ------
+
         # IGNORE 1B+ BECAUSE IT'S CALCULATED AT THE END
         onbase_categories = [ChartCategory.BB, ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]
         for category in onbase_categories:
@@ -881,8 +885,35 @@ class Chart(BaseModel):
             updated_values[category] = round(updated_values[category] * (1 - category_pct_diff_vs_wotc), 4)
         
         # ADJUST 1B TO MAKE SURE THE TOTAL EQUALS 20
-        if sum(updated_values.values()) != 20:
-            updated_values[ChartCategory._1B] += ( 20 - sum(updated_values.values()) )
+        remaining_values = 20 - sum(updated_values.values())
+        if remaining_values != 0:
+            updated_values[ChartCategory._1B] += remaining_values
+
+        # ------ ADJUST OUTS ------
+
+        total_outs_expected = sum([v for k,v in updated_values.items() if k.is_out])
+
+        # ADJUST SO FIRST
+        so_post_obp_adjustment = updated_values[ChartCategory.SO]
+        so_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat=ChartCategory.SO.value, diff_reduction_multiplier=0.5)
+        updated_values[ChartCategory.SO] = max( round(so_post_obp_adjustment * (1 - so_pct_diff_vs_wotc), 4), 0 )
+
+        # TEMPORARILY ADJUST OTHER OUTS TO MATCH EXPECTED TOTAL
+        current_non_so_outs = max( sum([v for k,v in updated_values.items() if k.is_out and k != ChartCategory.SO]), 0)
+        new_non_so_outs = total_outs_expected - updated_values[ChartCategory.SO]
+        current_pct_of_total_no_so_outs = { k: v / current_non_so_outs for k,v in updated_values.items() if k.is_out and k != ChartCategory.SO }
+        updated_values.update({ k: round(new_non_so_outs * pct,4) for k, pct in current_pct_of_total_no_so_outs.items() })
+
+        # ADJUST AGAIN TO ACCOUNT FOR RATIOS
+        go_ao_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat='GO/AO', diff_reduction_multiplier=0.5, default_value=1.1, ignore_pitcher_flip=True)
+        updated_values[ChartCategory.GB] = max( round(updated_values[ChartCategory.GB] * (1 - go_ao_pct_diff_vs_wotc), 4), 0 )
+
+        remaining_outs_not_adjusted = total_outs_expected - sum([v for k,v in updated_values.items() if k in [ChartCategory.SO, ChartCategory.GB]])
+        current_ratio_pu_pct_chart = updated_values[ChartCategory.PU] / updated_values[ChartCategory.FB]
+        if_fb_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat='IF/FB', diff_reduction_multiplier=0.5, default_value=0.14, ignore_pitcher_flip=True)
+        pu_pct_chart_adjusted = max( round(current_ratio_pu_pct_chart * (1 - if_fb_pct_diff_vs_wotc), 4), 0 )
+        updated_values[ChartCategory.PU] = pu_pct_chart_adjusted * remaining_outs_not_adjusted
+        updated_values[ChartCategory.FB] = remaining_outs_not_adjusted - updated_values[ChartCategory.PU]
 
         # UPDATE SELF
         self.values = updated_values
