@@ -177,7 +177,7 @@ class ShowdownPlayerCard(BaseModel):
             # MAKES MATH EASIER (20 SIDED DICE)
             stats_for_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats)
 
-            self.chart: Chart = self.__most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version))
+            self.chart: Chart = self.__most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version) - 1)
             self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats.get('PA', 650))
 
             # FOR PTS, USE STEROID ERA OPPONENT
@@ -192,7 +192,9 @@ class ShowdownPlayerCard(BaseModel):
             self.points: int = self.points_breakdown.total_points
 
             show_image = data.get('show_image', False)
-            if data.get('show_image', False) or len(data.get('card_img_output_folder_path', '')) > 0:
+            is_card_image_path = len(data.get('card_img_output_folder_path', '')) > 0
+            if show_image or is_card_image_path:
+                print(show_image, is_card_image_path, data.get('card_img_output_folder_path', ''))
                 self.card_image(show=show_image)
             
             if data.get('print_to_cli', False):
@@ -5672,7 +5674,7 @@ class ShowdownPlayerCard(BaseModel):
           Id for image if it exists
         """
 
-        is_not_v1 = self.chart_version != 0
+        is_not_v1 = self.chart_version != 1
         has_user_uploaded_img = self.image.source.type.is_user_generated
         has_special_edition = self.image.edition.is_not_empty
         has_expansion = self.image.expansion != Expansion.BS

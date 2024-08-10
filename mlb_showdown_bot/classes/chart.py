@@ -122,13 +122,16 @@ class Chart(BaseModel):
     def __init__(self, **data) -> None:
         super().__init__(**data)
 
-        # POPULATE OUTS IF BASELINE CHART
+        # SPECIAL FLAGS
+        is_wotc_conversion = data.get('convert_from_wotc', None)
         is_baseline_chart = data.get('is_baseline', False)
+        
+        # POPULATE OUTS IF BASELINE CHART
         if self.outs == 0 and is_baseline_chart:
             self.update_outs_from_values()            
 
         # CONVERT FROM WOTC DATA
-        if data.get('convert_from_wotc', None):
+        if is_wotc_conversion:
             self.generate_values_and_results_from_wotc_data(results_list=data.get('convert_from_wotc', None))
 
         # POPULATE VALUES DICT

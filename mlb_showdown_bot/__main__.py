@@ -51,7 +51,7 @@ parser.add_argument('-end','--end_date', help='Optional End Date for stats. Only
 parser.add_argument('-spl','--split_name', help='Create a card using the splits page on baseball reference', default=None, type=str)
 parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default=None, type=str)
 parser.add_argument('-vs','--variable_spd', action='store_true', help='Optionally toggle variable speed (2000 + 2001 sets only)')
-parser.add_argument('-o','--offset',help='Get alternate chart n away from most accurate',default=0)
+parser.add_argument('-cv','--chart_version',help='Get alternate chart n away from most accurate',default=1)
 parser.add_argument('-yrt','--show_year_text', action='store_true', help='Optionally add separate year text to the image. Applies to 2000-2005 only.')
 parser.add_argument('-nick','--nickname_index', help='Optionally choose a nickname to show for images. Enter a number based on ordering from bref, max is 3', default=None, type=int)
 parser.add_argument('-wotc','--is_wotc', action='store_true', help='Try loading from WOTC cards.')
@@ -138,7 +138,7 @@ def main():
             era=args.era,
             expansion=args.expansion,
             edition=args.edition,
-            chart_version=args.offset,
+            chart_version=args.chart_version,
             player_image_url=args.image_url,
             player_image_path=args.image_path,
             card_img_output_folder_path=args.image_output_path,

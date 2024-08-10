@@ -258,7 +258,7 @@ def card_creator():
         expansion = str(request.args.get('expansion', 'BS'))
         edition = str(request.args.get('edition', 'NONE'))
         era = str(request.args.get('era', 'DYNAMIC'))
-        chart_version = int(request.args.get('offset', 0))
+        chart_version = int(request.args.get('offset', 0)) + 1
         image_parallel = str(request.args.get('parallel', 'NONE'))
 
         period_type = request.args.get('period', None)
