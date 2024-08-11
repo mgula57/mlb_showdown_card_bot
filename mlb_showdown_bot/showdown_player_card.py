@@ -1628,7 +1628,6 @@ class ShowdownPlayerCard(BaseModel):
                     stats_per_400_pa=stats_per_400_pa,
                     is_pitcher=self.is_pitcher,
                     stat_accuracy_weights=self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type),
-                    command_out_accuracy_weights=self.set.command_out_accuracy_weighting(command=command, outs=0), # TODO: UPDATE THIS
                 )
 
                 charts.append(chart)
@@ -2184,7 +2183,7 @@ class ShowdownPlayerCard(BaseModel):
 
         print(f"\n{self.points} PTS | {positions_string}| {ip_or_speed} {icon_string}")
         print(self.points_breakdown.breakdown_str)
-        print(" | ".join([f"{co}-{round(pct * 100, 2)}%" for index, (co, pct) in enumerate(self.command_out_accuracies.items()) if index < 5]) )
+        print(" | ".join([f"{co}:{round(pct * 100, 2)}%" for index, (co, pct) in enumerate(self.command_out_accuracies.items()) if index < 5]) )
 
         print(f"\n{self.chart.command} {self.command_type.upper()}")
 

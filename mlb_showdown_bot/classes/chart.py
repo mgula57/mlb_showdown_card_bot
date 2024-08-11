@@ -118,6 +118,7 @@ class Chart(BaseModel):
     stat_accuracy_weights: dict[str, float] = {}
     command_out_accuracy_weight: float = 1.0
     accuracy: float = 1.0
+    is_command_out_outlier: bool = False
 
     def __init__(self, **data) -> None:
         super().__init__(**data)
@@ -345,14 +346,18 @@ class Chart(BaseModel):
         fill_chart_categories(out_categories)
         fill_chart_categories(non_out_categories, is_reversed=True)
 
-        # MAKE ADJUSTMENTS IF NECESSARY-
+        # MAKE ADJUSTMENTS IF NECESSARY
         obp_pct_diff = self.__stat_projected_vs_real_pct_diff('onbase_perc')
         slg_pct_diff = self.__stat_projected_vs_real_pct_diff('slugging_perc')
         ops_pct_diff = self.__stat_projected_vs_real_pct_diff('onbase_plus_slugging')
 
-        # UNDER IN SLG AND OPS BUT CLOSE IN OBP
+        # ADJUST CHARTS THAT ARE UNDER IN SLG AND OPS BUT CLOSE IN OBP
         # INCREASE EITHER 2B, 3B, OR HR BY 1 AND DECREASE 1B BY 1
-        is_under_in_slg_and_ops = slg_pct_diff < 0 and ops_pct_diff < 0 and abs(obp_pct_diff) < 0.02 and abs(slg_pct_diff) > 0.01 and self.num_values(ChartCategory._1B) >= self.sub_21_per_slot_worth
+        is_under_in_slg_and_ops = slg_pct_diff < 0 \
+                                    and ops_pct_diff < 0  \
+                                    and abs(obp_pct_diff) < 0.02 \
+                                    and abs(slg_pct_diff) > 0.01 \
+                                    and self.num_values(ChartCategory._1B) >= self.sub_21_per_slot_worth
         if is_under_in_slg_and_ops and self.is_hitter:
             category_pct_diffs: dict[ChartCategory, float] = {}
             for slg_cat in [ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]:
@@ -595,11 +600,6 @@ class Chart(BaseModel):
             only_use_weight_keys=True
         ), 4)
 
-        # ADD WEIGHTING OF ACCURACY
-        # LIMITS AMOUNT OF RESULTS PER SET FOR CERTAIN COMMAND/OUT COMBINATIONS
-        weight = self.command_out_accuracy_weight
-        accuracy = accuracy * weight
-
         # REDUCE ACCURACY FOR CHARTS WITH NUM OUTS OUT OF NORM
         if self.is_pitcher:
             out_min = 14 if self.is_expanded else 14
@@ -609,15 +609,26 @@ class Chart(BaseModel):
         else:
             out_min = 5 if self.is_expanded else 2
             out_max = 7 if self.is_expanded else 5
-            command_outlier_upper_bound = 15 if self.is_expanded else 11
+            command_outlier_upper_bound = 14 if self.is_expanded else 11
             command_outlier_lower_bound = 9 if self.is_expanded else 5
 
         outs = self.outs / self.sub_21_per_slot_worth
-        is_outside_out_bounds = outs < out_min or outs > out_max
-        is_outlier = (self.command <= command_outlier_lower_bound and outs > out_max) or (self.command >= command_outlier_upper_bound and outs < out_max)
-        if is_outside_out_bounds and not is_outlier:
-            accuracy *= 0.99 - (0.005 * abs(outs - out_max))
 
+        # REDUCE ACCURACY WHEN OUTS ARE ABOVE SOFT OUTLIER MAX AND COMMAND ABOVE SOFT OUTLIER MAX
+        outs_soft_cap = out_max + 1
+        command_soft_cap = 11 if self.is_expanded else 8
+        is_high_command_high_outs = outs > outs_soft_cap and self.command > command_soft_cap
+        if is_high_command_high_outs:
+            self.command_out_accuracy_weight = 0.925
+
+        # USE LINEAR DECAY TO REDUCE ACCURACY FOR OUTLIERS
+        is_outside_out_bounds = outs < out_min or outs > out_max
+        is_valid_outlier = (self.command <= command_outlier_lower_bound and outs > out_max) or (self.command >= command_outlier_upper_bound and outs < out_max)
+        if is_outside_out_bounds and not is_valid_outlier and not is_high_command_high_outs:
+            self.command_out_accuracy_weight = min( 1.020 - (0.025 * abs(outs - out_max)), 1.0 )
+        
+        accuracy *= self.command_out_accuracy_weight
+        self.is_command_out_outlier = is_valid_outlier or is_outside_out_bounds
         self.accuracy = accuracy
 
     def __accuracy_between_dicts(self, actuals_dict:dict, measurements_dict:dict, weights:dict={}, all_or_nothing:list[str]=[], only_use_weight_keys:bool=False) -> float:
