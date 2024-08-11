@@ -625,7 +625,7 @@ class Chart(BaseModel):
         is_outside_out_bounds = outs < out_min or outs > out_max
         is_valid_outlier = (self.command <= command_outlier_lower_bound and outs > out_max) or (self.command >= command_outlier_upper_bound and outs < out_max)
         if is_outside_out_bounds and not is_valid_outlier and not is_high_command_high_outs:
-            self.command_out_accuracy_weight = min( 1.020 - (0.025 * abs(outs - out_max)), 1.0 )
+            self.command_out_accuracy_weight = min( 1.020 - (0.0275 * abs(outs - out_max)), 1.0 )
         
         accuracy *= self.command_out_accuracy_weight
         self.is_command_out_outlier = is_valid_outlier or is_outside_out_bounds
