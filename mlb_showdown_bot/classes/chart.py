@@ -57,7 +57,7 @@ class ChartCategory(str, Enum):
     
     @property
     def slot_limit(self) -> int:
-        """Max number of results for a category"""
+        """Max number of results for a category. For GB/FB/PU, the cap is 2/3 out the out results (defined elsewhere)."""
         match self:
             case ChartCategory.BB: return 12 # BARRY BONDS EFFECT (HUGE WALK)
             case ChartCategory.HR: return 10
@@ -103,8 +103,6 @@ class Chart(BaseModel):
     era: str
     is_expanded: bool
     opponent: Optional['Chart'] = None
-    gb_multiplier: float = 1.0
-    pu_multiplier: float = 1.0
     
     # PLAYER DATA
     is_pitcher: bool
@@ -307,13 +305,17 @@ class Chart(BaseModel):
 
                 # DEFINE LIMIT FOR CATEGORY
                 category_limit = chart_category.slot_limit * self.sub_21_per_slot_worth
+                if chart_category.is_out and chart_category != ChartCategory.SO:
+                    multiplier = 3/4 if self.is_hitter else 3/4
+                    category_limit = self.outs * multiplier if self.outs > 4 else self.outs
+                
                 is_out_max = self.outs if chart_category.is_out else 20 - self.outs
                 category_remaining = is_out_max - sum([v for k,v in self.values.items() if k.is_out == chart_category.is_out])
                 max_values = min(category_limit, category_remaining)
                 min_values = category_remaining if chart_category == ChartCategory._1B else None
 
                 # CALCULATE VALUES
-                values, results = self.calc_chart_category_values_from_rate_stats(category=chart_category, current_chart_index=current_chart_index, max_values=max_values, min_values=min_values)
+                values, results, was_limited = self.calc_chart_category_values_from_rate_stats(category=chart_category, current_chart_index=current_chart_index, max_values=max_values, min_values=min_values)
 
                 # IF SINGLE, SPLIT INTO 1B AND 1B+
                 if chart_category == ChartCategory._1B and not self.is_pitcher:
@@ -323,6 +325,18 @@ class Chart(BaseModel):
                     current_chart_index -= single_plus_results
                     values -= single_plus_values
                     results -= single_plus_results
+
+                # CHECK FOR REMAINING VALUES IF FB WAS LIMITED AND THERE ARE REMAINING VALUES
+                if chart_category == ChartCategory.FB and was_limited:
+                    outs_values_pre_fb = sum([v for k,v in self.values.items() if k.is_out])
+                    total_outs_remaining = self.outs - outs_values_pre_fb - values
+                    if total_outs_remaining >= self.sub_21_per_slot_worth:
+                        # FILL WITH GB
+                        gb_values = total_outs_remaining
+                        gb_results = int(round(gb_values / self.sub_21_per_slot_worth))
+                        self.values[ChartCategory.GB] = self.values.get(ChartCategory.GB, 0) + values
+                        add_results_to_dict(category=ChartCategory.GB, num_results=gb_results, current_chart_index=current_chart_index)
+                        current_chart_index += gb_results
                 
                 self.values[chart_category] = values
                 add_results_to_dict(category=chart_category, num_results=results, current_chart_index=current_chart_index)
@@ -386,7 +400,7 @@ class Chart(BaseModel):
                 
         return
 
-    def calc_chart_category_values_from_rate_stats(self, category:ChartCategory, current_chart_index:int, max_values:float, min_values:float=None) -> Union[float | int]:
+    def calc_chart_category_values_from_rate_stats(self, category:ChartCategory, current_chart_index:int, max_values:float, min_values:float=None) -> tuple[Union[float | int], int, bool]:
         """Get chart category values based on rate stats
 
         Args:
@@ -397,6 +411,7 @@ class Chart(BaseModel):
 
         Returns:
             Float of chart category values.
+            Number of chart results
         """
 
         real_results_per_400_pa = self.stats_per_400_pa.get(f'{category.value.lower()}_per_400_pa', 0)
@@ -404,9 +419,10 @@ class Chart(BaseModel):
         chart_values = max( (real_results_per_400_pa - (self.opponent_advantages_per_20 * opponent_values)) / self.my_advantages_per_20, 0 )
         
         # LIMIT RESULTS TO CHART CATEGORY SLOT LIMIT
+        was_limited = chart_values > max_values
         chart_values = max( min(chart_values, max_values) , min_values if min_values else 0)
         
-        # IF ITS A BOOKEND CATEGORY (FB, 1B) FILL WITH REMAINING VALUES
+        # IF ITS A BOOKEND CATEGORY (EX: FB) FILL WITH REMAINING VALUES
         if category == ChartCategory.FB:
             chart_values = max(max_values, chart_values)
 
@@ -416,7 +432,7 @@ class Chart(BaseModel):
             chart_values_rounded = self.__so_values(current_so=chart_values_rounded, num_out_slots=self.outs)
             results = int(round(chart_values_rounded / self.sub_21_per_slot_worth))
 
-        return chart_values_rounded, results
+        return chart_values_rounded, results, was_limited
 
     def __so_values(self, current_so:int, num_out_slots:int) -> Union[int, float]:
         """Update SO chart value to account for outliers and maximums

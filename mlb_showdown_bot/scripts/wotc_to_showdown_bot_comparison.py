@@ -177,6 +177,7 @@ class CardComparison(BaseModel):
     bot: ShowdownPlayerCard
     bot_matching_command_outs: ShowdownPlayerCard
     stat_comparisons: dict[Stat, StatComparison] = {}
+    overall_accuracy: float = 1.0
 
     def __init__(self, **data) -> None:
         super().__init__(**data)
@@ -205,6 +206,8 @@ class CardComparison(BaseModel):
                 wotc=wotc_stat,
                 bot=bot_stat
             )
+        
+        self.overall_accuracy = self.weighted_accuracy
 
     @property
     def weighted_accuracy(self) -> float:
@@ -219,7 +222,7 @@ class CardComparison(BaseModel):
         return f"[{color}]{self.weighted_accuracy:.2%}"
 
     def print_table(self) -> None:
-        rprint(f"{wotc.name} {self.accuracy_for_print}  WOTC: {wotc.chart.command_outs_concat}  Showdown: {showdown_bot.chart.command_outs_concat}  G:{wotc.stats.get('G', 0)}")
+        rprint(f"{wotc.name} {self.accuracy_for_print}  WOTC: {wotc.chart.command_outs_concat}  Bot: {showdown_bot.chart.command_outs_concat}  G:{wotc.stats.get('G', 0)}")
         table = PrettyTable()
         table.field_names = ['Stat', 'WOTC', 'BOT', 'Diff', 'Accuracy', 'Classification']
         for stat, comparison in self.stat_comparisons.items():
@@ -232,7 +235,7 @@ class CardComparison(BaseModel):
         Does not include stat comparisons
         """
 
-        data: dict = {}
+        data: dict = {'overall_accuracy': self.overall_accuracy}
         wotc_fields_to_include = ['name', 'set', 'year', 'player_type',]
         common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed', 'chart.ranges']
         for type in ['wotc', 'bot']:
@@ -584,7 +587,6 @@ if args.export:
         data = card_comp.as_json()
         for stat_to_pop in ['accolades', 'years_played', 'summary',]:
             data['stats'].pop(stat_to_pop, None)
-        flattened_stat_comp_data.append(data)
         for stat_comp in card_comp.stat_comparisons.values():
             stat_data = stat_comp.model_dump(mode="json")
             stat_data.update(data)

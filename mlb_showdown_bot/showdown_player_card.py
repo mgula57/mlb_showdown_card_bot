@@ -1598,8 +1598,12 @@ class ShowdownPlayerCard(BaseModel):
 
         charts: list[Chart] = []
 
-        command_options = list(set([ c for c,_ in self.set.command_out_combinations(player_type=self.player_type) ]))
+        # SET CONSTANTS
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=self.year_list)
+        stat_accuracy_weights=self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type)
+        pa = self.stats.get('pa', 400)
+        
+        command_options = list(set([ c for c,_ in self.set.command_out_combinations(player_type=self.player_type) ]))
         for command in command_options:
             
             # CREATE CHART WITH COMMAND/OUT COMBO
@@ -1616,21 +1620,36 @@ class ShowdownPlayerCard(BaseModel):
                         continue
 
                 chart = Chart(
-                    command=command, 
+                    command=command,
                     outs=outs,
                     opponent=opponent,
                     set=self.set.value,
                     era=self.era.value,
                     is_expanded=self.set.has_expanded_chart,
-                    gb_multiplier=self.set.gb_multiplier(player_type=self.player_type, era=self.era),
-                    pu_multiplier=self.set.pu_multiplier,
-                    pa=self.stats.get('pa', 400),
+                    pa=pa,
                     stats_per_400_pa=stats_per_400_pa,
                     is_pitcher=self.is_pitcher,
-                    stat_accuracy_weights=self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type),
+                    stat_accuracy_weights=stat_accuracy_weights,
                 )
 
                 charts.append(chart)
+
+        # IF MANUAL COMMAND OUT OVERRIDE, ASSIGN THAT BY SETTING ACCURACY TO 100%
+        if self.command_out_override:
+            chart = Chart(
+                command=self.command_out_override[0],
+                outs=self.command_out_override[1] * chart.sub_21_per_slot_worth,
+                opponent=opponent,
+                set=self.set.value,
+                era=self.era.value,
+                is_expanded=self.set.has_expanded_chart,
+                pa=pa,
+                stats_per_400_pa=stats_per_400_pa,
+                is_pitcher=self.is_pitcher,
+                stat_accuracy_weights=stat_accuracy_weights,
+            )
+            chart.accuracy = 1.0
+            charts.append(chart)
 
         # FIND MOST ACCURATE CHART
         charts.sort(key=lambda x: x.accuracy, reverse=True)
