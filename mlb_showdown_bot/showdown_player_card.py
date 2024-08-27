@@ -259,10 +259,6 @@ class ShowdownPlayerCard(BaseModel):
         if 'IF/FB' in stats.keys() and values.get('year', '') == '1988':
             stats['IF/FB'] = stats.get('IF/FB', 0.0) * Set(values.get('set', None)).pu_normalizer_1988
 
-        # COMBINE BB AND HBP
-        if 'HBP' in stats.keys():
-            stats['BB'] = stats.get('BB',0) + stats.get('HBP',0)
-
         # ADD FIP FOR PITCHERS
         is_pitcher = stats.get('type', '') == 'Pitcher'
         if is_pitcher and 'fip' not in stats.keys():
@@ -1707,7 +1703,7 @@ class ShowdownPlayerCard(BaseModel):
         })
 
         # ADD ESTIMATED STATS FOR PU, GB, FB
-        current_pa_accounted_for = sum([stats.get(k, 0) for k in ['SO','BB','1B','2B','3B','HR',]])
+        current_pa_accounted_for = sum([stats.get(k, 0) for k in ['SO','BB','1B','2B','3B','HR','SF','HBP','IBB','SH']])
         remaining_pa = max(stats.get('PA', 0) - current_pa_accounted_for, 0)
         
         # GB EST RESULTS
@@ -1723,6 +1719,9 @@ class ShowdownPlayerCard(BaseModel):
         stats['GB'] = gb_results
         stats['FB'] = fb_results
         stats['PU'] = pu_results
+
+        # ADD HBP TO BB NUMBER
+        stats['BB'] = stats.get('BB', 0) + stats.get('HBP', 0)
 
         return stats
 
@@ -1743,7 +1742,11 @@ class ShowdownPlayerCard(BaseModel):
         sh = stats.get('SH', 0)
         sf = stats.get('SF', 0)
         all_sacrifices = sh + sf
-        pct_of_n_pa = (float(stats['PA']) - all_sacrifices) / plate_appearances
+
+        # SUBTRACT INVOLUNTARY PA RESULTS
+        ibb = stats.get('IBB', 0)
+
+        pct_of_n_pa = (float(stats['PA'])) / plate_appearances
 
         # POPULATE DICT WITH VALUES UNCHANGED BY SHIFT IN PA
         stats_for_n_pa = { k:v for k,v in stats.items() if k in ['batting_avg', 'onbase_perc', 'slugging_perc', 'onbase_plus_slugging', 'IF/FB', 'GO/AO'] }
@@ -1753,7 +1756,7 @@ class ShowdownPlayerCard(BaseModel):
         })
 
         # ADD RESULT OCCURANCES PER N PA
-        chart_result_categories = ['SO','PU','GB','FB','BB','1B','2B','3B','HR','SB','H', 'SF', 'SH']
+        chart_result_categories = ['SO','PU','GB','FB','BB','1B','2B','3B','HR','SB','H','SF','SH','IBB']
         for category in chart_result_categories:
             key = f'{category.lower()}_per_{plate_appearances}_pa'
             stat_value = int(stats[category]) if len(str(stats[category])) > 0 else 0
@@ -2233,6 +2236,7 @@ class ShowdownPlayerCard(BaseModel):
             'PU': 'PU',
             'SF': 'SF',
             'SH': 'SH',
+            'IBB': 'IBB',
         }
         if self.is_pitcher:
             stat_categories_dict['IP'] = 'ip'

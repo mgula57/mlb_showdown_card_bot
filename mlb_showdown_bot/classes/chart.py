@@ -416,21 +416,17 @@ class Chart(BaseModel):
 
         real_results_per_400_pa = self.stats_per_400_pa.get(f'{category.value.lower()}_per_400_pa', 0)
         opponent_values = self.opponent.num_values(category)
-        chart_values = max( (real_results_per_400_pa - (self.opponent_advantages_per_20 * opponent_values)) / self.my_advantages_per_20, 0 )
+        chart_values = (real_results_per_400_pa - (self.opponent_advantages_per_20 * opponent_values)) / self.my_advantages_per_20
         
         # LIMIT RESULTS TO CHART CATEGORY SLOT LIMIT
         was_limited = chart_values > max_values
-        chart_values = max( min(chart_values, max_values) , min_values if min_values else 0)
+        chart_values = max( min(chart_values, max_values) , min_values if min_values else min(chart_values, max_values))
         
         # IF ITS A BOOKEND CATEGORY (EX: FB) FILL WITH REMAINING VALUES
         if category == ChartCategory.FB:
             chart_values = max(max_values, chart_values)
 
         chart_values_rounded, results = self.values_and_results(value=chart_values, category=category, current_chart_index=current_chart_index)
-
-        if category == ChartCategory.SO:
-            chart_values_rounded = self.__so_values(current_so=chart_values_rounded, num_out_slots=self.outs)
-            results = int(round(chart_values_rounded / self.sub_21_per_slot_worth))
 
         return chart_values_rounded, results, was_limited
 
@@ -516,7 +512,12 @@ class Chart(BaseModel):
         """
 
         # ROUND TO NEAREST SLOT WORTH
-        raw_value = round(value / self.sub_21_per_slot_worth) * self.sub_21_per_slot_worth
+        raw_value = max( round(value / self.sub_21_per_slot_worth) * self.sub_21_per_slot_worth , 0)
+
+        # FOR CERTAIN EXPANDED SETS AND CATEGORIES, REDUCE POSSIBILITY OF 0 RESULTS
+        if raw_value == 0 and value >= -0.25 and self.set in ['2003', '2004', '2005', 'EXPANDED'] and category in [ChartCategory.SO]:
+            raw_value = self.sub_21_per_slot_worth
+
         raw_results = int(round(raw_value / self.sub_21_per_slot_worth))
 
         # SKIP ROUNDING IF CATEGORY IS NONE (EX: OUTS) OR CHART IS NOT EXPANDED
@@ -543,6 +544,10 @@ class Chart(BaseModel):
             values_total = new_potential_total_value
             num_results += 1
             diff_last_index = new_potential_value_vs_original
+
+        if category == ChartCategory.SO:
+            chart_values_rounded = self.__so_values(current_so=values_total, num_out_slots=self.outs)
+            num_results = int(round(chart_values_rounded / self.sub_21_per_slot_worth))
         
         return values_total, num_results
 
@@ -788,14 +793,14 @@ class Chart(BaseModel):
         # REMOVE REAL LIFE SACRIFICE FLIES FROM FLY BALL OUTS
         sacrifice_hits_per_400_pa = self.stats_per_400_pa.get('sh_per_400_pa', 0)
         sacrifice_flies_per_400_pa = self.stats_per_400_pa.get('sf_per_400_pa', 0)
+        ibb_per_400_pa = self.stats_per_400_pa.get('ibb_per_400_pa', 0)
         at_bats = (400.0 - walks_per_400_pa - sacrifice_hits_per_400_pa - sacrifice_flies_per_400_pa)
 
         # BA
         batting_avg = hits_per_400_pa / at_bats
 
         # OBP
-        onbase_results_per_400_pa = walks_per_400_pa + hits_per_400_pa
-        obp = onbase_results_per_400_pa / 400.0
+        obp = (hits_per_400_pa + walks_per_400_pa) / (at_bats + walks_per_400_pa + sacrifice_flies_per_400_pa)
 
         # SLG
         slugging_pct = self.__slugging_pct(ab=at_bats,
@@ -817,6 +822,7 @@ class Chart(BaseModel):
             'h_per_400_pa': hits_per_400_pa,
             'sh_per_400_pa': sacrifice_hits_per_400_pa,
             'sf_per_400_pa': sacrifice_flies_per_400_pa,
+            'ibb_per_400_pa': ibb_per_400_pa,
             'ab_per_400_pa': at_bats,
             'batting_avg': batting_avg,
             'onbase_perc': obp,
