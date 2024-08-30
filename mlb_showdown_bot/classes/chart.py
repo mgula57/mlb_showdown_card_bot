@@ -17,6 +17,11 @@ except ImportError:
 # CHART CATEGORY
 # ---------------------------------------
 
+class ChartCategoryFillMethod(str, Enum):
+    """Method to fill chart categories"""
+    RATE = "RATE" # FILL BASED ON RATE OF REAL STATS
+    PCT = "PCT" # FILL BASED ON PERCENTAGE OF TOTAL CATEGORY
+
 class ChartCategory(str, Enum):
 
     PU = "PU"
@@ -83,7 +88,32 @@ class ChartCategory(str, Enum):
                         case _: return 0.75
         return 0.5
 
+    def fill_method(self, set:str, is_pitcher:bool) -> ChartCategoryFillMethod:
+        is_hitter = not is_pitcher
+        match set:
+            case '2005':
+                if self.is_out and is_hitter:
+                    return ChartCategoryFillMethod.PCT
+        
+        return ChartCategoryFillMethod.RATE
 
+    def category_multiplier(self, set:str, is_pitcher:bool) -> float:
+        """Multiplier for category based on set and player type"""
+
+        # DOESNT APPLY TO RATE
+        if self.fill_method(set=set, is_pitcher=is_pitcher) == ChartCategoryFillMethod.RATE:
+            return 1.0
+        
+        is_hitter = not is_pitcher
+        match set:
+            case '2005':
+                if is_hitter:
+                    match self:
+                        case ChartCategory.GB: return 1.20
+                        case ChartCategory.FB: return 0.80
+                        
+        return 1.0
+    
 # ---------------------------------------
 # CHART
 # ---------------------------------------
@@ -288,6 +318,10 @@ class Chart(BaseModel):
     # GENERATE CHART ATTRIBUTES
     # ---------------------------------------
 
+    def __round_to_nearest_slot_value(self, value:float) -> float:
+        """Round value to nearest slot worth"""
+        return round(value / self.sub_21_per_slot_worth) * self.sub_21_per_slot_worth
+
     def generate_values_and_results(self) -> None:
         """Generate values dictionary and store to self """
 
@@ -297,6 +331,10 @@ class Chart(BaseModel):
                 self.results[i] = category
 
         def fill_chart_categories(categories: list[ChartCategory], is_reversed:bool = False) -> None:
+                        
+            # VARIABLES USED FOR PCT FILL METHOD
+            categories_total_real_results_per_400 = sum([self.stats_per_400_pa.get(c.value.lower() + '_per_400_pa', 0) for c in categories])
+
             current_chart_index = self.total_possible_slots if is_reversed else 1
             for chart_category in categories:
 
@@ -308,35 +346,53 @@ class Chart(BaseModel):
                 if chart_category.is_out and chart_category != ChartCategory.SO:
                     multiplier = 3/4 if self.is_hitter else 3/4
                     category_limit = self.outs * multiplier if self.outs > 4 else self.outs
-                
+
                 is_out_max = self.outs if chart_category.is_out else 20 - self.outs
                 category_remaining = is_out_max - sum([v for k,v in self.values.items() if k.is_out == chart_category.is_out])
                 max_values = min(category_limit, category_remaining)
                 min_values = category_remaining if chart_category == ChartCategory._1B else None
 
-                # CALCULATE VALUES
-                values, results, was_limited = self.calc_chart_category_values_from_rate_stats(category=chart_category, current_chart_index=current_chart_index, max_values=max_values, min_values=min_values)
+                # FILL CHART CATEGORY VALUES
+                # FILL METHODS:
+                #   PCT: FILL BASED ON PERCENTAGE OF TOTAL CATEGORY
+                #       EX: 20% OF TOTAL OUTS PER 400 PA ARE GB
+                #   RATE: FILL BASED ON RATE OF REAL STATS PER 400 PA
+                #       EX: 5 DOUBLES PER 400 PA DIVIDED BETWEEN PITCHER AND HITTER CHARTS
+                match chart_category.fill_method(set=self.set, is_pitcher=self.is_pitcher):
+                    
+                    case ChartCategoryFillMethod.PCT:
+                        category_results_per_400_pa = self.stats_per_400_pa.get(f'{chart_category.value.lower()}_per_400_pa', 0)
+                        category_multiplier = chart_category.category_multiplier(set=self.set, is_pitcher=self.is_pitcher)
+                        category_pct = (category_results_per_400_pa / categories_total_real_results_per_400) * category_multiplier
+                        raw_values = category_pct * self.outs
+                        values = min( max( self.__round_to_nearest_slot_value(raw_values), category_remaining if chart_category == ChartCategory.FB else 0 ), max_values )
+                        results = int(round(values / self.sub_21_per_slot_worth))
 
-                # IF SINGLE, SPLIT INTO 1B AND 1B+
-                if chart_category == ChartCategory._1B and not self.is_pitcher:
-                    single_plus_values, single_plus_results = self.__single_plus_values_and_results(total_1B_values=values, current_chart_index=current_chart_index)
-                    self.values[ChartCategory._1B_PLUS] = single_plus_values
-                    add_results_to_dict(category=ChartCategory._1B_PLUS, num_results=single_plus_results, current_chart_index=current_chart_index)
-                    current_chart_index -= single_plus_results
-                    values -= single_plus_values
-                    results -= single_plus_results
+                    case ChartCategoryFillMethod.RATE:
 
-                # CHECK FOR REMAINING VALUES IF FB WAS LIMITED AND THERE ARE REMAINING VALUES
-                if chart_category == ChartCategory.FB and was_limited:
-                    outs_values_pre_fb = sum([v for k,v in self.values.items() if k.is_out])
-                    total_outs_remaining = self.outs - outs_values_pre_fb - values
-                    if total_outs_remaining >= self.sub_21_per_slot_worth:
-                        # FILL WITH GB
-                        gb_values = total_outs_remaining
-                        gb_results = int(round(gb_values / self.sub_21_per_slot_worth))
-                        self.values[ChartCategory.GB] = self.values.get(ChartCategory.GB, 0) + values
-                        add_results_to_dict(category=ChartCategory.GB, num_results=gb_results, current_chart_index=current_chart_index)
-                        current_chart_index += gb_results
+                        # CALCULATE VALUES
+                        values, results, was_limited = self.calc_chart_category_values_from_rate_stats(category=chart_category, current_chart_index=current_chart_index, max_values=max_values, min_values=min_values)
+
+                        # IF SINGLE, SPLIT INTO 1B AND 1B+
+                        if chart_category == ChartCategory._1B and not self.is_pitcher:
+                            single_plus_values, single_plus_results = self.__single_plus_values_and_results(total_1B_values=values, current_chart_index=current_chart_index)
+                            self.values[ChartCategory._1B_PLUS] = single_plus_values
+                            add_results_to_dict(category=ChartCategory._1B_PLUS, num_results=single_plus_results, current_chart_index=current_chart_index)
+                            current_chart_index -= single_plus_results
+                            values -= single_plus_values
+                            results -= single_plus_results
+
+                        # CHECK FOR REMAINING VALUES IF FB WAS LIMITED AND THERE ARE REMAINING VALUES
+                        if chart_category == ChartCategory.FB and was_limited:
+                            outs_values_pre_fb = sum([v for k,v in self.values.items() if k.is_out])
+                            total_outs_remaining = self.outs - outs_values_pre_fb - values
+                            if total_outs_remaining >= self.sub_21_per_slot_worth:
+                                # FILL WITH GB
+                                gb_values = total_outs_remaining
+                                gb_results = int(round(gb_values / self.sub_21_per_slot_worth))
+                                self.values[ChartCategory.GB] = self.values.get(ChartCategory.GB, 0) + values
+                                add_results_to_dict(category=ChartCategory.GB, num_results=gb_results, current_chart_index=current_chart_index)
+                                current_chart_index += gb_results
                 
                 self.values[chart_category] = values
                 add_results_to_dict(category=chart_category, num_results=results, current_chart_index=current_chart_index)
@@ -430,44 +486,6 @@ class Chart(BaseModel):
 
         return chart_values_rounded, results, was_limited
 
-    def __so_values(self, current_so:int, num_out_slots:int) -> Union[int, float]:
-        """Update SO chart value to account for outliers and maximums
-
-        Args:
-          current_so: Number of slots currently occupied
-          num_out_slots: Total numbers of slots for outs available.
-
-        Returns:
-          Updated SO chart slots.
-        """
-
-        # FOR PITCHERS, SIMPLY RETURN CURRENT SO NUMBER
-        if self.is_pitcher:
-            return min(current_so, num_out_slots)
-        
-        # --- HITTERS ---
-        hard_limit_hitter = min(num_out_slots, self.hitter_so_results_hard_cap)
-        soft_limit_hitter = self.hitter_so_results_soft_cap
-        
-        # IF HITTER'S STRIKEOUTS ARE UNDER SOFT LIMIT, RETURN CURRENT RESULTS
-        if current_so < soft_limit_hitter:
-            return min(current_so, hard_limit_hitter)
-        
-        # IF PLAYER HAS SMALL SAMPLE SIZE, USE SOFT LIMIT AS HARD CAP
-        real_pa = self.pa
-        if real_pa < 100:
-            return min(current_so, hard_limit_hitter, soft_limit_hitter)
-        
-        # IF PLAYER IS OVER THE SOFT LIMIT, SCALE BACK RESULTS TOWARDS SOFT CAP AND USE FLOOR INSTEAD OF ROUND
-        if current_so > soft_limit_hitter:
-            multiplier = 0.80
-            current_so *= multiplier
-            current_so = max(soft_limit_hitter, current_so) # MAKE SURE MULTIPLIER DOESN'T MOVE CARD UNDER SOFT LIMIT
-            current_so = math.floor(current_so)
-            return min(current_so, hard_limit_hitter)
-
-        return min(current_so, hard_limit_hitter)
-
     def __single_plus_values_and_results(self, total_1B_values:int, current_chart_index:int) -> tuple[Union[int, float], int]:
         """Fill 1B+ values on chart.
 
@@ -512,12 +530,7 @@ class Chart(BaseModel):
         """
 
         # ROUND TO NEAREST SLOT WORTH
-        raw_value = max( round(value / self.sub_21_per_slot_worth) * self.sub_21_per_slot_worth , 0)
-
-        # FOR CERTAIN EXPANDED SETS AND CATEGORIES, REDUCE POSSIBILITY OF 0 RESULTS
-        if raw_value == 0 and value >= -0.25 and self.set in ['2003', '2004', '2005', 'EXPANDED'] and category in [ChartCategory.SO]:
-            raw_value = self.sub_21_per_slot_worth
-
+        raw_value = max( self.__round_to_nearest_slot_value(value) , 0)
         raw_results = int(round(raw_value / self.sub_21_per_slot_worth))
 
         # SKIP ROUNDING IF CATEGORY IS NONE (EX: OUTS) OR CHART IS NOT EXPANDED
@@ -544,10 +557,6 @@ class Chart(BaseModel):
             values_total = new_potential_total_value
             num_results += 1
             diff_last_index = new_potential_value_vs_original
-
-        if category == ChartCategory.SO:
-            chart_values_rounded = self.__so_values(current_so=values_total, num_out_slots=self.outs)
-            num_results = int(round(chart_values_rounded / self.sub_21_per_slot_worth))
         
         return values_total, num_results
 

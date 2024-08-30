@@ -488,8 +488,11 @@ for set in set_list:
                     continue
 
                 # CREATE SHOWDOWN BOT CARD FROM STATS
-                showdown_bot = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=wotc.stats)
-                showdown_bot_matching_command_outs = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=wotc.stats,command_out_override=(wotc.chart.command, wotc.chart.outs))
+                stats = wotc.stats.copy()
+                if len(stats) > 0:
+                    stats['BB'] = stats.get('BB', 0) - stats.get('HBP', 0)
+                showdown_bot = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats)
+                showdown_bot_matching_command_outs = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats,command_out_override=(wotc.chart.command, wotc.chart.outs))
 
                 # COMPARE
                 comparison = CardComparison(wotc=wotc, bot=showdown_bot, bot_matching_command_outs=showdown_bot_matching_command_outs)
