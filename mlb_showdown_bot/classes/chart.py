@@ -146,7 +146,8 @@ class Chart(BaseModel):
     stat_accuracy_weights: dict[str, float] = {}
     command_out_accuracy_weight: float = 1.0
     accuracy: float = 1.0
-    is_command_out_outlier: bool = False
+    is_command_out_anomaly: bool = False
+    chart_categories_adjusted: list[ChartCategory] = []
 
     def __init__(self, **data) -> None:
         super().__init__(**data)
@@ -442,14 +443,15 @@ class Chart(BaseModel):
             
             # GET CATEGORY WITH BIGGEST DIFFERENCE
             category_biggest_diff = min(category_pct_diffs, key=category_pct_diffs.get)
-            slots_category_biggest_diff = [index for index, cat in self.results.items() if cat == category_biggest_diff and index <= 20]
+            max_index = 20
+            slots_category_biggest_diff = [index for index, cat in self.results.items() if cat == category_biggest_diff and index <= max_index]
             
             # HANDLE CASES WHERE PLAYER HAS 0 SLOTS FOR CATEGORY
             if len(slots_category_biggest_diff) == 0:
                 # FIND NEXT SLOT AFTER LAST SLOT FOR CATEGORY
                 slg_categories_after = slg_categories[slg_categories.index(category_biggest_diff)+1:]
                 for slg_cat in slg_categories_after:
-                    indexes_for_slg_cat = [index for index, cat in self.results.items() if cat == slg_cat and index <= 20]
+                    indexes_for_slg_cat = [index for index, cat in self.results.items() if cat == slg_cat and index <= max_index]
                     if len(indexes_for_slg_cat) > 0:
                         slots_category_biggest_diff = indexes_for_slg_cat
                         break
@@ -473,6 +475,7 @@ class Chart(BaseModel):
                         new_slot_category = category_biggest_diff if index == (min_slot_index_category_biggest_diff - 1) else self.results[index + 1]
                         updated_results[index] = new_slot_category
                 self.results.update(updated_results)
+                self.chart_categories_adjusted += [category_biggest_diff]
                 
         return
 
@@ -681,7 +684,7 @@ class Chart(BaseModel):
             self.command_out_accuracy_weight = min( 1.020 - (0.0275 * abs(outs - out_max)), 1.0 )
         
         accuracy *= self.command_out_accuracy_weight
-        self.is_command_out_outlier = is_valid_outlier or is_outside_out_bounds
+        self.is_command_out_anomaly = is_valid_outlier or is_outside_out_bounds
         self.accuracy = accuracy
 
     def __accuracy_between_dicts(self, actuals_dict:dict, measurements_dict:dict, weights:dict={}, all_or_nothing:list[str]=[], only_use_weight_keys:bool=False) -> float:
