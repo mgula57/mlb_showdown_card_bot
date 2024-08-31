@@ -184,6 +184,7 @@ class Set(str, Enum):
                 case '2002': return 1.25
                 case '2003': return 0.962
                 case '2004': return 0.98
+                case '2005': return 1.04
                 case _: return 1.0
         
         return 1.0
@@ -605,96 +606,7 @@ class Set(str, Enum):
     @property
     def pu_normalizer_1988(self) -> float:
         return 0.5
-    
-    @property
-    def pu_multiplier(self) -> float:
-        match self.value:
-            case '2000': return 2.1
-            case '2001': return 2.8
-            case '2002': return 2.8
-            case '2003': return 2.2
-            case '2004': return 2.05
-            case '2005': return 2.4
-            case 'CLASSIC': return 2.5
-            case 'EXPANDED': return 2.4
-    
-    def gb_multiplier(self, player_type: PlayerType, era: Era) -> float:
-        match player_type:
-            case PlayerType.HITTER:
-                match self.value:
-                    case '2000':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
-                            case Era.STEROID | Era.POST_STEROID: return 1.00
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
-                    case '2001':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
-                            case Era.STEROID | Era.POST_STEROID: return 1.15
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.00
-                    case '2002':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.25
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.20
-                            case Era.STEROID | Era.POST_STEROID: return 1.17
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.10
-                    case '2003':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
-                            case Era.STEROID | Era.POST_STEROID: return 1.05
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.00
-                    case '2004' | '2005':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
-                            case Era.STEROID | Era.POST_STEROID: return 1.00
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.00
-                    case 'CLASSIC' | 'EXPANDED':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
-                            case Era.STEROID | Era.POST_STEROID: return 1.00
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.90
-            case PlayerType.PITCHER:
-                match self.value:
-                    case '2000':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
-                            case Era.STEROID | Era.POST_STEROID: return 0.85
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.82
-                    case '2001':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
-                            case Era.STEROID: return 0.93
-                            case Era.POST_STEROID: return 0.90
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.85
-                    case '2002':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
-                            case Era.STEROID: return 0.88
-                            case Era.POST_STEROID: return 0.90
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.85
-                    case '2003' | '2004' | '2005':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.15
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.10
-                            case Era.STEROID: return 1.05
-                            case Era.POST_STEROID: return 1.00
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
-                    case 'CLASSIC' | 'EXPANDED':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
-                            case Era.STEROID: return 1.00
-                            case Era.POST_STEROID: return 0.95
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.90
-
+     
     @property
     def is_batting_avg_command_out_multiplier(self) -> bool:
         """Returns True if the set has a batting average multiplier"""
@@ -2085,9 +1997,9 @@ class Set(str, Enum):
                                 'SO': 4.00,
                                 'GB': 6.45,
                                 'FB': 5.45,
-                                'BB': 0.74,
-                                '1B': 2.06,
-                                '2B': 0.50,
+                                'BB': 0.75,
+                                '1B': 2.02,
+                                '2B': 0.53,
                                 '3B': 0.10,
                                 'HR': 0.05,
                             }

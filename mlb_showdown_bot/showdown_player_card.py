@@ -88,8 +88,8 @@ class ShowdownPlayerCard(BaseModel):
     ignore_cache: bool = False
     disable_cache_cleaning: bool = False
     date_override: Optional[str] = None
-    test_numbers: Optional[tuple[int | float , int | float]] = None
     command_out_override: Optional[tuple[int,int]] = None
+    commands_excluded: Optional[list[int]] = []
     is_variable_speed_00_01: bool = False
     is_wotc: bool = False
     
@@ -1599,7 +1599,7 @@ class ShowdownPlayerCard(BaseModel):
         stat_accuracy_weights=self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type)
         pa = self.stats.get('pa', 400)
         
-        command_options = list(set([ c for c,_ in self.set.command_out_combinations(player_type=self.player_type) ]))
+        command_options = list(set([ c for c,_ in self.set.command_out_combinations(player_type=self.player_type) if c not in self.commands_excluded]))
         for command in command_options:
             
             # CREATE CHART WITH COMMAND/OUT COMBO

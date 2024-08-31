@@ -471,6 +471,7 @@ for set in set_list:
             
             set_comparisons: list[CardComparison] = []
             set_type_player_set = {id: card for id, card in wotc_player_card_set.cards.items() if card.set == set and card.player_sub_type == sub_type and card.image.expansion in expansion_list}
+            wotc_command_list = [c.chart.command for c in set_type_player_set.values()]
             for index, (id, wotc) in enumerate(set_type_player_set.items(), 1):
                 
                 # SKIP IF PLAYER FALLS UNDER FILTERS
@@ -491,7 +492,9 @@ for set in set_list:
                 stats = wotc.stats.copy()
                 if len(stats) > 0:
                     stats['BB'] = stats.get('BB', 0) - stats.get('HBP', 0)
-                showdown_bot = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats)
+                
+                commands_excluded = [c for c in range(0,17) if c not in wotc_command_list]
+                showdown_bot = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats,commands_excluded=commands_excluded)
                 showdown_bot_matching_command_outs = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats,command_out_override=(wotc.chart.command, wotc.chart.outs))
 
                 # COMPARE
