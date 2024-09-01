@@ -91,7 +91,7 @@ class ChartCategory(str, Enum):
     def fill_method(self, set:str, is_pitcher:bool) -> ChartCategoryFillMethod:
         is_hitter = not is_pitcher
         match set:
-            case '2005':
+            case '2004' | '2005' | 'EXPANDED':
                 if self.is_out and is_hitter:
                     return ChartCategoryFillMethod.PCT
         
@@ -106,7 +106,7 @@ class ChartCategory(str, Enum):
         
         is_hitter = not is_pitcher
         match set:
-            case '2005':
+            case '2004' | '2005' | 'EXPANDED':
                 if is_hitter:
                     match self:
                         case ChartCategory.GB: return 1.20
@@ -216,30 +216,49 @@ class Chart(BaseModel):
         
         # EXPANDED CHARTS
         slot_values_dict: dict[int, float] = { i: self.sub_21_per_slot_worth for i in range(1, 21) }
-        
-        # FILL 21+ SLOTS WITH A GEOMETRIC PROGRESSION, STARTING AT THE REMAINING VALUE / 2
-        # EX: 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625, 0.001953125, 0.0009765625
-        # THE FORMULA OF A GEOMETRIC PROGRESSION IS: a * r^(n-1) 
-        # EX: 21:  0.5 * 0.5 ^ 0 = 0.5
-        #     22:  0.5 * 0.5 ^ 1 = 0.25
-        #     23:  0.5 * 0.5 ^ 2 = 0.125
+        if self.is_pitcher:
+            # FILL 21+ SLOTS WITH A GEOMETRIC PROGRESSION, STARTING AT THE REMAINING VALUE / 2
+            # EX: 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625, 0.001953125, 0.0009765625
+            # THE FORMULA OF A GEOMETRIC PROGRESSION IS: a * r^(n-1) 
+            # EX: 21:  0.5 * 0.5 ^ 0 = 0.5
+            #     22:  0.5 * 0.5 ^ 1 = 0.25
+            #     23:  0.5 * 0.5 ^ 2 = 0.125
 
-        slot_values_21_plus: dict[int, float] = {}
-        remaining_value = 20 - sum(slot_values_dict.values())
-        starting_value = remaining_value * 0.5
-        for i in range(21, 31):
-            value = starting_value * pow(0.5, (i-21))
-            remaining_value = 20 - sum(slot_values_dict.values()) - sum(slot_values_21_plus.values())
-            slot_values_21_plus[i] = min(value, remaining_value)
-        
-        slot_values_dict.update(slot_values_21_plus)
+            slot_values_21_plus: dict[int, float] = {}
+            remaining_value = 20 - sum(slot_values_dict.values())
+            starting_value = remaining_value * 0.6
+            for i in range(21, 31):
+                value = starting_value * pow(0.5, (i-21))
+                remaining_value = 20 - sum(slot_values_dict.values()) - sum(slot_values_21_plus.values())
+                slot_values_21_plus[i] = min(value, remaining_value)
+            
+            slot_values_dict.update(slot_values_21_plus)
 
-        # FILL THE 30TH SLOT WITH THE REMAINING VALUE
-        # ALLOWS THE VALUE TO ADD UP TO EXACTLY 20
-        remaining_value = 20 - sum(slot_values_dict.values())
-        slot_values_dict[30] += remaining_value
+            # FILL THE 30TH SLOT WITH THE REMAINING VALUE
+            # ALLOWS THE VALUE TO ADD UP TO EXACTLY 20
+            remaining_value = 20 - sum(slot_values_dict.values())
+            slot_values_dict[30] += remaining_value
 
-        return slot_values_dict
+            return slot_values_dict
+        else:
+            
+            # TOTAL AMOUNT AND NUMBER OF SLOTS TO SPREAD
+            remaining_value = 20 - sum(slot_values_dict.values())
+            n_values = 3
+
+            # CREATE A SEQUENCE OF NUMBERS THAT DECREASE LINEARLY
+            values_list = np.linspace(start=remaining_value/n_values, stop=0, num=n_values)
+            # ENSURE THE VALUES SUM TO THE TOTAL
+            values_list = remaining_value * values_list / values_list.sum()
+
+            values_dict = { i: v for i, v in enumerate(values_list, start=21) }        
+            slot_values_dict.update(values_dict)
+
+            # FILL REMAINING SLOTS (20+n - 30) WITH 0
+            for i in range(21+n_values, 31):
+                slot_values_dict[i] = 0
+
+            return slot_values_dict
 
     @property
     def sub_21_per_slot_worth(self) -> float:
@@ -249,7 +268,7 @@ class Chart(BaseModel):
         if self.is_pitcher:
             return 0.95
         
-        return 0.97
+        return 0.975
 
     @property
     def sub_21_total_possible_slots(self) -> float:
@@ -327,8 +346,9 @@ class Chart(BaseModel):
         """Generate values dictionary and store to self """
 
         def add_results_to_dict(category:ChartCategory, num_results:int, current_chart_index:int) -> None:
+            if num_results == 0: return
             iterator = -1 if category.is_filled_in_desc_order else 1
-            for i in range(current_chart_index, current_chart_index + ( (num_results+1) * iterator), iterator):
+            for i in range(current_chart_index, current_chart_index + ( (num_results) * iterator), iterator):
                 self.results[i] = category
 
         def fill_chart_categories(categories: list[ChartCategory], is_reversed:bool = False) -> None:
@@ -426,16 +446,17 @@ class Chart(BaseModel):
         # INCREASE EITHER 2B, 3B, OR HR BY 1 AND DECREASE 1B BY 1
         is_under_in_slg_and_ops = slg_pct_diff < 0 \
                                     and ops_pct_diff < 0  \
-                                    and abs(obp_pct_diff) < 0.02 \
+                                    and abs(obp_pct_diff) < 0.03 \
                                     and abs(slg_pct_diff) > 0.01 \
                                     and self.num_values(ChartCategory._1B) >= self.sub_21_per_slot_worth
+
         if is_under_in_slg_and_ops and self.is_hitter:
             category_pct_diffs: dict[ChartCategory, float] = {}
             slg_categories = [ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]
             for slg_cat in slg_categories:
                 if self.stats_per_400_pa.get(slg_cat.value.lower() + '_per_400_pa', 0) < 5: continue
                 pct_diff = self.__stat_projected_vs_real_pct_diff(slg_cat.value.lower() + '_per_400_pa')
-                if pct_diff < 0: category_pct_diffs[slg_cat] = pct_diff
+                if pct_diff <= -0.01: category_pct_diffs[slg_cat] = pct_diff
 
             # CHECK: IF NO CATEGORIES TO ADJUST, SKIP ADJUSTMENTS
             if len(category_pct_diffs) == 0:
@@ -443,7 +464,7 @@ class Chart(BaseModel):
             
             # GET CATEGORY WITH BIGGEST DIFFERENCE
             category_biggest_diff = min(category_pct_diffs, key=category_pct_diffs.get)
-            max_index = 20
+            max_index = 21 if self.results[21] == ChartCategory.HR else 20
             slots_category_biggest_diff = [index for index, cat in self.results.items() if cat == category_biggest_diff and index <= max_index]
             
             # HANDLE CASES WHERE PLAYER HAS 0 SLOTS FOR CATEGORY
@@ -671,7 +692,7 @@ class Chart(BaseModel):
         outs = self.outs / self.sub_21_per_slot_worth
 
         # REDUCE ACCURACY WHEN OUTS ARE ABOVE SOFT OUTLIER MAX AND COMMAND ABOVE SOFT OUTLIER MAX
-        outs_soft_cap = out_max + 1
+        outs_soft_cap = out_max
         command_soft_cap = 11 if self.is_expanded else 8
         is_high_command_high_outs = outs > outs_soft_cap and self.command > command_soft_cap
         if is_high_command_high_outs:
@@ -872,7 +893,9 @@ class Chart(BaseModel):
         my_results = self.num_values(category)
         opponent_results = self.opponent.num_values(category)
         pa_multiplier = pa / 400
-        return ( (my_results * self.my_advantages_per_20) + (opponent_results * self.opponent_advantages_per_20) ) * pa_multiplier
+        total_projected = ( (my_results * self.my_advantages_per_20) + (opponent_results * self.opponent_advantages_per_20) ) * pa_multiplier
+
+        return total_projected
 
     def __slugging_pct(self, ab:float, singles:float, doubles:float, triples:float, homers:float)  -> float:
         """ Calculate Slugging Pct"""

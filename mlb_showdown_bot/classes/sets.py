@@ -183,7 +183,7 @@ class Set(str, Enum):
                 case '2001': return 1.22
                 case '2002': return 1.25
                 case '2003': return 0.962
-                case '2004': return 0.98
+                case '2004': return 1.02
                 case '2005': return 1.04
                 case _: return 1.0
         
@@ -1997,11 +1997,11 @@ class Set(str, Enum):
                                 'SO': 4.00,
                                 'GB': 6.45,
                                 'FB': 5.45,
-                                'BB': 0.75,
-                                '1B': 2.02,
-                                '2B': 0.53,
-                                '3B': 0.10,
-                                'HR': 0.05,
+                                'BB': 1.20,
+                                '1B': 1.49,
+                                '2B': 0.54,
+                                '3B': 0.07,
+                                'HR': 0.15,
                             }
                         )
             case PlayerType.HITTER:
