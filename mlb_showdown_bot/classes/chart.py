@@ -90,10 +90,9 @@ class ChartCategory(str, Enum):
 
     def fill_method(self, set:str, is_pitcher:bool) -> ChartCategoryFillMethod:
         is_hitter = not is_pitcher
-        match set:
-            case '2004' | '2005' | 'EXPANDED':
-                if self.is_out and is_hitter:
-                    return ChartCategoryFillMethod.PCT
+        is_expanded = set not in ['2000', '2001', 'CLASSIC',]
+        if self.is_out and is_hitter and is_expanded:
+            return ChartCategoryFillMethod.PCT
         
         return ChartCategoryFillMethod.RATE
 
@@ -106,6 +105,12 @@ class ChartCategory(str, Enum):
         
         is_hitter = not is_pitcher
         match set:
+            case '2002' | '2003':
+                if is_hitter:
+                    match self:
+                        case ChartCategory.SO: return 1.07
+                        case ChartCategory.GB: return 1.18
+                        case ChartCategory.FB: return 0.75
             case '2004' | '2005' | 'EXPANDED':
                 if is_hitter:
                     match self:
@@ -464,7 +469,7 @@ class Chart(BaseModel):
             
             # GET CATEGORY WITH BIGGEST DIFFERENCE
             category_biggest_diff = min(category_pct_diffs, key=category_pct_diffs.get)
-            max_index = 21 if self.results[21] == ChartCategory.HR else 20
+            max_index = 21 if self.is_expanded and self.results[21] in [ChartCategory.HR, ChartCategory._2B] else 20
             slots_category_biggest_diff = [index for index, cat in self.results.items() if cat == category_biggest_diff and index <= max_index]
             
             # HANDLE CASES WHERE PLAYER HAS 0 SLOTS FOR CATEGORY

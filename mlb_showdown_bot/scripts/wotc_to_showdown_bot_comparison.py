@@ -74,6 +74,8 @@ class Stat(Enum):
         match self :
             case Stat.OBP: return 3
             case Stat.SO | Stat.PU | Stat.GB | Stat.FB | Stat._1B_PLUS: return 0.33
+            case Stat.HR_START: return 0.15
+            case Stat.COMMAND_OUTS: return 0.0
             case _: return 1
 
     @property
@@ -198,8 +200,8 @@ class CardComparison(BaseModel):
                     wotc_stat = getattr(self.wotc.speed, stat.value)
                     bot_stat = getattr(self.bot.speed, stat.value)
                 case "chart.category_results_count_dict":
-                    wotc_stat = self.wotc.chart.category_results_count_dict.get(stat.value, 0)
-                    bot_stat = self.bot_matching_command_outs.chart.category_results_count_dict.get(stat.value, 0)
+                    wotc_stat = self.wotc.chart.category_results_count_dict.get(stat.value, 0) + (self.wotc.chart.category_results_count_dict.get(Stat._1B_PLUS.value, 0) if stat == Stat._1B else 0)
+                    bot_stat = self.bot_matching_command_outs.chart.category_results_count_dict.get(stat.value, 0) + (self.bot_matching_command_outs.chart.category_results_count_dict.get(Stat._1B_PLUS.value, 0) if stat == Stat._1B else 0)
             
             self.stat_comparisons[stat] = StatComparison(
                 stat=stat,
@@ -464,7 +466,7 @@ for set in set_list:
                     rprint(f"\n[yellow]Chart does not add up to 20 for {set.value} {opponent_type.value}[/yellow] ({filled_slots}/20). Please {suggestion_str} {abs(round(remaining_slots,2))} slots")
             
             chart_outs = round(sum([v for c, v in opponent_chart.values.items() if c.is_out]), 2)
-            listed_outs = opponent_chart.outs
+            listed_outs = round(opponent_chart.outs, 2)
             if chart_outs != listed_outs:
                 if print_output:
                     rprint(f"\n[yellow]Outs do not match for {set.value} {opponent_type.value}[/yellow] ({chart_outs}/{listed_outs})")
