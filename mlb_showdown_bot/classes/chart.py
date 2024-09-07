@@ -119,6 +119,18 @@ class ChartCategory(str, Enum):
                         
         return 1.0
     
+    def decay_rate_and_start(self, set:str, is_pitcher:bool) -> tuple[float, int]:
+        """Decay rate for category based on set and player type"""
+
+        is_hitter = not is_pitcher
+        match set:
+            case '2002':
+                if is_hitter:
+                    match self:
+                        case ChartCategory.SO: return 0.60, 4
+
+        return None
+
 # ---------------------------------------
 # CHART
 # ---------------------------------------
@@ -580,6 +592,14 @@ class Chart(BaseModel):
         Returns:
             Tuple of rounded value and number of slots filled.
         """
+
+        # APPLY DECAY RATE IF APPLICABLE
+        if category is not None:
+            decay_rate_and_start = category.decay_rate_and_start(set=self.set, is_pitcher=self.is_pitcher)
+            if decay_rate_and_start is not None:
+                decay_rate, decay_start = decay_rate_and_start
+                if value > decay_start:
+                    value = decay_start + ((value - decay_start) * decay_rate)
 
         # ROUND TO NEAREST SLOT WORTH
         raw_value = max( self.__round_to_nearest_slot_value(value) , 0)
