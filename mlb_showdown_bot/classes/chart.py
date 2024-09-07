@@ -90,8 +90,8 @@ class ChartCategory(str, Enum):
 
     def fill_method(self, set:str, is_pitcher:bool) -> ChartCategoryFillMethod:
         is_hitter = not is_pitcher
-        is_expanded = set not in ['2000', '2001', 'CLASSIC',]
-        if self.is_out and is_hitter and is_expanded:
+        is_eligible_for_pct = set not in ['2000', '2001', 'CLASSIC', '2002', ]
+        if self.is_out and is_hitter and is_eligible_for_pct:
             return ChartCategoryFillMethod.PCT
         
         return ChartCategoryFillMethod.RATE
@@ -105,7 +105,7 @@ class ChartCategory(str, Enum):
         
         is_hitter = not is_pitcher
         match set:
-            case '2002' | '2003':
+            case '2003':
                 if is_hitter:
                     match self:
                         case ChartCategory.SO: return 1.07

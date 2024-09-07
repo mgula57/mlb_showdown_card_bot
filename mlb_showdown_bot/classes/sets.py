@@ -1951,17 +1951,17 @@ class Set(str, Enum):
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=3.28,
+                            command=3.40,
                             values={
-                                'PU': 0.80,
-                                'SO': 4.05,
-                                'GB': 6.50,
-                                'FB': 5.35,
+                                'PU': 1.30,
+                                'SO': 4.15,
+                                'GB': 5.50,
+                                'FB': 5.75,
                                 'BB': 1.09,
                                 '1B': 1.56,
-                                '2B': 0.52,
+                                '2B': 0.55,
                                 '3B': 0.00,
-                                'HR': 0.13,
+                                'HR': 0.10,
                             }
                         )
                     case Set._2003:
