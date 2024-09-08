@@ -1164,17 +1164,19 @@ class ShowdownPlayerCard(BaseModel):
             metric_multiplier = self.set.speed_metric_multiplier(metric=metric, use_variable_speed_multiplier=use_variable_speed_multiplier)
             era_multiplier = self.era.speed_multiplier
 
-            speed_percentile = era_multiplier * metric_multiplier * (value-metric.minimum_range_value) / (metric.maximum_range_value - metric.minimum_range_value)
+            metric_min = metric.minimum_range_value(set=self.set.value)
+            metric_max = metric.maximum_range_value(set=self.set.value)
+            speed_percentile = era_multiplier * metric_multiplier * (value-metric_min) / (metric_max - metric_min)
             speed = int(round(speed_percentile * metric.top_percentile_range_value))
 
             # CHANGE OUTLIERS
             min_in_game = self.set.min_in_game_spd
             max_in_game = (self.set.max_in_game_spd if games > 85 else (self.set.max_in_game_spd - 3))
 
-            cutoff_for_sub_percentile_sb = 20
+            cutoff_for_sub_percentile_sb = self.set.speed_cutoff_for_sub_percentile_sb
             if metric == SpeedMetric.STOLEN_BASES and speed > cutoff_for_sub_percentile_sb:
                 sb_cap = SpeedMetric.STOLEN_BASES.threshold_max_650_pa * metric_multiplier
-                sub_percentile = (value - metric.maximum_range_value) / (sb_cap - metric.maximum_range_value)
+                sub_percentile = (value - metric_max) / (sb_cap - metric_max)
                 remaining_slots_over_cutoff = max_in_game - cutoff_for_sub_percentile_sb
                 additional_speed_over_cutoff = sub_percentile * remaining_slots_over_cutoff
                 speed = int(additional_speed_over_cutoff + cutoff_for_sub_percentile_sb)

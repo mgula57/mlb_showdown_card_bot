@@ -172,7 +172,13 @@ class Set(str, Enum):
         match self.value:
             case '2002': return 13
             case _: return 12
-    
+
+    @property
+    def speed_cutoff_for_sub_percentile_sb(self) -> int:
+        match self:
+            case Set._2002: return 22
+            case _: return 20
+
     def speed_metric_multiplier(self, metric: SpeedMetric, use_variable_speed_multiplier:bool) -> float:
         if use_variable_speed_multiplier:
             return self.variable_speed_multiplier
@@ -181,7 +187,7 @@ class Set(str, Enum):
             match self.value:
                 case '2000': return 1.21
                 case '2001': return 1.22
-                case '2002': return 1.25
+                case '2002': return 1.12
                 case '2003': return 0.962
                 case '2004': return 1.02
                 case '2005': return 1.04

@@ -23,17 +23,21 @@ class SpeedMetric(Enum):
     SPRINT_SPEED = 'SPRINT SPEED'
     STOLEN_BASES = 'STOLEN BASES'
 
-    @property
-    def maximum_range_value(self) -> int:
+    def maximum_range_value(self, set:str) -> int:
         match self.name:
             case 'SPRINT_SPEED': return 31
-            case 'STOLEN_BASES': return 26
+            case 'STOLEN_BASES':
+                match set:
+                    case '2002': return 25
+                    case _: return 26
 
-    @property
-    def minimum_range_value(self) -> int:
+    def minimum_range_value(self, set:str) -> int:
         match self.name:
             case 'SPRINT_SPEED': return 23
-            case 'STOLEN_BASES': return -25
+            case 'STOLEN_BASES': 
+                match set:
+                    case '2002': return -32
+                    case _: return -25
 
     @property
     def top_percentile_range_value(self) -> float:
