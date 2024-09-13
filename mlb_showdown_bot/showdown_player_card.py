@@ -2209,7 +2209,7 @@ class ShowdownPlayerCard(BaseModel):
         print(self.points_breakdown.breakdown_str)
         print(" | ".join([f"{co}:{round(pct * 100, 2)}%" for index, (co, pct) in enumerate(self.command_out_accuracies.items()) if index < 7]) )
 
-        print(f"\n{self.chart.command} {self.command_type.upper()}  {f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.is_command_out_anomaly else ''} ")
+        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs} OUTS  {f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.is_command_out_anomaly else ''} ")
 
         chart_tbl = PrettyTable(field_names=[col.value + ('*' if col in self.chart.chart_categories_adjusted else '') for col in self.chart.categories_list])
         chart_tbl.add_row(self.chart.ranges_list)

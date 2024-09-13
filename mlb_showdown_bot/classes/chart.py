@@ -127,7 +127,12 @@ class ChartCategory(str, Enum):
             case '2002':
                 if is_hitter:
                     match self:
-                        case ChartCategory.SO: return 0.60, 4
+                        case ChartCategory.SO: return (0.60, 4)
+                        case ChartCategory._1B_PLUS: return (0.70, 1)
+            case _:
+                if is_hitter:
+                    match self:
+                        case ChartCategory._1B_PLUS: return (0.60, 3)
 
         return None
 
@@ -225,10 +230,14 @@ class Chart(BaseModel):
         return values_list
     
     @property
+    def has_over_21_slot_values(self) -> bool:
+        return self.sub_21_per_slot_worth < 1
+
+    @property
     def slot_values(self) -> dict[int, float]:
         
         # EACH SLOT IS WORTH 1 FOR CLASSIC
-        if not self.is_expanded:
+        if not self.has_over_21_slot_values:
             return { i: 1 for i in range(1, 21) }
         
         # EXPANDED CHARTS
@@ -279,7 +288,7 @@ class Chart(BaseModel):
 
     @property
     def sub_21_per_slot_worth(self) -> float:
-        if not self.is_expanded:
+        if not self.is_expanded or self.set == '2002':
             return 1
         
         if self.is_pitcher:
@@ -296,7 +305,7 @@ class Chart(BaseModel):
 
     @property
     def total_possible_slots(self) -> int:
-        if not self.is_expanded:
+        if not self.has_over_21_slot_values:
             return 20
         
         return 30
@@ -323,23 +332,10 @@ class Chart(BaseModel):
         return final_dict
 
     @property
-    def hitter_so_results_soft_cap(self) -> int:
-        match self.set:
-            case '2002': return 4 * self.sub_21_per_slot_worth
-            case _: return 3 * self.sub_21_per_slot_worth
-
-    @property
-    def hitter_so_results_hard_cap(self) -> int:
-        match self.set:
-            case '2000': return 5 * self.sub_21_per_slot_worth
-            case '2002': return 7 * self.sub_21_per_slot_worth
-            case _: return 6 * self.sub_21_per_slot_worth
-
-    @property
     def hitter_single_plus_denominator_minimum(self) -> float:
         match self.set:
             case '2000' | '2001' | 'CLASSIC': return 3.2
-            case '2002': return 7.0
+            case '2002': return 4.0
             case '2003': return 6.0
             case '2004' | '2005' | 'EXPANDED': return 4.5
     
@@ -347,7 +343,7 @@ class Chart(BaseModel):
     def hitter_single_plus_denominator_maximum(self) -> float:
         match self.set:
             case '2000' | '2001' | 'CLASSIC': return 9.6
-            case '2002': return 10.5
+            case '2002': return 12.5
             case '2003' | '2004': return 10.5
             case '2005' | 'EXPANDED': return 9.75
 
@@ -388,7 +384,7 @@ class Chart(BaseModel):
                 is_out_max = self.outs if chart_category.is_out else 20 - self.outs
                 category_remaining = is_out_max - sum([v for k,v in self.values.items() if k.is_out == chart_category.is_out])
                 max_values = min(category_limit, category_remaining)
-                min_values = category_remaining if chart_category == ChartCategory._1B else None
+                min_values = category_remaining if chart_category in [ChartCategory._1B, ChartCategory.FB] else None
 
                 # FILL CHART CATEGORY VALUES
                 # FILL METHODS:
@@ -467,54 +463,32 @@ class Chart(BaseModel):
                                     and abs(slg_pct_diff) > 0.01 \
                                     and self.num_values(ChartCategory._1B) >= self.sub_21_per_slot_worth
 
+        # ------------------------------
+        # ADJUST CHARTS THAT ARE UNDER IN OBP BUT CLOSE IN SLG AND OPS
+        # ------------------------------
         if is_under_in_slg_and_ops and self.is_hitter:
-            category_pct_diffs: dict[ChartCategory, float] = {}
-            slg_categories = [ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]
-            for slg_cat in slg_categories:
-                if self.stats_per_400_pa.get(slg_cat.value.lower() + '_per_400_pa', 0) < 5: continue
-                pct_diff = self.__stat_projected_vs_real_pct_diff(slg_cat.value.lower() + '_per_400_pa')
-                if pct_diff <= -0.01: category_pct_diffs[slg_cat] = pct_diff
+            self.__increase_slg()
 
-            # CHECK: IF NO CATEGORIES TO ADJUST, SKIP ADJUSTMENTS
-            if len(category_pct_diffs) == 0:
-                return
-            
-            # GET CATEGORY WITH BIGGEST DIFFERENCE
-            category_biggest_diff = min(category_pct_diffs, key=category_pct_diffs.get)
-            max_index = 21 if self.is_expanded and self.results[21] in [ChartCategory.HR, ChartCategory._2B] else 20
-            slots_category_biggest_diff = [index for index, cat in self.results.items() if cat == category_biggest_diff and index <= max_index]
-            
-            # HANDLE CASES WHERE PLAYER HAS 0 SLOTS FOR CATEGORY
-            if len(slots_category_biggest_diff) == 0:
-                # FIND NEXT SLOT AFTER LAST SLOT FOR CATEGORY
-                slg_categories_after = slg_categories[slg_categories.index(category_biggest_diff)+1:]
-                for slg_cat in slg_categories_after:
-                    indexes_for_slg_cat = [index for index, cat in self.results.items() if cat == slg_cat and index <= max_index]
-                    if len(indexes_for_slg_cat) > 0:
-                        slots_category_biggest_diff = indexes_for_slg_cat
-                        break
+        # ------------------------------
+        # 2002 POST 20 ADJUSTMENTS
+        # ------------------------------
+        if self.set == '2002' and self.is_hitter:
 
-            min_slot_index_category_biggest_diff = min(slots_category_biggest_diff) if len(slots_category_biggest_diff) > 0 else None
-            if not min_slot_index_category_biggest_diff:
-                return
-
-            # CHANGE VALUES FOR 1B AND ADJUST CATEGORY
-            self.values[ChartCategory._1B] -= self.sub_21_per_slot_worth
-            self.values[category_biggest_diff] += self.sub_21_per_slot_worth
-            
-            # UPDATE RESULTS DICTIONARY
-            # EX: {.. 15: '1B', 16: '2B', ..} -> {.. 15: '2B', 16: '2B', ..}
-            slot_indexes_1B = [index for index, cat in self.results.items() if cat == ChartCategory._1B and index <= 20]
-            max_slot_index_1b = max(slot_indexes_1B) if len(slot_indexes_1B) > 0 else None
-            if max_slot_index_1b:
-                updated_results: dict[int, ChartCategory] = {}
-                for index in self.results.keys():
-                    if index >= max_slot_index_1b and index < min_slot_index_category_biggest_diff:
-                        new_slot_category = category_biggest_diff if index == (min_slot_index_category_biggest_diff - 1) else self.results[index + 1]
-                        updated_results[index] = new_slot_category
-                self.results.update(updated_results)
-                self.chart_categories_adjusted += [category_biggest_diff]
+            # LAST VALUE
+            last_value = self.results.get(20, None)
+            if last_value == ChartCategory.HR:
+                # IF LAST VALUE IS HR, FILL 21-30 WITH HR
+                for i in range(21, 31):
+                    self.results[i] = ChartCategory.HR
                 
+                return
+            
+            # FILL 21+ SLOTS, STARTING WITH HR
+            hr_start = min( round(27.67 - (0.7835 * self.stats_per_400_pa.get('hr_per_400_pa', 0))), 27 )
+            for i in range(21, 31):
+                fill_category = ChartCategory.HR if i >= hr_start else last_value
+                self.results[i] = fill_category
+
         return
 
     def calc_chart_category_values_from_rate_stats(self, category:ChartCategory, current_chart_index:int, max_values:float, min_values:float=None) -> tuple[Union[float | int], int, bool]:
@@ -574,9 +548,11 @@ class Chart(BaseModel):
         # POPULATE 1B+ RESULTS
         single_plus_denominator = min_denominator + ( (max_denominator-min_denominator) * onbase_pctile )
         single_plus_values_raw = min(math.trunc(sb / single_plus_denominator), total_1B_values)
-        # IMPLEMENT LINEAR DECAY FOR 1B+ VALUES OVER 3
-        if single_plus_values_raw > 3:
-            single_plus_values_raw = 3 + (single_plus_values_raw - 3) * 0.60
+        
+        # IMPLEMENT LINEAR DECAY FOR 1B+ VALUES OVER LIMIT
+        single_plus_values_raw = self.__apply_linear_decay(value=single_plus_values_raw, category=ChartCategory._1B_PLUS)
+        
+        # UPDATE VALUES AND RESULTS
         single_plus_values_rounded, single_plus_results = self.values_and_results(value=single_plus_values_raw, category=ChartCategory._1B_PLUS, current_chart_index=current_chart_index)
 
         return single_plus_values_rounded, single_plus_results
@@ -595,11 +571,7 @@ class Chart(BaseModel):
 
         # APPLY DECAY RATE IF APPLICABLE
         if category is not None:
-            decay_rate_and_start = category.decay_rate_and_start(set=self.set, is_pitcher=self.is_pitcher)
-            if decay_rate_and_start is not None:
-                decay_rate, decay_start = decay_rate_and_start
-                if value > decay_start:
-                    value = decay_start + ((value - decay_start) * decay_rate)
+            value = self.__apply_linear_decay(value=value, category=category)
 
         # ROUND TO NEAREST SLOT WORTH
         raw_value = max( self.__round_to_nearest_slot_value(value) , 0)
@@ -685,6 +657,68 @@ class Chart(BaseModel):
         out_value_list = [v for k,v in self.values.items() if k.is_out]
         self.outs = sum(out_value_list) if len(out_value_list) > 0 else 0
 
+    def __increase_slg(self) -> None:
+        """Increase SLG for the category with the biggest difference between projected and real stats per 400 PA"""
+
+        category_pct_diffs: dict[ChartCategory, float] = {}
+        slg_categories = [ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]
+        for slg_cat in slg_categories:
+            if self.stats_per_400_pa.get(slg_cat.value.lower() + '_per_400_pa', 0) < 5: continue
+            pct_diff = self.__stat_projected_vs_real_pct_diff(slg_cat.value.lower() + '_per_400_pa')
+            if pct_diff <= -0.01: category_pct_diffs[slg_cat] = pct_diff
+
+        # CHECK: IF NO CATEGORIES TO ADJUST, SKIP ADJUSTMENTS
+        if len(category_pct_diffs) == 0:
+            return
+        
+        # GET CATEGORY WITH BIGGEST DIFFERENCE
+        category_biggest_diff = min(category_pct_diffs, key=category_pct_diffs.get)
+        max_index = 21 if self.total_possible_slots > 20 and self.results[21] in [ChartCategory.HR, ChartCategory._2B] else 20
+        slots_category_biggest_diff = [index for index, cat in self.results.items() if cat == category_biggest_diff and index <= max_index]
+        
+        # HANDLE CASES WHERE PLAYER HAS 0 SLOTS FOR CATEGORY
+        if len(slots_category_biggest_diff) == 0:
+            # FIND NEXT SLOT AFTER LAST SLOT FOR CATEGORY
+            slg_categories_after = slg_categories[slg_categories.index(category_biggest_diff)+1:]
+            for slg_cat in slg_categories_after:
+                indexes_for_slg_cat = [index for index, cat in self.results.items() if cat == slg_cat and index <= max_index]
+                if len(indexes_for_slg_cat) > 0:
+                    slots_category_biggest_diff = indexes_for_slg_cat
+                    break
+
+        min_slot_index_category_biggest_diff = min(slots_category_biggest_diff) if len(slots_category_biggest_diff) > 0 else None
+        if not min_slot_index_category_biggest_diff:
+            return
+
+        # CHANGE VALUES FOR 1B AND ADJUST CATEGORY
+        self.values[ChartCategory._1B] -= self.sub_21_per_slot_worth
+        self.values[category_biggest_diff] += self.sub_21_per_slot_worth
+        
+        # UPDATE RESULTS DICTIONARY
+        # EX: {.. 15: '1B', 16: '2B', ..} -> {.. 15: '2B', 16: '2B', ..}
+        slot_indexes_1B = [index for index, cat in self.results.items() if cat == ChartCategory._1B and index <= 20]
+        max_slot_index_1b = max(slot_indexes_1B) if len(slot_indexes_1B) > 0 else None
+        if max_slot_index_1b:
+            updated_results: dict[int, ChartCategory] = {}
+            for index in self.results.keys():
+                if index >= max_slot_index_1b and index < min_slot_index_category_biggest_diff:
+                    new_slot_category = category_biggest_diff if index == (min_slot_index_category_biggest_diff - 1) else self.results[index + 1]
+                    updated_results[index] = new_slot_category
+            self.results.update(updated_results)
+            self.chart_categories_adjusted += [category_biggest_diff]
+
+    def __apply_linear_decay(self, value: float | int, category: ChartCategory) -> None:
+        """Apply linear decay to chart values"""
+        decay_rate_and_start = category.decay_rate_and_start(set=self.set, is_pitcher=self.is_pitcher)
+        if decay_rate_and_start is None:
+            return value
+        
+        decay_rate, decay_start = decay_rate_and_start
+        if value > decay_start:
+            return decay_start + ((value - decay_start) * decay_rate)
+
+        return value
+    
     # ---------------------------------------
     # ACCURACY
     # ---------------------------------------
