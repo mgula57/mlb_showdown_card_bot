@@ -127,8 +127,9 @@ class ChartCategory(str, Enum):
             case '2002':
                 if is_hitter:
                     match self:
-                        case ChartCategory.SO: return (0.60, 4)
+                        case ChartCategory.SO: return (0.65, 4)
                         case ChartCategory._1B_PLUS: return (0.70, 1)
+                        case ChartCategory.BB: return (0.70, 6)
             case _:
                 if is_hitter:
                     match self:
@@ -759,9 +760,18 @@ class Chart(BaseModel):
 
         # USE LINEAR DECAY TO REDUCE ACCURACY FOR OUTLIERS
         is_outside_out_bounds = outs < out_min or outs > out_max
-        is_valid_outlier = (self.command <= command_outlier_lower_bound and outs > out_max) or (self.command >= command_outlier_upper_bound and outs < out_max)
+        is_valid_outlier = (self.command >= command_outlier_upper_bound and outs < out_min)
         if is_outside_out_bounds and not is_valid_outlier and not is_high_command_high_outs:
-            self.command_out_accuracy_weight = min( 1.020 - (0.0275 * abs(outs - out_max)), 1.0 )
+
+            # ADJUST DECAY RATES
+            decay_rate = 0.0275
+            if self.command <= (command_outlier_upper_bound - 2) and outs < out_min: # ADJUST LOWER COMMAND LOWER OUTS (EX: 8 OB 2 OUTS)
+                decay_rate *= 1.60
+            elif self.command >= (command_outlier_lower_bound - 2) and outs > out_max: # ADJUST LOWER COMMAND LOWER OUTS (EX: 8 OB 2 OUTS)
+                decay_rate *= 1.25
+            
+            out_comp = out_max if outs > out_max else out_min
+            self.command_out_accuracy_weight = min( 1.020 - (decay_rate * abs(outs - out_comp)), 1.0 )
         
         accuracy *= self.command_out_accuracy_weight
         self.is_command_out_anomaly = is_valid_outlier or is_outside_out_bounds

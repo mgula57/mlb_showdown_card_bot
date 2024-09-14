@@ -36,6 +36,7 @@ class Stat(Enum):
     SLG = "slugging_perc"
     OPS = "onbase_plus_slugging"
     COMMAND = "command"
+    OUTS = "outs"
     SPEED = "speed"
     POINTS = "points"
     HR_START = "hr_start"
@@ -83,7 +84,7 @@ class Stat(Enum):
         """Name of attribute on the Showdown Bot object to get stat"""
         match self :
             case Stat.OBP | Stat.SLG | Stat.OPS: return "projected"
-            case Stat.COMMAND | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return "chart"
+            case Stat.COMMAND | Stat.OUTS | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return "chart"
             case Stat.SPEED: return "speed"
             case Stat.POINTS: return "points"
             case _: return "chart.category_results_count_dict"
@@ -91,7 +92,7 @@ class Stat(Enum):
     @property
     def label(self) -> str:
         match self:
-            case Stat.OBP | Stat.OPS | Stat.SLG | Stat.COMMAND | Stat.SPEED | Stat.POINTS | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return self.name
+            case Stat.OBP | Stat.OPS | Stat.SLG | Stat.COMMAND | Stat.OUTS | Stat.SPEED | Stat.POINTS | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return self.name
             case _: return self.value
 
 
