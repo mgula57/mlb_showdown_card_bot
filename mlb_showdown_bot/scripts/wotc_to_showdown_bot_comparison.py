@@ -19,6 +19,7 @@ parser.add_argument('-e','--expansions', type=str, help='Expansions to test (ex:
 parser.add_argument('-ptr','--point_range', type=str, help='Range of points to include', default=None)
 parser.add_argument('-pos','--positions', type=str, help='List of positions to include, separated by a comma', default=None)
 parser.add_argument('-p','--show_players', action='store_true', help='Show player level breakdown')
+parser.add_argument('-wc','--wotc_commands', action='store_true', help='Only include commands that existed in WOTC')
 parser.add_argument('-nm','--names', type=str, help='List of names to show', default='')
 parser.add_argument('-obp','--show_obp', action='store_true', help='Show OBP Breakdown')
 parser.add_argument('-ex', '--export', action='store_true', help='Export to file')
@@ -496,7 +497,7 @@ for set in set_list:
                 if len(stats) > 0:
                     stats['BB'] = stats.get('BB', 0) - stats.get('HBP', 0)
                 
-                commands_excluded = [c for c in range(0,17) if c not in wotc_command_list]
+                commands_excluded = [c for c in range(0,17) if c not in wotc_command_list] if args.wotc_commands else []
                 showdown_bot = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats,commands_excluded=commands_excluded)
                 showdown_bot_matching_command_outs = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats,command_out_override=(wotc.chart.command, wotc.chart.outs))
 

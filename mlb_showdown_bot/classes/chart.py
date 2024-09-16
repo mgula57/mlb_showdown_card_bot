@@ -124,6 +124,11 @@ class ChartCategory(str, Enum):
 
         is_hitter = not is_pitcher
         match set:
+            case '2001':
+                if is_hitter:
+                    match self:
+                        case ChartCategory.SO: return (0.50, 2)
+                        case ChartCategory.BB: return (0.60, 6)
             case '2002':
                 if is_hitter:
                     match self:
@@ -200,6 +205,11 @@ class Chart(BaseModel):
     @property
     def is_hitter(self) -> bool:
         return not self.is_pitcher
+    
+    @property
+    def is_classic(self) -> bool:
+        """Check if chart is classic format (2000, 2001, CLASSIC)"""
+        return self.set in ['2000', '2001', 'CLASSIC']
 
     @property
     def categories_list(self) -> list[ChartCategory]:
@@ -744,8 +754,13 @@ class Chart(BaseModel):
             command_outlier_upper_bound = 6 if self.is_expanded else 6
             command_outlier_lower_bound = 1 if self.is_expanded else 1
         else:
-            out_min = 5 if self.is_expanded else 2
+            out_min = 5 if self.is_expanded else 3
             out_max = 7 if self.is_expanded else 5
+
+            # UPDATE FOR SPECIAL CASES
+            if self.is_classic and self.command > 10: out_min, out_max = 2, 3
+            if self.is_classic and self.command < 8: out_min, out_max = 3, 6
+
             command_outlier_upper_bound = 14 if self.is_expanded else 11
             command_outlier_lower_bound = 9 if self.is_expanded else 5
 
@@ -754,7 +769,8 @@ class Chart(BaseModel):
         # REDUCE ACCURACY WHEN OUTS ARE ABOVE SOFT OUTLIER MAX AND COMMAND ABOVE SOFT OUTLIER MAX
         outs_soft_cap = out_max
         command_soft_cap = 11 if self.is_expanded else 8
-        is_high_command_high_outs = outs > outs_soft_cap and self.command > command_soft_cap
+        is_classic_and_high_command_outs = self.is_classic and outs > 4 and self.command > 10
+        is_high_command_high_outs = (outs > outs_soft_cap and self.command > command_soft_cap) or is_classic_and_high_command_outs
         if is_high_command_high_outs:
             self.command_out_accuracy_weight = 0.925
 
@@ -768,6 +784,8 @@ class Chart(BaseModel):
             if self.command <= (command_outlier_upper_bound - 2) and outs < out_min: # ADJUST LOWER COMMAND LOWER OUTS (EX: 8 OB 2 OUTS)
                 decay_rate *= 1.60
             elif self.command >= (command_outlier_lower_bound - 2) and outs > out_max: # ADJUST LOWER COMMAND LOWER OUTS (EX: 8 OB 2 OUTS)
+                decay_rate *= 1.25
+            elif self.is_classic and outs > out_max: # ADJUST FOR CLASSIC SETS WITH HIGH COMMAND + OUTS (EX: 13 OB 5 OUTS)
                 decay_rate *= 1.25
             
             out_comp = out_max if outs > out_max else out_min
