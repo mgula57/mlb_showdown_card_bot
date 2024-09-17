@@ -90,8 +90,9 @@ class ChartCategory(str, Enum):
 
     def fill_method(self, set:str, is_pitcher:bool) -> ChartCategoryFillMethod:
         is_hitter = not is_pitcher
-        is_eligible_for_pct = set not in ['2000', '2001', 'CLASSIC', '2002', ]
-        if self.is_out and is_hitter and is_eligible_for_pct:
+        is_eligible_for_pct = set not in ['2001', 'CLASSIC', '2002', ]
+        use_rates = (set == '2000' and self == ChartCategory.SO)
+        if self.is_out and is_hitter and is_eligible_for_pct and not use_rates:
             return ChartCategoryFillMethod.PCT
         
         return ChartCategoryFillMethod.RATE
@@ -105,6 +106,12 @@ class ChartCategory(str, Enum):
         
         is_hitter = not is_pitcher
         match set:
+            case '2000':
+                if is_hitter:
+                    match self:
+                        case ChartCategory.SO: return 1.00
+                        case ChartCategory.GB: return 1.22
+                        case ChartCategory.FB: return 0.78
             case '2003':
                 if is_hitter:
                     match self:
@@ -124,6 +131,11 @@ class ChartCategory(str, Enum):
 
         is_hitter = not is_pitcher
         match set:
+            case '2000':
+                if is_hitter:
+                    match self:
+                        case ChartCategory.SO: return (0.50, 2)
+                        case ChartCategory._1B_PLUS: return (0.60, 2)
             case '2001':
                 if is_hitter:
                     match self:
@@ -345,7 +357,8 @@ class Chart(BaseModel):
     @property
     def hitter_single_plus_denominator_minimum(self) -> float:
         match self.set:
-            case '2000' | '2001' | 'CLASSIC': return 3.2
+            case '2000': return 2.0
+            case '2001' | 'CLASSIC': return 3.2
             case '2002': return 4.0
             case '2003': return 6.0
             case '2004' | '2005' | 'EXPANDED': return 4.5
@@ -353,7 +366,8 @@ class Chart(BaseModel):
     @property
     def hitter_single_plus_denominator_maximum(self) -> float:
         match self.set:
-            case '2000' | '2001' | 'CLASSIC': return 9.6
+            case '2000': return 9.5
+            case '2001' | 'CLASSIC': return 9.6
             case '2002': return 12.5
             case '2003' | '2004': return 10.5
             case '2005' | 'EXPANDED': return 9.75
