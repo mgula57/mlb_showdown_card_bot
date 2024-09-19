@@ -222,9 +222,11 @@ class WotcPlayerCardSet(BaseModel):
         """Load cards from google sheet and return as list of WotcPlayerCard objects."""
 
         # LOAD CSV WITH ORIGINAL CARD DATA
-        sheet_link = 'https://docs.google.com/spreadsheets/d/1WCrgXHIH0-amVd5pDPbhoMVnlhLuo1hU620lYCnh0VQ/edit#gid=0'
-        export_url = sheet_link.replace('/edit#gid=', '/export?format=csv&gid=')
-        df_wotc_cards = pd.read_csv(export_url)
+        # REFER TO GOOGLE SHEET BELOW FOR LATEST DATA
+        # sheet_link = 'https://docs.google.com/spreadsheets/d/1WCrgXHIH0-amVd5pDPbhoMVnlhLuo1hU620lYCnh0VQ/edit#gid=0'
+        # export_url = sheet_link.replace('/edit#gid=', '/export?format=csv&gid=')
+        print("LOADING FROM LOCAL FILE")
+        df_wotc_cards = pd.read_csv(os.path.join(Path(os.path.dirname(__file__)), 'data', 'MLB Showdown WOTC Cards.csv'))
 
         # FILTER PANDAS FOR CARDS IN SETS AND EXPANSIONS LIST
         expansion_values = [e.value for e in self.expansions]
@@ -241,6 +243,7 @@ class WotcPlayerCardSet(BaseModel):
         # LOAD PLAYER STATS FROM ARCHIVE DB
         postgres_db = PostgresDB(is_archive=True)
         year_list = [y-1 for y in set_values] + ss_year_values
+        print("FETCHING PLAYER STATS")
         real_player_stats_archive: list[PlayerArchive] = postgres_db.fetch_all_stats_from_archive(year_list=year_list, exclude_records_with_stats=False)
 
         # MAKE LIST OF ARCHIVE IDS TO IGNORE STATS FOR. DUE TO WOTC USING MULTIPLE YEARS FOR THEM.
@@ -249,6 +252,7 @@ class WotcPlayerCardSet(BaseModel):
         ]
 
         # CREATE LIST OF SHOWDOWN OBJECTS
+        print("CONVERTING TO SHOWDOWN CARDS")
         converted_cards: list[WotcPlayerCard] = {}
         for gsheet_row in track(list_of_dicts, description="Converting WOTC Player Cards"):
 
