@@ -109,7 +109,7 @@ class ShowdownPlayerCard(BaseModel):
     positions_and_defense_string: str = ''
     positions_and_real_life_ratings: dict[str, dict[DefenseMetric, Union[float, int]]] = {}
     command_out_accuracies: dict[str, float] = {}
-    ip:int = None
+    ip: int = None
     hand: Hand = None
     speed: Speed = None
     accolades: list[str] = None

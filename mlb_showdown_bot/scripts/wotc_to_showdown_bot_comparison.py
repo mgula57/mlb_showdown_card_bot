@@ -39,6 +39,7 @@ class Stat(Enum):
     COMMAND = "command"
     OUTS = "outs"
     SPEED = "speed"
+    IP = "IP"
     POINTS = "points"
     HR_START = "hr_start"
     _2B_START = "_2b_start"
@@ -59,8 +60,8 @@ class Stat(Enum):
 
     def is_valid_for_type(self, type: PlayerSubType) -> bool:
         match self:
-            case Stat.PU | Stat._2B_START: return type.is_pitcher
-            case Stat.SPEED | Stat._3B | Stat._1B_PLUS: return not type.is_pitcher
+            case Stat.PU | Stat._2B_START | Stat.IP: return type.is_pitcher
+            case Stat.SPEED | Stat._3B | Stat._1B_PLUS: return type.is_hitter
             case _: return True
 
     @property
@@ -87,13 +88,14 @@ class Stat(Enum):
             case Stat.OBP | Stat.SLG | Stat.OPS: return "projected"
             case Stat.COMMAND | Stat.OUTS | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return "chart"
             case Stat.SPEED: return "speed"
+            case Stat.IP: return "ip"
             case Stat.POINTS: return "points"
             case _: return "chart.category_results_count_dict"
 
     @property
     def label(self) -> str:
         match self:
-            case Stat.OBP | Stat.OPS | Stat.SLG | Stat.COMMAND | Stat.OUTS | Stat.SPEED | Stat.POINTS | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return self.name
+            case Stat.OBP | Stat.OPS | Stat.SLG | Stat.COMMAND | Stat.OUTS | Stat.SPEED | Stat.IP | Stat.POINTS | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return self.name
             case _: return self.value
 
 
@@ -201,6 +203,9 @@ class CardComparison(BaseModel):
                 case "speed":
                     wotc_stat = getattr(self.wotc.speed, stat.value)
                     bot_stat = getattr(self.bot.speed, stat.value)
+                case "ip":
+                    wotc_stat = self.wotc.ip
+                    bot_stat = self.bot.ip
                 case "chart.category_results_count_dict":
                     wotc_stat = self.wotc.chart.category_results_count_dict.get(stat.value, 0) + (self.wotc.chart.category_results_count_dict.get(Stat._1B_PLUS.value, 0) if stat == Stat._1B else 0)
                     bot_stat = self.bot_matching_command_outs.chart.category_results_count_dict.get(stat.value, 0) + (self.bot_matching_command_outs.chart.category_results_count_dict.get(Stat._1B_PLUS.value, 0) if stat == Stat._1B else 0)
@@ -241,7 +246,7 @@ class CardComparison(BaseModel):
 
         data: dict = {'overall_accuracy': self.overall_accuracy}
         wotc_fields_to_include = ['name', 'set', 'year', 'player_type',]
-        common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed', 'chart.ranges']
+        common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed', 'ip', 'chart.ranges']
         for type in ['wotc', 'bot', 'bot_matching_command_outs']:
             card: ShowdownPlayerCard = getattr(self, type)
             data.update({f'{type}_{field}': (getattr(getattr(card, field.split('.')[0]), field.split('.')[1]) if '.' in field else getattr(card, field)) for field in common_fields_to_include})
