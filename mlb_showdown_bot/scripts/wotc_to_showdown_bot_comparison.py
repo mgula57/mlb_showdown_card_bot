@@ -250,6 +250,10 @@ class CardComparison(BaseModel):
                 data.update({f'{field}': card_as_json.get(field, None) for field in wotc_fields_to_include})
                 data['player_sub_type'] = card.player_sub_type.name
                 data['stats'] = {k: v for k, v in card.stats.items() if k not in ['accolades', 'positions',]}
+            if type in ['wotc', 'bot']:
+                for index in range(0, 3):
+                    data[f'{type}_position{index + 1}'] = list(card.positions_and_defense.keys())[index].value if len(card.positions_and_defense.keys()) > index else None
+                    data[f'{type}_defense{index + 1}'] = list(card.positions_and_defense.values())[index] if len(card.positions_and_defense.values()) > index else None
         return data
 
 def color_classification(accuracy: float, green_cutoff: float = 0.9, yellow_cutoff: float = 0.7) -> ConsoleColor:

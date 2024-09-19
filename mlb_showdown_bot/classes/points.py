@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 class Points(BaseModel):
 
@@ -15,6 +16,7 @@ class Points(BaseModel):
     command: float = 0.0
 
     command_out_multiplier: float = 1.0
+    position_multiplier: float = 0.0
     normalizer: float = 1.0
     allow_negatives: bool = False
     multi_inning_mutliplier: float = 1.0
@@ -43,3 +45,29 @@ class Points(BaseModel):
         all_categories = breakdown_categories + other_attributes
         return "  ".join(f"{cat.replace('_',' ').upper()}:{round(getattr(self, cat, 0), 2)}" for cat in all_categories if (getattr(self, cat, 0) != 1.0 if cat in other_attributes else True))
     
+    def apply_decay(self, is_hitter:bool, decay_rate_and_start: Optional[float]):
+        
+        # DECAY RATE
+        if decay_rate_and_start is None:
+            return
+        
+        # PROCEED IF POINTS ARE > START
+        decay_rate, points_start = decay_rate_and_start
+        if self.total_points_unrounded <= points_start:
+            return
+        
+        # CALCULATE AMOUNT TO REDUCE BY 
+        total_above_start = self.total_points_unrounded - points_start
+        total_points_after_decay = points_start + ( total_above_start * decay_rate )
+        total_points_to_reduce = self.total_points_unrounded - total_points_after_decay
+
+        # APPLY DECAY RATE TO SLASHLINES
+        categories = ['ba','obp','slg',] + ['hr'] if is_hitter else []
+        total_across_categories = sum(getattr(self, category, 0) for category in categories)
+        for category in categories:
+            current_category_points = getattr(self, category, 0)
+            points_pct_of_total = current_category_points / total_across_categories
+            points_to_reduce = total_points_to_reduce * points_pct_of_total
+            setattr(self, category, round(current_category_points - points_to_reduce, 3))
+
+        

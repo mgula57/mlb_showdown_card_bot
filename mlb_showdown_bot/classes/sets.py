@@ -639,12 +639,13 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
-                            case PointsMetric.DEFENSE: return 75
-                            case PointsMetric.SPEED: return 60
-                            case PointsMetric.ONBASE: return 240
+                            case PointsMetric.DEFENSE: return 60
+                            case PointsMetric.SPEED: return 80
+                            case PointsMetric.ONBASE: return 120
                             case PointsMetric.AVERAGE: return 60
-                            case PointsMetric.SLUGGING: return 130
-                            case PointsMetric.HOME_RUNS: return 50
+                            case PointsMetric.SLUGGING: return 60
+                            case PointsMetric.HOME_RUNS: return 110
+                            case PointsMetric.COMMAND: return 150
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 105
@@ -907,16 +908,6 @@ class Set(str, Enum):
         match self.value:
             case '2000':
                 match subtype:
-                    case PlayerSubType.POSITION_PLAYER:
-                        match command_out_str:
-                            case '10-5': return 1.15
-                            case '10-4': return 1.08
-                            case '10-2': return 0.95
-                            case '9-5': return 1.08
-                            case '8-5': return 1.06
-                            case '8-3': return 0.95
-                            case '7-3': return 0.95
-                            case '5-2' | '5-3' | '5-4' | '5-5': return 1.1
                     case PlayerSubType.STARTING_PITCHER:
                         match command_out_str:
                             case '6-15': return 1.05
@@ -1155,6 +1146,26 @@ class Set(str, Enum):
 
         return 1.0
 
+    def pts_decay_rate_and_start(self, player_sub_type:PlayerSubType) -> float:
+        """Returns the decay rate and starting point value for the normalization process.
+        Depends on player subtype
+
+        Args:
+            player_sub_type (PlayerSubType): The player subtype (position player, starting pitcher, relief pitcher)
+
+        Returns:
+            float: The decay rate
+            float: The starting point value
+        """
+
+        match self.value:
+            case '2000':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return 0.75, 500
+        
+        # DEFAULT IS NONE
+        return None
+
     @property
     def pts_gb_min_max_dict(self) -> ValueRange:
         return ValueRange(min = 0.3, max = 0.5)
@@ -1225,7 +1236,7 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.245, max = 0.385)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.190, max = 0.43)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.280, max = 0.450)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.285, max = 0.450)
             case '2001':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.240, max = 0.400)
@@ -1268,7 +1279,7 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.300)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.210, max = 0.300)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.225, max = 0.330)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.230, max = 0.330)
             case '2001':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.300)

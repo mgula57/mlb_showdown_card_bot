@@ -427,6 +427,10 @@ class ShowdownPlayerCard(BaseModel):
     @property
     def is_pitcher(self) -> bool:
         return self.player_type.is_pitcher
+    
+    @property
+    def is_hitter(self) -> bool:
+        return not self.is_pitcher
 
     @property
     def player_sub_type(self) -> PlayerSubType:
@@ -739,7 +743,7 @@ class ShowdownPlayerCard(BaseModel):
                                                         saves=total_saves)
                 if position is not None:
                     positions_and_games_played[position] = games_at_position
-                    if not self.is_pitcher:
+                    if self.is_hitter:
                         try:
                             # FOR MULTI YEAR CARDS THAT SPAN CROSS OVER 2016, IGNORE OAA
                             # CHECK WHAT YEARS THE CARD SPANS OVER
@@ -1261,7 +1265,7 @@ class ShowdownPlayerCard(BaseModel):
 
 
         # IF REMOVE R ICON IF THERE'S NO ROOM FOR IT (EX: ICHIRO 2001)
-        if len(icons) >= 5 and not self.is_pitcher and Icon.R in icons and Icon.RY in icons:
+        if len(icons) >= 5 and self.is_hitter and Icon.R in icons and Icon.RY in icons:
             icons.remove(Icon.R)
 
         return icons
@@ -1298,7 +1302,7 @@ class ShowdownPlayerCard(BaseModel):
                 continue
 
             # DOES NOT MATCH PLAYER TYPE
-            if (accolade_class.is_hitter_exclusive and self.is_pitcher) or (accolade_class.is_pitcher_exclusive and not self.is_pitcher):
+            if (accolade_class.is_hitter_exclusive and self.is_pitcher) or (accolade_class.is_pitcher_exclusive and self.is_hitter):
                 continue
 
             league_and_stat = (f"{self.league} " if self.league != 'MLB' else "") + accolade_class.title
@@ -1442,7 +1446,7 @@ class ShowdownPlayerCard(BaseModel):
         # CHECK FOR TRIPLE CROWN
         substrings_triple_crown = [ba_champ_text, 'HR LEADER', 'RBI LEADER']
         num_triple_crown_leading = len([cat for cat in substrings_triple_crown if self.is_substring_in_list(cat, current_accolades)])
-        if num_seasons == 1 and not self.is_pitcher and num_triple_crown_leading == 3:
+        if num_seasons == 1 and self.is_hitter and num_triple_crown_leading == 3:
             accolades_rank_and_priority_tuples.append( (f'{self.league} TRIPLE CROWN', 0, 0) )
             accolades_to_remove = []
             for accolade_tuple in accolades_rank_and_priority_tuples:
@@ -1535,7 +1539,7 @@ class ShowdownPlayerCard(BaseModel):
         if len(usable_accolades) < 2:
             # OPS+
             ops_plus = self.stats.get('onbase_plus_slugging_plus', None)
-            if ops_plus and not self.is_pitcher and not self.is_substring_in_list('OPS+',current_accolades):
+            if ops_plus and self.is_hitter and not self.is_substring_in_list('OPS+',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{int(ops_plus)} OPS+", 57, default_stat_priority) )
             # bWAR
             bWAR = self.stats.get('bWAR', None)
@@ -1959,7 +1963,7 @@ class ShowdownPlayerCard(BaseModel):
         setattr(points, spd_ip_category.points_breakdown_attr_name, round(spd_ip_weight * spd_ip_percentile, 3))
 
         # DEFENSE (NON-PITCHERS)
-        if not self.is_pitcher:
+        if self.is_hitter:
 
             # GET LIST OF ALL DEFENSE POINTS
             defense_points_list: list[float] = []
@@ -1995,6 +1999,8 @@ class ShowdownPlayerCard(BaseModel):
 
         # SOME SETS PULL CARDS SLIGHTLY TOWARDS THE MEDIAN
         points = self.__normalize_points_towards_median(points)
+
+        points.apply_decay(is_hitter=self.is_hitter, decay_rate_and_start=self.set.pts_decay_rate_and_start(self.player_sub_type))
 
         # ADJUST POINTS FOR RELIEVERS WITH 2X IP
         if self.player_sub_type == PlayerSubType.RELIEF_PITCHER:
@@ -2056,7 +2062,7 @@ class ShowdownPlayerCard(BaseModel):
         points.ba = round(points.ba * multiplier,3)
         points.slg = round(points.slg * multiplier,3)
 
-        if not self.is_pitcher:
+        if self.is_hitter:
             points.hr = round(points.hr * multiplier,3)
 
         points.normalizer = round(multiplier,3)
@@ -2199,7 +2205,7 @@ class ShowdownPlayerCard(BaseModel):
         # POSITION
         positions_string = self.positions_and_defense_as_string(is_horizontal=True) + ' '
         # IP / SPEED
-        ip_or_speed = self.speed.full_string if not self.is_pitcher else '{} IP'.format(self.ip)
+        ip_or_speed = self.speed.full_string if self.is_hitter else '{} IP'.format(self.ip)
         # ICON(S)
         icon_string = ''
         for index, icon in enumerate(self.icons):
@@ -2386,7 +2392,7 @@ class ShowdownPlayerCard(BaseModel):
 
         ]
 
-        if not self.is_pitcher:
+        if self.is_hitter:
             pts_data.append(['HR (650 PA)', str(round(self.projected['hr_per_650_pa'])), str(round(self.points_breakdown.hr))])
             pts_data.append([
                 'DEFENSE', 
@@ -2510,7 +2516,7 @@ class ShowdownPlayerCard(BaseModel):
 
         ip = f'IP {self.ip}' if self.set.is_after_03 else f'{self.ip} IP'
         speed = f'SPD {self.speed.speed}' if self.set.is_showdown_bot else self.speed.full_string
-        ip_or_speed = speed if not self.is_pitcher else ip
+        ip_or_speed = speed if self.is_hitter else ip
         if is_horizontal:
             if return_as_list:
                 final_text = [
@@ -2520,7 +2526,7 @@ class ShowdownPlayerCard(BaseModel):
                     (ip if self.is_pitcher else positions_string),
                 ]
             else:
-                spacing_between_hand_and_final_item = '  ' if self.set.is_04_05 and not self.is_pitcher and len(positions_string) > 13 and len(self.icons) > 0 else '   '
+                spacing_between_hand_and_final_item = '  ' if self.set.is_04_05 and self.is_hitter and len(positions_string) > 13 and len(self.icons) > 0 else '   '
                 final_text = '{points} PT.   {item2}   {hand}{spacing_between_hand_and_final_item}{item4}'.format(
                     points=self.points,
                     item2=positions_string if self.is_pitcher else speed,
@@ -3181,7 +3187,7 @@ class ShowdownPlayerCard(BaseModel):
             
             # ADD TEXT + BACKGROUND AS IMAGE
             command_image = self.__command_image()
-            if not self.is_pitcher:
+            if self.is_hitter:
                 paste_location = (paste_location[0] + 15, paste_location[1])
 
             # LOAD CHART CONTAINER IMAGE
@@ -3224,7 +3230,7 @@ class ShowdownPlayerCard(BaseModel):
         template_image.paste(command_image, self.__coordinates_adjusted_for_bordering(coordinates=paste_location, is_forced=True), command_image)
 
         # HANDLE MULTI POSITION TEMPLATES FOR 00/01 POSITION PLAYERS
-        if self.set.is_00_01 and not self.is_pitcher:
+        if self.set.is_00_01 and self.is_hitter:
             positions_list = [pos for pos, _ in self.positions_and_defense_img_order]
             sizing = "-".join(['LARGE' if len(pos) > 4 else 'SMALL' for pos in positions_list])
             positions_points_template = f"0001-{type}-{sizing}"
@@ -4151,7 +4157,7 @@ class ShowdownPlayerCard(BaseModel):
             # EX: 'LF/RF' IS LONGER STRING THAN '3B'
             if self.set.is_04_05:
                 positions_list = self.positions_and_defense_for_visuals.keys()
-                positions_over_4_char = len([pos for pos in positions_list if len(pos) > 4 and not self.is_pitcher])
+                positions_over_4_char = len([pos for pos in positions_list if len(pos) > 4 and self.is_hitter])
                 offset = 0
                 if len(positions_list) > 1:
                     # SHIFT ICONS TO RIGHT
