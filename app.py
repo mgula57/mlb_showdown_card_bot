@@ -307,15 +307,15 @@ def card_creator():
         # IF NO CACHED SHOWDOWN CARD, FETCH REAL STATS FROM EITHER:
         #  1. ARCHIVE: HISTORICAL DATA IN POSTGRES DB
         #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
-        archived_statline = None
+        archived_data = None
         if not ignore_cache:
             postgres_db = PostgresDB(is_archive=True)
-            archived_statline, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
+            archived_data, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
             postgres_db.close_connection()
 
         # CHECK FOR ARCHIVED STATLINE. IF IT DOESN'T EXIST, QUERY BASEBALL REFERENCE / BASEBALL SAVANT
-        if archived_statline:
-            statline = archived_statline
+        if archived_data:
+            statline = archived_data.stats
             data_source = 'Archive'
         else:
             data_source = 'Baseball Reference'

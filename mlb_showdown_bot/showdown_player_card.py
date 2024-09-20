@@ -2316,24 +2316,17 @@ class ShowdownPlayerCard(BaseModel):
 
         # PLATE APPEARANCES
         real_life_pa = int(self.stats['PA'])
-        real_life_pa_ratio = int(self.stats['PA']) / 650.0
+        real_life_pa_ratio = real_life_pa / self.projected.get('PA', 650.0)
         final_player_data.append([f'{category_prefix}PA', str(real_life_pa), str(real_life_pa)])
 
         # ADD EACH RESULT CATEGORY, REAL LIFE # RESULTS, AND PROJECTED IN-GAME # RESULTS
         # EX: [['1B','75','80'],['2B','30','29']]
-        result_categories = [
-            ('1b_per_650_pa', '1B'),
-            ('2b_per_650_pa', '2B'),
-            ('3b_per_650_pa', '3B'),
-            ('hr_per_650_pa', 'HR'),
-            ('bb_per_650_pa', 'BB'),
-            ('so_per_650_pa', 'SO')
-        ]
-        for key, cleaned_category in result_categories:
+        result_categories = ['1B','2B','3B','HR','BB','SO']
+        for key in result_categories:
             in_game = str(int(round(self.projected[key]) * real_life_pa_ratio))
-            actual = str(int(self.stats[cleaned_category]))
-            prefix = category_prefix if cleaned_category in ['2B','3B'] else ''
-            final_player_data.append([f'{prefix}{cleaned_category}',actual,in_game])
+            actual = str(int(self.stats[key]))
+            prefix = category_prefix if key in ['2B','3B'] else ''
+            final_player_data.append([f'{prefix}{key}',actual,in_game])
         
         # NON COMPARABLE STATS
         category_list = ['earned_run_avg', 'whip', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
@@ -2393,7 +2386,8 @@ class ShowdownPlayerCard(BaseModel):
         ]
 
         if self.is_hitter:
-            pts_data.append(['HR (650 PA)', str(round(self.projected['hr_per_650_pa'])), str(round(self.points_breakdown.hr))])
+            hr_per_650 = self.projected.get('HR', 0) / (self.projected.get('PA', 650) / 650)
+            pts_data.append(['HR (650 PA)', str(round(hr_per_650)), str(round(self.points_breakdown.hr))])
             pts_data.append([
                 'DEFENSE', 
                 self.positions_and_defense_as_string(is_horizontal=True),
@@ -2404,6 +2398,8 @@ class ShowdownPlayerCard(BaseModel):
         
         if self.points_breakdown.bonus > 0:
             pts_data.append(['BONUS', en_dash, str(round(self.points_breakdown.bonus))])
+        if self.points_breakdown.command > 0:
+            pts_data.append([self.command_type.upper(), str(self.chart.command), str(round(self.points_breakdown.command))])
         if self.points_breakdown.icons > 0:
             pts_data.append(['ICONS', ','.join([i.value for i in self.icons]), str(round(self.points_breakdown.icons))])
         if self.points_breakdown.normalizer < 1.0:
@@ -2429,6 +2425,7 @@ class ShowdownPlayerCard(BaseModel):
         accuracy_data: list[list[str]] = []
         sorted_accuracies_as_tuples = sorted(self.command_out_accuracies.items(), key=lambda co_and_ac: co_and_ac[1], reverse=True)
         for index, co_accuracy_tuple in enumerate(sorted_accuracies_as_tuples):
+            if index > 4: continue
             command_out_str = co_accuracy_tuple[0]
             command, outs = command_out_str.split('-')
             accuracy = co_accuracy_tuple[1]
@@ -4266,7 +4263,7 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # BACKGROUND CONTAINER IMAGE
-        img_type_suffix = 'Control' if self.is_pitcher else 'Onbase'
+        img_type_suffix = self.command_type
         dark_mode_suffix = '-DARK' if self.image.is_dark_mode else ''
         background_img = Image.open(self.__template_img_path(f'{self.set.template_year}-{img_type_suffix}{dark_mode_suffix}'))
         font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
