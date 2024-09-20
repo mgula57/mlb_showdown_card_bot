@@ -2314,19 +2314,21 @@ class ShowdownPlayerCard(BaseModel):
         if ip_real:
             final_player_data.append(['IP', str(self.stats.get('IP', 0)), en_dash])
 
-        # PLATE APPEARANCES
+        # PLATE APPEARANCES / AB
         real_life_pa = int(self.stats['PA'])
         real_life_pa_ratio = real_life_pa / self.projected.get('PA', 650.0)
         final_player_data.append([f'{category_prefix}PA', str(real_life_pa), str(real_life_pa)])
+        final_player_data.append([f'{category_prefix}AB', str(self.stats.get('AB', 0)), str(round(self.projected.get('AB', 0)))])
 
         # ADD EACH RESULT CATEGORY, REAL LIFE # RESULTS, AND PROJECTED IN-GAME # RESULTS
         # EX: [['1B','75','80'],['2B','30','29']]
-        result_categories = ['1B','2B','3B','HR','BB','SO']
+        result_categories = ['1B','2B','3B','HR','BB','SO','GB','FB','PU','SF']
         for key in result_categories:
             in_game = str(int(round(self.projected[key]) * real_life_pa_ratio))
             actual = str(int(self.stats[key]))
             prefix = category_prefix if key in ['2B','3B'] else ''
-            final_player_data.append([f'{prefix}{key}',actual,in_game])
+            suffix = "*" if key in ['GB', 'FB', 'PU'] else ''
+            final_player_data.append([f'{prefix}{key}{suffix}',actual,in_game])
         
         # NON COMPARABLE STATS
         category_list = ['earned_run_avg', 'whip', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
