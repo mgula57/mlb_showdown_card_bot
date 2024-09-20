@@ -1945,7 +1945,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # NORMAL PERCENTILES
         metrics = [PointsMetric.ONBASE, PointsMetric.AVERAGE, PointsMetric.SLUGGING, PointsMetric.HOME_RUNS, PointsMetric.COMMAND]
-        projected_pa_multiplier = 650 / self.stats.get('PA', 650)
+        projected_pa_multiplier = 650 / projected.get('PA', 650)
         for metric in metrics:
             range = self.set.pts_range_for_metric(metric=metric, player_sub_type=self.player_sub_type)
             value = self.chart.command if metric == PointsMetric.COMMAND else projected.get(metric.metric_name_bref)

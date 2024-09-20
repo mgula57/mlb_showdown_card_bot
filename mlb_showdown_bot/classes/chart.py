@@ -2,6 +2,7 @@ from enum import Enum
 from pydantic import BaseModel
 from typing import Union, Optional
 from pprint import pprint
+from operator import itemgetter
 import pandas as pd
 import numpy as np
 import os
@@ -252,6 +253,15 @@ class Chart(BaseModel):
         values_list += [[category.value, str(round(value,2))] for category, value in self.values.items()]
         return values_list
     
+    @property
+    def results_as_list(self) -> list[ChartCategory]:
+        
+        result_list: list[ChartCategory] = []
+        for _, category in dict(sorted(self.results.items(), key=itemgetter(0))).items():
+            result_list.append(category)
+        
+        return result_list
+
     @property
     def has_over_21_slot_values(self) -> bool:
         return self.sub_21_per_slot_worth < 1
