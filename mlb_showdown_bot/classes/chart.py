@@ -70,7 +70,7 @@ class ChartCategory(str, Enum):
             case ChartCategory._2B: return 12
             case _: return 20
 
-    def rounding_cutoff(self, is_pitcher:bool, is_expanded:bool, era:str) -> float:
+    def rounding_cutoff(self, is_pitcher:bool, set:str) -> float:
         """Decimal to round up at.
         
         Args:
@@ -80,13 +80,8 @@ class ChartCategory(str, Enum):
         """
         match self:
             case ChartCategory.HR:
-                if is_pitcher:
-                    match era:
-                        case 'STEROID ERA': 
-                            if is_expanded: return 0.85
-                            else: return 0.5
-                        case 'STATCAST ERA' | 'PITCH CLOCK ERA': return 0.70
-                        case _: return 0.75
+                if is_pitcher and set == '2000':
+                    return 0.425
         return 0.5
 
     def fill_method(self, set:str, is_pitcher:bool) -> ChartCategoryFillMethod:
@@ -185,6 +180,7 @@ class Chart(BaseModel):
 
     # ACCURACY
     stat_accuracy_weights: dict[str, float] = {}
+    command_accuracy_weight: float = 1.0
     command_out_accuracy_weight: float = 1.0
     accuracy: float = 1.0
     is_command_out_anomaly: bool = False
@@ -386,9 +382,9 @@ class Chart(BaseModel):
     # GENERATE CHART ATTRIBUTES
     # ---------------------------------------
 
-    def __round_to_nearest_slot_value(self, value:float) -> float:
+    def __round_to_nearest_slot_value(self, value:float, cutoff:float = 0.5) -> float:
         """Round value to nearest slot worth"""
-        return round(value / self.sub_21_per_slot_worth) * self.sub_21_per_slot_worth
+        return self.__custom_round(number=value, multiple=self.sub_21_per_slot_worth, cutoff=cutoff)
 
     def generate_values_and_results(self) -> None:
         """Generate values dictionary and store to self """
@@ -490,19 +486,27 @@ class Chart(BaseModel):
         slg_pct_diff = self.__stat_projected_vs_real_pct_diff('slugging_perc')
         ops_pct_diff = self.__stat_projected_vs_real_pct_diff('onbase_plus_slugging')
 
-        # ADJUST CHARTS THAT ARE UNDER IN SLG AND OPS BUT CLOSE IN OBP
-        # INCREASE EITHER 2B, 3B, OR HR BY 1 AND DECREASE 1B BY 1
+        # ADJUST CHARTS THAT ARE OFF IN SLG AND OPS BUT CLOSE IN OBP
+        # INCREASE/DECREASE EITHER 2B, 3B, OR HR BY 1 AND INCREASE/DECREASE 1B BY 1
+        has_1b_values = self.num_values(ChartCategory._1B) >= self.sub_21_per_slot_worth
         is_under_in_slg_and_ops = slg_pct_diff < 0 \
                                     and ops_pct_diff < 0  \
                                     and abs(obp_pct_diff) < 0.03 \
                                     and abs(slg_pct_diff) > 0.01 \
-                                    and self.num_values(ChartCategory._1B) >= self.sub_21_per_slot_worth
+                                    and has_1b_values
+        is_over_in_slg_and_ops = slg_pct_diff > 0 \
+                                    and ops_pct_diff > 0  \
+                                    and abs(obp_pct_diff) < 0.04 \
+                                    and abs(slg_pct_diff) > 0.12 \
+                                    and has_1b_values
 
         # ------------------------------
         # ADJUST CHARTS THAT ARE UNDER IN OBP BUT CLOSE IN SLG AND OPS
         # ------------------------------
-        if is_under_in_slg_and_ops and self.is_hitter:
-            self.__increase_slg()
+        is_increase_adjustment = is_under_in_slg_and_ops and self.is_hitter
+        is_decrease_adjustment = is_over_in_slg_and_ops and self.is_pitcher
+        if is_increase_adjustment or is_decrease_adjustment:
+            self.__adjust_slg(is_increase=is_increase_adjustment, slg_pct_diff=slg_pct_diff)
 
         # ------------------------------
         # 2002 POST 20 ADJUSTMENTS
@@ -609,7 +613,8 @@ class Chart(BaseModel):
             value = self.__apply_linear_decay(value=value, category=category)
 
         # ROUND TO NEAREST SLOT WORTH
-        raw_value = max( self.__round_to_nearest_slot_value(value) , 0)
+        rounding_cutoff = category.rounding_cutoff(is_pitcher=self.is_pitcher, set=self.set) if category else 0.5
+        raw_value = max( self.__round_to_nearest_slot_value(value, rounding_cutoff) , 0)
         raw_results = int(round(raw_value / self.sub_21_per_slot_worth))
 
         # SKIP ROUNDING IF CATEGORY IS NONE (EX: OUTS) OR CHART IS NOT EXPANDED
@@ -692,22 +697,31 @@ class Chart(BaseModel):
         out_value_list = [v for k,v in self.values.items() if k.is_out]
         self.outs = sum(out_value_list) if len(out_value_list) > 0 else 0
 
-    def __increase_slg(self) -> None:
-        """Increase SLG for the category with the biggest difference between projected and real stats per 400 PA"""
+    def __adjust_slg(self, is_increase:bool = True, slg_pct_diff: float = 0.0) -> None:
+        """Increase SLG for the category with the biggest difference between projected and real stats per 400 PA
+        
+        Args:
+            is_increase: If True, increase SLG. If False, decrease SLG.
+            slg_pct_diff: Difference between projected and real stats per 400 PA.
+
+        Returns:
+            None, adjusts self.values and self.results
+        """
 
         category_pct_diffs: dict[ChartCategory, float] = {}
-        slg_categories = [ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]
+        slg_categories = [ChartCategory._2B, ChartCategory._3B, ChartCategory.HR] if is_increase else [ChartCategory._2B, ChartCategory.HR]
         for slg_cat in slg_categories:
             if self.stats_per_400_pa.get(slg_cat.value.lower() + '_per_400_pa', 0) < 5: continue
             pct_diff = self.__stat_projected_vs_real_pct_diff(slg_cat.value.lower() + '_per_400_pa')
-            if pct_diff <= -0.01: category_pct_diffs[slg_cat] = pct_diff
+            decrease_multipler = 1 if is_increase else -1
+            if (pct_diff * decrease_multipler) <= -0.01: category_pct_diffs[slg_cat] = pct_diff
 
         # CHECK: IF NO CATEGORIES TO ADJUST, SKIP ADJUSTMENTS
         if len(category_pct_diffs) == 0:
             return
         
         # GET CATEGORY WITH BIGGEST DIFFERENCE
-        category_biggest_diff = min(category_pct_diffs, key=category_pct_diffs.get)
+        category_biggest_diff = min(category_pct_diffs, key=category_pct_diffs.get) if is_increase else max(category_pct_diffs, key=category_pct_diffs.get)
         max_index = 21 if self.total_possible_slots > 20 and self.results[21] in [ChartCategory.HR, ChartCategory._2B] else 20
         slots_category_biggest_diff = [index for index, cat in self.results.items() if cat == category_biggest_diff and index <= max_index]
         
@@ -726,8 +740,8 @@ class Chart(BaseModel):
             return
 
         # CHANGE VALUES FOR 1B AND ADJUST CATEGORY
-        self.values[ChartCategory._1B] -= self.sub_21_per_slot_worth
-        self.values[category_biggest_diff] += self.sub_21_per_slot_worth
+        self.values[ChartCategory._1B] -= self.sub_21_per_slot_worth * (1 if is_increase else -1)
+        self.values[category_biggest_diff] += self.sub_21_per_slot_worth * (1 if is_increase else -1)
         
         # UPDATE RESULTS DICTIONARY
         # EX: {.. 15: '1B', 16: '2B', ..} -> {.. 15: '2B', 16: '2B', ..}
@@ -736,9 +750,14 @@ class Chart(BaseModel):
         if max_slot_index_1b:
             updated_results: dict[int, ChartCategory] = {}
             for index in self.results.keys():
-                if index >= max_slot_index_1b and index < min_slot_index_category_biggest_diff:
-                    new_slot_category = category_biggest_diff if index == (min_slot_index_category_biggest_diff - 1) else self.results[index + 1]
-                    updated_results[index] = new_slot_category
+                if is_increase:
+                    if index >= max_slot_index_1b and index < min_slot_index_category_biggest_diff:
+                        new_slot_category = category_biggest_diff if index == (min_slot_index_category_biggest_diff - 1) else self.results[index + 1]
+                        updated_results[index] = new_slot_category
+                else:
+                    if index > max_slot_index_1b and index <= min_slot_index_category_biggest_diff:
+                        new_slot_category = ChartCategory._1B if index == (max_slot_index_1b + 1) else self.results[index - 1]
+                        updated_results[index] = new_slot_category
             self.results.update(updated_results)
             self.chart_categories_adjusted += [category_biggest_diff]
 
@@ -753,7 +772,30 @@ class Chart(BaseModel):
             return decay_start + ((value - decay_start) * decay_rate)
 
         return value
-    
+
+    def __custom_round(self, number:float, multiple:float=1, cutoff:float=0.5):
+        """Rounds a number to the nearest multiple of a specified value, based on a custom cutoff.
+        
+        Parameters:
+            number: The number to round.
+            multiple: The value to which the number is rounded (default is 1).
+            cutoff: The cutoff point at which the rounding occurs (default is 0.5).
+        
+        Returns:
+            Rounded number to the nearest specified multiple.
+        """
+        # SCALE THE NUMBER TO ROUND IT TO THE NEAREST MULTIPLE
+        scaled_number = number / multiple
+        
+        # GET THE DECIMAL PART OF THE SCALED NUMBER
+        decimal_part = scaled_number - int(scaled_number)
+        
+        # APPLY CUSTOM ROUNDING LOGIC
+        if decimal_part >= cutoff:
+            return (int(scaled_number) + 1) * multiple
+        else:
+            return int(scaled_number) * multiple
+
     # ---------------------------------------
     # ACCURACY
     # ---------------------------------------
@@ -773,10 +815,15 @@ class Chart(BaseModel):
 
         # REDUCE ACCURACY FOR CHARTS WITH NUM OUTS OUT OF NORM
         if self.is_pitcher:
-            out_min = 14 if self.is_expanded else 14
+            out_min = 14 if self.is_expanded else 15
             out_max = 18 if self.is_expanded else 18
             command_outlier_upper_bound = 6 if self.is_expanded else 6
             command_outlier_lower_bound = 1 if self.is_expanded else 1
+
+            # UPDATE FOR SPECIAL CASES
+            if self.is_classic and self.command >= 6: out_min, out_max = 15, 18
+            if self.is_classic and self.command == 0: out_min, out_max = 15, 17.5
+
         else:
             out_min = 5 if self.is_expanded else 3
             out_max = 7 if self.is_expanded else 5
@@ -815,8 +862,12 @@ class Chart(BaseModel):
             out_comp = out_max if outs > out_max else out_min
             self.command_out_accuracy_weight = min( 1.020 - (decay_rate * abs(outs - out_comp)), 1.0 )
         
+        # APPLY WEIGHTS
+        # USED TO NORMALIZE CHARTS TO MATCH WOTC BUT ALSO PROVIDE FLEXIBILITY FOR OUTLIERS
         accuracy *= self.command_out_accuracy_weight
+        accuracy *= self.command_accuracy_weight
         self.is_command_out_anomaly = is_valid_outlier or is_outside_out_bounds
+
         self.accuracy = accuracy
 
     def __accuracy_between_dicts(self, actuals_dict:dict, measurements_dict:dict, weights:dict={}, all_or_nothing:list[str]=[], only_use_weight_keys:bool=False) -> float:

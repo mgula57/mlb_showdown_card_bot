@@ -511,6 +511,25 @@ class Set(str, Enum):
         # DEFAULT TO 1.0
         return 1.00
     
+    def command_accuracy_weighting(self, command:int, player_sub_type:PlayerSubType) -> float:
+        """List of commands are corresponding accuracy weighting
+        
+        Args:
+          command: Control/Onbase rating for player.
+          player_sub_type: Player subtype attribute (POSITION_PLAYER, STARTING_PITCHER, RELIEF_PITCHER)
+
+        Returns:
+          Multiplier for the accuracy of the chart for the given command + set.
+        """
+
+        match self:
+            case Set._2000:
+                match command:
+                    case 1: return 0.925
+                    case 2: return 0.925
+
+        return 1.0
+
     def test_command_out_combinations(self, is_pitcher:bool) -> list[tuple[int,int]]:
         hitter_command_range = np.arange(8, 11, 0.1).tolist() if self.has_expanded_chart else np.arange(6, 9, 0.1).tolist()
         hitter_out_range = np.arange(5, 8, 0.1).tolist() if self.has_expanded_chart else np.arange(2, 5, 0.1).tolist()
@@ -528,8 +547,9 @@ class Set(str, Enum):
                         Stat.SLG.value: 1.0,
                     }
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 2.0,
+                        Stat.OBP.value: 3.0,
                         Stat.SLG.value: 1.0,
+                        Stat.OPS.value: 1.0,
                     }
             case '2001':
                 match player_sub_type:
@@ -1549,7 +1569,6 @@ class Set(str, Enum):
                 else: return (0,0)
             case 'CLASSIC' | 'EXPANDED': return (0,int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
             
-
     def player_image_components_list(self, is_special:bool=False) -> list[PlayerImageComponent]:
         if is_special:
             match self.value:
@@ -2031,17 +2050,17 @@ class Set(str, Enum):
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=8.0,
+                            command=7.40,
                             values={
-                                'PU': 0.05,
-                                'SO': 0.50,
-                                'GB': 1.70,
-                                'FB': 1.80,
-                                'BB': 4.47,
-                                '1B': 7.50,
-                                '2B': 1.75,
-                                '3B': 0.25,
-                                'HR': 1.98,
+                                'PU': 0.00,
+                                'SO': 0.25,
+                                'GB': 1.57,
+                                'FB': 1.50,
+                                'BB': 4.87,
+                                '1B': 8.01,
+                                '2B': 1.65,
+                                '3B': 0.30,
+                                'HR': 1.85,
                             }
                         )
                     case Set._2001 | Set.CLASSIC:

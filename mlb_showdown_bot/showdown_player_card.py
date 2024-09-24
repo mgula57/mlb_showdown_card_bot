@@ -1610,6 +1610,7 @@ class ShowdownPlayerCard(BaseModel):
             
             # CREATE CHART WITH COMMAND/OUT COMBO
             # SEE ACCURACY WHEN OVERESTIMATING OBP VS UNDERESTIMATING OBP WHEN ROUNDING # OF OUTS
+            command_accuracy_weight = self.set.command_accuracy_weighting(command=command, player_sub_type=self.player_sub_type)
             for use_alternate_outs in [False, True]:
                 
                 outs = 0
@@ -1632,6 +1633,7 @@ class ShowdownPlayerCard(BaseModel):
                     stats_per_400_pa=stats_per_400_pa,
                     is_pitcher=self.is_pitcher,
                     stat_accuracy_weights=stat_accuracy_weights,
+                    command_accuracy_weight=command_accuracy_weight
                 )
 
                 charts.append(chart)
