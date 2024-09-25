@@ -468,7 +468,7 @@ for set in set_list:
 
             # CHECK OPPONENT CHART
             opponent_type = type.opponent_type
-            opponent_chart = set.wotc_baseline_chart(opponent_type)
+            opponent_chart = set.wotc_baseline_chart(opponent_type, my_type=sub_type)
             filled_slots = round(sum(opponent_chart.values.values()), 2)
             if filled_slots != 20:
                 remaining_slots = 20 - filled_slots

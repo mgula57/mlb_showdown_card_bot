@@ -1933,11 +1933,11 @@ class Set(str, Enum):
     # ---------------------------------------
 
     def opponent_chart(self, player_sub_type:PlayerSubType, era:Era, year_list: list[int]) -> Chart:
-        chart = self.wotc_baseline_chart(player_sub_type.parent_type.opponent_type)
+        chart = self.wotc_baseline_chart(player_type=player_sub_type.parent_type.opponent_type, my_type=player_sub_type)
         chart.adjust_for_era(era.value, year_list=year_list)
         return chart
 
-    def wotc_baseline_chart(self, player_type: PlayerType) -> Chart:
+    def wotc_baseline_chart(self, player_type: PlayerType, my_type: PlayerSubType) -> Chart:
         match player_type:
             case PlayerType.PITCHER:
                 match self:
@@ -2044,23 +2044,24 @@ class Set(str, Enum):
             case PlayerType.HITTER:
                 match self:
                     case Set._2000:
+                        is_rp = my_type == PlayerSubType.RELIEF_PITCHER
                         return Chart(
                             is_baseline = True,
                             is_pitcher=player_type.is_pitcher,
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=7.40,
+                            command=7.40 + (0.2 if is_rp else 0),
                             values={
                                 'PU': 0.00,
-                                'SO': 0.25,
-                                'GB': 1.57,
-                                'FB': 1.50,
-                                'BB': 4.87,
+                                'SO': 0.75,
+                                'GB': 1.52,
+                                'FB': 1.05,
+                                'BB': 4.92,
                                 '1B': 8.01,
-                                '2B': 1.65,
+                                '2B': 1.60 + (-0.25 if is_rp else 0),
                                 '3B': 0.30,
-                                'HR': 1.85,
+                                'HR': 1.85 + (0.25 if is_rp else 0),
                             }
                         )
                     case Set._2001 | Set.CLASSIC:

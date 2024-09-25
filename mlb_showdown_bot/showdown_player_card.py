@@ -182,7 +182,7 @@ class ShowdownPlayerCard(BaseModel):
 
             # FOR PTS, USE STEROID ERA OPPONENT
             chart_for_pts = self.chart.model_copy()
-            chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type)
+            chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type)
             projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
             projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
 

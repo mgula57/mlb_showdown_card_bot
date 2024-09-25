@@ -85,10 +85,13 @@ class ChartCategory(str, Enum):
         return 0.5
 
     def fill_method(self, set:str, is_pitcher:bool) -> ChartCategoryFillMethod:
+
+        # HITTER CRITERIA
         is_hitter = not is_pitcher
-        is_eligible_for_pct = set not in ['2001', 'CLASSIC', '2002', ]
         use_rates = (set == '2000' and self == ChartCategory.SO)
-        if self.is_out and is_hitter and is_eligible_for_pct and not use_rates:
+        is_hitter_eligible = is_hitter and self.is_out and set not in ['2001', 'CLASSIC', '2002', ] and not use_rates
+        is_pitcher_eligible = is_pitcher and self.is_out and set in ['2000'] and self != ChartCategory.PU
+        if is_hitter_eligible or is_pitcher_eligible:
             return ChartCategoryFillMethod.PCT
         
         return ChartCategoryFillMethod.RATE
@@ -108,6 +111,11 @@ class ChartCategory(str, Enum):
                         case ChartCategory.SO: return 1.00
                         case ChartCategory.GB: return 1.22
                         case ChartCategory.FB: return 0.78
+                else:
+                    match self:
+                        case ChartCategory.SO: return 1.20
+                        case ChartCategory.GB: return 0.97
+                        case ChartCategory.FB: return 0.83
             case '2003':
                 if is_hitter:
                     match self:
@@ -132,6 +140,9 @@ class ChartCategory(str, Enum):
                     match self:
                         case ChartCategory.SO: return (0.50, 2)
                         case ChartCategory._1B_PLUS: return (0.60, 2)
+                else:
+                    match self:
+                        case ChartCategory.PU: return (0.50, 3)
             case '2001':
                 if is_hitter:
                     match self:
@@ -150,6 +161,19 @@ class ChartCategory(str, Enum):
 
         return None
 
+    def value_multiplier(self, set:str) -> float:
+        match self:
+            case ChartCategory.PU:
+                match set:
+                    case '2000': return 2.80
+                    case '2001' | 'CLASSIC': return 2.5
+                    case '2002': return 2.8
+                    case '2003': return 2.2
+                    case '2004': return 2.05
+                    case '2005' | 'EXPANDED': return 2.4
+
+        return 1.0
+            
 # ---------------------------------------
 # CHART
 # ---------------------------------------
@@ -610,6 +634,7 @@ class Chart(BaseModel):
 
         # APPLY DECAY RATE IF APPLICABLE
         if category is not None:
+            value *= category.value_multiplier(set=self.set)
             value = self.__apply_linear_decay(value=value, category=category)
 
         # ROUND TO NEAREST SLOT WORTH
