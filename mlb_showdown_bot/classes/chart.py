@@ -872,7 +872,7 @@ class Chart(BaseModel):
 
         # USE LINEAR DECAY TO REDUCE ACCURACY FOR OUTLIERS
         is_outside_out_bounds = outs < out_min or outs > out_max
-        is_valid_outlier = (self.command >= command_outlier_upper_bound and outs < out_min)
+        is_valid_outlier = ( self.command >= command_outlier_upper_bound and (outs < out_min if self.is_hitter else outs > out_max) )
         if is_outside_out_bounds and not is_valid_outlier and not is_high_command_high_outs:
 
             # ADJUST DECAY RATES
