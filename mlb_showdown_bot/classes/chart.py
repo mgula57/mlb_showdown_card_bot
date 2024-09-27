@@ -1102,39 +1102,6 @@ class Chart(BaseModel):
         """List of ranges ordered as strings"""
         return [self.ranges[category] for category in self.categories_list]
     
-
-    # ---------------------------------------
-    # GB/PU PERCENTS
-    # ---------------------------------------
-
-    @property
-    def slg_multiplier_for_ratios(self) -> float:
-        """Calculate percentile of slugging percent"""
-        slg_range = ValueRange(min = 0.250, max = 0.500)
-        slg_percentile = slg_range.percentile(value=self.stats_per_400_pa.get('slugging_perc', None))
-        multiplier = 1.0 if slg_percentile < 0 else 1.0 - slg_percentile
-        return multiplier
-
-    @property
-    def gb_pct(self) -> float:
-        """Calculate gb -> fb ratio. Fills gaps if data is not available of bref"""
-        gb_pct = self.stats_per_400_pa.get('GO/AO', None)
-        if gb_pct is None:
-            multiplier = self.slg_multiplier_for_ratios
-            gb_pct = gb_pct if gb_pct else round(1.5 * max(multiplier, 0.5),3)
-    
-        return gb_pct
-    
-    @property
-    def pu_pct(self) -> float:
-        """Calculate infield fb -> outfield fb ratio. Fills gaps if data is not available of bref"""
-        pu_pct = self.stats_per_400_pa.get('IF/FB', None)
-        if pu_pct is None:
-            multiplier = self.slg_multiplier_for_ratios
-            popup_pct = popup_pct if popup_pct else round(0.16 * max(multiplier, 0.5),3)
-    
-        return pu_pct
-
     # ---------------------------------------
     # CONVERT FROM WOTC
     # ---------------------------------------

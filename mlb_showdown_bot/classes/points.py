@@ -19,7 +19,7 @@ class Points(BaseModel):
     position_multiplier: float = 0.0
     normalizer: float = 1.0
     allow_negatives: bool = False
-    multi_inning_mutliplier: float = 1.0
+    ip_multiplier: float = 1.0
     
     @property
     def total_points(self) -> int:
@@ -34,14 +34,14 @@ class Points(BaseModel):
     
     @property
     def total_points_unrounded(self):
-        return ((self.ba + self.obp + self.slg + self.hr + self.defense + self.speed + self.ip + self.icons + self.bonus + self.command) * self.multi_inning_mutliplier ) + self.out_distribution
+        return ((self.ba + self.obp + self.slg + self.hr + self.defense + self.speed + self.ip + self.icons + self.bonus + self.command) * self.ip_multiplier ) + self.out_distribution
     
     @property
     def breakdown_str(self) -> str:
         """Strings with list of all points categories"""
         
         breakdown_categories = ['ba','obp','slg','hr','defense','speed','ip','icons','out_distribution','bonus','command',]
-        other_attributes = ['command_out_multiplier', 'normalizer', 'multi_inning_mutliplier']
+        other_attributes = ['command_out_multiplier', 'normalizer', 'ip_multiplier']
         all_categories = breakdown_categories + other_attributes
         return "  ".join(f"{cat.replace('_',' ').upper()}:{round(getattr(self, cat, 0), 2)}" for cat in all_categories if (getattr(self, cat, 0) != 1.0 if cat in other_attributes else True))
     
@@ -62,7 +62,7 @@ class Points(BaseModel):
         total_points_to_reduce = self.total_points_unrounded - total_points_after_decay
 
         # APPLY DECAY RATE TO SLASHLINES
-        categories = ['ba','obp','slg',] + ['hr'] if is_hitter else []
+        categories = ['ba','obp','slg',] + (['hr'] if is_hitter else [])
         total_across_categories = sum(getattr(self, category, 0) for category in categories)
         for category in categories:
             current_category_points = getattr(self, category, 0)

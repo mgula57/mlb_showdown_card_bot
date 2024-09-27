@@ -2003,14 +2003,14 @@ class ShowdownPlayerCard(BaseModel):
         points = self.__normalize_points_towards_median(points)
 
         points.apply_decay(is_hitter=self.is_hitter, decay_rate_and_start=self.set.pts_decay_rate_and_start(self.player_sub_type))
-
-        # ADJUST POINTS FOR RELIEVERS WITH 2X IP
-        if self.player_sub_type == PlayerSubType.RELIEF_PITCHER:
-            multi_inning_points_multiplier = self.set.pts_reliever_ip_multiplier(ip=self.ip)
-            if multi_inning_points_multiplier > 1.0:
-                points.multi_inning_mutliplier = multi_inning_points_multiplier
-        
+                
         if self.is_pitcher:
+
+            # ADJUST POINTS FOR RELIEVERS WITH 2X IP OR STARTERS WITH < 6 IP
+            multi_inning_points_multiplier = self.set.pts_ip_multiplier(player_sub_type=self.player_sub_type, ip=self.ip)
+            if multi_inning_points_multiplier != 1.0:
+                points.ip_multiplier = multi_inning_points_multiplier
+
             # PITCHERS GET PTS FOR OUT DISTRIBUTION IN SOME SETS
             out_dist_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.OUT_DISTRIBUTION)
             if out_dist_pts_weight:
@@ -2374,7 +2374,7 @@ class ShowdownPlayerCard(BaseModel):
         
         en_dash = '—'
         if self.player_sub_type == PlayerSubType.RELIEF_PITCHER and self.ip > 1:
-            spd_or_ip = ['IP', str(self.ip), f"{self.points_breakdown.multi_inning_mutliplier}x"]
+            spd_or_ip = ['IP', str(self.ip), f"{self.points_breakdown.ip_multiplier}x"]
         else:
             spd_or_ip = [
                 'IP' if self.is_pitcher else 'SPD', 

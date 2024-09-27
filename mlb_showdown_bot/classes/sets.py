@@ -669,16 +669,17 @@ class Set(str, Enum):
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 105
-                            case PointsMetric.ONBASE: return 485
+                            case PointsMetric.ONBASE: return 400
                             case PointsMetric.AVERAGE: return 55
                             case PointsMetric.SLUGGING: return 220
                             case PointsMetric.OUT_DISTRIBUTION: return 30
+                            case PointsMetric.COMMAND: return 100
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 100
+                            case PointsMetric.ONBASE: return 165
                             case PointsMetric.AVERAGE: return 10
-                            case PointsMetric.SLUGGING: return 95
+                            case PointsMetric.SLUGGING: return 105
                             case PointsMetric.OUT_DISTRIBUTION: return 10
             case '2001':
                 match player_sub_type:
@@ -924,152 +925,8 @@ class Set(str, Enum):
         return 1.0
 
     def pts_command_out_multiplier(self, command:int, outs:int, subtype: PlayerSubType) -> float:
-        command_out_str = f"{command}-{outs}"
-        match self.value:
-            case '2000':
-                match subtype:
-                    case PlayerSubType.STARTING_PITCHER:
-                        match command_out_str:
-                            case '6-15': return 1.05
-                            case '5-17': return 0.97
-                            case '5-15': return 1.05
-                            case '4-14': return 1.1
-                            case '4-15': return 1.1
-                            case '4-17': return 0.925
-                            case '3-18': return 0.90
-                            case '3-17': return 0.97
-                            case '3-15': return 1.20
-                            case '2-18': return 0.92
-                            case '0-18': return 0.95
-                            case '0-17': return 0.95
-                    case PlayerSubType.RELIEF_PITCHER:
-                        match command_out_str:
-                            case '6-15': return 1.05
-                            case '4-15': return 1.2
-            case '2001':
-                match subtype:
-                    case PlayerSubType.POSITION_PLAYER:
-                        match command_out_str:
-                            case '11-3': return 1.04
-                            case '11-2': return 1.01
-                            case '10-4': return 1.08
-                            case '10-2': return 0.99
-                            case '9-5': return 1.12
-                            case '9-4': return 1.02
-                            case '9-3': return 0.95
-                            case '8-4': return 0.925
-                            case '8-3': return 0.90
-                            case '7-4': return 0.90
-                            case '7-3': return 0.90
-                            case '6-5' | '6-6': return 1.05
-                    case PlayerSubType.STARTING_PITCHER:
-                        match command_out_str:
-                            case '1-18': return 0.90
-                            case '2-17': return 0.90
-                            case '2-18': return 0.90
-                            case '3-17': return 0.90
-                            case '3-18': return 0.92
-                            case '4-14': return 1.20
-                            case '4-15': return 1.05
-                            case '4-18': return 0.95
-                            case '5-14': return 1.25
-                            case '5-15': return 1.10
-                            case '6-14': return 1.05
-                            case '6-15': return 1.05
-            case '2002':
-                match subtype:
-                    case PlayerSubType.POSITION_PLAYER:
-                        match command_out_str:
-                            case '10-7': return 0.85
-                    case PlayerSubType.STARTING_PITCHER:
-                        match command_out_str:
-                            case '3-16': return 1.00
-                            case '1-19' | '3-19' | '4-19': return 0.95
-                            case '1-18' | '2-18': return 0.95
-                            case '3-17' | '1-17': return 0.95
-                            case '2-17': return 0.85
-                            case '4-17' | '5-17': return 1.1
-                            case '6-18': return 0.95
-                        if command >= 4 and outs < 17:
-                            return 1.1
-                    case PlayerSubType.RELIEF_PITCHER:
-                        match command_out_str:
-                            case '5-18' | '6-18': return 1.05
-            case '2003':
-                match command_out_str:
-                    case '10-5': return 1.12
-                    case '4-16': return 0.94
-                    case '3-15': return 1.3
-                    case '2-16': return 1.25
-            case '2004':
-                match command_out_str:
-                    case '9-6': return 0.85
-                    case '9-7': return 0.85
-
-                    case '6-16': return 1.15
-                    case '3-17': return 0.90
-                    case '4-17': return 0.95
-                    case '2-18': return 0.80
-                    case '3-18': return 0.90
-                    case '1-19': return 0.90
-                    case '2-19': return 0.90
-                    case '3-19': return 0.90
-            case '2005':
-                match command_out_str:
-                    case '9-5': return 1.15
-                    case '9-6': return 1.1
-                    case '9-7': return 0.95
-
-                    case '2-18': return 0.85
-                    case '3-15': return 1.25
-                    case '3-16': return 1.05
-                    case '3-17': return 0.8
-                    case '3-18': return 0.9
-                    case '4-17': return 0.8
-                    case '5-17': return 0.95
-                    case '6-16': return 1.10
-                    case '6-17': return 1.03
-                    case '1-19': return 0.90
-                    case '2-19': return 0.90
-                    case '3-19': return 0.90
-            case 'CLASSIC':
-                match command_out_str:
-                    case '10-4': return 1.05
-                    case '10-2': return 0.96
-                    case '9-5': return 1.05
-                    case '9-3': return 0.925
-                    case '8-4': return 0.925
-                    case '8-3': return 0.90
-                    case '7-4': return 0.90
-                    case '7-3': return 0.90
-
-                    case '1-18': return 0.90
-                    case '2-17': return 0.92
-                    case '2-18': return 0.95
-                    case '3-17': return 0.85
-                    case '3-18': return 0.95
-                    case '4-14': return 1.15
-                    case '4-15': return 1.15
-                    case '5-14': return 1.15
-                    case '6-14': return 1.05
-                    case '6-15': return 1.05
-            case 'EXPANDED':
-                match command_out_str:
-                    case '9-5': return 1.15
-                    case '9-6': return 1.1
-                    case '9-7': return 0.95
-
-                    case '1-18': return 0.90
-                    case '2-18': return 0.90
-                    case '3-17': return 0.90
-                    case '3-18': return 0.90
-                    case '4-17': return 0.90
-                    case '1-19': return 0.90
-                    case '2-19': return 0.90
-                    case '3-19': return 0.90
-
         return 1.0
-
+        
     def pts_allow_negatives(self, player_sub_type:PlayerSubType) -> bool:
         match self.value:
             case '2000':
@@ -1094,27 +951,7 @@ class Set(str, Enum):
                     case PlayerSubType.RELIEF_PITCHER: return True
     
     def pts_normalize_towards_median(self, player_sub_type:PlayerSubType) -> bool:
-        match self.value:
-            case '2000':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return False
-                    case PlayerSubType.STARTING_PITCHER: return True
-                    case PlayerSubType.RELIEF_PITCHER: return True
-            case '2002':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return False
-                    case PlayerSubType.STARTING_PITCHER: return True
-                    case PlayerSubType.RELIEF_PITCHER: return False
-            case '2003':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return True
-                    case PlayerSubType.STARTING_PITCHER: return True
-                    case PlayerSubType.RELIEF_PITCHER: return True
-            case _:
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return False
-                    case PlayerSubType.STARTING_PITCHER: return True
-                    case PlayerSubType.RELIEF_PITCHER: return True
+        return False
 
     def pts_normalizer_lower_threshold(self, player_sub_type:PlayerSubType) -> float:
         match self.value:
@@ -1182,6 +1019,8 @@ class Set(str, Enum):
             case '2000':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 0.75, 500
+                    case PlayerSubType.STARTING_PITCHER: return 0.525, 400
+                    case PlayerSubType.RELIEF_PITCHER: return 0.55, 100
         
         # DEFAULT IS NONE
         return None
@@ -1190,40 +1029,40 @@ class Set(str, Enum):
     def pts_gb_min_max_dict(self) -> ValueRange:
         return ValueRange(min = 0.3, max = 0.5)
     
-    def pts_reliever_ip_multiplier(self, ip:int) -> float:
-        match self.value:
-            case '2000':
-                match ip:
-                    case 2: return 2.00
-                    case 3: return 2.55
-            case '2001':
-                match ip:
-                    case 2: return 1.60
-                    case 3: return 2.10
-            case '2002':
-                match ip:
-                    case 2: return 1.20
-                    case 3: return 1.80
-            case '2003':
-                match ip:
-                    case 2: return 1.10
-                    case 3: return 1.65
-            case '2004':
-                match ip:
-                    case 2: return 1.34
-                    case 3: return 2.01
-            case '2005':
-                match ip:
-                    case 2: return 1.34
-                    case 3: return 2.01
-            case 'CLASSIC': 
-                match ip:
-                    case 2: return 1.60
-                    case 3: return 2.10
-            case 'EXPANDED': 
-                match ip:
-                    case 2: return 1.40
-                    case 3: return 2.01
+    def pts_ip_multiplier(self, player_sub_type:PlayerSubType, ip:int) -> float:
+        """Apply a multiplier to the negative IP points for a player subtype and IP value."""
+
+        match player_sub_type:
+            case PlayerSubType.RELIEF_PITCHER:
+                match self.value:
+                    case '2000':
+                        match ip:
+                            case 2: return 2.10
+                            case 3: return 2.40
+                    case '2001' | 'CLASSIC':
+                        match ip:
+                            case 2: return 1.60
+                            case 3: return 2.10
+                    case '2002':
+                        match ip:
+                            case 2: return 1.20
+                            case 3: return 1.80
+                    case '2003':
+                        match ip:
+                            case 2: return 1.10
+                            case 3: return 1.65
+                    case '2004' | '2005' | 'EXPANDED':
+                        match ip:
+                            case 2: return 1.34
+                            case 3: return 2.01
+            case PlayerSubType.STARTING_PITCHER:
+                match self.value:
+                    case '2000':
+                        match ip:
+                            case 4: return 0.70
+                            case 5: return 0.85
+                            case 9: return 1.02
+
         return 1.0
 
     @property
