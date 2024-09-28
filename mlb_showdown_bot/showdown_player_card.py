@@ -1986,9 +1986,9 @@ class ShowdownPlayerCard(BaseModel):
                 avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else ( (num_positions + 2) / 3.0))
                 points.defense = round(avg_points_per_position,3)
 
-        # CLOSER BONUS (00 ONLY)
-        apply_closer_bonus = self.has_position(Position.CL) and self.set == Set._2000
-        points.bonus = 25 if apply_closer_bonus else 0
+        # CLOSER BONUS (00/02 ONLY)
+        apply_closer_bonus = self.has_position(Position.CL)
+        points.bonus = self.set.pts_closer_bonus if apply_closer_bonus else 0
 
         # ICONS (03+)
         icon_pts = 0
