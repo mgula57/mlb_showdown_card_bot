@@ -438,78 +438,6 @@ class Set(str, Enum):
 
     def command_out_combinations(self, player_type:PlayerType) -> list[tuple[int,int]]:
         return self.control_out_combinations if player_type.is_pitcher else self.onbase_out_combinations
-
-    def command_out_accuracy_weighting(self, command:int, outs:int) -> float:
-        command_out_str = f"{command}-{outs}"
-        match self.value:
-            case '2000':
-                match command_out_str:
-                    case '7-2' | '8-2' | '9-2': return 0.999
-                    case '2-18': return 0.97
-            case '2001':
-                match command_out_str:
-                    case '7-2' | '8-2' | '9-2': return 0.999
-                    case '1-18': return 0.975
-                    case '2-18': return 0.97
-                    case '3-18' | '4-18': return 0.98
-                    case '3-16': return 0.997
-            case '2002':
-                match command_out_str:
-                    case '11-5': return 0.99
-                    case '9-5': return 0.99
-            case '2003':
-                match command_out_str: 
-                    case '1-18': return 0.99
-                    case '2-18': return 0.98
-                    case '3-17': return 0.99
-                    case '3-18': return 0.99
-                    case '4-18': return 0.98
-                    case '14-0': return 0.98
-                    case '15-7': return 0.98
-            case '2004':
-                match command_out_str: 
-                    case '1-18': return 0.98
-                    case '1-19': return 0.97
-                    case '2-18': return 0.985
-                    case '2-19': return 0.975
-                    case '3-17': return 0.99
-                    case '3-18': return 0.99
-                    case '3-19': return 0.965
-                    case '4-15': return 0.99
-                    case '4-18': return 0.98
-
-                    case '10-8': return 0.99
-                    case '11-8': return 0.99
-                    case '9-5': return 0.995
-            case '2005':
-                match command_out_str: 
-                    case '1-18': return 0.99
-                    case '1-19': return 0.97
-                    case '2-18': return 0.985
-                    case '2-19': return 0.975
-                    case '3-17': return 0.99
-                    case '3-18': return 0.99
-                    case '3-19': return 0.965
-                    case '4-15': return 0.99
-                    case '4-18': return 0.98
-
-                    case '10-8': return 0.99
-                    case '11-8': return 0.99
-                    case '9-5': return 0.995
-            case 'CLASSIC':
-                match command_out_str:
-                    case '3-19' | '2-18' | '1-18': return 0.99
-            case 'EXPANDED':
-                match command_out_str:
-                    case '3-19': return 0.98
-                    case '3-18': return 0.99
-                    case '2-18': return 0.993
-                    case '1-18': return 0.99
-                    case '2-19': return 0.98
-                    case '1-19': return 0.99
-
-        # DEFAULT TO 1.0
-        return 1.00
     
     def command_accuracy_weighting(self, command:int, player_sub_type:PlayerSubType) -> float:
         """List of commands are corresponding accuracy weighting
@@ -527,6 +455,11 @@ class Set(str, Enum):
                 match command:
                     case 1: return 0.925
                     case 2: return 0.925
+            case Set._2001:
+                match command:
+                    case 0: return 0.995
+                    case 1: return 0.990
+                    case 2: return 0.990
 
         return 1.0
 
@@ -559,7 +492,7 @@ class Set(str, Enum):
                         Stat.OPS.value: 1.0,
                     }
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 3.0,
+                        Stat.OBP.value: 5.0,
                         Stat.SLG.value: 2.0,
                     }
             case '2002':
@@ -641,17 +574,7 @@ class Set(str, Enum):
 
     # ---------------------------------------
     # POINTS
-    # ---------------------------------------
-
-    @property
-    def pts_normalizer_upper_limit(self) -> int:
-        return 800
-    
-    def pts_normalizer_cutoff(self, player_sub_type: PlayerSubType) -> int:
-        match player_sub_type:
-            case PlayerSubType.RELIEF_PITCHER: return 120
-            case PlayerSubType.STARTING_PITCHER: return 500
-            case PlayerSubType.POSITION_PLAYER: return 800 if self == Set._2003 else 500
+    # ---------------------------------------    
 
     def pts_metric_weight(self, player_sub_type:PlayerSubType, metric:PointsMetric) -> int:
         match self.value:
@@ -949,59 +872,6 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return False
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
-    
-    def pts_normalize_towards_median(self, player_sub_type:PlayerSubType) -> bool:
-        return False
-
-    def pts_normalizer_lower_threshold(self, player_sub_type:PlayerSubType) -> float:
-        match self.value:
-            case '2000':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 1.0
-                    case PlayerSubType.STARTING_PITCHER: return 0.79
-                    case PlayerSubType.RELIEF_PITCHER: return 0.75
-            case '2001':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 1.0
-                    case PlayerSubType.STARTING_PITCHER: return 0.72
-                    case PlayerSubType.RELIEF_PITCHER: return 0.95
-            case '2002':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 1.0
-                    case PlayerSubType.STARTING_PITCHER: return 0.98
-                    case PlayerSubType.RELIEF_PITCHER: return 0.85
-            case '2003':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.88
-                    case PlayerSubType.STARTING_PITCHER: return 0.72
-                    case PlayerSubType.RELIEF_PITCHER: return 0.70
-            case '2004':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 1.0
-                    case PlayerSubType.STARTING_PITCHER: return 0.80
-                    case PlayerSubType.RELIEF_PITCHER: return 0.675
-            case '2005':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 1.0
-                    case PlayerSubType.STARTING_PITCHER: return 0.78
-                    case PlayerSubType.RELIEF_PITCHER: return 0.74
-            case 'CLASSIC':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 1.0
-                    case PlayerSubType.STARTING_PITCHER: return 0.70
-                    case PlayerSubType.RELIEF_PITCHER: return 0.72
-            case 'EXPANDED':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 1.0
-                    case PlayerSubType.STARTING_PITCHER: return 0.80
-                    case PlayerSubType.RELIEF_PITCHER: return 0.77
-
-    def pts_normalizer_weighting(self, player_sub_type:PlayerSubType) -> float:
-        if player_sub_type == PlayerSubType.RELIEF_PITCHER:
-            match self.value:
-                case _: return 2.0
-
-        return 1.0
 
     def pts_decay_rate_and_start(self, player_sub_type:PlayerSubType) -> float:
         """Returns the decay rate and starting point value for the normalization process.
@@ -1777,6 +1647,7 @@ class Set(str, Enum):
         return chart
 
     def wotc_baseline_chart(self, player_type: PlayerType, my_type: PlayerSubType) -> Chart:
+        is_rp = my_type == PlayerSubType.RELIEF_PITCHER
         match player_type:
             case PlayerType.PITCHER:
                 match self:
@@ -1883,7 +1754,6 @@ class Set(str, Enum):
             case PlayerType.HITTER:
                 match self:
                     case Set._2000:
-                        is_rp = my_type == PlayerSubType.RELIEF_PITCHER
                         return Chart(
                             is_baseline = True,
                             is_pitcher=player_type.is_pitcher,
@@ -1910,17 +1780,17 @@ class Set(str, Enum):
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=8.0,
+                            command=7.10 + (0.42 if is_rp else 0),
                             values={
-                                'PU': 0.05,
-                                'SO': 1.50,
-                                'GB': 1.40,
-                                'FB': 1.2,
-                                'BB': 4.90,
-                                '1B': 7.16,
-                                '2B': 1.52,
+                                'PU': 0.00,
+                                'SO': 0.85,
+                                'GB': 1.12 + (0.10 if is_rp else 0),
+                                'FB': 1.15,
+                                'BB': 5.10 + (0.65 if is_rp else 0),
+                                '1B': 7.83 + (-0.90 if is_rp else 0),
+                                '2B': 1.60 + (-0.15 if is_rp else 0),
                                 '3B': 0.25,
-                                'HR': 2.02,
+                                'HR': 2.10 + (0.30 if is_rp else 0),
                             }
                         )
                     case Set._2002:

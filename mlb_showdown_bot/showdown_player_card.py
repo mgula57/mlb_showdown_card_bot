@@ -1999,11 +1999,9 @@ class ShowdownPlayerCard(BaseModel):
 
         # --- APPLY ANY ADDITIONAL PT ADJUSTMENTS FOR DIFFERENT SETS ---
 
-        # SOME SETS PULL CARDS SLIGHTLY TOWARDS THE MEDIAN
-        points = self.__normalize_points_towards_median(points)
-
+        # SOME SETS HAVE PTS DECAY AFTER A CERTAIN MARKER. APPLIES TO ONLY SLASHLINE CATEGORIES
         points.apply_decay(is_hitter=self.is_hitter, decay_rate_and_start=self.set.pts_decay_rate_and_start(self.player_sub_type))
-                
+        
         if self.is_pitcher:
 
             # ADJUST POINTS FOR RELIEVERS WITH 2X IP OR STARTERS WITH < 6 IP
@@ -2017,57 +2015,6 @@ class ShowdownPlayerCard(BaseModel):
                 percentile_gb = self.set.pts_gb_min_max_dict.percentile(value=self.chart.gb_pct, allow_negative=True)          
                 points.out_distribution = round(out_dist_pts_weight * percentile_gb,3)
 
-        return points
-
-    def __normalize_points_towards_median(self, points:Points) -> Points:
-        """Normalize points for subset on players towards the median.
-
-        Args:
-          points: Current Points object
-
-        Returns:
-          Updated PTS total for player after normalization.
-        """
-
-        if not self.set.pts_normalize_towards_median(self.player_sub_type):
-            return points
-
-        # NORMALIZE SCORE ACROSS MEDIAN
-        type_normalizer_weight = self.set.pts_normalizer_weighting(player_sub_type=self.player_sub_type)
-        median = 310 / type_normalizer_weight
-        upper_limit = self.set.pts_normalizer_upper_limit
-        upper_limit = upper_limit / type_normalizer_weight
-
-        # CHECK FOR STARTER WITH LOW IP
-        if self.player_sub_type == PlayerSubType.STARTING_PITCHER and self.ip < 7 and points.total_points_unrounded < 550:
-            pts_percentile = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type).percentile(value=7, is_desc=False, allow_negative=True)
-            pts_ip_add = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.IP) * pts_percentile
-            pts_to_compare = round(points.total_points_unrounded + pts_ip_add, -1)
-        else:
-            pts_to_compare = round(points.total_points_unrounded, -1)
-
-        # RETURN CURRENT OBJECT IF LESS THAN CUTOFF
-        if pts_to_compare < self.set.pts_normalizer_cutoff(player_sub_type=self.player_sub_type):
-            return points
-
-        normalizer_value_range = ValueRange(min=median, max=upper_limit)
-        percentile = normalizer_value_range.percentile(
-            value = pts_to_compare if pts_to_compare < upper_limit else upper_limit,
-            is_desc = True
-        )
-        upper_multiplier = 1.0
-        lower_multiplier = self.set.pts_normalizer_lower_threshold(player_sub_type=self.player_sub_type)
-        multiplier = percentile * (upper_multiplier - lower_multiplier) + lower_multiplier
-
-        # APPLY THIS TO OFFENSIVE STATS
-        points.obp = round(points.obp * multiplier,3)
-        points.ba = round(points.ba * multiplier,3)
-        points.slg = round(points.slg * multiplier,3)
-
-        if self.is_hitter:
-            points.hr = round(points.hr * multiplier,3)
-
-        points.normalizer = round(multiplier,3)
         return points
 
     def calculate_shOPS_plus(self, command:int, proj_obp:float, proj_slg:float) -> float:

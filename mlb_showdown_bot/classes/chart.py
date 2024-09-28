@@ -80,7 +80,7 @@ class ChartCategory(str, Enum):
         """
         match self:
             case ChartCategory.HR:
-                if is_pitcher and set == '2000':
+                if is_pitcher and set in ['2000', '2001',]:
                     return 0.425
         return 0.5
 
@@ -90,7 +90,7 @@ class ChartCategory(str, Enum):
         is_hitter = not is_pitcher
         use_rates = (set == '2000' and self == ChartCategory.SO)
         is_hitter_eligible = is_hitter and self.is_out and set not in ['2001', 'CLASSIC', '2002', ] and not use_rates
-        is_pitcher_eligible = is_pitcher and self.is_out and set in ['2000'] and self != ChartCategory.PU
+        is_pitcher_eligible = is_pitcher and self.is_out and set in ['2000', '2001'] and self != ChartCategory.PU
         if is_hitter_eligible or is_pitcher_eligible:
             return ChartCategoryFillMethod.PCT
         
@@ -116,6 +116,12 @@ class ChartCategory(str, Enum):
                         case ChartCategory.SO: return 1.20
                         case ChartCategory.GB: return 0.97
                         case ChartCategory.FB: return 0.83
+            case '2001':
+                if is_pitcher:
+                    match self:
+                        case ChartCategory.SO: return 1.08
+                        case ChartCategory.GB: return 1.07
+                        case ChartCategory.FB: return 0.85
             case '2003':
                 if is_hitter:
                     match self:
@@ -148,6 +154,9 @@ class ChartCategory(str, Enum):
                     match self:
                         case ChartCategory.SO: return (0.50, 2)
                         case ChartCategory.BB: return (0.60, 6)
+                else:
+                    match self:
+                        case ChartCategory.PU: return (0.50, 3)
             case '2002':
                 if is_hitter:
                     match self:
@@ -166,7 +175,7 @@ class ChartCategory(str, Enum):
             case ChartCategory.PU:
                 match set:
                     case '2000': return 2.80
-                    case '2001' | 'CLASSIC': return 2.5
+                    case '2001' | 'CLASSIC': return 4.0
                     case '2002': return 2.8
                     case '2003': return 2.2
                     case '2004': return 2.05
