@@ -314,7 +314,7 @@ class Chart(BaseModel):
 
             slot_values_21_plus: dict[int, float] = {}
             remaining_value = 20 - sum(slot_values_dict.values())
-            starting_value = remaining_value * 0.6
+            starting_value = remaining_value * (0.5 if self.set == '2002' else 0.6)
             for i in range(21, 31):
                 value = starting_value * pow(0.5, (i-21))
                 remaining_value = 20 - sum(slot_values_dict.values()) - sum(slot_values_21_plus.values())
@@ -350,8 +350,12 @@ class Chart(BaseModel):
 
     @property
     def sub_21_per_slot_worth(self) -> float:
-        if not self.is_expanded or self.set == '2002':
+        if not self.is_expanded:
             return 1
+        
+        # 2002 FILLS EXTRA SLOTS WITH HR FOR 21+
+        if self.set == '2002':
+            return 0.99
         
         if self.is_pitcher:
             return 0.95
@@ -367,7 +371,7 @@ class Chart(BaseModel):
 
     @property
     def total_possible_slots(self) -> int:
-        if not self.has_over_21_slot_values:
+        if not self.has_over_21_slot_values or self.set == '2002':
             return 20
         
         return 30
@@ -544,22 +548,8 @@ class Chart(BaseModel):
         # ------------------------------
         # 2002 POST 20 ADJUSTMENTS
         # ------------------------------
-        if self.set == '2002' and self.is_hitter:
-
-            # LAST VALUE
-            last_value = self.results.get(20, None)
-            if last_value == ChartCategory.HR:
-                # IF LAST VALUE IS HR, FILL 21-30 WITH HR
-                for i in range(21, 31):
-                    self.results[i] = ChartCategory.HR
-                
-                return
-            
-            # FILL 21+ SLOTS, STARTING WITH HR
-            hr_start = min( round(27.67 - (0.7835 * self.stats_per_400_pa.get('hr_per_400_pa', 0))), 27 )
-            for i in range(21, 31):
-                fill_category = ChartCategory.HR if i >= hr_start else last_value
-                self.results[i] = fill_category
+        if self.set == '2002':
+            self.__apply_2002_post_20_adjustments()
 
         return
 
@@ -830,6 +820,37 @@ class Chart(BaseModel):
         else:
             return int(scaled_number) * multiple
 
+    def __apply_2002_post_20_adjustments(self) -> None:
+        """Adjust chart values for 2002 set after 20
+        
+        2002 is unique in that it wills all slots from slot 21 - HR Start with whatever the last value was.
+        Only exception is pitchers with 20 outs (rare).
+        """
+
+        # GET VALUE AT 20
+        last_value = self.results.get(20, None)
+        if last_value.is_out:
+            possible_fill_results = [ChartCategory.BB, ChartCategory._1B, ChartCategory._2B]
+            diff_vs_real_dict = { c: self.__stat_projected_vs_real_pct_diff(c.value.lower() + '_per_400_pa') for c in possible_fill_results }
+            last_value = min(diff_vs_real_dict, key=diff_vs_real_dict.get)
+            
+        if last_value == ChartCategory.HR:
+            # IF LAST VALUE IS HR, FILL 21-30 WITH HR
+            for i in range(21, 31):
+                self.results[i] = ChartCategory.HR
+                self.values[ChartCategory.HR] = self.values.get(ChartCategory.HR, 0) + self.__slot_value(i)
+            return
+        
+        # FILL 21+ SLOTS, STARTING WITH HR
+        # ONLY COUNT THE HR SLOT FOR ACTUAL VALUES
+        starting_point = 32.45 if self.is_pitcher else 27.67
+        decay_rate = 0.8415 if self.is_pitcher else 0.7835
+        hr_start = min( round(starting_point - (decay_rate * self.stats_per_400_pa.get('hr_per_400_pa', 0))), 27 )
+        for i in range(21, 31):
+            fill_category = ChartCategory.HR if i >= hr_start else last_value
+            self.results[i] = fill_category
+            self.values[fill_category] = self.values.get(fill_category, 0) + self.__slot_value(i)
+
     # ---------------------------------------
     # ACCURACY
     # ---------------------------------------
@@ -850,7 +871,7 @@ class Chart(BaseModel):
         # REDUCE ACCURACY FOR CHARTS WITH NUM OUTS OUT OF NORM
         if self.is_pitcher:
             out_min = 14 if self.is_expanded else 15
-            out_max = 18 if self.is_expanded else 18
+            out_max = (19 if self.set == '2002' else 18) if self.is_expanded else 18
             command_outlier_upper_bound = 6 if self.is_expanded else 6
             command_outlier_lower_bound = 1 if self.is_expanded else 1
 

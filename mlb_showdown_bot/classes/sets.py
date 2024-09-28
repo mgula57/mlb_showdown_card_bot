@@ -502,9 +502,9 @@ class Set(str, Enum):
                         Stat.SLG.value: 1.0,
                     }
                     case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 2.0,
+                        Stat.OBP.value: 3.0,
                         Stat.SLG.value: 1.0,
-                        Stat.OPS.value: 3.0,
+                        Stat.OPS.value: 2.0,
                     }
             case '2003':
                 match player_sub_type:
@@ -1812,17 +1812,17 @@ class Set(str, Enum):
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=9.1,
+                            command=9.00,
                             values={                                
-                                'PU': 0.05,
+                                'PU': 0.00,
                                 'SO': 1.90,
-                                'GB': 2.15,
+                                'GB': 2.20,
                                 'FB': 2.20,
-                                'BB': 3.95,
-                                '1B': 6.85,
-                                '2B': 1.75,
+                                'BB': 3.80,
+                                '1B': 6.80,
+                                '2B': 1.65,
                                 '3B': 0.15,
-                                'HR': 1.00,
+                                'HR': 1.30,
                             }
                         )
                     case Set._2003:
