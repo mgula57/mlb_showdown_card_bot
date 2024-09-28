@@ -163,6 +163,9 @@ class ChartCategory(str, Enum):
                         case ChartCategory.SO: return (0.65, 4)
                         case ChartCategory._1B_PLUS: return (0.70, 1)
                         case ChartCategory.BB: return (0.70, 6)
+                else:
+                    match self:
+                        case ChartCategory.PU: return (0.50, 3)
             case _:
                 if is_hitter:
                     match self:
@@ -176,7 +179,7 @@ class ChartCategory(str, Enum):
                 match set:
                     case '2000': return 2.80
                     case '2001' | 'CLASSIC': return 4.0
-                    case '2002': return 2.8
+                    case '2002': return 4.35
                     case '2003': return 2.2
                     case '2004': return 2.05
                     case '2005' | 'EXPANDED': return 2.4
