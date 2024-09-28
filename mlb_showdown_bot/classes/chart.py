@@ -1144,8 +1144,8 @@ class Chart(BaseModel):
             None
         """
 
-        def mlb_pct_change_between_eras(stat: str, diff_reduction_multiplier:float = 1.0, default_value:float = None, ignore_pitcher_flip:bool = False) -> float:
-            stat_during_wotc = mlb_avgs_original_set.get(stat, None)
+        def mlb_pct_change_between_eras(stat: str, diff_reduction_multiplier:float = 1.0, default_value:float = None, ignore_pitcher_flip:bool = False, wotc_set_adjustment_factor:float = 0.0) -> float:
+            stat_during_wotc = mlb_avgs_original_set.get(stat, None) * (1 + wotc_set_adjustment_factor)
             stat_to_adjust_to = mlb_avgs.get(stat, default_value)
             if np.isnan(stat_to_adjust_to):
                 stat_to_adjust_to = default_value
@@ -1186,9 +1186,22 @@ class Chart(BaseModel):
         # AVERAGE FOR ENTIRE ERA
         mlb_avgs = mlb_avgs_df.mean().to_dict()
 
-        # ADJUST OUTS BASED ON OBP
-        obp_pct_change = mlb_pct_change_between_eras(stat='OBP', diff_reduction_multiplier=0.4) # HALFED BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED
+        # DEFINE DIFF ADJUSTMENT FACTOR
+        # 50% BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED
+        diff_reduction_multiplier = 0.5
+        # ADJUSTMENT_FOR_ORIGINAL_SET ACCOUNTS FOR THE FACT THAT THE ORIGINAL SET WONT SIMULATE PERFECTLY
+        # EX: 2001 SET UNDERRATES PITCHING, SO WE UNDERRATE PITCHER STATS TO MATCH
+        # SHOWN AS A PERCENTAGE TO APPLY. > 0 MEANS A WORSE OPPONENT
+        match self.set:
+            case '2000': 
+                adjustment_for_original_set = 0.0
+            case '2001' | 'CLASSIC': 
+                adjustment_for_original_set = -0.075 if self.is_hitter else 0.00
+            case '2002' | '2003' | '2004' | '2005' | 'EXPANDED': 
+                adjustment_for_original_set = 0.0 if self.is_hitter else 0.00
 
+        # ADJUST OUTS BASED ON OBP
+        obp_pct_change = mlb_pct_change_between_eras(stat='OBP', diff_reduction_multiplier=diff_reduction_multiplier, wotc_set_adjustment_factor=adjustment_for_original_set) # HALFED BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED
         # DEFINE OBP ADJUSTMENT FACTOR, UPDATE OUTS AND ONBASE RESULTS
         self.obp_adjustment_factor = round(1 + obp_pct_change, 3)
         self.command = round(self.command * self.obp_adjustment_factor, 2)
@@ -1201,7 +1214,7 @@ class Chart(BaseModel):
         # IGNORE 1B+ BECAUSE IT'S CALCULATED AT THE END
         onbase_categories = [ChartCategory.BB, ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]
         for category in onbase_categories:
-            category_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat=category.value, diff_reduction_multiplier=0.4)
+            category_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat=category.value, diff_reduction_multiplier=diff_reduction_multiplier)
             updated_values[category] = round(updated_values[category] * (1 - category_pct_diff_vs_wotc), 4)
         
         # ADJUST 1B TO MAKE SURE THE TOTAL EQUALS 20
@@ -1215,7 +1228,7 @@ class Chart(BaseModel):
 
         # ADJUST SO FIRST
         so_post_obp_adjustment = updated_values[ChartCategory.SO]
-        so_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat=ChartCategory.SO.value, diff_reduction_multiplier=0.5)
+        so_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat=ChartCategory.SO.value, diff_reduction_multiplier=diff_reduction_multiplier)
         updated_values[ChartCategory.SO] = max( round(so_post_obp_adjustment * (1 - so_pct_diff_vs_wotc), 4), 0 )
 
         # TEMPORARILY ADJUST OTHER OUTS TO MATCH EXPECTED TOTAL
@@ -1225,12 +1238,12 @@ class Chart(BaseModel):
         updated_values.update({ k: round(new_non_so_outs * pct,4) for k, pct in current_pct_of_total_no_so_outs.items() })
 
         # ADJUST AGAIN TO ACCOUNT FOR RATIOS
-        go_ao_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat='GO/AO', diff_reduction_multiplier=0.5, default_value=1.1, ignore_pitcher_flip=True)
+        go_ao_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat='GO/AO', diff_reduction_multiplier=diff_reduction_multiplier, default_value=1.1, ignore_pitcher_flip=True)
         updated_values[ChartCategory.GB] = max( round(updated_values[ChartCategory.GB] * (1 - go_ao_pct_diff_vs_wotc), 4), 0 )
 
         remaining_outs_not_adjusted = total_outs_expected - sum([v for k,v in updated_values.items() if k in [ChartCategory.SO, ChartCategory.GB]])
         current_ratio_pu_pct_chart = updated_values[ChartCategory.PU] / updated_values[ChartCategory.FB]
-        if_fb_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat='IF/FB', diff_reduction_multiplier=0.5, default_value=0.14, ignore_pitcher_flip=True)
+        if_fb_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat='IF/FB', diff_reduction_multiplier=diff_reduction_multiplier, default_value=0.14, ignore_pitcher_flip=True)
         pu_pct_chart_adjusted = max( round(current_ratio_pu_pct_chart * (1 - if_fb_pct_diff_vs_wotc), 4), 0 )
         updated_values[ChartCategory.PU] = pu_pct_chart_adjusted * remaining_outs_not_adjusted
         updated_values[ChartCategory.FB] = remaining_outs_not_adjusted - updated_values[ChartCategory.PU]
