@@ -88,8 +88,7 @@ class ChartCategory(str, Enum):
 
         # HITTER CRITERIA
         is_hitter = not is_pitcher
-        use_rates = (set == '2000' and self == ChartCategory.SO)
-        is_hitter_eligible = is_hitter and self.is_out and set not in ['2001', 'CLASSIC', '2002', ] and not use_rates
+        is_hitter_eligible = is_hitter and self.is_out and set not in ['2001', 'CLASSIC', '2002', ] and not (set == '2000' and self == ChartCategory.SO)
         is_pitcher_eligible = is_pitcher and self.is_out and set in ['2000', '2001'] and self != ChartCategory.PU
         if is_hitter_eligible or is_pitcher_eligible:
             return ChartCategoryFillMethod.PCT
@@ -390,6 +389,10 @@ class Chart(BaseModel):
     @property
     def _2b_start(self) -> int:
         return len([ r for r in self.results.keys() if r not in [ChartCategory.HR, ChartCategory._2B] ]) + 1
+
+    @property
+    def outs_full(self) -> int:
+        return int(round(self.outs / self.sub_21_per_slot_worth))
 
     @property
     def category_results_count_dict(self) -> dict[ChartCategory, int]:
@@ -1152,6 +1155,10 @@ class Chart(BaseModel):
             chart_values[category] = current_values_for_category
         
         self.values = chart_values
+
+        # UPDATE OUTS IF EXPANDED
+        if self.is_expanded:
+            self.update_outs_from_values()
 
     # ---------------------------------------
     # ERA ADJUSTMENT

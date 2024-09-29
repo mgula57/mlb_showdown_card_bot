@@ -209,7 +209,7 @@ class Set(str, Enum):
 
     def position_defense_max(self, position:Position) -> float:
         match position:
-            case Position.CA: return 11 if self.value == '2001' else 12
+            case Position.CA: return 11 if self == Set._2001 else 12
             case Position._1B: return 1
             case Position._2B: return 5
             case Position._3B: return 4.5 if self.is_showdown_bot else 4
@@ -635,11 +635,12 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
                             case PointsMetric.DEFENSE: return 65
-                            case PointsMetric.SPEED: return 70
-                            case PointsMetric.ONBASE: return 245
-                            case PointsMetric.AVERAGE: return 40
-                            case PointsMetric.SLUGGING: return 110
-                            case PointsMetric.HOME_RUNS: return 50
+                            case PointsMetric.SPEED: return 75
+                            case PointsMetric.ONBASE: return 110
+                            case PointsMetric.COMMAND: return 40
+                            case PointsMetric.AVERAGE: return 30
+                            case PointsMetric.SLUGGING: return 130
+                            case PointsMetric.HOME_RUNS: return 70
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 85
@@ -805,7 +806,7 @@ class Set(str, Enum):
                     case Position.IF: return 1.0
             case '2002':
                 match position:
-                    case Position.CA: return 1.0
+                    case Position.CA: return 1.25
                     case Position._1B: return 0.5
                     case Position._2B: return 1.0
                     case Position._3B: return 1.0
@@ -848,6 +849,22 @@ class Set(str, Enum):
                     case Position.LFRF: return 1.0
                     case Position.IF: return 1.0
         return 1.0
+
+    def pts_position_defense_value_range(self, position:Position) -> ValueRange:
+        """Returns the min and max values for the defensive points for a given position and set."""
+
+        # DEFINE MINIMUM/MAXIMUM
+        min = 0
+        max = self.position_defense_max(position=position)
+
+        # MAKE ANY ADJUSTMENTS PER SET
+        match self:
+            case Set._2002:
+                match position:
+                    case Position.CA: 
+                        min = 3
+                        max = 9
+        return ValueRange(min = min, max = max)
 
     def pts_command_out_multiplier(self, command:int, outs:int, subtype: PlayerSubType) -> float:
         return 1.0
@@ -900,7 +917,7 @@ class Set(str, Enum):
                     case PlayerSubType.RELIEF_PITCHER: return 0.85, 200
             case '2002':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.75, 500
+                    case PlayerSubType.POSITION_PLAYER: return 0.99, 500
                     case PlayerSubType.STARTING_PITCHER: return 0.85, 300
                     case PlayerSubType.RELIEF_PITCHER: return 0.90, 100
         
@@ -957,13 +974,24 @@ class Set(str, Enum):
         """Some sets use a max defensive PT value for multi-position players, others do not."""
         return self.value in ['2000', '2001']
 
-    @property
-    def pts_closer_bonus(self) -> int:
-        match self:
-            case Set._2000: return 25
-            case Set._2002: return 15
+    def pts_position_adjustment(self, positions: list[Position]) -> int:
+        """Apply adjustment to the positional points for a given position and set.
         
-        return 0
+        For multi-position players, the adjustment is taken as an avg.
+        """
+
+        pts_adjustments: list[int] = []
+        for position in positions:
+            match self:
+                case Set._2000:
+                    match position:
+                        case Position.CL: pts_adjustments.append(25)
+                case Set._2002: 
+                    match position:
+                        case Position.DH: pts_adjustments.append(-35)
+                        case Position.CL: pts_adjustments.append(15)
+        
+        return sum(pts_adjustments) if len(pts_adjustments) > 0 else 0
 
     # ---------------------------------------
     # POINTS RANGES FOR PERCENTILES
@@ -1000,7 +1028,7 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.380)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.250, max = 0.355)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.285, max = 0.450)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.295, max = 0.440)
             case '2003':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.390)
@@ -1086,7 +1114,7 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.350, max = 0.480)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.445)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.360, max = 0.550)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.370, max = 0.550)
             case '2003':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.350, max = 0.470)
@@ -1116,7 +1144,10 @@ class Set(str, Enum):
     def pts_speed_or_ip_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
         match player_sub_type:
             case PlayerSubType.POSITION_PLAYER:
-                return ValueRange(min = 12, max = 20) if self in [Set._2000] else ValueRange(min = 10, max = 20)
+                match self:
+                    case Set._2000: return ValueRange(min = 12, max = 20)
+                    case Set._2002: return ValueRange(min = 12, max = 19)
+                    case _: return ValueRange(min = 10, max = 20)
             case PlayerSubType.RELIEF_PITCHER:
                 return ValueRange(min = 1, max = 2) # IP
             case PlayerSubType.STARTING_PITCHER:
@@ -1126,7 +1157,7 @@ class Set(str, Enum):
         match player_sub_type:
             case PlayerSubType.POSITION_PLAYER:
                 onbase_min = 9 if self.has_expanded_chart else 6
-                onbase_max = 14 if self.has_expanded_chart else 11
+                onbase_max = 13 if self.has_expanded_chart else 11
                 return ValueRange(min = onbase_min, max = onbase_max)
             case PlayerSubType.RELIEF_PITCHER | PlayerSubType.STARTING_PITCHER:
                 return ValueRange(min = 2, max = 6)
@@ -1727,13 +1758,13 @@ class Set(str, Enum):
                             values={
                                 'PU': 1.30,
                                 'SO': 4.10,
-                                'GB': 5.58,
-                                'FB': 5.87,
-                                'BB': 1.06,
-                                '1B': 1.27,
-                                '2B': 0.55,
+                                'GB': 5.70,
+                                'FB': 5.75,
+                                'BB': 1.08,
+                                '1B': 1.24,
+                                '2B': 0.58,
                                 '3B': 0.01,
-                                'HR': 0.26,
+                                'HR': 0.24,
                             }
                         )
                     case Set._2003:

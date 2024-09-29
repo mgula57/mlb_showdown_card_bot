@@ -1971,7 +1971,8 @@ class ShowdownPlayerCard(BaseModel):
             defense_points_list: list[float] = []
             for position, fielding in positions_and_defense.items():
                 if position != Position.DH:
-                    percentile = fielding / self.set.position_defense_max(position=position)
+                    value_range = self.set.pts_position_defense_value_range(position=position)
+                    percentile = value_range.percentile(value=fielding, allow_negative=True)
                     position_pts = percentile * self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.DEFENSE)
                     position_pts = position_pts * self.set.pts_positional_defense_weight(position=Position(position))
                     defense_points_list.append(position_pts)
@@ -1986,9 +1987,8 @@ class ShowdownPlayerCard(BaseModel):
                 avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else ( (num_positions + 2) / 3.0))
                 points.defense = round(avg_points_per_position,3)
 
-        # CLOSER BONUS (00/02 ONLY)
-        apply_closer_bonus = self.has_position(Position.CL)
-        points.bonus = self.set.pts_closer_bonus if apply_closer_bonus else 0
+        # POSITIONAL ADJUSTMENTS
+        points.position_adjustment = self.set.pts_position_adjustment(positions=self.positions_list)
 
         # ICONS (03+)
         icon_pts = 0
@@ -2164,7 +2164,7 @@ class ShowdownPlayerCard(BaseModel):
         print(self.points_breakdown.breakdown_str)
         print(" | ".join([f"{co}:{round(pct * 100, 2)}%" for index, (co, pct) in enumerate(self.command_out_accuracies.items()) if index < 7]) )
 
-        print(f"\n{self.chart.command} {self.command_type.upper()} {int(self.chart.outs / self.chart.sub_21_per_slot_worth)} OUTS  {f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.is_command_out_anomaly else ''} ")
+        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS  {f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.is_command_out_anomaly else ''} ")
 
         chart_tbl = PrettyTable(field_names=[col.value + ('*' if col in self.chart.chart_categories_adjusted else '') for col in self.chart.categories_list])
         chart_tbl.add_row(self.chart.ranges_list)
@@ -2347,14 +2347,14 @@ class ShowdownPlayerCard(BaseModel):
         else:
             pts_data.append(['OUT DIST', str(round(self.chart.gb_pct,2)), str(round(self.points_breakdown.out_distribution))])
         
-        if self.points_breakdown.bonus > 0:
-            pts_data.append(['BONUS', en_dash, str(round(self.points_breakdown.bonus))])
+        if self.points_breakdown.position_adjustment > 0:
+            pts_data.append(['POSITION', en_dash, str(round(self.points_breakdown.position_adjustment))])
         if self.points_breakdown.command > 0:
             pts_data.append([self.command_type.upper(), str(self.chart.command), str(round(self.points_breakdown.command))])
         if self.points_breakdown.icons > 0:
             pts_data.append(['ICONS', ','.join([i.value for i in self.icons]), str(round(self.points_breakdown.icons))])
-        if self.points_breakdown.normalizer < 1.0:
-            pts_data.append(['NORMALIZER', en_dash, str(round(self.points_breakdown.normalizer,2))])
+        if self.points_breakdown.decay_rate != 1.0:
+            pts_data.append(['DECAY RATE/START', en_dash, f'{round(self.points_breakdown.decay_rate * 100, 1)}%/{self.points_breakdown.decay_start} PTS'])
         if self.points_breakdown.command_out_multiplier != 1.0:
             command_name = 'CTRL' if self.is_pitcher else 'OB'
             pts_data.append([f'{command_name}/OUT MULTLIPLIER', en_dash, str(round(self.points_breakdown.command_out_multiplier,2))])

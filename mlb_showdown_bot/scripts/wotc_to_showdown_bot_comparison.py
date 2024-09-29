@@ -508,7 +508,7 @@ for set in set_list:
                 
                 commands_excluded = [c for c in range(0,17) if c not in wotc_command_list] if args.wotc_commands else []
                 showdown_bot = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats,commands_excluded=commands_excluded)
-                showdown_bot_matching_command_outs = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats,command_out_override=(wotc.chart.command, wotc.chart.outs))
+                showdown_bot_matching_command_outs = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats,command_out_override=(wotc.chart.command, int(round(wotc.chart.outs / wotc.chart.sub_21_per_slot_worth))))
 
                 # COMPARE
                 comparison = CardComparison(wotc=wotc, bot=showdown_bot, bot_matching_command_outs=showdown_bot_matching_command_outs)
