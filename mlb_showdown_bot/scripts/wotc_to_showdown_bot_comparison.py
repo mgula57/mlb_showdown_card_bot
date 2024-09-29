@@ -246,7 +246,7 @@ class CardComparison(BaseModel):
 
         data: dict = {'overall_accuracy': self.overall_accuracy}
         wotc_fields_to_include = ['name', 'set', 'year', 'player_type',]
-        common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed', 'ip', 'chart.ranges', 'chart.values']
+        common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed', 'ip', 'chart.ranges', 'chart.values', 'icons_str']
         for type in ['wotc', 'bot', 'bot_matching_command_outs']:
             card: ShowdownPlayerCard = getattr(self, type)
             data.update({f'{type}_{field}': (getattr(getattr(card, field.split('.')[0]), field.split('.')[1]) if '.' in field else getattr(card, field)) for field in common_fields_to_include})

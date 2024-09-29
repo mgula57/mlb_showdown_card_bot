@@ -165,6 +165,10 @@ class ChartCategory(str, Enum):
                 else:
                     match self:
                         case ChartCategory.PU: return (0.50, 3)
+            case '2003':
+                if is_hitter:
+                    match self:
+                        case ChartCategory.BB: return (0.67, 3)
             case _:
                 if is_hitter:
                     match self:
@@ -741,7 +745,8 @@ class Chart(BaseModel):
         category_pct_diffs: dict[ChartCategory, float] = {}
         slg_categories = [ChartCategory._2B, ChartCategory._3B, ChartCategory.HR] if is_increase else [ChartCategory._2B, ChartCategory.HR]
         for slg_cat in slg_categories:
-            if self.stats_per_400_pa.get(slg_cat.value.lower() + '_per_400_pa', 0) < 5: continue
+            small_sample_cutoff = 4.0 if slg_cat == ChartCategory._3B else 5
+            if self.stats_per_400_pa.get(slg_cat.value.lower() + '_per_400_pa', 0) < small_sample_cutoff: continue
             pct_diff = self.__stat_projected_vs_real_pct_diff(slg_cat.value.lower() + '_per_400_pa')
             decrease_multipler = 1 if is_increase else -1
             if (pct_diff * decrease_multipler) <= -0.01: category_pct_diffs[slg_cat] = pct_diff

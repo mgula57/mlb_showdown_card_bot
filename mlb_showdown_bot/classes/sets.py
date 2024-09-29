@@ -662,10 +662,10 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
                             case PointsMetric.DEFENSE: return 65
-                            case PointsMetric.SPEED: return 70
-                            case PointsMetric.ONBASE: return 190
-                            case PointsMetric.AVERAGE: return 40
-                            case PointsMetric.SLUGGING: return 190
+                            case PointsMetric.SPEED: return 65
+                            case PointsMetric.ONBASE: return 150
+                            case PointsMetric.AVERAGE: return 70
+                            case PointsMetric.SLUGGING: return 170
                             case PointsMetric.HOME_RUNS: return 50
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
@@ -821,7 +821,7 @@ class Set(str, Enum):
                     case Position._1B: return 0.5
                     case Position._2B: return 1.0
                     case Position._3B: return 1.0
-                    case Position.SS: return 1.25
+                    case Position.SS: return 1.0
                     case Position.CF: return 1.0
                     case Position.OF: return 1.0
                     case Position.LFRF: return 0.75
@@ -920,6 +920,9 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return 0.99, 500
                     case PlayerSubType.STARTING_PITCHER: return 0.85, 300
                     case PlayerSubType.RELIEF_PITCHER: return 0.90, 100
+            case '2003':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return 0.70, 450
         
         # DEFAULT IS NONE
         return None
@@ -1780,11 +1783,11 @@ class Set(str, Enum):
                                 'SO': 4.05,
                                 'GB': 6.45,
                                 'FB': 5.40,
-                                'BB': 1.22,
-                                '1B': 1.42,
-                                '2B': 0.54,
+                                'BB': 1.01,
+                                '1B': 1.67,
+                                '2B': 0.52,
                                 '3B': 0.10,
-                                'HR': 0.16,
+                                'HR': 0.14,
                             }
                         )
                     case Set._2004 | Set._2005 | Set.EXPANDED:

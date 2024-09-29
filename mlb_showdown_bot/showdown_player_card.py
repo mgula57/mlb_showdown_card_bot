@@ -194,7 +194,6 @@ class ShowdownPlayerCard(BaseModel):
             show_image = data.get('show_image', False)
             is_card_image_path = len(data.get('card_img_output_folder_path', '')) > 0
             if show_image or is_card_image_path:
-                print(show_image, is_card_image_path, data.get('card_img_output_folder_path', ''))
                 self.card_image(show=show_image)
             
             if data.get('print_to_cli', False):
@@ -702,7 +701,11 @@ class ShowdownPlayerCard(BaseModel):
         """First initial of the player"""
         return self.name[0]
     
-
+    @property
+    def icons_str(self) -> str:
+        """Icons as a string"""
+        return ' '.join([icon.value for icon in self.icons])
+    
 # ------------------------------------------------------------------------
 # METADATA METHODS
 # ------------------------------------------------------------------------
@@ -1635,6 +1638,10 @@ class ShowdownPlayerCard(BaseModel):
                     stat_accuracy_weights=stat_accuracy_weights,
                     command_accuracy_weight=command_accuracy_weight
                 )
+
+                # IF COMMAND OUT COMBO HAS ALREADY BEEN CALC'D PREVIOUSLY, SKIP
+                if chart.command_outs_concat in [c.command_outs_concat for c in charts]:
+                    continue
 
                 charts.append(chart)
 
