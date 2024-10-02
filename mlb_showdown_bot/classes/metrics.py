@@ -65,6 +65,7 @@ class Stat(Enum):
     OBP = 'onbase_perc'
     SLG = 'slugging_perc'
     OPS = 'onbase_plus_slugging'
+    COMMAND = 'command'
 
 class PointsMetric(Enum):
 

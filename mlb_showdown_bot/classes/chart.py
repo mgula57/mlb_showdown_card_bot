@@ -1,6 +1,7 @@
 from enum import Enum
 from pydantic import BaseModel
 from typing import Union, Optional
+from collections import ChainMap
 from pprint import pprint
 from operator import itemgetter
 import pandas as pd
@@ -11,8 +12,10 @@ import math
 
 try:
     from .value_range import ValueRange
+    from .metrics import Stat
 except ImportError:
     from value_range import ValueRange
+    from metrics import Stat
 
 # ---------------------------------------
 # CHART CATEGORY
@@ -168,7 +171,7 @@ class ChartCategory(str, Enum):
             case '2003':
                 if is_hitter:
                     match self:
-                        case ChartCategory.BB: return (0.67, 3)
+                        case ChartCategory.BB: return (0.72, 3)
             case _:
                 if is_hitter:
                     match self:
@@ -188,7 +191,31 @@ class ChartCategory(str, Enum):
                     case '2005' | 'EXPANDED': return 2.4
 
         return 1.0
-            
+
+
+# ---------------------------------------
+# CHART ACCURACY
+# ---------------------------------------
+
+class ChartAccuracyBreakdown(BaseModel):
+
+    stat: Stat
+    actual: float 
+    comparison: float
+    weight: float = 1.0
+    accuracy: float = 1.0
+    weighted_accuracy: float = 1.0
+
+    def __init__(self, **data) -> None:
+        super().__init__(**data)
+        self.accuracy = 1.0 if self.actual == self.comparison else max( 1 - ( (abs(self.actual - self.comparison)) / ((self.actual + self.comparison) / 2) ), 0)
+        self.weighted_accuracy = round(self.accuracy * self.weight, 4)
+
+    @property
+    def summary_str(self) -> str:
+        return f"{self.stat.name}: {round(self.actual, 3)} vs {round(self.comparison, 3)} ({round(self.accuracy * 100, 1)}% @{self.weight * 100}%)"
+
+
 # ---------------------------------------
 # CHART
 # ---------------------------------------
@@ -208,6 +235,7 @@ class Chart(BaseModel):
     era: str
     is_expanded: bool
     opponent: Optional['Chart'] = None
+    year_list: list[int] = []
     
     # PLAYER DATA
     is_pitcher: bool
@@ -218,12 +246,13 @@ class Chart(BaseModel):
     obp_adjustment_factor: float = 1.0
 
     # ACCURACY
-    stat_accuracy_weights: dict[str, float] = {}
     command_accuracy_weight: float = 1.0
     command_out_accuracy_weight: float = 1.0
     accuracy: float = 1.0
+    accuracy_breakdown: dict[Stat, ChartAccuracyBreakdown] = {}
     is_command_out_anomaly: bool = False
     chart_categories_adjusted: list[ChartCategory] = []
+    command_estimated: float = None
 
     def __init__(self, **data) -> None:
         super().__init__(**data)
@@ -232,13 +261,22 @@ class Chart(BaseModel):
         is_wotc_conversion = data.get('convert_from_wotc', None)
         is_baseline_chart = data.get('is_baseline', False)
         
-        # POPULATE OUTS IF BASELINE CHART
-        if self.outs == 0 and is_baseline_chart:
-            self.update_outs_from_values()            
+        # BASELINE CHART ADJUSTMENTS
+        if is_baseline_chart:
+            
+            # POPULATE OUTS IF BASELINE CHART
+            if self.outs == 0: self.update_outs_from_values()
+
+            # POPULATE YEAR LIST
+            if len(self.year_list) == 0: self.year_list = [self.set_year]
 
         # CONVERT FROM WOTC DATA
         if is_wotc_conversion:
             self.generate_values_and_results_from_wotc_data(results_list=data.get('convert_from_wotc', None))
+
+        # POPULATE ESTIMATED COMMAND
+        if self.command_estimated is None:
+            self.command_estimated = self.calculate_estimated_command()
 
         # POPULATE VALUES DICT
         if len(self.values) == 0:
@@ -310,7 +348,28 @@ class Chart(BaseModel):
         
         # EXPANDED CHARTS
         slot_values_dict: dict[int, float] = { i: self.sub_21_per_slot_worth for i in range(1, 21) }
+        remaining_value = 20 - sum(slot_values_dict.values())
         if self.is_pitcher:
+
+            # # 2003 SET FILLS LINEARLY FROM 21-26
+            
+            if self.set == '2003':
+                original_remaining_value = remaining_value
+                slot_value_capped_at = 26
+                num_values_to_fill = slot_value_capped_at - 20
+
+                # Create a sequence of numbers that decrease linearly
+                values = np.linspace(start=original_remaining_value/num_values_to_fill * 1.2, stop=0, num=num_values_to_fill)
+
+                # Ensure the values sum to the original remaining value
+                values = original_remaining_value * values / values.sum()
+
+                for i, value in enumerate(values, start=21):
+                    slot_values_dict[i] = value
+                    remaining_value -= value
+
+                return slot_values_dict
+            
             # FILL 21+ SLOTS WITH A GEOMETRIC PROGRESSION, STARTING AT THE REMAINING VALUE / 2
             # EX: 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625, 0.001953125, 0.0009765625
             # THE FORMULA OF A GEOMETRIC PROGRESSION IS: a * r^(n-1) 
@@ -319,10 +378,20 @@ class Chart(BaseModel):
             #     23:  0.5 * 0.5 ^ 2 = 0.125
 
             slot_values_21_plus: dict[int, float] = {}
-            remaining_value = 20 - sum(slot_values_dict.values())
-            starting_value = remaining_value * (0.5 if self.set == '2002' else 0.6)
+            
+            match self.set:
+                case '2002': 
+                    decay = 0.5
+                    power = 0.5
+                case '2003': 
+                    decay = 0.5
+                    power = 0.5
+                case _: 
+                    decay = 0.6
+                    power = 0.5
+            starting_value = remaining_value * decay
             for i in range(21, 31):
-                value = starting_value * pow(0.5, (i-21))
+                value = starting_value * pow(power, (i-21))
                 remaining_value = 20 - sum(slot_values_dict.values()) - sum(slot_values_21_plus.values())
                 slot_values_21_plus[i] = min(value, remaining_value)
             
@@ -337,7 +406,6 @@ class Chart(BaseModel):
         else:
             
             # TOTAL AMOUNT AND NUMBER OF SLOTS TO SPREAD
-            remaining_value = 20 - sum(slot_values_dict.values())
             n_values = 3
 
             # CREATE A SEQUENCE OF NUMBERS THAT DECREASE LINEARLY
@@ -364,6 +432,8 @@ class Chart(BaseModel):
             return 0.99
         
         if self.is_pitcher:
+            match self.set:
+                case '2003': return 0.985
             return 0.95
         
         return 0.975
@@ -392,7 +462,7 @@ class Chart(BaseModel):
 
     @property
     def _2b_start(self) -> int:
-        return len([ r for r in self.results.keys() if r not in [ChartCategory.HR, ChartCategory._2B] ]) + 1
+        return len([ r for r in self.results.values() if r not in [ChartCategory.HR, ChartCategory._2B] ]) + 1
 
     @property
     def outs_full(self) -> int:
@@ -424,6 +494,13 @@ class Chart(BaseModel):
             case '2002': return 12.5
             case '2003' | '2004': return 10.5
             case '2005' | 'EXPANDED': return 9.75
+
+    @property
+    def set_year(self) -> int:
+        match self.set:
+            case 'CLASSIC': return 2000
+            case 'EXPANDED': return 2004
+            case _: return int(self.set) - 1
 
     # ---------------------------------------
     # GENERATE CHART ATTRIBUTES
@@ -866,18 +943,115 @@ class Chart(BaseModel):
     # ACCURACY
     # ---------------------------------------
 
+    @property
+    def accuracy_stat_weights(self) -> dict[Stat, float]:
+        """Get stat weights for accuracy calculation"""
+        match self.set:
+            case '2000':
+                if self.is_hitter:
+                    return {
+                        Stat.OBP: 0.75,
+                        Stat.SLG: 0.25,
+                    }
+                else:
+                    return {
+                        Stat.OBP: 0.60,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.20,
+                    }
+            case '2001':
+                if self.is_hitter:
+                    return {
+                        Stat.OBP: 0.60,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.20,
+                    }
+                else:
+                    return {
+                        Stat.OBP: 0.70,
+                        Stat.SLG: 0.30,
+                    }
+            case '2002':
+                if self.is_hitter:
+                    return {
+                        Stat.OBP: 0.75,
+                        Stat.SLG: 0.25,
+                    }
+                else:
+                    return {
+                        Stat.OBP: 0.50,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.30,
+                    }
+            case '2003':
+                if self.is_hitter:
+                    return {
+                        Stat.COMMAND: 0.50,
+                        Stat.OBP: 0.25,
+                        Stat.SLG: 0.15,
+                        Stat.OPS: 0.10,
+                    }
+                else:
+                    return {
+                        Stat.COMMAND: 0.20,
+                        Stat.OBP: 0.40,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.20,
+                    }
+            case '2004':
+                if self.is_hitter:
+                    return {
+                        Stat.OBP: 0.80,
+                        Stat.SLG: 0.20,
+                    }
+                else:
+                    return {
+                        Stat.OBP: 0.75,
+                        Stat.SLG: 0.25,
+                    }
+            case '2005':
+                if self.is_hitter:
+                    return {
+                        Stat.OBP: 0.60,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.20,
+                    }
+                else:
+                    return {
+                        Stat.OBP: 0.60,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.20,
+                    }
+            case 'CLASSIC' | 'EXPANDED':
+                if self.is_hitter:
+                    return {
+                        Stat.OBP: 0.60,
+                        Stat.SLG: 0.40,
+                    }
+                else:
+                    return {
+                        Stat.OBP: 0.70,
+                        Stat.SLG: 0.30,
+                    }
+
     def generate_accuracy_rating(self) -> None:
         """Calculate accuracy of chart based on accuracy weights. Store to self."""
         
         # CHECK ACCURACY COMPARED TO REAL LIFE
         in_game_stats_per_400_pa = self.projected_stats_per_400_pa
-        weights = self.stat_accuracy_weights
-        accuracy = round(self.__accuracy_between_dicts(
-            actuals_dict=self.stats_per_400_pa,
-            measurements_dict=in_game_stats_per_400_pa,
+        weights = self.accuracy_stat_weights
+        actuals_dict = dict( ChainMap({'command': self.command_estimated}, self.stats_per_400_pa) )
+        measurements_dict = dict( ChainMap({'command': self.command}, in_game_stats_per_400_pa) )
+        accuracy = self.__accuracy_between_dicts(
+            actuals_dict=actuals_dict,
+            measurements_dict=measurements_dict,
             weights=weights,
-            only_use_weight_keys=True
-        ), 4)
+        )
+
+        does_set_ignore_outlier_adjustments = self.set in ['2003', '2004', '2005', 'EXPANDED', 'CLASSIC']
+        if does_set_ignore_outlier_adjustments:
+            self.accuracy = accuracy
+            return
 
         # REDUCE ACCURACY FOR CHARTS WITH NUM OUTS OUT OF NORM
         if self.is_pitcher:
@@ -936,57 +1110,41 @@ class Chart(BaseModel):
 
         self.accuracy = accuracy
 
-    def __accuracy_between_dicts(self, actuals_dict:dict, measurements_dict:dict, weights:dict={}, all_or_nothing:list[str]=[], only_use_weight_keys:bool=False) -> float:
+    def __accuracy_between_dicts(self, actuals_dict:dict, measurements_dict:dict, weights:dict[Stat, float]={}) -> tuple[float, dict[Stat, ChartAccuracyBreakdown]]:
         """Compare two dictionaries of numbers to get overall difference
 
         Args:
           actuals_dict: First Dictionary. Use this dict to get keys to compare.
           measurements_dict: Second Dictionary.
-          weights: X times to count certain category (ex: 3x for command)
-          all_or_nothing: List of category names to compare as a boolean 1 or 0 instead
-                          of pct difference.
-          only_use_weight_keys: Bool for whether to only count an accuracy there is a weight associated
-          era_override: Optionally override the era used for baseline opponents.
+          weights: X times to count certain category (ex: 25% for command)
 
         Returns:
-          Float for overall accuracy
+          Float for overall accuracy,
+          Dictionary with breakdown per stat
         """
 
-        denominator = len((weights if only_use_weight_keys else actuals_dict).keys())
-        accuracies = 0
-
-        # CALCULATE CATEGORICAL ACCURACY
-        metrics_and_accuracies: dict[str, float] = {}
-        for key, value1 in actuals_dict.items():
+        # POPULATE ACCURACY BREAKDOWN
+        for stat, weight in weights.items():
             
-            evaluate_key = key in measurements_dict.keys()
-            evaluate_key = key in weights.keys() if only_use_weight_keys else evaluate_key
-            if evaluate_key:
-                value2 = measurements_dict[key]
+            actual = actuals_dict.get(stat.value, None)
+            comparison = measurements_dict.get(stat.value, None)
+            
+            # SKIP IF NOT INCLUDED IN ACCURACY
+            if actual is None or comparison is None:
+                continue
 
-                if key in all_or_nothing:
-                    accuracy_for_key = 1 if value1 == value2 else 0
-                else:
-                    key_denominator = value1
-                    # ACCURACY IS 100% IF BOTH ARE EQUAL (IF STATEMENT TO AVOID 0'S)
-                    if value1 == value2:
-                        accuracy_for_key = 1.0
-                    else:
-                        # CAN'T DIVIDE BY 0, SO USE OTHER VALUE AS BENCHMARK
-                        if value1 == 0: key_denominator = value2
-                        accuracy_for_key = (value1 - abs(value1 - value2) ) / key_denominator
+            # CREATE ACCURACY BREAKDOWN OBJECT
+            self.accuracy_breakdown[stat] = ChartAccuracyBreakdown(
+                stat = stat,
+                actual=actual,
+                comparison=comparison,
+                weight=weight,
+            )
 
-                # APPLY WEIGHTS
-                weight = float(weights[key]) if key in weights.keys() else 1
-                denominator += (weight - 1) if key in weights.keys() else 0
-                weighted_accuracy = (accuracy_for_key * weight)
-                accuracies += weighted_accuracy
-
-                metrics_and_accuracies[key] = round(accuracy_for_key, 3)
-
-        overall_accuracy = accuracies / denominator if denominator > 0 else 0
-        
-        return overall_accuracy
+        # CALCULATE OVERALL ACCURACY
+        overall_accuracy = sum([breakdown.weighted_accuracy for breakdown in self.accuracy_breakdown.values()]) if len(self.accuracy_breakdown) > 0 else 0
+                
+        return round(overall_accuracy, 4)
 
     def __pct_diff(self, value_1, value_2) -> float:
         """Calculate percentage difference between two values"""
@@ -997,6 +1155,17 @@ class Chart(BaseModel):
         real_stat = self.stats_per_400_pa.get(stat, 0)
         projected_stat = self.projected_stats_per_400_pa.get(stat, 0)
         return self.__pct_diff(projected_stat, real_stat)
+
+    @property
+    def accuracy_breakdown_str(self) -> str:
+        """Get accuracy breakdown string"""
+        
+        # NO BREAKDOWN
+        if len(self.accuracy_breakdown) == 0:
+            return 'No Breakdown Available'
+        
+        # CREATE BREAKDOWN STRINGS
+        return "  ".join([breakdown.summary_str for breakdown in self.accuracy_breakdown.values()])
 
     # ---------------------------------------
     # ADVANTAGES
@@ -1147,6 +1316,58 @@ class Chart(BaseModel):
     # CONVERT FROM WOTC
     # ---------------------------------------
 
+    @property
+    def __estimated_command_x_and_y_const(self) -> tuple[float, float]:
+        match self.set:
+            case '2003':
+                if self.is_pitcher:
+                    x =  -43.65
+                    y_int = 17.03
+                else:
+                    x = 36.78
+                    y_int = -2.58
+            case '2004' | '2005' | 'EXPANDED': 
+                if self.is_pitcher:
+                    x =  -42.49
+                    y_int = 16.70
+                else:
+                    x = 36.98
+                    y_int = -2.71
+        return x, y_int
+
+    def calculate_estimated_command(self) -> float:
+        """
+        Estimated command based on wotc formulas and real OBP. Store in self. 
+        Only applies to 2003+ sets.
+        """
+
+        def estimate_command_from_wotc(x:float, y_int:float, obp:float) -> float:
+            min_command, max_command = (1 if self.is_pitcher else 7), (6 if self.is_pitcher else 16)
+            command = obp * x + y_int
+            return max(min( round(command, 2), max_command ), min_command)
+
+        # ONLY APPLY TO 2003+ SETS
+        if self.set not in ['2003', '2004', '2005', 'EXPANDED']:
+            return None
+        
+        # LOAD MLB AVGS
+        mlb_avgs_df = self.__load_mlb_league_avg_df()
+
+        # ADJUST FORMULA BASED ON ERA
+        # START BY GETTING AVGS FOR WOTC SET YEAR
+        mlb_avgs_wotc_set = self.__avg_mlb_stats_dict_for_years(year_list=[self.set_year], mlb_avgs_df=mlb_avgs_df)
+        x_factor, y_int = self.__estimated_command_x_and_y_const
+        wotc_set_year_obp = mlb_avgs_wotc_set.get('OBP', 0)
+        command_for_avg_wotc_obp = estimate_command_from_wotc(x_factor, y_int, wotc_set_year_obp)
+        
+        # THEN ADJUST THE X_FACTOR VARIABLE TO PLAYER'S YEAR
+        mlb_avgs = self.__avg_mlb_stats_dict_for_years(year_list=self.year_list, mlb_avgs_df=mlb_avgs_df)
+        player_year_avg_obp = mlb_avgs.get('OBP', 0)        
+        adjusted_x_factor = round( (command_for_avg_wotc_obp - y_int) / player_year_avg_obp, 2 )
+        
+        real_obp = self.stats_per_400_pa.get('onbase_perc', 0)        
+        return estimate_command_from_wotc(adjusted_x_factor, y_int, real_obp)
+
     def generate_values_and_results_from_wotc_data(self, results_list:list[ChartCategory]) -> None:
         """Convert WOTC data to chart values and results"""
 
@@ -1169,6 +1390,23 @@ class Chart(BaseModel):
     # ERA ADJUSTMENT
     # ---------------------------------------
 
+    def __avg_mlb_stats_dict_for_years(self, year_list:list[int], mlb_avgs_df: pd.DataFrame = None) -> dict:
+        """Get average MLB stats for a list of years"""
+        if mlb_avgs_df is None: mlb_avgs_df = self.__load_mlb_league_avg_df()
+        mlb_avgs_df = mlb_avgs_df[mlb_avgs_df['Year'].isin(year_list)]
+        mlb_avgs = mlb_avgs_df.mean().to_dict()
+        return mlb_avgs
+
+    def __load_mlb_league_avg_df(self) -> pd.DataFrame:
+        """Load MLB Averages for chart"""
+        mlb_avgs_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'data', 'mlb_averages.csv')
+        mlb_avgs_df = pd.read_csv(mlb_avgs_path)
+        for col in mlb_avgs_df.columns:
+            if col != 'Year':
+                mlb_avgs_df[col] = mlb_avgs_df[col].astype(float)
+
+        return mlb_avgs_df
+
     def adjust_for_era(self, era:str, year_list:list[int]) -> None:
         """Adjust chart values for era. Used for baseline charts.
         
@@ -1181,7 +1419,7 @@ class Chart(BaseModel):
         """
 
         def mlb_pct_change_between_eras(stat: str, diff_reduction_multiplier:float = 1.0, default_value:float = None, ignore_pitcher_flip:bool = False, wotc_set_adjustment_factor:float = 0.0) -> float:
-            stat_during_wotc = mlb_avgs_original_set.get(stat, None) * (1 + wotc_set_adjustment_factor)
+            stat_during_wotc = mlb_avgs_wotc_set.get(stat, None) * (1 + wotc_set_adjustment_factor)
             stat_to_adjust_to = mlb_avgs.get(stat, default_value)
             if np.isnan(stat_to_adjust_to):
                 stat_to_adjust_to = default_value
@@ -1195,32 +1433,18 @@ class Chart(BaseModel):
 
             return pct_change
         
-        # CHECK FOR YEAR MATCH WITH WOTC SETS
-        match self.set:
-            case 'CLASSIC': set_year = 2000
-            case 'EXPANDED': set_year = 2004
-            case _: set_year = int(self.set) - 1
-        
         # DONT ADJUST IF ERA IS THE SAME
         if len(year_list) == 1:
-            if set_year == year_list[0]:
+            if self.set_year == year_list[0]:
                 return
         
-        # LOAD MLB AVERAGES FOR ERA
-        mlb_avgs_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'data', 'mlb_averages.csv')
-        mlb_avgs_df = pd.read_csv(mlb_avgs_path)
-        for col in mlb_avgs_df.columns:
-            if col != 'Year':
-                mlb_avgs_df[col] = mlb_avgs_df[col].astype(float)
+        mlb_avgs_df = self.__load_mlb_league_avg_df()
 
         # FILTER FOR ORIGINAL YEAR
-        mlb_avgs_original_set = mlb_avgs_df[mlb_avgs_df['Year'] == set_year].mean().to_dict()
+        mlb_avgs_wotc_set = self.__avg_mlb_stats_dict_for_years(year_list=[self.set_year], mlb_avgs_df=mlb_avgs_df)
 
         # FILTER YEAR COLUMN IN YEAR LIST
-        mlb_avgs_df = mlb_avgs_df[mlb_avgs_df['Year'].isin(year_list)]
-
-        # AVERAGE FOR ENTIRE ERA
-        mlb_avgs = mlb_avgs_df.mean().to_dict()
+        mlb_avgs = self.__avg_mlb_stats_dict_for_years(year_list=year_list, mlb_avgs_df=mlb_avgs_df)
 
         # DEFINE DIFF ADJUSTMENT FACTOR
         # 50% BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED

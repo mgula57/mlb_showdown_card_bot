@@ -471,86 +471,6 @@ class Set(str, Enum):
         all_combos = [(c, o) for c in command_range for o in outs_range]
         return all_combos
 
-    def chart_accuracy_slashline_weights(self, player_sub_type:PlayerSubType) -> dict[str, float]:
-        match self.value:
-            case '2000':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                        Stat.OPS.value: 1.0,
-                    }
-            case '2001':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                        Stat.OPS.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 5.0,
-                        Stat.SLG.value: 2.0,
-                    }
-            case '2002':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                        Stat.OPS.value: 2.0,
-                    }
-            case '2003':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                        Stat.OPS.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                        Stat.OPS.value: 1.0,
-                    }
-            case '2004':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 4.0,
-                        Stat.SLG.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                    }
-            case '2005':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 2.5,
-                        Stat.SLG.value: 1.0,
-                        Stat.OPS.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                        Stat.OPS.value: 1.0,
-                    }
-            case 'CLASSIC' | 'EXPANDED':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 1.5,
-                        Stat.SLG.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 2.0,
-                        Stat.SLG.value: 1.0,
-                    }
-
     @property
     def has_expanded_chart(self) -> bool:
         return self.value in ['2002','2003','2004','2005','EXPANDED',]
@@ -1777,17 +1697,17 @@ class Set(str, Enum):
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=3.68,
+                            command=3.80,
                             values={
                                 'PU': 0.66,
                                 'SO': 4.05,
                                 'GB': 6.45,
                                 'FB': 5.40,
                                 'BB': 1.01,
-                                '1B': 1.67,
+                                '1B': 1.66,
                                 '2B': 0.52,
                                 '3B': 0.10,
-                                'HR': 0.14,
+                                'HR': 0.15,
                             }
                         )
                     case Set._2004 | Set._2005 | Set.EXPANDED:
@@ -1879,17 +1799,17 @@ class Set(str, Enum):
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=8.0,
+                            command=8.35,
                             values={                                
-                                'PU': 0.05,
-                                'SO': 2.20,
-                                'GB': 2.50,
-                                'FB': 2.45,
-                                'BB': 3.10,
-                                '1B': 6.65,
-                                '2B': 1.50,
-                                '3B': 0.30,
-                                'HR': 1.25,
+                                'PU': 0.00,
+                                'SO': 2.25,
+                                'GB': 2.87,
+                                'FB': 2.59,
+                                'BB': 3.50,
+                                '1B': 5.90,
+                                '2B': 0.84,
+                                '3B': 0.35,
+                                'HR': 1.70,
                             }
                         )
                     case Set._2004 | Set._2005 | Set.EXPANDED:

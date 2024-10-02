@@ -1605,7 +1605,6 @@ class ShowdownPlayerCard(BaseModel):
 
         # SET CONSTANTS
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=self.year_list)
-        stat_accuracy_weights=self.set.chart_accuracy_slashline_weights(player_sub_type=self.player_sub_type)
         pa = self.stats.get('pa', 400)
         
         command_options = list(set([ c for c,_ in self.set.command_out_combinations(player_type=self.player_type) if c not in self.commands_excluded]))
@@ -1630,12 +1629,12 @@ class ShowdownPlayerCard(BaseModel):
                     outs=outs,
                     opponent=opponent,
                     set=self.set.value,
+                    year_list=self.year_list,
                     era=self.era.value,
                     is_expanded=self.set.has_expanded_chart,
                     pa=pa,
                     stats_per_400_pa=stats_per_400_pa,
                     is_pitcher=self.is_pitcher,
-                    stat_accuracy_weights=stat_accuracy_weights,
                     command_accuracy_weight=command_accuracy_weight
                 )
 
@@ -1652,12 +1651,12 @@ class ShowdownPlayerCard(BaseModel):
                 outs=self.command_out_override[1] * chart.sub_21_per_slot_worth,
                 opponent=opponent,
                 set=self.set.value,
+                year_list=self.year_list,
                 era=self.era.value,
                 is_expanded=self.set.has_expanded_chart,
                 pa=pa,
                 stats_per_400_pa=stats_per_400_pa,
                 is_pitcher=self.is_pitcher,
-                stat_accuracy_weights=stat_accuracy_weights,
             )
             chart.accuracy = 1.0
             charts.append(chart)
@@ -2170,6 +2169,7 @@ class ShowdownPlayerCard(BaseModel):
         print(f"\n{self.points} PTS | {positions_string}| {ip_or_speed} {icon_string}")
         print(self.points_breakdown.breakdown_str)
         print(" | ".join([f"{co}:{round(pct * 100, 2)}%" for index, (co, pct) in enumerate(self.command_out_accuracies.items()) if index < 7]) )
+        print(self.chart.accuracy_breakdown_str)
 
         print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS  {f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.is_command_out_anomaly else ''} ")
 
