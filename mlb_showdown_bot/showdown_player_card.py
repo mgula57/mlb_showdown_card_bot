@@ -1605,6 +1605,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # SET CONSTANTS
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=self.year_list)
+        mlb_avgs_df = opponent.load_mlb_league_avg_df()
         pa = self.stats.get('pa', 400)
         
         command_options = list(set([ c for c,_ in self.set.command_out_combinations(player_type=self.player_type) if c not in self.commands_excluded]))
@@ -1635,7 +1636,8 @@ class ShowdownPlayerCard(BaseModel):
                     pa=pa,
                     stats_per_400_pa=stats_per_400_pa,
                     is_pitcher=self.is_pitcher,
-                    command_accuracy_weight=command_accuracy_weight
+                    command_accuracy_weight=command_accuracy_weight,
+                    mlb_avgs_df=mlb_avgs_df,
                 )
 
                 # IF COMMAND OUT COMBO HAS ALREADY BEEN CALC'D PREVIOUSLY, SKIP
@@ -1657,6 +1659,7 @@ class ShowdownPlayerCard(BaseModel):
                 pa=pa,
                 stats_per_400_pa=stats_per_400_pa,
                 is_pitcher=self.is_pitcher,
+                mlb_avgs_df=mlb_avgs_df
             )
             chart.accuracy = 1.0
             charts.append(chart)
@@ -2171,7 +2174,7 @@ class ShowdownPlayerCard(BaseModel):
         print(" | ".join([f"{co}:{round(pct * 100, 2)}%" for index, (co, pct) in enumerate(self.command_out_accuracies.items()) if index < 7]) )
         print(self.chart.accuracy_breakdown_str)
 
-        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS  {f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.is_command_out_anomaly else ''} ")
+        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS  {f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.command_out_accuracy_weight != 1.0 else ''} ")
 
         chart_tbl = PrettyTable(field_names=[col.value + ('*' if col in self.chart.chart_categories_adjusted else '') for col in self.chart.categories_list])
         chart_tbl.add_row(self.chart.ranges_list)

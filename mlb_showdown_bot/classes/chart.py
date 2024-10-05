@@ -205,16 +205,21 @@ class ChartAccuracyBreakdown(BaseModel):
     weight: float = 1.0
     accuracy: float = 1.0
     weighted_accuracy: float = 1.0
+    adjustment_pct: float = 1.0
 
     def __init__(self, **data) -> None:
         super().__init__(**data)
-        self.accuracy = 1.0 if self.actual == self.comparison else max( 1 - ( (abs(self.actual - self.comparison)) / ((self.actual + self.comparison) / 2) ), 0)
-        self.weighted_accuracy = round(self.accuracy * self.weight, 4)
+        self.calculate_accuracy_attributes()
 
     @property
     def summary_str(self) -> str:
         return f"{self.stat.name}: {round(self.actual, 3)} vs {round(self.comparison, 3)} ({round(self.accuracy * 100, 1)}% @{self.weight * 100}%)"
 
+    def calculate_accuracy_attributes(self) -> None:
+        """Populate accuracy attributes for the chart accuracy breakdown"""
+        self.accuracy = 1.0 if self.actual == self.comparison else max( 1 - ( (abs(self.actual - self.comparison)) / ((self.actual + self.comparison) / 2) ), 0)
+        self.accuracy *= self.adjustment_pct
+        self.weighted_accuracy = round(self.accuracy * self.weight, 4)
 
 # ---------------------------------------
 # CHART
@@ -276,7 +281,7 @@ class Chart(BaseModel):
 
         # POPULATE ESTIMATED COMMAND
         if self.command_estimated is None:
-            self.command_estimated = self.calculate_estimated_command()
+            self.command_estimated = self.calculate_estimated_command(mlb_avgs_df=data.get('mlb_avgs_df', None))
 
         # POPULATE VALUES DICT
         if len(self.values) == 0:
@@ -501,6 +506,11 @@ class Chart(BaseModel):
             case 'CLASSIC': return 2000
             case 'EXPANDED': return 2004
             case _: return int(self.set) - 1
+
+    @property
+    def does_set_ignore_outlier_adjustments(self) -> bool:
+        return self.set in ['2003', '2004', '2005', 'EXPANDED', 'CLASSIC']
+    
 
     # ---------------------------------------
     # GENERATE CHART ATTRIBUTES
@@ -1042,53 +1052,26 @@ class Chart(BaseModel):
         weights = self.accuracy_stat_weights
         actuals_dict = dict( ChainMap({'command': self.command_estimated}, self.stats_per_400_pa) )
         measurements_dict = dict( ChainMap({'command': self.command}, in_game_stats_per_400_pa) )
-        accuracy = self.__accuracy_between_dicts(
+        self.__calculate_accuracy_breakdown(
             actuals_dict=actuals_dict,
             measurements_dict=measurements_dict,
             weights=weights,
         )
 
-        does_set_ignore_outlier_adjustments = self.set in ['2003', '2004', '2005', 'EXPANDED', 'CLASSIC']
-        if does_set_ignore_outlier_adjustments:
-            self.accuracy = accuracy
+        if self.does_set_ignore_outlier_adjustments:
+            self.is_command_out_anomaly = self.is_chart_an_outlier
             return
 
-        # REDUCE ACCURACY FOR CHARTS WITH NUM OUTS OUT OF NORM
-        if self.is_pitcher:
-            out_min = 14 if self.is_expanded else 15
-            out_max = (19 if self.set == '2002' else 18) if self.is_expanded else 18
-            command_outlier_upper_bound = 6 if self.is_expanded else 6
-            command_outlier_lower_bound = 1 if self.is_expanded else 1
-
-            # UPDATE FOR SPECIAL CASES
-            if self.is_classic and self.command >= 6: out_min, out_max = 15, 18
-            if self.is_classic and self.command == 0: out_min, out_max = 15, 17.5
-
-        else:
-            out_min = 5 if self.is_expanded else 3
-            out_max = 7 if self.is_expanded else 5
-
-            # UPDATE FOR SPECIAL CASES
-            if self.is_classic and self.command > 10: out_min, out_max = 2, 3
-            if self.is_classic and self.command < 8: out_min, out_max = 3, 6
-
-            command_outlier_upper_bound = 14 if self.is_expanded else 11
-            command_outlier_lower_bound = 9 if self.is_expanded else 5
-
-        outs = self.outs / self.sub_21_per_slot_worth
-
         # REDUCE ACCURACY WHEN OUTS ARE ABOVE SOFT OUTLIER MAX AND COMMAND ABOVE SOFT OUTLIER MAX
-        outs_soft_cap = out_max
-        command_soft_cap = 11 if self.is_expanded else 8
-        is_classic_and_high_command_outs = self.is_classic and outs > 4 and self.command > 10
-        is_high_command_high_outs = (outs > outs_soft_cap and self.command > command_soft_cap) or is_classic_and_high_command_outs
-        if is_high_command_high_outs:
+        out_min, out_max, command_outlier_lower_bound, command_outlier_upper_bound = self.outlier_cutoffs
+        outs = self.outs_full
+
+        # ADJUST HIGH COMMAND HIGH OUTS
+        if self.is_high_command_high_outs:
             self.command_out_accuracy_weight = 0.925
 
         # USE LINEAR DECAY TO REDUCE ACCURACY FOR OUTLIERS
-        is_outside_out_bounds = outs < out_min or outs > out_max
-        is_valid_outlier = ( self.command >= command_outlier_upper_bound and (outs < out_min if self.is_hitter else outs > out_max) )
-        if is_outside_out_bounds and not is_valid_outlier and not is_high_command_high_outs:
+        if self.is_outside_out_bounds and not self.is_elite_command_out_chart and not self.is_high_command_high_outs:
 
             # ADJUST DECAY RATES
             decay_rate = 0.0275
@@ -1104,13 +1087,11 @@ class Chart(BaseModel):
         
         # APPLY WEIGHTS
         # USED TO NORMALIZE CHARTS TO MATCH WOTC BUT ALSO PROVIDE FLEXIBILITY FOR OUTLIERS
-        accuracy *= self.command_out_accuracy_weight
-        accuracy *= self.command_accuracy_weight
-        self.is_command_out_anomaly = is_valid_outlier or is_outside_out_bounds
+        self.accuracy *= self.command_out_accuracy_weight
+        self.accuracy *= self.command_accuracy_weight
+        self.is_command_out_anomaly = self.is_chart_an_outlier
 
-        self.accuracy = accuracy
-
-    def __accuracy_between_dicts(self, actuals_dict:dict, measurements_dict:dict, weights:dict[Stat, float]={}) -> tuple[float, dict[Stat, ChartAccuracyBreakdown]]:
+    def __calculate_accuracy_breakdown(self, actuals_dict:dict, measurements_dict:dict, weights:dict[Stat, float]={}) -> None:
         """Compare two dictionaries of numbers to get overall difference
 
         Args:
@@ -1141,10 +1122,24 @@ class Chart(BaseModel):
                 weight=weight,
             )
 
+        # 2003+ ADJUST COMMAND ACCURACY FOR OUTLIERS THAT ARE ACCURATE
+        command_chart_accuracy = self.accuracy_breakdown.get(Stat.COMMAND, None)
+        if self.does_set_ignore_outlier_adjustments and command_chart_accuracy and self.is_chart_an_outlier:
+            accuracy_command = command_chart_accuracy.accuracy
+            non_command_breakdowns = [breakdown for breakdown in self.accuracy_breakdown.values() if breakdown.stat != Stat.COMMAND]
+            accuracy_non_command = ( sum([breakdown.accuracy for breakdown in non_command_breakdowns]) / len(non_command_breakdowns) ) if len(non_command_breakdowns) > 0 else 0
+            accuracy_cutoff = 0.99
+            if accuracy_non_command > accuracy_cutoff and accuracy_command < accuracy_cutoff and accuracy_command > 0.90 and accuracy_command > 0:
+                command_chart_accuracy.adjustment_pct = round(accuracy_cutoff / accuracy_command, 4)
+                command_chart_accuracy.calculate_accuracy_attributes()
+                self.accuracy_breakdown[Stat.COMMAND] = command_chart_accuracy
+                self.command_out_accuracy_weight = command_chart_accuracy.adjustment_pct
+                self.is_command_out_anomaly = True
+
         # CALCULATE OVERALL ACCURACY
         overall_accuracy = sum([breakdown.weighted_accuracy for breakdown in self.accuracy_breakdown.values()]) if len(self.accuracy_breakdown) > 0 else 0
-                
-        return round(overall_accuracy, 4)
+        self.accuracy = overall_accuracy
+        return
 
     def __pct_diff(self, value_1, value_2) -> float:
         """Calculate percentage difference between two values"""
@@ -1166,6 +1161,60 @@ class Chart(BaseModel):
         
         # CREATE BREAKDOWN STRINGS
         return "  ".join([breakdown.summary_str for breakdown in self.accuracy_breakdown.values()])
+
+    @property
+    def outlier_cutoffs(self) -> tuple[float, float, float, float]:
+        """Get outlier cutoffs for chart. Based on Command and Onbase combination being outside the norm."""
+
+        if self.is_pitcher:
+            out_min = 14 if self.is_expanded else 15
+            out_max = (19 if self.set == '2002' else 18) if self.is_expanded else 18
+            command_outlier_upper_bound = 6 if self.is_expanded else 6
+            command_outlier_lower_bound = 1 if self.is_expanded else 1
+
+            # UPDATE FOR SPECIAL CASES
+            if self.is_classic and self.command >= 6: out_min, out_max = 15, 18
+            if self.is_classic and self.command == 0: out_min, out_max = 15, 17.5
+
+        else:
+            out_min = 5 if self.is_expanded else 3
+            out_max = 7 if self.is_expanded else 5
+
+            # UPDATE FOR SPECIAL CASES
+            if self.is_classic and self.command > 10: out_min, out_max = 2, 3
+            if self.is_classic and self.command < 8: out_min, out_max = 3, 6
+
+            command_outlier_upper_bound = 14 if self.is_expanded else 11
+            command_outlier_lower_bound = 9 if self.is_expanded else 5
+
+        return out_min, out_max, command_outlier_lower_bound, command_outlier_upper_bound
+    
+    @property
+    def is_outside_out_bounds(self) -> bool:
+        """Check if chart is outside out bounds"""
+        out_min, out_max, _, _ = self.outlier_cutoffs
+        outs = self.outs / self.sub_21_per_slot_worth
+        return outs < out_min or outs > out_max
+    
+    @property
+    def is_elite_command_out_chart(self) -> bool:
+        """Check if chart is an elite command out chart"""
+        out_min, out_max, _, command_outlier_upper_bound = self.outlier_cutoffs
+        return self.command >= command_outlier_upper_bound and (self.outs_full < out_min if self.is_hitter else self.outs_full > out_max)
+
+    @property
+    def is_high_command_high_outs(self) -> bool:
+        """Check if chart is high command high outs"""
+        command_soft_cap = 11 if self.is_expanded else 8
+        _, out_max, _, command_outlier_upper_bound = self.outlier_cutoffs
+        is_classic_and_high_command_outs = self.is_classic and self.outs_full > 4 and self.command > 10
+        is_high_command_high_outs = (self.outs_full > out_max and self.command > command_soft_cap) or is_classic_and_high_command_outs
+        return is_high_command_high_outs
+
+    @property
+    def is_chart_an_outlier(self) -> bool:
+        """Check if chart is an outlier"""
+        return self.is_elite_command_out_chart or self.is_outside_out_bounds
 
     # ---------------------------------------
     # ADVANTAGES
@@ -1335,7 +1384,7 @@ class Chart(BaseModel):
                     y_int = -2.71
         return x, y_int
 
-    def calculate_estimated_command(self) -> float:
+    def calculate_estimated_command(self, mlb_avgs_df: pd.DataFrame = None) -> float:
         """
         Estimated command based on wotc formulas and real OBP. Store in self. 
         Only applies to 2003+ sets.
@@ -1351,7 +1400,8 @@ class Chart(BaseModel):
             return None
         
         # LOAD MLB AVGS
-        mlb_avgs_df = self.__load_mlb_league_avg_df()
+        if mlb_avgs_df is None:
+            mlb_avgs_df = self.load_mlb_league_avg_df()
 
         # ADJUST FORMULA BASED ON ERA
         # START BY GETTING AVGS FOR WOTC SET YEAR
@@ -1390,21 +1440,20 @@ class Chart(BaseModel):
     # ERA ADJUSTMENT
     # ---------------------------------------
 
-    def __avg_mlb_stats_dict_for_years(self, year_list:list[int], mlb_avgs_df: pd.DataFrame = None) -> dict:
+    def __avg_mlb_stats_dict_for_years(self, year_list:list[int], mlb_avgs_df:pd.DataFrame = None) -> dict:
         """Get average MLB stats for a list of years"""
-        if mlb_avgs_df is None: mlb_avgs_df = self.__load_mlb_league_avg_df()
+        if mlb_avgs_df is None: mlb_avgs_df = self.load_mlb_league_avg_df()
         mlb_avgs_df = mlb_avgs_df[mlb_avgs_df['Year'].isin(year_list)]
         mlb_avgs = mlb_avgs_df.mean().to_dict()
         return mlb_avgs
 
-    def __load_mlb_league_avg_df(self) -> pd.DataFrame:
+    def load_mlb_league_avg_df(self) -> pd.DataFrame:
         """Load MLB Averages for chart"""
         mlb_avgs_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'data', 'mlb_averages.csv')
         mlb_avgs_df = pd.read_csv(mlb_avgs_path)
         for col in mlb_avgs_df.columns:
             if col != 'Year':
                 mlb_avgs_df[col] = mlb_avgs_df[col].astype(float)
-
         return mlb_avgs_df
 
     def adjust_for_era(self, era:str, year_list:list[int]) -> None:
@@ -1438,7 +1487,7 @@ class Chart(BaseModel):
             if self.set_year == year_list[0]:
                 return
         
-        mlb_avgs_df = self.__load_mlb_league_avg_df()
+        mlb_avgs_df = self.load_mlb_league_avg_df()
 
         # FILTER FOR ORIGINAL YEAR
         mlb_avgs_wotc_set = self.__avg_mlb_stats_dict_for_years(year_list=[self.set_year], mlb_avgs_df=mlb_avgs_df)

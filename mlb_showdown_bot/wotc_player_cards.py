@@ -120,6 +120,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                         if len(chart_results) < 30:
                             chart_results += [chart_results[-1]] * (30 - len(chart_results))
                 opponent_chart = set.wotc_baseline_chart(player_type.opponent_type, my_type=player_sub_type)
+                mlb_avgs_df = opponent_chart.load_mlb_league_avg_df()
                 chart = Chart(
                     is_pitcher = player_type.is_pitcher,
                     set = set.value,
@@ -130,6 +131,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     outs = data['outs'],
                     opponent = opponent_chart,
                     convert_from_wotc = chart_results,
+                    mlb_avgs_df = mlb_avgs_df
                 )
                 data['chart'] = chart
                 data['stats'] = {'type': player_type.value}

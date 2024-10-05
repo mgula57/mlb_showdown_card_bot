@@ -246,7 +246,7 @@ class CardComparison(BaseModel):
 
         data: dict = {'overall_accuracy': self.overall_accuracy}
         wotc_fields_to_include = ['name', 'set', 'year', 'player_type',]
-        common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed', 'ip', 'chart.ranges', 'chart.values', 'icons_str', 'chart.command_estimated']
+        common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed', 'ip', 'chart.ranges', 'chart.values', 'icons_str', 'chart.command_estimated', 'chart.is_command_out_anomaly']
         for type in ['wotc', 'bot', 'bot_matching_command_outs']:
             card: ShowdownPlayerCard = getattr(self, type)
             data.update({f'{type}_{field}': (getattr(getattr(card, field.split('.')[0]), field.split('.')[1]) if '.' in field else getattr(card, field)) for field in common_fields_to_include})
@@ -507,6 +507,7 @@ for set in set_list:
                     stats['BB'] = stats.get('BB', 0) - stats.get('HBP', 0)
                 
                 commands_excluded = [c for c in range(0,17) if c not in wotc_command_list] if args.wotc_commands else []
+                print(f"{index}/{len(set_type_player_set)} {wotc.name} {wotc.chart.command_outs_concat}  G:{wotc.stats.get('G', 0)}              \r", end='')
                 showdown_bot = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats,commands_excluded=commands_excluded)
                 showdown_bot_matching_command_outs = ShowdownPlayerCard(name=wotc.name,year=wotc.year,set=wotc.set,expansion=wotc.image.expansion,player_type=wotc.player_type,stats=stats,command_out_override=(wotc.chart.command, int(round(wotc.chart.outs / wotc.chart.sub_21_per_slot_worth))))
 
