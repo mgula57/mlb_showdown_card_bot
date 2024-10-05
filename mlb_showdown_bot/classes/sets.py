@@ -177,6 +177,7 @@ class Set(str, Enum):
     def speed_cutoff_for_sub_percentile_sb(self) -> int:
         match self:
             case Set._2002: return 22
+            case Set._2004 | Set._2005 | Set.EXPANDED: return 21
             case _: return 20
 
     def speed_metric_multiplier(self, metric: SpeedMetric, use_variable_speed_multiplier:bool) -> float:
@@ -189,8 +190,8 @@ class Set(str, Enum):
                 case '2001': return 1.22
                 case '2002': return 1.12
                 case '2003': return 0.962
-                case '2004': return 1.02
-                case '2005': return 1.04
+                case '2004': return 1.00
+                case '2005': return 1.00
                 case _: return 1.0
         
         return 1.0
@@ -607,11 +608,11 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
-                            case PointsMetric.DEFENSE: return 65
+                            case PointsMetric.DEFENSE: return 70
                             case PointsMetric.SPEED: return 60
-                            case PointsMetric.ONBASE: return 155
+                            case PointsMetric.ONBASE: return 140
                             case PointsMetric.AVERAGE: return 60
-                            case PointsMetric.SLUGGING: return 150
+                            case PointsMetric.SLUGGING: return 180
                             case PointsMetric.HOME_RUNS: return 45
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
@@ -632,11 +633,11 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
                             case PointsMetric.DEFENSE: return 65
-                            case PointsMetric.SPEED: return 60
-                            case PointsMetric.ONBASE: return 140
-                            case PointsMetric.AVERAGE: return 70
-                            case PointsMetric.SLUGGING: return 140
-                            case PointsMetric.HOME_RUNS: return 50
+                            case PointsMetric.SPEED: return 45
+                            case PointsMetric.ONBASE: return 135
+                            case PointsMetric.AVERAGE: return 40
+                            case PointsMetric.SLUGGING: return 250
+                            case PointsMetric.HOME_RUNS: return 45
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 75
@@ -808,9 +809,14 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return True
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
-            case '2003' | '2004' | '2005' | 'EXPANDED':
+            case '2003':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return False
+                    case PlayerSubType.STARTING_PITCHER: return True
+                    case PlayerSubType.RELIEF_PITCHER: return True
+            case '2004' | '2005' | 'EXPANDED':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return True
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
 
@@ -847,6 +853,11 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return 0.70, 500
                     case PlayerSubType.STARTING_PITCHER: return 0.75, 300
                     case PlayerSubType.RELIEF_PITCHER: return 0.70, 110
+            case '2004' | '2005' | 'EXPANDED':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return 0.65, 400
+                    case PlayerSubType.STARTING_PITCHER: return 0.75, 700
+                    case PlayerSubType.RELIEF_PITCHER: return 0.70, 400
         
         # DEFAULT IS NONE
         return None
@@ -876,7 +887,7 @@ class Set(str, Enum):
                     case '2003':
                         match ip:
                             case 2: return 1.10
-                            case 3: return 1.80
+                            case 3: return 1.60
                     case '2004' | '2005' | 'EXPANDED':
                         match ip:
                             case 2: return 1.34
@@ -1728,7 +1739,7 @@ class Set(str, Enum):
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=3.75,
+                            command=3.80 + (0.00 if self == Set._2004 else -0.03),
                             values={
                                 'PU': 0.65,
                                 'SO': 4.00,
@@ -1736,9 +1747,9 @@ class Set(str, Enum):
                                 'FB': 5.45,
                                 'BB': 1.20,
                                 '1B': 1.49,
-                                '2B': 0.54,
+                                '2B': 0.53,
                                 '3B': 0.07,
-                                'HR': 0.15,
+                                'HR': 0.16,
                             }
                         )
             case PlayerType.HITTER:

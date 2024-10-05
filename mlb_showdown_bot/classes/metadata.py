@@ -29,6 +29,7 @@ class SpeedMetric(Enum):
             case 'STOLEN_BASES':
                 match set:
                     case '2002': return 25
+                    case '2004' | '2005' | 'EXPANDED': return 22
                     case _: return 26
 
     def minimum_range_value(self, set:str) -> int:
@@ -37,6 +38,7 @@ class SpeedMetric(Enum):
             case 'STOLEN_BASES': 
                 match set:
                     case '2002': return -32
+                    case '2004' | '2005' | 'EXPANDED': return -19
                     case _: return -25
 
     @property
@@ -54,8 +56,8 @@ class SpeedMetric(Enum):
     @property
     def weight_sb_outliers(self) -> float:
         match self.name:
-            case 'SPRINT_SPEED': return 0.25
-            case 'STOLEN_BASES': return 0.75
+            case 'SPRINT_SPEED': return 0.20
+            case 'STOLEN_BASES': return 0.80
     
     @property
     def outlier_cutoff(self) -> int:

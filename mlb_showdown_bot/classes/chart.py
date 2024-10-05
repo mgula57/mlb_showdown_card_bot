@@ -986,7 +986,7 @@ class Chart(BaseModel):
                         Stat.SLG: 0.20,
                         Stat.OPS: 0.20,
                     }
-            case '2001':
+            case '2001' | 'CLASSIC':
                 if self.is_hitter:
                     return {
                         Stat.OBP: 0.60,
@@ -1028,37 +1028,32 @@ class Chart(BaseModel):
             case '2004':
                 if self.is_hitter:
                     return {
-                        Stat.OBP: 0.80,
-                        Stat.SLG: 0.20,
+                        Stat.COMMAND: 0.50,
+                        Stat.OBP: 0.25,
+                        Stat.SLG: 0.15,
+                        Stat.OPS: 0.10,
                     }
                 else:
                     return {
-                        Stat.OBP: 0.75,
-                        Stat.SLG: 0.25,
-                    }
-            case '2005':
-                if self.is_hitter:
-                    return {
-                        Stat.OBP: 0.60,
+                        Stat.COMMAND: 0.30,
+                        Stat.OBP: 0.30,
                         Stat.SLG: 0.20,
                         Stat.OPS: 0.20,
                     }
-                else:
-                    return {
-                        Stat.OBP: 0.60,
-                        Stat.SLG: 0.20,
-                        Stat.OPS: 0.20,
-                    }
-            case 'CLASSIC' | 'EXPANDED':
+            case '2005' | 'EXPANDED':
                 if self.is_hitter:
                     return {
-                        Stat.OBP: 0.60,
-                        Stat.SLG: 0.40,
+                        Stat.COMMAND: 0.50,
+                        Stat.OBP: 0.25,
+                        Stat.SLG: 0.15,
+                        Stat.OPS: 0.10,
                     }
                 else:
                     return {
-                        Stat.OBP: 0.70,
-                        Stat.SLG: 0.30,
+                        Stat.COMMAND: 0.30,
+                        Stat.OBP: 0.30,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.20,
                     }
 
     def generate_accuracy_rating(self) -> None:
@@ -1412,7 +1407,7 @@ class Chart(BaseModel):
                     case 'position_player':
                         x = 36.78
                         y_int = -2.58
-            case '2004' | '2005' | 'EXPANDED': 
+            case '2004': 
                 match self.player_subtype:
                     case 'starting_pitcher':
                         x =  -42.49
@@ -1421,8 +1416,19 @@ class Chart(BaseModel):
                         x =  -42.49
                         y_int = 16.70
                     case 'position_player':
-                        x = 36.98
-                        y_int = -2.71
+                        x = 36.20
+                        y_int = -2.3
+            case '2005' | 'EXPANDED': 
+                match self.player_subtype:
+                    case 'starting_pitcher':
+                        x =  -42.49
+                        y_int = 16.70
+                    case 'relief_pitcher':
+                        x =  -42.49
+                        y_int = 16.70
+                    case 'position_player':
+                        x = 35.00
+                        y_int = -1.90
         return x, y_int
 
     def calculate_estimated_command(self, mlb_avgs_df: pd.DataFrame = None) -> float:

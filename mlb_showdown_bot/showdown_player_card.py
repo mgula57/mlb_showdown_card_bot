@@ -1191,7 +1191,6 @@ class ShowdownPlayerCard(BaseModel):
             final_speed_for_metric = min( max(speed, min_in_game), max_in_game )
 
             in_game_speed_for_metric[metric] = final_speed_for_metric
-
         # AVERAGE SPRINT SPEED WITH SB SPEED
         num_metrics = len(in_game_speed_for_metric)
         sb_speed = in_game_speed_for_metric.get(SpeedMetric.STOLEN_BASES, 0)
