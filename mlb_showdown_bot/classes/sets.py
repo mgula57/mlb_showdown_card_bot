@@ -739,11 +739,11 @@ class Set(str, Enum):
                 match position:
                     case Position.CA: return 1.0
                     case Position._1B: return 0.5
-                    case Position._2B: return 1.0
-                    case Position._3B: return 1.0
-                    case Position.SS: return 1.0
+                    case Position._2B: return 1.15
+                    case Position._3B: return 1.10
+                    case Position.SS: return 1.20
                     case Position.CF: return 1.0
-                    case Position.OF: return 1.0
+                    case Position.OF: return 0.95
                     case Position.LFRF: return 0.75
                     case Position.IF: return 1.0
             case '2004' | '2005':
@@ -842,7 +842,7 @@ class Set(str, Enum):
                     case PlayerSubType.RELIEF_PITCHER: return 0.90, 100
             case '2003':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.70, 450
+                    case PlayerSubType.POSITION_PLAYER: return 0.70, 500
         
         # DEFAULT IS NONE
         return None
