@@ -590,17 +590,19 @@ class Set(str, Enum):
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 70
-                            case PointsMetric.ONBASE: return 280
+                            case PointsMetric.ONBASE: return 290
                             case PointsMetric.AVERAGE: return 60
-                            case PointsMetric.SLUGGING: return 270
-                            case PointsMetric.OUT_DISTRIBUTION: return 20
+                            case PointsMetric.SLUGGING: return 150
+                            case PointsMetric.OUT_DISTRIBUTION: return 40
+                            case PointsMetric.COMMAND: return 100
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 135
+                            case PointsMetric.ONBASE: return 170
                             case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 110
-                            case PointsMetric.OUT_DISTRIBUTION: return 10
+                            case PointsMetric.SLUGGING: return 60
+                            case PointsMetric.OUT_DISTRIBUTION: return 20
+                            case PointsMetric.COMMAND: return 50
             case '2004':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
@@ -843,6 +845,8 @@ class Set(str, Enum):
             case '2003':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 0.70, 500
+                    case PlayerSubType.STARTING_PITCHER: return 0.75, 300
+                    case PlayerSubType.RELIEF_PITCHER: return 0.70, 110
         
         # DEFAULT IS NONE
         return None
@@ -872,7 +876,7 @@ class Set(str, Enum):
                     case '2003':
                         match ip:
                             case 2: return 1.10
-                            case 3: return 1.65
+                            case 3: return 1.80
                     case '2004' | '2005' | 'EXPANDED':
                         match ip:
                             case 2: return 1.34
@@ -888,6 +892,13 @@ class Set(str, Enum):
                         match ip:
                             case 4: return 0.75
                             case 5: return 0.925
+                            case 9: return 1.04
+                    case '2002' | '2003' | '2004' | '2005' | 'EXPANDED':
+                        match ip:
+                            case 4: return 0.80
+                            case 5: return 0.97
+                            case 7: return 1.01
+                            case 8: return 1.03
                             case 9: return 1.04
 
         return 1.0
@@ -1800,16 +1811,16 @@ class Set(str, Enum):
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
                             command=8.35,
-                            values={                                
+                            values={
                                 'PU': 0.00,
                                 'SO': 2.25,
-                                'GB': 2.87,
-                                'FB': 2.59,
-                                'BB': 3.55,
-                                '1B': 5.85,
-                                '2B': 0.84,
-                                '3B': 0.35,
-                                'HR': 1.70,
+                                'GB': 1.46 + (-0.70 if is_rp else 0),
+                                'FB': 4.00 + (0.70 if is_rp else 0),
+                                'BB': 3.50 + (-0.80 if is_rp else 0),
+                                '1B': 5.85 + (1.30 if is_rp else 0),
+                                '2B': 0.84 + (-0.50 if is_rp else 0),
+                                '3B': 0.45,
+                                'HR': 1.65,
                             }
                         )
                     case Set._2004 | Set._2005 | Set.EXPANDED:

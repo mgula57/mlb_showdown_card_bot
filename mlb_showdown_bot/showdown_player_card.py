@@ -1621,8 +1621,8 @@ class ShowdownPlayerCard(BaseModel):
                     # CHECK FOR LAST CHART'S OUT VALUE AND PROJECTED VS ACTUAL
                     outs = max( chart.outs + ( chart.sub_21_per_slot_worth * (-1 if chart.is_overestimating_obp else 1) ), 0 )
 
-                    # IF OUTS DIDN'T CHANGE, NO NEED TO RECALCULATE
-                    if outs == chart.outs:
+                    # IF OUTS DIDN'T CHANGE OR ARE 21+, NO NEED TO RECALCULATE
+                    if outs == chart.outs or outs > 20:
                         continue
 
                 chart = Chart(
@@ -1636,6 +1636,7 @@ class ShowdownPlayerCard(BaseModel):
                     pa=pa,
                     stats_per_400_pa=stats_per_400_pa,
                     is_pitcher=self.is_pitcher,
+                    player_subtype=self.player_sub_type.value,
                     command_accuracy_weight=command_accuracy_weight,
                     mlb_avgs_df=mlb_avgs_df,
                 )
@@ -1659,6 +1660,7 @@ class ShowdownPlayerCard(BaseModel):
                 pa=pa,
                 stats_per_400_pa=stats_per_400_pa,
                 is_pitcher=self.is_pitcher,
+                player_subtype=self.player_sub_type.value,
                 mlb_avgs_df=mlb_avgs_df
             )
             chart.accuracy = 1.0

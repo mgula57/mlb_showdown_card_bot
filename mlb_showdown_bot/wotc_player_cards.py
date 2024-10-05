@@ -123,6 +123,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                 mlb_avgs_df = opponent_chart.load_mlb_league_avg_df()
                 chart = Chart(
                     is_pitcher = player_type.is_pitcher,
+                    player_subtype = player_sub_type.value,
                     set = set.value,
                     year_list=[int(data['year'])],
                     era = Era.STEROID.value,

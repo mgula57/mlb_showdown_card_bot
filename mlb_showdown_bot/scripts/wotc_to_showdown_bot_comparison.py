@@ -37,7 +37,7 @@ class Stat(Enum):
     SLG = "slugging_perc"
     OPS = "onbase_plus_slugging"
     COMMAND = "command"
-    OUTS = "outs"
+    OUTS = "outs_full"
     SPEED = "speed"
     IP = "IP"
     POINTS = "points"
@@ -614,4 +614,5 @@ if args.export:
     df = pd.json_normalize(flattened_stat_comp_data, sep='.', max_level=None)
     export_path = Path(os.path.join(Path(os.path.join(os.path.dirname(__file__)), 'output', 'stat_comparisons.csv')))
     df.to_csv(export_path, index=False)
+    print(f"Exported comparison.")
 

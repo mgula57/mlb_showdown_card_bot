@@ -172,6 +172,9 @@ class ChartCategory(str, Enum):
                 if is_hitter:
                     match self:
                         case ChartCategory.BB: return (0.72, 3)
+                else:
+                    match self:
+                        case ChartCategory.GB: return (0.80, 8)
             case _:
                 if is_hitter:
                     match self:
@@ -186,7 +189,7 @@ class ChartCategory(str, Enum):
                     case '2000': return 2.80
                     case '2001' | 'CLASSIC': return 4.0
                     case '2002': return 4.35
-                    case '2003': return 2.2
+                    case '2003': return 2.75
                     case '2004': return 2.05
                     case '2005' | 'EXPANDED': return 2.4
 
@@ -202,6 +205,7 @@ class ChartAccuracyBreakdown(BaseModel):
     stat: Stat
     actual: float 
     comparison: float
+    is_pitcher: bool
     weight: float = 1.0
     accuracy: float = 1.0
     weighted_accuracy: float = 1.0
@@ -214,10 +218,20 @@ class ChartAccuracyBreakdown(BaseModel):
     @property
     def summary_str(self) -> str:
         return f"{self.stat.name}: {round(self.actual, 3)} vs {round(self.comparison, 3)} ({round(self.accuracy * 100, 1)}% @{self.weight * 100}%)"
+    
+    @property
+    def difference_multiplier(self) -> float:
+        """Normalize differences for smaller ranges (ex: 1-6 vs 7-16)"""
+        match self.stat:
+            case Stat.COMMAND:
+                return 0.5 if self.is_pitcher else 0.80
+        
+        return 1.0
 
     def calculate_accuracy_attributes(self) -> None:
         """Populate accuracy attributes for the chart accuracy breakdown"""
-        self.accuracy = 1.0 if self.actual == self.comparison else max( 1 - ( (abs(self.actual - self.comparison)) / ((self.actual + self.comparison) / 2) ), 0)
+        diff = abs(self.actual - self.comparison) * self.difference_multiplier
+        self.accuracy = 1.0 if self.actual == self.comparison else max( 1 - ( diff / ((self.actual + self.comparison) / 2) ), 0)
         self.accuracy *= self.adjustment_pct
         self.weighted_accuracy = round(self.accuracy * self.weight, 4)
 
@@ -244,6 +258,7 @@ class Chart(BaseModel):
     
     # PLAYER DATA
     is_pitcher: bool
+    player_subtype: Optional[str] = None
     pa: int = 400
     stats_per_400_pa: dict[str, float] = {}
 
@@ -280,7 +295,7 @@ class Chart(BaseModel):
             self.generate_values_and_results_from_wotc_data(results_list=data.get('convert_from_wotc', None))
 
         # POPULATE ESTIMATED COMMAND
-        if self.command_estimated is None:
+        if self.command_estimated is None and not is_baseline_chart:
             self.command_estimated = self.calculate_estimated_command(mlb_avgs_df=data.get('mlb_avgs_df', None))
 
         # POPULATE VALUES DICT
@@ -438,7 +453,9 @@ class Chart(BaseModel):
         
         if self.is_pitcher:
             match self.set:
-                case '2003': return 0.985
+                case '2003': 
+                    command_multiplier = 0.008 * ( 1 - (self.command / 6) )
+                    return 0.982 + command_multiplier
             return 0.95
         
         return 0.975
@@ -1003,8 +1020,8 @@ class Chart(BaseModel):
                     }
                 else:
                     return {
-                        Stat.COMMAND: 0.20,
-                        Stat.OBP: 0.40,
+                        Stat.COMMAND: 0.30,
+                        Stat.OBP: 0.30,
                         Stat.SLG: 0.20,
                         Stat.OPS: 0.20,
                     }
@@ -1120,6 +1137,7 @@ class Chart(BaseModel):
                 actual=actual,
                 comparison=comparison,
                 weight=weight,
+                is_pitcher=self.is_pitcher,
             )
 
         # 2003+ ADJUST COMMAND ACCURACY FOR OUTLIERS THAT ARE ACCURATE
@@ -1127,15 +1145,16 @@ class Chart(BaseModel):
         if self.does_set_ignore_outlier_adjustments and command_chart_accuracy and self.is_chart_an_outlier:
             accuracy_command = command_chart_accuracy.accuracy
             non_command_breakdowns = [breakdown for breakdown in self.accuracy_breakdown.values() if breakdown.stat != Stat.COMMAND]
-            accuracy_non_command = ( sum([breakdown.accuracy for breakdown in non_command_breakdowns]) / len(non_command_breakdowns) ) if len(non_command_breakdowns) > 0 else 0
-            accuracy_cutoff = 0.99
-            if accuracy_non_command > accuracy_cutoff and accuracy_command < accuracy_cutoff and accuracy_command > 0.90 and accuracy_command > 0:
+            accuracy_non_command = ( sum([breakdown.weighted_accuracy for breakdown in non_command_breakdowns]) / sum([breakdown.weight for breakdown in non_command_breakdowns]) ) if len(non_command_breakdowns) > 0 else 0
+            accuracy_cutoff = 0.99 if self.is_hitter else 0.98
+            accuracy_command_minimum = 0.90 if self.is_hitter else 0.30
+            if accuracy_non_command > accuracy_cutoff and accuracy_command < accuracy_cutoff and accuracy_command > accuracy_command_minimum:
                 command_chart_accuracy.adjustment_pct = round(accuracy_cutoff / accuracy_command, 4)
                 command_chart_accuracy.calculate_accuracy_attributes()
                 self.accuracy_breakdown[Stat.COMMAND] = command_chart_accuracy
                 self.command_out_accuracy_weight = command_chart_accuracy.adjustment_pct
                 self.is_command_out_anomaly = True
-
+                
         # CALCULATE OVERALL ACCURACY
         overall_accuracy = sum([breakdown.weighted_accuracy for breakdown in self.accuracy_breakdown.values()]) if len(self.accuracy_breakdown) > 0 else 0
         self.accuracy = overall_accuracy
@@ -1167,8 +1186,22 @@ class Chart(BaseModel):
         """Get outlier cutoffs for chart. Based on Command and Onbase combination being outside the norm."""
 
         if self.is_pitcher:
-            out_min = 14 if self.is_expanded else 15
-            out_max = (19 if self.set == '2002' else 18) if self.is_expanded else 18
+
+            # DEFAULTS, NOTE COULD BE CHANGED BY SPECIAL CASES BELOW
+            match self.set:
+                case '2000' | '2001' | 'CLASSIC':
+                    out_min = 15
+                    out_max = 18
+                case '2002':
+                    out_min = 14
+                    out_max = 19
+                case '2003':
+                    out_min = 15
+                    out_max = 16
+                case _:
+                    out_min = 14
+                    out_max = 17
+                
             command_outlier_upper_bound = 6 if self.is_expanded else 6
             command_outlier_lower_bound = 1 if self.is_expanded else 1
 
@@ -1369,19 +1402,27 @@ class Chart(BaseModel):
     def __estimated_command_x_and_y_const(self) -> tuple[float, float]:
         match self.set:
             case '2003':
-                if self.is_pitcher:
-                    x =  -43.65
-                    y_int = 17.03
-                else:
-                    x = 36.78
-                    y_int = -2.58
+                match self.player_subtype:
+                    case 'starting_pitcher':
+                        x =  -43.65
+                        y_int = 17.03
+                    case 'relief_pitcher':
+                        x =  -43.24
+                        y_int = 16.78
+                    case 'position_player':
+                        x = 36.78
+                        y_int = -2.58
             case '2004' | '2005' | 'EXPANDED': 
-                if self.is_pitcher:
-                    x =  -42.49
-                    y_int = 16.70
-                else:
-                    x = 36.98
-                    y_int = -2.71
+                match self.player_subtype:
+                    case 'starting_pitcher':
+                        x =  -42.49
+                        y_int = 16.70
+                    case 'relief_pitcher':
+                        x =  -42.49
+                        y_int = 16.70
+                    case 'position_player':
+                        x = 36.98
+                        y_int = -2.71
         return x, y_int
 
     def calculate_estimated_command(self, mlb_avgs_df: pd.DataFrame = None) -> float:
