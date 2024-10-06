@@ -190,8 +190,8 @@ class ChartCategory(str, Enum):
                     case '2001' | 'CLASSIC': return 4.0
                     case '2002': return 4.35
                     case '2003': return 2.75
-                    case '2004': return 2.05
-                    case '2005' | 'EXPANDED': return 2.4
+                    case '2004': return 2.60
+                    case '2005' | 'EXPANDED': return 3.00
 
         return 1.0
 
@@ -371,8 +371,7 @@ class Chart(BaseModel):
         remaining_value = 20 - sum(slot_values_dict.values())
         if self.is_pitcher:
 
-            # # 2003 SET FILLS LINEARLY FROM 21-26
-            
+            # 2003 SET FILLS LINEARLY FROM 21-26
             if self.set == '2003':
                 original_remaining_value = remaining_value
                 slot_value_capped_at = 26
@@ -403,12 +402,9 @@ class Chart(BaseModel):
                 case '2002': 
                     decay = 0.5
                     power = 0.5
-                case '2003': 
-                    decay = 0.5
-                    power = 0.5
                 case _: 
-                    decay = 0.6
-                    power = 0.5
+                    decay = 0.2
+                    power = 0.9
             starting_value = remaining_value * decay
             for i in range(21, 31):
                 value = starting_value * pow(power, (i-21))
@@ -453,10 +449,13 @@ class Chart(BaseModel):
         
         if self.is_pitcher:
             match self.set:
-                case '2003': 
+                case '2003':
                     command_multiplier = 0.008 * ( 1 - (self.command / 6) )
                     return 0.982 + command_multiplier
-            return 0.95
+                case '2004' | '2005' | 'EXPANDED':
+                    command_multiplier = 0.02 * ( 1 - (self.command / 6) )
+                    return 0.95 + command_multiplier
+            return 0.96
         
         return 0.975
 
@@ -1193,8 +1192,8 @@ class Chart(BaseModel):
                 case '2003':
                     out_min = 15
                     out_max = 16
-                case _:
-                    out_min = 14
+                case '2004' | '2005' | 'EXPANDED':
+                    out_min = 15
                     out_max = 17
                 
             command_outlier_upper_bound = 6 if self.is_expanded else 6

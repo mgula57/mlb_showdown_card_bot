@@ -1835,22 +1835,23 @@ class Set(str, Enum):
                             }
                         )
                     case Set._2004 | Set._2005 | Set.EXPANDED:
+                        is_04 = self == Set._2004
                         return Chart(
                             is_baseline = True,
                             is_pitcher=player_type.is_pitcher,
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=8.5,
+                            command=8.20,
                             values={                                
-                                'PU': 0.05,
-                                'SO': 2.40,
-                                'GB': 2.60,
-                                'FB': 2.45,
-                                'BB': 4.75,
-                                '1B': 5.35,
-                                '2B': 1.00,
-                                '3B': 0.20,
-                                'HR': 1.20,
+                                'PU': 0.00,
+                                'SO': 2.40 + (-0.20 if is_04 else 0),
+                                'GB': 0.90 + (0.10 if is_04 else 0),
+                                'FB': 4.95 + (0.10 if is_04 else 0),
+                                'BB': 4.00 + (-0.05 if is_04 else 0),
+                                '1B': 6.20 + (0.05 if is_04 else 0),
+                                '2B': 0.05,
+                                '3B': 0.10,
+                                'HR': 1.40,
                             }
                         )
