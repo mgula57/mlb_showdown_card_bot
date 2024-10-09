@@ -642,18 +642,20 @@ class Set(str, Enum):
                             case PointsMetric.HOME_RUNS: return 45
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
-                            case PointsMetric.IP: return 75
-                            case PointsMetric.ONBASE: return 305
-                            case PointsMetric.AVERAGE: return 60
-                            case PointsMetric.SLUGGING: return 190
+                            case PointsMetric.IP: return 85
+                            case PointsMetric.ONBASE: return 300
+                            case PointsMetric.AVERAGE: return 50
+                            case PointsMetric.SLUGGING: return 160
                             case PointsMetric.OUT_DISTRIBUTION: return 30
-                    case PlayerSubType.RELIEF_PITCHER:
+                            case PointsMetric.COMMAND: return 220
+                    case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 115
+                            case PointsMetric.ONBASE: return 190
                             case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 107
+                            case PointsMetric.SLUGGING: return 70
                             case PointsMetric.OUT_DISTRIBUTION: return 20
+                            case PointsMetric.COMMAND: return 130
             case 'CLASSIC':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
@@ -855,11 +857,16 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return 0.70, 500
                     case PlayerSubType.STARTING_PITCHER: return 0.75, 300
                     case PlayerSubType.RELIEF_PITCHER: return 0.70, 110
-            case '2004' | '2005' | 'EXPANDED':
+            case '2004':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 0.65, 400
                     case PlayerSubType.STARTING_PITCHER: return 0.60, 400
                     case PlayerSubType.RELIEF_PITCHER: return 0.52, 140
+            case '2005' | 'EXPANDED':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return 0.65, 400
+                    case PlayerSubType.STARTING_PITCHER: return 0.60, 400
+                    case PlayerSubType.RELIEF_PITCHER: return 0.55, 150
         
         # DEFAULT IS NONE
         return None
@@ -890,10 +897,14 @@ class Set(str, Enum):
                         match ip:
                             case 2: return 1.10
                             case 3: return 1.60
-                    case '2004' | '2005' | 'EXPANDED':
+                    case '2004':
                         match ip:
                             case 2: return 1.35
                             case 3: return 1.85
+                    case '2005' | 'EXPANDED':
+                        match ip:
+                            case 2: return 1.20
+                            case 3: return 1.70
             case PlayerSubType.STARTING_PITCHER:
                 match self.value:
                     case '2000':
@@ -913,7 +924,13 @@ class Set(str, Enum):
                             case 7: return 1.01
                             case 8: return 1.03
                             case 9: return 1.04
-                    case '2004' | '2005' | 'EXPANDED':
+                    case '2004':
+                        match ip:
+                            case 4: return 0.80
+                            case 5: return 0.97
+                            case 8: return 1.00
+                            case 9: return 1.04
+                    case '2005' | 'EXPANDED':
                         match ip:
                             case 4: return 0.80
                             case 5: return 0.97
@@ -994,9 +1011,9 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.300, max = 0.415)
             case '2005':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.223, max = 0.350)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.350)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.310, max = 0.410)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.220, max = 0.350)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.200, max = 0.390)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.300, max = 0.415)
             case 'CLASSIC':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.240, max = 0.400)
@@ -1080,8 +1097,8 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.380, max = 0.545)
             case '2005':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.335, max = 0.460)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.460)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.320, max = 0.450)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.320, max = 0.450)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.380, max = 0.545)
             case 'CLASSIC':
                 match player_sub_type:
