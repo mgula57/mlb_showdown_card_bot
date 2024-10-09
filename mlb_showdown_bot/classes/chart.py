@@ -92,7 +92,7 @@ class ChartCategory(str, Enum):
         # HITTER CRITERIA
         is_hitter = not is_pitcher
         is_hitter_eligible = is_hitter and self.is_out and set not in ['2001', 'CLASSIC', '2002', ] and not (set == '2000' and self == ChartCategory.SO)
-        is_pitcher_eligible = is_pitcher and self.is_out and set in ['2000', '2001'] and self != ChartCategory.PU
+        is_pitcher_eligible = is_pitcher and self.is_out and set in ['2000', '2001', 'CLASSIC'] and self != ChartCategory.PU
         if is_hitter_eligible or is_pitcher_eligible:
             return ChartCategoryFillMethod.PCT
         
@@ -274,15 +274,18 @@ class Chart(BaseModel):
     chart_categories_adjusted: list[ChartCategory] = []
     command_estimated: float = None
 
+    # SPECIAL FLAGS
+    is_baseline: bool = False
+    is_wotc_conversion: bool = False
+
     def __init__(self, **data) -> None:
         super().__init__(**data)
 
-        # SPECIAL FLAGS
-        is_wotc_conversion = data.get('convert_from_wotc', None)
-        is_baseline_chart = data.get('is_baseline', False)
+        wotc_chart_results = data.get('wotc_chart_results', None)
+        self.is_wotc_conversion = wotc_chart_results is not None
         
         # BASELINE CHART ADJUSTMENTS
-        if is_baseline_chart:
+        if self.is_baseline:
             
             # POPULATE OUTS IF BASELINE CHART
             if self.outs == 0: self.update_outs_from_values()
@@ -291,11 +294,11 @@ class Chart(BaseModel):
             if len(self.year_list) == 0: self.year_list = [self.set_year]
 
         # CONVERT FROM WOTC DATA
-        if is_wotc_conversion:
-            self.generate_values_and_results_from_wotc_data(results_list=data.get('convert_from_wotc', None))
+        if self.is_wotc_conversion:
+            self.generate_values_and_results_from_wotc_data(results_list=wotc_chart_results)
 
         # POPULATE ESTIMATED COMMAND
-        if self.command_estimated is None and not is_baseline_chart:
+        if self.command_estimated is None and not self.is_baseline and not self.is_wotc_conversion:
             self.command_estimated = self.calculate_estimated_command(mlb_avgs_df=data.get('mlb_avgs_df', None))
 
         # POPULATE VALUES DICT

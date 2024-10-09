@@ -131,7 +131,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     command = data['command'],
                     outs = data['outs'],
                     opponent = opponent_chart,
-                    convert_from_wotc = chart_results,
+                    wotc_chart_results = chart_results,
                     mlb_avgs_df = mlb_avgs_df
                 )
                 data['chart'] = chart
