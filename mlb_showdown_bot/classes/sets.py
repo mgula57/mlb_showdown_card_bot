@@ -625,11 +625,11 @@ class Set(str, Enum):
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 100
+                            case PointsMetric.ONBASE: return 170
                             case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 100
+                            case PointsMetric.SLUGGING: return 50
                             case PointsMetric.OUT_DISTRIBUTION: return 20
-                            case PointsMetric.COMMAND: return 40
+                            case PointsMetric.COMMAND: return 120
             case '2005':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
@@ -859,7 +859,7 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 0.65, 400
                     case PlayerSubType.STARTING_PITCHER: return 0.60, 400
-                    case PlayerSubType.RELIEF_PITCHER: return 0.70, 200
+                    case PlayerSubType.RELIEF_PITCHER: return 0.52, 140
         
         # DEFAULT IS NONE
         return None
@@ -892,8 +892,8 @@ class Set(str, Enum):
                             case 3: return 1.60
                     case '2004' | '2005' | 'EXPANDED':
                         match ip:
-                            case 2: return 1.34
-                            case 3: return 2.01
+                            case 2: return 1.35
+                            case 3: return 1.85
             case PlayerSubType.STARTING_PITCHER:
                 match self.value:
                     case '2000':
@@ -990,7 +990,7 @@ class Set(str, Enum):
             case '2004':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.220, max = 0.350)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.220, max = 0.350)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.210, max = 0.375)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.300, max = 0.415)
             case '2005':
                 match player_sub_type:
