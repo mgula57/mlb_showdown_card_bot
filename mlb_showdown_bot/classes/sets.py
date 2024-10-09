@@ -642,12 +642,12 @@ class Set(str, Enum):
                             case PointsMetric.HOME_RUNS: return 45
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
-                            case PointsMetric.IP: return 85
-                            case PointsMetric.ONBASE: return 300
+                            case PointsMetric.IP: return 75
+                            case PointsMetric.ONBASE: return 320
                             case PointsMetric.AVERAGE: return 50
-                            case PointsMetric.SLUGGING: return 160
+                            case PointsMetric.SLUGGING: return 140
                             case PointsMetric.OUT_DISTRIBUTION: return 30
-                            case PointsMetric.COMMAND: return 220
+                            case PointsMetric.COMMAND: return 230
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
@@ -865,7 +865,7 @@ class Set(str, Enum):
             case '2005' | 'EXPANDED':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 0.65, 400
-                    case PlayerSubType.STARTING_PITCHER: return 0.60, 400
+                    case PlayerSubType.STARTING_PITCHER: return 0.52, 400
                     case PlayerSubType.RELIEF_PITCHER: return 0.55, 150
         
         # DEFAULT IS NONE
@@ -1011,7 +1011,7 @@ class Set(str, Enum):
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.300, max = 0.415)
             case '2005':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.220, max = 0.350)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.220, max = 0.390)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.200, max = 0.390)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.300, max = 0.415)
             case 'CLASSIC':
