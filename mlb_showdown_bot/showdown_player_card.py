@@ -869,7 +869,7 @@ class ShowdownPlayerCard(BaseModel):
         
         # IS CF AND 2000/2001
         # 2000/2001 SETS ALWAYS INCLUDED LF/RF FOR CF PLAYERS
-        if 'CF' in positions_set and len(positions_and_defense) == 1 and self.set.is_00_01:
+        if 'CF' in positions_set and len(positions_and_defense) == 1 and self.set.is_cf_eligible_for_lfrf:
             if 'CF' in positions_and_defense.keys():
                 cf_defense = positions_and_defense['CF']
                 lf_rf_defense = round(positions_and_defense['CF'] / 2)

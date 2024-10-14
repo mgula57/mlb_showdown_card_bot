@@ -255,6 +255,10 @@ class Set(str, Enum):
     def dh_string(self) -> str:
         return 'DH' if self.value == '2000' else '–'
     
+    @property
+    def is_cf_eligible_for_lfrf(self) -> bool:
+        return self in [Set._2000, Set._2001, Set.CLASSIC, Set.EXPANDED,]
+
     # ---------------------------------------
     # ICONS
     # ---------------------------------------
