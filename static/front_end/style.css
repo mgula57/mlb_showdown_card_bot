@@ -228,14 +228,12 @@
     padding: 0px; 
     margin: 0px; 
     font-weight: bolder; 
-    font-family: Helvetica Neue;
 }
 .player_name_dark {
     color: gray;
     padding: 0px; 
     margin: 0px; 
     font-weight: bolder; 
-    font-family: "Helvetica Neue";
 }
 .player_link_light {
     margin: 2px; 
@@ -325,7 +323,6 @@ i.fa {
     margin-bottom: 0px;
     opacity: 0.9;
     font-weight: bolder; 
-    font-family: "Helvetica Neue";
     font-size: 13px;
 }
 .loader {
