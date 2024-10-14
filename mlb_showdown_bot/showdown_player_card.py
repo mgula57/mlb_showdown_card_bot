@@ -106,6 +106,7 @@ class ShowdownPlayerCard(BaseModel):
     image: ShowdownImage = ShowdownImage()
     chart: Chart = None
     positions_and_defense: dict[Position, int] = {}
+    positions_and_defense_for_visuals: dict[str, int] = {}
     positions_and_defense_string: str = ''
     positions_and_real_life_ratings: dict[str, dict[DefenseMetric, Union[float, int]]] = {}
     command_out_accuracies: dict[str, float] = {}
@@ -166,6 +167,7 @@ class ShowdownPlayerCard(BaseModel):
             # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
             self.stats = self.add_estimates_to_stats(stats=self.stats)
             self.positions_and_defense: dict[Position, int] = self.__positions_and_defense(stats_dict=self.stats)
+            self.positions_and_defense_for_visuals: dict[str, int] = self.__calc_positions_and_defense_for_visuals()
             self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
             self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats.get('IP', 0)), games=self.stats.get('G', 0), games_started=self.stats.get('GS', 0), ip_per_start=self.stats.get('IP/GS', 0))
             self.hand: Hand = self.__handedness(hand_raw=self.stats.get('hand', None))
@@ -534,37 +536,6 @@ class ShowdownPlayerCard(BaseModel):
         return num_positions
     
     @property
-    def positions_and_defense_for_visuals(self) -> dict[str, int]:
-        """ Transform the player's positions_and_defense dictionary for visuals (printing, card image)
-        
-        Args:
-          None
-
-        Returns:
-          Dictionary where key is the position, value is the defense at that position
-        """
-
-        positions_and_defense_as_str = { p.value_visual(ca_position_name=self.set.catcher_position_name) : v for p,v in self.positions_and_defense.items() }
-
-        # NO NEED TO COMBINE IF < 3 POSITIONS
-        if self.set.is_showdown_bot or len(self.positions_and_defense) < 3:
-            return positions_and_defense_as_str
-        
-        positions_to_combine = self.__find_position_combination_opportunity(self.positions_and_defense)
-        positions_to_combine_as_str = [pos.value for pos in positions_to_combine] if positions_to_combine else None
-        if positions_to_combine is None:
-            return positions_and_defense_as_str
-        positions_to_combine_str =  "/".join(positions_to_combine_as_str)
-        
-        avg_defense = self.positions_and_defense.get(positions_to_combine[0], None)
-        if avg_defense is None:
-            return positions_and_defense_as_str
-        combined_positions_and_defense = {pos: df for pos, df in positions_and_defense_as_str.items() if pos not in positions_to_combine_as_str}
-        combined_positions_and_defense[positions_to_combine_str] = avg_defense
-
-        return combined_positions_and_defense
-
-    @property
     def positions_and_defense_img_order(self) -> list:
         """ Sort the positions and defense by how they will appear on the card image.
 
@@ -707,7 +678,7 @@ class ShowdownPlayerCard(BaseModel):
         return ' '.join([icon.value for icon in self.icons])
     
 # ------------------------------------------------------------------------
-# METADATA METHODS
+# DEFENSE
 # ------------------------------------------------------------------------
 
     def __positions_and_defense(self, stats_dict:dict) -> dict[Position, int]:
@@ -809,6 +780,35 @@ class ShowdownPlayerCard(BaseModel):
         self.positions_and_real_life_ratings = positions_and_real_life_ratings
 
         return final_positions_in_game
+
+    def __calc_positions_and_defense_for_visuals(self) -> dict[str, int]:
+        """ Transform the player's positions_and_defense dictionary for visuals (printing, card image)
+        
+        Args:
+          None
+
+        Returns:
+          Dictionary where key is the position, value is the defense at that position
+        """
+
+        positions_and_defense_dict_visual = { p.value_visual(ca_position_name=self.set.catcher_position_name) : v for p,v in self.positions_and_defense.items() }
+        
+        # COMBINE POSITIONS IF OPPORTUNITY EXISTS
+        positions_to_combine = self.__find_position_combination_opportunity(self.positions_and_defense)
+        
+        # RETURN IF NO POSITIONS TO COMBINE
+        if positions_to_combine is None:
+            return positions_and_defense_dict_visual
+        
+        positions_to_combine_list_as_str = [pos.value for pos in positions_to_combine] if positions_to_combine else None
+        positions_to_combine_str =  "/".join(positions_to_combine_list_as_str)
+        defense_for_position_combo = self.positions_and_defense.get(positions_to_combine[0], None)
+        if defense_for_position_combo is None:
+            return positions_and_defense_dict_visual
+        combined_positions_and_defense = {pos: df for pos, df in positions_and_defense_dict_visual.items() if pos not in positions_to_combine_list_as_str}
+        combined_positions_and_defense[positions_to_combine_str] = defense_for_position_combo
+
+        return combined_positions_and_defense
 
     def __combine_like_positions(self, positions_and_defense:dict[Position,int], positions_and_games_played:dict, is_of_but_hasnt_played_cf=False) -> tuple[dict,dict]:
         """Limit and combine positions (ex: combine LF and RF -> LF/RF)
@@ -953,8 +953,8 @@ class ShowdownPlayerCard(BaseModel):
         return final_positions_and_defense
 
     def __find_position_combination_opportunity(self, positions_and_defense:dict[Position, int]) -> list[Position]:
-        """ From dictionary of player with > 2 positions, see if there is an opportunity to combine positions together.
-
+        """
+        See if there is an opportunity to combine positions together.
         If no combination opportunies exist, return None.
 
         Args:
@@ -1097,6 +1097,14 @@ class ShowdownPlayerCard(BaseModel):
 
         return defense
 
+    def has_position(self, position: Position) -> bool:
+        """Checks for position in positions list"""
+        return position in self.positions_list
+    
+# ------------------------------------------------------------------------
+# SPEED, IP, HANDEDNESS
+# ------------------------------------------------------------------------
+
     def __handedness(self, hand_raw:str) -> Hand:
         """Get hand of player. Format to how card will display hand.
 
@@ -1220,6 +1228,10 @@ class ShowdownPlayerCard(BaseModel):
             final_speed = letter.speed_00_01
 
         return Speed(speed=final_speed, letter=letter)
+
+# ------------------------------------------------------------------------
+# ICONS AND ACCOLADES
+# ------------------------------------------------------------------------
 
     def __icons(self, awards:str) -> list[Icon]:
         """Converts awards_summary and other metadata fields into in game icons.
@@ -1559,10 +1571,6 @@ class ShowdownPlayerCard(BaseModel):
         sorted_accolades = [tup[0] for tup in sorted_tuples]
 
         return sorted_accolades[0:maximum] if maximum else sorted_accolades
-
-    def has_position(self, position: Position) -> bool:
-        """Checks for position in positions list"""
-        return position in self.positions_list
 
     def split_name(self, name:str, is_nickname:bool=False) -> tuple[str, str]:
         """ Splits name into first and last. Handles even split for nicknames 
