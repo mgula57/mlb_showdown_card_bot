@@ -2,7 +2,7 @@ import os, sys
 from pathlib import Path
 from prettytable import PrettyTable
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
-from showdown_player_card import Era, Chart, PlayerType, Set
+from showdown_player_card import Era, Chart, PlayerType, PlayerSubType, Set
 
 import argparse
 parser = argparse.ArgumentParser(description="Analyze weights for era adjustments")
@@ -28,8 +28,8 @@ set = Set(args.set)
 non_value_columns = ['OBP_ADJUSTMENT_FACTOR', 'COMMAND', 'OUTS',]
 for type in types:
 
-    
-    wotc_baseline_chart = set.wotc_baseline_chart(type)
+    my_type = PlayerSubType.POSITION_PLAYER if type.opponent_type == PlayerType.HITTER else PlayerSubType.STARTING_PITCHER
+    wotc_baseline_chart = set.wotc_baseline_chart(type, my_type=type.opponent_type)
     chart_columns = non_value_columns + [c.value for c in wotc_baseline_chart.values.keys()]
 
     # DEFINE ATTRIBUTES FOR TYPE
