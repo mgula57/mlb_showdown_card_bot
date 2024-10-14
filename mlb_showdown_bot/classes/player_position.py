@@ -39,20 +39,23 @@ class PlayerSubType(Enum):
     def stat_highlight_categories(self, type: StatHighlightsType) -> list[StatHighlightsCategory]:
         match self:
             case PlayerSubType.STARTING_PITCHER | self.RELIEF_PITCHER:
+                categories = [
+                    StatHighlightsCategory.G if self == self.RELIEF_PITCHER else StatHighlightsCategory.GS,
+                ]
                 match type:
-                    case StatHighlightsType.OLD_SCHOOL: return [
+                    case StatHighlightsType.OLD_SCHOOL: categories += [
                         StatHighlightsCategory.W if self == self.STARTING_PITCHER else StatHighlightsCategory.SV,
                         StatHighlightsCategory.ERA,
                         StatHighlightsCategory.WHIP,
                         StatHighlightsCategory.IP,
                     ]
-                    case StatHighlightsType.MODERN: return [
+                    case StatHighlightsType.MODERN: categories += [
                         StatHighlightsCategory.ERA,
                         StatHighlightsCategory.FIP,
                         StatHighlightsCategory.bWAR,
                         StatHighlightsCategory.K_9,
                     ]
-                    case StatHighlightsType.ALL: return [
+                    case StatHighlightsType.ALL: categories += [
                         StatHighlightsCategory.ERA,
                         StatHighlightsCategory.WHIP,
                         StatHighlightsCategory.IP,
@@ -60,10 +63,11 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.K_9,
                         StatHighlightsCategory.bWAR,
                     ]
-                    case _: return []
+                return categories
             case self.POSITION_PLAYER:
                 match type:
                     case StatHighlightsType.OLD_SCHOOL: return [
+                        StatHighlightsCategory.G,
                         StatHighlightsCategory.SLASHLINE,
                         StatHighlightsCategory.HR,
                         StatHighlightsCategory.SB,
@@ -73,6 +77,7 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory._3B,
                     ]
                     case StatHighlightsType.MODERN: return [
+                        StatHighlightsCategory.G,
                         StatHighlightsCategory.bWAR,
                         StatHighlightsCategory.OPS_PLUS,
                         StatHighlightsCategory.DEFENSE,
@@ -85,6 +90,7 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.H,
                     ]
                     case StatHighlightsType.ALL: return [
+                        StatHighlightsCategory.G,
                         StatHighlightsCategory.SLASHLINE,
                         StatHighlightsCategory.OPS_PLUS,
                         StatHighlightsCategory.DEFENSE,
