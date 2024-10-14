@@ -244,6 +244,7 @@ class Chart(BaseModel):
     # CHART
     command: Union[int, float]
     outs: Union[int, float] = 0
+    outs_full: int = 0
     values: dict[ChartCategory, Union[int, float]] = {}
     results: dict[int, ChartCategory] = {}
     ranges: dict[ChartCategory, str] = {}
@@ -289,6 +290,7 @@ class Chart(BaseModel):
             
             # POPULATE OUTS IF BASELINE CHART
             if self.outs == 0: self.update_outs_from_values()
+            if self.outs_full == 0: self.update_outs_full()
 
             # POPULATE YEAR LIST
             if len(self.era_year_list) == 0: self.era_year_list = [self.set_year]
@@ -489,10 +491,6 @@ class Chart(BaseModel):
         return len([ r for r in self.results.values() if r not in [ChartCategory.HR, ChartCategory._2B] ]) + 1
 
     @property
-    def outs_full(self) -> int:
-        return int(round(self.outs / self.sub_21_per_slot_worth))
-
-    @property
     def category_results_count_dict(self) -> dict[ChartCategory, int]:
         """Sum of values under 21, rounded to nearest whole number"""
         final_dict: dict[ChartCategory, int] = {}
@@ -626,6 +624,7 @@ class Chart(BaseModel):
         # CALC OUTS FOR SLOT SIZE
         if self.outs == 0:
             self.outs, _ = self.values_and_results(value=my_out_values)
+            self.update_outs_full()
 
         # ITERATE THROUGH CHART CATEGORIES
         all_categories = self.categories_list
@@ -836,6 +835,11 @@ class Chart(BaseModel):
         """Update outs based on values"""
         out_value_list = [v for k,v in self.values.items() if k.is_out]
         self.outs = sum(out_value_list) if len(out_value_list) > 0 else 0
+        self.update_outs_full()
+
+    def update_outs_full(self) -> None:
+        """Update outs full based on outs"""
+        self.outs_full = int(round(self.outs / self.sub_21_per_slot_worth))
 
     def __adjust_slg(self, is_increase:bool = True, slg_pct_diff: float = 0.0) -> None:
         """Increase SLG for the category with the biggest difference between projected and real stats per 400 PA
