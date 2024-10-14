@@ -248,6 +248,10 @@ class Set(str, Enum):
         return 6
     
     @property
+    def infield_plus_two_requirement(self) -> int:
+        return 10
+
+    @property
     def is_outfield_split(self) -> bool:
         return self.value in ['2000','2001','2002']
 

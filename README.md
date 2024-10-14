@@ -273,6 +273,8 @@ Each player can have a maximum of **2 position slots** for WOTC sets (2000-2005)
 
 For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. For multi-year/career long cards, **25%** of games must be played at that position. The positions are then limited to the top 2 slots (3 if CLASSIC or EXPANDED set) by number of appearances. 
 
+In order for utility players to qualify for IF, they must have played each positions at least once in a single season or 15% of games for multi-season. To achieve IF+1 they must have a combined infield defense rating of +6. The rare IF+2 is achieved by having +10 or more. For example 2015 Marwin Gonzalez is eligible for IF and qualifies for IF+1 due having a combined +7 (1B+0, 2B+2, 3B+2, SS+3).
+
 In WOTC sets (2000-2005), 2B/3B/SS can be combined to conform to 2 position slots. When combined, the average of the 2 positions will be used as the final value. Positions will be combined only if their in-game defensive ratings have a difference of 2 or less. For example if the player has SS+4 and 3B+1, they will stay separated.
 
 In-game defensive ratings are calculated based on either Outs Above Avg (OAA), Total Zone Rating (tzr), Defensive Runs Saved (drs), or Defensive Wins Above Replacement (dWAR). The bot will choose which metric to use depending on the year:
@@ -757,7 +759,7 @@ These sets are split between **Classic** and **Expanded** styles, with the goal 
 
 ![Image](./static/interface/Example2022SetDifference.png)
 
-### **Classic Style**
+### **Classic**
 
 The Classic Style is made for the OG Showdown fan who prefers the 2000/2001 sets. In this style, hitters have lower Onbase numbers (between 4-12) but better charts. It uses the 2001 set as a starting point, but alters the original formula to fix gaps while maintaining compatibility.
 
@@ -768,7 +770,7 @@ Changes from 2001 set:
 - **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2018 Francisco Lindor goes from +5 SS in 2001 set to +7 SS in CLASSIC/EXPANDED sets. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
 - **NUMBER OF POSITIONS**: Now a player has a maximum of 3 available positions. This provides more value to super utility players like Ben Zobrist and Kris Bryant.
 
-### **Expanded Style**
+### **Expanded**
 
 The Expanded Style is made for the new school Showdown fan who prefers the 2002-2005 sets. In this style, hitters have higher Onbase numbers (between 7-16) but less impactful charts. Charts also expand past 20, creating possible results outside of the normal 1-20 range. It uses the 2005 set as a starting point, but alters the original formula to fix gaps while maintaining compatibility.
 
@@ -777,6 +779,7 @@ Changes from 2005 set:
 - **MORE COMMAND-OUT COMBINATIONS**: In order to increase variety and accuracy of cards, more possible Onbase/Control + Out combinations have been added. For example it is possible to have a 4 Control pitcher with 19 outs, or a 10 Onbase hitter with 8 Outs. This will help increase balance of low onbase and high SLG hitters (ex: Javy Baez), who under normal Showdown constraints were constrained to lower Onbase numbers.
 - **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2021 Francisco Lindor goes from +3 SS in 2005 set to +4 SS in CLASSIC/EXPANDED sets. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
 - **NUMBER OF POSITIONS**: Now a player has a maximum of 3 available positions. This provides more value to super utility players like Ben Zobrist and Kris Bryant.
+- **LF/RF Eligibility**: Now any player that played CF also qualifies for LF/RF. This offers players more diverse lineup options.
 
 ### **Dark Mode**
 

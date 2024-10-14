@@ -705,16 +705,22 @@ class ShowdownPlayerCard(BaseModel):
         num_positions = len(positions_list)
         is_of_but_hasnt_played_cf = 'OF' in positions_list and 'CF' not in positions_list
 
+        # MARK IF PLAYER PLAYED ALL IF POSITIONS
+        has_played_all_if_positions = len([pos for pos in positions_list if pos in ['1B','2B','3B','SS']]) == 4
+        
         for position_name, defensive_stats in defense_stats_dict.items():
             is_valid_position = self.is_pitcher == ('P' == position_name)
             if is_valid_position:
                 games_at_position = defensive_stats.get('g', 0)
-                position = self.__position_name_in_game(position=position_name,
-                                                        num_positions=num_positions,
-                                                        position_appearances=games_at_position,
-                                                        games_played=total_games_played,
-                                                        games_started=total_games_started,
-                                                        saves=total_saves)
+                position = self.__position_name_in_game(
+                    position=position_name,
+                    num_positions=num_positions,
+                    position_appearances=games_at_position,
+                    games_played=total_games_played,
+                    games_started=total_games_started,
+                    saves=total_saves,
+                    has_played_all_if_positions=has_played_all_if_positions
+                )
                 if position is not None:
                     positions_and_games_played[position] = games_at_position
                     if self.is_hitter:
@@ -917,7 +923,11 @@ class ShowdownPlayerCard(BaseModel):
             infield_positions = list(infield_positions_and_defense.keys())
             total_defense_infield = sum(list(infield_positions_and_defense.values()))
             total_games_played_infield = sum(list(infield_positions_and_games_played.values()))
-            in_game_rating_infield = int(total_defense_infield >= self.set.infield_plus_one_requirement)
+            in_game_rating_infield = 0
+            if total_defense_infield >= self.set.infield_plus_two_requirement:
+                in_game_rating_infield = 2
+            elif total_defense_infield >= self.set.infield_plus_one_requirement:
+                in_game_rating_infield = 1
 
             # REMOVE OLD POSITIONS
             for position in infield_positions:
@@ -992,7 +1002,7 @@ class ShowdownPlayerCard(BaseModel):
         
         return [position1, position2]
 
-    def __position_name_in_game(self, position:str, num_positions:int, position_appearances:int, games_played:int, games_started:int, saves:int) -> str:
+    def __position_name_in_game(self, position:str, num_positions:int, position_appearances:int, games_played:int, games_started:int, saves:int, has_played_all_if_positions:bool) -> str:
         """Cleans position name to conform to game standards.
 
         Args:
@@ -1002,6 +1012,7 @@ class ShowdownPlayerCard(BaseModel):
           games_played: Total games played for all positions.
           games_started: Total starts for a Pitcher.
           saves: Saves recorded for a Pitcher.
+          has_played_all_if_positions: Boolean marking if player has appeared at all infield positions in a season.
 
         Returns:
           In game position name.
@@ -1018,6 +1029,9 @@ class ShowdownPlayerCard(BaseModel):
                 return 'CLOSER'
             else:
                 return 'RELIEVER'
+        elif not self.is_multi_year and has_played_all_if_positions and position in ['1B','2B','3B','SS']:
+            # POSITION WILL QUALIFY EVEN IF NOT MEETING MINIMUM GAMES IF PLAYER HAS PLAYED ALL IF POSITIONS. SINGLE SEASON ONLY
+            return position
         elif ( position_appearances < self.set.min_number_of_games_defense and pct_of_games_played < self.set.min_pct_of_games_defense(is_multi_year=False) ) or (self.is_multi_year and pct_of_games_played < self.set.min_pct_of_games_defense(is_multi_year=True)):
             # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
             return None
