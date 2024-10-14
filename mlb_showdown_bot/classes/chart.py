@@ -290,7 +290,6 @@ class Chart(BaseModel):
             
             # POPULATE OUTS IF BASELINE CHART
             if self.outs == 0: self.update_outs_from_values()
-            if self.outs_full == 0: self.update_outs_full()
 
             # POPULATE YEAR LIST
             if len(self.era_year_list) == 0: self.era_year_list = [self.set_year]
@@ -306,6 +305,10 @@ class Chart(BaseModel):
         # POPULATE VALUES DICT
         if len(self.values) == 0:
             self.generate_values_and_results()
+
+        # MAKE SURE BOTH OUTS AND OUTS_FULL ARE POPULATED
+        if self.outs > 0 and self.outs_full == 0:
+            self.update_outs_full()
 
         # POPULATE ACCURACY
         if len(self.stats_per_400_pa) > 0:
@@ -1270,10 +1273,10 @@ class Chart(BaseModel):
     @property
     def is_high_command_high_outs(self) -> bool:
         """Check if chart is high command high outs"""
-        command_soft_cap = 11 if self.is_expanded else 8
-        _, out_max, _, command_outlier_upper_bound = self.outlier_cutoffs
-        is_classic_and_high_command_outs = self.is_classic and self.outs_full > 4 and self.command > 10
-        is_high_command_high_outs = (self.outs_full > out_max and self.command > command_soft_cap) or is_classic_and_high_command_outs
+        _, out_max, _, _ = self.outlier_cutoffs
+        is_classic_and_high_command_outs = self.is_classic and self.command > 10 and self.outs_full > 4 and self.outs_full < 6
+        is_expanded_and_high_command_outs = self.is_expanded and self.command > 11 and self.outs_full > out_max
+        is_high_command_high_outs = is_expanded_and_high_command_outs or is_classic_and_high_command_outs
         return is_high_command_high_outs
 
     @property
