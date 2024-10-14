@@ -1314,6 +1314,12 @@ class BaseballReferenceScraper:
                 game_log_date_str_full = f"{game_log_date_str_cleaned} {first_year}"
                 game_log_date = datetime.strptime(game_log_date_str_full, "%b %d %Y").date()
                 date_check = self.stats_period.start_date <= game_log_date <= self.stats_period.end_date
+            
+            # SKIP IF TEAM OVERRIDE IS PRESENT AND TEAM DOESN'T MATCH
+            if self.team_override:
+                team_id = game_log_data.get('team_ID', '')
+                if team_id != self.team_override:
+                    continue
 
             # SKIP ROW IF IT FAILS THE DATE OR YEAR CHECKS
             if not date_check or not year_check:
