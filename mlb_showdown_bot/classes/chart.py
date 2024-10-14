@@ -83,7 +83,7 @@ class ChartCategory(str, Enum):
         """
         match self:
             case ChartCategory.HR:
-                if is_pitcher and set in ['2000', '2001',]:
+                if is_pitcher and set in ['2000', '2001', 'CLASSIC']:
                     return 0.425
         return 0.5
 
@@ -118,7 +118,7 @@ class ChartCategory(str, Enum):
                         case ChartCategory.SO: return 1.20
                         case ChartCategory.GB: return 0.97
                         case ChartCategory.FB: return 0.83
-            case '2001':
+            case '2001' | 'CLASSIC':
                 if is_pitcher:
                     match self:
                         case ChartCategory.SO: return 1.08
@@ -151,7 +151,7 @@ class ChartCategory(str, Enum):
                 else:
                     match self:
                         case ChartCategory.PU: return (0.50, 3)
-            case '2001':
+            case '2001' | 'CLASSIC':
                 if is_hitter:
                     match self:
                         case ChartCategory.SO: return (0.50, 2)
