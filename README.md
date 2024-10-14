@@ -150,7 +150,7 @@ Overrides give additional ways to customize a player's card. They are applied by
 
 The stats scraped in the previous step are used as inputs to determine the player's MLB Showdown card for the selected season. The player's in-game abilities are derived using the probability of outcome for each result on an MLB Showdown chart. More about that process is detailed below in the [Card Methodology](#card-methodology) section.
 
-To create the card image, the [Pillow](https://pillow.readthedocs.io/en/stable/) library is leveraged to dynamically create the final jpg. The user can add optional enhancements like selecting an image and adding _Super Season_ or _Cooperstown Collection_ graphics.
+To create the card image, the [Pillow](https://pillow.readthedocs.io/en/stable/) library is leveraged to dynamically create the final image. The user can add optional enhancements like selecting an image and adding graphics like Special Editions (ex: Super Season, Cooperstown Collection) and image parallels.
 
 ----
 
@@ -164,39 +164,40 @@ To create the card image, the [Pillow](https://pillow.readthedocs.io/en/stable/)
 
 The following steps are used to select the most accurate MLB Showdown card stats for a player:
 
-1. Calculate **Onbase Pct** for each possible **Command/Out** combination.
-2. Produce a chart for each **Command/Out** combination using the player's real life statline.
-3. Choose the most accurate chart + **Command/Out** combination by comparing projected Showdown statline to real life statline for that set's weight categories (ex: OBP, SLG)
+1. Produce a chart for each of the chosen set's **Command** possibilities using the player's real life statline. Each command is executed twice, with outs being adjusted up or down 1 on the second run.
+2. Choose the most accurate chart by comparing projected Showdown statline to real life statline for that set's weight categories. Categories usually include OBP, SLG, and OPS.
 
 Each of these steps work by a using baseline opponent to project in-game outcomes. A baseline opponent represents the approximate average pitcher or hitter a player would face in-game. The baseline stats are represented by a dictionary that includes **Command**, **Outs**, and number of chart results for each category (SO, BB, HR, etc). Baseline opponents differ for each MLB Showdown set. 
 
 
-###### _Example baseline pitcher for 2001 set. **Note that all weight categories may not add up to 20 perfectly._
+###### _Example baseline pitcher for 2001 set. This would be used to calculate a pitcher's chart._
     
-    '2001': {
-        'command': 3.0,
-        'outs': 16.0,
-        'so': 4.1,
-        'bb': 1.35,
-        '1b': 2.0,
-        '2b': 0.62,
-        '3b': 0.00,
-        'hr': 0.11
-    }
+    Chart(
+        is_baseline = True,
+        set='2001',
+        command=7.10,
+        values={
+            'PU': 0.00,
+            'SO': 0.85,
+            'GB': 1.12,
+            'FB': 1.15,
+            'BB': 5.10,
+            '1B': 7.83,
+            '2B': 1.60,
+            '3B': 0.25,
+            'HR': 2.10,
+        }
+    )
 
 These baseline opponents are vital to determining the final output of the player card. Adjusting these values will change which chart the bot decides is the most accurate. Because the actual baselines used to create the original sets are unknown, these are estimations based on set averages and testing against WOTC cards. The goal is to find the baseline weights that most closely resemble the original sets from 2000-2005.
 
-### **Command/Out --> Onbase Pct**
+#### Changing Baselines Across Eras
 
-For each set, a static list of possible **Command/Out** combinations is defined for each player type (Hitter, Pitcher) in the [showdown constants](https://github.com/mgula57/mlb_showdown_card_bot/blob/master/mlb_showdown/showdown_constants.py) file. This list is used to generate the expected **Onbase Pct** for each combination using the baseline described above as the opponent. The following formula is used: 
+These baselines are also dynamically adjusted when a card is created outside of the original WOTC era. This is done by comparing the MLB averages during the original set's year vs the card's year. 
 
-`P(My Advantage) * P(Walk Or Hit on My Chart) + P(Opponent Advantage) * P(Walk Or Hit on Opponent's Chart)`
-
-Only a few **Command/Out** combinations that are closest to the player's real life onbase pct are further processed. This is for efficiency and greater accuracy. 
+For example when trying to create an Aaron Judge 2024 card in the 2001 style, the baseline opponent pitcher be adjusted to have better stats than the original from 2000 due to pitching being better in 2024 compared to 2000. This means Aaron Judge's card will be be better in order to match his real statline now that his opponent is better.
 
 ### Generating Player Chart
-
-Now that a list of the most accurate **Command/Out** combinations (in terms of onbase pct) has been generated, a player's full in-game chart can be produced for each combination.
 
 A player's chart is generated by populating each result category.
 
@@ -210,26 +211,67 @@ The number of results (out of 20 slots) assigned to each category are calculated
 **Important caveats:** 
 
 * Stats are normalized to 400 Plate Appearances to mirror the 400 possible showdown roll combinations (_20 (Pitch Roll) * 20 (Swing Roll)_).
-* FB, GB, PU are limited to OUT constraints. They use a different formula involving **Ground/Air Out Ratio** and **Infield FB Pct**.
+* In some sets, SO/GB/FB will use a percent based fill method rather than rate based. This applies to 2003+ hitters and 2000/2001/CLASSIC pitchers. For sets using a rate based methodology, PU/GB/FB actuals are estimated by using IF/FB and GO/AO.
 * 1B+ is determined by dividing stolen bases per 400 PA by a weighting determined by the player's Onbase. This yields higher 1B+ chart slots for player's with a lower Onbase. For example lets say Player A had 30 steals per 400PA and an Onbase of 6, while Player B had 30 steals per 400PA and an Onbase of 9. Player A will have more 1B+ on his card, as he gets the advantage less.
-* 1B is filled with the slots remaining after all other categories are populated.
-* The Maximum BB on a hitter's chart is 13 (thanks Barry Bonds '04).
-* The maximum HR on a hitter's chart is 10.
+
+#### Expanded Sets
+
+For Expanded sets the formula is slightly adjusted to account for results > 20. A **sub-21 slot value** is calculated in order to dictate what each slot between 1-20 is worth. The purpose is to be able to assign a probability to results over 21+ for projection purposes caused by the use of strategy cards. This can change depending on the set and player type. For example 2005 hitter 1-20 slots are worth 0.975 (1.0 would be the default). The remaining 0.5 slots are distributed between slots 21-30. The method of distribution can be linear, linear decay, or geometric progession depending on the set, player type, and player command. 
+
+Here is an example of slot values. Note the actual numbers have more decimal places and add up to 20.
+
+    1-20: 0.95
+    21: 0.250
+    22: 0.200
+    23: 0.160
+    24: 0.128
+    25: 0.102
+    26: 0.081
+    27: 0.065
+    28: 0.012
+    29: 0.002
+    30: 0.000
 
 ### Selecting Most Accurate Chart
 
 Now that a chart has been generated for each **Command/Out** combination, the bot has all the required datapoints needed to determine accuracy. 
 
-The player's **Command** and chart values are used to estimate the player's _in-game_ statline for 400 Plate Appearances. That statline is then compared to the player's _real life_ statline per 400 Plate Appearances. Some stat categories are given more weight than others (ex: _OBP_ accuracy is weighted more heavily than _SLG_ accuracy). _Both real and in-game statlines are displayed in website and CLI outputs._
+The player's **Command** and chart values are used to estimate the player's _in-game_ statline for 400 Plate Appearances. That statline is then compared to the player's _real life_ statline per 400 Plate Appearances. Some stat categories are given more weight than others (ex: _OBP_ accuracy is usually weighted more heavily than _SLG_ accuracy). _Both real and in-game statlines are displayed in website and CLI outputs._
+
+All Sets Use these categories of comparison for accuracy:
+
+- OBP
+- SLG
+- OPS
+
+For expanded sets after 2002, WOTC used a linear scale to help determine command based on real OBP. This is different than other sets that allowed more low command, high out cards (ex: 2C, 19 Out). See the graph below for a scatterplot of 2004 pitcher command vs real OBP. Most pitchers follow the same formula with the exception of a few outliers.
+
+![Image](./static/interface/2004PitcherCommandGraph.png)
+
+The Bot follows a similar formula but allows more flexibility and probability of these outlier command/out combinations (ex: 1C, 20 Out) as long as the expected OPS accuracy meets a certain threshold. It will also adjust the scale across Eras where league avg OBP values change compared to the Steroid Era. The estimated command is then used as an accuracy category.
+
+To determine final accuracy an accuracy percentage is calculated per category and then weighted to create a score out of 100%. 
+
+Here is an example for 2004 Base Set Steve Trachsel (based on 2003 statline):
+
+Category     | Actual | Showdown | Accuracy | Weight
+----------   | ------ | -------- | -------- | ------
+Est. Control | 3.1    | 3.0      | 98.4%    | 30%
+OBP Against  | .320   | .328     | 97.7%    | 30%
+SLG Against  | .445   | .433     | 97.4%    | 20%
+OPS Against  | .765   | .761     | 99.5%    | 20%
+**Overall**  | -      | -        | 98.2%    | -
 
 **The chart with the highest aggregate accuracy is chosen as the final chart returned by the bot.**
 
-To display one of the other chart outputs, add the optional **offset**/ argument on the CLI or the **Version** option on the website. It allows the user to use any of the other charts from the Top 5 most accurate list. Use the `--offset` argument if in the CLI or choose an **Version** > 1 in the _Stats Version_ section of the website.
+To display one of the other chart outputs, add the optional **chart_version**/ argument on the CLI or the **Chart** option on the website. It allows the user to use any of the other charts from the Top 5 most accurate list. Use the `--chart_version` argument if in the CLI or choose an **Chart** > 1 in the _Stats Version_ section of the website.
 
 ### **Defense**
 
 #### _Hitters_
-Each player can have a maximum of **2 position slots** for WOTC sets (2000-2005). That is expanded to **3 positions** for CLASSIC/EXPANDED sets. For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. For multi-year/career long cards, **25%** of games must be played at that position. The positions are then limited to the top 2 (3 if CLASSIC or EXPANDED set) by number of appearances. 
+Each player can have a maximum of **2 position slots** for WOTC sets (2000-2005). That is expanded to **3 positions** for CLASSIC/EXPANDED sets.
+
+For a position to qualify, the player has to make at least **7 appearances** or at least **15%** of games at that position. For multi-year/career long cards, **25%** of games must be played at that position. The positions are then limited to the top 2 slots (3 if CLASSIC or EXPANDED set) by number of appearances. 
 
 In WOTC sets (2000-2005), 2B/3B/SS can be combined to conform to 2 position slots. When combined, the average of the 2 positions will be used as the final value. Positions will be combined only if their in-game defensive ratings have a difference of 2 or less. For example if the player has SS+4 and 3B+1, they will stay separated.
 
@@ -272,7 +314,7 @@ Pitchers fall under the following categories
 In-game SPEED is calculated differently depending on the year. 
 * If the year is BEFORE or ON 2015, STOLEN BASES (per 650 PA) is used.
 * If the year is AFTER 2015, SPRINT SPEED _(Sourced from Baseball Savant)_ is used along with STOLEN BASES (per 650 PA). A weighted avg is used where SPRINT SPEED has a 60% weighting and STOLEN BASES has a 40% weighting.
-  * If the player's speed from using SB would be above 20 and is higher than their speed would be using SPRINT SPEED, the weighting is changed to 75% for SB and 25% for SPRINT SPEED.
+  * If the player's speed from using SB would be above 20 and is higher than their speed would be using SPRINT SPEED, the weighting is changed to 80% for SB and 20% for SPRINT SPEED.
 
 The combination of SPRINT SPEED/STOLEN BASES is then converted to a percentile based off a range (the same way that defense is calculated). That percentile is then multiplied by the maximum in-game speed.
 
@@ -285,9 +327,9 @@ When the card is using SB, a set based multiplier is used to match the original 
 ```
 2000: 1.21
 2001: 1.22
-2002: 1.2
-2003: 0.95
-2004: 0.98
+2002: 1.12
+2003: 0.962
+2004: 1.0
 2005: 1.0
 CLASSIC: 1.0
 EXPANDED: 1.0
@@ -295,15 +337,15 @@ EXPANDED: 1.0
 
 If the card uses SB and the player's speed is over 20, an separate linear scale is applied for values over 20. This results in a more evenly distributed set of players with 21-28 speed than the traditional 8-20 scale allows for. 
 
-The formula for 21+ speed works as follows: **20 + (elite_spd_percentile * remaining_slots_over_20)**. The percentile uses **26 SB** as the minimum (that's the required SB to get to 20 SPD) and uses **100 SB** as the maximum. That means if you stole 100+ bases per 650 PA, you will get the maximum speed (28). 28 is the maximum speed, so if a player has over 100 SB/650 PA (ex: Rickey Henderson 1982) they will stay at 28 SPEED.
+The formula for 21+ speed works as follows: **starting_point_over_20 + (elite_spd_percentile * remaining_slots_over_20)**. This starting point will change across sets (ex: 2002 starts scaling back at 22, 2005 starts at 21, 2001 Variable Spd at 20). The percentile uses **22 SB/400 PA** as the minimum (that's around the required SB to get to 20 SPD) and uses **100 SB** as the maximum. That means if you stole 100+ bases per 650 PA, you will get the maximum speed (28). 28 is the maximum speed, so if a player has over 100 SB/650 PA (ex: Rickey Henderson 1982) they will stay at 28 SPEED.
 
 Here is an example using **Scott Podsednik's** 2004 stats in the 2005 set (63.8 SB/650 PA):
 ```
-SPEED = 20 + (elite_spd_percentile * remaining_slots_over_20)
-SPEED = 20 + ( (SB - 26) / (100 - 26) * (28 - 20) )
-SPEED = 20 + ( (63.8 - 26) / (100 - 26) * (28 - 20) )
-SPEED = 20 + ( 0.5108 * 8 )
-SPEED = 20 + 4.086
+SPEED = 21 + (elite_spd_percentile * remaining_slots_over_20)
+SPEED = 21 + ( (SB - 22) / (100 - 22) * (28 - 21) )
+SPEED = 21 + ( (63.8 - 22) / (100 - 22) * (28 - 21) )
+SPEED = 21 + ( 0.535 * 7 )
+SPEED = floor(21 + 3.75)
 SPEED = 24
 ```
 
@@ -362,6 +404,7 @@ _Hitters_
 * Speed
 * Home Runs
 * Icons (03+)
+* Command (Some sets)
 
 _Pitchers_
 * Onbase Pct Against
@@ -369,7 +412,8 @@ _Pitchers_
 * Slugging Pct Against
 * Innings Pitched
 * Icons (03+)
-* CLOSER Bonus (00 ONLY)
+* Position Bonus (Some Sets)
+* Command (Some sets)
 
 A player's point value in each category is calculated by multiplying the WEIGHT given to the category by the PERCENTILE the player placed in. 
 
@@ -377,48 +421,47 @@ The WEIGHT is the number of points provided if the player achieves the 100th per
 
 This calculation is performed for each category. The categorical point values are summed into the player's final total point value. 
 
-Ex: **Larry Walker, 550 PTS** _(2003 Base Set)_
+Ex: **Derek Jeter, 550 PTS** _(2003 Set, 2002 Stats)_
 ```
-Statline:
-    BA: .348
-    OBP: .419
-    SLG: .608
+Projected Showdown Statline:
+    BA: .293
+    OBP: .366
+    SLG: .445
+    OPS: .811
 
-    PA: 553
-    1B: 104
-    2B: 33
-    3B: 1
-    HR: 29 (34.5 per 650 PAs)
-    BB: 68
-    SO: 67
+    PA: 730
+    1B: 140
+    2B: 25
+    3B: 2
+    HR: 23 (20.4 per 650 PAs)
+    BB: 76
+    SO: 107
 
-    SPD: SPEED C (11)
-    ICONS: G
+    SPD: SPEED A (18)
+    DEF: SS+0
+    ICONS: None
 
 Points (OBP) = WEIGHT * PERCENTILE
-             = 160 * (0.419 - 0.270) / (0.425 - 0.270)
-             = 160 * 0.96
-             = 154 pts.
+             = 150 * 0.56
+             = 84.1 pts.
+Points (BA) = WEIGHT * PERCENTILE
+             = 70 * 0.64
+             = 44.89 pts.
 Points (SLG) = WEIGHT * PERCENTILE
-             = 160 * 1.29
-             = 206 pts.
-Points (BA)  = WEIGHT * PERCENTILE
-             = 50 * 1.37
-             = 68.5 pts.
+             = 170 * 0.45
+             = 75.96 pts.
 Points (HR)  = WEIGHT * PERCENTILE
-             = 60 * 0.98
-             = 59 pts.
+             = 50 * 0.42
+             = 20.76 pts.
 Points (SPD) = WEIGHT * PERCENTILE
-             = 55 * 0.10
-             = 5.5 pts.
+             = 65 * 0.80
+             = 52 pts.
 Points (DEF) = WEIGHT * PERCENTILE
-             = 45 * 1.00
-             = 45 pts.
-Points (G Icon) = WEIGHT
-                = 10 pts.
+             = 65 * 0.0
+             = 0 pts.
 
-Points (Total) = Round(154 + 206 + 68.5 + 59 + 5.5 + 45 + 10)
-               = 550
+Points (Total) = Round(52 + 20.76 + 75.96 + 44.89 + 84.1)
+               = 280
 
 ```
 ##### _Note: Pitchers have some categories (ex: BAA) where is percentile is reversed (1-percentile)_
@@ -426,7 +469,7 @@ Points (Total) = Round(154 + 206 + 68.5 + 59 + 5.5 + 45 + 10)
 There are additional weights/logic applied across the different sets to try to match to the original WOTC sets. 
 
 - **Allow Negatives**: If True, allows a player to be penalized in the negative for a bad category. For example if a player is under the threshold defined for OBP, they will receive negative PTS for OBP. If False, player gets +0 PTS for that category if below threshold.
-- **Normalize Towards Median**: If True, a player over a certain value will get overall points reduced in order to keep a "Bell Curve" of point distribution. Scaler increases as point value above set value increases.
+- **PTS Decay**: If enabled for the set, points above a certain mark cost a percentage less. This will help normalize star players points towards the mean. Ex: All Points above 500+ are multiplied by 0.75.
 - **Positional Defense Weights**: In some sets, certain positions are weighted lower than others. For example in the 2003 set, LF/RF max defense (+2) is worth 25% less than max CF defense (+3)
 - **Command Outs Adjustment**: In some sets, certain Command - Out combinations receive a manual adjustment to closer match WOTC. These are often small adjustments (1-5%) that only are applied to slashline and HR point categories. These help balance out points for cards that work better for stategy and advanced play.
 
@@ -450,17 +493,17 @@ Card methodology will slightly change if the user enters a multi-year card. Diff
 
 The original MLB Showdown game was built during the steroid era. This means the card formula is based on the Steroid Era run environment, where hitting was more dominant than pitching. In the year 2023 pitching is now stronger, and hitters are more focused on hitting home runs at the cost of more strikeouts. These evolutions are common throughout baseball history, and the Bot's eras feature helps adapt cards to be normalized across these different periods.
 
-Each Era adjusts the baseline opponent to better represent the run scoring environment of that period. This means cards will produce more accurate due to them facing the average opponent of their era rather than the average opponent of the _Steroid_ era.
+Each Era adjusts the baseline opponent to better represent the run scoring environment of that period. This means cards will produce more accurate due to them facing the average opponent of their era rather than the average opponent of the _Steroid_ era. In the newest Showdown Bot release, this will now adjust dynamically year to year. If the user manually selects an era, the adjustment will use an average of league stats across years.
 
 For example, below are 2001 set baseline pitcher attributes during the _Steroid_ and _Statcast_ eras.
 
-Attribute | Steroid Era | Statcast Era
---- | --- | --- 
-Control | 16.0 | 16.3
-Outs | 3.0 | 3.1 
-SO | 4.1 | 6.0
+Attribute | Steroid Era (2000) | Statcast Era
+---       | ---                | --- 
+Control   | 16.0               | 16.7
+Outs      | 3.0                | 3.13
+SO        | 3.75               | 4.46
 
-Because the average control and outs are higher in the _Statcast_ Era, hitter charts will be improved in order to reach their expected season stats. Hitter chart strikeouts will decrease as well due to the pitchers having 1.9 more results on their charts on average.
+Because the average control and outs are higher in the _Statcast_ Era, hitter charts will be improved in order to reach their expected season stats. Hitter chart strikeouts will decrease as well due to the pitchers having more results on their charts.
 
 There are also slight other adjustments across eras, including reducing speed slightly for eras where stolen bases were extremely high.
 
@@ -720,11 +763,8 @@ The Classic Style is made for the OG Showdown fan who prefers the 2000/2001 sets
 
 Changes from 2001 set:
 - **SPEED**: Expands options from 10/15/20 to the full range of 8-25.
-- **HITTING**: The formula has been tweaked to account for the shift in balance between hitter and pitcher. Hitter charts will be slightly better than in the 2001 set to due to better Pitcher opponents!
 - **ICONS**: Icons will appear on the card. Players can optionally incorporate them into gameplay or simply have them as a visual representation of awards and rookie status.
-- **PITCHER CHART HRS**: To account for an increase in HRs, the minimum requirement for HR on a pitcher's chart has decreased, resulting in more HR results.
 - **MORE COMMAND-OUT COMBINATIONS**: In order to increase variety and accuracy of cards, more possible Onbase/Control + Out combinations have been added. For example it is possible to have a 4 Control pitcher with 19 outs, or a 9 Onbase hitter with 6 Outs. This will help increase balance of low onbase and high SLG hitters (ex: Javy Baez), who under normal Showdown constraints were constrained to lower Onbase numbers.
-- **STRIKEOUTS**: The number of strikeouts on a hitters chart should slightly decrease, with the assumption that pitcher charts will have more SO results than in 2000-2001.
 - **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2018 Francisco Lindor goes from +5 SS in 2001 set to +7 SS in CLASSIC/EXPANDED sets. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
 - **NUMBER OF POSITIONS**: Now a player has a maximum of 3 available positions. This provides more value to super utility players like Ben Zobrist and Kris Bryant.
 
@@ -733,11 +773,8 @@ Changes from 2001 set:
 The Expanded Style is made for the new school Showdown fan who prefers the 2002-2005 sets. In this style, hitters have higher Onbase numbers (between 7-16) but less impactful charts. Charts also expand past 20, creating possible results outside of the normal 1-20 range. It uses the 2005 set as a starting point, but alters the original formula to fix gaps while maintaining compatibility.
 
 Changes from 2005 set:
-- **SPEED**: Reduces maximum speed to 25, helping reduce automatic steals and advances from players like Lou Brock and Rickey Henderson.
-- **HITTING**: The formula has been tweaked to account for the shift in balance between hitter and pitcher. Hitter charts will be slightly better than in the 2005 set to due to better Pitcher opponents!
 - **PITCHER CHART HRS**: To account for an increase in HRs, the minimum requirement for HR on a pitcher's chart has decreased, resulting in more HR results.
 - **MORE COMMAND-OUT COMBINATIONS**: In order to increase variety and accuracy of cards, more possible Onbase/Control + Out combinations have been added. For example it is possible to have a 4 Control pitcher with 19 outs, or a 10 Onbase hitter with 8 Outs. This will help increase balance of low onbase and high SLG hitters (ex: Javy Baez), who under normal Showdown constraints were constrained to lower Onbase numbers.
-- **STRIKEOUTS**: The number of strikeouts on a hitters chart should slightly decrease, with the assumption that pitcher charts will have more SO results than in 2002-2005.
 - **DEFENSIVE RANGES**: Certain positions will see an increase in AVG in-game defense. This includes SS, CF, and 3B. Ex: 2021 Francisco Lindor goes from +3 SS in 2005 set to +4 SS in CLASSIC/EXPANDED sets. It also allows for negative defense across all positions (ex: Matt Kemp 2010).
 - **NUMBER OF POSITIONS**: Now a player has a maximum of 3 available positions. This provides more value to super utility players like Ben Zobrist and Kris Bryant.
 
@@ -929,7 +966,7 @@ After installing and handling any package errors, you can run Showdown Bot from 
 
 Command Line
 ```
-python mlb_showdown_bot --name "Mike Piazza" --year 1997 --context 2001
+python mlb_showdown_bot --name "Mike Piazza" --year 1997 --set 2001
 ```
 
 Flask App (opened via Browser)
