@@ -1081,9 +1081,16 @@ class ShowdownPlayerCard(BaseModel):
             else:
                 defense = 0
         
-        # CAP DEFENSE IF GAMES PLAYED AT POSITION IS LESS THAN 80
-        defense_over_the_max = defense > max_defense_for_position
-        defense = int(max_defense_for_position) if games < 100 and defense_over_the_max else defense
+        # CAP DEFENSE IF GAMES PLAYED IS SMALL
+        # < 45 GAMES, CAP DEFENSE AT 50% OF MAX
+        # < 100 GAMES, CAP DEFENSE AT MAX
+        # MAX IS REDUCED CHANGES FOR SMALL SAMPLE SIZES (< 25 GAMES)
+        games_multiplier = max( min(games / 25, 1) , 0.5 )
+        is_defense_over_the_max = defense > ( max_defense_for_position * games_multiplier )
+        if games < 45 and is_defense_over_the_max:
+            defense = int(round(max_defense_for_position * 0.5))
+        elif games < 100 and is_defense_over_the_max:
+            defense = int(max_defense_for_position)
 
         # CAP DEFENSE AT +0 IF IN NEGATIVES AND GAMES PLAYED IS UNDER 0 (CLASSIC/EXPANDED SETS)
         defense = 0 if defense < 0 and games < 50 else defense
