@@ -528,7 +528,7 @@ class Chart(BaseModel):
 
     @property
     def does_set_ignore_outlier_adjustments(self) -> bool:
-        return self.set in ['2003', '2004', '2005', 'EXPANDED', 'CLASSIC']
+        return self.set in ['2003', '2004', '2005', 'EXPANDED',]
     
 
     # ---------------------------------------
@@ -988,7 +988,7 @@ class Chart(BaseModel):
                         Stat.SLG: 0.20,
                         Stat.OPS: 0.20,
                     }
-            case '2001' | 'CLASSIC':
+            case '2001':
                 if self.is_hitter:
                     return {
                         Stat.OBP: 0.60,
@@ -1042,13 +1042,41 @@ class Chart(BaseModel):
                         Stat.SLG: 0.20,
                         Stat.OPS: 0.20,
                     }
-            case '2005' | 'EXPANDED':
+            case '2005':
                 if self.is_hitter:
                     return {
                         Stat.COMMAND: 0.50,
                         Stat.OBP: 0.25,
                         Stat.SLG: 0.15,
                         Stat.OPS: 0.10,
+                    }
+                else:
+                    return {
+                        Stat.COMMAND: 0.30,
+                        Stat.OBP: 0.30,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.20,
+                    }
+            case 'CLASSIC':
+                if self.is_hitter:
+                    return {
+                        Stat.OBP: 0.50,
+                        Stat.SLG: 0.25,
+                        Stat.OPS: 0.25,
+                    }
+                else:
+                    return {
+                        Stat.OBP: 0.60,
+                        Stat.SLG: 0.25,
+                        Stat.OPS: 0.15,
+                    }
+            case 'EXPANDED':
+                if self.is_hitter:
+                    return {
+                        Stat.COMMAND: 0.20,
+                        Stat.OBP: 0.50,
+                        Stat.SLG: 0.15,
+                        Stat.OPS: 0.15,
                     }
                 else:
                     return {
@@ -1186,7 +1214,7 @@ class Chart(BaseModel):
 
             # DEFAULTS, NOTE COULD BE CHANGED BY SPECIAL CASES BELOW
             match self.set:
-                case '2000' | '2001' | 'CLASSIC':
+                case '2000' | '2001':
                     out_min = 15
                     out_max = 18
                 case '2002':
@@ -1198,6 +1226,9 @@ class Chart(BaseModel):
                 case '2004' | '2005' | 'EXPANDED':
                     out_min = 15
                     out_max = 17
+                case 'CLASSIC':
+                    out_min = 14
+                    out_max = 18
                 
             command_outlier_upper_bound = 6 if self.is_expanded else 6
             command_outlier_lower_bound = 1 if self.is_expanded else 1
