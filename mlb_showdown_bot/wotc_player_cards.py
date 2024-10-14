@@ -63,6 +63,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     case 'STARTER': player_sub_type = PlayerSubType.STARTING_PITCHER
                     case 'RELIEVER' | 'CLOSER': player_sub_type = PlayerSubType.RELIEF_PITCHER
                     case _: player_sub_type = PlayerSubType.POSITION_PLAYER
+                data['player_sub_type'] = player_sub_type
 
                 # SPEED
                 speed = data['speed']
