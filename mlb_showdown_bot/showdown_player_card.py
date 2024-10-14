@@ -77,6 +77,7 @@ class ShowdownPlayerCard(BaseModel):
     team: Team = Team.MLB
     nationality: Nationality = Nationality.NONE
     player_type: PlayerType = None
+    player_sub_type: Optional[PlayerSubType] = None
     player_type_override: Optional[PlayerType] = None
     nicknames: list[str] = []
     
@@ -169,6 +170,7 @@ class ShowdownPlayerCard(BaseModel):
             self.positions_and_defense: dict[Position, int] = self.__positions_and_defense(stats_dict=self.stats)
             self.positions_and_defense_for_visuals: dict[str, int] = self.__calc_positions_and_defense_for_visuals()
             self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
+            self.player_sub_type = self.calculate_player_sub_type()
             self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats.get('IP', 0)), games=self.stats.get('G', 0), games_started=self.stats.get('GS', 0), ip_per_start=self.stats.get('IP/GS', 0))
             self.hand: Hand = self.__handedness(hand_raw=self.stats.get('hand', None))
             self.speed: Speed = self.__speed(sprint_speed=self.stats.get('sprint_speed', None), stolen_bases=self.stats.get('SB', 0) / ( self.stats.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats.get('SB',''))) == 0, games=self.stats.get('G', 0))
@@ -432,24 +434,6 @@ class ShowdownPlayerCard(BaseModel):
     @property
     def is_hitter(self) -> bool:
         return not self.is_pitcher
-
-    @property
-    def player_sub_type(self) -> PlayerSubType:
-        """Gets full player type (position_player, starting_pitcher, relief_pitcher).
-           Used for applying weights
-
-        Args:
-          None
-
-        Returns:
-          String for full player type ('position_player', 'starting_pitcher', 'relief_pitcher').
-        """
-        # PARSE PLAYER TYPE
-        if self.player_type.is_pitcher:
-            is_starting_pitcher = self.has_position(Position.SP)
-            return PlayerSubType.STARTING_PITCHER if is_starting_pitcher else PlayerSubType.RELIEF_PITCHER
-        else:
-            return PlayerSubType.POSITION_PLAYER
 
     @property
     def player_classification(self) -> str:
@@ -1115,6 +1099,23 @@ class ShowdownPlayerCard(BaseModel):
         """Checks for position in positions list"""
         return position in self.positions_list
     
+    def calculate_player_sub_type(self) -> PlayerSubType:
+        """Gets full player type (position_player, starting_pitcher, relief_pitcher).
+           Used for applying weights
+
+        Args:
+          None
+
+        Returns:
+          String for full player type ('position_player', 'starting_pitcher', 'relief_pitcher').
+        """
+        # PARSE PLAYER TYPE
+        if self.player_type.is_pitcher:
+            is_starting_pitcher = self.has_position(Position.SP)
+            return PlayerSubType.STARTING_PITCHER if is_starting_pitcher else PlayerSubType.RELIEF_PITCHER
+        else:
+            return PlayerSubType.POSITION_PLAYER
+        
 # ------------------------------------------------------------------------
 # SPEED, IP, HANDEDNESS
 # ------------------------------------------------------------------------
