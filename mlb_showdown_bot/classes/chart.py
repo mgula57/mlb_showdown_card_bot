@@ -252,9 +252,9 @@ class Chart(BaseModel):
     # SET METADATA
     set: str
     era: str
+    era_year_list: list[int] = []
     is_expanded: bool
     opponent: Optional['Chart'] = None
-    year_list: list[int] = []
     
     # PLAYER DATA
     is_pitcher: bool
@@ -291,7 +291,7 @@ class Chart(BaseModel):
             if self.outs == 0: self.update_outs_from_values()
 
             # POPULATE YEAR LIST
-            if len(self.year_list) == 0: self.year_list = [self.set_year]
+            if len(self.era_year_list) == 0: self.era_year_list = [self.set_year]
 
         # CONVERT FROM WOTC DATA
         if self.is_wotc_conversion:
@@ -1360,6 +1360,7 @@ class Chart(BaseModel):
             'onbase_perc': obp,
             'slugging_perc': slugging_pct,
             'onbase_plus_slugging': obp + slugging_pct,
+            'g': self.stats_per_400_pa.get('G', 0),
         }
 
         return results_per_400_pa
@@ -1458,14 +1459,22 @@ class Chart(BaseModel):
         x_factor, y_int = self.__estimated_command_x_and_y_const
         wotc_set_year_obp = mlb_avgs_wotc_set.get('OBP', 0)
         command_for_avg_wotc_obp = estimate_command_from_wotc(x_factor, y_int, wotc_set_year_obp)
-        
+                
+        # GET AVG OBP IN PLAYER'S ERA
+        years = self.era_year_list
+        mlb_avgs = self.__avg_mlb_stats_dict_for_years(year_list=years, mlb_avgs_df=mlb_avgs_df)
+        player_year_avg_obp = mlb_avgs.get('OBP', 0)
+        if player_year_avg_obp == wotc_set_year_obp:
+            return command_for_avg_wotc_obp
+
         # THEN ADJUST THE X_FACTOR VARIABLE TO PLAYER'S YEAR
-        mlb_avgs = self.__avg_mlb_stats_dict_for_years(year_list=self.year_list, mlb_avgs_df=mlb_avgs_df)
-        player_year_avg_obp = mlb_avgs.get('OBP', 0)        
+        wotc_set_adjustment_factor = ( -1 * self.wotc_set_adjustment_factor(for_hitter_chart= not self.is_hitter) / 2 ) # OPPOSITE AS ADJUSTMENT IS FOR BASELINE
+        player_year_avg_obp *= (1 + wotc_set_adjustment_factor)
         adjusted_x_factor = round( (command_for_avg_wotc_obp - y_int) / player_year_avg_obp, 2 )
+        real_obp = self.stats_per_400_pa.get('onbase_perc', 0)
+        command_adjusted_to_era = estimate_command_from_wotc(adjusted_x_factor, y_int, real_obp)
         
-        real_obp = self.stats_per_400_pa.get('onbase_perc', 0)        
-        return estimate_command_from_wotc(adjusted_x_factor, y_int, real_obp)
+        return command_adjusted_to_era
 
     def generate_values_and_results_from_wotc_data(self, results_list:list[ChartCategory]) -> None:
         """Convert WOTC data to chart values and results"""
@@ -1505,6 +1514,24 @@ class Chart(BaseModel):
                 mlb_avgs_df[col] = mlb_avgs_df[col].astype(float)
         return mlb_avgs_df
 
+    def wotc_set_adjustment_factor(self, for_hitter_chart:bool) -> float:
+        """Get adjustment factor for WOTC set"""
+        
+        # ADJUSTMENT_FOR_ORIGINAL_SET ACCOUNTS FOR THE FACT THAT THE ORIGINAL SET WONT SIMULATE PERFECTLY
+        # EXAMPLES: 
+        #   2001 SET UNDERRATES PITCHING, SO WE UNDERRATE PITCHER STATS TO MATCH
+        #   2005 SET OVERRATES HITTING, SO WE ADJUST AVERAGE PITCHER OPPONENTS TO BE BETTER
+        # SHOWN AS A PERCENTAGE TO APPLY. > 0 MEANS A WORSE OPPONENT
+        match self.set:
+            case '2000':
+                return 0.0
+            case '2001' | 'CLASSIC': 
+                return -0.075 if for_hitter_chart else 0.00
+            case '2002' | '2003' | '2004' | '2005' | 'EXPANDED': 
+                return -0.10 if for_hitter_chart else -0.01
+
+        return 0
+    
     def adjust_for_era(self, era:str, year_list:list[int]) -> None:
         """Adjust chart values for era. Used for baseline charts.
         
@@ -1547,25 +1574,21 @@ class Chart(BaseModel):
         # DEFINE DIFF ADJUSTMENT FACTOR
         # 50% BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED
         diff_reduction_multiplier = 0.5
-        # ADJUSTMENT_FOR_ORIGINAL_SET ACCOUNTS FOR THE FACT THAT THE ORIGINAL SET WONT SIMULATE PERFECTLY
-        # EX: 2001 SET UNDERRATES PITCHING, SO WE UNDERRATE PITCHER STATS TO MATCH
-        # SHOWN AS A PERCENTAGE TO APPLY. > 0 MEANS A WORSE OPPONENT
-        match self.set:
-            case '2000': 
-                adjustment_for_original_set = 0.0
-            case '2001' | 'CLASSIC': 
-                adjustment_for_original_set = -0.075 if self.is_hitter else 0.00
-            case '2002' | '2003' | '2004' | '2005' | 'EXPANDED': 
-                adjustment_for_original_set = 0.0 if self.is_hitter else 0.00
-
+        wotc_set_adjustment_factor = self.wotc_set_adjustment_factor(for_hitter_chart=self.is_hitter)
+        
         # ADJUST OUTS BASED ON OBP
-        obp_pct_change = mlb_pct_change_between_eras(stat='OBP', diff_reduction_multiplier=diff_reduction_multiplier, wotc_set_adjustment_factor=adjustment_for_original_set) # HALFED BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED
+        obp_pct_change = mlb_pct_change_between_eras(stat='OBP', diff_reduction_multiplier=diff_reduction_multiplier, wotc_set_adjustment_factor=wotc_set_adjustment_factor) # HALFED BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED
+        
         # DEFINE OBP ADJUSTMENT FACTOR, UPDATE OUTS AND ONBASE RESULTS
         self.obp_adjustment_factor = round(1 + obp_pct_change, 3)
         self.command = round(self.command * self.obp_adjustment_factor, 2)
         updated_values = {}
         for category, value in self.values.items():
-            updated_values[category] = round(value * (self.obp_adjustment_factor if category.is_out else (1 / self.obp_adjustment_factor) ), 4)
+            if self.is_pitcher:
+                adjustment_factor = self.obp_adjustment_factor if category.is_out else (1 / self.obp_adjustment_factor)
+            else:
+                adjustment_factor = (1 / self.obp_adjustment_factor) if category.is_out else self.obp_adjustment_factor
+            updated_values[category] = round(value * adjustment_factor, 4)
 
         # ------ ADJUST ONBASE ------
 

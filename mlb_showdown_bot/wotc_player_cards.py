@@ -125,7 +125,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     is_pitcher = player_type.is_pitcher,
                     player_subtype = player_sub_type.value,
                     set = set.value,
-                    year_list=[int(data['year'])],
+                    era_year_list=[int(data['year'])],
                     era = Era.STEROID.value,
                     is_expanded = set.has_expanded_chart,
                     command = data['command'],

@@ -1629,7 +1629,7 @@ class ShowdownPlayerCard(BaseModel):
                     outs=outs,
                     opponent=opponent,
                     set=self.set.value,
-                    year_list=self.year_list,
+                    era_year_list=self.year_list,
                     era=self.era.value,
                     is_expanded=self.set.has_expanded_chart,
                     pa=pa,
@@ -1653,7 +1653,7 @@ class ShowdownPlayerCard(BaseModel):
                 outs=self.command_out_override[1] * chart.sub_21_per_slot_worth,
                 opponent=opponent,
                 set=self.set.value,
-                year_list=self.year_list,
+                era_year_list=self.year_list,
                 era=self.era.value,
                 is_expanded=self.set.has_expanded_chart,
                 pa=pa,
@@ -1770,6 +1770,7 @@ class ShowdownPlayerCard(BaseModel):
         stats_for_n_pa = { k:v for k,v in stats.items() if k in ['batting_avg', 'onbase_perc', 'slugging_perc', 'onbase_plus_slugging', 'IF/FB', 'GO/AO'] }
         stats_for_n_pa.update({
             'PA': plate_appearances,
+            'G': stats.get('G', 0),
             'pct_of_{}_pa'.format(plate_appearances): pct_of_n_pa,
         })
 
@@ -1780,7 +1781,7 @@ class ShowdownPlayerCard(BaseModel):
             stat_value = int(stats[category]) if len(str(stats[category])) > 0 else 0
             stat_for_n_pa = round(stat_value / pct_of_n_pa, 4)
             stats_for_n_pa[key] = stat_for_n_pa
-
+        
         return stats_for_n_pa
 
     def projected_statline(self, stats_per_400_pa:dict[str, int | float], command:int, pa: int = 650) -> dict:
@@ -1794,8 +1795,7 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           Dict with stats for player's real PA.
         """
-
-        stats_for_real_pa: dict[str, int | float] = {'PA': pa}
+        stats_for_real_pa: dict[str, int | float] = {'PA': pa, 'G': stats_per_400_pa.get('g', 0)}
 
         for category, value in stats_per_400_pa.items():
             if 'per_400_pa' in category:
@@ -1964,7 +1964,8 @@ class ShowdownPlayerCard(BaseModel):
             stat_value = value * (projected_pa_multiplier if metric == PointsMetric.HOME_RUNS else 1)
             percentile = range.percentile(value=stat_value, is_desc=self.is_pitcher and metric != PointsMetric.COMMAND, allow_negative=allow_negatives)
             pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=metric)
-            setattr(points, metric.points_breakdown_attr_name, round(pts_weight * percentile * pts_multiplier, 3))
+            total_pts = round(pts_weight * percentile * pts_multiplier, 3)
+            setattr(points, metric.points_breakdown_attr_name, total_pts)
 
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
         spd_ip_category = PointsMetric.IP if self.is_pitcher else PointsMetric.SPEED
@@ -1972,7 +1973,8 @@ class ShowdownPlayerCard(BaseModel):
         spd_ip_percentile = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type).percentile(value=speed_or_ip, is_desc=False, allow_negative=allow_negatives_speed_ip)
         ip_under_5_negative_multiplier = self.player_sub_type.ip_under_5_negative_multiplier if speed_or_ip < 5 else 1.0
         spd_ip_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=spd_ip_category) * ip_under_5_negative_multiplier
-        setattr(points, spd_ip_category.points_breakdown_attr_name, round(spd_ip_weight * spd_ip_percentile, 3))
+        spd_total_pts = round(spd_ip_weight * spd_ip_percentile, 3)
+        setattr(points, spd_ip_category.points_breakdown_attr_name, spd_total_pts)
 
         # DEFENSE (NON-PITCHERS)
         if self.is_hitter:
@@ -2184,6 +2186,7 @@ class ShowdownPlayerCard(BaseModel):
         print(chart_tbl)
 
         stat_categories_dict = {
+            'G': 'G',
             'BA': 'batting_avg',
             'OBP': 'onbase_perc',
             'SLG': 'slugging_perc',
