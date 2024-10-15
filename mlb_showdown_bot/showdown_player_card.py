@@ -5806,7 +5806,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return file_age_mins >= mins
 
-    def as_json(self) -> dict:
+    def as_json(self, exclude: dict = None) -> dict:
         """Convert current class to a json"""
         
-        return self.model_dump(mode="json", exclude_none=True)
+        return self.model_dump(mode="json", exclude=exclude, exclude_none=True)
