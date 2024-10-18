@@ -213,6 +213,13 @@ The number of results (out of 20 slots) assigned to each category are calculated
 * Stats are normalized to 400 Plate Appearances to mirror the 400 possible showdown roll combinations (_20 (Pitch Roll) * 20 (Swing Roll)_).
 * In some sets, SO/GB/FB will use a percent based fill method rather than rate based. This applies to 2003+ hitters and 2000/2001/CLASSIC pitchers. For sets using a rate based methodology, PU/GB/FB actuals are estimated by using IF/FB and GO/AO.
 * 1B+ is determined by dividing stolen bases per 400 PA by a weighting determined by the player's Onbase. This yields higher 1B+ chart slots for player's with a lower Onbase. For example lets say Player A had 30 steals per 400PA and an Onbase of 6, while Player B had 30 steals per 400PA and an Onbase of 9. Player A will have more 1B+ on his card, as he gets the advantage less.
+* By default the bot uses traditional rounding if the projected number of chart results is in between 2 numbers. Some sets and chart categories alter the cutoff for rounding. For example 2000, 2001, and CLASSIC pitcher home runs are rounded up at 0.425 instead of 0.5.
+* The Bot will check if rounding has caused it to underrate the hitter/pitchers OBP and SLG. If so, it will identify the SLG category (2B, 3B, HR) that is least accurate and adds +1 chart results to it. 1B has one result subtracted from it to account for this. Here is how a chart is eligible for an adjustment.
+  * Projected SLG < Real SLG
+  * Projected OPS < Real OPS
+  * Projected SLG vs Real SLG Difference > 1%
+  * Projected OBP vs Real OBP Difference < 3%
+   
 
 #### Expanded Sets
 
@@ -248,7 +255,7 @@ For expanded sets after 2002, WOTC used a linear scale to help determine command
 
 ![Image](./static/interface/2004PitcherCommandGraph.png)
 
-The Bot follows a similar formula but allows more flexibility and probability of these outlier command/out combinations (ex: 1C, 20 Out) as long as the expected OPS accuracy meets a certain threshold. It will also adjust the scale across Eras where league avg OBP values change compared to the Steroid Era. The estimated command is then used as an accuracy category.
+The Bot follows a similar formula but allows more flexibility and probability of these outlier command/out combinations (ex: 1C, 20 Out) as long as the expected OPS accuracy meets a certain threshold. Usually these *outlier charts* will have their baseline accuracy reduced by 1-5% to reduce the volume of outliers. It will also adjust the scale across Eras where league avg OBP values change compared to the Steroid Era. The estimated command is then used as an accuracy category.
 
 To determine final accuracy an accuracy percentage is calculated per category and then weighted to create a score out of 100%. 
 
