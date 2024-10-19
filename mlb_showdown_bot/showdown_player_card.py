@@ -661,6 +661,22 @@ class ShowdownPlayerCard(BaseModel):
         """Icons as a string"""
         return ' '.join([icon.value for icon in self.icons])
     
+    @property
+    def is_alternate_era(self) -> bool:
+        eras = []
+        for year in self.year_list:
+            for era in Era:
+                if year in era.year_range:
+                    eras.append(era)
+        
+        # FILTER TO MOST
+        most_common_era_tuples_list = Counter(eras).most_common(1)
+
+        if len(most_common_era_tuples_list) == 0:
+            return False
+        
+        return most_common_era_tuples_list[0][0] != self.era
+
 # ------------------------------------------------------------------------
 # DEFENSE
 # ------------------------------------------------------------------------
@@ -1633,7 +1649,8 @@ class ShowdownPlayerCard(BaseModel):
         charts: list[Chart] = []
 
         # SET CONSTANTS
-        opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=self.year_list)
+        year_list = self.year_list if not self.is_alternate_era else self.era.year_range
+        opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list)
         mlb_avgs_df = opponent.load_mlb_league_avg_df()
         pa = self.stats.get('pa', 400)
         
@@ -1659,7 +1676,7 @@ class ShowdownPlayerCard(BaseModel):
                     outs=outs,
                     opponent=opponent,
                     set=self.set.value,
-                    era_year_list=self.year_list,
+                    era_year_list=year_list,
                     era=self.era.value,
                     is_expanded=self.set.has_expanded_chart,
                     pa=pa,
@@ -1683,7 +1700,7 @@ class ShowdownPlayerCard(BaseModel):
                 outs=self.command_out_override[1] * chart.sub_21_per_slot_worth,
                 opponent=opponent,
                 set=self.set.value,
-                era_year_list=self.year_list,
+                era_year_list=year_list,
                 era=self.era.value,
                 is_expanded=self.set.has_expanded_chart,
                 pa=pa,

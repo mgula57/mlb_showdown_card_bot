@@ -807,7 +807,7 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 0.90, 550
                     case PlayerSubType.STARTING_PITCHER: return 0.55, 425
-                    case PlayerSubType.RELIEF_PITCHER: return 0.85, 200
+                    case PlayerSubType.RELIEF_PITCHER: return 0.65, 270
             case '2002':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return 0.99, 500
@@ -848,7 +848,7 @@ class Set(str, Enum):
                             case 3: return 2.40
                     case '2001' | 'CLASSIC':
                         match ip:
-                            case 2: return 1.55
+                            case 2: return 1.40
                             case 3: return 2.00
                     case '2002':
                         match ip:
