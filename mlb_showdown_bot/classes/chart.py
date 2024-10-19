@@ -661,7 +661,7 @@ class Chart(BaseModel):
         is_increase_adjustment = is_under_in_slg_and_ops and self.is_hitter
         is_decrease_adjustment = is_over_in_slg_and_ops and self.is_pitcher
         if is_increase_adjustment or is_decrease_adjustment:
-            self.__adjust_slg(is_increase=is_increase_adjustment, slg_pct_diff=slg_pct_diff)
+            self.__adjust_slg(is_increase=is_increase_adjustment)
 
         # ------------------------------
         # 2002 POST 20 ADJUSTMENTS
@@ -844,12 +844,11 @@ class Chart(BaseModel):
         """Update outs full based on outs"""
         self.outs_full = int(round(self.outs / self.sub_21_per_slot_worth))
 
-    def __adjust_slg(self, is_increase:bool = True, slg_pct_diff: float = 0.0) -> None:
+    def __adjust_slg(self, is_increase:bool = True) -> None:
         """Increase SLG for the category with the biggest difference between projected and real stats per 400 PA
         
         Args:
             is_increase: If True, increase SLG. If False, decrease SLG.
-            slg_pct_diff: Difference between projected and real stats per 400 PA.
 
         Returns:
             None, adjusts self.values and self.results
@@ -1566,7 +1565,7 @@ class Chart(BaseModel):
             case '2001' | 'CLASSIC': 
                 return -0.075 if for_hitter_chart else 0.00
             case '2002' | '2003' | '2004' | '2005' | 'EXPANDED': 
-                return -0.10 if for_hitter_chart else -0.01
+                return -0.15 if for_hitter_chart else -0.02
 
         return 0
     
