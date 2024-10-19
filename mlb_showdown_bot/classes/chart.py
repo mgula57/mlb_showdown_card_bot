@@ -302,6 +302,10 @@ class Chart(BaseModel):
         if self.command_estimated is None and not self.is_baseline and not self.is_wotc_conversion:
             self.command_estimated = self.calculate_estimated_command(mlb_avgs_df=data.get('mlb_avgs_df', None))
 
+        # MAKE SURE BOTH OUTS AND OUTS_FULL ARE POPULATED
+        if self.outs > 0 and self.outs_full == 0:
+            self.update_outs_full()
+
         # POPULATE VALUES DICT
         if len(self.values) == 0:
             self.generate_values_and_results()
@@ -368,6 +372,10 @@ class Chart(BaseModel):
         return self.sub_21_per_slot_worth < 1
 
     @property
+    def onbase_results(self) -> float | int:
+        return sum([v for k,v in self.values.items() if not k.is_out])
+
+    @property
     def slot_values(self) -> dict[int, float]:
         
         # EACH SLOT IS WORTH 1 FOR CLASSIC
@@ -382,11 +390,11 @@ class Chart(BaseModel):
             # 2003 SET FILLS LINEARLY FROM 21-26
             if self.set == '2003':
                 original_remaining_value = remaining_value
-                slot_value_capped_at = 26
+                slot_value_capped_at = 28
                 num_values_to_fill = slot_value_capped_at - 20
 
                 # Create a sequence of numbers that decrease linearly
-                values = np.linspace(start=original_remaining_value/num_values_to_fill * 1.2, stop=0, num=num_values_to_fill)
+                values = np.linspace(start=original_remaining_value/num_values_to_fill, stop=0, num=num_values_to_fill)
 
                 # Ensure the values sum to the original remaining value
                 values = original_remaining_value * values / values.sum()
@@ -407,7 +415,7 @@ class Chart(BaseModel):
             slot_values_21_plus: dict[int, float] = {}
             
             match self.set:
-                case '2002': 
+                case '2002' | '2003': 
                     decay = 0.5
                     power = 0.5
                 case _: 
@@ -630,11 +638,15 @@ class Chart(BaseModel):
             self.update_outs_full()
 
         # ITERATE THROUGH CHART CATEGORIES
+        # REVERSE NON OUTS TO START WITH HR
+        # ASC: SO, GB, FB, BB 
+        # DESC: HR, 3B, 2B, 1B
+        # IF OUTS FILL 20 SLOTS, ADD BB TO DESC ORDER
         all_categories = self.categories_list
-        out_categories = [c for c in all_categories if not c.is_filled_in_desc_order]
-        non_out_categories = [c for c in all_categories if c.is_filled_in_desc_order][::-1] # REVERSE NON OUTS TO START WITH HR
-        fill_chart_categories(out_categories)
-        fill_chart_categories(non_out_categories, is_reversed=True)
+        categories_filled_asc = [c for c in all_categories if not c.is_filled_in_desc_order and not (self.outs_full == 20 and c == ChartCategory.BB)]
+        categories_filled_desc = [c for c in all_categories if c.is_filled_in_desc_order][::-1] + ([ChartCategory.BB] if self.outs_full == 20 else [])
+        fill_chart_categories(categories_filled_asc)
+        fill_chart_categories(categories_filled_desc, is_reversed=True)
 
         # MAKE ADJUSTMENTS IF NECESSARY
         obp_pct_diff = self.__stat_projected_vs_real_pct_diff('onbase_perc')
@@ -652,7 +664,7 @@ class Chart(BaseModel):
         is_over_in_slg_and_ops = slg_pct_diff > 0 \
                                     and ops_pct_diff > 0  \
                                     and abs(obp_pct_diff) < 0.04 \
-                                    and abs(slg_pct_diff) > 0.12 \
+                                    and abs(slg_pct_diff) > 0.05 \
                                     and has_1b_values
 
         # ------------------------------
@@ -778,6 +790,12 @@ class Chart(BaseModel):
             new_potential_total_value = values_total + slot_value
             new_potential_value_vs_original = abs(new_potential_total_value - value)
             is_out_of_bounds = category == ChartCategory.HR and i >= 27
+            
+            # BREAK IF CATEGORY IS 2B AND VALUE IS CLOSE. CREATES MORE VARIETY IN EXPANDED PITCHER CHARTS
+            if self.is_pitcher and i > 20 and category in [ChartCategory._2B,]:
+                if new_potential_total_value < value and new_potential_value_vs_original < 0.15:
+                    break
+
             if new_potential_value_vs_original > diff_last_index and not is_out_of_bounds:
                 break
             values_total = new_potential_total_value
@@ -1029,9 +1047,9 @@ class Chart(BaseModel):
                 else:
                     return {
                         Stat.COMMAND: 0.30,
-                        Stat.OBP: 0.30,
-                        Stat.SLG: 0.20,
-                        Stat.OPS: 0.20,
+                        Stat.OBP: 0.45,
+                        Stat.SLG: 0.15,
+                        Stat.OPS: 0.10,
                     }
             case '2004':
                 if self.is_hitter:
@@ -1043,10 +1061,10 @@ class Chart(BaseModel):
                     }
                 else:
                     return {
-                        Stat.COMMAND: 0.30,
-                        Stat.OBP: 0.30,
-                        Stat.SLG: 0.20,
-                        Stat.OPS: 0.20,
+                        Stat.COMMAND: 0.40,
+                        Stat.OBP: 0.35,
+                        Stat.SLG: 0.15,
+                        Stat.OPS: 0.10,
                     }
             case '2005':
                 if self.is_hitter:
@@ -1058,10 +1076,10 @@ class Chart(BaseModel):
                     }
                 else:
                     return {
-                        Stat.COMMAND: 0.30,
-                        Stat.OBP: 0.30,
-                        Stat.SLG: 0.20,
-                        Stat.OPS: 0.20,
+                        Stat.COMMAND: 0.40,
+                        Stat.OBP: 0.35,
+                        Stat.SLG: 0.15,
+                        Stat.OPS: 0.10,
                     }
             case 'CLASSIC':
                 if self.is_hitter:
@@ -1086,10 +1104,10 @@ class Chart(BaseModel):
                     }
                 else:
                     return {
-                        Stat.COMMAND: 0.30,
-                        Stat.OBP: 0.30,
-                        Stat.SLG: 0.20,
-                        Stat.OPS: 0.20,
+                        Stat.COMMAND: 0.40,
+                        Stat.OBP: 0.35,
+                        Stat.SLG: 0.15,
+                        Stat.OPS: 0.10,
                     }
 
     def generate_accuracy_rating(self) -> None:
@@ -1177,8 +1195,8 @@ class Chart(BaseModel):
             accuracy_command = command_chart_accuracy.accuracy
             non_command_breakdowns = [breakdown for breakdown in self.accuracy_breakdown.values() if breakdown.stat != Stat.COMMAND]
             accuracy_non_command = ( sum([breakdown.weighted_accuracy for breakdown in non_command_breakdowns]) / sum([breakdown.weight for breakdown in non_command_breakdowns]) ) if len(non_command_breakdowns) > 0 else 0
-            accuracy_cutoff = 0.99 if self.is_hitter else 0.98
-            accuracy_command_minimum = 0.90 if self.is_hitter else 0.30
+            accuracy_cutoff = 0.99 if self.is_hitter else 0.99
+            accuracy_command_minimum = 0.90 if self.is_hitter else 0.35
             if accuracy_non_command > accuracy_cutoff and accuracy_command < accuracy_cutoff and accuracy_command > accuracy_command_minimum:
                 command_chart_accuracy.adjustment_pct = round(accuracy_cutoff / accuracy_command, 4)
                 command_chart_accuracy.calculate_accuracy_attributes()
@@ -1228,7 +1246,7 @@ class Chart(BaseModel):
                     out_max = 19
                 case '2003':
                     out_min = 15
-                    out_max = 16
+                    out_max = 17
                 case '2004' | '2005' | 'EXPANDED':
                     out_min = 15
                     out_max = 17
@@ -1562,12 +1580,12 @@ class Chart(BaseModel):
         #   2005 SET OVERRATES HITTING, SO WE ADJUST AVERAGE PITCHER OPPONENTS TO BE BETTER
         # SHOWN AS A PERCENTAGE TO APPLY. > 0 MEANS A WORSE OPPONENT
         match self.set:
-            case '2000':
+            case '2000' | '2002':
                 return 0.0
             case '2001' | 'CLASSIC': 
                 return -0.075 if for_hitter_chart else 0.00
-            case '2002' | '2003' | '2004' | '2005' | 'EXPANDED': 
-                return -0.15 if for_hitter_chart else -0.02
+            case '2003' | '2004' | '2005' | 'EXPANDED': 
+                return 0.00 if for_hitter_chart else 0.00
 
         return 0
     
@@ -1619,7 +1637,7 @@ class Chart(BaseModel):
         wotc_set_adjustment_factor = self.wotc_set_adjustment_factor(for_hitter_chart=self.is_hitter)
         
         # ADJUST OUTS BASED ON OBP
-        obp_pct_change = mlb_pct_change_between_eras(stat='OBP', diff_reduction_multiplier=diff_reduction_multiplier, wotc_set_adjustment_factor=wotc_set_adjustment_factor) # HALFED BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED
+        obp_pct_change = mlb_pct_change_between_eras(stat='OBP', diff_reduction_multiplier=diff_reduction_multiplier, wotc_set_adjustment_factor=wotc_set_adjustment_factor)
         
         # DEFINE OBP ADJUSTMENT FACTOR, UPDATE OUTS AND ONBASE RESULTS
         self.obp_adjustment_factor = round(1 + obp_pct_change, 3)
@@ -1637,8 +1655,8 @@ class Chart(BaseModel):
         # IGNORE 1B+ BECAUSE IT'S CALCULATED AT THE END
         onbase_categories = [ChartCategory.BB, ChartCategory._2B, ChartCategory._3B, ChartCategory.HR]
         for category in onbase_categories:
-            category_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat=category.value, diff_reduction_multiplier=diff_reduction_multiplier)
-            updated_values[category] = round(updated_values[category] * (1 - category_pct_diff_vs_wotc), 4)
+            category_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat=category.value, diff_reduction_multiplier=diff_reduction_multiplier, ignore_pitcher_flip=True)
+            updated_values[category] = round(updated_values[category] * (1 + category_pct_diff_vs_wotc), 4)
         
         # ADJUST 1B TO MAKE SURE THE TOTAL EQUALS 20
         remaining_values = 20 - sum(updated_values.values())
@@ -1651,8 +1669,8 @@ class Chart(BaseModel):
 
         # ADJUST SO FIRST
         so_post_obp_adjustment = updated_values[ChartCategory.SO]
-        so_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat=ChartCategory.SO.value, diff_reduction_multiplier=diff_reduction_multiplier)
-        updated_values[ChartCategory.SO] = max( round(so_post_obp_adjustment * (1 - so_pct_diff_vs_wotc), 4), 0 )
+        so_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat=ChartCategory.SO.value, diff_reduction_multiplier=diff_reduction_multiplier, ignore_pitcher_flip=True)
+        updated_values[ChartCategory.SO] = max( round(so_post_obp_adjustment * (1 + so_pct_diff_vs_wotc), 4), 0 )
 
         # TEMPORARILY ADJUST OTHER OUTS TO MATCH EXPECTED TOTAL
         current_non_so_outs = max( sum([v for k,v in updated_values.items() if k.is_out and k != ChartCategory.SO]), 0)
@@ -1662,12 +1680,12 @@ class Chart(BaseModel):
 
         # ADJUST AGAIN TO ACCOUNT FOR RATIOS
         go_ao_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat='GO/AO', diff_reduction_multiplier=diff_reduction_multiplier, default_value=1.1, ignore_pitcher_flip=True)
-        updated_values[ChartCategory.GB] = max( round(updated_values[ChartCategory.GB] * (1 - go_ao_pct_diff_vs_wotc), 4), 0 )
+        updated_values[ChartCategory.GB] = max( round(updated_values[ChartCategory.GB] * (1 + go_ao_pct_diff_vs_wotc), 4), 0 )
 
         remaining_outs_not_adjusted = total_outs_expected - sum([v for k,v in updated_values.items() if k in [ChartCategory.SO, ChartCategory.GB]])
         current_ratio_pu_pct_chart = updated_values[ChartCategory.PU] / updated_values[ChartCategory.FB]
         if_fb_pct_diff_vs_wotc = mlb_pct_change_between_eras(stat='IF/FB', diff_reduction_multiplier=diff_reduction_multiplier, default_value=0.14, ignore_pitcher_flip=True)
-        pu_pct_chart_adjusted = max( round(current_ratio_pu_pct_chart * (1 - if_fb_pct_diff_vs_wotc), 4), 0 )
+        pu_pct_chart_adjusted = max( round(current_ratio_pu_pct_chart * (1 + if_fb_pct_diff_vs_wotc), 4), 0 )
         updated_values[ChartCategory.PU] = pu_pct_chart_adjusted * remaining_outs_not_adjusted
         updated_values[ChartCategory.FB] = remaining_outs_not_adjusted - updated_values[ChartCategory.PU]
 

@@ -12,11 +12,17 @@ args = parser.parse_args()
 
 def extract_values_from_chart(chart:Chart, attributes:list[str]) -> list[str]:
     row: list[str] = []
+    outs = getattr(chart, 'outs')
+    onbase_results = getattr(chart, 'onbase_results')
     for column in attributes:
+        
         if column in non_value_columns:
-            row.append(str(round(getattr(chart, column.lower()), 2)))
+            row.append(f'{round(getattr(chart, column.lower()), 2)}')
         else:
-            row.append(str(round(chart.values[column], 3)))
+            is_out = column in ['PU', 'SO', 'GB', 'FB',]
+            results = round(chart.values[column], 2)
+            pct = round(results / (outs if is_out else onbase_results) * 100, 1)
+            row.append(f'{results} ({pct}%)')
 
     # CREATE TOTAL VALUE
     row.append(str(round(sum([c for c in chart.values.values()]))))
@@ -25,7 +31,7 @@ def extract_values_from_chart(chart:Chart, attributes:list[str]) -> list[str]:
 
 types = [PlayerType(t.title()) for t in args.types.split(',')]
 set = Set(args.set)
-non_value_columns = ['OBP_ADJUSTMENT_FACTOR', 'COMMAND', 'OUTS',]
+non_value_columns = ['OBP_ADJUSTMENT_FACTOR', 'COMMAND', 'OUTS', 'ONBASE_RESULTS']
 for type in types:
 
     my_type = PlayerSubType.POSITION_PLAYER if type.opponent_type == PlayerType.HITTER else PlayerSubType.STARTING_PITCHER
@@ -33,7 +39,7 @@ for type in types:
     chart_columns = non_value_columns + [c.value for c in wotc_baseline_chart.values.keys()]
 
     # DEFINE ATTRIBUTES FOR TYPE
-    chart_tbl = PrettyTable(field_names=['SET', 'TYPE', 'ERA'] + chart_columns + ['TOTAL'])
+    chart_tbl = PrettyTable(field_names=['SET', 'TYPE', 'ERA'] + [c.replace('ADJUSTMENT_FACTOR', 'ADJ').replace('ONBASE_RESULTS', 'OB') for c in chart_columns] + ['TOTAL'])
 
     for era in Era:
         era_chart = wotc_baseline_chart.model_copy()

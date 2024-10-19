@@ -1654,7 +1654,7 @@ class ShowdownPlayerCard(BaseModel):
         mlb_avgs_df = opponent.load_mlb_league_avg_df()
         pa = self.stats.get('pa', 400)
         
-        command_options = list(set([ c for c,_ in self.set.command_out_combinations(player_type=self.player_type) if c not in self.commands_excluded]))
+        command_options = list(set([ c for c in self.set.command_options(player_type=self.player_type) if c not in self.commands_excluded]))
         for command in command_options:
             
             # CREATE CHART WITH COMMAND/OUT COMBO
