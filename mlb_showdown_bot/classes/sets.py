@@ -1601,12 +1601,16 @@ class Set(str, Enum):
     # BASELINE PLAYERS
     # ---------------------------------------
 
-    def opponent_chart(self, player_sub_type:PlayerSubType, era:Era, year_list: list[int]) -> Chart:
-        chart = self.wotc_baseline_chart(player_type=player_sub_type.parent_type.opponent_type, my_type=player_sub_type)
+    def opponent_chart(self, player_sub_type:PlayerSubType, era:Era, year_list: list[int], adjust_for_simulation_accuracy:bool = False) -> Chart:
+        chart = self.wotc_baseline_chart(
+            player_type=player_sub_type.parent_type.opponent_type, 
+            my_type=player_sub_type, 
+            adjust_for_simulation_accuracy=adjust_for_simulation_accuracy
+        )
         chart.adjust_for_era(era.value, year_list=year_list)
         return chart
 
-    def wotc_baseline_chart(self, player_type: PlayerType, my_type: PlayerSubType) -> Chart:
+    def wotc_baseline_chart(self, player_type: PlayerType, my_type: PlayerSubType, adjust_for_simulation_accuracy:bool = False) -> Chart:
         is_rp = my_type == PlayerSubType.RELIEF_PITCHER
         match player_type:
             case PlayerType.PITCHER:
@@ -1678,7 +1682,7 @@ class Set(str, Enum):
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=3.80,
+                            command=3.70,
                             values={
                                 'PU': 0.66,
                                 'SO': 4.05,
@@ -1780,7 +1784,7 @@ class Set(str, Enum):
                             set=self.value,
                             era=Era.STEROID,
                             is_expanded=self.has_expanded_chart,
-                            command=8.35,
+                            command=8.35 + (0.50 if adjust_for_simulation_accuracy else 0),
                             values={
                                 'PU': 0.00,
                                 'SO': 2.25,

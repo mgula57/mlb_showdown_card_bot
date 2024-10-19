@@ -120,7 +120,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
 
                         if len(chart_results) < 30:
                             chart_results += [chart_results[-1]] * (30 - len(chart_results))
-                opponent_chart = set.wotc_baseline_chart(player_type.opponent_type, my_type=player_sub_type)
+                opponent_chart = set.wotc_baseline_chart(player_type.opponent_type, my_type=player_sub_type, adjust_for_simulation_accuracy=True)
                 mlb_avgs_df = opponent_chart.load_mlb_league_avg_df()
                 chart = Chart(
                     is_pitcher = player_type.is_pitcher,
@@ -155,8 +155,8 @@ class WotcPlayerCard(ShowdownPlayerCard):
         """Update projections based on current Showdown Bot weights"""
 
         # UPDATE OPPONENT CHART
-        opponent_chart = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type)
-        self.chart.opponent = opponent_chart
+        opponent_chart_w_adjustments = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=True)
+        self.chart.opponent = opponent_chart_w_adjustments
         
         # ADD PROJECTIONS
         chart_results_per_400_pa = self.chart.projected_stats_per_400_pa
@@ -164,7 +164,11 @@ class WotcPlayerCard(ShowdownPlayerCard):
         self.accolades = self.parse_accolades()
 
         # ADD ESTIMATED PTS
-        self.points_estimated_breakdown = self.calculate_points(projected=self.projected, positions_and_defense=self.positions_and_defense, speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
+        chart_for_pts = self.chart.model_copy()
+        chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=False)
+        projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
+        projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
+        self.points_estimated_breakdown = self.calculate_points(projected=projections_for_pts, positions_and_defense=self.positions_and_defense, speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
         self.points_estimated = self.points_estimated_breakdown.total_points
 
 # ------------------------------

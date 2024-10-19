@@ -186,7 +186,7 @@ class ShowdownPlayerCard(BaseModel):
 
             # FOR PTS, USE STEROID ERA OPPONENT
             chart_for_pts = self.chart.model_copy()
-            chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type)
+            chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=False)
             projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
             projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
 
@@ -1650,7 +1650,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # SET CONSTANTS
         year_list = self.year_list if not self.is_alternate_era else self.era.year_range
-        opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list)
+        opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True)
         mlb_avgs_df = opponent.load_mlb_league_avg_df()
         pa = self.stats.get('pa', 400)
         

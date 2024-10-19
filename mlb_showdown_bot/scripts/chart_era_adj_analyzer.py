@@ -29,7 +29,7 @@ non_value_columns = ['OBP_ADJUSTMENT_FACTOR', 'COMMAND', 'OUTS',]
 for type in types:
 
     my_type = PlayerSubType.POSITION_PLAYER if type.opponent_type == PlayerType.HITTER else PlayerSubType.STARTING_PITCHER
-    wotc_baseline_chart = set.wotc_baseline_chart(type, my_type=type.opponent_type)
+    wotc_baseline_chart = set.wotc_baseline_chart(type, my_type=type.opponent_type, adjust_for_simulation_accuracy=True)
     chart_columns = non_value_columns + [c.value for c in wotc_baseline_chart.values.keys()]
 
     # DEFINE ATTRIBUTES FOR TYPE

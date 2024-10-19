@@ -171,7 +171,7 @@ class ChartCategory(str, Enum):
             case '2003':
                 if is_hitter:
                     match self:
-                        case ChartCategory.BB: return (0.72, 3)
+                        case ChartCategory.BB: return (0.90, 6)
                 else:
                     match self:
                         case ChartCategory.GB: return (0.80, 8)
@@ -1440,10 +1440,10 @@ class Chart(BaseModel):
                 match self.player_subtype:
                     case 'starting_pitcher':
                         x =  -43.65
-                        y_int = 17.03
+                        y_int = 17.25
                     case 'relief_pitcher':
                         x =  -43.24
-                        y_int = 16.78
+                        y_int = 17.00
                     case 'position_player':
                         x = 36.78
                         y_int = -2.58
