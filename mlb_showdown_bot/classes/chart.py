@@ -1501,14 +1501,16 @@ class Chart(BaseModel):
         years = self.era_year_list
         mlb_avgs = self.__avg_mlb_stats_dict_for_years(year_list=years, mlb_avgs_df=mlb_avgs_df)
         player_year_avg_obp = mlb_avgs.get('OBP', 0)
+
+        # IF YEAR IS SAME AS WOTC, DON'T ADJUST THE X_FACTOR
+        real_obp = self.stats_per_400_pa.get('onbase_perc', 0)
         if player_year_avg_obp == wotc_set_year_obp:
-            return command_for_avg_wotc_obp
+            return estimate_command_from_wotc(x_factor, y_int, real_obp)
 
         # THEN ADJUST THE X_FACTOR VARIABLE TO PLAYER'S YEAR
         wotc_set_adjustment_factor = ( -1 * self.wotc_set_adjustment_factor(for_hitter_chart= not self.is_hitter) / 2 ) # OPPOSITE AS ADJUSTMENT IS FOR BASELINE
         player_year_avg_obp *= (1 + wotc_set_adjustment_factor)
         adjusted_x_factor = round( (command_for_avg_wotc_obp - y_int) / player_year_avg_obp, 2 )
-        real_obp = self.stats_per_400_pa.get('onbase_perc', 0)
         command_adjusted_to_era = estimate_command_from_wotc(adjusted_x_factor, y_int, real_obp)
         
         return command_adjusted_to_era
@@ -1608,9 +1610,12 @@ class Chart(BaseModel):
         # FILTER YEAR COLUMN IN YEAR LIST
         mlb_avgs = self.__avg_mlb_stats_dict_for_years(year_list=year_list, mlb_avgs_df=mlb_avgs_df)
 
-        # DEFINE DIFF ADJUSTMENT FACTOR
+        # DEFINE ADJUSTMENT FACTOR
         # 50% BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED
         diff_reduction_multiplier = 0.5
+
+        # ADJUSTMENT FACTOR FOR WOTC SET
+        # HANDLES THE FACT THAT THE ORIGINAL SET WONT SIMULATE PERFECTLY, ESPECIALLY EXPANDED PITCHERS NOT BEING POWERFUL ENOUGH
         wotc_set_adjustment_factor = self.wotc_set_adjustment_factor(for_hitter_chart=self.is_hitter)
         
         # ADJUST OUTS BASED ON OBP
