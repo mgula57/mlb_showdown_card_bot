@@ -13,7 +13,7 @@ mlb_showdown_bot>=3.6.31
 oauth2client==4.1.3
 openpyxl==3.0.10
 pandas>=1.3.0
-pillow==9.3.0
+pillow==10.3.0
 pip-chill==1.0.1
 prettytable>=3.7.0
 psycopg2==2.8.6
