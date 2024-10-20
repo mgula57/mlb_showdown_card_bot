@@ -2224,7 +2224,10 @@ class ShowdownPlayerCard(BaseModel):
         print(" | ".join([f"{co}:{round(pct * 100, 2)}%" for index, (co, pct) in enumerate(self.command_out_accuracies.items()) if index < 7]) )
         print(self.chart.accuracy_breakdown_str)
 
-        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS  {f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.command_out_accuracy_weight != 1.0 else ''} ")
+        # COMMAND AND OUTS
+        accuracy_suffix = f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.command_out_accuracy_weight != 1.0 else ''
+        real_outs = f'({round(self.chart.outs, 3)})' if int(self.chart.outs) != self.chart.outs else ''
+        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS {real_outs} {accuracy_suffix} ")
 
         chart_tbl = PrettyTable(field_names=[col.value + ('*' if col in self.chart.chart_categories_adjusted else '') for col in self.chart.categories_list])
         chart_tbl.add_row(self.chart.ranges_list)

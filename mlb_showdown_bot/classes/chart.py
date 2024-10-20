@@ -469,8 +469,8 @@ class Chart(BaseModel):
                     command_multiplier = 0.008 * ( 1 - (self.command / 6) )
                     return 0.982 + command_multiplier
                 case '2004' | '2005' | 'EXPANDED':
-                    command_multiplier = 0.02 * ( 1 - (self.command / 6) )
-                    return 0.95 + command_multiplier
+                    command_multiplier = 0#0.005 * ( 1 + (self.command / 6) )
+                    return 0.970 + command_multiplier
             return 0.96
         
         return 0.975
@@ -1061,8 +1061,8 @@ class Chart(BaseModel):
                     }
                 else:
                     return {
-                        Stat.COMMAND: 0.40,
-                        Stat.OBP: 0.35,
+                        Stat.COMMAND: 0.30,
+                        Stat.OBP: 0.45,
                         Stat.SLG: 0.15,
                         Stat.OPS: 0.10,
                     }
@@ -1076,8 +1076,8 @@ class Chart(BaseModel):
                     }
                 else:
                     return {
-                        Stat.COMMAND: 0.40,
-                        Stat.OBP: 0.35,
+                        Stat.COMMAND: 0.30,
+                        Stat.OBP: 0.45,
                         Stat.SLG: 0.15,
                         Stat.OPS: 0.10,
                     }
@@ -1468,11 +1468,11 @@ class Chart(BaseModel):
             case '2004': 
                 match self.player_subtype:
                     case 'starting_pitcher':
-                        x =  -42.49
-                        y_int = 16.70
+                        x =  -44.00
+                        y_int = 17.80
                     case 'relief_pitcher':
-                        x =  -42.49
-                        y_int = 16.70
+                        x =  -44.00
+                        y_int = 17.80
                     case 'position_player':
                         x = 36.20
                         y_int = -2.3
