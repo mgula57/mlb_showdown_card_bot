@@ -143,6 +143,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
 
                 self.stats = self.add_estimates_to_stats(stats=stats) if stats else {}
                 self.positions_and_defense_string = self.positions_and_defense_as_string(is_horizontal=True)
+                self.positions_and_defense_for_visuals = self.calc_positions_and_defense_for_visuals()
 
                 stats_per_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats)
                 self.chart.stats_per_400_pa = stats_per_400_pa
@@ -165,7 +166,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
 
         # ADD ESTIMATED PTS
         chart_for_pts = self.chart.model_copy()
-        chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=False)
+        chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=True)
         projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
         projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
         self.points_estimated_breakdown = self.calculate_points(projected=projections_for_pts, positions_and_defense=self.positions_and_defense, speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)

@@ -168,7 +168,7 @@ class ShowdownPlayerCard(BaseModel):
             # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
             self.stats = self.add_estimates_to_stats(stats=self.stats)
             self.positions_and_defense: dict[Position, int] = self.__positions_and_defense(stats_dict=self.stats)
-            self.positions_and_defense_for_visuals: dict[str, int] = self.__calc_positions_and_defense_for_visuals()
+            self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
             self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
             self.player_sub_type = self.calculate_player_sub_type()
             self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats.get('IP', 0)), games=self.stats.get('G', 0), games_started=self.stats.get('GS', 0), ip_per_start=self.stats.get('IP/GS', 0))
@@ -186,7 +186,7 @@ class ShowdownPlayerCard(BaseModel):
 
             # FOR PTS, USE STEROID ERA OPPONENT
             chart_for_pts = self.chart.model_copy()
-            chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=False)
+            chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=True)
             projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
             projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
 
@@ -787,7 +787,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return final_positions_in_game
 
-    def __calc_positions_and_defense_for_visuals(self) -> dict[str, int]:
+    def calc_positions_and_defense_for_visuals(self) -> dict[str, int]:
         """ Transform the player's positions_and_defense dictionary for visuals (printing, card image)
         
         Args:
