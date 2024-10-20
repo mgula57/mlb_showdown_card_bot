@@ -2060,6 +2060,10 @@ class ShowdownPlayerCard(BaseModel):
 
         # SOME SETS HAVE PTS DECAY AFTER A CERTAIN MARKER. APPLIES TO ONLY SLASHLINE CATEGORIES
         points.apply_decay(is_hitter=self.is_hitter, decay_rate_and_start=self.set.pts_decay_rate_and_start(self.player_sub_type))
+
+        # APPLY ANOTHER DECAY IF POINTS > 1000
+        if points.total_points > 1000:
+            points.apply_decay(is_hitter=self.is_hitter, decay_rate_and_start=(0.70, 1000))
         
         if self.is_pitcher:
 

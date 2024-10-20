@@ -577,7 +577,8 @@ class Chart(BaseModel):
                 is_out_max = self.outs if chart_category.is_out else 20 - self.outs
                 category_remaining = is_out_max - sum([v for k,v in self.values.items() if k.is_out == chart_category.is_out])
                 max_values = min(category_limit, category_remaining)
-                min_values = category_remaining if chart_category in [ChartCategory._1B, ChartCategory.FB] else None
+                final_onbase_category_to_fill = ChartCategory.BB if self.outs_full == 20 else ChartCategory._1B
+                min_values = category_remaining if chart_category in [final_onbase_category_to_fill, ChartCategory.FB] else None
 
                 # FILL CHART CATEGORY VALUES
                 # FILL METHODS:
@@ -590,7 +591,7 @@ class Chart(BaseModel):
                     case ChartCategoryFillMethod.PCT:
                         category_results_per_400_pa = self.stats_per_400_pa.get(f'{chart_category.value.lower()}_per_400_pa', 0)
                         category_multiplier = chart_category.category_multiplier(set=self.set, is_pitcher=self.is_pitcher)
-                        category_pct = (category_results_per_400_pa / categories_total_real_results_per_400) * category_multiplier
+                        category_pct = ( (category_results_per_400_pa / categories_total_real_results_per_400) * category_multiplier ) if categories_total_real_results_per_400 > 0 else 0
                         raw_values = category_pct * self.outs
                         values = min( max( self.__round_to_nearest_slot_value(raw_values), category_remaining if chart_category == ChartCategory.FB else 0 ), max_values )
                         results = int(round(values / self.sub_21_per_slot_worth))

@@ -648,7 +648,7 @@ class Set(str, Enum):
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
 
-    def pts_decay_rate_and_start(self, player_sub_type:PlayerSubType) -> float:
+    def pts_decay_rate_and_start(self, player_sub_type:PlayerSubType) -> tuple[float, int]:
         """Returns the decay rate and starting point value for the normalization process.
         Depends on player subtype
 
