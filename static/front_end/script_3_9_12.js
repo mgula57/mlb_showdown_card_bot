@@ -452,7 +452,7 @@ function showCardData(data) {
         $("#stats_table").replaceWith(player_stats_table);
 
         // PLAYER POINTS
-        var player_points_table = "<table class='" + table_class_name + "' id='points_table'><tr> <th>Category</th> <th>Stat</th> <th>Points</th> </tr>";
+        var player_points_table = "<table class='" + table_class_name + "' id='points_table'><tr> <th>Category</th> <th>Stat</th> <th>Pts</th> <th>Pctile</th> </tr>";
         $.each(data.player_points, function (index, value) {
             is_total_row = (data.player_points.length - 1) == index;
             const tr_class = (is_total_row) ? ' class="table-success">' : '>';

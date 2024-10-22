@@ -1,9 +1,9 @@
+from pydantic import BaseModel
 
-class ValueRange:
+class ValueRange(BaseModel):
 
-    def __init__(self, min:float, max:float) -> None:
-        self.min: float = min
-        self.max: float = max
+    min: float
+    max: float
 
     @property
     def range(self) -> int:
@@ -20,6 +20,9 @@ class ValueRange:
         Returns:
           Percentile for the value provided.
         """
+
+        if self.min == self.max:
+            return 0
 
         range = self.max - self.min
         value_within_range = value - self.min

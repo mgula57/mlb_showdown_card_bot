@@ -503,11 +503,13 @@
                                                 <tr>
                                                    <th>Category</th>
                                                    <th>Stat</th>
-                                                   <th>Points</th>
+                                                   <th>Pts</th>
+                                                   <th>Pctile</th>
                                                 </tr>
-                                                {% for stat in ['?', '?', '?', '?', '?', 'TOTAL'] -%}
+                                                {% for stat in ['?', '?', '?', '?', '?', '?', 'TOTAL'] -%}
                                                 <tr class="{{ 'table-success' if stat == 'TOTAL' }}">
                                                    <td ><b>{{ stat }}</b></td>
+                                                   <td>?</td>
                                                    <td>?</td>
                                                    <td>?</td>
                                                 </tr>

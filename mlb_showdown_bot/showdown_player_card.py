@@ -27,12 +27,12 @@ try:
     from .classes.team import Team
     from .classes.icon import Icon
     from .classes.accolade import Accolade
-    from .classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
+    from .classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
     from .classes.metrics import DefenseMetric
     from .classes.nationality import Nationality
     from .classes.chart import ChartCategory
     from .classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
-    from .classes.points import Points
+    from .classes.points import Points, PointsMetric, PointsBreakdown
     from .classes.metadata import Speed, SpeedLetter, Hand
     from .classes import colors
     from .classes.stats_period import StatsPeriod, StatsPeriodType
@@ -43,13 +43,13 @@ except ImportError:
     from classes.team import Team
     from classes.icon import Icon
     from classes.accolade import Accolade
-    from classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Stat, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
+    from classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
     from classes.player_position import PlayerSubType
     from classes.metrics import DefenseMetric
     from classes.nationality import Nationality
     from classes.chart import ChartCategory
     from classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
-    from classes.points import Points
+    from classes.points import Points, PointsMetric, PointsBreakdown
     from classes.metadata import Speed, SpeedLetter, Hand
     from classes import colors
     from classes.stats_period import StatsPeriod, StatsPeriodType
@@ -1995,88 +1995,127 @@ class ShowdownPlayerCard(BaseModel):
 
         points = Points()
 
-        # PARSE POSITION MULTIPLIER
-        pts_multiplier = self.set.pts_command_out_multiplier(command=self.chart.command, outs=self.chart.outs, subtype=self.player_sub_type)
-        points.command_out_multiplier = pts_multiplier
-
         # SLASH LINE VALUE
         allow_negatives = self.set.pts_allow_negatives(self.player_sub_type)
 
-        # NORMAL PERCENTILES
+        # PERCENTILE BASED METRICS
         metrics = [PointsMetric.ONBASE, PointsMetric.AVERAGE, PointsMetric.SLUGGING, PointsMetric.HOME_RUNS, PointsMetric.COMMAND]
         projected_pa_multiplier = 650 / projected.get('PA', 650)
         for metric in metrics:
+
+            # SKIP IF WEIGHT IS 0
+            pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=metric)            
+            if pts_weight == 0:
+                continue
+
+            # DEFINE INPUTS
             range = self.set.pts_range_for_metric(metric=metric, player_sub_type=self.player_sub_type)
-            value = self.chart.command if metric == PointsMetric.COMMAND else projected.get(metric.metric_name_bref)
-            stat_value = value * (projected_pa_multiplier if metric == PointsMetric.HOME_RUNS else 1)
-            percentile = range.percentile(value=stat_value, is_desc=self.is_pitcher and metric != PointsMetric.COMMAND, allow_negative=allow_negatives)
-            pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=metric)
-            total_pts = round(pts_weight * percentile * pts_multiplier, 3)
-            setattr(points, metric.points_breakdown_attr_name, total_pts)
+            value_original = self.chart.command if metric == PointsMetric.COMMAND else projected.get(metric.metric_name_bref)
+            value = value_original * (projected_pa_multiplier if metric == PointsMetric.HOME_RUNS else 1)
+            is_desc = self.is_pitcher and metric != PointsMetric.COMMAND
+            percentile = range.percentile(value=value, is_desc=is_desc, allow_negative=allow_negatives)
+            total_points = round(pts_weight * percentile, 3)
+
+            points_breakdown = PointsBreakdown(
+                metric=metric,
+                points=total_points,
+                possible_points=pts_weight,
+                value=value,
+                value_range=range,
+                percentile=percentile,
+                is_desc=is_desc
+            )
+            points.add_breakdown(breakdown=points_breakdown)
 
         # USE EITHER SPEED OR IP DEPENDING ON PLAYER TYPE
-        spd_ip_category = PointsMetric.IP if self.is_pitcher else PointsMetric.SPEED
+        spd_ip_metric = PointsMetric.IP if self.is_pitcher else PointsMetric.SPEED
         allow_negatives_speed_ip = True if self.is_pitcher else allow_negatives
-        spd_ip_percentile = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type).percentile(value=speed_or_ip, is_desc=False, allow_negative=allow_negatives_speed_ip)
-        ip_under_5_negative_multiplier = self.player_sub_type.ip_under_5_negative_multiplier if speed_or_ip < 5 else 1.0
-        spd_ip_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=spd_ip_category) * ip_under_5_negative_multiplier
+        spd_ip_range = self.set.pts_speed_or_ip_percentile_range(self.player_sub_type)
+        spd_ip_percentile = spd_ip_range.percentile(value=speed_or_ip, is_desc=False, allow_negative=allow_negatives_speed_ip)
+        spd_ip_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=spd_ip_metric)
         spd_total_pts = round(spd_ip_weight * spd_ip_percentile, 3)
-        setattr(points, spd_ip_category.points_breakdown_attr_name, spd_total_pts)
+        if spd_ip_weight > 0:
+            points_breakdown = PointsBreakdown(
+                metric=spd_ip_metric,
+                points=spd_total_pts,
+                possible_points=spd_ip_weight,
+                value=speed_or_ip,
+                value_range=spd_ip_range,
+                percentile=spd_ip_percentile,
+                is_desc=False
+            )
+            points.add_breakdown(breakdown=points_breakdown)
 
-        # DEFENSE (NON-PITCHERS)
-        if self.is_hitter:
+        # ---- DEFENSE ----
 
-            # GET LIST OF ALL DEFENSE POINTS
-            defense_points_list: list[float] = []
-            for position, fielding in positions_and_defense.items():
-                if position != Position.DH:
-                    value_range = self.set.pts_position_defense_value_range(position=position)
-                    percentile = value_range.percentile(value=fielding, allow_negative=True)
-                    position_pts = percentile * self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.DEFENSE)
-                    position_pts = position_pts * self.set.pts_positional_defense_weight(position=Position(position))
-                    defense_points_list.append(position_pts)
-            # TAKE MAX OR AVG DEPENDING ON THE SET
-            if self.set.pts_use_max_for_defense:
-                points.defense = round(max(defense_points_list),3) if len(defense_points_list) > 0 else 0
-            else:
-                defense_points = sum(defense_points_list) if len(defense_points_list) > 0 else 0
-                use_avg = list(positions_and_defense.keys()) == [Position.CF, Position.LFRF] or list(positions_and_defense.keys()) == [Position.LFRF, Position.CF]
-                num_positions_w_non_zero_def = len([pos for pos, df in positions_and_defense.items() if df != 0])
-                num_positions = max(num_positions_w_non_zero_def, 1)
-                avg_points_per_position = defense_points / (num_positions if num_positions < 2 or use_avg else ( (num_positions + 2) / 3.0))
-                points.defense = round(avg_points_per_position,3)
-
-        # POSITIONAL ADJUSTMENTS
-        points.position_adjustment = self.set.pts_position_adjustment(positions=self.positions_list)
+        # ASSIGN POINTS PER POSITION
+        for position, fielding in positions_and_defense.items():
+            value_range = self.set.pts_position_defense_value_range(position=position)
+            percentile = value_range.percentile(value=fielding, allow_negative=True)
+            position_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.DEFENSE) \
+                                    * self.set.pts_positional_defense_weight(position=Position(position))
+            position_pts = percentile * position_pts_weight
+            adjustment = self.set.pts_position_adjustment(positions=self.positions_list)
+            position_pts = round( adjustment + position_pts , 3)
+            if position_pts == 0 and position_pts_weight == 0:
+                continue
+            position_breakdown = PointsBreakdown(
+                metric=PointsMetric.DEFENSE,
+                metric_category=position.value,
+                points=position_pts,
+                possible_points=position_pts_weight,
+                value=fielding,
+                value_range=value_range,
+                percentile=percentile,
+                adjustment=adjustment
+            )
+            points.add_breakdown(breakdown=position_breakdown, id_suffix=position.value)
+        
+        # HANDLE MULTI-POSITIONS
+        points.apply_multi_position_adjustment(is_pitcher=self.is_pitcher, use_max_for_defense=self.set.pts_use_max_for_defense)
 
         # ICONS (03+)
-        icon_pts = 0
         if self.set.has_icon_pts and len(self.icons) > 0:
             for icon in self.icons:
-                icon_pts += icon.points
-        points.icons = round(icon_pts,3)
+                icon_pts_breakdown = PointsBreakdown(
+                    metric=PointsMetric.ICON,
+                    metric_category=icon.value,
+                    points=icon.points,
+                    possible_points=icon.points,
+                    value=1,
+                    value_range=ValueRange(min=0, max=1),
+                    percentile=1
+                )
+                points.add_breakdown(breakdown=icon_pts_breakdown, id_suffix=icon.value)
 
         # --- APPLY ANY ADDITIONAL PT ADJUSTMENTS FOR DIFFERENT SETS ---
 
         # SOME SETS HAVE PTS DECAY AFTER A CERTAIN MARKER. APPLIES TO ONLY SLASHLINE CATEGORIES
-        points.apply_decay(is_hitter=self.is_hitter, decay_rate_and_start=self.set.pts_decay_rate_and_start(self.player_sub_type))
+        points.apply_decay(decay_rate_and_start=self.set.pts_decay_rate_and_start(self.player_sub_type))
 
         # APPLY ANOTHER DECAY IF POINTS > 1000
         if points.total_points > 1000:
-            points.apply_decay(is_hitter=self.is_hitter, decay_rate_and_start=(0.70, 1000))
+            points.apply_decay(decay_rate_and_start=(0.70, 1000))
         
         if self.is_pitcher:
 
             # ADJUST POINTS FOR RELIEVERS WITH 2X IP OR STARTERS WITH < 6 IP
             multi_inning_points_multiplier = self.set.pts_ip_multiplier(player_sub_type=self.player_sub_type, ip=self.ip)
-            if multi_inning_points_multiplier != 1.0:
-                points.ip_multiplier = multi_inning_points_multiplier
+            points.apply_ip_multiplier(multiplier=multi_inning_points_multiplier)
 
             # PITCHERS GET PTS FOR OUT DISTRIBUTION IN SOME SETS
             out_dist_pts_weight = self.set.pts_metric_weight(player_sub_type=self.player_sub_type, metric=PointsMetric.OUT_DISTRIBUTION)
             if out_dist_pts_weight:
-                percentile_gb = self.set.pts_gb_min_max_dict.percentile(value=self.chart.gb_pct, allow_negative=True)          
-                points.out_distribution = round(out_dist_pts_weight * percentile_gb,3)
+                percentile_gb = self.set.pts_gb_min_max_dict.percentile(value=self.chart.gb_pct, allow_negative=True)
+                out_dist_breakdown = PointsBreakdown(
+                    metric=PointsMetric.OUT_DISTRIBUTION,
+                    points=round(out_dist_pts_weight * percentile_gb, 3),
+                    possible_points=out_dist_pts_weight,
+                    value=self.chart.gb_pct,
+                    value_range=self.set.pts_gb_min_max_dict,
+                    percentile=percentile_gb
+                )
+                points.add_breakdown(breakdown=out_dist_breakdown)
 
         return points
 
@@ -2388,47 +2427,15 @@ class ShowdownPlayerCard(BaseModel):
         """
         
         en_dash = '—'
+        pts_data: list[list[str]] = []    
+
+        for breakdown in self.points_breakdown.breakdowns.values():
+            pts_data.append([breakdown.metric_and_category_name, breakdown.value_formatted, str(round(breakdown.points)), breakdown.percentile_formatted])
+
         if self.player_sub_type == PlayerSubType.RELIEF_PITCHER and self.ip > 1:
-            spd_or_ip = ['IP', str(self.ip), f"{self.points_breakdown.ip_multiplier}x"]
-        else:
-            spd_or_ip = [
-                'IP' if self.is_pitcher else 'SPD', 
-                str(self.ip if self.is_pitcher else self.speed.speed),
-                str(round(self.points_breakdown.ip if self.is_pitcher else self.points_breakdown.speed))
-            ]
-        pts_data = [
-            ['BA', self.__format_slash_pct(self.projected['batting_avg']), str(round(self.points_breakdown.ba))],
-            ['OBP', self.__format_slash_pct(self.projected['onbase_perc']), str(round(self.points_breakdown.obp))],
-            ['SLG', self.__format_slash_pct(self.projected['slugging_perc']), str(round(self.points_breakdown.slg))],
-            spd_or_ip,
-
-        ]
-
-        if self.is_hitter:
-            hr_per_650 = self.projected.get('HR', 0) / (self.projected.get('PA', 650) / 650)
-            pts_data.append(['HR (650 PA)', str(round(hr_per_650)), str(round(self.points_breakdown.hr))])
-            pts_data.append([
-                'DEFENSE', 
-                self.positions_and_defense_as_string(is_horizontal=True),
-                str(round(self.points_breakdown.defense))
-            ])
-        else:
-            pts_data.append(['OUT DIST', str(round(self.chart.gb_pct,2)), str(round(self.points_breakdown.out_distribution))])
+            pts_data.append( ['IP', str(self.ip), f"{self.points_breakdown.ip_multiplier}x", en_dash] )
         
-        if self.points_breakdown.position_adjustment > 0:
-            pts_data.append(['POSITION', en_dash, str(round(self.points_breakdown.position_adjustment))])
-        if self.points_breakdown.command > 0:
-            pts_data.append([self.command_type.upper(), str(self.chart.command), str(round(self.points_breakdown.command))])
-        if self.points_breakdown.icons > 0:
-            pts_data.append(['ICONS', ','.join([i.value for i in self.icons]), str(round(self.points_breakdown.icons))])
-        if self.points_breakdown.decay_rate != 1.0:
-            pts_data.append(['DECAY RATE/START', en_dash, f'{round(self.points_breakdown.decay_rate * 100, 1)}%/{self.points_breakdown.decay_start} PTS'])
-        if self.points_breakdown.command_out_multiplier != 1.0:
-            command_name = 'CTRL' if self.is_pitcher else 'OB'
-            pts_data.append([f'{command_name}/OUT MULTLIPLIER', en_dash, str(round(self.points_breakdown.command_out_multiplier,2))])
-        
-        
-        pts_data.append(['TOTAL', '', self.points])
+        pts_data.append(['TOTAL', en_dash, self.points, en_dash])
 
         return pts_data
 

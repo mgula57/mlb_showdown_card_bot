@@ -3,15 +3,13 @@ import numpy as np
 try:
     from .metadata import SpeedMetric
     from .player_position import PlayerType, PlayerSubType, Position
-    from .metrics import Stat, PointsMetric
-    from .value_range import ValueRange
+    from .points import PointsMetric, ValueRange
     from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
     from .chart import Chart, ChartCategory
 except ImportError:
     from metadata import SpeedMetric
     from player_position import PlayerType, PlayerSubType, Position
-    from metrics import Stat, PointsMetric
-    from value_range import ValueRange
+    from points import PointsMetric, ValueRange
     from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
     from chart import Chart, ChartCategory
 
@@ -532,6 +530,10 @@ class Set(str, Enum):
         return 0
     
     def pts_positional_defense_weight(self, position:Position) -> float:
+        
+        if position.is_pitcher or position == Position.DH:
+            return 0
+        
         match self.value:
             case '2000':
                 match position:
@@ -617,9 +619,6 @@ class Set(str, Enum):
                         max = 9
         return ValueRange(min = min, max = max)
 
-    def pts_command_out_multiplier(self, command:int, outs:int, subtype: PlayerSubType) -> float:
-        return 1.0
-        
     def pts_allow_negatives(self, player_sub_type:PlayerSubType) -> bool:
         match self.value:
             case '2000':
