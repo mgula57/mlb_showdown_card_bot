@@ -122,7 +122,8 @@ class Points(BaseModel):
         
         category_summary = ' | '.join([f'{breakdown.metric_and_category_name}: {breakdown.points}' for breakdown in self.breakdowns.values()])
         decay_summary = f'DECAY: {round(self.decay_rate * 100)}% @({self.decay_start})' if self.decay_rate != 1.0 else ''
-        return ' | '.join([category_summary, decay_summary])
+        ip_multiplier_summary = f'IPx: {self.ip_multiplier}' if self.ip_multiplier != 1.0 else ''
+        return ' | '.join([category_summary, decay_summary, ip_multiplier_summary]).replace('|  |', '|')
     
     def add_breakdown(self, breakdown: PointsBreakdown, id_suffix: str = None) -> None:
         """Store a new breakdown in self.breakdowns

@@ -2432,8 +2432,11 @@ class ShowdownPlayerCard(BaseModel):
         for breakdown in self.points_breakdown.breakdowns.values():
             pts_data.append([breakdown.metric_and_category_name, breakdown.value_formatted, str(round(breakdown.points)), breakdown.percentile_formatted])
 
-        if self.player_sub_type == PlayerSubType.RELIEF_PITCHER and self.ip > 1:
-            pts_data.append( ['IP', str(self.ip), f"{self.points_breakdown.ip_multiplier}x", en_dash] )
+        if self.points_breakdown.ip_multiplier != 1.0:
+            pts_data.append( ['IP MULT', str(self.ip), f"{self.points_breakdown.ip_multiplier}x", en_dash] )
+
+        if self.points_breakdown.decay_rate != 1.0:
+            pts_data.append( ['DECAY', f"{self.points_breakdown.decay_rate}x", f'{self.points_breakdown.decay_start}+', en_dash] )
         
         pts_data.append(['TOTAL', en_dash, self.points, en_dash])
 
