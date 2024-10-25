@@ -2438,6 +2438,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.points_breakdown.decay_rate != 1.0:
             pts_data.append( ['DECAY', f"{self.points_breakdown.decay_rate}x", f'{self.points_breakdown.decay_start}+', en_dash] )
         
+        pts_data.append(['RAW TOT', en_dash, self.points_breakdown.total_points_unrounded, en_dash] )
         pts_data.append(['TOTAL', en_dash, self.points, en_dash])
 
         return pts_data

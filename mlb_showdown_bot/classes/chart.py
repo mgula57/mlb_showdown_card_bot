@@ -539,6 +539,24 @@ class Chart(BaseModel):
     def does_set_ignore_outlier_adjustments(self) -> bool:
         return self.set in ['2003', '2004', '2005', 'EXPANDED',]
     
+    @property
+    def maximum_allowed_outs(self) -> int:
+        """Maximum number of outs allowed in a chart"""
+        if self.is_pitcher:
+            return 20
+        else:
+            match self.set:
+                case '2000' | '2001' | 'CLASSIC': return 14
+                case _: return 15
+
+    @property
+    def minimum_allowed_outs(self) -> int:
+        """Minimum number of outs allowed in a chart"""
+        if self.is_hitter:
+            return 0
+        else:
+            return 10
+
 
     # ---------------------------------------
     # GENERATE CHART ATTRIBUTES
@@ -631,7 +649,7 @@ class Chart(BaseModel):
         results_per_400_pa = 400 * obp
         opponent_values = 20 - self.opponent.outs
         my_onbase_values = (results_per_400_pa - (self.opponent_advantages_per_20 * opponent_values)) / self.my_advantages_per_20
-        my_out_values = max(20 - my_onbase_values, 0)
+        my_out_values = min( max(20 - my_onbase_values, self.minimum_allowed_outs), self.maximum_allowed_outs )
         
         # CALC OUTS FOR SLOT SIZE
         if self.outs == 0:
@@ -1077,10 +1095,10 @@ class Chart(BaseModel):
                     }
                 else:
                     return {
-                        Stat.COMMAND: 0.30,
-                        Stat.OBP: 0.45,
+                        Stat.COMMAND: 0.15,
+                        Stat.OBP: 0.55,
                         Stat.SLG: 0.15,
-                        Stat.OPS: 0.10,
+                        Stat.OPS: 0.15,
                     }
             case 'CLASSIC':
                 if self.is_hitter:
@@ -1480,11 +1498,11 @@ class Chart(BaseModel):
             case '2005' | 'EXPANDED': 
                 match self.player_subtype:
                     case 'starting_pitcher':
-                        x =  -42.49
-                        y_int = 16.70
+                        x =  -44.00
+                        y_int = 17.80
                     case 'relief_pitcher':
-                        x =  -42.49
-                        y_int = 16.70
+                        x =  -44.00
+                        y_int = 17.80
                     case 'position_player':
                         x = 35.00
                         y_int = -1.90
@@ -1530,7 +1548,9 @@ class Chart(BaseModel):
         wotc_set_adjustment_factor = ( -1 * self.wotc_set_adjustment_factor(for_hitter_chart= not self.is_hitter) / 2 ) # OPPOSITE AS ADJUSTMENT IS FOR BASELINE
         player_year_avg_obp *= (1 + wotc_set_adjustment_factor)
         adjusted_x_factor = round( (command_for_avg_wotc_obp - y_int) / player_year_avg_obp, 2 )
-        command_adjusted_to_era = estimate_command_from_wotc(adjusted_x_factor, y_int, real_obp)
+        pct_diff_obp = self.__pct_diff(player_year_avg_obp, wotc_set_year_obp)
+        adjusted_y_int = y_int - (pct_diff_obp * 2.0 * (-1 if self.is_hitter else 1) )
+        command_adjusted_to_era = estimate_command_from_wotc(adjusted_x_factor, adjusted_y_int, real_obp)
         
         return command_adjusted_to_era
 
