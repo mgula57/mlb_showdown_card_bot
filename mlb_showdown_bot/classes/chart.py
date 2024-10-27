@@ -1549,7 +1549,8 @@ class Chart(BaseModel):
         player_year_avg_obp *= (1 + wotc_set_adjustment_factor)
         adjusted_x_factor = round( (command_for_avg_wotc_obp - y_int) / player_year_avg_obp, 2 )
         pct_diff_obp = self.__pct_diff(player_year_avg_obp, wotc_set_year_obp)
-        adjusted_y_int = y_int - (pct_diff_obp * 2.0 * (-1 if self.is_hitter else 1) )
+        y_int_adjustment_mutliplier = 4.0 if self.is_pitcher else 2.0 # MANUALLY DEFINED MULTIPLE TO ADJUST Y-INTERCEPT. HIGHER MULTIPLIER MEANS STAYING CLOSER TO WOTC SET
+        adjusted_y_int = y_int - (pct_diff_obp * (-1 if self.is_hitter else 1) * y_int_adjustment_mutliplier) 
         command_adjusted_to_era = estimate_command_from_wotc(adjusted_x_factor, adjusted_y_int, real_obp)
         
         return command_adjusted_to_era
@@ -1601,12 +1602,8 @@ class Chart(BaseModel):
         #   2005 SET OVERRATES HITTING, SO WE ADJUST AVERAGE PITCHER OPPONENTS TO BE BETTER
         # SHOWN AS A PERCENTAGE TO APPLY. > 0 MEANS A WORSE OPPONENT
         match self.set:
-            case '2000' | '2002':
-                return 0.0
             case '2001' | 'CLASSIC': 
                 return -0.075 if for_hitter_chart else 0.00
-            case '2003' | '2004' | '2005' | 'EXPANDED': 
-                return 0.00 if for_hitter_chart else 0.00
 
         return 0
     
