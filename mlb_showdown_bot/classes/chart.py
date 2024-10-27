@@ -354,7 +354,7 @@ class Chart(BaseModel):
     @property
     def values_as_list(self) -> list[list[str, str]]:
         """Convert chart values and command/outs to list of lists"""
-        values_list = [ [self.command_name, str(self.command)], ['Outs', str(self.outs)] ]
+        values_list = [ [self.command_name, str(self.command)], ['Outs', str(round(self.outs,2))] ]
         values_list += [[category.value, str(round(value,2))] for category, value in self.values.items()]
         return values_list
     
