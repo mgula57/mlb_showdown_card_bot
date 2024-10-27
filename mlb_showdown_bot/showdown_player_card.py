@@ -2408,7 +2408,7 @@ class ShowdownPlayerCard(BaseModel):
             actual = int(self.stats[key])
             prefix = category_prefix if key in ['2B','3B'] else ''
             suffix = "*" if key in ['GB', 'FB', 'PU'] else ''
-            suffix = '**' if key in chart_categories_adjusted else ''
+            suffix = '**' if key in chart_categories_adjusted else suffix
             final_player_data.append([f'{prefix}{key}{suffix}', str(actual), str(in_game), diff_string(actual, in_game)])
         
         # NON COMPARABLE STATS
