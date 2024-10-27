@@ -364,6 +364,11 @@ class Chart(BaseModel):
         result_list: list[ChartCategory] = []
         for _, category in dict(sorted(self.results.items(), key=itemgetter(0))).items():
             result_list.append(category)
+
+        if self.is_classic:
+            # FILL 21-30 WITH LAST RESULT
+            for _ in range(21, 31):
+                result_list.append(result_list[-1])
         
         return result_list
 
@@ -1086,10 +1091,10 @@ class Chart(BaseModel):
                     }
                 else:
                     return {
-                        Stat.COMMAND: 0.30,
-                        Stat.OBP: 0.45,
+                        Stat.COMMAND: 0.20,
+                        Stat.OBP: 0.50,
                         Stat.SLG: 0.15,
-                        Stat.OPS: 0.10,
+                        Stat.OPS: 0.15,
                     }
             case '2005':
                 if self.is_hitter:
@@ -1122,17 +1127,17 @@ class Chart(BaseModel):
             case 'EXPANDED':
                 if self.is_hitter:
                     return {
-                        Stat.COMMAND: 0.20,
-                        Stat.OBP: 0.50,
-                        Stat.SLG: 0.15,
-                        Stat.OPS: 0.15,
+                        Stat.COMMAND: 0.10,
+                        Stat.OBP: 0.55,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.25,
                     }
                 else:
                     return {
-                        Stat.COMMAND: 0.40,
-                        Stat.OBP: 0.35,
-                        Stat.SLG: 0.15,
-                        Stat.OPS: 0.10,
+                        Stat.COMMAND: 0.10,
+                        Stat.OBP: 0.50,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.20,
                     }
 
     def generate_accuracy_rating(self) -> None:
@@ -1586,6 +1591,11 @@ class Chart(BaseModel):
     def __avg_mlb_stats_dict_for_years(self, year_list:list[int], mlb_avgs_df:pd.DataFrame = None) -> dict:
         """Get average MLB stats for a list of years"""
         if mlb_avgs_df is None: mlb_avgs_df = self.load_mlb_league_avg_df()
+
+        # IF NO AVERAGES EXIST YEAR, TAKE PRIOR YEAR
+        if len(year_list) == 1 and year_list[0] > max(mlb_avgs_df['Year']):
+            mlb_avgs_df = mlb_avgs_df[mlb_avgs_df['Year'] == year_list[0] - 1]
+
         mlb_avgs_df = mlb_avgs_df[mlb_avgs_df['Year'].isin(year_list)]
         mlb_avgs = mlb_avgs_df.mean().to_dict()
         return mlb_avgs
@@ -1610,8 +1620,12 @@ class Chart(BaseModel):
         match self.set:
             case '2001' | 'CLASSIC': 
                 return -0.075 if for_hitter_chart else 0.00
-            case '2003' | '2004' | '2005' | 'EXPANDED':
-                return -0.02
+            case '2002':
+                return -0.015
+            case '2003':
+                return -0.025
+            case '2004' | '2005' | 'EXPANDED':
+                return -0.015
 
         return 0
     
