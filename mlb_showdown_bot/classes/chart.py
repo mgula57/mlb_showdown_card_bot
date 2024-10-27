@@ -906,7 +906,7 @@ class Chart(BaseModel):
             return
         
         # IF SLUGGING PERCENT IS WAY UNDER, WEIGHT 3B AND HR MORE THAN 2B
-        if slg_pct_diff < -0.08 and self.is_hitter:
+        if slg_pct_diff < -0.08 and self.is_hitter:            
             multipliers = { ChartCategory._2B: 0.5 }
             category_pct_diffs = { k: v * multipliers.get(k, 1) for k,v in category_pct_diffs.items() }
         
@@ -1610,7 +1610,7 @@ class Chart(BaseModel):
         match self.set:
             case '2001' | 'CLASSIC': 
                 return -0.075 if for_hitter_chart else 0.00
-            case '2004' | '2005' | 'EXPANDED':
+            case '2003' | '2004' | '2005' | 'EXPANDED':
                 return -0.02
 
         return 0
