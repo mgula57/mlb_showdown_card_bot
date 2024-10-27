@@ -692,7 +692,7 @@ class Chart(BaseModel):
         is_increase_adjustment = is_under_in_slg_and_ops and self.is_hitter
         is_decrease_adjustment = is_over_in_slg_and_ops and self.is_pitcher
         if is_increase_adjustment or is_decrease_adjustment:
-            self.__adjust_slg(is_increase=is_increase_adjustment)
+            self.__adjust_slg(is_increase=is_increase_adjustment, slg_pct_diff=slg_pct_diff)
 
         # ------------------------------
         # 2002 POST 20 ADJUSTMENTS
@@ -881,11 +881,12 @@ class Chart(BaseModel):
         """Update outs full based on outs"""
         self.outs_full = int(round(self.outs / self.sub_21_per_slot_worth))
 
-    def __adjust_slg(self, is_increase:bool = True) -> None:
+    def __adjust_slg(self, is_increase:bool = True, slg_pct_diff:float = 0.0) -> None:
         """Increase SLG for the category with the biggest difference between projected and real stats per 400 PA
         
         Args:
             is_increase: If True, increase SLG. If False, decrease SLG.
+            slg_pct_diff: The difference between projected and real stats per 400 PA.
 
         Returns:
             None, adjusts self.values and self.results
@@ -903,6 +904,11 @@ class Chart(BaseModel):
         # CHECK: IF NO CATEGORIES TO ADJUST, SKIP ADJUSTMENTS
         if len(category_pct_diffs) == 0:
             return
+        
+        # IF SLUGGING PERCENT IS WAY UNDER, WEIGHT 3B AND HR MORE THAN 2B
+        if slg_pct_diff < -0.08 and self.is_hitter:
+            multipliers = { ChartCategory._2B: 0.5 }
+            category_pct_diffs = { k: v * multipliers.get(k, 1) for k,v in category_pct_diffs.items() }
         
         # GET CATEGORY WITH BIGGEST DIFFERENCE
         category_biggest_diff = min(category_pct_diffs, key=category_pct_diffs.get) if is_increase else max(category_pct_diffs, key=category_pct_diffs.get)
