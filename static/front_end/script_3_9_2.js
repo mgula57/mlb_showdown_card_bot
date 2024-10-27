@@ -78,33 +78,6 @@ function toggleBreakdownSelection() {
         }
     }
 }
- 
-function checkHideForPoints(pointsElement) {
-    if (pointsElement.checked) {
-        document.getElementById("stats_div").style.display = "none";
-        document.getElementById("points_div").style.display = "initial";
-        document.getElementById("accuracy_div").style.display = "none";
-        document.getElementById("rank_div").style.display = "none";
-    }
-}
-
-function checkHideForAccuracy(accuracyElement) {
-    if (accuracyElement.checked) {
-        document.getElementById("stats_div").style.display = "none";
-        document.getElementById("points_div").style.display = "none";
-        document.getElementById("accuracy_div").style.display = "initial";
-        document.getElementById("rank_div").style.display = "none";
-    }
-}
-
-function checkHideForRank(rankElement) {
-    if (rankElement.checked) {
-        document.getElementById("stats_div").style.display = "none";
-        document.getElementById("points_div").style.display = "none";
-        document.getElementById("accuracy_div").style.display = "none";
-        document.getElementById("rank_div").style.display = "initial";
-    }
-}
 
 function changeImageSection(imageSelectObject) {
     var selection = imageSelectObject.value;
@@ -336,7 +309,7 @@ function setTheme(themeName) {
 
     var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
-    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "trend_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "rank_values_footnote", "opponent_values_footnote", "loader_container_rectangle"]
+    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "trend_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "chart_adjustments_footnote", "opponent_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
         var element = document.getElementById(id);
         if (element === null) {
@@ -348,7 +321,7 @@ function setTheme(themeName) {
     form_inputs_to_alter = [
         "name", "year", "setSelection", "expansionSelection", "editionSelection", "moreOptionsSelect", 
         "setnum", "chartVersionSelection", "darkThemeToggleLabel", "url", "img_upload", "stats_table", 
-        "points_table", "accuracy_table","rank_table", "opponent_table", "eraSelection", "breakdownSelection", 
+        "points_table", "chart_versions_table", "rank_table", "opponent_table", "eraSelection", "breakdownSelection", 
         "imageTypeSelection", "parallelSelection", "periodSelection", "start_date", "end_date", "split"
     ]
     for (const id of form_inputs_to_alter) {
@@ -358,7 +331,7 @@ function setTheme(themeName) {
         }
         var current_name = element.className
         const is_text_only = ["darkModeToggleLabel", "varSpdToggleLabel", "addBorderLabel", "darkThemeToggleLabel"].includes(id)
-        const is_table = ["stats_table", "points_table", "accuracy_table", "rank_table", "opponent_table"].includes(id)
+        const is_table = ["stats_table", "points_table", "chart_versions_table", "rank_table", "opponent_table"].includes(id)
         const default_suffix = (is_text_only) ? 'text-muted' : 'bg-dark text-white';
         const suffix = (is_table) ? 'table-dark' : default_suffix;
         
@@ -433,7 +406,7 @@ function showCardData(data) {
         var table_class_name = "table table-striped table-bordered" + table_class_suffix
         
         // PLAYER STATS
-        var player_stats_table = "<table class='" + table_class_name + "' id='stats_table'><tr><th> </th><th>Actual</th><th>Showdown</th></tr>";
+        var player_stats_table = "<table class='" + table_class_name + "' id='stats_table'><tr><th> </th> <th>Real</th> <th>Bot</th> <th>Diff</th> </tr>";
         $.each(data.player_stats, function (index, value) {
             player_stats_table += '<tr>'
             $.each(value, function (index, value) {
@@ -454,7 +427,7 @@ function showCardData(data) {
         // PLAYER POINTS
         var player_points_table = "<table class='" + table_class_name + "' id='points_table'><tr> <th>Category</th> <th>Stat</th> <th>Pts</th> <th>Pctile</th> </tr>";
         $.each(data.player_points, function (index, value) {
-            is_total_row = (data.player_points.length - 1) == index;
+            is_total_row = (data.player_points.length - 1) == index | (data.player_points.length - 2) == index;
             const tr_class = (is_total_row) ? ' class="table-success">' : '>';
             player_points_table += '<tr' + tr_class
             
@@ -496,9 +469,9 @@ function showCardData(data) {
         $("#opponent_table").replaceWith(opponent_table);
 
         // ACCURACY
-        var player_accuracy_table = "<table class='" + table_class_name + "' id='accuracy_table'><tr> <th>Version</th> <th>" + data.player_command + "</th> <th>Outs</th> <th>Accuracy</th> </tr>";
-        $.each(data.player_accuracy, function (index, value) {
-            player_accuracy_table += '<tr>'
+        var player_chart_versions_table = "<table class='" + table_class_name + "' id='chart_versions_table'><tr> <th>Version</th> <th>Accuracy</th> <th>OPS</th> <th>Notes</th> </tr>";
+        $.each(data.player_chart_versions, function (index, value) {
+            player_chart_versions_table += '<tr>'
             $.each(value, function (index, value) {
                 if (index == 0) {
                     bold_start = '<b>';
@@ -507,33 +480,12 @@ function showCardData(data) {
                     bold_start = '';
                     bold_end = '';
                 }
-                player_accuracy_table += '<td>' + bold_start + value + bold_end + '</td>';
+                player_chart_versions_table += '<td>' + bold_start + value + bold_end + '</td>';
             });
-            player_accuracy_table += '</tr>';
+            player_chart_versions_table += '</tr>';
         });
-        player_accuracy_table += '</table>';
-        $("#accuracy_table").replaceWith(player_accuracy_table);
-
-        // PLAYER RANK
-        // ONLY AVAILABLE FOR SHOWDOWN LIBRARY
-        var player_ranks_table = "<table class='" + table_class_name + "' id='rank_table'><tr> <th> </th> <th>Value</th> <th>Rank</th> <th>Percentile</th> </tr>";
-        $.each(data.player_ranks, function (index, value) {
-            player_ranks_table += '<tr>'
-            $.each(value, function (index, value) {
-                if (index == 0) {
-                    bold_start = '<b>';
-                    bold_end = '</b>';
-                } else {
-                    bold_start = '';
-                    bold_end = '';
-                }
-                td_colspan = (value == 'RANKINGS NOT AVAILABLE') ? " colspan='4'" : ""
-                player_ranks_table += `<td${td_colspan}>` + bold_start + value + bold_end + '</td>';
-            });
-            player_ranks_table += '</tr>';
-        });
-        player_ranks_table += '</table>';
-        $("#rank_table").replaceWith(player_ranks_table);
+        player_chart_versions_table += '</table>';
+        $("#chart_versions_table").replaceWith(player_chart_versions_table);
 
         // PLAYER RADAR CHART
         if (data.radar_labels != null) {

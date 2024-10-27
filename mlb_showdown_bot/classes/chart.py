@@ -1034,7 +1034,8 @@ class Chart(BaseModel):
                 if self.is_hitter:
                     return {
                         Stat.OBP: 0.75,
-                        Stat.SLG: 0.25,
+                        Stat.SLG: 0.20,
+                        Stat.OPS: 0.05,
                     }
                 else:
                     return {
@@ -1052,13 +1053,15 @@ class Chart(BaseModel):
                 else:
                     return {
                         Stat.OBP: 0.70,
-                        Stat.SLG: 0.30,
+                        Stat.SLG: 0.25,
+                        Stat.OPS: 0.05,
                     }
             case '2002':
                 if self.is_hitter:
                     return {
-                        Stat.OBP: 0.75,
+                        Stat.OBP: 0.70,
                         Stat.SLG: 0.25,
+                        Stat.OPS: 0.05,
                     }
                 else:
                     return {
@@ -1417,7 +1420,7 @@ class Chart(BaseModel):
         batting_avg = hits_per_400_pa / at_bats
 
         # OBP
-        obp = (hits_per_400_pa + walks_per_400_pa) / (at_bats + walks_per_400_pa + sacrifice_flies_per_400_pa)
+        obp = round( (hits_per_400_pa + walks_per_400_pa) / (at_bats + walks_per_400_pa + sacrifice_flies_per_400_pa), 4)
 
         # SLG
         slugging_pct = self.__slugging_pct(ab=at_bats,
@@ -1444,7 +1447,7 @@ class Chart(BaseModel):
             'batting_avg': batting_avg,
             'onbase_perc': obp,
             'slugging_perc': slugging_pct,
-            'onbase_plus_slugging': obp + slugging_pct,
+            'onbase_plus_slugging': round( obp + slugging_pct, 4 ),
             'g': self.stats_per_400_pa.get('G', 0),
         }
 
@@ -1461,7 +1464,7 @@ class Chart(BaseModel):
 
     def __slugging_pct(self, ab:float, singles:float, doubles:float, triples:float, homers:float)  -> float:
         """ Calculate Slugging Pct"""
-        return (singles + (2 * doubles) + (3 * triples) + (4 * homers)) / ab
+        return round( (singles + (2 * doubles) + (3 * triples) + (4 * homers)) / ab, 4 )
     
     @property
     def is_overestimating_obp(self) -> bool:

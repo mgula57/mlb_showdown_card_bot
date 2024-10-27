@@ -30,7 +30,7 @@ try:
     from .classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
     from .classes.metrics import DefenseMetric
     from .classes.nationality import Nationality
-    from .classes.chart import ChartCategory
+    from .classes.chart import ChartCategory, Stat, ChartAccuracyBreakdown
     from .classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
     from .classes.points import Points, PointsMetric, PointsBreakdown
     from .classes.metadata import Speed, SpeedLetter, Hand
@@ -47,7 +47,7 @@ except ImportError:
     from classes.player_position import PlayerSubType
     from classes.metrics import DefenseMetric
     from classes.nationality import Nationality
-    from classes.chart import ChartCategory
+    from classes.chart import ChartCategory, Stat, ChartAccuracyBreakdown
     from classes.images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
     from classes.points import Points, PointsMetric, PointsBreakdown
     from classes.metadata import Speed, SpeedLetter, Hand
@@ -111,6 +111,7 @@ class ShowdownPlayerCard(BaseModel):
     positions_and_defense_string: str = ''
     positions_and_real_life_ratings: dict[str, dict[DefenseMetric, Union[float, int]]] = {}
     command_out_accuracies: dict[str, float] = {}
+    command_out_accuracy_breakdowns: dict[str, dict[Stat, ChartAccuracyBreakdown]] = {}
     ip: int = None
     hand: Hand = None
     speed: Speed = None
@@ -1716,6 +1717,7 @@ class ShowdownPlayerCard(BaseModel):
         charts.sort(key=lambda x: x.accuracy, reverse=True)
         best_chart = charts[offset]
         self.command_out_accuracies = { f"{ca.command_outs_concat}": round(ca.accuracy,4) for ca in charts }
+        self.command_out_accuracy_breakdowns = { f"{ca.command_outs_concat}": ca.accuracy_breakdown for ca in charts }
 
         return best_chart
 
@@ -2139,10 +2141,11 @@ class ShowdownPlayerCard(BaseModel):
         key_slg = 'slg'
         type = 'Pitcher' if self.is_pitcher else 'Hitter'
         years_list_str = [str(yr) for yr in self.year_list]
+        set_key = 'EXPANDED' if self.set.has_expanded_chart else 'CLASSIC'
         sources_dict = {
-            key_command: sc.LEAGUE_AVG_COMMAND[self.set.value], 
-            key_obp: sc.LEAGUE_AVG_PROJ_OBP[self.set.value],
-            key_slg: sc.LEAGUE_AVG_PROJ_SLG[self.set.value],
+            key_command: sc.LEAGUE_AVG_COMMAND[set_key], 
+            key_obp: sc.LEAGUE_AVG_PROJ_OBP[set_key],
+            key_slg: sc.LEAGUE_AVG_PROJ_SLG[set_key],
         }
         metric_values_list_dict = {}
         for metric, source in sources_dict.items():
@@ -2338,6 +2341,8 @@ class ShowdownPlayerCard(BaseModel):
         for warning in self.warnings:
             print(f"** {warning}")
 
+        self.player_data_for_html_table()
+
     def player_data_for_html_table(self) -> list[list[str]]:
         """Provides data needed to populate the statline shown on the showdownbot.com webpage.
 
@@ -2349,6 +2354,16 @@ class ShowdownPlayerCard(BaseModel):
           real stat, and in-game Showdown estimated stat.
         """
 
+        def diff_string(real: float | int, bot: float | int, round_precision: int = 0) -> str:
+            if real == bot:
+                return '0'
+            
+            prefix = '+' if bot > real else ''            
+            diff_string = f'{round(bot - real, round_precision)}'
+            diff_string = diff_string.replace('.0', '.') if diff_string.endswith('.0') else diff_string
+            diff_string = diff_string.replace('0.', '.') if diff_string.replace('-0', '0').startswith('0.') else diff_string
+            return f'{prefix}{diff_string}'
+
         final_player_data = []
         en_dash = '—'
 
@@ -2358,37 +2373,47 @@ class ShowdownPlayerCard(BaseModel):
             category_prefix = '*'
 
         # SLASH LINE
-        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS')]
+        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS'), ('onbase_plus_slugging_plus', 'OPS+')]
         for key, cleaned_category in slash_categories:
-            in_game = f"{float(round(self.projected[key],3)):.3f}".replace('0.','.')
-            actual = f"{float(self.stats[key]):.3f}".replace('0.','.')
-            final_player_data.append([category_prefix+cleaned_category,actual,in_game])
+            if self.is_pitcher and key == 'onbase_plus_slugging_plus':
+                continue
+            precision = 0 if key == 'onbase_plus_slugging_plus' else 3
+            actual = int(self.stats.get(key, 0)) if precision == 0 else round(float(self.stats.get(key, 0)), precision)
+            actual_str = f"{actual:.3f}".replace('0.','.') if key != 'onbase_plus_slugging_plus' else str(actual)
+            in_game = 0 if self.projected.get(key, 0) is None else ( int(self.projected.get(key, 0)) if precision == 0 else round(float(self.projected.get(key, 0)), precision) )
+            in_game_str = f"{in_game:.3f}".replace('0.','.') if key != 'onbase_plus_slugging_plus' else str(int(in_game))
+            diff = diff_string(actual, in_game, precision)
+            final_player_data.append([category_prefix+cleaned_category, actual_str, in_game_str, diff])
 
         # GAMES/IP
-        final_player_data.append(['G', str(self.stats.get('G', 0)), en_dash])
+        final_player_data.append(['G', str(self.stats.get('G', 0)), en_dash, en_dash])
         ip_real = self.stats.get('IP', None)
         if ip_real:
-            final_player_data.append(['IP', str(self.stats.get('IP', 0)), en_dash])
+            final_player_data.append(['IP', str(self.stats.get('IP', 0)).replace('.0', ''), en_dash, en_dash])
 
         # PLATE APPEARANCES / AB
         real_life_pa = int(self.stats['PA'])
         real_life_pa_ratio = real_life_pa / self.projected.get('PA', 650.0)
-        final_player_data.append([f'{category_prefix}PA', str(real_life_pa), str(real_life_pa)])
-        final_player_data.append([f'{category_prefix}AB', str(self.stats.get('AB', 0)), str(round(self.projected.get('AB', 0)))])
+        final_player_data.append([f'{category_prefix}PA', str(real_life_pa), str(real_life_pa), en_dash])
+        actual_ab = self.stats.get('AB', 0)
+        bot_ab = round(self.projected.get('AB', 0))
+        final_player_data.append([f'{category_prefix}AB', str(actual_ab), str(bot_ab), diff_string(bot_ab, bot_ab)])
 
         # ADD EACH RESULT CATEGORY, REAL LIFE # RESULTS, AND PROJECTED IN-GAME # RESULTS
         # EX: [['1B','75','80'],['2B','30','29']]
         result_categories = ['1B','2B','3B','HR','BB','SO','GB','FB','PU','SF']
+        chart_categories_adjusted = [c.value for c in self.chart.chart_categories_adjusted]
         for key in result_categories:
-            in_game = str(int(round(self.projected[key]) * real_life_pa_ratio))
-            actual = str(int(self.stats[key]))
+            in_game = int(round(self.projected[key]) * real_life_pa_ratio)
+            actual = int(self.stats[key])
             prefix = category_prefix if key in ['2B','3B'] else ''
             suffix = "*" if key in ['GB', 'FB', 'PU'] else ''
-            final_player_data.append([f'{prefix}{key}{suffix}',actual,in_game])
+            suffix = '**' if key in chart_categories_adjusted else ''
+            final_player_data.append([f'{prefix}{key}{suffix}', str(actual), str(in_game), diff_string(actual, in_game)])
         
         # NON COMPARABLE STATS
-        category_list = ['earned_run_avg', 'whip', 'bWAR'] if self.is_pitcher else ['SB', 'onbase_plus_slugging_plus', 'dWAR', 'bWAR']
-        rounded_metrics_list = ['SB', 'onbase_plus_slugging_plus']
+        category_list = ['earned_run_avg', 'whip', 'bWAR'] if self.is_pitcher else ['SB', 'dWAR', 'bWAR']
+        rounded_metrics_list = ['SB']
         for category in category_list:
             if category in self.stats.keys():
                 stat_raw = self.stats.get(category, None)
@@ -2398,8 +2423,8 @@ class ShowdownPlayerCard(BaseModel):
                     stat_raw = 0 if str(stat_raw) == '' else stat_raw
                     stat_cleaned = int(stat_raw) if category in rounded_metrics_list else stat_raw
                     stat = str(stat_cleaned) if stat_raw is not None else en_dash
+                    stat = stat.replace('0.', '.') if category.startswith('0.') else stat
                 short_name_map = {
-                    'onbase_plus_slugging_plus': 'OPS+',
                     'whip': 'WHIP',
                     'bWAR': 'bWAR',
                     'dWAR': 'dWAR',
@@ -2407,12 +2432,12 @@ class ShowdownPlayerCard(BaseModel):
                     'earned_run_avg': 'ERA',
                 }
                 short_category_name = short_name_map[category]
-                final_player_data.append([short_category_name,stat,en_dash])
+                final_player_data.append([short_category_name,stat,en_dash, en_dash])
 
         # DEFENSE (IF APPLICABLE)
         for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
             for metric, value in metric_and_value_dict.items():
-                final_player_data.append([f'{metric.value.upper()}-{position}',str(round(value)),en_dash])
+                final_player_data.append([f'{metric.value.upper()}-{position}',str(round(value)),en_dash, en_dash])
         
         return final_player_data
 
@@ -2438,12 +2463,12 @@ class ShowdownPlayerCard(BaseModel):
         if self.points_breakdown.decay_rate != 1.0:
             pts_data.append( ['DECAY', f"{self.points_breakdown.decay_rate}x", f'{self.points_breakdown.decay_start}+', en_dash] )
         
-        pts_data.append(['RAW TOT', en_dash, self.points_breakdown.total_points_unrounded, en_dash] )
+        pts_data.append(['RAW TOT', en_dash, round(self.points_breakdown.total_points_unrounded,2), en_dash] )
         pts_data.append(['TOTAL', en_dash, self.points, en_dash])
 
         return pts_data
 
-    def accuracy_data_for_html_table(self) -> list[list[str]]:
+    def chart_accuracy_data_for_html_table(self) -> list[list[str]]:
         """Provides data needed to populate the accuracy breakdown shown on the showdownbot.com webpage.
 
         Args:
@@ -2454,12 +2479,18 @@ class ShowdownPlayerCard(BaseModel):
         """
         accuracy_data: list[list[str]] = []
         sorted_accuracies_as_tuples = sorted(self.command_out_accuracies.items(), key=lambda co_and_ac: co_and_ac[1], reverse=True)
-        for index, co_accuracy_tuple in enumerate(sorted_accuracies_as_tuples):
-            if index > 4: continue
+        for index, co_accuracy_tuple in enumerate(sorted_accuracies_as_tuples, 1):
+            if index > 5: continue
             command_out_str = co_accuracy_tuple[0]
-            command, outs = command_out_str.split('-')
-            accuracy = co_accuracy_tuple[1]
-            accuracy_data.append([str(index + 1), f"{command}", f"{outs}", f"{round(100 * accuracy, 2)}%"])
+            accuracy_breakdown = self.command_out_accuracy_breakdowns.get(command_out_str, None)
+            ops = ''
+            is_boosted = False
+            if accuracy_breakdown is not None:
+                ops_list = [bd.comparison for bd in accuracy_breakdown.values() if bd.stat == Stat.OPS]
+                ops = f'{max(ops_list):.3f}'.replace('0.','.') if len(ops_list) > 0 else ''
+                is_boosted = len([bd for bd in accuracy_breakdown.values() if bd.adjustment_pct != 1.0]) > 0
+            accuracy = f"{round(100 * co_accuracy_tuple[1], 2)}%" + ('*' if index == 0 else '')
+            accuracy_data.append([f'{index}.  {command_out_str}', accuracy, ops, '*BOOSTED*' if is_boosted else '—'])
 
         return accuracy_data
 

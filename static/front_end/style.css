@@ -134,11 +134,11 @@
 }
 
 /* ESTIMATED VALUES FOOTNOTE */
-.estimated_values_footnote_light, .rank_values_footnote_light, .opponent_values_footnote_light {
+.estimated_values_footnote_light, .rank_values_footnote_light, .opponent_values_footnote_light, .chart_adjustments_footnote_light {
     font-size: 50%;
     color: #000000;
 }
-.estimated_values_footnote_dark, .rank_values_footnote_dark, .opponent_values_footnote_dark {
+.estimated_values_footnote_dark, .rank_values_footnote_dark, .opponent_values_footnote_dark, .chart_adjustments_footnote_dark {
     font-size:50%; 
     color: #ffffff;
 }

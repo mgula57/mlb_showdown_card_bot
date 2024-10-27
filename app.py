@@ -382,8 +382,7 @@ def card_creator():
         player_era = showdown_card.era.value.title()
         player_stats_data = showdown_card.player_data_for_html_table()
         player_points_data = showdown_card.points_data_for_html_table()
-        player_accuracy_data = showdown_card.accuracy_data_for_html_table()
-        player_ranks_data = showdown_card.rank_data_for_html_table()
+        player_chart_versions_data = showdown_card.chart_accuracy_data_for_html_table()
         opponent_data = showdown_card.opponent_data_for_html_table()
         opponent_type = "Hitter" if showdown_card.is_pitcher else "Pitcher"
         radar_labels, radar_values = showdown_card.radar_chart_labels_as_values()
@@ -455,8 +454,7 @@ def card_creator():
             player_command=player_command,
             player_stats=player_stats_data, 
             player_points=player_points_data,
-            player_accuracy=player_accuracy_data,
-            player_ranks=player_ranks_data,
+            player_chart_versions=player_chart_versions_data,
             player_name=player_name,
             player_year=player_year,
             player_set=player_set,
@@ -527,8 +525,7 @@ def card_creator():
             player_command=None,
             player_stats=None,
             player_points=None,
-            player_accuracy=None,
-            player_ranks=None,
+            player_chart_versions=None,
             player_name=None,
             player_year=None,
             player_set=None,
@@ -565,4 +562,4 @@ def random_player_id_and_year():
     return random_player_sample['player_id'], str(random_player_sample['year'])
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
