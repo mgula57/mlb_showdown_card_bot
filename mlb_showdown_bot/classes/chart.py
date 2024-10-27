@@ -1131,9 +1131,9 @@ class Chart(BaseModel):
                 if self.is_hitter:
                     return {
                         Stat.COMMAND: 0.10,
-                        Stat.OBP: 0.55,
+                        Stat.OBP: 0.50,
                         Stat.SLG: 0.20,
-                        Stat.OPS: 0.25,
+                        Stat.OPS: 0.20,
                     }
                 else:
                     return {
