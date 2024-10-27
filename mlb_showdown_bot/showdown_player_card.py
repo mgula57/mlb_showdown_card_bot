@@ -1244,7 +1244,7 @@ class ShowdownPlayerCard(BaseModel):
         ss_speed = in_game_speed_for_metric.get(SpeedMetric.SPRINT_SPEED, 0)
         
         # CHANGE WEIGHTS TO EMPHASIZE STOLEN BASES OVER SPRINT SPEED
-        use_sb_outliers_weights = num_metrics > 1 and sb_speed > SpeedMetric.STOLEN_BASES.outlier_cutoff and sb_speed > ss_speed
+        use_sb_outliers_weights = num_metrics > 1 and sb_speed >= SpeedMetric.STOLEN_BASES.outlier_cutoff and sb_speed > ss_speed
         
         # FINALIZE SPEED, ASSIGN LETTER
         final_speed = int(round( sum([( (metric.weight_sb_outliers if use_sb_outliers_weights else metric.weight) if num_metrics > 1 else 1.0) * in_game_spd for metric, in_game_spd in in_game_speed_for_metric.items() ]) ))

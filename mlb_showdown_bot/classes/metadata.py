@@ -63,7 +63,7 @@ class SpeedMetric(Enum):
     def outlier_cutoff(self) -> int:
         match self.name:
             case 'SPRINT_SPEED': return None
-            case 'STOLEN_BASES': return 21
+            case 'STOLEN_BASES': return 20
 
     @property
     def threshold_max_650_pa(self) -> int:
