@@ -1563,7 +1563,7 @@ class Chart(BaseModel):
         player_year_avg_obp *= (1 + wotc_set_adjustment_factor)
         adjusted_x_factor = round( (command_for_avg_wotc_obp - y_int) / player_year_avg_obp, 2 )
         pct_diff_obp = self.__pct_diff(player_year_avg_obp, wotc_set_year_obp)
-        y_int_adjustment_mutliplier = 4.0 if self.is_pitcher else 2.0 # MANUALLY DEFINED MULTIPLE TO ADJUST Y-INTERCEPT. HIGHER MULTIPLIER MEANS STAYING CLOSER TO WOTC SET
+        y_int_adjustment_mutliplier = 8.0 if self.is_pitcher else 2.0 # MANUALLY DEFINED MULTIPLE TO ADJUST Y-INTERCEPT. HIGHER MULTIPLIER MEANS STAYING CLOSER TO WOTC SET
         adjusted_y_int = y_int - (pct_diff_obp * (-1 if self.is_hitter else 1) * y_int_adjustment_mutliplier) 
         command_adjusted_to_era = estimate_command_from_wotc(adjusted_x_factor, adjusted_y_int, real_obp)
         
