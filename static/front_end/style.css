@@ -134,11 +134,11 @@
 }
 
 /* ESTIMATED VALUES FOOTNOTE */
-.estimated_values_footnote_light, .rank_values_footnote_light, .opponent_values_footnote_light {
+.estimated_values_footnote_light, .rank_values_footnote_light, .opponent_values_footnote_light, .chart_adjustments_footnote_light {
     font-size: 50%;
     color: #000000;
 }
-.estimated_values_footnote_dark, .rank_values_footnote_dark, .opponent_values_footnote_dark {
+.estimated_values_footnote_dark, .rank_values_footnote_dark, .opponent_values_footnote_dark, .chart_adjustments_footnote_dark {
     font-size:50%; 
     color: #ffffff;
 }
@@ -228,14 +228,12 @@
     padding: 0px; 
     margin: 0px; 
     font-weight: bolder; 
-    font-family: Helvetica Neue;
 }
 .player_name_dark {
     color: gray;
     padding: 0px; 
     margin: 0px; 
     font-weight: bolder; 
-    font-family: "Helvetica Neue";
 }
 .player_link_light {
     margin: 2px; 
@@ -325,7 +323,6 @@ i.fa {
     margin-bottom: 0px;
     opacity: 0.9;
     font-weight: bolder; 
-    font-family: "Helvetica Neue";
     font-size: 13px;
 }
 .loader {
@@ -411,4 +408,10 @@ input[type='number'],
 select:focus,
 textarea {
   font-size: 16px;
+}
+
+@media (max-width: 992px) {
+    .container {
+        max-width: none; /* Removes max-width */
+    }
 }

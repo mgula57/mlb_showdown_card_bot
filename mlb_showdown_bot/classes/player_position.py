@@ -4,23 +4,135 @@ try:
     from .stat_highlights import StatHighlightsCategory, StatHighlightsType
 except ImportError:
     from stat_highlights import StatHighlightsCategory, StatHighlightsType
+     
+
+class PlayerSubType(Enum):
+
+    POSITION_PLAYER = 'position_player'
+    STARTING_PITCHER = 'starting_pitcher'
+    RELIEF_PITCHER = 'relief_pitcher'
+
+    @property
+    def parent_type(self) -> 'PlayerType':
+        return PlayerType.HITTER if self == self.POSITION_PLAYER else PlayerType.PITCHER
+
+    @property
+    def is_pitcher(self) -> bool:
+        return self.name in ['STARTING_PITCHER', 'RELIEF_PITCHER']
+    
+    @property
+    def is_hitter(self) -> bool:
+        return self.name == 'POSITION_PLAYER'
+
+    @property
+    def ip_under_5_negative_multiplier(self) -> float:
+        return 1.5 if self.name == 'STARTING_PITCHER' else 1.0
+    
+    @property
+    def nationality_chart_gradient_img_width(self) -> int:
+        return 475 if self.value == 'position_player' else 680
+        
+    # ---------------------------------------
+    # STATS
+    # ---------------------------------------
+
+    def stat_highlight_categories(self, type: StatHighlightsType) -> list[StatHighlightsCategory]:
+        match self:
+            case PlayerSubType.STARTING_PITCHER | self.RELIEF_PITCHER:
+                categories = [
+                    StatHighlightsCategory.G if self == self.RELIEF_PITCHER else StatHighlightsCategory.GS,
+                ]
+                match type:
+                    case StatHighlightsType.OLD_SCHOOL: categories += [
+                        StatHighlightsCategory.W if self == self.STARTING_PITCHER else StatHighlightsCategory.SV,
+                        StatHighlightsCategory.ERA,
+                        StatHighlightsCategory.WHIP,
+                        StatHighlightsCategory.IP,
+                    ]
+                    case StatHighlightsType.MODERN: categories += [
+                        StatHighlightsCategory.ERA,
+                        StatHighlightsCategory.FIP,
+                        StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.K_9,
+                    ]
+                    case StatHighlightsType.ALL: categories += [
+                        StatHighlightsCategory.ERA,
+                        StatHighlightsCategory.WHIP,
+                        StatHighlightsCategory.IP,
+                        StatHighlightsCategory.SV,
+                        StatHighlightsCategory.K_9,
+                        StatHighlightsCategory.bWAR,
+                    ]
+                return categories
+            case self.POSITION_PLAYER:
+                match type:
+                    case StatHighlightsType.OLD_SCHOOL: return [
+                        StatHighlightsCategory.G,
+                        StatHighlightsCategory.SLASHLINE,
+                        StatHighlightsCategory.HR,
+                        StatHighlightsCategory.SB,
+                        StatHighlightsCategory.RBI,
+                        StatHighlightsCategory._2B,
+                        StatHighlightsCategory.H,
+                        StatHighlightsCategory._3B,
+                    ]
+                    case StatHighlightsType.MODERN: return [
+                        StatHighlightsCategory.G,
+                        StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.OPS_PLUS,
+                        StatHighlightsCategory.DEFENSE,
+                        StatHighlightsCategory.dWAR,
+                        StatHighlightsCategory.HR,
+                        StatHighlightsCategory.SLASHLINE,
+                        StatHighlightsCategory.SB,
+                        StatHighlightsCategory._2B,
+                        StatHighlightsCategory._3B,
+                        StatHighlightsCategory.H,
+                    ]
+                    case StatHighlightsType.ALL: return [
+                        StatHighlightsCategory.G,
+                        StatHighlightsCategory.SLASHLINE,
+                        StatHighlightsCategory.OPS_PLUS,
+                        StatHighlightsCategory.DEFENSE,
+                        StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.dWAR,
+                        StatHighlightsCategory.HR,
+                        StatHighlightsCategory.SB,
+                        StatHighlightsCategory.RBI,
+                        StatHighlightsCategory._2B,
+                        StatHighlightsCategory._3B,
+                        StatHighlightsCategory.H,
+                    ]
+                    case _: return []
+
+    # ---------------------------------------
+    # OPPONENT CHART
+    # ---------------------------------------
+
+    def opponent_command_boost(self, set: str) -> float:
+        match self:
+            case self.RELIEF_PITCHER:
+                match set:
+                    case '2002': return 0.50
+                    case _: return 0.0
+            case _: return 0.0
 
 class PlayerType(Enum):
 
     PITCHER = 'Pitcher'
     HITTER = 'Hitter'
 
-    @classmethod
-    def _missing_(cls, _):
-        return cls.HITTER
-
     @property
     def is_pitcher(self) -> bool:
-        return self.name == 'PITCHER'
+        return self == self.PITCHER
     
     @property
     def is_hitter(self) -> bool:
-        return self.name == 'HITTER'
+        return self == self.HITTER
+    
+    @property
+    def opponent_type(self) -> 'PlayerType':
+        return self.HITTER if self == self.PITCHER else self.PITCHER
     
     # ---------------------------------------
     # IMAGES
@@ -41,95 +153,10 @@ class PlayerType(Enum):
     def override_string(self) -> str:
         """Add parenthesis to the type"""
         return f"({self.name})"
-        
-
-class PlayerSubType(Enum):
-
-    POSITION_PLAYER = 'position_player'
-    STARTING_PITCHER = 'starting_pitcher'
-    RELIEF_PITCHER = 'relief_pitcher'
-
-    @property
-    def ip_under_5_negative_multiplier(self) -> float:
-        return 1.5 if self.name == 'STARTING_PITCHER' else 1.0
     
     @property
-    def nationality_chart_gradient_img_width(self) -> int:
-        return 475 if self.value == 'position_player' else 680
-    
-    @property
-    def pts_normalizer_cutoff(self) -> int:
-        match self.name:
-            case 'RELIEF_PITCHER': return 120
-            case _: return 500
-
-        
-    # ---------------------------------------
-    # STATS
-    # ---------------------------------------
-
-    def stat_highlight_categories(self, type: StatHighlightsType) -> list[StatHighlightsCategory]:
-        match self:
-            case PlayerSubType.STARTING_PITCHER | self.RELIEF_PITCHER:
-                match type:
-                    case StatHighlightsType.OLD_SCHOOL: return [
-                        StatHighlightsCategory.W if self == self.STARTING_PITCHER else StatHighlightsCategory.SV,
-                        StatHighlightsCategory.ERA,
-                        StatHighlightsCategory.WHIP,
-                        StatHighlightsCategory.IP,
-                    ]
-                    case StatHighlightsType.MODERN: return [
-                        StatHighlightsCategory.ERA,
-                        StatHighlightsCategory.FIP,
-                        StatHighlightsCategory.bWAR,
-                        StatHighlightsCategory.K_9,
-                    ]
-                    case StatHighlightsType.ALL: return [
-                        StatHighlightsCategory.ERA,
-                        StatHighlightsCategory.WHIP,
-                        StatHighlightsCategory.IP,
-                        StatHighlightsCategory.SV,
-                        StatHighlightsCategory.K_9,
-                        StatHighlightsCategory.bWAR,
-                    ]
-                    case _: return []
-            case self.POSITION_PLAYER:
-                match type:
-                    case StatHighlightsType.OLD_SCHOOL: return [
-                        StatHighlightsCategory.SLASHLINE,
-                        StatHighlightsCategory.HR,
-                        StatHighlightsCategory.SB,
-                        StatHighlightsCategory.RBI,
-                        StatHighlightsCategory._2B,
-                        StatHighlightsCategory.H,
-                        StatHighlightsCategory._3B,
-                    ]
-                    case StatHighlightsType.MODERN: return [
-                        StatHighlightsCategory.bWAR,
-                        StatHighlightsCategory.OPS_PLUS,
-                        StatHighlightsCategory.DEFENSE,
-                        StatHighlightsCategory.dWAR,
-                        StatHighlightsCategory.HR,
-                        StatHighlightsCategory.SLASHLINE,
-                        StatHighlightsCategory.SB,
-                        StatHighlightsCategory._2B,
-                        StatHighlightsCategory._3B,
-                        StatHighlightsCategory.H,
-                    ]
-                    case StatHighlightsType.ALL: return [
-                        StatHighlightsCategory.SLASHLINE,
-                        StatHighlightsCategory.OPS_PLUS,
-                        StatHighlightsCategory.DEFENSE,
-                        StatHighlightsCategory.bWAR,
-                        StatHighlightsCategory.dWAR,
-                        StatHighlightsCategory.HR,
-                        StatHighlightsCategory.SB,
-                        StatHighlightsCategory.RBI,
-                        StatHighlightsCategory._2B,
-                        StatHighlightsCategory._3B,
-                        StatHighlightsCategory.H,
-                    ]
-                    case _: return []
+    def sub_types(self) -> list[PlayerSubType]:
+        return [PlayerSubType.POSITION_PLAYER] if self.is_hitter else [PlayerSubType.STARTING_PITCHER, PlayerSubType.RELIEF_PITCHER]
 
 
 class Position(MultiValueEnum):

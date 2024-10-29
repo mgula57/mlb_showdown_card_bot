@@ -401,6 +401,7 @@ class TemplateImageComponent(Enum):
     YEAR_CONTAINER = "year_container"
     NUMBER = "number"
     SUPER_SEASON = "super_season"
+    COOPERSTOWN = "cooperstown"
     ROOKIE_SEASON = "rookie_season"
     ROOKIE_SEASON_YEAR_TEXT = "rookie_season_year_text"
     POSTSEASON = "postseason"

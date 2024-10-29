@@ -145,7 +145,7 @@ class BaseballReferenceScraper:
         player_ids_pd['similarity_score'] = player_ids_pd['name'].apply(lambda x: fuzz.ratio(name_cleaned, x))
 
         # FILTER BY SIMILARITY SCORE
-        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['similarity_score'] > 86].sort_values(by=['similarity_score', 'pa', 'ip'], ascending=[False, False, False])
+        player_ids_pd_filtered = player_ids_pd.loc[player_ids_pd['similarity_score'] > 86].sort_values(by=['similarity_score', 'bwar', 'pa', 'ip'], ascending=[False, False, False, False])
         results_count = len(player_ids_pd_filtered)
 
         if results_count == 0:
@@ -1314,6 +1314,12 @@ class BaseballReferenceScraper:
                 game_log_date_str_full = f"{game_log_date_str_cleaned} {first_year}"
                 game_log_date = datetime.strptime(game_log_date_str_full, "%b %d %Y").date()
                 date_check = self.stats_period.start_date <= game_log_date <= self.stats_period.end_date
+            
+            # SKIP IF TEAM OVERRIDE IS PRESENT AND TEAM DOESN'T MATCH
+            if self.team_override:
+                team_id = game_log_data.get('team_ID', '')
+                if team_id != self.team_override:
+                    continue
 
             # SKIP ROW IF IT FAILS THE DATE OR YEAR CHECKS
             if not date_check or not year_check:
