@@ -6,14 +6,12 @@ from pathlib import Path
 # MY PACKAGES
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
-    from .firebase import Firebase
     from .baseball_ref_scraper import BaseballReferenceScraper
     from .showdown_player_card import ShowdownPlayerCard
     from .classes.stats_period import StatsPeriod
     from .postgres_db import PostgresDB
 except ImportError:
     # USE LOCAL IMPORT 
-    from firebase import Firebase
     from baseball_ref_scraper import BaseballReferenceScraper
     from showdown_player_card import ShowdownPlayerCard
     from classes.stats_period import StatsPeriod
@@ -53,7 +51,7 @@ parser.add_argument('-end','--end_date', help='Optional End Date for stats. Only
 parser.add_argument('-spl','--split_name', help='Create a card using the splits page on baseball reference', default=None, type=str)
 parser.add_argument('-co','--co_override',help='Manually select a command/out combination',default=None, type=str)
 parser.add_argument('-vs','--variable_spd', action='store_true', help='Optionally toggle variable speed (2000 + 2001 sets only)')
-parser.add_argument('-o','--offset',help='Get alternate chart n away from most accurate',default=0)
+parser.add_argument('-cv','--chart_version',help='Get alternate chart n away from most accurate',default=1)
 parser.add_argument('-yrt','--show_year_text', action='store_true', help='Optionally add separate year text to the image. Applies to 2000-2005 only.')
 parser.add_argument('-nick','--nickname_index', help='Optionally choose a nickname to show for images. Enter a number based on ordering from bref, max is 3', default=None, type=int)
 parser.add_argument('-wotc','--is_wotc', action='store_true', help='Try loading from WOTC cards.')
@@ -87,40 +85,46 @@ def main():
     #  1. ARCHIVE: HISTORICAL DATA IN POSTGRES DB
     #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
     postgres_db = PostgresDB(is_archive=True)
-    archived_statline, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
+    player_archive, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
     postgres_db.close_connection()
-    if archived_statline:
-        statline = archived_statline
+    statline: dict[str: any] = None
+    if player_archive:
+        statline = player_archive.stats
         data_source = 'Archive'
     else:
-        statline = scraper.player_statline()
-        data_source = scraper.source
+        try:
+            statline = scraper.player_statline()
+            data_source = scraper.source
+        except Exception as e:
+            if not args.is_wotc:
+                print("Error loading statline")
+                print(e)
 
     # WOTC CARD
     showdown: ShowdownPlayerCard = None
     if args.is_wotc:
 
         # LOAD FROM JSON
-        file_path = os.path.join(Path(os.path.dirname(__file__)),'wotc_cards.json')
+        file_path = os.path.join(Path(os.path.dirname(__file__)), 'data', 'wotc_player_card_set.json')
         with open(file_path, "r") as json_file:
-            wotc_data = json.load(json_file)
-        
+            wotc_set_data = json.load(json_file)
+
         # MATCH ON ID
         fields = [args.year, scraper.baseball_ref_id, args.set, args.expansion,]
         if scraper.player_type_override:
             fields.append(scraper.player_type_override)
         showdown_card_id = "-".join(fields)
 
-        wotc_card:dict = wotc_data.get(showdown_card_id, None)
-        if wotc_card:
-            wotc_card['stats'] = statline
-            showdown = ShowdownPlayerCard(**wotc_card)
-            showdown.accolades = showdown.parse_accolades()
+        # GET CARD
+        wotc_card_data: dict = wotc_set_data.get('cards', {}).get(showdown_card_id, None)
+        if wotc_card_data:
+            showdown = ShowdownPlayerCard(**wotc_card_data)
             showdown.print_player()
             if args.show_image:
                 showdown.card_image(show=True)
             pts = showdown.calculate_points(projected=showdown.projected, positions_and_defense=showdown.positions_and_defense, speed_or_ip=showdown.ip if showdown.is_pitcher else showdown.speed.speed)
-            print(f"Projected PTS: {pts.total_points}  Actual PTS: {showdown.points}  Diff: {showdown.points - pts.total_points}")
+            print(f"\nProjected PTS: {pts.total_points}  Actual PTS: {showdown.points}  Diff: {showdown.points - pts.total_points}")
+            print(f"{pts.breakdown_str}")
 
     # CREATE SHOWDOWN CARD FROM STATLINE
     stats_period = scraper.stats_period or stats_period
@@ -134,7 +138,7 @@ def main():
             era=args.era,
             expansion=args.expansion,
             edition=args.edition,
-            chart_version=args.offset,
+            chart_version=args.chart_version,
             player_image_url=args.image_url,
             player_image_path=args.image_path,
             card_img_output_folder_path=args.image_output_path,

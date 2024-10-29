@@ -258,7 +258,7 @@ def card_creator():
         expansion = str(request.args.get('expansion', 'BS'))
         edition = str(request.args.get('edition', 'NONE'))
         era = str(request.args.get('era', 'DYNAMIC'))
-        chart_version = int(request.args.get('offset', 0))
+        chart_version = int(request.args.get('offset', 0)) + 1
         image_parallel = str(request.args.get('parallel', 'NONE'))
 
         period_type = request.args.get('period', None)
@@ -307,15 +307,15 @@ def card_creator():
         # IF NO CACHED SHOWDOWN CARD, FETCH REAL STATS FROM EITHER:
         #  1. ARCHIVE: HISTORICAL DATA IN POSTGRES DB
         #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
-        archived_statline = None
+        archived_data = None
         if not ignore_cache:
             postgres_db = PostgresDB(is_archive=True)
-            archived_statline, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
+            archived_data, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
             postgres_db.close_connection()
 
         # CHECK FOR ARCHIVED STATLINE. IF IT DOESN'T EXIST, QUERY BASEBALL REFERENCE / BASEBALL SAVANT
-        if archived_statline:
-            statline = archived_statline
+        if archived_data:
+            statline = archived_data.stats
             data_source = 'Archive'
         else:
             data_source = 'Baseball Reference'
@@ -382,8 +382,7 @@ def card_creator():
         player_era = showdown_card.era.value.title()
         player_stats_data = showdown_card.player_data_for_html_table()
         player_points_data = showdown_card.points_data_for_html_table()
-        player_accuracy_data = showdown_card.accuracy_data_for_html_table()
-        player_ranks_data = showdown_card.rank_data_for_html_table()
+        player_chart_versions_data = showdown_card.chart_accuracy_data_for_html_table()
         opponent_data = showdown_card.opponent_data_for_html_table()
         opponent_type = "Hitter" if showdown_card.is_pitcher else "Pitcher"
         radar_labels, radar_values = showdown_card.radar_chart_labels_as_values()
@@ -455,8 +454,7 @@ def card_creator():
             player_command=player_command,
             player_stats=player_stats_data, 
             player_points=player_points_data,
-            player_accuracy=player_accuracy_data,
-            player_ranks=player_ranks_data,
+            player_chart_versions=player_chart_versions_data,
             player_name=player_name,
             player_year=player_year,
             player_set=player_set,
@@ -527,8 +525,7 @@ def card_creator():
             player_command=None,
             player_stats=None,
             player_points=None,
-            player_accuracy=None,
-            player_ranks=None,
+            player_chart_versions=None,
             player_name=None,
             player_year=None,
             player_set=None,
@@ -565,4 +562,4 @@ def random_player_id_and_year():
     return random_player_sample['player_id'], str(random_player_sample['year'])
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=None)

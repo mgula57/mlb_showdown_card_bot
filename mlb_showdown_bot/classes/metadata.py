@@ -23,17 +23,23 @@ class SpeedMetric(Enum):
     SPRINT_SPEED = 'SPRINT SPEED'
     STOLEN_BASES = 'STOLEN BASES'
 
-    @property
-    def maximum_range_value(self) -> int:
+    def maximum_range_value(self, set:str) -> int:
         match self.name:
             case 'SPRINT_SPEED': return 31
-            case 'STOLEN_BASES': return 26
+            case 'STOLEN_BASES':
+                match set:
+                    case '2002': return 25
+                    case '2004' | '2005' | 'EXPANDED': return 22
+                    case _: return 26
 
-    @property
-    def minimum_range_value(self) -> int:
+    def minimum_range_value(self, set:str) -> int:
         match self.name:
             case 'SPRINT_SPEED': return 23
-            case 'STOLEN_BASES': return -25
+            case 'STOLEN_BASES': 
+                match set:
+                    case '2002': return -32
+                    case '2004' | '2005' | 'EXPANDED': return -19
+                    case _: return -25
 
     @property
     def top_percentile_range_value(self) -> float:
@@ -50,14 +56,14 @@ class SpeedMetric(Enum):
     @property
     def weight_sb_outliers(self) -> float:
         match self.name:
-            case 'SPRINT_SPEED': return 0.25
-            case 'STOLEN_BASES': return 0.75
+            case 'SPRINT_SPEED': return 0.20
+            case 'STOLEN_BASES': return 0.80
     
     @property
     def outlier_cutoff(self) -> int:
         match self.name:
             case 'SPRINT_SPEED': return None
-            case 'STOLEN_BASES': return 21
+            case 'STOLEN_BASES': return 20
 
     @property
     def threshold_max_650_pa(self) -> int:

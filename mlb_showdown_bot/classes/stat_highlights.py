@@ -12,6 +12,9 @@ class StatHighlightsType(Enum):
 
 class StatHighlightsCategory(Enum):
 
+    G = 'G'
+    GS = 'GS'
+
     IP = 'IP'
     ERA = 'ERA'
     WHIP = 'WHIP'

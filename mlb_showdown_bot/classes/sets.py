@@ -1,19 +1,17 @@
 from enum import Enum
-
+import numpy as np
 try:
     from .metadata import SpeedMetric
     from .player_position import PlayerType, PlayerSubType, Position
-    from .metrics import Stat, PointsMetric
-    from .value_range import ValueRange
+    from .points import PointsMetric, ValueRange
     from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
-    from .chart import Chart
+    from .chart import Chart, ChartCategory
 except ImportError:
     from metadata import SpeedMetric
     from player_position import PlayerType, PlayerSubType, Position
-    from metrics import Stat, PointsMetric
-    from value_range import ValueRange
+    from points import PointsMetric, ValueRange
     from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
-    from chart import Chart
+    from chart import Chart, ChartCategory
 
 
 class Era(Enum):
@@ -58,16 +56,6 @@ class Era(Enum):
     @property
     def value_no_era_suffix(self) -> str:
         return self.value.replace(' ERA', '')
-
-    @property
-    def hr_rounding_cutoff(self) -> float:
-        match self.name:
-            case 'STEROID': return 0.85
-            case 'STATCAST' | 'PITCH_CLOCK': return 0.70
-            case _: return 0.75
-
-
-
 
 
 
@@ -184,13 +172,12 @@ class Set(str, Enum):
             case _: return 12
 
     @property
-    def min_onbase_single_plus(self) -> int:
-        return 4 if self.has_classic_chart else 7
-    
-    @property
-    def max_onbase_single_plus(self) -> int:
-        return 12 if self.has_classic_chart else 16
-    
+    def speed_cutoff_for_sub_percentile_sb(self) -> int:
+        match self:
+            case Set._2002: return 22
+            case Set._2004 | Set._2005 | Set.EXPANDED: return 21
+            case _: return 20
+
     def speed_metric_multiplier(self, metric: SpeedMetric, use_variable_speed_multiplier:bool) -> float:
         if use_variable_speed_multiplier:
             return self.variable_speed_multiplier
@@ -199,9 +186,10 @@ class Set(str, Enum):
             match self.value:
                 case '2000': return 1.21
                 case '2001': return 1.22
-                case '2002': return 1.2
-                case '2003': return 0.95
-                case '2004': return 0.98
+                case '2002': return 1.12
+                case '2003': return 0.962
+                case '2004': return 1.00
+                case '2005': return 1.00
                 case _: return 1.0
         
         return 1.0
@@ -220,7 +208,7 @@ class Set(str, Enum):
 
     def position_defense_max(self, position:Position) -> float:
         match position:
-            case Position.CA: return 11 if self.value == '2001' else 12
+            case Position.CA: return 11 if self == Set._2001 else 12
             case Position._1B: return 1
             case Position._2B: return 5
             case Position._3B: return 4.5 if self.is_showdown_bot else 4
@@ -258,6 +246,10 @@ class Set(str, Enum):
         return 6
     
     @property
+    def infield_plus_two_requirement(self) -> int:
+        return 10
+
+    @property
     def is_outfield_split(self) -> bool:
         return self.value in ['2000','2001','2002']
 
@@ -265,6 +257,10 @@ class Set(str, Enum):
     def dh_string(self) -> str:
         return 'DH' if self.value == '2000' else '–'
     
+    @property
+    def is_cf_eligible_for_lfrf(self) -> bool:
+        return self in [Set._2000, Set._2001, Set.CLASSIC, Set.EXPANDED,]
+
     # ---------------------------------------
     # ICONS
     # ---------------------------------------
@@ -297,284 +293,53 @@ class Set(str, Enum):
     # CHART
     # ---------------------------------------    
 
-    @property
-    def onbase_out_combinations(self) -> list[tuple[int,int]]:
-        match self.value:
-            case '2000': return [
-                (4,5),
-                (5,2),(5,3),(5,4),(5,5),
-                (6,2),(6,3),(6,4),(6,5),
-                (7,2),(7,3),(7,4),(7,5),
-                (8,2),(8,3),(8,4),(8,5),
-                (9,2),(9,3),(9,4),(9,5),
-                (10,2),(10,3),(10,4),(10,5),
-                (11,2),(11,3),
-                (12,0),(12,2),(12,3),
-                (13,0),(13,1),
-            ]
-            case '2001': return [
-                (4,5),(4,6),
-                (5,2),(5,3),(5,4),(5,5),(5,6),
-                (6,2),(6,3),(6,4),(6,5),(6,6),
-                (7,2),(7,3),(7,4),(7,5),(7,6),
-                (8,2),(8,3),(8,4),(8,5),
-                (9,2),(9,3),(9,4),(9,5),
-                (10,2),(10,3),(10,4),
-                (11,2),(11,3),
-                (12,0),(12,2),(12,3),
-                (13,0),(13,1),
-            ]
-            case '2002': return [
-                (7,5),(7,6),(7,7),(7,8),(7,9),(7,10),
-                (8,5),(8,6),(8,7),(8,8),
-                (9,5),(9,6),(9,7),
-                (10,5),(10,6),(10,7),
-                (11,5),(11,6),(11,7),
-                (12,5),(12,6),(12,7),
-                (13,5),(13,6),(13,7),
-                (14,5),(14,6),(14,7),
-                (15,6),(15,7),
-                (16,0),(16,2),(16,3),(16,4),(16,5),(16,6),
-            ]
-            case '2003': return [
-                (7,8),(7,9),(7,10),
-                (8,5),(8,6),(8,7),(8,8),(8,9),
-                (9,5),(9,6),(9,7),(9,8),
-                (10,5),(10,6),(10,7),
-                (11,5),(11,6),(11,7),
-                (12,5),(12,6),(12,7),
-                (13,5),(13,6),(13,7),
-                (14,0),(14,2),(14,3),(14,5),(14,6),(14,7),
-                (15,6),(15,7),
-                (16,0),(16,2),(16,3),(16,4),(16,5),(16,6),
-            ]
-            case '2004' | '2005': return [
-                (7,8),(7,9),(7,10),(7,11),
-                (8,7),(8,8),(8,9),(8,10),(8,11),
-                (9,5),(9,6),(9,7),(9,8),(9,9),(9,10),(9,11),
-                (10,5),(10,6),(10,7),(10,8),
-                (11,5),(11,6),(11,7),(11,8),
-                (12,5),(12,6),(12,7),
-                (13,5),(13,6),(13,7),
-                (14,5),(14,6),(14,7),
-                (15,6),(15,7),
-                (16,0),(16,2),(16,3),(16,4),(16,5),(16,6),
-            ]
-            case 'CLASSIC': return [
-                (4,5),(4,6),
-                (5,2),(5,3),(5,4),(5,5),(5,6),
-                (6,2),(6,3),(6,4),(6,5),(6,6),
-                (7,3),(7,4),(7,5),(7,6),
-                (8,3),(8,4),(8,5),(8,6),
-                (9,3),(9,4),(9,5),(9,6),
-                (10,2),(10,3),(10,4),(10,5),
-                (11,2),(11,3),(11,4),(11,5),
-                (12,0),(12,2),(12,3),(12,4),
-                (13,0),(13,1),
-            ]
-            case 'EXPANDED': return [
-                (7,7),(7,8),(7,9),
-                (8,5),(8,6),(8,7),(8,8),(8,9),(8,10),(8,11),
-                (9,5),(9,6),(9,7),(9,8),(9,9),(9,10),(9,11),
-                (10,5),(10,6),(10,7),(10,8),
-                (11,5),(11,6),(11,7),(11,8),
-                (12,5),(12,6),(12,7),
-                (13,5),(13,6),(13,7),
-                (14,5),(14,6),(14,7),
-                (15,6),(15,7),(15,8),
-                (16,0),(16,2),(16,3),(16,4),(16,5),(16,6),
-            ]
+    def command_options(self, player_type:PlayerType) -> list[int]:
+        """List of commands for the given player subtype
+        
+        Args:
+          player_type: Player type attribute (PITCHER, HITTER)
 
-    @property
-    def control_out_combinations(self) -> list[tuple[int,int]]:
-        match self.value:
-            case '2000': return [
-                (0,16),(0,17),(0,18),
-                (2,15),(2,16),(2,18),
-                (3,15),(3,16),(3,17),(3,18),
-                (4,14),(4,15),(4,16),(4,17),(4,18),
-                (5,15),(5,16),(5,17),(5,18),(5,19),
-                (6,15),(6,16),(6,17),(6,18),(6,19),(6,20),
-            ]
-            case '2001': return [
-                (0,17),(0,18),
-                (1,17),(1,18),
-                (2,16),(2,17),(2,18),
-                (3,14),(3,15),(3,16),(3,17),(3,18),
-                (4,14),(4,15),(4,16),(4,17),(4,18),
-                (5,14),(5,15),(5,16),(5,17),(5,18),(5,19),
-                (6,14),(6,15),(6,16),(6,17),(6,18),(6,19),(6,20),
-            ]
-            case '2002': return [
-                (1,15),(1,16),(1,17),(1,18),
-                (2,15),(2,16),(2,17),(2,18),(2,19),
-                (3,15),(3,16),(3,17),(3,18),(3,19),
-                (4,14),(4,15),(4,16),(4,17),(4,18),(4,19),
-                (5,15),(5,16),(5,17),(5,18),
-                (6,16),(6,17),(6,18),(6,19),(6,20),
-            ]
-            case '2003': return [
-                (1,15),(1,16),(1,18),
-                (2,14),(2,15),(2,16),(2,18),
-                (3,14),(3,15),(3,16),(3,17),(3,18),
-                (4,14),(4,15),(4,16),(4,17),(4,18),
-                (5,15),(5,16),(5,17),(5,18),
-                (6,16),(6,17),(6,18),(6,19),(6,20),
-            ]
-            case '2004' | '2005': return [
-                (1,13),(1,14),(1,15),(1,16),(1,18),(1,19),
-                (2,14),(2,15),(2,16),(2,18),(2,19),
-                (3,15),(3,16),(3,17),(3,18),(3,19),
-                (4,14),(4,15),(4,16),(4,17),(4,18),
-                (5,12),(5,14),(5,15),(5,16),(5,17),(5,18),(5,19),
-                (6,15),(6,16),(6,17),(6,18),(6,19),(6,20),
-            ]
-            case 'CLASSIC': return [
-                (0,17),(0,18),
-                (1,17),(1,18),
-                (1,16),(2,16),(2,17),(2,18),
-                (3,14),(3,15),(3,16),(3,17),(3,18),(3,19),
-                (4,14),(4,15),(4,16),(4,17),(4,18),
-                (5,14),(5,15),(5,16),(5,17),(5,18),(5,19),
-                (6,14),(6,15),(6,16),(6,17),(6,18),(6,19),(6,20),
-            ]
-            case 'EXPANDED': return [
-                (1,14),(1,15),(1,16),(1,17),(1,18),(1,19),
-                (2,15),(2,16),(2,17),(2,18),(2,19),
-                (3,15),(3,16),(3,17),(3,18),(3,19),
-                (4,15),(4,16),(4,17),(4,18),(4,19),
-                (5,14),(5,15),(5,16),(5,17),(5,18),(5,19),
-                (6,14),(6,15),(6,16),(6,17),(6,18),(6,19),(6,20),
-            ]
+        Returns:
+          List of commands for the given player subtype.
+        """
 
-    def command_out_combinations(self, player_type:PlayerType) -> list[tuple[int,int]]:
-        return self.control_out_combinations if player_type.is_pitcher else self.onbase_out_combinations
+        match player_type:
+            case PlayerType.HITTER:
+                return list(range(7, 17)) if self.has_expanded_chart else list(range(4, 14))
+            case PlayerType.PITCHER:
+                return list(range(1, 7)) if self.has_expanded_chart else list(range(0, 7))
 
-    def command_out_accuracy_weighting(self, command:int, outs:int) -> float:
-        command_out_str = f"{command}-{outs}"
-        match self.value:
-            case '2000':
-                match command_out_str:
-                    case '7-2' | '8-2' | '9-2': return 0.999
-                    case '2-18': return 0.97
-            case '2001':
-                match command_out_str:
-                    case '7-2' | '8-2' | '9-2': return 0.999
-                    case '1-18': return 0.975
-                    case '2-18': return 0.97
-                    case '3-18' | '4-18': return 0.98
-            case '2003':
-                match command_out_str: 
-                    case '1-18': return 0.99
-                    case '2-18': return 0.98
-                    case '3-17': return 0.99
-                    case '3-18': return 0.99
-                    case '4-18': return 0.98
-            case '2004':
-                match command_out_str: 
-                    case '1-18': return 0.98
-                    case '1-19': return 0.97
-                    case '2-18': return 0.985
-                    case '2-19': return 0.975
-                    case '3-17': return 0.99
-                    case '3-18': return 0.99
-                    case '3-19': return 0.965
-                    case '4-15': return 0.99
-                    case '4-18': return 0.98
+    def command_accuracy_weighting(self, command:int, player_sub_type:PlayerSubType) -> float:
+        """List of commands are corresponding accuracy weighting
+        
+        Args:
+          command: Control/Onbase rating for player.
+          player_sub_type: Player subtype attribute (POSITION_PLAYER, STARTING_PITCHER, RELIEF_PITCHER)
 
-                    case '10-8': return 0.99
-                    case '11-8': return 0.99
-                    case '9-5': return 0.995
-            case '2005':
-                match command_out_str: 
-                    case '1-18': return 0.99
-                    case '1-19': return 0.97
-                    case '2-18': return 0.985
-                    case '2-19': return 0.975
-                    case '3-17': return 0.99
-                    case '3-18': return 0.99
-                    case '3-19': return 0.965
-                    case '4-15': return 0.99
-                    case '4-18': return 0.98
+        Returns:
+          Multiplier for the accuracy of the chart for the given command + set.
+        """
 
-                    case '10-8': return 0.99
-                    case '11-8': return 0.99
-                    case '9-5': return 0.995
-            case 'CLASSIC':
-                match command_out_str:
-                    case '3-19' | '2-18' | '1-18': return 0.99
-            case 'EXPANDED':
-                match command_out_str:
-                    case '3-19': return 0.98
-                    case '3-18': return 0.99
-                    case '2-18': return 0.993
-                    case '1-18': return 0.99
-                    case '2-19': return 0.98
-                    case '1-19': return 0.99
+        match self:
+            case Set._2000:
+                match command:
+                    case 1: return 0.925
+                    case 2: return 0.925
+            case Set._2001:
+                match command:
+                    case 0: return 0.995
+                    case 1: return 0.990
+                    case 2: return 0.990
 
-        # DEFAULT TO 1.0
-        return 1.00
-    
-    def chart_accuracy_slashline_weights(self, player_sub_type:PlayerSubType) -> dict[str, float]:
-        match self.value:
-            case '2000' | '2001':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 2.0,
-                        Stat.SLG.value: 1.0,
-                    }
-            case '2002':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 2.0,
-                        Stat.SLG.value: 1.0,
-                    }
-            case '2003':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                    }
-            case '2004':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 4.0,
-                        Stat.SLG.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                    }
-            case '2005':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 2.5,
-                        Stat.SLG.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 3.0,
-                        Stat.SLG.value: 1.0,
-                    }
-            case 'CLASSIC' | 'EXPANDED':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return {
-                        Stat.OBP.value: 1.5,
-                        Stat.SLG.value: 1.0,
-                    }
-                    case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER: return {
-                        Stat.OBP.value: 2.0,
-                        Stat.SLG.value: 1.0,
-                    }
+        return 1.0
+
+    def test_command_out_combinations(self, is_pitcher:bool) -> list[tuple[int,int]]:
+        hitter_command_range = np.arange(8, 11, 0.1).tolist() if self.has_expanded_chart else np.arange(6, 9, 0.1).tolist()
+        hitter_out_range = np.arange(5, 8, 0.1).tolist() if self.has_expanded_chart else np.arange(2, 5, 0.1).tolist()
+        command_range = np.arange(1, 5, 0.1).tolist() if is_pitcher else hitter_command_range
+        outs_range = np.arange(15, 18, 0.1).tolist() if is_pitcher else hitter_out_range
+        all_combos = [(c, o) for c in command_range for o in outs_range]
+        return all_combos
 
     @property
     def has_expanded_chart(self) -> bool:
@@ -591,311 +356,184 @@ class Set(str, Enum):
     @property
     def pu_normalizer_1988(self) -> float:
         return 0.5
-    
+     
     @property
-    def pu_multiplier(self) -> float:
-        match self.value:
-            case '2000': return 2.25
-            case '2001': return 2.5
-            case '2002': return 2.8
-            case '2003': return 2.2
-            case '2004': return 2.05
-            case '2005': return 2.4
-            case 'CLASSIC': return 2.5
-            case 'EXPANDED': return 2.4
-    
-    def gb_multiplier(self, player_type: PlayerType, era: Era) -> float:
-        match player_type:
-            case PlayerType.HITTER:
-                match self.value:
-                    case '2000':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
-                            case Era.STEROID | Era.POST_STEROID: return 1.00
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
-                    case '2001' | '2002' | '2003' | '2004' | '2005':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.20
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.15
-                            case Era.STEROID | Era.POST_STEROID: return 1.10
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 1.00
-                    case 'CLASSIC' | 'EXPANDED':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
-                            case Era.STEROID | Era.POST_STEROID: return 1.00
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.90
-            case PlayerType.PITCHER:
-                match self.value:
-                    case '2000':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
-                            case Era.STEROID | Era.POST_STEROID: return 0.85
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.82
-                    case '2001':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
-                            case Era.STEROID: return 0.93
-                            case Era.POST_STEROID: return 0.90
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.85
-                    case '2002':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.05
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.00
-                            case Era.STEROID: return 0.91
-                            case Era.POST_STEROID: return 0.90
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.85
-                    case '2003' | '2004' | '2005':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.15
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.10
-                            case Era.STEROID: return 1.05
-                            case Era.POST_STEROID: return 1.00
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.95
-                    case 'CLASSIC' | 'EXPANDED':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL | Era.LIVE_BALL: return 1.10
-                            case Era.INTEGRATION | Era.EXPANSION | Era.FREE_AGENCY: return 1.05
-                            case Era.STEROID: return 1.00
-                            case Era.POST_STEROID: return 0.95
-                            case Era.STATCAST | Era.PITCH_CLOCK: return 0.90
-
-    @property
-    def hitter_so_results_soft_cap(self) -> int:
-        match self.value:
-            case '2002': return 4
-            case _: return 3
-
-    @property
-    def hitter_so_results_hard_cap(self) -> int:
-        match self.value:
-            case '2000': return 5
-            case '2002': return 7
-            case _: return 6
-
-    @property
-    def hitter_single_plus_denominator_minimum(self) -> float:
-        match self.value:
-            case '2000' | '2001' | 'CLASSIC': return 3.2
-            case '2002': return 7.0
-            case '2003': return 6.0
-            case '2004' | '2005' | 'EXPANDED': return 5.5
-    
-    @property
-    def hitter_single_plus_denominator_maximum(self) -> float:
-        match self.value:
-            case '2000' | '2001' | 'CLASSIC': return 9.6
-            case '2002': return 11.0
-            case '2003' | '2004': return 10.5
-            case '2005' | 'EXPANDED': return 9.75
+    def is_batting_avg_command_out_multiplier(self) -> bool:
+        """Returns True if the set has a batting average multiplier"""
+        return self in [Set._2003, Set._2004, Set._2005, Set.EXPANDED]
 
     # ---------------------------------------
     # POINTS
-    # ---------------------------------------
+    # ---------------------------------------    
 
-    @property
-    def pts_normalizer_upper_limit(self) -> int:
-        return 800
-    
-    def pts_metric_weight(self, player_sub_type:PlayerSubType, metric:PointsMetric) -> dict[PointsMetric, int]:
+    def pts_metric_weight(self, player_sub_type:PlayerSubType, metric:PointsMetric) -> int:
         match self.value:
             case '2000':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
-                            case PointsMetric.DEFENSE: return 75
-                            case PointsMetric.SPEED: return 75
-                            case PointsMetric.ONBASE: return 200
-                            case PointsMetric.AVERAGE: return 40
-                            case PointsMetric.SLUGGING: return 165
-                            case PointsMetric.HOME_RUNS: return 35
+                            case PointsMetric.DEFENSE: return 60
+                            case PointsMetric.SPEED: return 80
+                            case PointsMetric.ONBASE: return 120
+                            case PointsMetric.AVERAGE: return 60
+                            case PointsMetric.SLUGGING: return 60
+                            case PointsMetric.HOME_RUNS: return 110
+                            case PointsMetric.COMMAND: return 150
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 105
-                            case PointsMetric.ONBASE: return 485
+                            case PointsMetric.ONBASE: return 400
                             case PointsMetric.AVERAGE: return 55
-                            case PointsMetric.SLUGGING: return 210
+                            case PointsMetric.SLUGGING: return 220
                             case PointsMetric.OUT_DISTRIBUTION: return 30
+                            case PointsMetric.COMMAND: return 100
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 110
-                            case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 90
-                            case PointsMetric.OUT_DISTRIBUTION: return 20
-            case '2001':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: 
-                        match metric:
-                            case PointsMetric.DEFENSE: return 65
-                            case PointsMetric.SPEED: return 60
-                            case PointsMetric.ONBASE: return 190
-                            case PointsMetric.AVERAGE: return 50
-                            case PointsMetric.SLUGGING: return 165
-                            case PointsMetric.HOME_RUNS: return 45
-                    case PlayerSubType.STARTING_PITCHER: 
-                        match metric:
-                            case PointsMetric.IP: return 115
-                            case PointsMetric.ONBASE: return 470
-                            case PointsMetric.AVERAGE: return 35
-                            case PointsMetric.SLUGGING: return 255
-                            case PointsMetric.OUT_DISTRIBUTION: return 30
-                    case PlayerSubType.RELIEF_PITCHER: 
-                        match metric:
-                            case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 174
-                            case PointsMetric.AVERAGE: return 25
-                            case PointsMetric.SLUGGING: return 112
-                            case PointsMetric.OUT_DISTRIBUTION: return 20
-            case '2002':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: 
-                        match metric:
-                            case PointsMetric.DEFENSE: return 70
-                            case PointsMetric.SPEED: return 65
-                            case PointsMetric.ONBASE: return 170
-                            case PointsMetric.AVERAGE: return 40
-                            case PointsMetric.SLUGGING: return 160
-                            case PointsMetric.HOME_RUNS: return 40
-                    case PlayerSubType.STARTING_PITCHER: 
-                        match metric:
-                            case PointsMetric.IP: return 100
-                            case PointsMetric.ONBASE: return 330
-                            case PointsMetric.AVERAGE: return 45
-                            case PointsMetric.SLUGGING: return 280
-                            case PointsMetric.OUT_DISTRIBUTION: return 20
-                    case PlayerSubType.RELIEF_PITCHER: 
-                        match metric:
-                            case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHER
-                            case PointsMetric.ONBASE: return 100
-                            case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 85
+                            case PointsMetric.ONBASE: return 165
+                            case PointsMetric.AVERAGE: return 10
+                            case PointsMetric.SLUGGING: return 105
                             case PointsMetric.OUT_DISTRIBUTION: return 10
-            case '2003': 
+            case '2001' | 'CLASSIC':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
                             case PointsMetric.DEFENSE: return 60
                             case PointsMetric.SPEED: return 55
-                            case PointsMetric.ONBASE: return 160
-                            case PointsMetric.AVERAGE: return 50
-                            case PointsMetric.SLUGGING: return 160
-                            case PointsMetric.HOME_RUNS: return 60
-                    case PlayerSubType.STARTING_PITCHER: 
-                        match metric:
-                            case PointsMetric.IP: return 70
-                            case PointsMetric.ONBASE: return 280
-                            case PointsMetric.AVERAGE: return 60
-                            case PointsMetric.SLUGGING: return 270
-                            case PointsMetric.OUT_DISTRIBUTION: return 20
-                    case PlayerSubType.RELIEF_PITCHER: 
-                        match metric:
-                            case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 135
-                            case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 110
-                            case PointsMetric.OUT_DISTRIBUTION: return 10
-            case '2004':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: 
-                        match metric:
-                            case PointsMetric.DEFENSE: return 65
-                            case PointsMetric.SPEED: return 60
-                            case PointsMetric.ONBASE: return 155
-                            case PointsMetric.AVERAGE: return 60
-                            case PointsMetric.SLUGGING: return 150
-                            case PointsMetric.HOME_RUNS: return 45
-                    case PlayerSubType.STARTING_PITCHER: 
-                        match metric:
-                            case PointsMetric.IP: return 70
-                            case PointsMetric.ONBASE: return 295
-                            case PointsMetric.AVERAGE: return 50
-                            case PointsMetric.SLUGGING: return 150
-                            case PointsMetric.OUT_DISTRIBUTION: return 30
-                    case PlayerSubType.RELIEF_PITCHER: 
-                        match metric:
-                            case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 115
-                            case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 105
-                            case PointsMetric.OUT_DISTRIBUTION: return 20
-            case '2005':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: 
-                        match metric:
-                            case PointsMetric.DEFENSE: return 65
-                            case PointsMetric.SPEED: return 60
                             case PointsMetric.ONBASE: return 140
-                            case PointsMetric.AVERAGE: return 70
+                            case PointsMetric.AVERAGE: return 45
                             case PointsMetric.SLUGGING: return 140
-                            case PointsMetric.HOME_RUNS: return 50
+                            case PointsMetric.HOME_RUNS: return 45
+                            case PointsMetric.COMMAND: return 70
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
-                            case PointsMetric.IP: return 75
-                            case PointsMetric.ONBASE: return 305
-                            case PointsMetric.AVERAGE: return 60
+                            case PointsMetric.IP: return 105
+                            case PointsMetric.ONBASE: return 410
+                            case PointsMetric.AVERAGE: return 35
                             case PointsMetric.SLUGGING: return 190
                             case PointsMetric.OUT_DISTRIBUTION: return 30
-                    case PlayerSubType.RELIEF_PITCHER:
+                            case PointsMetric.COMMAND: return 50
+                    case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 115
+                            case PointsMetric.ONBASE: return 185
                             case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 107
+                            case PointsMetric.SLUGGING: return 75
                             case PointsMetric.OUT_DISTRIBUTION: return 20
-            case 'CLASSIC':
+                            case PointsMetric.COMMAND: return 25
+            case '2002':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
                             case PointsMetric.DEFENSE: return 65
                             case PointsMetric.SPEED: return 75
-                            case PointsMetric.ONBASE: return 220
-                            case PointsMetric.AVERAGE: return 70
-                            case PointsMetric.SLUGGING: return 180
-                            case PointsMetric.HOME_RUNS: return 50
+                            case PointsMetric.ONBASE: return 110
+                            case PointsMetric.COMMAND: return 40
+                            case PointsMetric.AVERAGE: return 30
+                            case PointsMetric.SLUGGING: return 130
+                            case PointsMetric.HOME_RUNS: return 70
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
-                            case PointsMetric.IP: return 110
-                            case PointsMetric.ONBASE: return 425
-                            case PointsMetric.AVERAGE: return 35
-                            case PointsMetric.SLUGGING: return 230
-                            case PointsMetric.OUT_DISTRIBUTION: return 30
+                            case PointsMetric.IP: return 85
+                            case PointsMetric.ONBASE: return 360
+                            case PointsMetric.AVERAGE: return 25
+                            case PointsMetric.SLUGGING: return 160
+                            case PointsMetric.OUT_DISTRIBUTION: return 45
+                            case PointsMetric.COMMAND: return 70
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
-                            case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
+                            case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHER
                             case PointsMetric.ONBASE: return 150
-                            case PointsMetric.AVERAGE: return 25
-                            case PointsMetric.SLUGGING: return 100
-                            case PointsMetric.OUT_DISTRIBUTION: return 20
-            case 'EXPANDED':
+                            case PointsMetric.AVERAGE: return 20
+                            case PointsMetric.SLUGGING: return 60
+                            case PointsMetric.OUT_DISTRIBUTION: return 10
+                            case PointsMetric.COMMAND: return 35
+            case '2003': 
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: 
                         match metric:
                             case PointsMetric.DEFENSE: return 65
-                            case PointsMetric.SPEED: return 60
-                            case PointsMetric.ONBASE: return 150
+                            case PointsMetric.SPEED: return 65
+                            case PointsMetric.ONBASE: return 170
                             case PointsMetric.AVERAGE: return 70
-                            case PointsMetric.SLUGGING: return 150
+                            case PointsMetric.SLUGGING: return 170
                             case PointsMetric.HOME_RUNS: return 50
                     case PlayerSubType.STARTING_PITCHER: 
                         match metric:
-                            case PointsMetric.IP: return 75
-                            case PointsMetric.ONBASE: return 305
+                            case PointsMetric.IP: return 70
+                            case PointsMetric.ONBASE: return 350
                             case PointsMetric.AVERAGE: return 60
-                            case PointsMetric.SLUGGING: return 180
-                            case PointsMetric.OUT_DISTRIBUTION: return 20
+                            case PointsMetric.SLUGGING: return 190
+                            case PointsMetric.OUT_DISTRIBUTION: return 40
+                            case PointsMetric.COMMAND: return 150
                     case PlayerSubType.RELIEF_PITCHER: 
                         match metric:
                             case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
-                            case PointsMetric.ONBASE: return 105
+                            case PointsMetric.ONBASE: return 190
+                            case PointsMetric.AVERAGE: return 25
+                            case PointsMetric.SLUGGING: return 80
+                            case PointsMetric.OUT_DISTRIBUTION: return 25
+                            case PointsMetric.COMMAND: return 70
+            case '2004':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: 
+                        match metric:
+                            case PointsMetric.DEFENSE: return 70
+                            case PointsMetric.SPEED: return 60
+                            case PointsMetric.ONBASE: return 170
+                            case PointsMetric.AVERAGE: return 60
+                            case PointsMetric.SLUGGING: return 200
+                            case PointsMetric.HOME_RUNS: return 45
+                    case PlayerSubType.STARTING_PITCHER: 
+                        match metric:
+                            case PointsMetric.IP: return 85
+                            case PointsMetric.ONBASE: return 310
+                            case PointsMetric.AVERAGE: return 50
+                            case PointsMetric.SLUGGING: return 170
+                            case PointsMetric.OUT_DISTRIBUTION: return 30
+                            case PointsMetric.COMMAND: return 230
+                    case PlayerSubType.RELIEF_PITCHER: 
+                        match metric:
+                            case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
+                            case PointsMetric.ONBASE: return 170
                             case PointsMetric.AVERAGE: return 20
-                            case PointsMetric.SLUGGING: return 105
-                            case PointsMetric.OUT_DISTRIBUTION: return 10
+                            case PointsMetric.SLUGGING: return 50
+                            case PointsMetric.OUT_DISTRIBUTION: return 20
+                            case PointsMetric.COMMAND: return 120
+            case '2005' | 'EXPANDED':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: 
+                        match metric:
+                            case PointsMetric.DEFENSE: return 65
+                            case PointsMetric.SPEED: return 45
+                            case PointsMetric.ONBASE: return 175
+                            case PointsMetric.AVERAGE: return 60
+                            case PointsMetric.SLUGGING: return 225
+                            case PointsMetric.HOME_RUNS: return 45
+                    case PlayerSubType.STARTING_PITCHER: 
+                        match metric:
+                            case PointsMetric.IP: return 75
+                            case PointsMetric.ONBASE: return 370
+                            case PointsMetric.AVERAGE: return 50
+                            case PointsMetric.SLUGGING: return 150
+                            case PointsMetric.OUT_DISTRIBUTION: return 30
+                            case PointsMetric.COMMAND: return 220
+                    case PlayerSubType.RELIEF_PITCHER: 
+                        match metric:
+                            case PointsMetric.IP: return 0 # IP IS ADJUSTED ELSEWHERE
+                            case PointsMetric.ONBASE: return 220
+                            case PointsMetric.AVERAGE: return 20
+                            case PointsMetric.SLUGGING: return 80
+                            case PointsMetric.OUT_DISTRIBUTION: return 20
+                            case PointsMetric.COMMAND: return 135
 
+        return 0
+    
     def pts_positional_defense_weight(self, position:Position) -> float:
+        
+        if position.is_pitcher or position == Position.DH:
+            return 0
+        
         match self.value:
             case '2000':
                 match position:
@@ -921,7 +559,7 @@ class Set(str, Enum):
                     case Position.IF: return 1.0
             case '2002':
                 match position:
-                    case Position.CA: return 1.0
+                    case Position.CA: return 1.25
                     case Position._1B: return 0.5
                     case Position._2B: return 1.0
                     case Position._3B: return 1.0
@@ -934,11 +572,11 @@ class Set(str, Enum):
                 match position:
                     case Position.CA: return 1.0
                     case Position._1B: return 0.5
-                    case Position._2B: return 1.0
-                    case Position._3B: return 1.0
-                    case Position.SS: return 1.25
+                    case Position._2B: return 1.15
+                    case Position._3B: return 1.10
+                    case Position.SS: return 1.20
                     case Position.CF: return 1.0
-                    case Position.OF: return 1.0
+                    case Position.OF: return 0.95
                     case Position.LFRF: return 0.75
                     case Position.IF: return 1.0
             case '2004' | '2005':
@@ -961,134 +599,25 @@ class Set(str, Enum):
                     case Position.SS: return 1.0
                     case Position.CF: return 1.0
                     case Position.OF: return 1.0
-                    case Position.LFRF: return 1.0
+                    case Position.LFRF: return 0.75
                     case Position.IF: return 1.0
         return 1.0
 
-    def pts_command_out_multiplier(self, command:int, outs:int) -> float:
-        command_out_str = f"{command}-{outs}"
-        match self.value:
-            case '2000':
-                match command_out_str:
-                    case '10-5': return 1.15
-                    case '10-4': return 1.08
-                    case '10-2': return 0.95
-                    case '9-5': return 1.08
-                    case '8-5': return 1.06
-                    case '8-3': return 0.90
-                    case '7-3': return 0.90
+    def pts_position_defense_value_range(self, position:Position) -> ValueRange:
+        """Returns the min and max values for the defensive points for a given position and set."""
 
-                    case '5-17': return 0.97
-                    case '4-14': return  1.1
-                    case '4-15': return 1.06
-                    case '4-16': return 0.98
-                    case '4-17': return 0.925
-                    case '3-18': return 0.90
-                    case '3-17': return 0.97
-                    case '3-16': return 0.97
-                    case '3-15': return 1.1
-                    case '2-18': return 0.92
-            case '2001':
-                match command_out_str:
-                    case '10-4': return 1.05
-                    case '10-2': return 0.96
-                    case '9-5': return 1.05
-                    case '9-3': return 0.925
-                    case '8-4': return 0.925
-                    case '8-3': return 0.90
-                    case '7-4': return 0.90
-                    case '7-3': return 0.90
+        # DEFINE MINIMUM/MAXIMUM
+        min = 0
+        max = self.position_defense_max(position=position)
 
-                    case '1-18': return 0.90
-                    case '2-17': return 0.92
-                    case '2-18': return 0.92
-                    case '3-17': return 0.85
-                    case '3-18': return 0.92
-                    case '4-14': return 1.15
-                    case '4-15': return 1.15
-                    case '4-18': return 0.95
-                    case '5-14': return 1.25
-                    case '6-14': return 1.05
-                    case '6-15': return 1.05
-                    case '5-17': return 0.99
-            case '2002':
-                match command_out_str:
-                    case '10-7': return 0.85
-                    case '3-16': return 1.25
-            case '2003':
-                match command_out_str:
-                    case '10-5': return 1.12
-                    case '4-16': return 0.94
-                    case '3-15': return 1.3
-                    case '2-16': return 1.25
-            case '2004':
-                match command_out_str:
-                    case '9-6': return 0.85
-                    case '9-7': return 0.85
-
-                    case '6-16': return 1.15
-                    case '3-17': return 0.90
-                    case '4-17': return 0.95
-                    case '2-18': return 0.80
-                    case '3-18': return 0.90
-                    case '1-19': return 0.90
-                    case '2-19': return 0.90
-                    case '3-19': return 0.90
-            case '2005':
-                match command_out_str:
-                    case '9-5': return 1.15
-                    case '9-6': return 1.1
-                    case '9-7': return 0.95
-
-                    case '2-18': return 0.85
-                    case '3-15': return 1.25
-                    case '3-16': return 1.05
-                    case '3-17': return 0.8
-                    case '3-18': return 0.9
-                    case '4-17': return 0.8
-                    case '5-17': return 0.95
-                    case '6-16': return 1.10
-                    case '6-17': return 1.03
-                    case '1-19': return 0.90
-                    case '2-19': return 0.90
-                    case '3-19': return 0.90
-            case 'CLASSIC':
-                match command_out_str:
-                    case '10-4': return 1.05
-                    case '10-2': return 0.96
-                    case '9-5': return 1.05
-                    case '9-3': return 0.925
-                    case '8-4': return 0.925
-                    case '8-3': return 0.90
-                    case '7-4': return 0.90
-                    case '7-3': return 0.90
-
-                    case '1-18': return 0.90
-                    case '2-17': return 0.92
-                    case '2-18': return 0.95
-                    case '3-17': return 0.85
-                    case '3-18': return 0.95
-                    case '4-14': return 1.15
-                    case '4-15': return 1.15
-                    case '5-14': return 1.15
-                    case '6-14': return 1.05
-                    case '6-15': return 1.05
-            case 'EXPANDED':
-                match command_out_str:
-                    case '9-5': return 1.15
-                    case '9-6': return 1.1
-                    case '9-7': return 0.95
-
-                    case '1-18': return 0.90
-                    case '2-18': return 0.90
-                    case '3-17': return 0.90
-                    case '3-18': return 0.90
-                    case '4-17': return 0.90
-                    case '1-19': return 0.90
-                    case '2-19': return 0.90
-                    case '3-19': return 0.90
-
-        return 1.0
+        # MAKE ANY ADJUSTMENTS PER SET
+        match self:
+            case Set._2002:
+                match position:
+                    case Position.CA: 
+                        min = 3
+                        max = 9
+        return ValueRange(min = min, max = max)
 
     def pts_allow_negatives(self, player_sub_type:PlayerSubType) -> bool:
         match self.value:
@@ -1100,122 +629,165 @@ class Set(str, Enum):
             case '2001' | 'CLASSIC':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return True
-                    case PlayerSubType.STARTING_PITCHER: return False
-                    case PlayerSubType.RELIEF_PITCHER: return False
-            case '2002':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return False
-                    case PlayerSubType.STARTING_PITCHER: return False
+                    case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
-            case '2003' | '2004' | '2005' | 'EXPANDED':
+            case '2002':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return True
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
-    
-    def pts_normalize_towards_median(self, player_sub_type:PlayerSubType) -> bool:
-        match self.value:
-            case '2002':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return False
-                    case PlayerSubType.STARTING_PITCHER: return True
-                    case PlayerSubType.RELIEF_PITCHER: return False
-            case _:
+            case '2003':
                 match player_sub_type:
                     case PlayerSubType.POSITION_PLAYER: return False
                     case PlayerSubType.STARTING_PITCHER: return True
                     case PlayerSubType.RELIEF_PITCHER: return True
+            case '2004' | '2005' | 'EXPANDED':
+                match player_sub_type:
+                    case PlayerSubType.POSITION_PLAYER: return True
+                    case PlayerSubType.STARTING_PITCHER: return True
+                    case PlayerSubType.RELIEF_PITCHER: return True
 
-    def pts_normalizer_lower_threshold(self, player_sub_type:PlayerSubType) -> float:
+    def pts_decay_rate_and_start(self, player_sub_type:PlayerSubType) -> tuple[float, int]:
+        """Returns the decay rate and starting point value for the normalization process.
+        Depends on player subtype
+
+        Args:
+            player_sub_type (PlayerSubType): The player subtype (position player, starting pitcher, relief pitcher)
+
+        Returns:
+            float: The decay rate
+            float: The starting point value
+        """
+
         match self.value:
             case '2000':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.70
-                    case PlayerSubType.STARTING_PITCHER: return 0.75
-                    case PlayerSubType.RELIEF_PITCHER: return 0.55
-            case '2001':
+                    case PlayerSubType.POSITION_PLAYER: return 0.75, 500
+                    case PlayerSubType.STARTING_PITCHER: return 0.525, 400
+                    case PlayerSubType.RELIEF_PITCHER: return 0.55, 100
+            case '2001' | 'CLASSIC':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.65
-                    case PlayerSubType.STARTING_PITCHER: return 0.70
-                    case PlayerSubType.RELIEF_PITCHER: return 0.72
+                    case PlayerSubType.POSITION_PLAYER: return 0.90, 550
+                    case PlayerSubType.STARTING_PITCHER: return 0.55, 425
+                    case PlayerSubType.RELIEF_PITCHER: return 0.65, 270
             case '2002':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.85
-                    case PlayerSubType.STARTING_PITCHER: return 0.85
-                    case PlayerSubType.RELIEF_PITCHER: return 0.85
+                    case PlayerSubType.POSITION_PLAYER: return 0.99, 500
+                    case PlayerSubType.STARTING_PITCHER: return 0.85, 300
+                    case PlayerSubType.RELIEF_PITCHER: return 0.90, 100
             case '2003':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.85
-                    case PlayerSubType.STARTING_PITCHER: return 0.72
-                    case PlayerSubType.RELIEF_PITCHER: return 0.70
+                    case PlayerSubType.POSITION_PLAYER: return 0.70, 500
+                    case PlayerSubType.STARTING_PITCHER: return 0.70, 300
+                    case PlayerSubType.RELIEF_PITCHER: return 0.55, 150
             case '2004':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.65
-                    case PlayerSubType.STARTING_PITCHER: return 0.80
-                    case PlayerSubType.RELIEF_PITCHER: return 0.675
-            case '2005':
+                    case PlayerSubType.POSITION_PLAYER: return 0.60, 500
+                    case PlayerSubType.STARTING_PITCHER: return 0.55, 400
+                    case PlayerSubType.RELIEF_PITCHER: return 0.57, 150
+            case '2005' | 'EXPANDED':
                 match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.65
-                    case PlayerSubType.STARTING_PITCHER: return 0.78
-                    case PlayerSubType.RELIEF_PITCHER: return 0.74
-            case 'CLASSIC':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.65
-                    case PlayerSubType.STARTING_PITCHER: return 0.70
-                    case PlayerSubType.RELIEF_PITCHER: return 0.72
-            case 'EXPANDED':
-                match player_sub_type:
-                    case PlayerSubType.POSITION_PLAYER: return 0.65
-                    case PlayerSubType.STARTING_PITCHER: return 0.80
-                    case PlayerSubType.RELIEF_PITCHER: return 0.77
-
-    def pts_normalizer_weighting(self, player_sub_type:PlayerSubType) -> float:
-        if player_sub_type == PlayerSubType.RELIEF_PITCHER:
-            match self.value:
-                case '2001' | 'CLASSIC': return 1.5
-                case _: return 2.0
-
-        return 1.0
+                    case PlayerSubType.POSITION_PLAYER: return 0.60, 400
+                    case PlayerSubType.STARTING_PITCHER: return 0.55, 350
+                    case PlayerSubType.RELIEF_PITCHER: return 0.52, 140
+        
+        # DEFAULT IS NONE
+        return None
 
     @property
     def pts_gb_min_max_dict(self) -> ValueRange:
         return ValueRange(min = 0.3, max = 0.5)
     
-    def pts_reliever_ip_multiplier(self, ip:int) -> float:
-        match self.value:
-            case '2000':
-                match ip:
-                    case 2: return 1.90
-                    case 3: return 2.55
-            case '2001':
-                match ip:
-                    case 2: return 1.60
-                    case 3: return 2.10
-            case '2002':
-                match ip:
-                    case 2: return 1.20
-                    case 3: return 1.80
-            case '2003':
-                match ip:
-                    case 2: return 1.10
-                    case 3: return 1.65
-            case '2004':
-                match ip:
-                    case 2: return 1.34
-                    case 3: return 2.01
-            case '2005':
-                match ip:
-                    case 2: return 1.34
-                    case 3: return 2.01
-            case 'CLASSIC': 
-                match ip:
-                    case 2: return 1.60
-                    case 3: return 2.10
-            case 'EXPANDED': 
-                match ip:
-                    case 2: return 1.40
-                    case 3: return 2.01
+    def pts_ip_multiplier(self, player_sub_type:PlayerSubType, ip:int) -> float:
+        """Apply a multiplier to the negative IP points for a player subtype and IP value."""
+
+        match player_sub_type:
+            case PlayerSubType.RELIEF_PITCHER:
+                match self.value:
+                    case '2000':
+                        match ip:
+                            case 2: return 2.10
+                            case 3: return 2.40
+                    case '2001' | 'CLASSIC':
+                        match ip:
+                            case 2: return 1.40
+                            case 3: return 2.00
+                    case '2002':
+                        match ip:
+                            case 2: return 1.15
+                            case 3: return 1.65
+                    case '2003':
+                        match ip:
+                            case 2: return 1.10
+                            case 3: return 1.60
+                    case '2004':
+                        match ip:
+                            case 2: return 1.35
+                            case 3: return 1.85
+                    case '2005' | 'EXPANDED':
+                        match ip:
+                            case 2: return 1.20
+                            case 3: return 1.70
+            case PlayerSubType.STARTING_PITCHER:
+                match self.value:
+                    case '2000':
+                        match ip:
+                            case 4: return 0.70
+                            case 5: return 0.85
+                            case 9: return 1.02
+                    case '2001' | 'CLASSIC':
+                        match ip:
+                            case 4: return 0.75
+                            case 5: return 0.925
+                            case 9: return 1.04
+                    case '2002' | '2003':
+                        match ip:
+                            case 4: return 0.80
+                            case 5: return 0.97
+                            case 7: return 1.01
+                            case 8: return 1.03
+                            case 9: return 1.04
+                    case '2004':
+                        match ip:
+                            case 4: return 0.80
+                            case 5: return 0.97
+                            case 8: return 1.00
+                            case 9: return 1.04
+                    case '2005' | 'EXPANDED':
+                        match ip:
+                            case 4: return 0.80
+                            case 5: return 0.97
+                            case 8: return 1.00
+                            case 9: return 1.04
+
         return 1.0
+
+    @property
+    def pts_use_max_for_defense(self) -> bool:
+        """Some sets use a max defensive PT value for multi-position players, others do not."""
+        return self.value in ['2000', '2001']
+
+    def pts_position_adjustment(self, positions: list[Position]) -> int:
+        """Apply adjustment to the positional points for a given position and set.
+        
+        For multi-position players, the adjustment is taken as an avg.
+        """
+
+        pts_adjustments: list[int] = []
+        for position in positions:
+            match self:
+                case Set._2000:
+                    match position:
+                        case Position.CL: pts_adjustments.append(25)
+                case Set._2001: 
+                    match position:
+                        case Position.DH: pts_adjustments.append(-25)
+                case Set._2002: 
+                    match position:
+                        case Position.DH: pts_adjustments.append(-35)
+                        case Position.CL: pts_adjustments.append(15)
+        
+        return sum(pts_adjustments) if len(pts_adjustments) > 0 else 0
 
     # ---------------------------------------
     # POINTS RANGES FOR PERCENTILES
@@ -1233,49 +805,41 @@ class Set(str, Enum):
                 return self.pts_speed_or_ip_percentile_range(player_sub_type=player_sub_type)
             case PointsMetric.HOME_RUNS:
                 return self.pts_hr_percentile_range
+            case PointsMetric.COMMAND:
+                return self.pts_command_percentile_range(player_sub_type=player_sub_type)
 
     def pts_obp_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
         match self.value:
             case '2000':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.390)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.400)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.270, max = 0.430)
-            case '2001':
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.245, max = 0.385)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.190, max = 0.43)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.285, max = 0.450)
+            case '2001' | 'CLASSIC':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.240, max = 0.400)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.360)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.290, max = 0.450)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.385)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.295, max = 0.450)
             case '2002':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.360)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.250, max = 0.360)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.260, max = 0.450)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.380)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.250, max = 0.355)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.295, max = 0.440)
             case '2003':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.390)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.400)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.270, max = 0.425)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.230, max = 0.400)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.230, max = 0.410)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.285, max = 0.430)
             case '2004':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.250, max = 0.370)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.400)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.410)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.210, max = 0.410)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.300, max = 0.415)
-            case '2005':
+            case '2005' | 'EXPANDED':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.223, max = 0.370)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.390)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.310, max = 0.410)
-            case 'CLASSIC':
-                match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.240, max = 0.400)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.360)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.290, max = 0.450)
-            case 'EXPANDED':
-                match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.223, max = 0.370)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.240, max = 0.390)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.310, max = 0.410)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.410)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.200, max = 0.410)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.300, max = 0.415)
 
     def pts_ba_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
         match self.value:
@@ -1283,15 +847,15 @@ class Set(str, Enum):
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.300)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.210, max = 0.300)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.225, max = 0.330)
-            case '2001':
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.230, max = 0.330)
+            case '2001' | 'CLASSIC':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.300)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.210, max = 0.300)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.225, max = 0.330)
             case '2002':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.290)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.300)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.210, max = 0.290)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.225, max = 0.330)
             case '2003':
@@ -1304,17 +868,7 @@ class Set(str, Enum):
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.280)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.210, max = 0.280)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.245, max = 0.315)
-            case '2005':
-                match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.280)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.210, max = 0.280)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.245, max = 0.330)
-            case 'CLASSIC':
-                match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.300)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.210, max = 0.300)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.225, max = 0.330)
-            case 'EXPANDED':
+            case '2005' | 'EXPANDED':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.210, max = 0.280)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.210, max = 0.280)
@@ -1325,53 +879,58 @@ class Set(str, Enum):
             case '2000':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.350, max = 0.500)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.530)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.300, max = 0.600)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.350, max = 0.550)
-            case '2001':
+            case '2001' | 'CLASSIC':
                 match player_sub_type:
                     case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.340, max = 0.500)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.345, max = 0.500)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.350, max = 0.545)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.370, max = 0.545)
             case '2002':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.340, max = 0.490)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.350, max = 0.480)
                     case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.445)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.360, max = 0.550)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.370, max = 0.550)
             case '2003':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.350, max = 0.470)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.500)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.330, max = 0.480)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.310, max = 0.500)
                     case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.360, max = 0.550)
             case '2004':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.340, max = 0.470)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.475)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.380, max = 0.545)
-            case '2005':
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.320, max = 0.450)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.320, max = 0.470)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.370, max = 0.550)
+            case '2005' | 'EXPANDED':
                 match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.335, max = 0.475)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.480)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.380, max = 0.545)
-            case 'CLASSIC':
-                match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.340, max = 0.500)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.345, max = 0.500)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.350, max = 0.545)
-            case 'EXPANDED':
-                match player_sub_type:
-                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.335, max = 0.475)
-                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.330, max = 0.480)
-                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.375, max = 0.545)
+                    case PlayerSubType.STARTING_PITCHER: return ValueRange(min = 0.320, max = 0.470)
+                    case PlayerSubType.RELIEF_PITCHER: return ValueRange(min = 0.300, max = 0.470)
+                    case PlayerSubType.POSITION_PLAYER: return ValueRange(min = 0.370, max = 0.550)
 
     def pts_speed_or_ip_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
         match player_sub_type:
             case PlayerSubType.POSITION_PLAYER:
-                return ValueRange(min = 10, max = 20) # SPEED
+                match self:
+                    case Set._2000: return ValueRange(min = 12, max = 20)
+                    case Set._2002: return ValueRange(min = 12, max = 19)
+                    case _: return ValueRange(min = 10, max = 20)
             case PlayerSubType.RELIEF_PITCHER:
                 return ValueRange(min = 1, max = 2) # IP
             case PlayerSubType.STARTING_PITCHER:
                 return ValueRange(min = 5, max = 8) # IP
 
+    def pts_command_percentile_range(self, player_sub_type:PlayerSubType) -> ValueRange:
+        match player_sub_type:
+            case PlayerSubType.POSITION_PLAYER:
+                onbase_min = 9 if self.has_expanded_chart else 6
+                onbase_max = 13 if self.has_expanded_chart else 11
+                return ValueRange(min = onbase_min, max = onbase_max)
+            case PlayerSubType.RELIEF_PITCHER | PlayerSubType.STARTING_PITCHER:
+                match self:
+                    case Set._2004 | Set._2005 | Set.EXPANDED:
+                        return ValueRange(min = 1, max = 6)
+                return ValueRange(min = 2, max = 6)
+            
     @property
     def pts_hr_percentile_range(self) -> ValueRange:
         return ValueRange(min = 10, max = 35)
@@ -1544,7 +1103,6 @@ class Set(str, Enum):
                 else: return (0,0)
             case 'CLASSIC' | 'EXPANDED': return (0,int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
             
-
     def player_image_components_list(self, is_special:bool=False) -> list[PlayerImageComponent]:
         if is_special:
             match self.value:
@@ -1647,8 +1205,11 @@ class Set(str, Enum):
                     case '2001': return (78,1584)
                     case '2002': return (80,1380)
                     case '2003': return (1179,1074)
-                    case '2004' | '2005': return (1161,1425)
+                    case '2004' | '2005': return (1180,1460)
                     case 'CLASSIC' | 'EXPANDED': return (1160,1345)
+            case TemplateImageComponent.COOPERSTOWN:
+                match self.value:
+                    case '2004' | '2005': return (981,1335)
             case TemplateImageComponent.PLAYER_NAME:
                 if special_edition == SpecialEdition.ASG_2024 and self in [Set._2000, Set._2001]:
                     return (360, 1565)
@@ -1798,7 +1359,7 @@ class Set(str, Enum):
                     case '2001': return (255,255)
                     case '2002': return (450,450)
                     case '2003': return (270,270)
-                    case '2004' | '2005': return (255,255)
+                    case '2004' | '2005': return (200,200)
                     case 'CLASSIC' | 'EXPANDED': return (275,275)
             case TemplateImageComponent.PLAYER_NAME: 
                 match self.value:
@@ -1905,2417 +1466,220 @@ class Set(str, Enum):
     # BASELINE PLAYERS
     # ---------------------------------------
 
-    def baseline_chart(self, player_type:PlayerType, era:Era) -> Chart:
+    def opponent_chart(self, player_sub_type:PlayerSubType, era:Era, year_list: list[int], adjust_for_simulation_accuracy:bool = True) -> Chart:
+        chart = self.wotc_baseline_chart(
+            player_type=player_sub_type.parent_type.opponent_type, 
+            my_type=player_sub_type, 
+            adjust_for_simulation_accuracy=adjust_for_simulation_accuracy
+        )
+        chart.adjust_for_era(era.value, year_list=year_list)
+        return chart
+
+    def wotc_baseline_chart(self, player_type: PlayerType, my_type: PlayerSubType, adjust_for_simulation_accuracy:bool = True) -> Chart:
+        is_rp = my_type == PlayerSubType.RELIEF_PITCHER
         match player_type:
             case PlayerType.PITCHER:
-                match self.value:
-                    case '2000':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.0,
-                                    outs=15.85,
-                                    values={
-                                        'SO': 2.50,
-                                        'BB': 1.40,
-                                        '1B': 2.15,
-                                        '2B': 0.60,
-                                        '3B': 0.00,
-                                        'HR': 0.00,
-                                    }
-                                )
-                            case Era.LIVE_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.10,
-                                    outs=15.75,
-                                    values={
-                                        'SO': 4.70,
-                                        'BB': 1.46,
-                                        '1B': 2.07,
-                                        '2B': 0.67,
-                                        '3B': 0.00,
-                                        'HR': 0.05,
-                                    }
-                                )
-                            case Era.INTEGRATION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.00,
-                                    outs=15.90,
-                                    values={
-                                        'SO': 3.80,
-                                        'BB': 1.40,
-                                        '1B': 2.20,
-                                        '2B': 0.45,
-                                        '3B': 0.00,
-                                        'HR': 0.05,
-                                    }
-                                )
-                            case Era.EXPANSION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.10,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 4.00,
-                                        'BB': 1.35,
-                                        '1B': 2.15,
-                                        '2B': 0.45,
-                                        '3B': 0.00,
-                                        'HR': 0.05,
-                                    }
-                                )
-                            case Era.FREE_AGENCY:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.00,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 4.75,
-                                        'BB': 1.40,
-                                        '1B': 1.85,
-                                        '2B': 0.67,
-                                        '3B': 0.01,
-                                        'HR': 0.07,
-                                    }
-                                )
-                            case Era.STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.0,
-                                    outs=15.75,
-                                    values={
-                                        'SO': 4.5,
-                                        'BB': 1.35,
-                                        '1B': 1.95,
-                                        '2B': 0.67,
-                                        '3B': 0.00,
-                                        'HR': 0.08
-                                    }
-                                )
-                            case Era.POST_STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.00,
-                                    outs=16.10,
-                                    values={
-                                        'SO': 6.00,
-                                        'BB': 1.40,
-                                        '1B': 1.74,
-                                        '2B': 0.65,
-                                        '3B': 0.01,
-                                        'HR': 0.10,
-                                    }
-                                )
-                            case Era.STATCAST:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.25,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 6.00,
-                                        'BB': 1.35,
-                                        '1B': 1.92,
-                                        '2B': 0.65,
-                                        '3B': 0.00,
-                                        'HR': 0.08,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.24,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 6.00,
-                                        'BB': 1.35,
-                                        '1B': 1.92,
-                                        '2B': 0.65,
-                                        '3B': 0.00,
-                                        'HR': 0.08,
-                                    }
-                                )
-                    case '2001':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.0,
-                                    outs=15.90,
-                                    values={
-                                        'SO': 2.50,
-                                        'BB': 1.30,
-                                        '1B': 2.17,
-                                        '2B': 0.60,
-                                        '3B': 0.00,
-                                        'HR': 0.03,
-                                    }
-                                )
-                            case Era.LIVE_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.05,
-                                    outs=15.80,
-                                    values={
-                                        'SO': 3.55,
-                                        'BB': 1.41,
-                                        '1B': 2.11,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.06,
-                                    }
-                                )
-                            case Era.INTEGRATION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.00,
-                                    outs=15.80,
-                                    values={
-                                        'SO': 3.40,
-                                        'BB': 1.45,
-                                        '1B': 2.11,
-                                        '2B': 0.55,
-                                        '3B': 0.01,
-                                        'HR': 0.08,
-                                    }
-                                )
-                            case Era.EXPANSION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.1,
-                                    outs=16.1,
-                                    values={
-                                        'SO': 3.90,
-                                        'BB': 1.40,
-                                        '1B': 1.92,
-                                        '2B': 0.50,
-                                        '3B': 0.00,
-                                        'HR': 0.08,
-                                    }
-                                )
-                            case Era.FREE_AGENCY:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.00,
-                                    outs=16.05,
-                                    values={
-                                        'SO': 4.40,
-                                        'BB': 1.33,
-                                        '1B': 1.91,
-                                        '2B': 0.65,
-                                        '3B': 0.00,
-                                        'HR': 0.06,
-                                    }
-                                )
-                            case Era.STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.0,
-                                    outs=16.0,
-                                    values={
-                                        'SO': 4.1,
-                                        'BB': 1.35,
-                                        '1B': 2.0,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.11,
-                                    }
-                                )
-                            case Era.POST_STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.00,
-                                    outs=16.1,
-                                    values={
-                                        'SO': 6.00,
-                                        'BB': 1.35,
-                                        '1B': 1.79,
-                                        '2B': 0.65,
-                                        '3B': 0.00,
-                                        'HR': 0.11,
-                                    }
-                                )
-                            case Era.STATCAST:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.3,
-                                    outs=16.1,
-                                    values={
-                                        'SO': 6.00,
-                                        'BB': 1.37,
-                                        '1B': 1.83,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.08,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.3,
-                                    outs=16.0,
-                                    values={
-                                        'SO': 6.00,
-                                        'BB': 1.39,
-                                        '1B': 1.89,
-                                        '2B': 0.64,
-                                        '3B': 0.00,
-                                        'HR': 0.08,
-                                    }
-                                )
-                    case '2002':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.5,
-                                    outs=16.2,
-                                    values={
-                                        'SO': 2.00,
-                                        'BB': 1.50,
-                                        '1B': 1.78,
-                                        '2B': 0.50,
-                                        '3B': 0.00,
-                                        'HR': 0.02,
-                                    }
-                                )
-                            case Era.LIVE_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.00,
-                                    outs=16.30,
-                                    values={
-                                        'SO': 3.70,
-                                        'BB': 1.54,
-                                        '1B': 1.70,
-                                        '2B': 0.40,
-                                        '3B': 0.01,
-                                        'HR': 0.05,
-                                    }
-                                )
-                            case Era.INTEGRATION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.10,
-                                    outs=16.60,
-                                    values={
-                                        'SO': 3.70,
-                                        'BB': 1.41,
-                                        '1B': 1.52,
-                                        '2B': 0.39,
-                                        '3B': 0.00,
-                                        'HR': 0.08,
-                                    }
-                                )
-                            case Era.EXPANSION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.20,
-                                    outs=16.80,
-                                    values={
-                                        'SO': 4.00,
-                                        'BB': 1.35,
-                                        '1B': 1.40,
-                                        '2B': 0.35,
-                                        '3B': 0.00,
-                                        'HR': 0.10,
-                                    }
-                                )
-                            case Era.FREE_AGENCY:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.35,
-                                    outs=16.65,
-                                    values={
-                                        'SO': 3.90,
-                                        'BB': 1.15,
-                                        '1B': 1.61,
-                                        '2B': 0.50,
-                                        '3B': 0.00,
-                                        'HR': 0.09,
-                                    }
-                                )
-                            case Era.STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.3,
-                                    outs=16.7,
-                                    values={
-                                        'SO': 4.20,
-                                        'BB': 1.05,
-                                        '1B': 1.40,
-                                        '2B': 0.51,
-                                        '3B': 0.01,
-                                        'HR': 0.13,
-                                    }
-                                )
-                            case Era.POST_STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.3,
-                                    outs=16.80,
-                                    values={
-                                        'SO': 5.75,
-                                        'BB': 1.10,
-                                        '1B': 1.37,
-                                        '2B': 0.60,
-                                        '3B': 0.00,
-                                        'HR': 0.13,
-                                    }
-                                )
-                            case Era.STATCAST:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.45,
-                                    outs=16.90,
-                                    values={
-                                        'SO': 5.75,
-                                        'BB': 1.10,
-                                        '1B': 1.35,
-                                        '2B': 0.52,
-                                        '3B': 0.00,
-                                        'HR': 0.13,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.45,
-                                    outs=16.80,
-                                    values={
-                                        'SO': 5.75,
-                                        'BB': 1.14,
-                                        '1B': 1.40,
-                                        '2B': 0.53,
-                                        '3B': 0.00,
-                                        'HR': 0.13,
-                                    }
-                                )
-                    case '2003':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.7,
-                                    outs=16.0,
-                                    values={
-                                        'SO': 2.00,
-                                        'BB': 1.50,
-                                        '1B': 1.88,
-                                        '2B': 0.60,
-                                        '3B': 0.00,
-                                        'HR': 0.02,
-                                    }
-                                )
-                            case Era.LIVE_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.70,
-                                    outs=15.70,
-                                    values={
-                                        'SO': 2.70,
-                                        'BB': 1.60,
-                                        '1B': 2.15,
-                                        '2B': 0.50,
-                                        '3B': 0.00,
-                                        'HR': 0.05,
-                                    }
-                                )
-                            case Era.INTEGRATION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.90,
-                                    outs=15.90,
-                                    values={
-                                        'SO': 3.00,
-                                        'BB': 1.50,
-                                        '1B': 2.04,
-                                        '2B': 0.47,
-                                        '3B': 0.01,
-                                        'HR': 0.08,
-                                    }
-                                )
-                            case Era.EXPANSION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.00,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 3.00,
-                                        'BB': 1.45,
-                                        '1B': 2.00,
-                                        '2B': 0.45,
-                                        '3B': 0.00,
-                                        'HR': 0.10,
-                                    }
-                                )
-                            case Era.FREE_AGENCY: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.95,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 3.30,
-                                        'BB': 1.32,
-                                        '1B': 1.90,
-                                        '2B': 0.65,
-                                        '3B': 0.00,
-                                        'HR': 0.13,
-                                    }
-                                )
-                            case Era.STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.9,
-                                    outs=16.3,
-                                    values={
-                                        'SO': 3.65,
-                                        'BB': 1.2,
-                                        '1B': 1.93,
-                                        '2B': 0.54,
-                                        '3B': 0.13,
-                                        'HR': 0.28,
-                                    }
-                                )
-                            case Era.POST_STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.15,
-                                    outs=15.95,
-                                    values={
-                                        'SO': 5.00,
-                                        'BB': 1.25,
-                                        '1B': 1.90,
-                                        '2B': 0.70,
-                                        '3B': 0.00,
-                                        'HR': 0.20,
-                                    }
-                                )
-                            case Era.STATCAST: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.25,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 5.00,
-                                        'BB': 1.25,
-                                        '1B': 1.90,
-                                        '2B': 0.65,
-                                        '3B': 0.00,
-                                        'HR': 0.20,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.23,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 5.00,
-                                        'BB': 1.25,
-                                        '1B': 1.90,
-                                        '2B': 0.65,
-                                        '3B': 0.00,
-                                        'HR': 0.20,
-                                    }
-                                )
-                    case '2004':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.60,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 2.10,
-                                        'BB': 1.65,
-                                        '1B': 1.84,
-                                        '2B': 0.48,
-                                        '3B': 0.00,
-                                        'HR': 0.03,
-                                    }
-                                )
-                            case Era.LIVE_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.50,
-                                    outs=15.70,
-                                    values={
-                                        'SO': 2.40,
-                                        'BB': 1.42,
-                                        '1B': 2.15,
-                                        '2B': 0.67,
-                                        '3B': 0.01,
-                                        'HR': 0.05,
-                                    }
-                                )
-                            case Era.INTEGRATION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.80,
-                                    outs=15.80,
-                                    values={
-                                        'SO': 2.60,
-                                        'BB': 1.35,
-                                        '1B': 2.10,
-                                        '2B': 0.64,
-                                        '3B': 0.01,
-                                        'HR': 0.10,
-                                    }
-                                )
-                            case Era.EXPANSION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.00,
-                                    outs=15.95,
-                                    values={
-                                        'SO': 3.00,
-                                        'BB': 1.25,
-                                        '1B': 2.10,
-                                        '2B': 0.60,
-                                        '3B': 0.00,
-                                        'HR': 0.10,
-                                    }
-                                )
-                            case Era.FREE_AGENCY:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.70,
-                                    outs=15.90,
-                                    values={
-                                        'SO': 3.50,
-                                        'BB': 1.25,
-                                        '1B': 2.00,
-                                        '2B': 0.75,
-                                        '3B': 0.00,
-                                        'HR': 0.10,
-                                    }
-                                )
-                            case Era.STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.85,
-                                    outs=16.35,
-                                    values={
-                                        'SO': 4.0,
-                                        'BB': 1.1,
-                                        '1B': 2.1,
-                                        '2B': 0.48,
-                                        '3B': 0.09,
-                                        'HR': 0.3,
-                                    }
-                                )
-                            case Era.POST_STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.90,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 4.90,
-                                        'BB': 1.20,
-                                        '1B': 1.95,
-                                        '2B': 0.70,
-                                        '3B': 0.00,
-                                        'HR': 0.15,
-                                    }
-                                )
-                            case Era.STATCAST:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.00,
-                                    outs=16.00,
-                                    values={
-                                        'SO': 5.50,
-                                        'BB': 1.20,
-                                        '1B': 2.00,
-                                        '2B': 0.60,
-                                        '3B': 0.00,
-                                        'HR': 0.20,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.00,
-                                    outs=15.95,
-                                    values={
-                                        'SO': 5.50,
-                                        'BB': 1.20,
-                                        '1B': 2.03,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.20,
-                                    }
-                                )
-                    case '2005':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.60,
-                                    outs=16.10,
-                                    values={
-                                        'SO': 2.10,
-                                        'BB': 1.60,
-                                        '1B': 1.78,
-                                        '2B': 0.50,
-                                        '3B': 0.00,
-                                        'HR': 0.02,
-                                    }
-                                )
-                            case Era.LIVE_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.50,
-                                    outs=15.70,
-                                    values={
-                                        'SO': 2.40,
-                                        'BB': 1.42,
-                                        '1B': 2.10,
-                                        '2B': 0.72,
-                                        '3B': 0.01,
-                                        'HR': 0.05,
-                                    }
-                                )
-                            case Era.INTEGRATION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.80,
-                                    outs=15.85,
-                                    values={
-                                        'SO': 4.00,
-                                        'BB': 1.50,
-                                        '1B': 2.05,
-                                        '2B': 0.50,
-                                        '3B': 0.00,
-                                        'HR': 0.10,
-                                    }
-                                )
-                            case Era.EXPANSION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.00,
-                                    outs=15.85,
-                                    values={
-                                        'SO': 4.00,
-                                        'BB': 1.40,
-                                        '1B': 2.20,
-                                        '2B': 0.45,
-                                        '3B': 0.00,
-                                        'HR': 0.10,
-                                    }
-                                )
-                            case Era.FREE_AGENCY:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.75,
-                                    outs=15.90,
-                                    values={
-                                        'SO': 3.35,
-                                        'BB': 1.20,
-                                        '1B': 2.10,
-                                        '2B': 0.70,
-                                        '3B': 0.00,
-                                        'HR': 0.10,
-                                    }
-                                )
-                            case Era.STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.9,
-                                    outs=16.2,
-                                    values={
-                                        'SO': 3.87,
-                                        'BB': 1.25,
-                                        '1B': 2.05,
-                                        '2B': 0.50,
-                                        '3B': 0.09,
-                                        'HR': 0.33,
-                                    }
-                                )
-                            case Era.POST_STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.00,
-                                    outs=15.90,
-                                    values={
-                                        'SO': 4.80,
-                                        'BB': 1.20,
-                                        '1B': 2.05,
-                                        '2B': 0.70,
-                                        '3B': 0.00,
-                                        'HR': 0.15,
-                                    }
-                                )
-                            case Era.STATCAST:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.15,
-                                    outs=15.90,
-                                    values={
-                                        'SO': 5.10,
-                                        'BB': 1.20,
-                                        '1B': 2.05,
-                                        '2B': 0.65,
-                                        '3B': 0.00,
-                                        'HR': 0.20,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.10,
-                                    outs=15.90,
-                                    values={
-                                        'SO': 5.10,
-                                        'BB': 1.16,
-                                        '1B': 2.06,
-                                        '2B': 0.68,
-                                        '3B': 0.00,
-                                        'HR': 0.20,
-                                    }
-                                )
-                    case 'CLASSIC':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.20,
-                                    outs=16.0,
-                                    values={
-                                        'SO': 3.00,
-                                        'BB': 1.35,
-                                        '1B': 2.00,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.03,
-                                    }
-                                )
-                            case Era.LIVE_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=2.99,
-                                    outs=15.70,
-                                    values={
-                                        'SO': 3.55,
-                                        'BB': 1.43,
-                                        '1B': 2.20,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.05,
-                                    }
-                                )
-                            case Era.INTEGRATION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=2.95,
-                                    outs=15.90,
-                                    values={
-                                        'SO': 3.30,
-                                        'BB': 1.43,
-                                        '1B': 2.03,
-                                        '2B': 0.52,
-                                        '3B': 0.02,
-                                        'HR': 0.10,
-                                    }
-                                )
-                            case Era.EXPANSION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.05,
-                                    outs=16.1,
-                                    values={
-                                        'SO': 3.80,
-                                        'BB': 1.40,
-                                        '1B': 1.97,
-                                        '2B': 0.42,
-                                        '3B': 0.00,
-                                        'HR': 0.11,
-                                    }
-                                )
-                            case Era.FREE_AGENCY:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.05,
-                                    outs=16.1,
-                                    values={
-                                        'SO': 3.55,
-                                        'BB': 1.24,
-                                        '1B': 1.89,
-                                        '2B': 0.65,
-                                        '3B': 0.00,
-                                        'HR': 0.12,
-                                    }
-                                )
-                            case Era.STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.3,
-                                    outs=16.0,
-                                    values={
-                                        'SO': 4.10,
-                                        'BB': 1.35,
-                                        '1B': 2.0,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.11,
-                                    }
-                                )
-                            case Era.POST_STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.00,
-                                    outs=16.1,
-                                    values={
-                                        'SO': 4.95,
-                                        'BB': 1.24,
-                                        '1B': 1.90,
-                                        '2B': 0.65,
-                                        '3B': 0.00,
-                                        'HR': 0.11,
-                                    }
-                                )
-                            case Era.STATCAST:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.3,
-                                    outs=16.1,
-                                    values={
-                                        'SO': 5.25,
-                                        'BB': 1.32,
-                                        '1B': 1.85,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.11,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.25,
-                                    outs=16.1,
-                                    values={
-                                        'SO': 5.25,
-                                        'BB': 1.33,
-                                        '1B': 1.84,
-                                        '2B': 0.62,
-                                        '3B': 0.00,
-                                        'HR': 0.11,
-                                    }
-                                )
-                    case 'EXPANDED':
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.0,
-                                    outs=15.8,
-                                    values={
-                                        'SO': 2.30,
-                                        'BB': 1.70,
-                                        '1B': 1.82,
-                                        '2B': 0.60,
-                                        '3B': 0.03,
-                                        'HR': 0.05,
-                                    }
-                                )
-                            case Era.LIVE_BALL:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.60,
-                                    outs=15.65,
-                                    values={
-                                        'SO': 2.95,
-                                        'BB': 1.56,
-                                        '1B': 2.12,
-                                        '2B': 0.58,
-                                        '3B': 0.01,
-                                        'HR': 0.08,
-                                    }
-                                )
-                            case Era.INTEGRATION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.90,
-                                    outs=15.80,
-                                    values={
-                                        'SO': 3.95,
-                                        'BB': 1.50,
-                                        '1B': 2.02,
-                                        '2B': 0.49,
-                                        '3B': 0.03,
-                                        'HR': 0.16,
-                                    }
-                                )
-                            case Era.EXPANSION:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.00,
-                                    outs=15.90,
-                                    values={
-                                        'SO': 3.95,
-                                        'BB': 1.42,
-                                        '1B': 2.05,
-                                        '2B': 0.52,
-                                        '3B': 0.00,
-                                        'HR': 0.11,
-                                    }
-                                )
-                            case Era.FREE_AGENCY:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=3.80,
-                                    outs=16.05,
-                                    values={
-                                        'SO': 4.00,
-                                        'BB': 1.22,
-                                        '1B': 1.90,
-                                        '2B': 0.68,
-                                        '3B': 0.00,
-                                        'HR': 0.15,
-                                    }
-                                )
-                            case Era.STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.2,
-                                    outs=16.2,
-                                    values={
-                                        'SO': 4.00,
-                                        'BB': 1.25,
-                                        '1B': 2.05,
-                                        '2B': 0.50,
-                                        '3B': 0.09,
-                                        'HR': 0.33,
-                                    }
-                                )
-                            case Era.POST_STEROID:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.0,
-                                    outs=16.0,
-                                    values={
-                                        'SO': 5.20,
-                                        'BB': 1.20,
-                                        '1B': 1.95,
-                                        '2B': 0.67,
-                                        '3B': 0.01,
-                                        'HR': 0.17,
-                                    }
-                                )
-                            case Era.STATCAST:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.2,
-                                    outs=16.1,
-                                    values={
-                                        'SO': 5.5,
-                                        'BB': 1.15,
-                                        '1B': 1.90,
-                                        '2B': 0.64,
-                                        '3B': 0.01,
-                                        'HR': 0.20,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK:
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=4.15,
-                                    outs=16.1,
-                                    values={
-                                        'SO': 5.5,
-                                        'BB': 1.15,
-                                        '1B': 1.90,
-                                        '2B': 0.64,
-                                        '3B': 0.01,
-                                        'HR': 0.20,
-                                    }
-                                )
+                match self:
+                    case Set._2000:
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=2.75,
+                            values={
+                                'PU': 1.00,
+                                'SO': 4.27,
+                                'GB': 6.00,
+                                'FB': 4.73,
+                                'BB': 1.35,
+                                '1B': 1.88,
+                                '2B': 0.68,
+                                '3B': 0.00,
+                                'HR': 0.09,
+                            }
+                        )
+                    case Set._2001 | Set.CLASSIC:
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=3.00,
+                            values={
+                                'PU': 1.00,
+                                'SO': 3.75,
+                                'GB': 5.74,
+                                'FB': 5.51,
+                                'BB': 1.30,
+                                '1B': 1.83,
+                                '2B': 0.69,
+                                '3B': 0.01,
+                                'HR': 0.17,
+                            }
+                        )
+                    case Set._2002:
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=3.25,
+                            values={
+                                'PU': 1.30,
+                                'SO': 4.10,
+                                'GB': 5.70,
+                                'FB': 5.75,
+                                'BB': 1.08,
+                                '1B': 1.24,
+                                '2B': 0.58,
+                                '3B': 0.01,
+                                'HR': 0.24,
+                            }
+                        )
+                    case Set._2003:
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=3.67,
+                            values={
+                                'PU': 0.66,
+                                'SO': 4.05,
+                                'GB': 6.45,
+                                'FB': 5.40,
+                                'BB': 1.30,
+                                '1B': 1.48,
+                                '2B': 0.54,
+                                '3B': 0.05,
+                                'HR': 0.07,
+                            }
+                        )
+                    case Set._2004 | Set._2005 | Set.EXPANDED:
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=3.80 + (0.00 if self == Set._2004 else -0.03),
+                            values={
+                                'PU': 0.65,
+                                'SO': 4.00,
+                                'GB': 6.45,
+                                'FB': 5.45,
+                                'BB': 1.25,
+                                '1B': 1.53,
+                                '2B': 0.53,
+                                '3B': 0.04,
+                                'HR': 0.10,
+                            }
+                        )
             case PlayerType.HITTER:
-                match self.value:
-                    case '2000': 
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.6,
-                                    outs=4.0,
-                                    values={
-                                        'SO': 0.2,
-                                        'BB': 3.00,
-                                        '1B': 8.50,
-                                        '1B+': 1.50,
-                                        '2B': 1.50,
-                                        '3B': 1.00,
-                                        'HR': 0.50,
-                                    }
-                                )
-                            case Era.LIVE_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.77,
-                                    outs=4.0,
-                                    values={
-                                        'SO': 1.0,
-                                        'BB': 4.3,
-                                        '1B': 6.95,
-                                        '1B+': 0.53,
-                                        '2B': 1.94,
-                                        '3B': 0.30,
-                                        'HR': 1.98,
-                                    }
-                                )
-                            case Era.INTEGRATION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.45,
-                                    outs=3.60,
-                                    values={
-                                        'SO': 1.6,
-                                        'BB': 4.45,
-                                        '1B': 7.10,
-                                        '1B+': 0.75,
-                                        '2B': 1.90,
-                                        '3B': 0.30,
-                                        'HR': 1.90,
-                                    }
-                                )
-                            case Era.EXPANSION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.35,
-                                    outs=3.85,
-                                    values={
-                                        'SO': 2.0,
-                                        'BB': 4.4,
-                                        '1B': 6.95,
-                                        '1B+': 0.75,
-                                        '2B': 1.85,
-                                        '3B': 0.30,
-                                        'HR': 1.90,
-                                    }
-                                )
-                            case Era.FREE_AGENCY: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.40,
-                                    outs=4.10,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 4.20,
-                                        '1B': 6.85,
-                                        '1B+': 0.70,
-                                        '2B': 2.00,
-                                        '3B': 0.40,
-                                        'HR': 1.75,
-                                    }
-                                )
-                            case Era.STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.7,
-                                    outs=3.7,
-                                    values={
-                                        'SO': 0.2,
-                                        'BB': 4.4,
-                                        '1B': 6.65,
-                                        '1B+': 0.41,
-                                        '2B': 1.94,
-                                        '3B': 0.30,
-                                        'HR': 1.98,
-                                    }
-                                )
-                            case Era.POST_STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.25,
-                                    outs=3.90,
-                                    values={
-                                        'SO': 1.80,
-                                        'BB': 4.4,
-                                        '1B': 6.80,
-                                        '1B+': 0.60,
-                                        '2B': 2.00,
-                                        '3B': 0.40,
-                                        'HR': 1.90,
-                                    }
-                                )
-                            case Era.STATCAST: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.2,
-                                    outs=3.90,
-                                    values={
-                                        'SO': 2.0,
-                                        'BB': 4.4,
-                                        '1B': 6.80,
-                                        '1B+': 0.50,
-                                        '2B': 2.00,
-                                        '3B': 0.30,
-                                        'HR': 2.10,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.35,
-                                    outs=3.90,
-                                    values={
-                                        'SO': 2.0,
-                                        'BB': 4.4,
-                                        '1B': 6.60,
-                                        '1B+': 0.60,
-                                        '2B': 2.05,
-                                        '3B': 0.30,
-                                        'HR': 2.15,
-                                    }
-                                )
-                    case '2001': 
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.6,
-                                    outs=4.0,
-                                    values={
-                                        'SO': 0.50,
-                                        'BB': 3.10,
-                                        '1B': 8.40,
-                                        '1B+': 1.50,
-                                        '2B': 1.50,
-                                        '3B': 1.00,
-                                        'HR': 0.50,
-                                    }
-                                )
-                            case Era.LIVE_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.75,
-                                    outs=3.8,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 4.55,
-                                        '1B': 6.90,
-                                        '1B+': 0.70,
-                                        '2B': 1.95,
-                                        '3B': 0.2,
-                                        'HR': 1.9,
-                                    }
-                                )
-                            case Era.INTEGRATION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.45,
-                                    outs=3.90,
-                                    values={
-                                        'SO': 1.90,
-                                        'BB': 4.50,
-                                        '1B': 7.20,
-                                        '1B+': 0.70,
-                                        '2B': 1.65,
-                                        '3B': 0.2,
-                                        'HR': 1.85, 
-                                    }  
-                                )
-                            case Era.EXPANSION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.41,
-                                    outs=4.15,
-                                    values={
-                                        'SO': 2.00,
-                                        'BB': 4.45,
-                                        '1B': 6.95,
-                                        '1B+': 0.70,
-                                        '2B': 1.65,
-                                        '3B': 0.2,
-                                        'HR': 1.9,  
-                                    } 
-                                )
-                            case Era.FREE_AGENCY: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.55,
-                                    outs=4.00,
-                                    values={
-                                        'SO': 0.90,
-                                        'BB': 4.35,
-                                        '1B': 6.70,
-                                        '1B+': 0.85,
-                                        '2B': 1.95,
-                                        '3B': 0.2,
-                                        'HR': 1.95, 
-                                    } 
-                                )
-                            case Era.STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.8,
-                                    outs=3.9,
-                                    values={
-                                        'SO': 1.31,
-                                        'BB': 4.45,
-                                        '1B': 6.7,
-                                        '1B+': 0.63,
-                                        '2B': 1.95,
-                                        '3B': 0.2,
-                                        'HR': 2.0,
-                                    }
-                                )
-                            case Era.POST_STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.4,
-                                    outs=4.1,
-                                    values={
-                                        'SO': 1.90,
-                                        'BB': 4.35,
-                                        '1B': 6.70,
-                                        '1B+': 0.75,
-                                        '2B': 1.95,
-                                        '3B': 0.2,
-                                        'HR': 1.95, 
-                                    } 
-                                )
-                            case Era.STATCAST: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.3,
-                                    outs=4.0,
-                                    values={
-                                        'SO': 2.00,
-                                        'BB': 4.45,
-                                        '1B': 6.70,
-                                        '1B+': 0.70,
-                                        '2B': 1.95,
-                                        '3B': 0.2,
-                                        'HR': 2.0,  
-                                    }          
-                                )
-                            case Era.PITCH_CLOCK: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.4,
-                                    outs=4.0,
-                                    values={
-                                        'SO': 2.00,
-                                        'BB': 4.45,
-                                        '1B': 6.40,
-                                        '1B+': 0.75,
-                                        '2B': 2.1,
-                                        '3B': 0.2,
-                                        'HR': 2.1,  
-                                    }          
-                                )
-                    case '2002': 
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.25,
-                                    outs=6.0,
-                                    values={
-                                        'SO': 0.75,
-                                        'BB': 3.25,
-                                        '1B': 6.90,
-                                        '1B+': 1.00,
-                                        '2B': 1.35,
-                                        '3B': 0.75,
-                                        'HR': 0.75,
-                                    }
-                                )
-                            case Era.LIVE_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.7,
-                                    outs=6.0,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 3.40,
-                                        '1B': 6.20,
-                                        '1B+': 0.70,
-                                        '2B': 1.94,
-                                        '3B': 0.26,
-                                        'HR': 1.50,
-                                    }
-                                )
-                            case Era.INTEGRATION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.45,
-                                    outs=6.00,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 3.45,
-                                        '1B': 6.52,
-                                        '1B+': 0.65,
-                                        '2B': 1.64,
-                                        '3B': 0.24,
-                                        'HR': 1.50,
-                                    }
-                                )
-                            case Era.EXPANSION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.30,
-                                    outs=6.10,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 3.40,
-                                        '1B': 6.52,
-                                        '1B+': 0.60,
-                                        '2B': 1.64,
-                                        '3B': 0.24,
-                                        'HR': 1.50,
-                                    }
-                                )
-                            case Era.FREE_AGENCY: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.4,
-                                    outs=6.00,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 3.30,
-                                        '1B': 6.60,
-                                        '1B+': 0.55,
-                                        '2B': 2.00,
-                                        '3B': 0.20,
-                                        'HR': 1.35,
-                                    }
-                                )
-                            case Era.STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.4,
-                                    outs=6.0,
-                                    values={
-                                        'SO': 2.09,
-                                        'BB': 3.35,
-                                        '1B': 6.0,
-                                        '1B+': 0.2,
-                                        '2B': 1.94,
-                                        '3B': 0.24,
-                                        'HR': 1.52,
-                                    }
-                                )
-                            case Era.POST_STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.2,
-                                    outs=6.10,
-                                    values={
-                                        'SO': 2.30,
-                                        'BB': 3.35,
-                                        '1B': 6.41,
-                                        '1B+': 0.40,
-                                        '2B': 2.00,
-                                        '3B': 0.24,
-                                        'HR': 1.50,
-                                    }
-                                )
-                            case Era.STATCAST: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.10,
-                                    outs=6.00,
-                                    values={
-                                        'SO': 2.50,
-                                        'BB': 3.40,
-                                        '1B': 6.52,
-                                        '1B+': 0.30,
-                                        '2B': 1.94,
-                                        '3B': 0.24,
-                                        'HR': 1.60,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.20,
-                                    outs=6.00,
-                                    values={
-                                        'SO': 2.50,
-                                        'BB': 3.40,
-                                        '1B': 6.36,
-                                        '1B+': 0.40,
-                                        '2B': 2.00,
-                                        '3B': 0.24,
-                                        'HR': 1.60,
-                                    }
-                                )
-                    case '2003': 
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.0,
-                                    outs=6.0,
-                                    values={
-                                        'SO': 0.50,
-                                        'BB': 3.50,
-                                        '1B': 6.60,
-                                        '1B+': 1.00,
-                                        '2B': 1.35,
-                                        '3B': 0.80,
-                                        'HR': 0.75,
-                                    }
-                                )
-                            case Era.LIVE_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.65,
-                                    outs=6.05,
-                                    values={
-                                        'SO': 1.10,
-                                        'BB': 3.35,
-                                        '1B': 6.40,
-                                        '1B+': 0.70,
-                                        '2B': 1.65,
-                                        '3B': 0.35,
-                                        'HR': 1.50,
-                                    }
-                                )
-                            case Era.INTEGRATION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.20,
-                                    outs=6.00,
-                                    values={
-                                        'SO': 1.90,
-                                        'BB': 3.35,
-                                        '1B': 6.40,
-                                        '1B+': 0.70,
-                                        '2B': 1.65,
-                                        '3B': 0.35,
-                                        'HR': 1.55,
-                                    }
-                                )
-                            case Era.EXPANSION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=8.95,
-                                    outs=6.20,
-                                    values={
-                                        'SO': 3.10,
-                                        'BB': 3.20,
-                                        '1B': 6.35,
-                                        '1B+': 0.70,
-                                        '2B': 1.55,
-                                        '3B': 0.35,
-                                        'HR': 1.65,
-                                    }
-                                )
-                            case Era.FREE_AGENCY: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.10,
-                                    outs=6.15,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 2.90,
-                                        '1B': 6.60,
-                                        '1B+': 0.65,
-                                        '2B': 1.60,
-                                        '3B': 0.35,
-                                        'HR': 1.75,
-                                    }
-                                )
-                            case Era.STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=8.6,
-                                    outs=7.2,
-                                    values={
-                                        'SO': 2.1,
-                                        'BB': 3.0,
-                                        '1B': 6.57,
-                                        '1B+': 0.28,
-                                        '2B': 1.55,
-                                        '3B': 0.32,
-                                        'HR': 1.75,
-                                    }
-                                )
-                            case Era.POST_STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=8.90,
-                                    outs=6.40,
-                                    values={
-                                        'SO': 3.00,
-                                        'BB': 3.00,
-                                        '1B': 6.20,
-                                        '1B+': 0.50,
-                                        '2B': 1.60,
-                                        '3B': 0.30,
-                                        'HR': 2.00,
-                                    }
-                                )
-                            case Era.STATCAST: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=8.75,
-                                    outs=6.30,
-                                    values={
-                                        'SO': 3.30,
-                                        'BB': 3.00,
-                                        '1B': 6.30,
-                                        '1B+': 0.55,
-                                        '2B': 1.55,
-                                        '3B': 0.30,
-                                        'HR': 2.00,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=8.85,
-                                    outs=6.30,
-                                    values={
-                                        'SO': 3.30,
-                                        'BB': 3.00,
-                                        '1B': 6.20,
-                                        '1B+': 0.60,
-                                        '2B': 1.60,
-                                        '3B': 0.30,
-                                        'HR': 2.00,
-                                    }
-                                )
-                    case '2004': 
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.30,
-                                    outs=7.00,
-                                    values={
-                                        'SO': 0.50,
-                                        'BB': 3.50,
-                                        '1B': 5.70,
-                                        '1B+': 0.85,
-                                        '2B': 1.60,
-                                        '3B': 0.75,
-                                        'HR': 0.60,
-                                    }
-                                )
-                            case Era.LIVE_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.70,
-                                    outs=6.50,
-                                    values={
-                                        'SO': 1.70,
-                                        'BB': 3.50,
-                                        '1B': 6.30,
-                                        '1B+': 0.75,
-                                        '2B': 1.40,
-                                        '3B': 0.15,
-                                        'HR': 1.40,
-                                    }
-                                )
-                            case Era.INTEGRATION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.50,
-                                    outs=6.80,
-                                    values={
-                                        'SO': 2.00,
-                                        'BB': 3.35,
-                                        '1B': 6.20,
-                                        '1B+': 0.70,
-                                        '2B': 1.35,
-                                        '3B': 0.15,
-                                        'HR': 1.45,
-                                    }
-                                )
-                            case Era.EXPANSION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.35,
-                                    outs=7.0,
-                                    values={
-                                        'SO': 3.00,
-                                        'BB': 3.30,
-                                        '1B': 6.15,
-                                        '1B+': 0.60,
-                                        '2B': 1.30,
-                                        '3B': 0.15,
-                                        'HR': 1.50,
-                                    }
-                                )
-                            case Era.FREE_AGENCY: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.35,
-                                    outs=7.35,
-                                    values={
-                                        'SO': 1.90,
-                                        'BB': 3.25,
-                                        '1B': 5.82,
-                                        '1B+': 0.50,
-                                        '2B': 1.45,
-                                        '3B': 0.18,
-                                        'HR': 1.45,
-                                    }
-                                )
-                            case Era.STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.05,
-                                    outs=7.5,
-                                    values={
-                                        'SO': 2.3,
-                                        'BB': 2.95,
-                                        '1B': 6.59,
-                                        '1B+': 0.12,
-                                        '2B': 1.25,
-                                        '3B': 0.17,
-                                        'HR': 1.6,
-                                    }
-                                )
-                            case Era.POST_STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.20,
-                                    outs=7.2,
-                                    values={
-                                        'SO': 2.40,
-                                        'BB': 3.15,
-                                        '1B': 5.90,
-                                        '1B+': 0.45,
-                                        '2B': 1.55,
-                                        '3B': 0.15,
-                                        'HR': 1.60,
-                                    }
-                                )
-                            case Era.STATCAST: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.00,
-                                    outs=7.2,
-                                    values={
-                                        'SO': 3.00,
-                                        'BB': 3.15,
-                                        '1B': 6.00,
-                                        '1B+': 0.40,
-                                        '2B': 1.30,
-                                        '3B': 0.15,
-                                        'HR': 1.80,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.15,
-                                    outs=7.1,
-                                    values={
-                                        'SO': 3.00,
-                                        'BB': 3.20,
-                                        '1B': 5.90,
-                                        '1B+': 0.45,
-                                        '2B': 1.40,
-                                        '3B': 0.15,
-                                        'HR': 1.80,
-                                    }
-                                )
-                    case '2005': 
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.35,
-                                    outs=7.1,
-                                    values={
-                                        'SO': 0.50,
-                                        'BB': 3.55,
-                                        '1B': 5.40,
-                                        '1B+': 0.80,
-                                        '2B': 1.65,
-                                        '3B': 0.80,
-                                        'HR': 0.70,
-                                    }
-                                )
-                            case Era.LIVE_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.70,
-                                    outs=6.55,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 3.50,
-                                        '1B': 6.20,
-                                        '1B+': 0.75,
-                                        '2B': 1.40,
-                                        '3B': 0.15,
-                                        'HR': 1.45,
-                                    }
-                                )
-                            case Era.INTEGRATION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.45,
-                                    outs=6.75,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 3.50,
-                                        '1B': 6.05,
-                                        '1B+': 0.55,
-                                        '2B': 1.45,
-                                        '3B': 0.15,
-                                        'HR': 1.55,
-                                    }
-                                )
-                            case Era.EXPANSION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.35,
-                                    outs=7.1,
-                                    values={
-                                        'SO': 1.10,
-                                        'BB': 3.35,
-                                        '1B': 6.00,
-                                        '1B+': 0.40,
-                                        '2B': 1.35,
-                                        '3B': 0.15,
-                                        'HR': 1.65,
-                                    }
-                                )
-                            case Era.FREE_AGENCY: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.40,
-                                    outs=7.15,
-                                    values={
-                                        'SO': 1.10,
-                                        'BB': 3.35,
-                                        '1B': 5.90,
-                                        '1B+': 0.50,
-                                        '2B': 1.45,
-                                        '3B': 0.15,
-                                        'HR': 1.50,
-                                    }
-                                )
-                            case Era.STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.0,
-                                    outs=7.3,
-                                    values={
-                                        'SO': 2.4,
-                                        'BB': 3.3,
-                                        '1B': 6.0,
-                                        '1B+': 0.12,
-                                        '2B': 1.3,
-                                        '3B': 0.19,
-                                        'HR': 1.4,
-                                    }
-                                )
-                            case Era.POST_STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.25,
-                                    outs=7.00,
-                                    values={
-                                        'SO': 2.50,
-                                        'BB': 3.35,
-                                        '1B': 5.90,
-                                        '1B+': 0.50,
-                                        '2B': 1.45,
-                                        '3B': 0.15,
-                                        'HR': 1.65,
-                                    }
-                                )
-                            case Era.STATCAST: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.0,
-                                    outs=7.0,
-                                    values={
-                                        'SO': 3.05,
-                                        'BB': 3.35,
-                                        '1B': 6.00,
-                                        '1B+': 0.40,
-                                        '2B': 1.35,
-                                        '3B': 0.15,
-                                        'HR': 1.75,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.1,
-                                    outs=7.0,
-                                    values={
-                                        'SO': 3.05,
-                                        'BB': 3.35,
-                                        '1B': 5.85,
-                                        '1B+': 0.45,
-                                        '2B': 1.45,
-                                        '3B': 0.15,
-                                        'HR': 1.75,
-                                    }
-                                )
-                    case 'CLASSIC': 
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.80,
-                                    outs=4.05,
-                                    values={
-                                        'SO': 0.65,
-                                        'BB': 3.10,
-                                        '1B': 8.55,
-                                        '1B+': 1.40,
-                                        '2B': 1.50,
-                                        '3B': 1.00,
-                                        'HR': 0.40,
-                                    }
-                                )
-                            case Era.LIVE_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.75,
-                                    outs=3.8,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 4.55,
-                                        '1B': 6.90,
-                                        '1B+': 0.80,
-                                        '2B': 1.95,
-                                        '3B': 0.2,
-                                        'HR': 1.80,
-                                    }
-                                )
-                            case Era.INTEGRATION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.50,
-                                    outs=3.95,
-                                    values={
-                                        'SO': 2.00,
-                                        'BB': 4.50,
-                                        '1B': 7.10,
-                                        '1B+': 0.85,
-                                        '2B': 1.65,
-                                        '3B': 0.20,
-                                        'HR': 1.75,
-                                    }
-                                )
-                            case Era.EXPANSION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.42,
-                                    outs=4.10,
-                                    values={
-                                        'SO': 2.00,
-                                        'BB': 4.45,
-                                        '1B': 6.85,
-                                        '1B+': 0.80,
-                                        '2B': 1.75,
-                                        '3B': 0.20,
-                                        'HR': 1.85,
-                                    }
-                                )
-                            case Era.FREE_AGENCY: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.60,
-                                    outs=4.1,
-                                    values={
-                                        'SO': 0.80,
-                                        'BB': 4.45,
-                                        '1B': 6.63,
-                                        '1B+': 0.82,
-                                        '2B': 2.00,
-                                        '3B': 0.25,
-                                        'HR': 1.75,
-                                    }
-                                )
-                            case Era.STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.5,
-                                    outs=4.0,
-                                    values={
-                                        'SO': 2.0,
-                                        'BB': 4.45,
-                                        '1B': 6.7,
-                                        '1B+': 0.63,
-                                        '2B': 1.95,
-                                        '3B': 0.2,
-                                        'HR': 2.0,
-                                    }
-                                )
-                            case Era.POST_STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.45,
-                                    outs=4.1,
-                                    values={
-                                        'SO': 1.60,
-                                        'BB': 4.40,
-                                        '1B': 6.60,
-                                        '1B+': 0.70,
-                                        '2B': 2.00,
-                                        '3B': 0.2,
-                                        'HR': 2.0,
-                                    }
-                                )
-                            case Era.STATCAST: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.3,
-                                    outs=4.0,
-                                    values={
-                                        'SO': 2.00,
-                                        'BB': 4.45,
-                                        '1B': 6.70,
-                                        '1B+': 0.70,
-                                        '2B': 1.95,
-                                        '3B': 0.2,
-                                        'HR': 2.0,
-                                    }
-                                )
-                            case Era.PITCH_CLOCK: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=7.45,
-                                    outs=4.0,
-                                    values={
-                                        'SO': 2.00,
-                                        'BB': 4.45,
-                                        '1B': 6.55,
-                                        '1B+': 0.75,
-                                        '2B': 2.05,
-                                        '3B': 0.2,
-                                        'HR': 2.0,
-                                    }
-                                )
-                    case 'EXPANDED': 
-                        match era:
-                            case Era.PRE_1900 | Era.DEAD_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.7,
-                                    outs=7.0,
-                                    values={
-                                        'SO': 0.50,
-                                        'BB': 3.50,
-                                        '1B': 5.75,
-                                        '1B+': 0.80,
-                                        '2B': 1.60,
-                                        '3B': 0.75,
-                                        'HR': 0.60,
-                                    }
-                                )
-                            case Era.LIVE_BALL: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.85,
-                                    outs=6.50,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 3.50,
-                                        '1B': 6.20,
-                                        '1B+': 0.75,
-                                        '2B': 1.50,
-                                        '3B': 0.10,
-                                        'HR': 1.45,
-                                    }
-                                )
-                            case Era.INTEGRATION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.5,
-                                    outs=6.65,
-                                    values={
-                                        'SO': 1.00,
-                                        'BB': 3.45,
-                                        '1B': 6.10,
-                                        '1B+': 0.70,
-                                        '2B': 1.45,
-                                        '3B': 0.10,
-                                        'HR': 1.55,
-                                    }
-                                )
-                            case Era.EXPANSION: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.5,
-                                    outs=6.9,
-                                    values={
-                                        'SO': 1.30,
-                                        'BB': 3.45,
-                                        '1B': 6.05,
-                                        '1B+': 0.70,
-                                        '2B': 1.30,
-                                        '3B': 0.10,
-                                        'HR': 1.50,
-                                    }
-                                )
-                            case Era.FREE_AGENCY: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.50,
-                                    outs=7.15,
-                                    values={
-                                        'SO': 2.50,
-                                        'BB': 3.30,
-                                        '1B': 5.98,
-                                        '1B+': 0.50,
-                                        '2B': 1.35,
-                                        '3B': 0.12,
-                                        'HR': 1.60,
-                                    }
-                                )
-                            case Era.STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.5,
-                                    outs=7.4,
-                                    values={
-                                        'SO': 3.0,
-                                        'BB': 3.3,
-                                        '1B': 6.0,
-                                        '1B+': 0.12,
-                                        '2B': 1.3,
-                                        '3B': 0.19,
-                                        'HR': 1.4,
-                                    }
-                                )
-                            case Era.POST_STEROID: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.35,
-                                    outs=7.0,
-                                    values={
-                                        'SO': 2.50,
-                                        'BB': 3.35,
-                                        '1B': 6.10,
-                                        '1B+': 0.40,
-                                        '2B': 1.38,
-                                        '3B': 0.12,
-                                        'HR': 1.65,
-                                    }
-                                )
-                            case Era.STATCAST: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.2,
-                                    outs=7.1,
-                                    values={
-                                        'SO': 3.0,
-                                        'BB': 3.35,
-                                        '1B': 6.05,
-                                        '1B+': 0.40,
-                                        '2B': 1.30,
-                                        '3B': 0.15,
-                                        'HR': 1.65,
-                                    }
-                            )
-                            case Era.PITCH_CLOCK: 
-                                return Chart(
-                                    is_pitcher=player_type.is_pitcher,
-                                    set=self.value,
-                                    is_expanded=self.has_expanded_chart,
-                                    command=9.35,
-                                    outs=7.0,
-                                    values={
-                                        'SO': 3.0,
-                                        'BB': 3.30,
-                                        '1B': 6.05,
-                                        '1B+': 0.43,
-                                        '2B': 1.42,
-                                        '3B': 0.15,
-                                        'HR': 1.65,
-                                    }
-                            )
+                match self:
+                    case Set._2000:
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=7.40 + (0.2 if is_rp else 0),
+                            values={
+                                'PU': 0.00,
+                                'SO': 0.75,
+                                'GB': 1.52,
+                                'FB': 1.05,
+                                'BB': 4.92,
+                                '1B': 8.01,
+                                '2B': 1.60 + (-0.25 if is_rp else 0),
+                                '3B': 0.30,
+                                'HR': 1.85 + (0.25 if is_rp else 0),
+                            }
+                        )
+                    case Set._2001 | Set.CLASSIC:
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=7.10 + (0.42 if is_rp else 0),
+                            values={
+                                'PU': 0.00,
+                                'SO': 0.85,
+                                'GB': 1.12 + (0.10 if is_rp else 0),
+                                'FB': 1.15,
+                                'BB': 5.10 + (0.65 if is_rp else 0),
+                                '1B': 7.83 + (-0.90 if is_rp else 0),
+                                '2B': 1.60 + (-0.15 if is_rp else 0),
+                                '3B': 0.25,
+                                'HR': 2.10 + (0.30 if is_rp else 0),
+                            }
+                        )
+                    case Set._2002:
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=9.00 + (0.35 if is_rp else 0),
+                            values={                                
+                                'PU': 0.00,
+                                'SO': 2.05 - (0.15 if is_rp else 0),
+                                'GB': 3.25 - (0.10 if is_rp else 0),
+                                'FB': 1.00,
+                                'BB': 3.80 - (0.00 if is_rp else 0),
+                                '1B': 6.80 - (0.00 if is_rp else 0),
+                                '2B': 1.65 + (0.20 if is_rp else 0),
+                                '3B': 0.15,
+                                'HR': 1.30 + (0.05 if is_rp else 0),
+                            }
+                        )
+                    case Set._2003:
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=8.35 + (0.90 if adjust_for_simulation_accuracy else 0),
+                            values={
+                                'PU': 0.00,
+                                'SO': 2.25,
+                                'GB': 1.46 + (-0.70 if is_rp else 0),
+                                'FB': 4.00 + (0.70 if is_rp else 0),
+                                'BB': 3.69 + (-0.80 if is_rp else 0),
+                                '1B': 6.00 + (1.30 if is_rp else 0),
+                                '2B': 1.00 + (-0.50 if is_rp else 0),
+                                '3B': 0.30,
+                                'HR': 1.30,
+                            }
+                        )
+                    case Set._2004 | Set._2005 | Set.EXPANDED:
+                        is_04 = self == Set._2004
+                        return Chart(
+                            is_baseline = True,
+                            is_pitcher=player_type.is_pitcher,
+                            set=self.value,
+                            era=Era.STEROID,
+                            is_expanded=self.has_expanded_chart,
+                            command=8.20 + (0.70 if adjust_for_simulation_accuracy else 0),
+                            values={                                
+                                'PU': 0.00,
+                                'SO': 2.30 + (-0.20 if is_04 else 0),
+                                'GB': 0.70 + (0.10 if is_04 else 0),
+                                'FB': 4.00 + (0.10 if is_04 else 0),
+                                'BB': 4.20 + (-0.05 if is_04 else 0),
+                                '1B': 7.00 + (0.05 if is_04 else 0),
+                                '2B': 0.15,
+                                '3B': 0.15,
+                                'HR': 1.50,
+                            }
+                        )
