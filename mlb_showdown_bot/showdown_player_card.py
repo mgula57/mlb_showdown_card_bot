@@ -2341,7 +2341,6 @@ class ShowdownPlayerCard(BaseModel):
         for warning in self.warnings:
             print(f"** {warning}")
 
-        self.player_data_for_html_table()
 
     def player_data_for_html_table(self) -> list[list[str]]:
         """Provides data needed to populate the statline shown on the showdownbot.com webpage.
@@ -2484,13 +2483,13 @@ class ShowdownPlayerCard(BaseModel):
             command_out_str = co_accuracy_tuple[0]
             accuracy_breakdown = self.command_out_accuracy_breakdowns.get(command_out_str, None)
             ops = ''
-            is_boosted = False
+            notes = '—'
             if accuracy_breakdown is not None:
                 ops_list = [bd.comparison for bd in accuracy_breakdown.values() if bd.stat == Stat.OPS]
                 ops = f'{max(ops_list):.3f}'.replace('0.','.') if len(ops_list) > 0 else ''
-                is_boosted = len([bd for bd in accuracy_breakdown.values() if bd.adjustment_pct != 1.0]) > 0
+                notes = max([bd.notes for bd in accuracy_breakdown.values()])
             accuracy = f"{round(100 * co_accuracy_tuple[1], 2)}%" + ('*' if index == 0 else '')
-            accuracy_data.append([f'{index}.  {command_out_str}', accuracy, ops, '*BOOSTED*' if is_boosted else '—'])
+            accuracy_data.append([f'{index}.  {command_out_str}', accuracy, ops, notes])
 
         return accuracy_data
 
