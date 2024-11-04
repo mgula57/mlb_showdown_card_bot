@@ -3427,10 +3427,16 @@ class ShowdownPlayerCard(BaseModel):
             case Set._2000:
                 name_rotation = 90
                 name_alignment = "center"
+                is_name_over_25_chars = len(name) >= 25
+                is_name_over_22_chars = len(name) >= 22
                 is_name_over_18_chars = len(name) >= 18
                 is_name_over_15_chars = len(name) >= 15
                 name_size = 145
-                if is_name_over_18_chars:
+                if is_name_over_25_chars:
+                    name_size = 80
+                elif is_name_over_22_chars:
+                    name_size = 90
+                elif is_name_over_18_chars:
                     name_size = 110
                 elif is_name_over_15_chars:
                     name_size = 127
@@ -3448,16 +3454,28 @@ class ShowdownPlayerCard(BaseModel):
                 name_rotation = 90
                 name_alignment = "left"
                 name_size = 115 if is_name_over_char_limit else 144
+                if len(name) >= 26:
+                    name_size = 95
+                elif len(name) >= 23:
+                    name_size = 104
                 padding = 15
             case Set._2003:
                 name_rotation = 90
                 name_alignment = "right"
                 name_size = 90 if is_name_over_char_limit else 96
+                if len(name) >= 26:
+                    name_size = 70
+                elif len(name) >= 23:
+                    name_size = 82
                 padding = 60
             case Set._2004 | Set._2005:
                 name_rotation = 0
                 name_alignment = "left"
                 name_size = 80 if is_name_over_char_limit else 96
+                if len(name) >= 26:
+                    name_size = 60
+                elif len(name) >= 23:
+                    name_size = 70
                 padding = 3
                 has_border = True
                 border_color = colors.RED
@@ -3465,6 +3483,8 @@ class ShowdownPlayerCard(BaseModel):
                 name_rotation = 0
                 name_alignment = "left"
                 name_size = 80 if is_name_over_char_limit else 96
+                if len(name) >= 26:
+                    name_size = 70
                 name_font_path = helvetica_neue_cond_black_path
                 padding = 3
                 has_border = False
@@ -3494,7 +3514,7 @@ class ShowdownPlayerCard(BaseModel):
                 last_name = self.__text_image(
                     text = last,
                     size = self.set.template_component_size(TemplateImageComponent.PLAYER_NAME),
-                    font = ImageFont.truetype(name_font_path, size=135),
+                    font = ImageFont.truetype(name_font_path, size=115 if len(last) >= 15 else 135),
                     rotation = name_rotation,
                     alignment = name_alignment,
                     padding = padding,
