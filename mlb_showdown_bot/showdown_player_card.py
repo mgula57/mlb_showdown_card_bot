@@ -1164,18 +1164,35 @@ class ShowdownPlayerCard(BaseModel):
           In game innings pitched ability.
         """
         # ACCOUNT FOR HYBRID STARTER/RELIEVERS
-        if self.player_sub_type == PlayerSubType.RELIEF_PITCHER:
-            # REMOVE STARTER INNINGS AND GAMES STARTED
-            ip_as_starter = games_started * ip_per_start
-            innings_pitched -= ip_as_starter
-            games -= games_started
-            ip = min(round(innings_pitched / games),3) # CAP RELIEVERS AT 3 IP
-        elif ip_per_start > 0:
-            ip = max(round(ip_per_start),4) # MINIMUM FOR SP IS 4 IP
-        else:
-            ip = round(innings_pitched / games)
-        
-        ip = 1 if ip < 1 else ip
+        match self.player_sub_type:
+            case PlayerSubType.RELIEF_PITCHER:
+                # REMOVE STARTER INNINGS AND GAMES STARTED
+                ip_as_starter = games_started * ip_per_start
+                innings_pitched -= ip_as_starter
+                games -= games_started
+
+                # IF SMALL SAMPLE (EX: < 45 IP) CAP AT 2 IP
+                # OTHERWISE USE 3 IP AS CAP
+                cap = 2 if innings_pitched < 45 else 3
+                ip = min(round(innings_pitched / games), cap)
+
+            case PlayerSubType.STARTING_PITCHER:
+                if ip_per_start > 0:
+                    # USE IP/GS
+                    ip = round(ip_per_start) # MINIMUM FOR SP IS 4 IP
+                elif games_started > 0:
+                    # HAVE GAMES STARTED DATA, ESTIMATE RP INNINGS AND NORMALIZE
+                    games_as_rp = games - games_started
+                    rp_multiplier = 2.0 if self.median_year < 1950 else 1.0
+                    est_ip_as_rp = rp_multiplier * games_as_rp
+                    ip = round((innings_pitched - est_ip_as_rp) / games_started)
+                else:
+                    ip = round(innings_pitched / games)
+
+                # MIN OF 4 IP FOR STARTERS
+                ip = max(ip, 4)
+
+        ip = max(ip, 1)
         
         return ip
 

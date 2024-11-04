@@ -9,13 +9,13 @@ try:
     from .baseball_ref_scraper import BaseballReferenceScraper
     from .showdown_player_card import ShowdownPlayerCard
     from .classes.stats_period import StatsPeriod
-    from .postgres_db import PostgresDB
+    from .postgres_db import PostgresDB, PlayerArchive
 except ImportError:
     # USE LOCAL IMPORT 
     from baseball_ref_scraper import BaseballReferenceScraper
     from showdown_player_card import ShowdownPlayerCard
     from classes.stats_period import StatsPeriod
-    from postgres_db import PostgresDB
+    from postgres_db import PostgresDB, PlayerArchive
 
 parser = argparse.ArgumentParser(description="Generate a player's MLB Showdown stats in a given year")
 
@@ -59,6 +59,7 @@ parser.add_argument('-wotc','--is_wotc', action='store_true', help='Try loading 
 # CACHE
 parser.add_argument('-isl','--ignore_showdown_library', action='store_true', help='Optionally force ignore Showdown Library, will create card live.')
 parser.add_argument('-ic','--ignore_cache', action='store_true', help='Ignore local cache')
+parser.add_argument('-ia','--ignore_archive', action='store_true', help='Ignore postgres showdown bot archive')
 parser.add_argument('-dc','--disable_cache_cleaning', action='store_true', help='Disable removal of cached files after minutes threshold.')
 
 
@@ -84,21 +85,26 @@ def main():
     # FETCH REAL STATS FROM EITHER:
     #  1. ARCHIVE: HISTORICAL DATA IN POSTGRES DB
     #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
-    postgres_db = PostgresDB(is_archive=True)
-    player_archive, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
-    postgres_db.close_connection()
+    
+    player_archive: PlayerArchive = None
+    archive_load_time: float = None
     statline: dict[str: any] = None
+    if not args.ignore_archive:
+        postgres_db = PostgresDB(is_archive=True)
+        player_archive, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
+        postgres_db.close_connection()
+    
     if player_archive:
         statline = player_archive.stats
         data_source = 'Archive'
     else:
-        try:
-            statline = scraper.player_statline()
-            data_source = scraper.source
-        except Exception as e:
-            if not args.is_wotc:
-                print("Error loading statline")
-                print(e)
+        # try:
+        statline = scraper.player_statline()
+        data_source = scraper.source
+        # except Exception as e:
+        #     if not args.is_wotc:
+        #         print("Error loading statline")
+        #         print(e)
 
     # WOTC CARD
     showdown: ShowdownPlayerCard = None
