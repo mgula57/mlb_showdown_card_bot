@@ -1,7 +1,6 @@
 import argparse
+from datetime import datetime
 import os
-import cloudscraper
-from bs4 import BeautifulSoup
 from pprint import pprint
 import sys
 from pathlib import Path
@@ -15,6 +14,7 @@ parser.add_argument('-cy','--cya', action='store_true', help='Only CYAs', requir
 parser.add_argument('-ys','--year_start', help='Optional year start filter', type=int, required=False, default=None)
 parser.add_argument('-ye','--year_end', help='Optional year end filter', type=int, required=False, default=None)
 parser.add_argument('-l','--limit', help='Optional limit', type=int, required=False, default=None)
+parser.add_argument('-tm', '--team', help='Optional team filter', required=False, default=None)
 parser.add_argument('-yt', '--year_threshold', help='Optional year threshold. Only includes images that are <= the threshold.', required=False, type=int, default=None)
 args = parser.parse_args()
 
@@ -32,7 +32,9 @@ def fetch_image_file_list() -> list[str]:
 def fetch_player_data() -> list[PlayerArchive]:
 
     # LIST OF YEAR INTS FROM 1900 TO NOW
-    year_list = list(range(1900, 2024))
+    # GET CURRENT YEAR
+    current_year = datetime.now().year
+    year_list = list(range(1900, current_year + 1))
     
     # FILTER OUT YEARS BETWEEN YEAR START AND YEAR END ARGS
     if args.year_start is not None:
@@ -55,6 +57,9 @@ def fetch_player_data() -> list[PlayerArchive]:
 image_list = fetch_image_file_list()
 player_data = fetch_player_data()
 
+if len(player_data) == 0:
+    print("NO PLAYERS FOUND")
+
 for player in player_data:
     
     bwar = player.stats.get('bWAR', 0)
@@ -69,17 +74,17 @@ for player in player_data:
     if len(images) > 0:
         continue
 
+    # TEAM CHECK
+    if args.team and args.team != player.team_id: continue
+
     # HOF CHECK
-    if args.hof and not is_hof:
-        continue
+    if args.hof and not is_hof: continue
 
     # MVP CHECK
-    if args.mvp and 'MVP-1' not in awards:
-        continue
+    if args.mvp and 'MVP-1' not in awards: continue
 
     # CYA CHECK
-    if args.cya and 'CYA-1' not in awards:
-        continue
+    if args.cya and 'CYA-1' not in awards: continue
 
     # PRINT PLAYER'S NAME, TEAM, AND YEAR
     print(f"{player.name} {player.team_id} {player.year} {bwar} {hof_str} {mvp_str} {cy_str}")

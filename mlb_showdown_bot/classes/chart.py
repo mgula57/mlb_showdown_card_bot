@@ -210,6 +210,7 @@ class ChartAccuracyBreakdown(BaseModel):
     accuracy: float = 1.0
     weighted_accuracy: float = 1.0
     adjustment_pct: float = 1.0
+    notes: str = ""
 
     def __init__(self, **data) -> None:
         super().__init__(**data)
@@ -217,7 +218,7 @@ class ChartAccuracyBreakdown(BaseModel):
 
     @property
     def summary_str(self) -> str:
-        return f"{self.stat.name}: {round(self.actual, 3)} vs {round(self.comparison, 3)} ({round(self.accuracy * 100, 1)}% @{self.weight * 100}%)"
+        return f"{self.stat.name}: {round(self.actual, 3)} vs {round(self.comparison, 3)} ({'**' if len(self.notes) > 0 else ''}{round(self.accuracy * 100, 1)}% @{self.weight * 100}%)"
     
     @property
     def difference_multiplier(self) -> float:
@@ -234,6 +235,7 @@ class ChartAccuracyBreakdown(BaseModel):
         self.accuracy = 1.0 if self.actual == self.comparison else max( 1 - ( diff / ((self.actual + self.comparison) / 2) ), 0)
         self.accuracy *= self.adjustment_pct
         self.weighted_accuracy = round(self.accuracy * self.weight, 4)
+
 
 # ---------------------------------------
 # CHART
@@ -562,6 +564,17 @@ class Chart(BaseModel):
         else:
             return 10
 
+    @property
+    def notes(self) -> str:
+        """Get notes for chart"""
+        notes: list[str] = []
+        if self.is_command_out_anomaly:
+            notes.append('OUTLIER')
+        if self.command_out_accuracy_weight != 1.0:
+            adjusted_pct = self.command_out_accuracy_weight - 1.0
+            notes.append(f'C/O ADJ: {adjusted_pct:+.1%}')
+        return ', '.join(notes)
+    
 
     # ---------------------------------------
     # GENERATE CHART ATTRIBUTES
@@ -1159,6 +1172,7 @@ class Chart(BaseModel):
 
         if self.does_set_ignore_outlier_adjustments:
             self.is_command_out_anomaly = self.is_chart_an_outlier
+            self.__add_notes_to_accuracy_breakdowns()
             return
 
         # REDUCE ACCURACY WHEN OUTS ARE ABOVE SOFT OUTLIER MAX AND COMMAND ABOVE SOFT OUTLIER MAX
@@ -1170,7 +1184,7 @@ class Chart(BaseModel):
             self.command_out_accuracy_weight = 0.925
 
         # USE LINEAR DECAY TO REDUCE ACCURACY FOR OUTLIERS
-        if self.is_outside_out_bounds and not self.is_elite_command_out_chart and not self.is_high_command_high_outs:
+        if self.is_outside_out_bounds and not self.is_elite_command_out_chart and not self.is_super_low_rated_command_out_chart and not self.is_high_command_high_outs:
 
             # ADJUST DECAY RATES
             decay_rate = 0.0275
@@ -1189,6 +1203,9 @@ class Chart(BaseModel):
         self.accuracy *= self.command_out_accuracy_weight
         self.accuracy *= self.command_accuracy_weight
         self.is_command_out_anomaly = self.is_chart_an_outlier
+
+        # ADD NOTES TO ACCURACY BREAKDOWNS
+        self.__add_notes_to_accuracy_breakdowns()
 
     def __calculate_accuracy_breakdown(self, actuals_dict:dict, measurements_dict:dict, weights:dict[Stat, float]={}) -> None:
         """Compare two dictionaries of numbers to get overall difference
@@ -1222,25 +1239,55 @@ class Chart(BaseModel):
                 is_pitcher=self.is_pitcher,
             )
 
-        # 2003+ ADJUST COMMAND ACCURACY FOR OUTLIERS THAT ARE ACCURATE
+        
         command_chart_accuracy = self.accuracy_breakdown.get(Stat.COMMAND, None)
         if self.does_set_ignore_outlier_adjustments and command_chart_accuracy and self.is_chart_an_outlier:
+
+            # DEFINE ACCURACY FOR NON-COMMAND CATEGORIES
             accuracy_command = command_chart_accuracy.accuracy
             non_command_breakdowns = [breakdown for breakdown in self.accuracy_breakdown.values() if breakdown.stat != Stat.COMMAND]
             accuracy_non_command = ( sum([breakdown.weighted_accuracy for breakdown in non_command_breakdowns]) / sum([breakdown.weight for breakdown in non_command_breakdowns]) ) if len(non_command_breakdowns) > 0 else 0
+            
+            # 2003+ BOOST COMMAND ACCURACY FOR OUTLIERS THAT ARE ACCURATE
             accuracy_cutoff = 0.99 if self.is_hitter else 0.99
             accuracy_command_minimum = 0.90 if self.is_hitter else 0.35
-            if accuracy_non_command > accuracy_cutoff and accuracy_command < accuracy_cutoff and accuracy_command > accuracy_command_minimum:
+            is_boosted_command_accuracy = accuracy_non_command > accuracy_cutoff and accuracy_command < accuracy_cutoff and accuracy_command > accuracy_command_minimum
+            if is_boosted_command_accuracy:
                 command_chart_accuracy.adjustment_pct = round(accuracy_cutoff / accuracy_command, 4)
                 command_chart_accuracy.calculate_accuracy_attributes()
                 self.accuracy_breakdown[Stat.COMMAND] = command_chart_accuracy
                 self.command_out_accuracy_weight = command_chart_accuracy.adjustment_pct
-                self.is_command_out_anomaly = True
+
+            # 2003+ REDUCE ALL ACCURACY FOR HITTER OUTLIERS WITH STRANGE OUTS THAT ARE INACCURATE
+            out_low_bound = 4 if self.is_expanded else 2
+            out_high_bound = 8 if self.is_expanded else 5
+            onbase_upper_bound = 14 if self.is_expanded else 11
+            onbase_lower_bound = 10 if self.is_expanded else 6
+            is_out_of_bounds = (self.outs_full < out_low_bound and self.command < onbase_upper_bound) or (self.outs_full > out_high_bound and self.command > onbase_lower_bound)
+            is_reduction = self.is_hitter and is_out_of_bounds and not is_boosted_command_accuracy and accuracy_non_command < 0.99
+            if is_reduction:
+                command_chart_accuracy.adjustment_pct = 0.925
+                command_chart_accuracy.calculate_accuracy_attributes()
+                self.accuracy_breakdown[Stat.COMMAND] = command_chart_accuracy
+                self.command_out_accuracy_weight = command_chart_accuracy.adjustment_pct
+
                 
         # CALCULATE OVERALL ACCURACY
         overall_accuracy = sum([breakdown.weighted_accuracy for breakdown in self.accuracy_breakdown.values()]) if len(self.accuracy_breakdown) > 0 else 0
         self.accuracy = overall_accuracy
         return
+
+    def __add_notes_to_accuracy_breakdowns(self) -> None:
+        """Add chart notes to accuracy breakdowns"""
+            
+        # ADD NOTES TO ACCURACY BREAKDOWNS
+        new_breakdowns: dict[Stat, ChartAccuracyBreakdown] = {}
+        for stat, breakdown in self.accuracy_breakdown.items():
+            new_breakdown = breakdown.model_copy()
+            new_breakdown.notes = self.notes
+            new_breakdowns[stat] = new_breakdown
+        
+        self.accuracy_breakdown = new_breakdowns
 
     def __pct_diff(self, value_1, value_2) -> float:
         """Calculate percentage difference between two values"""
@@ -1311,8 +1358,7 @@ class Chart(BaseModel):
     def is_outside_out_bounds(self) -> bool:
         """Check if chart is outside out bounds"""
         out_min, out_max, _, _ = self.outlier_cutoffs
-        outs = self.outs / self.sub_21_per_slot_worth
-        return outs < out_min or outs > out_max
+        return self.outs_full < out_min or self.outs_full > out_max
     
     @property
     def is_elite_command_out_chart(self) -> bool:
@@ -1321,11 +1367,18 @@ class Chart(BaseModel):
         return self.command >= command_outlier_upper_bound and (self.outs_full < out_min if self.is_hitter else self.outs_full > out_max)
 
     @property
+    def is_super_low_rated_command_out_chart(self) -> bool:
+        """Check if chart is a super low command out chart"""
+        out_min, out_max, command_outlier_lower_bound, _ = self.outlier_cutoffs
+        outs_is_bad = self.outs_full < out_min if self.is_pitcher else self.outs_full > out_max
+        return self.command <= command_outlier_lower_bound and outs_is_bad
+
+    @property
     def is_high_command_high_outs(self) -> bool:
         """Check if chart is high command high outs"""
         _, out_max, _, _ = self.outlier_cutoffs
         is_classic_and_high_command_outs = self.is_classic and self.command > 10 and self.outs_full > 4 and self.outs_full < 6
-        is_expanded_and_high_command_outs = self.is_expanded and self.command > 11 and self.outs_full > out_max
+        is_expanded_and_high_command_outs = self.is_expanded and self.command > 11 and self.outs_full > out_max and self.outs_full < 9
         is_high_command_high_outs = is_expanded_and_high_command_outs or is_classic_and_high_command_outs
         return is_high_command_high_outs
 
