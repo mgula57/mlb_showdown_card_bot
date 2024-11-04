@@ -309,7 +309,7 @@ function setTheme(themeName) {
 
     var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
-    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "trend_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "chart_adjustments_footnote", "opponent_values_footnote", "loader_container_rectangle"]
+    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "trend_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "chart_adjustments_footnote", "points_breakdown_footnote", "opponent_values_footnote", "loader_container_rectangle"]
     for (const id of containers_to_alter) {
         var element = document.getElementById(id);
         if (element === null) {

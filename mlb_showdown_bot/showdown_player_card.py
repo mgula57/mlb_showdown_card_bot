@@ -1191,6 +1191,9 @@ class ShowdownPlayerCard(BaseModel):
 
                 # MIN OF 4 IP FOR STARTERS
                 ip = max(ip, 4)
+            
+            case _:
+                ip = 1
 
         ip = max(ip, 1)
         
@@ -2358,7 +2361,6 @@ class ShowdownPlayerCard(BaseModel):
         for warning in self.warnings:
             print(f"** {warning}")
 
-
     def player_data_for_html_table(self) -> list[list[str]]:
         """Provides data needed to populate the statline shown on the showdownbot.com webpage.
 
@@ -2471,7 +2473,8 @@ class ShowdownPlayerCard(BaseModel):
         pts_data: list[list[str]] = []    
 
         for breakdown in self.points_breakdown.breakdowns.values():
-            pts_data.append([breakdown.metric_and_category_name, breakdown.value_formatted, str(round(breakdown.points)), breakdown.percentile_formatted])
+            asterisk = '*' if breakdown.metric.show_asterisk_in_pts_breakdown else ''
+            pts_data.append([f'{breakdown.metric_and_category_name}{asterisk}', breakdown.value_formatted, str(round(breakdown.points)), breakdown.percentile_formatted])
 
         if self.points_breakdown.ip_multiplier != 1.0:
             pts_data.append( ['IP MULT', str(self.ip), f"{self.points_breakdown.ip_multiplier}x", en_dash] )

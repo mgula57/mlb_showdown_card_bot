@@ -47,7 +47,10 @@ class PointsMetric(Enum):
     def is_effected_by_decay(self) -> bool:
         return self in [PointsMetric.ONBASE, PointsMetric.AVERAGE, PointsMetric.SLUGGING, PointsMetric.HOME_RUNS]
 
-
+    @property
+    def show_asterisk_in_pts_breakdown(self) -> bool:
+        return self in [PointsMetric.ONBASE, PointsMetric.AVERAGE, PointsMetric.SLUGGING, PointsMetric.HOME_RUNS,]
+    
 class PointsBreakdown(BaseModel):
     
     metric: PointsMetric
