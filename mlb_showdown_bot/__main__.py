@@ -98,13 +98,13 @@ def main():
         statline = player_archive.stats
         data_source = 'Archive'
     else:
-        # try:
-        statline = scraper.player_statline()
-        data_source = scraper.source
-        # except Exception as e:
-        #     if not args.is_wotc:
-        #         print("Error loading statline")
-        #         print(e)
+        try:
+            statline = scraper.player_statline()
+            data_source = scraper.source
+        except Exception as e:
+            if not args.is_wotc:
+                print("Error loading statline")
+                print(e)
 
     # WOTC CARD
     showdown: ShowdownPlayerCard = None
