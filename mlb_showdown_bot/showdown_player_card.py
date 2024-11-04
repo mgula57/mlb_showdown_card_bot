@@ -1164,18 +1164,38 @@ class ShowdownPlayerCard(BaseModel):
           In game innings pitched ability.
         """
         # ACCOUNT FOR HYBRID STARTER/RELIEVERS
-        if self.player_sub_type == PlayerSubType.RELIEF_PITCHER:
-            # REMOVE STARTER INNINGS AND GAMES STARTED
-            ip_as_starter = games_started * ip_per_start
-            innings_pitched -= ip_as_starter
-            games -= games_started
-            ip = min(round(innings_pitched / games),3) # CAP RELIEVERS AT 3 IP
-        elif ip_per_start > 0:
-            ip = max(round(ip_per_start),4) # MINIMUM FOR SP IS 4 IP
-        else:
-            ip = round(innings_pitched / games)
-        
-        ip = 1 if ip < 1 else ip
+        match self.player_sub_type:
+            case PlayerSubType.RELIEF_PITCHER:
+                # REMOVE STARTER INNINGS AND GAMES STARTED
+                ip_as_starter = games_started * ip_per_start
+                innings_pitched -= ip_as_starter
+                games -= games_started
+
+                # IF SMALL SAMPLE (EX: < 45 IP) CAP AT 2 IP
+                # OTHERWISE USE 3 IP AS CAP
+                cap = 2 if innings_pitched < 45 else 3
+                ip = min(round(innings_pitched / games), cap)
+
+            case PlayerSubType.STARTING_PITCHER:
+                if ip_per_start > 0:
+                    # USE IP/GS
+                    ip = round(ip_per_start) # MINIMUM FOR SP IS 4 IP
+                elif games_started > 0:
+                    # HAVE GAMES STARTED DATA, ESTIMATE RP INNINGS AND NORMALIZE
+                    games_as_rp = games - games_started
+                    rp_multiplier = 2.0 if self.median_year < 1950 else 1.0
+                    est_ip_as_rp = rp_multiplier * games_as_rp
+                    ip = round((innings_pitched - est_ip_as_rp) / games_started)
+                else:
+                    ip = round(innings_pitched / games)
+
+                # MIN OF 4 IP FOR STARTERS
+                ip = max(ip, 4)
+            
+            case _:
+                ip = 1
+
+        ip = max(ip, 1)
         
         return ip
 
@@ -2341,8 +2361,6 @@ class ShowdownPlayerCard(BaseModel):
         for warning in self.warnings:
             print(f"** {warning}")
 
-        self.player_data_for_html_table()
-
     def player_data_for_html_table(self) -> list[list[str]]:
         """Provides data needed to populate the statline shown on the showdownbot.com webpage.
 
@@ -2455,7 +2473,8 @@ class ShowdownPlayerCard(BaseModel):
         pts_data: list[list[str]] = []    
 
         for breakdown in self.points_breakdown.breakdowns.values():
-            pts_data.append([breakdown.metric_and_category_name, breakdown.value_formatted, str(round(breakdown.points)), breakdown.percentile_formatted])
+            asterisk = '*' if breakdown.metric.show_asterisk_in_pts_breakdown else ''
+            pts_data.append([f'{breakdown.metric_and_category_name}{asterisk}', breakdown.value_formatted, str(round(breakdown.points)), breakdown.percentile_formatted])
 
         if self.points_breakdown.ip_multiplier != 1.0:
             pts_data.append( ['IP MULT', str(self.ip), f"{self.points_breakdown.ip_multiplier}x", en_dash] )
@@ -2484,13 +2503,13 @@ class ShowdownPlayerCard(BaseModel):
             command_out_str = co_accuracy_tuple[0]
             accuracy_breakdown = self.command_out_accuracy_breakdowns.get(command_out_str, None)
             ops = ''
-            is_boosted = False
+            notes = '—'
             if accuracy_breakdown is not None:
                 ops_list = [bd.comparison for bd in accuracy_breakdown.values() if bd.stat == Stat.OPS]
                 ops = f'{max(ops_list):.3f}'.replace('0.','.') if len(ops_list) > 0 else ''
-                is_boosted = len([bd for bd in accuracy_breakdown.values() if bd.adjustment_pct != 1.0]) > 0
+                notes = max([bd.notes for bd in accuracy_breakdown.values()])
             accuracy = f"{round(100 * co_accuracy_tuple[1], 2)}%" + ('*' if index == 0 else '')
-            accuracy_data.append([f'{index}.  {command_out_str}', accuracy, ops, '*BOOSTED*' if is_boosted else '—'])
+            accuracy_data.append([f'{index}.  {command_out_str}', accuracy, ops, notes])
 
         return accuracy_data
 
@@ -3408,10 +3427,16 @@ class ShowdownPlayerCard(BaseModel):
             case Set._2000:
                 name_rotation = 90
                 name_alignment = "center"
+                is_name_over_25_chars = len(name) >= 25
+                is_name_over_22_chars = len(name) >= 22
                 is_name_over_18_chars = len(name) >= 18
                 is_name_over_15_chars = len(name) >= 15
                 name_size = 145
-                if is_name_over_18_chars:
+                if is_name_over_25_chars:
+                    name_size = 80
+                elif is_name_over_22_chars:
+                    name_size = 90
+                elif is_name_over_18_chars:
                     name_size = 110
                 elif is_name_over_15_chars:
                     name_size = 127
@@ -3429,16 +3454,28 @@ class ShowdownPlayerCard(BaseModel):
                 name_rotation = 90
                 name_alignment = "left"
                 name_size = 115 if is_name_over_char_limit else 144
+                if len(name) >= 26:
+                    name_size = 95
+                elif len(name) >= 23:
+                    name_size = 104
                 padding = 15
             case Set._2003:
                 name_rotation = 90
                 name_alignment = "right"
                 name_size = 90 if is_name_over_char_limit else 96
+                if len(name) >= 26:
+                    name_size = 70
+                elif len(name) >= 23:
+                    name_size = 82
                 padding = 60
             case Set._2004 | Set._2005:
                 name_rotation = 0
                 name_alignment = "left"
                 name_size = 80 if is_name_over_char_limit else 96
+                if len(name) >= 26:
+                    name_size = 60
+                elif len(name) >= 23:
+                    name_size = 70
                 padding = 3
                 has_border = True
                 border_color = colors.RED
@@ -3446,6 +3483,8 @@ class ShowdownPlayerCard(BaseModel):
                 name_rotation = 0
                 name_alignment = "left"
                 name_size = 80 if is_name_over_char_limit else 96
+                if len(name) >= 26:
+                    name_size = 70
                 name_font_path = helvetica_neue_cond_black_path
                 padding = 3
                 has_border = False
@@ -3475,7 +3514,7 @@ class ShowdownPlayerCard(BaseModel):
                 last_name = self.__text_image(
                     text = last,
                     size = self.set.template_component_size(TemplateImageComponent.PLAYER_NAME),
-                    font = ImageFont.truetype(name_font_path, size=135),
+                    font = ImageFont.truetype(name_font_path, size=115 if len(last) >= 15 else 135),
                     rotation = name_rotation,
                     alignment = name_alignment,
                     padding = padding,
