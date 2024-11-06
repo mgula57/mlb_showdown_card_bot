@@ -455,11 +455,11 @@ class BaseballReferenceScraper:
 
         is_full_career = year == 'CAREER'
         if is_full_career:
-            fielding_table = soup_for_homepage_stats.find('div', attrs = {'id': 'div_standard_fielding'})
+            fielding_table = soup_for_homepage_stats.find('div', attrs = {'id': re.compile('div_standard_fielding|div_players_standard_fielding')})
             fielding_table_footer = fielding_table.find('tfoot')
             return fielding_table_footer.find_all('tr')
         else:
-            return soup_for_homepage_stats.find_all('tr', attrs = {'id': '{}:standard_fielding'.format(year)})
+            return soup_for_homepage_stats.find_all('tr', attrs = {'id': re.compile(f'{year}:standard_fielding|players_standard_fielding\.{year}')})
         
     def positions_and_games_played(self, soup_for_homepage_stats:BeautifulSoup, years:list[str]) -> list[str]:
         """Parse standard positions and fielding metrics into a dictionary.
@@ -472,18 +472,20 @@ class BaseballReferenceScraper:
           Dict with positions and games played over the period of years. Ex: { 'C': {'g': 100}, '1B': {'g': 50} }
         """
         
-        positions_and_games_played = {}
+        positions_and_games_played: dict[str: dict[str,int]] = {}
         for year in years:
             fielding_metrics_by_position = self.__positions_table_records(soup_for_homepage_stats=soup_for_homepage_stats, year=year)
             for position_data in fielding_metrics_by_position:
-                position_column = position_data.find('td', attrs={'data-stat':'pos'})
+                team_column = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['team_ID', 'team_name_abbr'])
+                if team_column:
+                    if team_column == 'TOT' or 'TM' in team_column: continue
+                position_column = position_data.find('td', attrs={'data-stat': re.compile('pos|f_position')})
                 if position_column:
-                    position_name = position_column.get_text()
-                    if position_name != 'TOT':
+                    position_name: str = position_column.get_text()
+                    if position_name != 'TOT' and position_name.strip() != '':
                         existing_games_played = positions_and_games_played.get(position_name, {}).get('g', 0)
-                        games_played_text = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['G', 'games'])
+                        games_played_text = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['G', 'games', 'f_games'])
                         games_played = int(games_played_text) if games_played_text != '' else 0
-
                         existing_games_played += games_played
                         positions_and_games_played[position_name] = {'g': existing_games_played}
         
@@ -505,17 +507,29 @@ class BaseballReferenceScraper:
 
         positions_dict = {}
         for position_data in fielding_metrics_by_position:
-            position_column = position_data.find('td', attrs={'data-stat':'pos'})
-            if position_column:
-                position_name = position_column.get_text()
-                games_played_text = position_data.find('td',attrs={'class':'right','data-stat':'G'}).get_text()
-                games_played = int(games_played_text) if games_played_text != '' else 0
+
+            # FILTER FOR PARTIAL OR FULL RECORDS
+            #  - TOTAL ROW FOR FULL YEAR
+            #  - PARTIAL ROW (TEAM SPECIFIC) FOR TEAM OVERRIDE
+            is_partial_table_row = 'partial_table' in position_data.get('class', [])
+            is_valid_row = (is_partial_table_row) if self.team_override else (not is_partial_table_row)
+            if not is_valid_row: continue
+
+            # IF TEAM OVERRIDE, CHECK FOR TEAM COLUMN
+            if self.team_override:
+                team_name = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['team_ID', 'team_name_abbr'])
+                if team_name:
+                    if team_name != self.team_override: continue
+
+            position_name = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['pos', 'f_position'])
+            if position_name:
+                games_played_text = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['G', 'f_games'])
+                games_played = int(games_played_text) if games_played_text else 0
 
                 if position_name != 'TOT':
                     # DRS (2003+)
-                    drs_object = position_data.find('td',attrs={'class':'right','data-stat':'bis_runs_total'})
-                    drs_rating = drs_object.get_text() if drs_object else None
-                    drs_rating = None if (drs_rating or '') == '' else float(drs_rating)
+                    drs_rating_text = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['bis_runs_total', 'f_drs_total'])
+                    drs_rating = None if (drs_rating_text or '') == '' else float(drs_rating_text)
                     
                     # ACCOUNT FOR SHORTENED OR ONGOING SEASONS
                     use_stat_per_yr = False
@@ -529,15 +543,13 @@ class BaseballReferenceScraper:
                         use_stat_per_yr = (str(year) == '2020' or is_year_end_date_before_today) and drs_is_above_0
                     
                     if use_stat_per_yr:
-                        drs_object = position_data.find('td',attrs={'class':'right','data-stat':'bis_runs_total_per_season'})
-                        drs_rating = drs_object.get_text() if drs_object != None else 0
-                        drs_rating = 0 if drs_rating == '' else int(drs_rating)
+                        drs_rating_text = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['bis_runs_total_per_season', 'f_drs_total_per_year'])
+                        drs_rating = 0 if (drs_rating_text or '') == '' else int(drs_rating_text)
 
                     # TOTAL ZONE (1953-2003)
-                    suffix = '_per_season' if use_stat_per_yr else ''
-                    total_zone_object = position_data.find('td',attrs={'class':'right','data-stat':f'tz_runs_total{suffix}'})
-                    total_zone_rating = total_zone_object.get_text() if total_zone_object else None
-                    total_zone_rating = None if (total_zone_rating or '') == '' else float(total_zone_rating)
+                    suffix = '_per_year' if use_stat_per_yr else ''
+                    total_zone_text = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=[f'tz_runs_total{suffix}', f'f_tz_runs_total{suffix}'])
+                    total_zone_rating = None if (total_zone_text or '') == '' else float(total_zone_text)
 
                     # UPDATE POSITION DICTIONARY
                     positions_dict[position_name] = {
@@ -1299,6 +1311,11 @@ class BaseballReferenceScraper:
         aggregated_data_into_lists: dict[str, list] = {}
         for game_log_data in game_logs_parsed:
 
+            # REMOVE BAD UNICODE CHARACTERS
+            date_game = game_log_data.get('date_game', None)
+            if date_game:
+                game_log_data['date_game'] = date_game.replace(u'\xa0', u' ')
+
             # CHECK FOR DATE/YEAR FILTER
             year_from_game_log = self.__convert_to_numeric(str(game_log_data.get('year_game', first_year)))
             year_check = year_from_game_log in years or first_year == 'CAREER'
@@ -1898,7 +1915,8 @@ class BaseballReferenceScraper:
             'age','bWAR','dWAR','team_ID','lg_ID','year_ID','pos_season',
             'batting_avg','onbase_perc','slugging_perc','onbase_plus_slugging',
             'onbase_plus_slugging_plus','award_summary','rbat_plus','rOBA',
-            'whip','batters_faced','earned_run_avg','batting_avg_bip',
+            'whip','batters_faced','earned_run_avg','batting_avg_bip','year_game',
+            'ps_round','date_game','player_game_span','player_game_result',
         ]
         if stat_category not in categories_to_keep_default_case:
             stat_category = stat_category.upper()
@@ -2081,9 +2099,11 @@ class BaseballReferenceScraper:
         if string_value is None:
             return 0
 
-        if string_value.replace('-','').isdigit():
+        is_leading_negative_symbol = string_value.startswith('-')
+        string_value_first_decimal = string_value.replace('.','',1)
+        if string_value.replace('-','').isdigit() if is_leading_negative_symbol else string_value.isdigit():
             return int(string_value)
-        elif string_value.replace('.','',1).replace('-','').isdigit() and string_value.count('.') < 2:
+        elif ( string_value_first_decimal.replace('-','').isdigit() if is_leading_negative_symbol else string_value_first_decimal.isdigit() ) and string_value.count('.') < 2:
             return float(string_value)
         else:
             # RETURN ORIGINAL STRING
