@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser(description="Search baseball reference for best
 parser.add_argument('-hof','--hof', action='store_true', help='Only Hall of Fame Players', required=False)
 parser.add_argument('-v','--mvp', action='store_true', help='Only MVPs', required=False)
 parser.add_argument('-cy','--cya', action='store_true', help='Only CYAs', required=False)
+parser.add_argument('-gg','--gold_glove', action='store_true', help='Only Gold Glove Winners', required=False)
 parser.add_argument('-ys','--year_start', help='Optional year start filter', type=int, required=False, default=None)
 parser.add_argument('-ye','--year_end', help='Optional year end filter', type=int, required=False, default=None)
 parser.add_argument('-l','--limit', help='Optional limit', type=int, required=False, default=None)
@@ -85,6 +86,9 @@ for player in player_data:
 
     # CYA CHECK
     if args.cya and 'CYA-1' not in awards: continue
+
+    # GG CHECK
+    if args.gold_glove and 'GG' not in awards: continue
 
     # PRINT PLAYER'S NAME, TEAM, AND YEAR
     print(f"{player.name} {player.team_id} {player.year} {bwar} {hof_str} {mvp_str} {cy_str}")

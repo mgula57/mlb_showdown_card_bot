@@ -2326,7 +2326,7 @@ class ShowdownPlayerCard(BaseModel):
             'IBB': 'IBB',
         }
         if self.is_pitcher:
-            stat_categories_dict['IP'] = 'ip'
+            stat_categories_dict['IP'] = 'IP'
         statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))
         final_dict = {
             'projected': [],
