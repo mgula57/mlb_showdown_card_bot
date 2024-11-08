@@ -777,7 +777,7 @@ class ShowdownPlayerCard(BaseModel):
         initial_position_name_and_rating, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played,is_of_but_hasnt_played_cf=is_of_but_hasnt_played_cf)
 
         # FILTER TO TOP POSITIONS BY GAMES PLAYED
-        final_positions_in_game = self.__finalize_in_game_positions(positions_and_defense=initial_position_name_and_rating, positions_and_games_played=final_position_games_played)
+        final_positions_in_game = self.__finalize_in_game_positions(positions_and_defense=initial_position_name_and_rating, positions_and_games_played=final_position_games_played, total_games_played=total_games_played)
 
         # ASSIGN DH IF POSITIONS DICT IS EMPTY
         if final_positions_in_game == {}:
@@ -801,7 +801,7 @@ class ShowdownPlayerCard(BaseModel):
         positions_and_defense_dict_visual = { p.value_visual(ca_position_name=self.set.catcher_position_name) : v for p,v in self.positions_and_defense.items() }
         
         # COMBINE POSITIONS IF OPPORTUNITY EXISTS
-        positions_to_combine = self.__find_position_combination_opportunity(self.positions_and_defense)
+        positions_to_combine = self.__find_position_combination_opportunity(positions_and_defense=self.positions_and_defense, difference_threshold=0)
         
         # RETURN IF NO POSITIONS TO COMBINE
         if positions_to_combine is None:
@@ -859,9 +859,11 @@ class ShowdownPlayerCard(BaseModel):
             positions_and_defense['LF/RF'] = lf_rf_rating
             positions_and_games_played['LF/RF'] = lf_rf_games
             positions_set = set(positions_and_defense.keys())
+        
         # IF PLAYER HAS ALL OUTFIELD POSITIONS
+        non_outfield_positions = [pos for pos in positions_and_defense.keys() if pos not in ['LF/RF','CF','OF','RF','LF','DH']]
         if set(['LF/RF','CF','OF']).issubset(positions_set):
-            if self.set.is_outfield_split and positions_and_defense['LF/RF'] != positions_and_defense['CF']:
+            if self.set.is_outfield_split and positions_and_defense['LF/RF'] != positions_and_defense['CF'] and len(non_outfield_positions) < 2:
                 del positions_and_defense['OF']
                 del positions_and_games_played['OF']
             else:
@@ -900,12 +902,13 @@ class ShowdownPlayerCard(BaseModel):
 
         return positions_and_defense, positions_and_games_played
 
-    def __finalize_in_game_positions(self, positions_and_defense:dict[str,int], positions_and_games_played:dict[str,int]) -> dict[Position,int]:
+    def __finalize_in_game_positions(self, positions_and_defense:dict[str,int], positions_and_games_played:dict[str,int], total_games_played:int) -> dict[Position,int]:
         """ Filter number of positions, find opportunities to combine positions. Convert position strings to classes.
         
         Args:
           positions_and_defense: Dict of positions and in-game defensive ratings.
           positions_and_games_played: Dict of positions and number of appearance at each position.
+          total_games_played: Total games played by the player.
 
         Returns:
           Dict of positions and defense filtered to max positions.
@@ -963,13 +966,14 @@ class ShowdownPlayerCard(BaseModel):
 
         return final_positions_and_defense
 
-    def __find_position_combination_opportunity(self, positions_and_defense:dict[Position, int]) -> list[Position]:
+    def __find_position_combination_opportunity(self, positions_and_defense:dict[Position, int], difference_threshold:int = 2) -> list[Position]:
         """
         See if there is an opportunity to combine positions together.
         If no combination opportunies exist, return None.
 
         Args:
           positions_and_defense: Dict of positions and in-game defensive ratings.
+          difference_threshold: Maximum difference in defense allowed between positions.
 
         Returns:
           List of positions that will be combined into one.
@@ -998,7 +1002,7 @@ class ShowdownPlayerCard(BaseModel):
         difference = top_combo[1][1]
 
         # ONLY RETURN COMBINATION IF DIFFERENCE IS < 3
-        if difference > 2:
+        if difference > difference_threshold:
             return None
         
         return [position1, position2]
@@ -1020,6 +1024,10 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         pct_of_games_played = position_appearances / games_played
+
+        # IF PLAYER HAS PLAYED ALL INFIELD POSITIONS, REDUCE REQUIREMENT FOR EACH POSITION
+        pos_min_multiplier = 0.20 if ( not self.is_multi_year and has_played_all_if_positions and position in ['1B','2B','3B','SS'] ) else 1.0
+        
         if position == 'P' and self.is_pitcher:
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
@@ -1030,10 +1038,8 @@ class ShowdownPlayerCard(BaseModel):
                 return 'CLOSER'
             else:
                 return 'RELIEVER'
-        elif not self.is_multi_year and has_played_all_if_positions and position in ['1B','2B','3B','SS']:
-            # POSITION WILL QUALIFY EVEN IF NOT MEETING MINIMUM GAMES IF PLAYER HAS PLAYED ALL IF POSITIONS. SINGLE SEASON ONLY
-            return position
-        elif ( position_appearances < self.set.min_number_of_games_defense and pct_of_games_played < self.set.min_pct_of_games_defense(is_multi_year=False) ) or (self.is_multi_year and pct_of_games_played < self.set.min_pct_of_games_defense(is_multi_year=True)):
+        elif ( position_appearances < self.set.min_number_of_games_defense and pct_of_games_played < (self.set.min_pct_of_games_defense(is_multi_year=False) * pos_min_multiplier) ) \
+              or (self.is_multi_year and pct_of_games_played < (self.set.min_pct_of_games_defense(is_multi_year=True) * pos_min_multiplier ) ):
             # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
             return None
         elif position == 'DH' and num_positions > 1:
@@ -2277,7 +2283,7 @@ class ShowdownPlayerCard(BaseModel):
         # ----- POSITION AND ICONS  ----- #
 
         # POSITION
-        positions_string = self.positions_and_defense_as_string(is_horizontal=True) + ' '
+        positions_string = self.positions_and_defense_string + ' '
         # IP / SPEED
         ip_or_speed = self.speed.full_string if self.is_hitter else '{} IP'.format(self.ip)
         # ICON(S)
