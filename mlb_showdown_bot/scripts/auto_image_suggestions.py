@@ -71,7 +71,7 @@ for player in player_data:
     hof_str = 'HOF' if is_hof else ''
 
     # SKIP IF PLAYER IS IN IMAGE LIST
-    images = [image for image in image_list if player.bref_id in image and f'({player.team_id})' in image and (abs(int(image.split('-')[1]) - player.year) <= args.year_threshold if args.year_threshold else True)]
+    images = [image for image in image_list if player.bref_id in image and f'({player.team_id})' in image and (abs(int(image.split('-')[1]) - player.year) <= args.year_threshold if args.year_threshold is not None else True)]    
     if len(images) > 0:
         continue
 
