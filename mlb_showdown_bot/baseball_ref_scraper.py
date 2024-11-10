@@ -292,7 +292,7 @@ class BaseballReferenceScraper:
             is_full_career = False
 
         # PARSE OVERALL TYPE(S) ACROSS YEAR(S)
-        positions_and_games = self.positions_and_games_played(soup_for_homepage_stats=soup_for_homepage_stats, years=years_for_loop)
+        positions_and_games = self.positions_and_games_played(soup_for_homepage_stats=soup_for_homepage_stats, years=years_played)
         overall_type = self.type(positions_dict=positions_and_games, year=self.year_input)
 
         # ALSO QUERY ADVANCED STATS
@@ -457,7 +457,22 @@ class BaseballReferenceScraper:
         if is_full_career:
             fielding_table = soup_for_homepage_stats.find('div', attrs = {'id': re.compile('div_standard_fielding|div_players_standard_fielding')})
             fielding_table_footer = fielding_table.find('tfoot')
-            return fielding_table_footer.find_all('tr')
+            all_footer_rows = fielding_table_footer.find_all('tr')
+            
+            # BREF NOW DOESN'T SHOW THE POSITION NAME WHEN IT'S A TOTAL ROW WITH ONLY 1 POSITION
+            # LOOK AT THE LAST RECORD TO GET THE POSITION NAME
+            if len(all_footer_rows) == 1:
+                career_total_row: BeautifulSoup = all_footer_rows[0]
+                position_name = self.__extract_text_for_element(object=career_total_row, tag='td', attr_key='data-stat', values=['pos', 'f_position'])
+                if position_name.strip() == '':
+
+                    # GET POSITION NAME FROM THE FIRST ROW
+                    replacement_position_object = soup_for_homepage_stats.find('tr', attrs = {'id': re.compile(f':standard_fielding|players_standard_fielding\.')})
+                    replacement_position = self.__extract_text_for_element(object=replacement_position_object, tag='td', attr_key='data-stat', values=['pos', 'f_position'])
+                    career_total_row.insert(0, BeautifulSoup(f'<td data-stat="f_position">{replacement_position}</td>', 'html.parser'))
+                    all_footer_rows = [career_total_row]
+            
+            return all_footer_rows
         else:
             return soup_for_homepage_stats.find_all('tr', attrs = {'id': re.compile(f'{year}:standard_fielding|players_standard_fielding\.{year}')})
         
@@ -1079,7 +1094,7 @@ class BaseballReferenceScraper:
         # PARSE AWARDS IF FULL CAREER
         if is_full_career or self.team_override:
             year_filter = '' if is_full_career else str(year)
-            all_year_standard_stats = soup_for_advanced_stats.find_all('tr',attrs={'class':'full','id': re.compile(f"{table_prefix}_standard\.{year_filter}|players_standard_{table_prefix}\.{year_filter}")})
+            all_year_standard_stats = soup_for_advanced_stats.find_all('tr',attrs={'id': re.compile(f"{table_prefix}_standard\.{year_filter}|players_standard_{table_prefix}\.{year_filter}")})
             awards_total = ""
             for year_stats in all_year_standard_stats:
                 stats_dict = self.__parse_generic_bref_row(row=year_stats, included_categories=standard_columns_filter, search_for_lg_leader=True)

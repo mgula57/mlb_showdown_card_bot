@@ -4,6 +4,7 @@ import os
 from pprint import pprint
 import sys
 from pathlib import Path
+from prettytable import PrettyTable
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
 from postgres_db import PostgresDB, PlayerArchive
 
@@ -17,6 +18,7 @@ parser.add_argument('-ye','--year_end', help='Optional year end filter', type=in
 parser.add_argument('-l','--limit', help='Optional limit', type=int, required=False, default=None)
 parser.add_argument('-tm', '--team', help='Optional team filter', required=False, default=None)
 parser.add_argument('-yt', '--year_threshold', help='Optional year threshold. Only includes images that are <= the threshold.', required=False, type=int, default=None)
+parser.add_argument('-sort', '--sort', help='Optional sort field', required=False, default='bWar')
 args = parser.parse_args()
 
 def fetch_image_file_list() -> list[str]:
@@ -48,7 +50,7 @@ def fetch_player_data() -> list[PlayerArchive]:
     if db.connection is None:
         print("ERROR: NO CONNECTION TO DB")
     
-    war_field = "(case when length((stats->>'bWAR')) = 0 then 0.0 else (stats->>'bWAR')::float end)"
+    war_field = f"(case when length((stats->>'{args.sort}')) = 0 then 0.0 else (stats->>'{args.sort}')::float end)"
     player_data = db.fetch_all_stats_from_archive(year_list=year_list, limit=args.limit, order_by=war_field, exclude_records_with_stats=False)
 
     return player_data
@@ -61,14 +63,20 @@ player_data = fetch_player_data()
 if len(player_data) == 0:
     print("NO PLAYERS FOUND")
 
+player_tbl = PrettyTable(field_names=['Player', 'Team', 'Year', 'Position', 'G', 'GS', 'bWAR', 'OPS', 'ERA', 'HOF', 'MVP', 'CYA'])
+
 for player in player_data:
     
     bwar = player.stats.get('bWAR', 0)
     is_hof = player.stats.get('is_hof', False)
     awards = player.stats.get('award_summary', '').split(',')
-    mvp_str = 'MVP' if 'MVP-1' in awards else ''
-    cy_str = 'CY' if 'CYA-1' in awards else ''
-    hof_str = 'HOF' if is_hof else ''
+    games = str(player.g)
+    games_started = str(player.gs or '-')
+    era = str(player.stats.get('earned_run_avg', '-'))
+    ops = str(player.stats.get('onbase_plus_slugging', '-')).replace('0.','.')
+    mvp_str = 'X' if 'MVP-1' in awards else ''
+    cy_str = 'X' if 'CYA-1' in awards else ''
+    hof_str = 'X' if is_hof else ''
 
     # SKIP IF PLAYER IS IN IMAGE LIST
     images = [image for image in image_list if player.bref_id in image and f'({player.team_id})' in image and (abs(int(image.split('-')[1]) - player.year) <= args.year_threshold if args.year_threshold is not None else True)]    
@@ -91,4 +99,19 @@ for player in player_data:
     if args.gold_glove and 'GG' not in awards: continue
 
     # PRINT PLAYER'S NAME, TEAM, AND YEAR
-    print(f"{player.name} {player.team_id} {player.year} {bwar} {hof_str} {mvp_str} {cy_str}")
+    player_tbl.add_row([
+        player.name,
+        player.team_id,
+        player.year,
+        ",".join(player.primary_positions),
+        games,
+        games_started,
+        bwar,
+        ops,
+        era,
+        hof_str,
+        mvp_str,
+        cy_str
+    ])
+
+print(player_tbl)
