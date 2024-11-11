@@ -504,6 +504,11 @@ class BaseballReferenceScraper:
                         existing_games_played += games_played
                         positions_and_games_played[position_name] = {'g': existing_games_played}
         
+        # ADD DH APPEARANCES
+        games_at_dh = self.__get_dh_appearances(soup_for_homepage_stats, years=[year])
+        if games_at_dh:
+            positions_and_games_played['DH'] = { 'g': games_at_dh, }
+
         return positions_and_games_played
     
     def positions_and_defense(self, soup_for_homepage_stats:BeautifulSoup, year:int) -> dict[str, dict]:
@@ -608,6 +613,18 @@ class BaseballReferenceScraper:
                             'tzr': None,
                             'drs': None
                         }
+
+        # CHECK FOR DH
+        # DH WILL NOT HAVE A RECORD IN THE FIELDING TABLE
+        if not self.pitcher_override:
+            games_at_dh = self.__get_dh_appearances(soup_for_homepage_stats, years=[year])
+            if games_at_dh:
+                positions_dict['DH'] = {
+                    'g': games_at_dh,
+                    'tzr': None,
+                    'drs': None
+                }
+
         return {
             'positions': positions_dict,
             'dWAR': dwar_rating,
@@ -642,6 +659,41 @@ class BaseballReferenceScraper:
             return float(war_rating)
         except:
             return 0.0
+
+    def __get_dh_appearances(self, soup_for_homepage_stats:BeautifulSoup, years:list[str]) -> int:
+        """Parse DH appearances for a given year.
+        
+        Args:
+            soup_for_homepage_stats: BeautifulSoup object with all stats on homepage.
+            year: Year for Player stats
+
+        Returns:
+            Int for DH appearances.
+        """
+
+        # CHECK APPEARANCES TABLE
+        appearances_table = soup_for_homepage_stats.find('table', attrs = {'id': 'appearances'})
+        total_games_at_dh = 0
+        if appearances_table:
+            is_full_career = str(years[0]) == 'CAREER'
+            if is_full_career:
+                footer = appearances_table.find('tfoot')
+                footer_row = footer.find('tr') # WILL BE THE FIRST ROW OF FOOTER
+                if footer_row:
+                    year_rows = [footer_row]
+            else:
+                # LOOP THROUGH ALL THE TR ROWS UNTIL THE YEAR IS FOUND
+                year_rows: list[BeautifulSoup] = []
+                for tr in appearances_table.find_all('tr'):
+                    year_text = self.__extract_text_for_element(object=tr, tag='th', attr_key='data-stat', values=['year_ID', 'year_id']) or ''
+                    if year_text in years:
+                        year_rows.append(tr)
+            for year_row in year_rows:
+                dh_games = self.__extract_text_for_element(object=year_row, tag='td', attr_key='data-stat', values=['G_dh'])
+                if dh_games:
+                    total_games_at_dh += int(dh_games)
+        
+        return total_games_at_dh
 
     def hand(self, soup_for_homepage_stats:BeautifulSoup, type:str) -> str:
         """Parse hand of player.
