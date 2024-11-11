@@ -2813,7 +2813,7 @@ class ShowdownPlayerCard(BaseModel):
         # METADATA
         metadata_image, color = self.__metadata_image()
         metadata_image_x, metadata_image_y = self.set.template_component_paste_coordinates(TemplateImageComponent.METADATA)
-        if len(self.icons) > 4 and self.set in [Set._2004, Set._2005]:
+        if len(self.icons) > 4 and self.set in [Set._2004, Set._2005] and self.is_hitter:
             metadata_image_x += -10
         metadata_paste_coordinates = self.__coordinates_adjusted_for_bordering((metadata_image_x, metadata_image_y))
         card_image.paste(color, metadata_paste_coordinates, metadata_image)
