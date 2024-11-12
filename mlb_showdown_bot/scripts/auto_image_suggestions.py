@@ -9,6 +9,7 @@ sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).paren
 from postgres_db import PostgresDB, PlayerArchive
 
 parser = argparse.ArgumentParser(description="Search baseball reference for best auto images to add.")
+parser.add_argument('-pst','--player_subtype', help='Player Sub Types (POSITION_PLAYER, STARTING_PITCHER, RELIEF_PITCHER)', type=str, required=False, default=None)
 parser.add_argument('-hof','--hof', action='store_true', help='Only Hall of Fame Players', required=False)
 parser.add_argument('-v','--mvp', action='store_true', help='Only MVPs', required=False)
 parser.add_argument('-cy','--cya', action='store_true', help='Only CYAs', required=False)
@@ -97,6 +98,8 @@ for player in player_data:
 
     # GG CHECK
     if args.gold_glove and 'GG' not in awards: continue
+
+    if args.player_subtype and args.player_subtype.upper() != player.player_subtype: continue
 
     # PRINT PLAYER'S NAME, TEAM, AND YEAR
     player_tbl.add_row([
