@@ -36,6 +36,17 @@ class PlayerArchive(BaseModel):
     modified_date: datetime
     stats: dict
 
+    @property
+    def player_subtype(self) -> str:
+        if self.player_type == 'HITTER':
+            return 'POSITION_PLAYER'
+
+        games_started_vs_total = round(self.gs / self.g, 4) if self.g > 0 else 0
+        if games_started_vs_total >= 0.5:
+            return 'STARTING_PITCHER'
+        else:
+            return 'RELIEF_PITCHER'
+
 class PostgresDB:
 
 # ------------------------------------------------------------------------

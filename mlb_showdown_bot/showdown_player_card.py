@@ -3093,11 +3093,11 @@ class ShowdownPlayerCard(BaseModel):
                 pixel_difference = size_adjusted[0] - logo_size[0]
                 logo_paste_coordinates = tuple(int(v - (pixel_difference / 2)) for v in logo_paste_coordinates)
                 logo_size = size_adjusted
-            team_logo = team_logo.resize(size_adjusted, Image.ANTIALIAS)
+            team_logo = team_logo.resize(size_adjusted, Image.Resampling.LANCZOS)
         except:
             # IF NO IMAGE IS FOUND, DEFAULT TO MLB LOGO
             team_logo = Image.open(self.__team_logo_path(name=Team.MLB.logo_name(year=2023))).convert("RGBA")
-            team_logo = team_logo.resize(logo_size, Image.ANTIALIAS)
+            team_logo = team_logo.resize(logo_size, Image.Resampling.LANCZOS)
 
         if self.set.is_team_logo_drop_shadow:
             team_logo = self.__add_drop_shadow(image=team_logo)
@@ -3205,7 +3205,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # SIZE
         size = team.background_logo_size(year=self.median_year, set=self.set.value, is_alternate=use_alternate)
-        team_logo = team_logo.resize(size=size, resample=Image.ANTIALIAS)
+        team_logo = team_logo.resize(size=size, resample=Image.Resampling.LANCZOS)
 
         # ROTATION
         rotation = team.background_logo_rotation(set=self.set.value)
@@ -3368,7 +3368,7 @@ class ShowdownPlayerCard(BaseModel):
         logo_img_with_text.paste(logo_img, (x_centered, 0), logo_img)
         logo_img_with_text.paste(era_txt_color, text_paste_location, era_text)
 
-        return logo_img_with_text.resize(logo_size, Image.ANTIALIAS)
+        return logo_img_with_text.resize(logo_size, Image.Resampling.LANCZOS)
 
     def __2000_player_name_container_image(self) -> Image.Image:
         """Gets template asset image for 2000 name container.
@@ -3545,7 +3545,7 @@ class ShowdownPlayerCard(BaseModel):
                 name_w_icons_image.paste(name_color, (0,0), final_text)
                 
                 # ADD ICONS
-                starting_x = name_font.getsize(name)[0] + 15
+                starting_x = self.__font_getsize(name_font, name)[0] + 15
                 for index, icon in enumerate(self.icons):
                     position = self.set.icon_paste_coordinates(index+1)
                     position = (position[0] + starting_x, position[1])
@@ -3704,7 +3704,7 @@ class ShowdownPlayerCard(BaseModel):
                     padding=0,
                     spacing= 57 if is_02 else 66
                 )
-                metadata_image = metadata_text.resize((255,900), Image.ANTIALIAS)
+                metadata_image = metadata_text.resize((255,900), Image.Resampling.LANCZOS)
 
             case Set._2004 | Set._2005:
                 # 2004 & 2005
@@ -3723,7 +3723,7 @@ class ShowdownPlayerCard(BaseModel):
                     border_color = colors.BLACK,
                     border_size = 9
                 )
-                metadata_image = metadata_text.resize((1200,300), Image.ANTIALIAS)
+                metadata_image = metadata_text.resize((1200,300), Image.Resampling.LANCZOS)
                 # DONT WANT TO RETURN A COLOR (BECAUSE IT'S MULTI-COLORED)
                 # PASS THE IMAGE ITSELF AS THE COLOR
                 color = metadata_image
@@ -3763,12 +3763,16 @@ class ShowdownPlayerCard(BaseModel):
                         alignment = "left",
                         padding = 0,
                     )
-                    metadata_text = metadata_text.resize((500,300), Image.ANTIALIAS)
+                    metadata_text = metadata_text.resize((500,300), Image.Resampling.LANCZOS)
                     y_position = 5 if is_small_text else 0
 
                     metadata_image.paste(text_color, (int(current_x_position),y_position), metadata_text)
-                    category_font_width = category_font.getsize(category)[0] / 3.0
-                    current_x_position += category_font_width
+                    
+                    # CALCULATE X POSITION
+                    font_width, _ = self.__font_getsize(category_font, category)
+                    font_width = font_width / 3.0
+                    current_x_position += font_width
+                    
                     if not is_last and not is_pts:
                         # DIVIDER
                         divider_text = self.__text_image(
@@ -3780,7 +3784,7 @@ class ShowdownPlayerCard(BaseModel):
                             alignment = "left",
                             padding = 0,
                         )
-                        divider_text = divider_text.resize((300,300), Image.ANTIALIAS)
+                        divider_text = divider_text.resize((300,300), Image.Resampling.LANCZOS)
                         divider_color = (105,105,105,255) if self.image.is_dark_mode else (194,194,194,255)
                         metadata_image.paste(divider_color, (int(current_x_position) + 30, 0), divider_text)
                     current_x_position += 65
@@ -3845,7 +3849,7 @@ class ShowdownPlayerCard(BaseModel):
         # CREATE FINAL CHART IMAGE
         if is_horizontal:
             # COLOR IS TEXT ITSELF
-            chart_text = chart_text.resize((2100,240), Image.ANTIALIAS)
+            chart_text = chart_text.resize((2100,240), Image.Resampling.LANCZOS)
             color = chart_text
         else:
             spacing = self.set.template_component_font_spacing(TemplateImageComponent.CHART)
@@ -3859,7 +3863,7 @@ class ShowdownPlayerCard(BaseModel):
                 spacing=spacing
             )
             color = colors.WHITE if self.image.is_dark_mode else colors.BLACK
-            chart_text = chart_text.resize((255,1200), Image.ANTIALIAS)
+            chart_text = chart_text.resize((255,1200), Image.Resampling.LANCZOS)
 
         return chart_text, color
 
@@ -3891,7 +3895,7 @@ class ShowdownPlayerCard(BaseModel):
                 font = set_font,
                 alignment = "center"
             )
-            set_text = set_text.resize((150,75), Image.ANTIALIAS)
+            set_text = set_text.resize((150,75), Image.Resampling.LANCZOS)
             set_image.paste(set_text_color, set_image_location, set_text)
         else:
             # DIFFERENT STYLES BETWEEN NUMBER AND SET
@@ -3920,7 +3924,7 @@ class ShowdownPlayerCard(BaseModel):
                 font = set_font_year,
                 alignment = alignment
             )
-            year_text = year_text.resize((int(set_year_size[0] / 3.75), int(set_year_size[1] / 3.75)), Image.ANTIALIAS)
+            year_text = year_text.resize((int(set_year_size[0] / 3.75), int(set_year_size[1] / 3.75)), Image.Resampling.LANCZOS)
             set_image.paste(set_text_color, set_image_location, year_text)
 
             is_default = self.image.set_number == '—'
@@ -3934,7 +3938,7 @@ class ShowdownPlayerCard(BaseModel):
                     font = set_font,
                     alignment = alignment
                 )
-                number_text = number_text.resize((int(number_text.size[0] / 3.75), int(number_text.size[1] / 3.75)), Image.ANTIALIAS)
+                number_text = number_text.resize((int(number_text.size[0] / 3.75), int(number_text.size[1] / 3.75)), Image.Resampling.LANCZOS)
                 number_color = self.set.template_component_font_color(TemplateImageComponent.NUMBER, is_dark_mode=self.image.is_dark_mode)
                 number_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.NUMBER, expansion=self.image.expansion)
                 set_image.paste(number_color, number_paste_location, number_text)
@@ -4012,7 +4016,7 @@ class ShowdownPlayerCard(BaseModel):
                     alignment = "center",
                     rotation = accolade_rotation
                 )
-                accolade_text = accolade_text.resize((375,150), Image.ANTIALIAS)
+                accolade_text = accolade_text.resize((375,150), Image.Resampling.LANCZOS)
                 accolade_text_images.append( (accolade_text, (x_position, y_position), accolade) )
                 x_position += x_incremental
                 y_position += accolade_spacing
@@ -4049,7 +4053,7 @@ class ShowdownPlayerCard(BaseModel):
             alignment = "left",
             rotation = 0 if is_after_03 else 7
         )
-        year_text = year_text.resize((180,180), Image.ANTIALIAS)
+        year_text = year_text.resize((180,180), Image.Resampling.LANCZOS)
         year_paste_coords = self.set.super_season_year_paste_coordinates(is_multi_year=self.is_multi_year)
         year_color = self.set.super_season_year_text_color
         super_season_image.paste(year_color, year_paste_coords, year_text)
@@ -4058,7 +4062,7 @@ class ShowdownPlayerCard(BaseModel):
         y_coord_adjustment = ( (3 - num_accolades) * 55 ) if self.set.is_00_01 and num_accolades < 3 else 0
 
         # RESIZE
-        super_season_image = super_season_image.resize(self.set.template_component_size(TemplateImageComponent.SUPER_SEASON), Image.ANTIALIAS)
+        super_season_image = super_season_image.resize(self.set.template_component_size(TemplateImageComponent.SUPER_SEASON), Image.Resampling.LANCZOS)
         return super_season_image, y_coord_adjustment
 
     def __super_season_classic_expanded_image(self) -> Image.Image:
@@ -4120,7 +4124,7 @@ class ShowdownPlayerCard(BaseModel):
                 font = font,
                 alignment = "center",
             )
-            accolade_text = accolade_text.resize((355, 50), Image.ANTIALIAS)
+            accolade_text = accolade_text.resize((355, 50), Image.Resampling.LANCZOS)
             ss_image.paste(accolade_color, (x_position, y_position + (5 if is_over_soft_cap else 0)), accolade_text)
             y_position += 55
 
@@ -4135,7 +4139,7 @@ class ShowdownPlayerCard(BaseModel):
                 font = year_font,
                 alignment = "center",
             )
-            year_text_img = year_text_img.resize((245, 211), Image.ANTIALIAS)
+            year_text_img = year_text_img.resize((245, 211), Image.Resampling.LANCZOS)
             ss_image.paste(secondary_color, (133, 88 if self.is_multi_year else 79), year_text_img)
 
         # TEAM LOGO
@@ -4143,13 +4147,13 @@ class ShowdownPlayerCard(BaseModel):
             logo_name = self.team.logo_name(year=self.median_year, is_alternate=False, set=self.set.value, is_dark=self.image.is_dark_mode)
             team_logo_path = self.__team_logo_path(name=logo_name)
             team_logo = Image.open(team_logo_path).convert("RGBA")
-            team_logo = team_logo.resize((125,125), Image.ANTIALIAS)
+            team_logo = team_logo.resize((125,125), Image.Resampling.LANCZOS)
             team_logo = self.__add_drop_shadow(image=team_logo, blur_radius=10)
             ss_image.paste(team_logo, (185,465), team_logo)
 
         # RESIZE
         size = self.set.template_component_size(TemplateImageComponent.SUPER_SEASON)
-        ss_image = ss_image.resize(size, Image.ANTIALIAS)
+        ss_image = ss_image.resize(size, Image.Resampling.LANCZOS)
 
         return ss_image
 
@@ -4185,7 +4189,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # RESIZE
         logo_size = self.set.template_component_size(TemplateImageComponent.ROOKIE_SEASON)
-        rookie_season_image = rookie_season_image.resize(logo_size, Image.ANTIALIAS)
+        rookie_season_image = rookie_season_image.resize(logo_size, Image.Resampling.LANCZOS)
 
         return rookie_season_image
 
@@ -4231,7 +4235,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # RESIZE
         logo_size = self.set.template_component_size(TemplateImageComponent.POSTSEASON)
-        postseason_logo_image = postseason_logo_image.resize(logo_size, Image.ANTIALIAS)
+        postseason_logo_image = postseason_logo_image.resize(logo_size, Image.Resampling.LANCZOS)
 
         return postseason_logo_image
 
@@ -4302,7 +4306,7 @@ class ShowdownPlayerCard(BaseModel):
         font = ImageFont.truetype(font_path, size=120)
         text_img = self.__text_image(text=text,size=(210,220),font=font,alignment='center')
         icon_img.paste(text_color, (0,60), text_img)
-        icon_img = icon_img.resize(size, Image.ANTIALIAS)
+        icon_img = icon_img.resize(size, Image.Resampling.LANCZOS)
 
         return icon_img
         
@@ -4340,7 +4344,7 @@ class ShowdownPlayerCard(BaseModel):
                 logo_size_x, logo_size_y = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
                 logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name == 'ASG-2022' else (logo_size_x, logo_size_y)
                 logo_path = self.__team_logo_path(name=logo_name)
-                logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.ANTIALIAS)
+                logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.Resampling.LANCZOS)
                 image.paste(logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), logo)
             case Edition.SUPER_SEASON:
                 super_season_img, y_adjustment = self.__super_season_image()
@@ -4397,7 +4401,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # RESIZE TO 85% OF ORIGINAL SIZE
         img_size = (int(background_img.size[0] * 0.85), int(background_img.size[1] * 0.85))
-        background_img = background_img.resize(img_size, Image.ANTIALIAS)
+        background_img = background_img.resize(img_size, Image.Resampling.LANCZOS)
 
         return background_img
 
@@ -4438,7 +4442,7 @@ class ShowdownPlayerCard(BaseModel):
             font = style_font,
             alignment = "left"
         )
-        style_text = style_text.resize((450,75), Image.ANTIALIAS)
+        style_text = style_text.resize((450,75), Image.Resampling.LANCZOS)
         style_text_color = self.set.template_component_font_color(component=TemplateImageComponent.STYLE_TEXT, is_dark_mode=self.image.is_dark_mode)
         style_text_paste_location = self.set.template_component_paste_coordinates(TemplateImageComponent.STYLE_TEXT)
         bg_image.paste(style_text_color, style_text_paste_location, style_text)
@@ -4479,7 +4483,7 @@ class ShowdownPlayerCard(BaseModel):
             alignment = "center"
         )
         multi_year_y_adjustment = 3 if is_multi_year else 0
-        year_text = year_text.resize((150,75), Image.ANTIALIAS)
+        year_text = year_text.resize((150,75), Image.Resampling.LANCZOS)
         year_img.paste("#272727", (4,13 + multi_year_y_adjustment), year_text)
 
         return year_img
@@ -4531,7 +4535,7 @@ class ShowdownPlayerCard(BaseModel):
             font = font,
             alignment = "center",
         )
-        text_image = text_image_large.resize((280,240), Image.ANTIALIAS)
+        text_image = text_image_large.resize((280,240), Image.Resampling.LANCZOS)
         split_image.paste(text_color, (-5, 12), text_image)
 
         return split_image
@@ -4598,7 +4602,7 @@ class ShowdownPlayerCard(BaseModel):
             font = font,
             alignment = "center"
         )
-        stat_text = stat_text.resize(final_size, Image.ANTIALIAS)
+        stat_text = stat_text.resize(final_size, Image.Resampling.LANCZOS)
         text_color = self.set.template_component_font_color(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_dark_mode=self.image.is_dark_mode)
         bg_image.paste(text_color, (padding, 3), stat_text)
 
@@ -4793,7 +4797,7 @@ class ShowdownPlayerCard(BaseModel):
                         player_img_components.append((image, paste_coordinates))
                         continue
                     else:
-                        image = Image.open(img_url).convert('RGBA').resize((1200,1200), resample=Image.ANTIALIAS)
+                        image = Image.open(img_url).convert('RGBA').resize((1200,1200), resample=Image.Resampling.LANCZOS)
                 case "NAME_CONTAINER":
                     image = self.__2000_player_name_container_image()
                 case _: 
@@ -4811,14 +4815,14 @@ class ShowdownPlayerCard(BaseModel):
             size_adjustment_for_set = self.set.player_image_component_size_adjustment(img_component)
             if size_adjustment_for_set:
                 new_size = (int(image.size[0] * size_adjustment_for_set), int(image.size[1] * size_adjustment_for_set))
-                image = image.resize(size=new_size, resample=Image.ANTIALIAS)
+                image = image.resize(size=new_size, resample=Image.Resampling.LANCZOS)
             
             # CROP IMAGE
             crop_size = default_crop_size if img_component.ignores_custom_crop else player_crop_size
             crop_adjustment = default_crop_adjustment if img_component.ignores_custom_crop else special_crop_adjustment
             image = self.__img_crop(image, crop_size=crop_size, crop_adjustment=crop_adjustment)
             if crop_size != card_size:
-                image = image.resize(size=card_size, resample=Image.ANTIALIAS)
+                image = image.resize(size=card_size, resample=Image.Resampling.LANCZOS)
 
             # SUPER SEASON: FIND LOCATIONS FOR ELLIPSES
             is_super_season_glow = img_component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE] and self.image.special_edition == SpecialEdition.SUPER_SEASON
@@ -5443,7 +5447,11 @@ class ShowdownPlayerCard(BaseModel):
         mode = 'RGBA' if has_border else 'L'
         text_layer = Image.new(mode,size)
         draw = ImageDraw.Draw(text_layer)
-        w, h = draw.textsize(text, font=font)
+        
+        # GET TEXT WIDTH
+        bbox = draw.textbbox(xy=(0,0), text=text, font=font)
+        w = bbox[2] - bbox[0]
+
         if alignment == "center":
             x = (size[0]-w) / 2.0
         elif alignment == "right":
@@ -5493,7 +5501,11 @@ class ShowdownPlayerCard(BaseModel):
         draw = ImageDraw.Draw(img)
         
         # Calculate the size of the text
-        text_width, text_height = draw.textsize(text, font=font)
+        bbox = draw.textbbox((0, 0), text, font=font)
+
+        # Calculate the size of the text
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
         
         return text_width, text_height
 
@@ -5544,10 +5556,26 @@ class ShowdownPlayerCard(BaseModel):
         x_diff = abs(x_ratio)
         y_diff = abs(y_ratio)
         scale = x_ratio if x_diff > y_diff else y_ratio
-        image = image.resize((int(width * scale), int(height * scale)), Image.ANTIALIAS)
+        image = image.resize((int(width * scale), int(height * scale)), Image.Resampling.LANCZOS)
 
         # CROP THE CENTER OF THE IMAGE
         return self.__img_crop(image=image, crop_size=crop_size)
+
+    def __font_getsize(self, font:ImageFont.ImageFont, text:str) -> tuple[int,int]:
+        """Get size of text with font.
+
+        Args:
+          font: PIL font object.
+          text: Text to measure.
+
+        Returns:
+          Tuple with width and height of text.
+        """
+
+        left, top, right, bottom = font.getbbox(text)
+        tw, th = right - left, bottom - top
+
+        return tw, th
 
     def __img_crop(self, image:Image.Image, crop_size:tuple[int,int], crop_adjustment:tuple[int,int] = (0,0)) -> Image.Image:
         """Crop and image in the center to the given size.
