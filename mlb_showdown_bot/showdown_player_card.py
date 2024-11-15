@@ -28,6 +28,7 @@ try:
     from .classes.icon import Icon
     from .classes.accolade import Accolade
     from .classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
+    from .classes.player_position import PositionSlot, PositionSlotParent
     from .classes.metrics import DefenseMetric
     from .classes.nationality import Nationality
     from .classes.chart import ChartCategory, Stat, ChartAccuracyBreakdown
@@ -43,8 +44,8 @@ except ImportError:
     from classes.team import Team
     from classes.icon import Icon
     from classes.accolade import Accolade
-    from classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
-    from classes.player_position import PlayerSubType
+    from classes.sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, PointsMetric, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
+    from classes.player_position import PositionSlot, PositionSlotParent
     from classes.metrics import DefenseMetric
     from classes.nationality import Nationality
     from classes.chart import ChartCategory, Stat, ChartAccuracyBreakdown
@@ -110,6 +111,7 @@ class ShowdownPlayerCard(BaseModel):
     positions_and_defense_for_visuals: dict[str, int] = {}
     positions_and_defense_string: str = ''
     positions_and_real_life_ratings: dict[str, dict[DefenseMetric, Union[float, int]]] = {}
+    positions_and_games_played: dict[Position, int] = {}
     command_out_accuracies: dict[str, float] = {}
     command_out_accuracy_breakdowns: dict[str, dict[Stat, ChartAccuracyBreakdown]] = {}
     ip: int = None
@@ -168,7 +170,7 @@ class ShowdownPlayerCard(BaseModel):
 
             # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
             self.stats = self.add_estimates_to_stats(stats=self.stats)
-            self.positions_and_defense: dict[Position, int] = self.__positions_and_defense(stats_dict=self.stats)
+            self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self.__positions_and_defense(stats_dict=self.stats)
             self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
             self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
             self.player_sub_type = self.calculate_player_sub_type()
@@ -218,8 +220,7 @@ class ShowdownPlayerCard(BaseModel):
         if year_list is not None:
             if len(year_list) > 0:
                 return year_list
-        
-        year:str = values.get('year')
+        year:str = values.get('year', '')
         stats:dict = values.get('stats', {})
         all_years_played:list[str] = stats.get('years_played', [])
         if year.upper() == 'CAREER':
@@ -316,7 +317,7 @@ class ShowdownPlayerCard(BaseModel):
         
         return most_common_era_tuples_list[0][0]
 
-    @validator('name')
+    @validator('name', pre=True)
     def parse_name(cls, name:str, values:dict) -> str:
         """Use the bref name first, user input as a backup"""
         stats:dict = values.get('stats', {})
@@ -521,6 +522,27 @@ class ShowdownPlayerCard(BaseModel):
         return num_positions
     
     @property
+    def primary_position(self) -> Position:
+        """Get the player's primary position."""
+
+        def games_played_for_position(position:Position) -> int:
+            if position == Position.IF:
+                positions = [pos for pos in Position if pos.is_infield]
+                return sum([self.positions_and_games_played.get(pos, 0) for pos in positions])
+            
+            return self.positions_and_games_played.get(position, 0)
+
+        # PITCHERS - CHECK FIRST VALUE IN DICT
+        all_positions = list(self.positions_and_defense.keys())
+        if self.is_pitcher and len(all_positions) == 1:
+            return all_positions[0]
+        
+        # RETURN PRIMARY POSITION BASED ON GAMES PLAYED FOR POSITION PLAYERS
+        sorted_positions = sorted(self.positions_and_defense.items(), key=lambda p: games_played_for_position(p[0]), reverse=True)
+        primary_position = sorted_positions[0][0]
+        return primary_position
+
+    @property
     def positions_and_defense_img_order(self) -> list:
         """ Sort the positions and defense by how they will appear on the card image.
 
@@ -682,14 +704,17 @@ class ShowdownPlayerCard(BaseModel):
 # DEFENSE
 # ------------------------------------------------------------------------
 
-    def __positions_and_defense(self, stats_dict:dict) -> dict[Position, int]:
+    def __positions_and_defense(self, stats_dict:dict) -> tuple[ dict[Position, int], dict[str, dict[DefenseMetric, Union[float, int]]], dict[Position, int] ]:
         """Get in-game defensive positions and ratings
 
         Args:
           stats_dict: All stats from the player's real life season.
 
         Returns:
-          Dict with in game positions and defensive ratings
+          Tuple with multiple defensive dicts
+            - Dict with in game positions and defensive ratings
+            - Dict with in game positions and real life defensive metrics
+            - Dict with in game positions and games played at those positions in real life.
         """
 
         total_games_played = stats_dict.get('G_RS', None) or stats_dict.get('G', 0)
@@ -783,10 +808,10 @@ class ShowdownPlayerCard(BaseModel):
         if final_positions_in_game == {}:
             final_positions_in_game = {Position.DH: 0}
 
-        # STORE TO REAL LIFE NUMBERS TO SELF
-        self.positions_and_real_life_ratings = positions_and_real_life_ratings
-
-        return final_positions_in_game
+        # RE-SORT POSITIONS
+        final_positions_in_game = dict(sorted(final_positions_in_game.items(), key=lambda item: Position(item[0]).extract_games_played_used_for_sort(final_position_games_played)))
+        
+        return final_positions_in_game, positions_and_real_life_ratings, final_position_games_played
 
     def calc_positions_and_defense_for_visuals(self) -> dict[str, int]:
         """ Transform the player's positions_and_defense dictionary for visuals (printing, card image)
@@ -1107,9 +1132,9 @@ class ShowdownPlayerCard(BaseModel):
         # < 100 GAMES, CAP DEFENSE AT MAX
         # MAX IS REDUCED CHANGES FOR SMALL SAMPLE SIZES (< 25 GAMES)
         games_multiplier = max( min(games / 25, 1) , 0.5 )
-        is_defense_over_the_max = defense > ( max_defense_for_position * games_multiplier )
+        is_defense_over_the_max = defense >= ( max_defense_for_position * games_multiplier )
         if games < 45 and is_defense_over_the_max:
-            defense = int(round(max_defense_for_position * 0.5))
+            defense = int(round(max_defense_for_position * 0.6))
         elif games < 100 and is_defense_over_the_max:
             defense = int(max_defense_for_position)
 
@@ -1169,6 +1194,11 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           In game innings pitched ability.
         """
+
+        # RETURN 0 IF HITTER
+        if not self.player_type.is_pitcher:
+            return 0
+        
         # ACCOUNT FOR HYBRID STARTER/RELIEVERS
         match self.player_sub_type:
             case PlayerSubType.RELIEF_PITCHER:
@@ -1630,6 +1660,23 @@ class ShowdownPlayerCard(BaseModel):
 
         return sorted_accolades[0:maximum] if maximum else sorted_accolades
 
+    def has_position(self, position: Position) -> bool:
+        """Checks for position in positions list"""
+        return position in self.positions_list
+
+    def defense_for_position_slot(self, position_slot: PositionSlot) -> int:
+        """Returns in game defense for a position slot"""
+
+        # RETURN 0 IF POSITION DOESN'T HAVE DEFENSE (EX: BENCH, PITCHER)
+        if not position_slot.has_defense:
+            return 0
+
+        for position in position_slot.valid_positions:
+            if self.has_position(position):
+                return self.positions_and_defense.get(position, 0)
+
+        return 0
+
     def split_name(self, name:str, is_nickname:bool=False) -> tuple[str, str]:
         """ Splits name into first and last. Handles even split for nicknames 
         
@@ -1895,26 +1942,30 @@ class ShowdownPlayerCard(BaseModel):
         
         return stats_for_real_pa
 
-    def stat_highlights_list(self, stats:dict[str: any], limit:int) -> list[str]:
-        """Get the most relevant stats for a player.
+    def stat_highlights_list(self, stats:dict[str: any]) -> list[str]:
+        """Get the most relevant stats for a player. Ranks automatically based on relevance.
+
+        Games Played and Slashline are prioritized.
 
         Args:
-          limit: Number of stats to return.
+          stats: Stats dictionary to use for ranking categories.
 
         Returns:
           List of stats.
         """
 
         categories = self.player_sub_type.stat_highlight_categories(type=self.image.stat_highlights_type)
-        all_stats: list[str] = []
+        stat_and_sort_rank: dict[str, float] = {}
         ignore_dwar = False
         for category in categories:
             stat_keys = category.stat_key_list
+            category_multiplier = category.sort_rating_multiplier
             num_keys = len(stat_keys)
             stat_name = category.value
+            stat_suffix = f' {stat_name}' if num_keys == 1 else ''
 
             # ADD RELEVANT STATS
-            stat_values: list[str] = []
+            multi_stat_values: list[str] = []
             for key in stat_keys:
 
                 # STATS DISABLED FOR MULTI YEAR
@@ -1942,9 +1993,9 @@ class ShowdownPlayerCard(BaseModel):
                         # SKIP IF OTHER METRICS AND DEFENSE IS BELOW AVG
                         if self.image.stat_highlights_type == StatHighlightsType.ALL and position_defense < 1:
                             continue
-                        stat_name = key.upper()
+                        stat_suffix = f' {key.upper()}'
                         num_keys = 1
-                        stat_values.append(self.__stat_formatted(key, position_defense))
+                        stat_and_sort_rank[self.__stat_formatted(key, position_defense) + stat_suffix] = 1.25
                         ignore_dwar = True
                         break
                     else:
@@ -1954,6 +2005,7 @@ class ShowdownPlayerCard(BaseModel):
                 if key == 'dWAR' and self.is_multi_year:
                     key = 'dWAR_total'
                     stat_name = 'dWAR'
+                    stat_suffix = f' {stat_name}'
 
                 # CHECK FOR VALUE
                 stat = stats.get(key, None)
@@ -1962,26 +2014,34 @@ class ShowdownPlayerCard(BaseModel):
                 stat_formatted = self.__stat_formatted(key, stat)
 
                 # CHECK FOR VISIBILITY THRESHOLD
-                threshold = category.visibility_threshold
-                if not threshold:
-                    stat_values.append(stat_formatted)
+                cutoff_for_positive_sort_rating = category.cutoff_for_positive_sort_rating
+                if not cutoff_for_positive_sort_rating:
+                    if num_keys > 1:
+                        multi_stat_values.append(stat_formatted)
+                    else:
+                        stat_and_sort_rank[stat_formatted + stat_suffix] = category_multiplier
                     continue
+                
+                # APPLY PERCENTILE IN ORDER TO RANK
+                # EX: PLAYER WITH 30 HR / 650 PA (PERCENTILE 100% IS 20)
+                #     30 / 20 = 1.5x RATING
                 stat_per_650 = float(stat) / (self.stats.get('PA', 650) / 650)
-                if stat_per_650 >= threshold:
-                    stat_values.append(stat_formatted)
+                rating = round(stat_per_650 / cutoff_for_positive_sort_rating, 3)
+                if rating == 0: continue
+                stat_and_sort_rank[stat_formatted + stat_suffix] = rating * category_multiplier
 
             # COMBINE IF MULTIPLE STATS IN ONE
             # EX: .300/.415/.500
-            category_str = '/'.join(stat_values) if len(stat_values) > 0 else None
-
-            if category_str is None:
-                continue
+            if len(multi_stat_values) == 0: continue
+            category_str = '/'.join(multi_stat_values)
             
-            if num_keys == 1:
-                category_str = f"{category_str} {stat_name}"
-            all_stats.append(category_str)
+            stat_and_sort_rank[category_str] = category_multiplier
 
-        return all_stats[:limit]
+        # SORT STATS
+        stat_and_sort_rank = dict(sorted(stat_and_sort_rank.items(), key=lambda item: item[1], reverse=True))
+        stats_list_final = list(stat_and_sort_rank.keys())
+
+        return stats_list_final
 
     def __stat_formatted(self, category:str, value:float | int) -> str:
         """Format a stat for display.
@@ -4552,34 +4612,16 @@ class ShowdownPlayerCard(BaseModel):
             - Coordinates for pasting to card image.
         """
 
-        # FONTS
-        font_path = self.__font_path('HelveticaNeueCondensedBold')
-        font = ImageFont.truetype(font_path, size=140)
-
         # CALCULATE METRIC LIMIT
         is_expansion_img = self.image.expansion.has_image
         is_set_num = self.image.set_number != self.set.default_set_number(self.year)
         is_period_box = self.stats_period.type != StatsPeriodType.REGULAR_SEASON
         is_multi_year = self.is_multi_year
         stat_categories = self.player_sub_type.stat_highlight_categories(type=self.image.stat_highlights_type)
-
-        metric_limit = self.set.stat_highlights_metric_limit
         is_year_and_stats_period_boxes = self.image.show_year_text and is_period_box
-        if self.set.is_showdown_bot:
-            if is_expansion_img and is_set_num: metric_limit -= 1
-            if is_multi_year or is_period_box: metric_limit -= 1
-            if StatHighlightsCategory.SLASHLINE in stat_categories and (is_expansion_img or is_set_num): metric_limit -= 1
-            current_str = "  ".join(self.stat_highlights_list(stats=self.stats, limit=metric_limit))
-            if len(current_str) >= 45:
-                metric_limit -=1
-        else:
-            if is_period_box: metric_limit -= ( 2 if self.set.is_04_05 else 1 )
-            if is_year_and_stats_period_boxes and self.set == Set._2003:
-                metric_limit = 2
 
         # BACKGROUND IMAGE
         size = self.set.stat_highlight_container_size(
-            stats_limit=metric_limit, 
             is_year_and_stats_period_boxes=is_year_and_stats_period_boxes,
             is_expansion=is_expansion_img,
             is_set_number=is_set_num,
@@ -4587,18 +4629,30 @@ class ShowdownPlayerCard(BaseModel):
             is_multi_year=self.is_multi_year,
             is_full_career=self.is_full_career
         )
-        if self.set.is_showdown_bot and size == 'SMALL+':
-            metric_limit = min(metric_limit, 3)
         bg_image = Image.open(self.__template_img_path(f'{self.set.template_year}-STAT-HIGHLIGHTS-{size}'))
 
-        # ADD TEXT
+        # FONTS
+        font_path = self.__font_path('HelveticaNeueCondensedBold')
+        font = ImageFont.truetype(font_path, size=140)
+
+        # SIZING
         padding = 5
-        final_size = (bg_image.size[0] - (padding * 2), bg_image.size[1])
-        full_text = "  ".join(self.stat_highlights_list(stats=self.stats, limit=metric_limit))
+        x_size_w_padding = bg_image.size[0] - (padding * 2)
+        final_size = (x_size_w_padding, bg_image.size[1])
+        final_size_multiplier = 4
+
+        # CALCULATE HOW MANY STATS CAN FIT
+        full_text: str = ''
+        for stat in self.stat_highlights_list(stats=self.stats):
+
+            text_width_next, _ = self.__font_getsize(font=font, text=f'{full_text}  {stat}')
+            if text_width_next > (x_size_w_padding * 4): break
+
+            full_text = f'{full_text}  {stat}'
         
         stat_text = self.__text_image(
             text = full_text,
-            size = (final_size[0] * 4, final_size[1] * 4),
+            size = (final_size[0] * final_size_multiplier, final_size[1] * final_size_multiplier),
             font = font,
             alignment = "center"
         )
