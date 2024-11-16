@@ -1,5 +1,6 @@
 
 import pandas as pd
+import numpy as np
 import cloudscraper
 import re
 import os
@@ -1648,6 +1649,9 @@ class BaseballReferenceScraper:
         most_common_type = max(set(types), key=types.count)
         yearly_stats_dict = { year: stats for year, stats in yearly_stats_dict.items() if stats.get('type', 'n/a') == most_common_type }
 
+        # FLATTEN MULTI YEAR STATS
+        yearPd = pd.DataFrame.from_dict(yearly_stats_dict, orient='index')
+        wa_games = lambda x: round(np.average(x, weights=yearPd.loc[x.index, "G"]))
         column_aggs = {
             '1B': 'sum',
             '2B': 'sum',
@@ -1686,10 +1690,8 @@ class BaseballReferenceScraper:
             'is_sb_leader': 'max',
             'award_summary': ','.join,
             'bWAR': 'sum',
+            'onbase_plus_slugging_plus': wa_games,
         }
-
-        # FLATTEN MULTI YEAR STATS
-        yearPd = pd.DataFrame.from_dict(yearly_stats_dict, orient='index')
         columns_to_remove = list(set(column_aggs.keys()) - set(yearPd.columns))
         if max(years) < 2015:
             columns_to_remove.append('sprint_speed')
