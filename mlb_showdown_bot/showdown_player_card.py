@@ -809,7 +809,7 @@ class ShowdownPlayerCard(BaseModel):
             final_positions_in_game = {Position.DH: 0}
 
         # RE-SORT POSITIONS
-        final_positions_in_game = dict(sorted(final_positions_in_game.items(), key=lambda item: Position(item[0]).extract_games_played_used_for_sort(final_position_games_played)))
+        final_positions_in_game = dict(sorted(final_positions_in_game.items(), key=lambda item: Position(item[0]).extract_games_played_used_for_sort(final_position_games_played), reverse=True))
         
         return final_positions_in_game, positions_and_real_life_ratings, final_position_games_played
 
@@ -914,7 +914,7 @@ class ShowdownPlayerCard(BaseModel):
                     del positions_and_games_played['CF']
                 else:
                     positions_and_defense['LF/RF'] = lf_rf_defense
-                    positions_and_games_played['LF/RF'] = positions_and_games_played['CF']
+                    positions_and_games_played['LF/RF'] = 0
         
         # CHANGE OF TO LF/RF IF PLAYER HASNT PLAYED CF
         # EXCEPTION IS PRE-1900, WHERE 'OF' POSITIONAL BREAKOUTS ARE NOT AVAILABLE
