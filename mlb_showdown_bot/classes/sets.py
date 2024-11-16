@@ -1032,15 +1032,13 @@ class Set(str, Enum):
     @property
     def is_metadata_text_uppercased(self) -> bool:
         return self.value in ['2002','2004','2005']
-
+    
     @property
-    def small_name_text_length_cutoff(self) -> int:
+    def name_text_x_buffer_pct(self) -> float:
         match self:
-            case Set._2000: return 19
-            case Set._2002: return 18
-            case Set._2004 | Set._2005: return 18
-            case Set.CLASSIC | Set.EXPANDED: return 18
-            case _: return 20
+            case Set._2000: return 0.15
+            case Set.CLASSIC | Set.EXPANDED: return 0.02
+            case _: return 0.05
     
     @property
     def has_unified_set_and_year_strings(self) -> bool:
@@ -1206,22 +1204,12 @@ class Set(str, Enum):
                 if special_edition == SpecialEdition.ASG_2024 and self in [Set._2000, Set._2001]:
                     return (360, 1565)
                 match self.value:
-                    case '2000': return (150,-1225)
+                    case '2000': return (137,0)
                     case '2001': return (105,0)
-                    case '2002': return (1275,0)
-                    case '2003': return (1365,0)
-                    case '2004' | '2005': return (276,1605)
-                    case 'CLASSIC' | 'EXPANDED': return (290,1570)
-            case TemplateImageComponent.PLAYER_NAME_SMALL:
-                if special_edition == SpecialEdition.ASG_2024 and self in [Set._2000, Set._2001]:
-                    return (360, 1565)
-                match self.value:
-                    case '2000': return (165,-1225)
-                    case '2001': return (105,0)
-                    case '2002': return (1285,0)
-                    case '2003': return (1375,0)
-                    case '2004' | '2005': return (276,1610)
-                    case 'CLASSIC' | 'EXPANDED': return (290,1585)
+                    case '2002': return (1255,0)
+                    case '2003': return (1310,0)
+                    case '2004' | '2005': return (276,1587)
+                    case 'CLASSIC' | 'EXPANDED': return (290,1568)
             case TemplateImageComponent.CHART:
                 match self.value:
                     case '2000' | '2001': return (981,1335) if player_type.is_pitcher else (981,1317)
@@ -1355,12 +1343,12 @@ class Set(str, Enum):
                     case 'CLASSIC' | 'EXPANDED': return (275,275)
             case TemplateImageComponent.PLAYER_NAME: 
                 match self.value:
-                    case '2000': return (2100,300)
+                    case '2000': return (2100,135)
                     case '2001': return (1545,300)
-                    case '2002': return (1395,300)
-                    case '2003': return (3300,300)
-                    case '2004' | '2005': return (900, 300)
-                    case 'CLASSIC' | 'EXPANDED': return (1150, 300)
+                    case '2002': return (1395,158)
+                    case '2003': return (1065,188)
+                    case '2004' | '2005': return (890, 105)
+                    case 'CLASSIC' | 'EXPANDED': return (1150, 77)
             case TemplateImageComponent.SUPER_SEASON: 
                 match self.value:
                     case '2000' | '2001': return (312,480)

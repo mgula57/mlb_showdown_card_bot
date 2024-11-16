@@ -2849,8 +2849,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # CREATE NAME TEXT
         name_text, color = self.__player_name_text_image()
-        small_name_cutoff = self.set.small_name_text_length_cutoff
-        name_image_component = TemplateImageComponent.PLAYER_NAME_SMALL if self.name_length >= small_name_cutoff and self.image.parallel != ImageParallel.MYSTERY else TemplateImageComponent.PLAYER_NAME
+        name_image_component = TemplateImageComponent.PLAYER_NAME
         name_paste_location = self.set.template_component_paste_coordinates(component=name_image_component, special_edition=self.image.special_edition)
         is_special_style = self.set.is_special_edition_name_styling(self.image.edition)
         if self.set.is_00_01 and not is_special_style:
@@ -3087,14 +3086,15 @@ class ShowdownPlayerCard(BaseModel):
         def adjusted_paste_coords(coords: tuple[int,int]) -> tuple[int,int]:
             
             # ADJUST Y COORDINATES IF CLASSIC/EXPANDED AND LONG NAME
-            if self.name_length > 21 and self.set.is_showdown_bot:
+            name_plus_icons = self.name_length + (len(self.icons) * 1.5)
+            if name_plus_icons > 21 and self.set.is_showdown_bot:
                 
                 match self.image.edition:
                     case Edition.ROOKIE_SEASON: adjustment = (0, -70)
                     case Edition.NATIONALITY: adjustment = (10, -30)
                     case Edition.COOPERSTOWN_COLLECTION: adjustment = (0, -55)
                     case Edition.POSTSEASON: adjustment = (10, -90)
-                    case _: adjustment = (0, -50)
+                    case _: adjustment = (0, -60)
                 
                 return (coords[0] + adjustment[0], coords[1] + adjustment[1])
             
@@ -3471,7 +3471,6 @@ class ShowdownPlayerCard(BaseModel):
         name_upper = "????? ?????" if self.image.parallel == ImageParallel.MYSTERY else self.name_for_visuals.upper()
         first, last = self.split_name(name=name_upper, is_nickname=self.is_using_nickname)
         name = first if self.set.has_split_first_and_last_names else name_upper
-        is_name_over_char_limit = self.name_length >= self.set.small_name_text_length_cutoff
         futura_black_path = self.__font_path('Futura Black')
         helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
         helvetica_neue_cond_black_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
@@ -3483,6 +3482,7 @@ class ShowdownPlayerCard(BaseModel):
         has_border = False
         border_color = None
         overlay_image_path = None
+        is_y_centered = False
 
         # SPECIAL EDITION NAMING
         if self.set.is_special_edition_name_styling(self.image.special_edition):
@@ -3493,21 +3493,10 @@ class ShowdownPlayerCard(BaseModel):
             case Set._2000:
                 name_rotation = 90
                 name_alignment = "center"
-                is_name_over_25_chars = len(name) >= 25
-                is_name_over_22_chars = len(name) >= 22
-                is_name_over_18_chars = len(name) >= 18
-                is_name_over_15_chars = len(name) >= 15
-                name_size = 145
-                if is_name_over_25_chars:
-                    name_size = 80
-                elif is_name_over_22_chars:
-                    name_size = 90
-                elif is_name_over_18_chars:
-                    name_size = 110
-                elif is_name_over_15_chars:
-                    name_size = 127
+                name_size = 127
                 name_font_path = helvetica_neue_lt_93_path
                 padding = 0
+                is_y_centered = True
                 overlay_image_path = self.__template_img_path('2000-Name-Text-Background')
             case Set._2001:
                 name_rotation = 90
@@ -3519,57 +3508,69 @@ class ShowdownPlayerCard(BaseModel):
             case Set._2002:
                 name_rotation = 90
                 name_alignment = "left"
-                name_size = 115 if is_name_over_char_limit else 144
-                if len(name) >= 26:
-                    name_size = 95
-                elif len(name) >= 23:
-                    name_size = 104
+                name_size = 144
                 padding = 15
+                is_y_centered = True
             case Set._2003:
                 name_rotation = 90
                 name_alignment = "right"
-                name_size = 90 if is_name_over_char_limit else 96
-                if len(name) >= 26:
-                    name_size = 70
-                elif len(name) >= 23:
-                    name_size = 82
+                name_size = 96
                 padding = 60
+                is_y_centered = True
             case Set._2004 | Set._2005:
                 name_rotation = 0
                 name_alignment = "left"
-                name_size = 80 if is_name_over_char_limit else 96
-                if len(name) >= 26:
-                    name_size = 60
-                elif len(name) >= 23:
-                    name_size = 70
+                name_size = 96
                 padding = 3
                 has_border = True
                 border_color = colors.RED
+                is_y_centered = True
             case Set.CLASSIC | Set.EXPANDED:
                 name_rotation = 0
                 name_alignment = "left"
-                name_size = 80 if is_name_over_char_limit else 96
-                if len(name) >= 26:
-                    name_size = 70
+                name_size = 96
                 name_font_path = helvetica_neue_cond_black_path
                 padding = 3
                 has_border = False
+                is_y_centered = True
 
+        # LOAD FONT
         name_font = ImageFont.truetype(name_font_path, size=name_size)
+        name_font_x, _ = self.__font_getsize(name_font, name)
+
+        # CALCULATE SIZING
+        name_container_size = self.set.template_component_size(TemplateImageComponent.PLAYER_NAME)
+        name_container_x = name_container_size[0]
+        x_buffer = 1.0 - (self.set.name_text_x_buffer_pct)
+        size_reduction = 0
+        increments = 5
+        icon_addition = ( len(self.icons) * 65 ) if self.set.is_showdown_bot else 0
+        while (name_font_x + padding + icon_addition) > (name_container_x * x_buffer) and size_reduction < 75:
+            size_reduction += increments
+            name_font = ImageFont.truetype(name_font_path, size=name_size - size_reduction)
+            name_font_x, _ = self.__font_getsize(name_font, name)
+
+        # CENTER TEXT VERTICALLY
+        padding_y = 0
+        if is_y_centered:
+            _, name_text_height = self.__estimate_text_size(name, name_font)
+            empty_y_pixels = max( name_container_size[1] - name_text_height, 0 )
+            padding_y = int(empty_y_pixels / 2.0) # DIVIDING BY 2 CENTERS TEXT VERTICALLLY
+
         # CREATE TEXT IMAGE
         final_text = self.__text_image(
             text = name,
-            size = self.set.template_component_size(TemplateImageComponent.PLAYER_NAME),
+            size = name_container_size,
             font = name_font,
             fill = name_color,
             rotation = name_rotation,
             alignment = name_alignment,
             padding = padding,
+            padding_y = padding_y,
             has_border = has_border,
             border_color = border_color,
             overlay_image_path = overlay_image_path
         )
-
         # ADJUSTMENTS
         match self.set:
             case Set._2000:
@@ -4616,8 +4617,6 @@ class ShowdownPlayerCard(BaseModel):
         is_expansion_img = self.image.expansion.has_image
         is_set_num = self.image.set_number != self.set.default_set_number(self.year)
         is_period_box = self.stats_period.type != StatsPeriodType.REGULAR_SEASON
-        is_multi_year = self.is_multi_year
-        stat_categories = self.player_sub_type.stat_highlight_categories(type=self.image.stat_highlights_type)
         is_year_and_stats_period_boxes = self.image.show_year_text and is_period_box
 
         # BACKGROUND IMAGE
@@ -5476,7 +5475,7 @@ class ShowdownPlayerCard(BaseModel):
 # GENERIC IMAGE METHODS
 # ------------------------------------------------------------------------
 
-    def __text_image(self, text:str, size:tuple[int,int], font:ImageFont.FreeTypeFont, fill=255, rotation:int=0, alignment:str='left', padding:int=0, spacing:int=3, opacity:float=1, has_border:bool=False, border_color=None, border_size:int=3, overlay_image_path:str=None) -> Image.Image:
+    def __text_image(self, text:str, size:tuple[int,int], font:ImageFont.FreeTypeFont, fill=255, rotation:int=0, alignment:str='left', padding:int=0, padding_y:int=0, spacing:int=3, opacity:float=1, has_border:bool=False, border_color=None, border_size:int=3, overlay_image_path:str=None) -> Image.Image:
         """Generates a new PIL image object with text.
 
         Args:
@@ -5487,6 +5486,7 @@ class ShowdownPlayerCard(BaseModel):
           rotation: Degrees of rotation for the text (optional)
           alignment: String (left, center, right) for alignment of text within image.
           padding: Number of pixels worth of padding from image edge.
+          padding_y: Number of pixels worth of padding applied vertically
           spacing: Pixels of space between lines of text.
           opacity: Transparency of text.
           has_border: Boolean flag to add border.
@@ -5512,7 +5512,7 @@ class ShowdownPlayerCard(BaseModel):
             x = size[0] - padding - w
         else:
             x = 0 + padding
-        y = 0
+        y = 0 + padding_y
         # OPTIONAL BORDER
         if has_border:
             y += border_size
@@ -5527,6 +5527,7 @@ class ShowdownPlayerCard(BaseModel):
         if overlay_image_path is not None:
             # CREATE BACKGROUND/TRANSPARENCY
             texture_background = Image.open(overlay_image_path).convert('RGBA')
+            texture_background = texture_background.crop((0, 0, size[0], size[1]))
             transparent_overlay_image = Image.new('RGBA', texture_background.size, color=(0,0,0,0))
             # ADD TEXT MASK
             mask_img = Image.new('L', texture_background.size, color=255)
