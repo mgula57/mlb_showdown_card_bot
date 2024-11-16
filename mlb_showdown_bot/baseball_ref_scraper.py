@@ -904,8 +904,9 @@ class BaseballReferenceScraper:
             elif 'DH' in positions_dict.keys():
                 return "Hitter"
             else:
-                self.error = f'This Player Played 0 Games in {year}. Check Player Name and Year'
-                raise AttributeError(self.error)
+                if not (self.is_multi_year or self.is_full_career):
+                    self.error = f'This Player Played 0 Games in {year}. Check Player Name and Year'
+                    raise AttributeError(self.error)
         elif is_pitcher_override:
             return "Pitcher"
         elif is_hitter_override:

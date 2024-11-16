@@ -27,6 +27,7 @@ if __name__ == "__main__":
         {'name': 'Bert Blyleven', 'year': '1988', 'edition': Edition.NATIONALITY.value},
         {'name': 'Bret Boone', 'year': '2001', 'edition': Edition.SUPER_SEASON.value},
         {'name': 'Bob Gibson', 'year': '1968', 'edition': Edition.COOPERSTOWN_COLLECTION.value},
+        {'name': 'Jackie Robinson', 'year': 'CAREER', 'edition': Edition.NONE.value},
     ]
     num_tests = len(inputs_to_test)
 
