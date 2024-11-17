@@ -4960,8 +4960,12 @@ class ShowdownPlayerCard(BaseModel):
             opacity_255_scale = int(255 * component.opacity)
             image.putalpha(opacity_255_scale)
 
-        if component == PlayerImageComponent.GLOW:
-            image = self.__add_outer_glow(image=image, color='white', radius=8, enhancement_factor=1.75)
+        # APPLY GLOW OR SHADOW
+        match component:
+            case PlayerImageComponent.GLOW:
+                image = self.__add_outer_glow(image=image, color='white', radius=8, enhancement_factor=1.75)
+            case PlayerImageComponent.SHADOW:
+                image = self.__add_outer_glow(image=image, color='black', radius=15, offset = (15,15), enhancement_factor=1.0)
 
         return image
 
@@ -5830,14 +5834,15 @@ class ShowdownPlayerCard(BaseModel):
 
         return background
 
-    def __add_outer_glow(self, image: Image.Image, color: tuple[int, int, int, int] = (255, 255, 255, 255), radius: int = 15, enhancement_factor:float = 1.0) -> Image.Image:
+    def __add_outer_glow(self, image: Image.Image, color: tuple[int, int, int, int] = (255, 255, 255, 255), radius: int = 15, offset:tuple[int,int] = (0,0), enhancement_factor:float = 1.0) -> Image.Image:
         """
         Apply an outer glow effect to an image.
 
         Args:
             image: PIL image to add glow to.
-            radius: Radius of the glow.
             color: Color of the glow (RGBA).
+            radius: Radius of the glow.
+            offset: Offset of the glow.
             enhancement_factor: Factor to enhance the brightness of the glow.
 
         Returns:
@@ -5845,6 +5850,9 @@ class ShowdownPlayerCard(BaseModel):
         """
         # CREATE A BLANK IMAGE WITH PADDING FOR THE GLOW EFFECT
         image_width, image_height = image.size
+        total_width = image_width + abs(offset[0]) + 2 * radius
+        total_height = image_height + abs(offset[1]) + 2 * radius
+        padded_image = Image.new("RGBA", (total_width, total_height), (0, 0, 0, 0))
         padded_image = Image.new("RGBA", (image_width + 2 * radius, image_height + 2 * radius), (0, 0, 0, 0))
         padded_image.paste(image, (radius, radius))
 
