@@ -4150,7 +4150,7 @@ class ShowdownPlayerCard(BaseModel):
         primary_color_border = Image.open(self.__template_img_path(f'Super Season-{index}-PRIMARY-BG'))
         ss_image.paste(primary_color, (0,0), primary_color_border)
 
-        # BASEBALL CARD
+        # BASEBALL
         baseball = Image.open(self.__template_img_path(f'Super Season-{index}-BASEBALL'))
         ss_image.paste(baseball, (0,0), baseball)
 
@@ -4201,7 +4201,9 @@ class ShowdownPlayerCard(BaseModel):
                 alignment = "center",
             )
             year_text_img = year_text_img.resize((245, 211), Image.Resampling.LANCZOS)
-            ss_image.paste(secondary_color, (133, 88 if self.is_multi_year else 79), year_text_img)
+            is_text_too_light = self.__use_dark_text(is_secondary=not self.image.use_secondary_color)
+            season_text_color = primary_color if is_text_too_light else secondary_color
+            ss_image.paste(season_text_color, (133, 88 if self.is_multi_year else 79), year_text_img)
 
         # TEAM LOGO
         if not self.image.hide_team_logo:
