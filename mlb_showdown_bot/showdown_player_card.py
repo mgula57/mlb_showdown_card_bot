@@ -16,7 +16,7 @@ from collections import Counter
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageChops
 from prettytable import PrettyTable
 from pprint import pprint
 from pydantic import BaseModel, validator
@@ -4812,7 +4812,7 @@ class ShowdownPlayerCard(BaseModel):
                     image = None
                     type_override = self.player_type_override.override_string if self.player_type_override else ''
                     stats_period = self.stats_period.type.player_image_search_term if self.stats_period.type.player_image_search_term else ''
-                    cached_image_filename = f"{img_component.value}-{self.year}-({self.bref_id})-({self.team.value}){type_override}{stats_period}.png"
+                    cached_image_filename = f"{img_component.source_name}-{self.year}-({self.bref_id})-({self.team.value}){type_override}{stats_period}.png"
                     cached_image_path = os.path.join(os.path.dirname(__file__), 'uploads', cached_image_filename)
                     if not self.ignore_cache:
                         try:
@@ -4960,6 +4960,9 @@ class ShowdownPlayerCard(BaseModel):
             opacity_255_scale = int(255 * component.opacity)
             image.putalpha(opacity_255_scale)
 
+        if component == PlayerImageComponent.GLOW:
+            image = self.__add_outer_glow(image=image, color='white', radius=8, enhancement_factor=1.75)
+
         return image
 
     def __query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int = None) -> dict[PlayerImageComponent, str]:
@@ -5074,12 +5077,17 @@ class ShowdownPlayerCard(BaseModel):
                 continue
             # LOOK FOR SUBSTRING MATCH
             file_name = img_file[file_name_key]
-            num_components_in_filename = len([c for c in components_dict.keys() if f'{c.value}-' in file_name])
+            num_components_in_filename = len([c for c in components_dict.keys() if f'{c.source_name}-' in file_name])
             bref_id = bref_id.replace("'",'')
             if bref_id in file_name and num_components_in_filename > 0:
                 component_name = file_name.split('-')[0].upper()
                 component = PlayerImageComponent(component_name)
                 current_files_for_component = component_player_file_matches_dict.get(component, [])
+                if component == PlayerImageComponent.CUT and len(current_files_for_component) == 0:
+                    # COMPONENT IS GLOW OR SHADOW, FIND WHICH ONE AND REPLACE CUT
+                    # EFFECTS ARE NOW APPLIED WITHIN THE BOT
+                    component = PlayerImageComponent.GLOW if PlayerImageComponent.GLOW in component_player_file_matches_dict.keys() else PlayerImageComponent.SHADOW
+                    current_files_for_component = component_player_file_matches_dict.get(component, [])
                 current_files_for_component.append(img_file)
                 component_player_file_matches_dict[component] = current_files_for_component
 
@@ -5789,13 +5797,14 @@ class ShowdownPlayerCard(BaseModel):
 
         return rect_image
 
-    def __add_drop_shadow(self, image:Image.Image, blur_radius:int = 15) -> Image.Image:
+    def __add_drop_shadow(self, image:Image.Image, blur_radius:int = 15, color: float | tuple[float, ...] | str | None = 0) -> Image.Image:
         """
         Add a drop shadow to an image.
 
         Args:
             image: PIL image to add shadow to.
             blur_radius: Radius of the shadow.
+            color: Color of the shadow.
 
         Returns:
             PIL Image with drop shadow.
@@ -5812,7 +5821,7 @@ class ShowdownPlayerCard(BaseModel):
         # GET ALPHA FOR THE ORIGINAL IMAGE
         alpha = image_w_padding.split()[-1]
         alpha_blur = alpha.filter(ImageFilter.BoxBlur(blur_radius))
-        shadow = Image.new(mode="RGB", size=alpha_blur.size)
+        shadow = Image.new(mode="RGB", size=alpha_blur.size, color=color)
         shadow.putalpha(alpha_blur)
 
         # PASTE THE SHADOW AND ORIGINAL IMAGE ONTO THE BACKGROUND
@@ -5820,7 +5829,49 @@ class ShowdownPlayerCard(BaseModel):
         background.paste(image_w_padding, (0,0), image_w_padding)
 
         return background
-    
+
+    def __add_outer_glow(self, image: Image.Image, color: tuple[int, int, int, int] = (255, 255, 255, 255), radius: int = 15, enhancement_factor:float = 1.0) -> Image.Image:
+        """
+        Apply an outer glow effect to an image.
+
+        Args:
+            image: PIL image to add glow to.
+            radius: Radius of the glow.
+            color: Color of the glow (RGBA).
+            enhancement_factor: Factor to enhance the brightness of the glow.
+
+        Returns:
+            PIL Image with outer glow.
+        """
+        # CREATE A BLANK IMAGE WITH PADDING FOR THE GLOW EFFECT
+        image_width, image_height = image.size
+        padded_image = Image.new("RGBA", (image_width + 2 * radius, image_height + 2 * radius), (0, 0, 0, 0))
+        padded_image.paste(image, (radius, radius))
+
+        # CREATE A MASK FOR THE GLOW EFFECT
+        mask = Image.new("L", padded_image.size, 0)
+        alpha = image.split()[3]
+        mask.paste(alpha, (radius, radius))
+
+        # APPLY A GAUSSIAN BLUR TO THE MASK
+        blurred_mask = mask.filter(ImageFilter.GaussianBlur(radius))
+        enhanced_blurred_mask = ImageEnhance.Brightness(blurred_mask).enhance(enhancement_factor)
+
+        # APPLY A FADE TO THE MASK
+        gradient = Image.new("L", (1, radius * 2), color=0xFF)
+        for y in range(radius * 2):
+            gradient.putpixel((0, y), int(255 * (1 - y / (radius * 2))))
+        alpha_gradient = gradient.resize(padded_image.size)
+        faded_mask = ImageChops.multiply(enhanced_blurred_mask, alpha_gradient)
+
+        # CREATE A GLOW IMAGE USING THE BLURRED MASK AND THE GLOW COLOR
+        glow = Image.new("RGBA", padded_image.size, color)
+        glow.putalpha(faded_mask)
+
+        # COMPOSITE THE GLOW WITH THE ORIGINAL IMAGE
+        glow.paste(padded_image, (0, 0), padded_image)
+        
+        return glow
 
 # ------------------------------------------------------------------------
 # SHOWDOWN IMAGE LIBRARY IMPORT
