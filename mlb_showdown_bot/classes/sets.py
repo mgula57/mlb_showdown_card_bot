@@ -1183,6 +1183,12 @@ class Set(str, Enum):
             case '2003': return 'MEDIUM' if is_year_and_stats_period_boxes else 'LARGE'
             case _: return 'LARGE'
 
+    @property
+    def stat_highlight_text_size(self) -> int:
+        match self:
+            case Set._2004 | Set._2005: return 140
+            case _: return 140
+
     # ---------------------------------------
     # TEMPLATE IMAGE
     # ---------------------------------------
@@ -1328,7 +1334,7 @@ class Set(str, Enum):
                     case '2000' | '2001': return (330 if is_regular_season else 612, 1862)
                     case '2002': return (290 if is_regular_season else 572, 1850)
                     case '2003': return (77, 1712)
-                    case '2004' | '2005': return (80, 1912) if is_regular_season else (362, 1912)
+                    case '2004' | '2005': return (55, 1900) if is_regular_season else (360, 1900)
                     case 'CLASSIC' | 'EXPANDED': return (349, 1990)
 
     def template_component_size(self, component:TemplateImageComponent) -> tuple[int,int]:
@@ -1406,6 +1412,7 @@ class Set(str, Enum):
         # REUSED COLORS
         black = "#000000"
         white = "#FFFFFF"
+        off_white = "#D8D8D8"
         dark_gray = "#767676"
         mid_gray = "#888686"
         mid_light_gray = "#929191"
@@ -1427,6 +1434,7 @@ class Set(str, Enum):
                     case _: return white
             case TemplateImageComponent.SPLIT | TemplateImageComponent.STAT_HIGHLIGHTS:
                 match self:
+                    case Set._2004 | Set._2005: return off_white
                     case Set.CLASSIC | Set.EXPANDED: return mid_light_gray if is_dark_mode else dark_gray
                     case _: return white
 

@@ -48,6 +48,7 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.ERA,
                         StatHighlightsCategory.WHIP,
                         StatHighlightsCategory.IP,
+                        StatHighlightsCategory._2B,
                     ]
                     case StatHighlightsType.MODERN: categories += [
                         StatHighlightsCategory.ERA,
@@ -62,6 +63,8 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.SV,
                         StatHighlightsCategory.K_9,
                         StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.W,
+                        StatHighlightsCategory.FIP,
                     ]
                 return categories
             case self.POSITION_PLAYER:

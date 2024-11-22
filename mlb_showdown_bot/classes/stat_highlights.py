@@ -42,9 +42,12 @@ class StatHighlightsCategory(Enum):
             case StatHighlightsCategory.ERA: return 5.0
             case StatHighlightsCategory.WHIP: return 3.0
             case StatHighlightsCategory.G: return 10.0
+            case StatHighlightsCategory.GS: return 10.0
+            case StatHighlightsCategory.IP: return 2.0
             case StatHighlightsCategory.OPS_PLUS: return 2.0
             case StatHighlightsCategory.RBI: return 0.85
             case StatHighlightsCategory.SV: return 1.1
+            case StatHighlightsCategory.bWAR: return 1.1
             case _: return 1.0
 
     @property
@@ -70,4 +73,28 @@ class StatHighlightsCategory(Enum):
             case StatHighlightsCategory._3B: return 6
             case StatHighlightsCategory.SV: return 20
             case StatHighlightsCategory.H: return 170
+            case StatHighlightsCategory.W: return 10
+            case StatHighlightsCategory.K_9: return 8.5
+            case StatHighlightsCategory.FIP: return 3.5
+            case StatHighlightsCategory.bWAR: return 5.0
+            case StatHighlightsCategory.dWAR: return 0.5
             case _: return None
+
+    @property
+    def is_pa_metric(self) -> bool:
+        return self in [
+            StatHighlightsCategory.HR,
+            StatHighlightsCategory.SB,
+            StatHighlightsCategory.RBI,
+            StatHighlightsCategory.H,
+            StatHighlightsCategory._2B,
+            StatHighlightsCategory._3B,
+        ]
+    
+    @property
+    def is_lower_better(self) -> bool:
+        return self in [
+            StatHighlightsCategory.ERA,
+            StatHighlightsCategory.WHIP,
+            StatHighlightsCategory.FIP,
+        ]

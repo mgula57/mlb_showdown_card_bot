@@ -1989,17 +1989,18 @@ class ShowdownPlayerCard(BaseModel):
                     if position == Position.LFRF.value:
                         position = 'OF'
                     position_defense = self.stats.get('positions', {}).get(position, {}).get(key, None)
-                    if position_defense is not None:
-                        # SKIP IF OTHER METRICS AND DEFENSE IS BELOW AVG
-                        if self.image.stat_highlights_type == StatHighlightsType.ALL and position_defense < 1:
-                            continue
-                        stat_suffix = f' {key.upper()}'
-                        num_keys = 1
-                        stat_and_sort_rank[self.__stat_formatted(key, position_defense) + stat_suffix] = 1.25
-                        ignore_dwar = True
-                        break
-                    else:
+
+                    # CHECK POINTS OBJECT FOR PERCENTILE
+                    points_breakdown_for_position = self.points_breakdown.breakdowns.get(f'DEFENSE-{position}', None)
+                    if not points_breakdown_for_position:
                         continue
+
+                    percentile = points_breakdown_for_position.percentile
+                    stat_suffix = f' {key.upper()}'
+                    num_keys = 1
+                    stat_and_sort_rank[self.__stat_formatted(key, position_defense) + stat_suffix] = 1.5 * percentile
+                    ignore_dwar = True
+                    break
 
                 # KEY CHANGES
                 if key == 'dWAR' and self.is_multi_year:
@@ -2025,8 +2026,10 @@ class ShowdownPlayerCard(BaseModel):
                 # APPLY PERCENTILE IN ORDER TO RANK
                 # EX: PLAYER WITH 30 HR / 650 PA (PERCENTILE 100% IS 20)
                 #     30 / 20 = 1.5x RATING
-                stat_per_650 = float(stat) / (self.stats.get('PA', 650) / 650)
-                rating = round(stat_per_650 / cutoff_for_positive_sort_rating, 3)
+                denominator = (self.stats.get('PA', 650) / 650) if category.is_pa_metric else 1.0
+                is_reversed = category.is_lower_better
+                stat_per_650 = float(stat) / denominator
+                rating = round((cutoff_for_positive_sort_rating / stat_per_650) if is_reversed else (stat_per_650 / cutoff_for_positive_sort_rating), 3)
                 if rating == 0: continue
                 stat_and_sort_rank[stat_formatted + stat_suffix] = rating * category_multiplier
 
@@ -3315,8 +3318,14 @@ class ShowdownPlayerCard(BaseModel):
 
             if self.image.parallel.color_override_04_05_chart:
                 edition_extension = f"-{self.image.parallel.color_override_04_05_chart}"
-            type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}'
+            type_template = f'{year}-{type}{edition_extension}'
             template_image = Image.open(self.__template_img_path(type_template))
+            if self.image.stat_highlights_type.has_image:
+                bg_image = Image.open(self.__template_img_path(f'2004-STAT-HIGHLIGHTS{edition_extension}'))
+                template_image.paste(bg_image, (0, 1975), bg_image)
+            elif self.stats_period.type.show_text_on_card_image:
+                bg_image = Image.open(self.__template_img_path(f'2004-STAT-PERIOD-HOLDER{edition_extension}'))
+                template_image.paste(bg_image, (0, 1975), bg_image)
         else:
             custom_extension = self.set.template_custom_extension(self.image.parallel)
             type_template = f'{year}-{type}{edition_extension}{dark_mode_extension}{custom_extension}'
@@ -4566,7 +4575,10 @@ class ShowdownPlayerCard(BaseModel):
         if self.set.is_showdown_bot:
             theme_ext = '-DARK' if self.image.is_dark_mode else '-LIGHT'
         image_name = f"DATE-RANGE-BG{theme_ext}"
-        split_image = Image.open(self.__template_img_path(image_name)).convert('RGBA')
+
+        match self.set:
+            case Set._2004 | Set._2005: split_image = Image.new('RGBA', (300, 46))
+            case _: split_image = Image.open(self.__template_img_path(image_name)).convert('RGBA')
 
         # SPLIT TEXT
         font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
@@ -4596,10 +4608,11 @@ class ShowdownPlayerCard(BaseModel):
             text = text,
             size = (1050, 900), # WONT MATCH DIMENSIONS OF RESIZE ON PURPOSE TO CREATE THICKER TEXT
             font = font,
-            alignment = "center",
+            alignment = "left" if self.set in [Set._2004, Set._2005] else "center",
         )
         text_image = text_image_large.resize((280,240), Image.Resampling.LANCZOS)
-        split_image.paste(text_color, (-5, 12), text_image)
+        text_paste_coords = (0,0) if self.set in [Set._2004, Set._2005] else (-5, 12)
+        split_image.paste(text_color, text_paste_coords, text_image)
 
         return split_image
 
@@ -4622,19 +4635,26 @@ class ShowdownPlayerCard(BaseModel):
         is_year_and_stats_period_boxes = self.image.show_year_text and is_period_box
 
         # BACKGROUND IMAGE
-        size = self.set.stat_highlight_container_size(
-            is_year_and_stats_period_boxes=is_year_and_stats_period_boxes,
-            is_expansion=is_expansion_img,
-            is_set_number=is_set_num,
-            is_period_box=is_period_box,
-            is_multi_year=self.is_multi_year,
-            is_full_career=self.is_full_career
-        )
-        bg_image = Image.open(self.__template_img_path(f'{self.set.template_year}-STAT-HIGHLIGHTS-{size}'))
+        match self.set:
+            case Set._2004 | Set._2005:
+                x_size = 680 if self.stats_period.type.show_text_on_card_image else 1000
+                if not self.image.expansion.has_image:
+                    x_size += 100
+                bg_image = Image.new('RGBA', (x_size, 46))
+            case _:
+                size = self.set.stat_highlight_container_size(
+                    is_year_and_stats_period_boxes=is_year_and_stats_period_boxes,
+                    is_expansion=is_expansion_img,
+                    is_set_number=is_set_num,
+                    is_period_box=is_period_box,
+                    is_multi_year=self.is_multi_year,
+                    is_full_career=self.is_full_career
+                )
+                bg_image = Image.open(self.__template_img_path(f'{self.set.template_year}-STAT-HIGHLIGHTS-{size}'))
 
         # FONTS
         font_path = self.__font_path('HelveticaNeueCondensedBold')
-        font = ImageFont.truetype(font_path, size=140)
+        font = ImageFont.truetype(font_path, size=self.set.stat_highlight_text_size)
 
         # SIZING
         padding = 5
@@ -4645,17 +4665,15 @@ class ShowdownPlayerCard(BaseModel):
         # CALCULATE HOW MANY STATS CAN FIT
         full_text: str = ''
         for stat in self.stat_highlights_list(stats=self.stats):
-
             text_width_next, _ = self.__font_getsize(font=font, text=f'{full_text}  {stat}')
             if text_width_next > (x_size_w_padding * 4): break
-
             full_text = f'{full_text}  {stat}'
         
         stat_text = self.__text_image(
             text = full_text,
             size = (final_size[0] * final_size_multiplier, final_size[1] * final_size_multiplier),
             font = font,
-            alignment = "center"
+            alignment = "left" if self.set in [Set._2004, Set._2005] else "center"
         )
         stat_text = stat_text.resize(final_size, Image.Resampling.LANCZOS)
         text_color = self.set.template_component_font_color(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_dark_mode=self.image.is_dark_mode)
@@ -4663,6 +4681,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # DEFINE PASTE COORDINATES
         paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_multi_year=self.is_multi_year, is_full_career=self.is_full_career, is_regular_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON)
+        
         # IF CLASSIC/EXPANDED, MOVE X DEPENDING ON SET AND EXPANSION IMAGES
         if self.set.is_showdown_bot:
             x_adjustment = 0
