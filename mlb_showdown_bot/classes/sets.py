@@ -1187,6 +1187,7 @@ class Set(str, Enum):
     def stat_highlight_text_size(self) -> int:
         match self:
             case Set._2002: return 120
+            case Set._2003: return 130
             case Set._2004 | Set._2005: return 140
             case _: return 140
 
@@ -1289,7 +1290,7 @@ class Set(str, Enum):
                     case '2002': 
                         xadjust, yadjust = (20, -17) if expansion == Expansion.TD else (0,0)
                         return (652 + xadjust, 1770 + yadjust) 
-                    case '2003': return (275,1782)
+                    case '2003': return (275,1780)
                     case '2004' | '2005': return (1060,1910)
                     case 'CLASSIC' | 'EXPANDED': 
                         xadjust, yadjust = (0, -12) if expansion == Expansion.TD else (0,0)
@@ -1316,7 +1317,7 @@ class Set(str, Enum):
                 match self.value:
                     case '2000' | '2001': return (1250,1945)
                     case '2002': return (62,1900)
-                    case '2003': return (655,1705)
+                    case '2003': return (655,1740)
                     case '2004' | '2005': return (1268,1965)
                     case 'CLASSIC' | 'EXPANDED': return (1320,1975)
             case TemplateImageComponent.SPLIT:
@@ -1324,7 +1325,7 @@ class Set(str, Enum):
                     case '2000': return (330, 1860)
                     case '2001': return (330, 1860)
                     case '2002': return (290, 1850)
-                    case '2003': return (380, 1775)
+                    case '2003': return (236, 1779)
                     case '2004' | '2005': return (80, 1912)
                     case 'CLASSIC' | 'EXPANDED': 
                         if is_full_career: return (865,1990)
@@ -1334,7 +1335,7 @@ class Set(str, Enum):
                 match self.value:
                     case '2000' | '2001': return (330 if is_regular_season else 612, 1862)
                     case '2002': return (290 if is_regular_season else 546, 1850)
-                    case '2003': return (77, 1712)
+                    case '2003': return (78, 1823)
                     case '2004' | '2005': return (55, 1900) if is_regular_season else (360, 1900)
                     case 'CLASSIC' | 'EXPANDED': return (349, 1990)
 
@@ -1384,7 +1385,7 @@ class Set(str, Enum):
             case TemplateImageComponent.BOT_LOGO: 
                 match self.value:
                     case '2000' | '2001': return (150,150)
-                    case '2002': return (145,145)
+                    case '2002': return (115,115)
                     case '2003': return (150,150)
                     case '2004' | '2005': return (130,130)
                     case 'CLASSIC' | 'EXPANDED': return (100,100)
@@ -1435,6 +1436,7 @@ class Set(str, Enum):
                     case _: return white
             case TemplateImageComponent.SPLIT | TemplateImageComponent.STAT_HIGHLIGHTS:
                 match self:
+                    case Set._2003: return black
                     case Set._2004 | Set._2005: return off_white
                     case Set.CLASSIC | Set.EXPANDED: return mid_light_gray if is_dark_mode else dark_gray
                     case _: return white

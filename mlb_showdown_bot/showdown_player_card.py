@@ -2909,16 +2909,6 @@ class ShowdownPlayerCard(BaseModel):
             year_container_img = self.__year_container_add_on()
             card_image.paste(year_container_img, self.__coordinates_adjusted_for_bordering(paste_location), year_container_img)
 
-        # EXPANSION
-        if self.image.expansion.has_image:
-            expansion_image = self.__expansion_image()
-            expansion_location = self.set.template_component_paste_coordinates(component=TemplateImageComponent.EXPANSION, expansion=self.image.expansion)
-            if self.image.show_year_text and self.set.is_00_01:
-                # IF YEAR CONTAINER EXISTS, MOVE OVER EXPANSION LOGO
-                expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
-            
-            card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
-
         # SPLIT/DATE RANGE
         if self.stats_period.type.show_text_on_card_image:
             split_image = self.__date_range_or_split_image()
@@ -2929,6 +2919,16 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.stat_highlights_type.has_image:
             stat_highlights_img, paste_coordinates = self.__stat_highlights_image()
             card_image.paste(stat_highlights_img, self.__coordinates_adjusted_for_bordering(paste_coordinates), stat_highlights_img)
+
+        # EXPANSION
+        if self.image.expansion.has_image:
+            expansion_image = self.__expansion_image()
+            expansion_location = self.set.template_component_paste_coordinates(component=TemplateImageComponent.EXPANSION, expansion=self.image.expansion)
+            if self.image.show_year_text and self.set.is_00_01:
+                # IF YEAR CONTAINER EXISTS, MOVE OVER EXPANSION LOGO
+                expansion_location = (expansion_location[0] - 140, expansion_location[1] + 5)
+            
+            card_image.paste(expansion_image, self.__coordinates_adjusted_for_bordering(expansion_location), expansion_image)
 
         # SAVE AND SHOW IMAGE
         # CROP TO 63mmx88mm or bordered
@@ -4577,10 +4577,17 @@ class ShowdownPlayerCard(BaseModel):
         image_name = f"DATE-RANGE-BG{theme_ext}"
 
         text_size = 120
+        text_y_offset = 12
+        text_x_offset = -5
         match self.set:
             case Set._2002:
                 split_image = Image.new('RGBA', (255, 38), color=colors.BLACK)
                 text_size = 110
+                text_y_offset = 10
+            case Set._2003:
+                split_image = Image.new('RGBA', (407, 42), color="#E2E2E2")
+                text_x_offset = 65 + (30 if self.image.expansion.has_image else 0)
+                text_y_offset = 10
             case Set._2004 | Set._2005: 
                 split_image = Image.new('RGBA', (300, 46))
             case _: 
@@ -4616,8 +4623,8 @@ class ShowdownPlayerCard(BaseModel):
             alignment = "left" if self.set in [Set._2004, Set._2005] else "center",
         )
         text_image = text_image_large.resize((280,240), Image.Resampling.LANCZOS)
-        y_offset = 10 if self.set in [Set._2002] else 12
-        text_paste_coords = (0,0) if self.set in [Set._2004, Set._2005] else (-5, y_offset)
+        
+        text_paste_coords = (0,0) if self.set in [Set._2004, Set._2005] else (text_x_offset, text_y_offset)
         split_image.paste(text_color, text_paste_coords, text_image)
 
         return split_image
@@ -4639,12 +4646,18 @@ class ShowdownPlayerCard(BaseModel):
         is_set_num = self.image.set_number != self.set.default_set_number(self.year)
         is_period_box = self.stats_period.type != StatsPeriodType.REGULAR_SEASON
         is_year_and_stats_period_boxes = self.image.show_year_text and is_period_box
+        y_text_offset = 3
 
         # BACKGROUND IMAGE
         match self.set:
             case Set._2002:
                 x_size = 528 if self.stats_period.type.show_text_on_card_image else 784
                 bg_image = Image.new('RGBA', (x_size, 38), color=colors.BLACK)
+                y_text_offset = 2
+            case Set._2003:
+                x_size = 565
+                bg_image = Image.new('RGBA', (x_size, 45), color="#E2E2E2")
+                y_text_offset = 0
             case Set._2004 | Set._2005:
                 x_size = 680 if self.stats_period.type.show_text_on_card_image else 1000
                 if not self.image.expansion.has_image:
@@ -4686,8 +4699,7 @@ class ShowdownPlayerCard(BaseModel):
         )
         stat_text = stat_text.resize(final_size, Image.Resampling.LANCZOS)
         text_color = self.set.template_component_font_color(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_dark_mode=self.image.is_dark_mode)
-        y_offset = 2 if self.set in [Set._2002] else 3
-        bg_image.paste(text_color, (padding, y_offset), stat_text)
+        bg_image.paste(text_color, (padding, y_text_offset), stat_text)
 
         # DEFINE PASTE COORDINATES
         paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_multi_year=self.is_multi_year, is_full_career=self.is_full_career, is_regular_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON)
