@@ -1964,6 +1964,8 @@ class BaseballReferenceScraper:
         # IN NEWER TABLES BREF ADDED "b_" PREFIX TO SOME STATS AND MADE THE TEXT
         if stat_category.startswith('b_') and stat_category not in ('b_war'):
             stat_category = stat_category.replace('b_','')
+        elif stat_category.startswith('p_'):
+            stat_category = stat_category.replace('p_','')
 
         # CONFORM UPGRADED BREF TABLES TO OLD FORMAT
         old_to_new_stat_mapping = {
@@ -1975,6 +1977,7 @@ class BaseballReferenceScraper:
             'pos': 'pos_season',
             'games': 'G',
             'b_war': 'bWAR',
+            'p_war': 'bWAR',
             'dwar': 'dWAR',
             'roba': 'rOBA',
             'year_id': 'year_ID',
