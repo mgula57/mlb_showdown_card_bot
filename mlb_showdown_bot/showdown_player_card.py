@@ -4576,14 +4576,19 @@ class ShowdownPlayerCard(BaseModel):
             theme_ext = '-DARK' if self.image.is_dark_mode else '-LIGHT'
         image_name = f"DATE-RANGE-BG{theme_ext}"
 
+        text_size = 120
         match self.set:
-            case Set._2004 | Set._2005: split_image = Image.new('RGBA', (300, 46))
-            case _: split_image = Image.open(self.__template_img_path(image_name)).convert('RGBA')
+            case Set._2002:
+                split_image = Image.new('RGBA', (255, 38), color=colors.BLACK)
+                text_size = 110
+            case Set._2004 | Set._2005: 
+                split_image = Image.new('RGBA', (300, 46))
+            case _: 
+                split_image = Image.open(self.__template_img_path(image_name)).convert('RGBA')
 
         # SPLIT TEXT
         font_path = self.__font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf')
-        size = 120
-        font = ImageFont.truetype(font_path, size=size)
+        font = ImageFont.truetype(font_path, size=text_size)
 
         # GRAB TEXT
         match self.stats_period.type:
@@ -4611,7 +4616,8 @@ class ShowdownPlayerCard(BaseModel):
             alignment = "left" if self.set in [Set._2004, Set._2005] else "center",
         )
         text_image = text_image_large.resize((280,240), Image.Resampling.LANCZOS)
-        text_paste_coords = (0,0) if self.set in [Set._2004, Set._2005] else (-5, 12)
+        y_offset = 10 if self.set in [Set._2002] else 12
+        text_paste_coords = (0,0) if self.set in [Set._2004, Set._2005] else (-5, y_offset)
         split_image.paste(text_color, text_paste_coords, text_image)
 
         return split_image
@@ -4636,6 +4642,9 @@ class ShowdownPlayerCard(BaseModel):
 
         # BACKGROUND IMAGE
         match self.set:
+            case Set._2002:
+                x_size = 528 if self.stats_period.type.show_text_on_card_image else 784
+                bg_image = Image.new('RGBA', (x_size, 38), color=colors.BLACK)
             case Set._2004 | Set._2005:
                 x_size = 680 if self.stats_period.type.show_text_on_card_image else 1000
                 if not self.image.expansion.has_image:
@@ -4677,7 +4686,8 @@ class ShowdownPlayerCard(BaseModel):
         )
         stat_text = stat_text.resize(final_size, Image.Resampling.LANCZOS)
         text_color = self.set.template_component_font_color(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_dark_mode=self.image.is_dark_mode)
-        bg_image.paste(text_color, (padding, 3), stat_text)
+        y_offset = 2 if self.set in [Set._2002] else 3
+        bg_image.paste(text_color, (padding, y_offset), stat_text)
 
         # DEFINE PASTE COORDINATES
         paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.STAT_HIGHLIGHTS, is_multi_year=self.is_multi_year, is_full_career=self.is_full_career, is_regular_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON)

@@ -1186,6 +1186,7 @@ class Set(str, Enum):
     @property
     def stat_highlight_text_size(self) -> int:
         match self:
+            case Set._2002: return 120
             case Set._2004 | Set._2005: return 140
             case _: return 140
 
@@ -1332,7 +1333,7 @@ class Set(str, Enum):
             case TemplateImageComponent.STAT_HIGHLIGHTS:
                 match self.value:
                     case '2000' | '2001': return (330 if is_regular_season else 612, 1862)
-                    case '2002': return (290 if is_regular_season else 572, 1850)
+                    case '2002': return (290 if is_regular_season else 546, 1850)
                     case '2003': return (77, 1712)
                     case '2004' | '2005': return (55, 1900) if is_regular_season else (360, 1900)
                     case 'CLASSIC' | 'EXPANDED': return (349, 1990)
