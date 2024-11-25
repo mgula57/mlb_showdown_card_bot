@@ -635,8 +635,9 @@ $(document).ready(function() {
             // WHEN FRONT END IS UPGRADED, THIS WILL BE REPLACED
 
             // NAME AND YEAR
-            document.getElementById("name").value = lastCardJson.name;
-            document.getElementById("year").value = lastCardJson.year;
+            // DONT APPLY FOR FIRST RELEASE. GET FEEDBACK ON THIS
+            // document.getElementById("name").value = lastCardJson.name;
+            // document.getElementById("year").value = lastCardJson.year;
 
             // STATS PERIOD
             document.getElementById("periodSelection").value = lastCardJson.period;
