@@ -1863,7 +1863,7 @@ class BaseballReferenceScraper:
             year = int(year_str)
             if len(years_filter_list) < 1 or (year in years_filter_list):
                 team = self.__extract_text_for_element(object=year_object, tag='td', attr_key='data-stat', values=['team_ID', 'team_name_abbr'])
-                games_str = self.__extract_text_for_element(object=year_object, tag='td', attr_key='data-stat', values=['G', 'games', 'b_games'])
+                games_str = self.__extract_text_for_element(object=year_object, tag='td', attr_key='data-stat', values=['G', 'games', 'b_games', 'p_g', 'p_games'])
                 if team is None or games_str is None: 
                     continue 
                 games = int(games_str)
@@ -1964,7 +1964,7 @@ class BaseballReferenceScraper:
         # IN NEWER TABLES BREF ADDED "b_" PREFIX TO SOME STATS AND MADE THE TEXT
         if stat_category.startswith('b_') and stat_category not in ('b_war'):
             stat_category = stat_category.replace('b_','')
-        elif stat_category.startswith('p_'):
+        elif stat_category.startswith('p_') and stat_category not in ('p_war'):
             stat_category = stat_category.replace('p_','')
 
         # CONFORM UPGRADED BREF TABLES TO OLD FORMAT
@@ -1981,6 +1981,7 @@ class BaseballReferenceScraper:
             'dwar': 'dWAR',
             'roba': 'rOBA',
             'year_id': 'year_ID',
+            'bfp': 'batters_faced',
         }
         stat_category = old_to_new_stat_mapping.get(stat_category, stat_category)
 
