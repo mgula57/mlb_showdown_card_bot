@@ -60,11 +60,11 @@ function uploadImageFile() {
 }
 
 // STORE SET IN CACHE
-function cacheSet(set) {
+function cacheObject(key, object) {
     // Check if the localStorage object exists
     if(localStorage) {
         // Store data
-        localStorage.setItem("set", set);
+        localStorage.setItem(key, object);
     }
 }
 
@@ -624,6 +624,70 @@ $(document).ready(function() {
             selectedTab = "create";
             localStorage.setItem('tab', selectedTab);
         }
+
+        // POPULATE LAST CARD SETTINGS
+        lastCard = localStorage.getItem("last_card");
+        if (selectedTab == "create" && lastCard) {
+            //
+            lastCardJson = JSON.parse(lastCard);
+            
+            // FOR NOW MANUALLY SETTING VALUES
+            // WHEN FRONT END IS UPGRADED, THIS WILL BE REPLACED
+
+            // NAME AND YEAR
+            // DONT APPLY FOR FIRST RELEASE. GET FEEDBACK ON THIS
+            // document.getElementById("name").value = lastCardJson.name;
+            // document.getElementById("year").value = lastCardJson.year;
+
+            // STATS PERIOD
+            document.getElementById("periodSelection").value = lastCardJson.period;
+            // document.getElementById("date-start").value = lastCardJson.period_start_date;
+            // document.getElementById("date-end").value = lastCardJson.period_end_date;
+            document.getElementById("split").value = lastCardJson.period_split;
+
+            // ERA, EXPANSION, EDITION
+            document.getElementById("eraSelection").value = lastCardJson.era;
+            document.getElementById("expansionSelection").value = lastCardJson.expansion;
+            document.getElementById("editionSelection").value = lastCardJson.edition;
+
+            // CHART VERSION AND SET NUMBER
+            document.getElementById("chartVersionSelection").value = lastCardJson.offset;
+            document.getElementById("setnum").value = lastCardJson.set_num;
+
+            // IMAGE
+            document.getElementById("parallelSelection").value = lastCardJson.parallel;
+            document.getElementById("url").value = lastCardJson.url;
+
+            // MORE OPTIONS
+            var moreOptionsSelections = [];
+            if (lastCardJson.is_variable_spd_00_01) { moreOptionsSelections.push("VariableSpeed"); }
+            if (lastCardJson.addBorder) { moreOptionsSelections.push("Border"); }
+            if (lastCardJson.is_dark_mode) { moreOptionsSelections.push("DarkMode"); }
+            if (lastCardJson.hide_team_logo) { moreOptionsSelections.push("HideTeamBranding"); }
+            if (lastCardJson.is_secondary_color) { moreOptionsSelections.push("SecondaryColor"); }
+            if (lastCardJson.is_multi_colored) { moreOptionsSelections.push("MultiColor"); }
+            if (lastCardJson.show_year_text) { moreOptionsSelections.push("YearContainer"); }
+            if (lastCardJson.set_year_plus_one) { moreOptionsSelections.push("SetYearPlus1"); }
+            if (lastCardJson.ignore_cache) { moreOptionsSelections.push("IgnoreCache"); }
+
+            if (lastCardJson.stat_highlights_type == "ALL") {
+                moreOptionsSelections.push("StatHighlightsModern");
+                moreOptionsSelections.push("StatHighlightsOldSchool");
+            } else if (lastCardJson.stat_highlights_type == "MODERN") {
+                moreOptionsSelections.push("StatHighlightsModern");
+            } else if (lastCardJson.stat_highlights_type == "OLD_SCHOOL") {
+                moreOptionsSelections.push("StatHighlightsOldSchool");
+            }
+
+            if (lastCardJson.nickname_index) {
+                if (lastCardJson.nickname_index == 1) { moreOptionsSelections.push("Nickname-1"); }
+                if (lastCardJson.nickname_index == 2) { moreOptionsSelections.push("Nickname-2"); }
+                if (lastCardJson.nickname_index == 3) { moreOptionsSelections.push("Nickname-3"); }
+            }
+
+            $('.selectpicker').selectpicker('val', moreOptionsSelections);
+
+        }
     }
     // SET TABS
     setupTabs(selectedTab);
@@ -719,21 +783,26 @@ $(function () {
             var periodStartDate = $('input[name="date-start"]').val()
             var periodEndDate = $('input[name="date-end"]').val()
             var periodSplit = $('input[name="split"]').val()
+
+            // SET NUMBER AND EXPANSION
+            set_num = $('input[name="setnum"]').val()
+            expansion = $("#expansionSelection :selected").val()
             
             // CACHE SET VALUE
             var set = $("#setSelection :selected").val()
-            cacheSet(set)
+            cacheObject("set", set)
 
-            $.getJSON('/card_creation', {
+            // STORE LAST CREATE CARD SETTINGS
+            var card_object = {
                 name: name,
                 year: year,
                 set: set,
                 edition: edition,
                 url: image_link,
                 img_name: image_name,
-                set_num: $('input[name="setnum"]').val(),
+                set_num: set_num,
                 offset: selectedOffset,
-                expansion: $("#expansionSelection :selected").val(),
+                expansion: expansion,
                 addBorder: is_border,
                 is_dark_mode: is_dark_mode,
                 is_variable_spd_00_01: is_variable_spd,
@@ -753,7 +822,10 @@ $(function () {
                 period_end_date: periodEndDate,
                 period_split: periodSplit,
                 stat_highlights_type: stat_highlights
-            }, function (data) {
+            }
+            cacheObject("last_card", JSON.stringify(card_object))
+
+            $.getJSON('/card_creation', card_object, function (data) {
                 showCardData(data)
             });
             return false;

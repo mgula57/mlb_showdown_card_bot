@@ -315,7 +315,7 @@ If the multi-year card spans across available metrics (ex: a card using 2014-202
 #### _Pitchers_
 Pitchers fall under the following categories
 1. STARTER: >40% of pitcher's appearances were starts
-2. RELIEVER: <=60 % of pitcher's appearances were in relief
+2. RELIEVER: >=60 % of pitcher's appearances were in relief
 3. CLOSER: pitcher had at least 10 saves
 
 ### **Speed**

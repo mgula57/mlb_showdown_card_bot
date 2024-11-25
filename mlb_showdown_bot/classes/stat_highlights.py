@@ -36,6 +36,21 @@ class StatHighlightsCategory(Enum):
     _3B = '3B'
 
     @property
+    def sort_rating_multiplier(self) -> float:
+        match self:
+            case StatHighlightsCategory.SLASHLINE: return 5.0
+            case StatHighlightsCategory.ERA: return 5.0
+            case StatHighlightsCategory.WHIP: return 3.0
+            case StatHighlightsCategory.G: return 10.0
+            case StatHighlightsCategory.GS: return 10.0
+            case StatHighlightsCategory.IP: return 2.0
+            case StatHighlightsCategory.OPS_PLUS: return 2.0
+            case StatHighlightsCategory.RBI: return 0.85
+            case StatHighlightsCategory.SV: return 1.1
+            case StatHighlightsCategory.bWAR: return 1.1
+            case _: return 1.0
+
+    @property
     def stat_key_list(self) -> list[str]:
         match self:
             case StatHighlightsCategory.SLASHLINE: return ['batting_avg','onbase_perc','slugging_perc']
@@ -48,12 +63,38 @@ class StatHighlightsCategory(Enum):
             case _: return [self.value]
 
     @property
-    def visibility_threshold(self) -> float | int:
+    def cutoff_for_positive_sort_rating(self) -> float | int:
+        """Value for a player to qualify for 1.0 sort rating"""
         match self:
-            case StatHighlightsCategory.SB: return 20
+            case StatHighlightsCategory.SB: return 17
             case StatHighlightsCategory.RBI: return 85
-            case StatHighlightsCategory.HR: return 18
-            case StatHighlightsCategory._2B: return 25
-            case StatHighlightsCategory._3B: return 7
+            case StatHighlightsCategory.HR: return 20
+            case StatHighlightsCategory._2B: return 30
+            case StatHighlightsCategory._3B: return 6
             case StatHighlightsCategory.SV: return 20
+            case StatHighlightsCategory.H: return 170
+            case StatHighlightsCategory.W: return 10
+            case StatHighlightsCategory.K_9: return 8.5
+            case StatHighlightsCategory.FIP: return 3.5
+            case StatHighlightsCategory.bWAR: return 5.0
+            case StatHighlightsCategory.dWAR: return 0.5
             case _: return None
+
+    @property
+    def is_pa_metric(self) -> bool:
+        return self in [
+            StatHighlightsCategory.HR,
+            StatHighlightsCategory.SB,
+            StatHighlightsCategory.RBI,
+            StatHighlightsCategory.H,
+            StatHighlightsCategory._2B,
+            StatHighlightsCategory._3B,
+        ]
+    
+    @property
+    def is_lower_better(self) -> bool:
+        return self in [
+            StatHighlightsCategory.ERA,
+            StatHighlightsCategory.WHIP,
+            StatHighlightsCategory.FIP,
+        ]

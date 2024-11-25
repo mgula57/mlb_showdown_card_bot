@@ -1,5 +1,6 @@
 
 import pandas as pd
+import numpy as np
 import cloudscraper
 import re
 import os
@@ -904,8 +905,9 @@ class BaseballReferenceScraper:
             elif 'DH' in positions_dict.keys():
                 return "Hitter"
             else:
-                self.error = f'This Player Played 0 Games in {year}. Check Player Name and Year'
-                raise AttributeError(self.error)
+                if not (self.is_multi_year or self.is_full_career):
+                    self.error = f'This Player Played 0 Games in {year}. Check Player Name and Year'
+                    raise AttributeError(self.error)
         elif is_pitcher_override:
             return "Pitcher"
         elif is_hitter_override:
@@ -1647,6 +1649,9 @@ class BaseballReferenceScraper:
         most_common_type = max(set(types), key=types.count)
         yearly_stats_dict = { year: stats for year, stats in yearly_stats_dict.items() if stats.get('type', 'n/a') == most_common_type }
 
+        # FLATTEN MULTI YEAR STATS
+        yearPd = pd.DataFrame.from_dict(yearly_stats_dict, orient='index')
+        wa_games = lambda x: round(np.average(x, weights=yearPd.loc[x.index, "G"]))
         column_aggs = {
             '1B': 'sum',
             '2B': 'sum',
@@ -1685,10 +1690,8 @@ class BaseballReferenceScraper:
             'is_sb_leader': 'max',
             'award_summary': ','.join,
             'bWAR': 'sum',
+            'onbase_plus_slugging_plus': wa_games,
         }
-
-        # FLATTEN MULTI YEAR STATS
-        yearPd = pd.DataFrame.from_dict(yearly_stats_dict, orient='index')
         columns_to_remove = list(set(column_aggs.keys()) - set(yearPd.columns))
         if max(years) < 2015:
             columns_to_remove.append('sprint_speed')
@@ -1860,7 +1863,7 @@ class BaseballReferenceScraper:
             year = int(year_str)
             if len(years_filter_list) < 1 or (year in years_filter_list):
                 team = self.__extract_text_for_element(object=year_object, tag='td', attr_key='data-stat', values=['team_ID', 'team_name_abbr'])
-                games_str = self.__extract_text_for_element(object=year_object, tag='td', attr_key='data-stat', values=['G', 'games', 'b_games'])
+                games_str = self.__extract_text_for_element(object=year_object, tag='td', attr_key='data-stat', values=['G', 'games', 'b_games', 'p_g', 'p_games'])
                 if team is None or games_str is None: 
                     continue 
                 games = int(games_str)
@@ -1961,6 +1964,8 @@ class BaseballReferenceScraper:
         # IN NEWER TABLES BREF ADDED "b_" PREFIX TO SOME STATS AND MADE THE TEXT
         if stat_category.startswith('b_') and stat_category not in ('b_war'):
             stat_category = stat_category.replace('b_','')
+        elif stat_category.startswith('p_') and stat_category not in ('p_war'):
+            stat_category = stat_category.replace('p_','')
 
         # CONFORM UPGRADED BREF TABLES TO OLD FORMAT
         old_to_new_stat_mapping = {
@@ -1972,9 +1977,11 @@ class BaseballReferenceScraper:
             'pos': 'pos_season',
             'games': 'G',
             'b_war': 'bWAR',
+            'p_war': 'bWAR',
             'dwar': 'dWAR',
             'roba': 'rOBA',
             'year_id': 'year_ID',
+            'bfp': 'batters_faced',
         }
         stat_category = old_to_new_stat_mapping.get(stat_category, stat_category)
 
