@@ -137,6 +137,16 @@ class PlayerImageComponent(str, Enum):
             case _: return "CARD_ART"
 
     @property
+    def source_name(self) -> str:
+        """
+        Component name as it appears in the it's source (ex: GOOGLE_DRIVE, LOCAL_DRIVE, etc.).
+        Ex: GLOW and SHADOW images now use CUT as the source.
+        """
+        match self.name:
+            case "GLOW" | "SHADOW": return "CUT"
+            case _: return self.value
+
+    @property
     def is_loaded_via_download(self) -> bool:
         return self.load_source == "DOWNLOAD"
     

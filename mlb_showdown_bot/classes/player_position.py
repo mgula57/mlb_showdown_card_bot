@@ -48,6 +48,7 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.ERA,
                         StatHighlightsCategory.WHIP,
                         StatHighlightsCategory.IP,
+                        StatHighlightsCategory._2B,
                     ]
                     case StatHighlightsType.MODERN: categories += [
                         StatHighlightsCategory.ERA,
@@ -62,6 +63,8 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.SV,
                         StatHighlightsCategory.K_9,
                         StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.W,
+                        StatHighlightsCategory.FIP,
                     ]
                 return categories
             case self.POSITION_PLAYER:
@@ -184,6 +187,32 @@ class Position(MultiValueEnum):
             case 'CA': return ca_position_name
             case _: return self.value
 
+    def extract_games_played_used_for_sort(self, games_played_dict: dict[str: int]) -> int:
+        """Use games played dictionary to identify number to use for sorting purposes.
+        Bot sorts how positions are shown based on games played.
+        
+        If positions are combined sort by TOTAL games across positions
+
+        Args:
+          - Dictionary mapping position name to number of games played
+
+        Returns:
+          Integer with games played value to use during sort
+        """
+        match self:
+            case Position.CA:
+                # SAFELY INCLUDE BOTH 'C' AND 'CA' JUST IN CASE THE NAME CHANGES ACROSS SETS
+                ca_games = [g for pos, g in games_played_dict.items() if pos in ['C', 'CA',]]
+                return sum(ca_games) if len(ca_games) > 0 else 0
+            case Position.IF:
+                infield_games = sum([g for pos, g in games_played_dict.items() if pos in ['1B', '2B', '3B', 'SS']])
+                return sum(infield_games) if len(infield_games) > 0 else 0
+            case Position.LFRF:
+                lf_rf_games = sum([g for pos, g in games_played_dict.items() if pos in ['LF', 'RF',]])
+                return lf_rf_games
+            case _:
+                return games_played_dict.get(self.value, 0)
+
     @property
     def ordering_index(self) -> int:
         match self.name:
@@ -228,3 +257,81 @@ class Position(MultiValueEnum):
     
     def __repr__(self):
         return self.value
+    
+    # ---------------------------------------
+    # SIMULATION
+    # ---------------------------------------
+
+    @property
+    def rest_multiplier(self) -> float:
+        match self:
+            case Position.CA: return 0.5
+            case _: return 1.0
+
+
+class PositionSlotParent(Enum):
+    
+    CATCHER_AND_DH = "CATCHER AND DH"
+    INFIELD = "INFIELD"
+    OUTFIELD = "OUTFIELD"
+    ROTATION = "ROTATION"
+    BULLPEN = "BULLPEN"
+    BENCH = "BENCH"
+    NONE = "NONE"
+
+
+class PositionSlot(Enum):
+    CA = "CA"
+    _1B = "1B"
+    _2B = "2B"
+    _3B = "3B"
+    SS = "SS"
+    LF = "LF"
+    CF = "CF"
+    RF = "RF"
+    DH = "DH"
+    SP = "SP"
+    BP = "RP"
+    BE = "BE"
+
+    NONE = "NA"
+
+    @property
+    def valid_positions(self) -> list[Position]:
+        all_position_player_positions = [Position.CA, Position._1B, Position._2B, Position._3B, Position.SS, Position.LFRF, Position.CF, Position.OF, Position.IF, Position.DH]
+        match self:
+            case PositionSlot._1B | PositionSlot._2B | PositionSlot._3B | PositionSlot.SS: return [Position(self.value), Position.IF]
+            case PositionSlot.LF | PositionSlot.RF: return [Position.LFRF, Position.OF]
+            case PositionSlot.CF: return [Position.CF, Position.OF]
+            case PositionSlot.DH | PositionSlot.BE: return all_position_player_positions
+            case PositionSlot.SP: return [Position.SP]
+            case PositionSlot.BP: return [Position.RP, Position.CL]
+            case PositionSlot.NONE: return []
+            case _: return [Position(self.value)]
+
+    @property
+    def is_position_player(self) -> bool:
+        return self not in [PositionSlot.SP, PositionSlot.BP, PositionSlot.NONE]
+
+    @property
+    def is_pitcher(self) -> bool:
+        return self in [PositionSlot.SP,PositionSlot.BP]
+    
+    @property
+    def parent(self) -> PositionSlotParent:
+        match self:
+            case PositionSlot.CA | PositionSlot.DH: return PositionSlotParent.CATCHER_AND_DH
+            case PositionSlot._1B | PositionSlot._2B | PositionSlot._3B | PositionSlot.SS: return PositionSlotParent.INFIELD
+            case PositionSlot.LF | PositionSlot.CF | PositionSlot.RF: return PositionSlotParent.OUTFIELD
+            case PositionSlot.SP: return PositionSlotParent.ROTATION
+            case PositionSlot.BP: return PositionSlotParent.BULLPEN
+            case PositionSlot.BE: return PositionSlotParent.BENCH
+            case _: return PositionSlotParent.NONE
+
+    @property
+    def has_defense(self) -> bool:
+        return self not in [PositionSlot.DH, PositionSlot.BE, PositionSlot.SP, PositionSlot.BP, PositionSlot.NONE]
+    
+    @property
+    def is_outfield(self) -> bool:
+        return self in [PositionSlot.LF, PositionSlot.CF, PositionSlot.RF]
