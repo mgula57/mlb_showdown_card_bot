@@ -205,7 +205,7 @@ class Position(MultiValueEnum):
                 ca_games = [g for pos, g in games_played_dict.items() if pos in ['C', 'CA',]]
                 return sum(ca_games) if len(ca_games) > 0 else 0
             case Position.IF:
-                infield_games = sum([g for pos, g in games_played_dict.items() if pos in ['1B', '2B', '3B', 'SS']])
+                infield_games = [g for pos, g in games_played_dict.items() if pos in ['1B', '2B', '3B', 'SS']]
                 return sum(infield_games) if len(infield_games) > 0 else 0
             case Position.LFRF:
                 lf_rf_games = sum([g for pos, g in games_played_dict.items() if pos in ['LF', 'RF',]])

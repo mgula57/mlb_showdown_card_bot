@@ -2059,8 +2059,6 @@ class ShowdownPlayerCard(BaseModel):
           Formatted stat string.
         """
 
-        print(category, value)
-
         match category:
             case 'batting_avg' | 'onbase_perc' | 'slugging_perc' | 'onbase_plus_slugging':
                 return f"{value:.3f}".replace('0.', '.')
