@@ -1989,6 +1989,8 @@ class ShowdownPlayerCard(BaseModel):
                     if position == Position.LFRF.value:
                         position = 'OF'
                     position_defense = self.stats.get('positions', {}).get(position, {}).get(key, None)
+                    if position_defense is None:
+                        continue
 
                     # CHECK POINTS OBJECT FOR PERCENTILE
                     points_breakdown_for_position = self.points_breakdown.breakdowns.get(f'DEFENSE-{position}', None)
@@ -2056,6 +2058,8 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           Formatted stat string.
         """
+
+        print(category, value)
 
         match category:
             case 'batting_avg' | 'onbase_perc' | 'slugging_perc' | 'onbase_plus_slugging':
