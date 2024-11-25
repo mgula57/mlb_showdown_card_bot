@@ -1243,7 +1243,7 @@ class Set(str, Enum):
                 match self.value:
                     case '2000' | '2001': return (1250,1865)
                     case '2002': return (60,2038)
-                    case '2003': return (482,1775)
+                    case '2003': return (482,1770)
                     case '2004' | '2005': return (1100,1450)
             case TemplateImageComponent.NUMBER:
                 match self.value:

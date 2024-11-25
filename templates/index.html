@@ -76,12 +76,6 @@
                                     <div class="row">
                                        <!-- NAME  -->
                                        <div class="col-12 col-md-12">
-                                          <div style="font-size:75%; font-weight: bolder; color: #FF6347; padding-bottom: 5px"> 
-                                             Formula updates are now LIVE! Increased chart accuracy, variety, and more! See the full
-                                             <a href="https://github.com/mgula57/mlb_showdown_card_bot/releases" id="patch-notes-href" class="link-primary" target="_blank" rel="noopener noreferrer">
-                                                patch notes
-                                             </a> for details.
-                                          </div>
                                           <label for="name" style="color:Gray;"><b>Name</b></label>
                                           <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Bot not finding your card? Try inputting the baseball reference id (ex: troutmi01). Apply a card override! Examples include 2-way players (ex: Shohei Ohtani (Pitcher)) and partial team seasons (Ex: Max Scherzer (LAD)). Partial team seasons only available post 1918." >
                                           <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" autofocus required>
@@ -239,7 +233,7 @@
                                              <label style="color:Gray;"><b>Extras</b></label>
                                              <select id="moreOptionsSelect" class="selectpicker" multiple title="(Optional)" data-style="btn-outline-secondary" data-size=10 data-width="100%">
                                                 <optgroup label="Gameplay">
-                                                   <option value="VariableSpeed">Variable Speed ('00-'01)</option>
+                                                   <option value="VariableSpeed" data-subtext="('00/'01 Only)">Variable Speed</option>
                                                 </optgroup>
                                                 <optgroup label="Sizing">
                                                    <option value="Border">Border</option>
@@ -256,7 +250,7 @@
                                                 </optgroup>
                                                 <optgroup label="Year Visuals">
                                                    <option value="YearContainer">Year Text</option>
-                                                   <option value="SetYearPlus1">Set Year +1 ('03-'05)</option>
+                                                   <option value="SetYearPlus1" data-subtext="('03-'05 Only)">Set Year +1</option>
                                                 </optgroup>
                                                 <optgroup label="Name">
                                                    <option value="Nickname-1">Use Nickname</option>
@@ -361,7 +355,7 @@
       
                                        <div class="col-6 col-md-6" style="padding: 8px;" >
                                           <!-- RESET CARD BUTTON  -->
-                                          <button id="btn_custom" type="reset" class="btn btn-secondary btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = ''">
+                                          <button id="btn_custom" type="reset" class="btn btn-secondary btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = '';$('.selectpicker').selectpicker('deselectAll');">
                                              <div class="btn_text">
                                                 <i class="fa-solid fa-circle-xmark"></i>
                                                 Clear 
@@ -607,7 +601,7 @@
       <!-- JAVASCRIPT -->
       <script src="//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-      <script src="/static/front_end/script_3_9_2.js" charset="utf-8"></script>
+      <script src="/static/front_end/script_3_9_3.js" charset="utf-8"></script>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/js/bootstrap-select.min.js"></script>
       <script src="/static/front_end/tableau_3_9_2.js" type='text/javascript'></script>
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
