@@ -1154,7 +1154,7 @@ class BaseballReferenceScraper:
                 stats_dict = self.__parse_generic_bref_row(row=year_stats, included_categories=standard_columns_filter, search_for_lg_leader=True)
                 if 'is_sv_leader' in stats_dict:
                     advanced_stats['is_sv_leader'] = stats_dict['is_sv_leader']
-                year_award_summary = stats_dict['award_summary']
+                year_award_summary = stats_dict.get('award_summary', None) or stats_dict.get('awards', '')
                 if len(year_award_summary) > 0:
                     awards_total = f'{awards_total},{year_award_summary}'
             advanced_stats['award_summary'] = awards_total
