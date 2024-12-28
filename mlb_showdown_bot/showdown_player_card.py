@@ -3553,6 +3553,8 @@ class ShowdownPlayerCard(BaseModel):
         name_container_size = self.set.template_component_size(TemplateImageComponent.PLAYER_NAME)
         name_container_x = name_container_size[0]
         x_buffer = 1.0 - (self.set.name_text_x_buffer_pct)
+        if self.set.is_04_05 and not self.is_multi_year and (self.image.edition == Edition.COOPERSTOWN_COLLECTION or self.image.show_year_text):
+            x_buffer *= 0.85
         size_reduction = 0
         increments = 5
         icon_addition = ( len(self.icons) * 65 ) if self.set.is_showdown_bot else 0
