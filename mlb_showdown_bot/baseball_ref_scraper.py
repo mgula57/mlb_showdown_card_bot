@@ -1617,7 +1617,8 @@ class BaseballReferenceScraper:
             bool_key_name = f"is_above_{stat.lower()}_threshold"
             
             if year == 'CAREER':
-                list_of_values_for_stat = self.__get_stat_list_from_standard_table(type, homepage_soup, stat_key=stat)
+                stat_to_search = 'p_w' if stat in ['W'] else stat
+                list_of_values_for_stat = self.__get_stat_list_from_standard_table(type, homepage_soup, stat_key=stat_to_search)
                 if list_of_values_for_stat:
                     list_cleaned = [0 if str(x) == '' else x for x in list_of_values_for_stat]
                     max_for_stat = max(list_cleaned)
@@ -1962,9 +1963,10 @@ class BaseballReferenceScraper:
 
         # PARSE STAT CATEGORY
         # IN NEWER TABLES BREF ADDED "b_" PREFIX TO SOME STATS AND MADE THE TEXT
-        if stat_category.startswith('b_') and stat_category not in ('b_war'):
+        if stat_category.startswith('b_') and stat_category not in ['b_war']:
             stat_category = stat_category.replace('b_','')
-        elif stat_category.startswith('p_') and stat_category not in ('p_war'):
+        
+        if stat_category.startswith('p_') and stat_category not in ['p_war']:
             stat_category = stat_category.replace('p_','')
 
         # CONFORM UPGRADED BREF TABLES TO OLD FORMAT
