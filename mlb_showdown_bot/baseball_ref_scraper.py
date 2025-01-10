@@ -315,11 +315,16 @@ class BaseballReferenceScraper:
             type = self.type(positions_dict=stats_dict['positions'],year=year)
 
             # COVER THE CASES:
+            #   - NOT HAVING A TYPE DUE TO BEING A DH
             #   - NOT HAVING DATA FOR A PARTICULAR YEAR (EX: JOHN SMOLTZ 2000)
             #   - TYPE NOT MATCHING OVERALL TYPE (ACROSS MULTIPLE YEARS IF APPLICABLE)
-            has_no_type = type is None
+
+            # IN NEWER BREF TABLES DH IS NOT LISTING IN FIELDING
+            if type is None and (overall_type or '') == 'Hitter':
+                type = 'Hitter'
+
             mismatching_type = type != overall_type
-            if has_no_type or mismatching_type:
+            if type is None or mismatching_type:
                 continue
 
             # NATIONALITY
