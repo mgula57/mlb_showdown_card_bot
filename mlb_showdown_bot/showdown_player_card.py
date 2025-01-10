@@ -1468,7 +1468,7 @@ class ShowdownPlayerCard(BaseModel):
                         # SHORTEN NAMES IF NECESSARY
                         for type, abbr in award_name_and_abbr.items():
                             accolade = accolade.replace(type, abbr)
-                        priority = 0 if not is_icons or num_seasons > 1 else (4 if 'MVP' in accolade else 2)
+                        priority = 0 if not is_icons or num_seasons > 1 else 0.75
                         awards_accolades.append( (accolade, accolade_class.rank, priority) )
 
                     if num_seasons > 1:
@@ -1597,7 +1597,7 @@ class ShowdownPlayerCard(BaseModel):
             hr_per_year = hr / num_seasons
             is_hr_all_time = (hr >= 500 or hr_per_year >= 60)
             if ( hr_per_year >= (15 if self.year == 2020 else 30) and not self.is_substring_in_list('HR',current_accolades) ) or is_hr_all_time:
-                hr_suffix = "HOME RUNS" if is_pre_2004 else 'HR'
+                hr_suffix = "HOME RUNS"
                 if is_hr_all_time:
                     # MOVE DOWN PRIORITY OF LEADERS
                     accolades_rank_and_priority_tuples = [( (at[0], at[1], default_stat_priority) if 'HR' in at[0] else at) for at in accolades_rank_and_priority_tuples]
