@@ -128,7 +128,7 @@ class BaseballReferenceScraper:
         max_year = player_ids_pd['year_end'].max()
 
         # CLEAN NAME AND YEAR RANGE FOR CARD
-        name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip())
+        name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip().split('(')[0].strip())
         try:
             year_ints = [int(y) for y in years]
             year_start = min( min(year_ints), max_year)
@@ -330,6 +330,18 @@ class BaseballReferenceScraper:
                 if 'Did not play' in row.get_text():
                     type = None
                     break
+            
+            # CHECK IF SEASON IS SKIPPED (EX: JOSH GIBSON 1941)
+            players_standard_batting = soup_for_advanced_stats.find('table', attrs={'id': f'players_standard_{table_prefix}'})
+            if players_standard_batting:
+                skipped_year_rows = players_standard_batting.find_all('tr',attrs={'class': 'spacer partial_table'})
+                for row in skipped_year_rows:
+                    header = row.find('th')
+                    if header is None: continue
+                    csk = header.get('csk', '').strip()
+                    if str(year) == csk:
+                        type = None
+                        break
 
             mismatching_type = type != overall_type
             if type is None or mismatching_type:
