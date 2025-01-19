@@ -1908,8 +1908,9 @@ class BaseballReferenceScraper:
         year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard\.|players_standard_{table_prefix}\.')})
         stat_list = []
         for year_object in year_soup_objects_list:
+            is_total = ' Yr' in year_object.get('id', '')
             stat_object = year_object.find('td',attrs={'data-stat': stat_key})
-            if stat_object:
+            if stat_object and not is_total:
                 stat = stat_object.get_text()
                 stat = self.__convert_to_numeric(stat)
                 stat_list.append(stat)
