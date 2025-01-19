@@ -128,7 +128,7 @@ class BaseballReferenceScraper:
         max_year = player_ids_pd['year_end'].max()
 
         # CLEAN NAME AND YEAR RANGE FOR CARD
-        name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip())
+        name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip().split('(')[0].strip())
         try:
             year_ints = [int(y) for y in years]
             year_start = min( min(year_ints), max_year)
@@ -322,6 +322,26 @@ class BaseballReferenceScraper:
             # IN NEWER BREF TABLES DH IS NOT LISTING IN FIELDING
             if type is None and (overall_type or '') == 'Hitter':
                 type = 'Hitter'
+
+            # CHECK IF `DID NOT PLAY` MESSAGE EXISTS FOR THE YEAR
+            table_prefix = 'batting' if (type or '') == 'Hitter' else 'pitching'
+            rows_for_year = soup_for_advanced_stats.find_all('tr',attrs={'id': f'players_standard_{table_prefix}.{year}'})
+            for row in rows_for_year:
+                if 'Did not play' in row.get_text():
+                    type = None
+                    break
+            
+            # CHECK IF SEASON IS SKIPPED (EX: JOSH GIBSON 1941)
+            players_standard_batting = soup_for_advanced_stats.find('table', attrs={'id': f'players_standard_{table_prefix}'})
+            if players_standard_batting:
+                skipped_year_rows = players_standard_batting.find_all('tr',attrs={'class': 'spacer partial_table'})
+                for row in skipped_year_rows:
+                    header = row.find('th')
+                    if header is None: continue
+                    csk = header.get('csk', '').strip()
+                    if str(year) == csk:
+                        type = None
+                        break
 
             mismatching_type = type != overall_type
             if type is None or mismatching_type:
@@ -1098,6 +1118,7 @@ class BaseballReferenceScraper:
         if is_full_career:
             standard_row = self.__get_career_totals_row(div_id=re.compile(f'all_{table_prefix}_standard|all_players_standard_{table_prefix}'),soup_object=soup_for_advanced_stats)
         else:
+            standard_row = None
             standard_rows = soup_for_advanced_stats.find_all('tr',attrs={'id': f'players_standard_{table_prefix}.{year}'}) \
                                 or soup_for_advanced_stats.find_all('tr',attrs={'class':'full','id': f'{table_prefix}_standard.{year}'})
             for row in standard_rows:
@@ -1899,8 +1920,9 @@ class BaseballReferenceScraper:
         year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard\.|players_standard_{table_prefix}\.')})
         stat_list = []
         for year_object in year_soup_objects_list:
+            is_total = ' Yr' in year_object.get('id', '')
             stat_object = year_object.find('td',attrs={'data-stat': stat_key})
-            if stat_object:
+            if stat_object and not is_total:
                 stat = stat_object.get_text()
                 stat = self.__convert_to_numeric(stat)
                 stat_list.append(stat)
