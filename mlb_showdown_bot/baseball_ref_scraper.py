@@ -323,6 +323,14 @@ class BaseballReferenceScraper:
             if type is None and (overall_type or '') == 'Hitter':
                 type = 'Hitter'
 
+            # CHECK IF `DID NOT PLAY` MESSAGE EXISTS FOR THE YEAR
+            table_prefix = 'batting' if (type or '') == 'Hitter' else 'pitching'
+            rows_for_year = soup_for_advanced_stats.find_all('tr',attrs={'id': f'players_standard_{table_prefix}.{year}'})
+            for row in rows_for_year:
+                if 'Did not play' in row.get_text():
+                    type = None
+                    break
+
             mismatching_type = type != overall_type
             if type is None or mismatching_type:
                 continue
@@ -1098,6 +1106,7 @@ class BaseballReferenceScraper:
         if is_full_career:
             standard_row = self.__get_career_totals_row(div_id=re.compile(f'all_{table_prefix}_standard|all_players_standard_{table_prefix}'),soup_object=soup_for_advanced_stats)
         else:
+            standard_row = None
             standard_rows = soup_for_advanced_stats.find_all('tr',attrs={'id': f'players_standard_{table_prefix}.{year}'}) \
                                 or soup_for_advanced_stats.find_all('tr',attrs={'class':'full','id': f'{table_prefix}_standard.{year}'})
             for row in standard_rows:
