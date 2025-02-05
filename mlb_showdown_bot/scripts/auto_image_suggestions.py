@@ -19,7 +19,7 @@ parser.add_argument('-ye','--year_end', help='Optional year end filter', type=in
 parser.add_argument('-l','--limit', help='Optional limit', type=int, required=False, default=None)
 parser.add_argument('-tm', '--team', help='Optional team filter', required=False, default=None)
 parser.add_argument('-yt', '--year_threshold', help='Optional year threshold. Only includes images that are <= the threshold.', required=False, type=int, default=None)
-parser.add_argument('-sort', '--sort', help='Optional sort field', required=False, default='bWar')
+parser.add_argument('-sort', '--sort', help='Optional sort field', required=False, default='bWAR')
 args = parser.parse_args()
 
 def fetch_image_file_list() -> list[str]:
