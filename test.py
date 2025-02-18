@@ -1,5 +1,5 @@
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
+from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard, StatsPeriod, StatsPeriodType
 from mlb_showdown_bot.classes.sets import Set
 from mlb_showdown_bot.classes.images import Edition
 from termcolor import colored
@@ -29,6 +29,7 @@ if __name__ == "__main__":
         {'name': 'Bob Gibson', 'year': '1968', 'edition': Edition.COOPERSTOWN_COLLECTION.value},
         {'name': 'Jackie Robinson', 'year': 'CAREER', 'edition': Edition.NONE.value},
         {'name': 'Willie Mays', 'year': 'CAREER', 'edition': Edition.NONE.value},
+        {'name': 'Jesse Winker', 'year': '2024', 'edition': Edition.NONE.value, 'stats_period_type': StatsPeriodType.DATE_RANGE.value, 'start_date': '2024-04-01', 'end_date': '2024-04-30'},
     ]
     num_tests = len(inputs_to_test)
 
@@ -41,6 +42,14 @@ if __name__ == "__main__":
             name = player_inputs['name']
             year = player_inputs['year']
             edition = player_inputs['edition']
+            stats_period = StatsPeriod(
+                type=player_inputs.get('stats_period_type', StatsPeriodType.REGULAR_SEASON),
+                year=year,
+                start_date=player_inputs.get('start_date', None),
+                end_date=player_inputs.get('end_date', None),
+                split=player_inputs.get('split', None)
+            )
+
             # GET PLAYER DATA
             scraper = BaseballReferenceScraper(name=name,year=year)
             statline = scraper.player_statline()
@@ -52,6 +61,7 @@ if __name__ == "__main__":
                     stats=statline,
                     set=set.value,
                     edition=edition,
+                    stats_period=stats_period,
                     print_to_cli=False
                 )
                 showdown.card_image()
