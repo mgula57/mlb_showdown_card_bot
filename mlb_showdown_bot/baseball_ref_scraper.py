@@ -1397,9 +1397,22 @@ class BaseballReferenceScraper:
         soup_game_log_page = self.__soup_for_url(url, is_baseball_ref_page=True)
 
         # CHECK FOR ROWS
+        # NOTE: THIS HANDLES BOTH THE OLD AND "UPGRADED" TABLES
+        # OLD: ID OF TABLE WAS 'batting_gamelogs' OR 'pitching_gamelogs'
+        # UPGRADED: LOOK FOR A TABLE WITH id="players_standard_batting"/"players_standard_pitching" and data-soc-sum-scope-type="player_game"
         type_prefix = 'pitching' if is_pitcher else 'batting'
         game_log_records = soup_game_log_page.find_all('tr', attrs={'id': re.compile(f'{type_prefix}_gamelogs.')})
-        included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF','RBI','player_game_result',]
+        is_no_records_old_table = len(game_log_records) == 0
+        if is_no_records_old_table:
+            # CHECK FOR NEW UPGRADED TABLE
+            game_log_table = soup_game_log_page.find('table', attrs={'id': f'players_standard_{type_prefix}'})
+            if game_log_table:
+                game_log_records = game_log_table.find_all('tr', attrs={'id': re.compile(f'players_standard_{type_prefix}.')})
+                # FILTER OUT RECORDS WITH "spacer" IN CLASS
+                game_log_records = [row for row in game_log_records if 'spacer' not in row.get('class', 'N/A')]
+
+        included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF','RBI','player_game_result',
+                               'date','team_name_abbr',]
         game_logs_parsed: list[dict] = [self.__parse_generic_bref_row(row=game_log, included_categories=included_categories) for game_log in game_log_records]
         
         # AGGREGATE DATA
@@ -1407,20 +1420,31 @@ class BaseballReferenceScraper:
         for game_log_data in game_logs_parsed:
 
             # REMOVE BAD UNICODE CHARACTERS
-            date_game = game_log_data.get('date_game', None)
+            date_game = game_log_data.get('date_game', game_log_data.get('date', None))
             if date_game:
                 game_log_data['date_game'] = date_game.replace(u'\xa0', u' ')
-
+                
             # CHECK FOR DATE/YEAR FILTER
             year_from_game_log = self.__convert_to_numeric(str(game_log_data.get('year_game', first_year)))
             year_check = year_from_game_log in years or first_year == 'CAREER'
             date_check = True
             game_log_date_str: str = game_log_data.get('date_game', None)
             if self.stats_period.is_date_range and game_log_date_str:
-                game_log_date_str_cleaned = game_log_date_str.split('(')[0].replace('\xa0susp', '')
-                game_log_date_str_full = f"{game_log_date_str_cleaned} {first_year}"
-                game_log_date = datetime.strptime(game_log_date_str_full, "%b %d %Y").date()
+                game_log_date_str_cleaned = game_log_date_str.split('(')[0].strip().replace('\xa0susp', '')
+                is_new_format = game_log_date_str.count('-') >= 2
+                if is_new_format:
+                    # IN UPGRADED TABLES, DATES ARE IN THIS FORMAT "YYYY-MM-DD)"
+                    game_log_date = datetime.strptime(game_log_date_str_cleaned, "%Y-%m-%d").date()
+                else:
+                    # IN OLD TABLES, DATES ARE IN THIS FORMAT "MMM DD"
+                    game_log_date_str_full = f"{game_log_date_str_cleaned} {first_year}"
+                    game_log_date = datetime.strptime(game_log_date_str_full, "%b %d %Y").date()
+                
+                # CHECK IF DATE IS WITHIN RANGE
                 date_check = self.stats_period.start_date <= game_log_date <= self.stats_period.end_date
+
+                # UPDATE 'date_game' WITH FORMATTED DATE
+                game_log_data['date_game'] = game_log_date.strftime("%b %-d")
             
             # SKIP IF TEAM OVERRIDE IS PRESENT AND TEAM DOESN'T MATCH
             if self.team_override:
@@ -1505,7 +1529,7 @@ class BaseballReferenceScraper:
 
         final_stats_dict = {}        
         for category_object in columns:
-            
+
             stat_category:str = category_object.get('data-stat', None)
             if stat_category is None: continue
             stat_category = self.__conform_stat_category_to_old_structure(stat_category)
@@ -2020,6 +2044,7 @@ class BaseballReferenceScraper:
             'onbase_plus_slugging_plus','award_summary','rbat_plus','rOBA',
             'whip','batters_faced','earned_run_avg','batting_avg_bip','year_game',
             'ps_round','date_game','player_game_span','player_game_result',
+            'date','date_game','team_name_abbr',
         ]
         if stat_category not in categories_to_keep_default_case:
             stat_category = stat_category.upper()
