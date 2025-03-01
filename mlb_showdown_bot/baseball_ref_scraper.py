@@ -618,6 +618,10 @@ class BaseballReferenceScraper:
                 player_value = soup_for_homepage_stats.find('tr', attrs = {'id': re.compile(f'batting_value.{year}|players_value_batting.{year}')})
                 dwar_object = player_value.find('td',attrs={'class':'right','data-stat': re.compile('WAR_def|b_war_def')})
                 dwar_rating = dwar_object.get_text() if dwar_object != None else 0
+                try:
+                    dwar_rating = float(dwar_rating)
+                except:
+                    dwar_rating = dwar_rating
 
         except:
             dwar_rating = 0
