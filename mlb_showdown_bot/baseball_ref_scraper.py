@@ -608,15 +608,15 @@ class BaseballReferenceScraper:
         # UPDATE: SCRAPE TOTAL WAR AS WELL
         try:
             if is_full_career:
-                summarized_header = self.__get_career_totals_row(div_id='div_batting_value',soup_object=soup_for_homepage_stats)
+                summarized_header = self.__get_career_totals_row(div_id=re.compile('div_batting_value|div_players_value_batting'),soup_object=soup_for_homepage_stats)
                 num_seasons = float(summarized_header.find('th').get_text().split(" ")[0])
-                dwar_object = summarized_header.find('td',attrs={'data-stat':'WAR_def'})
+                dwar_object = summarized_header.find('td',attrs={'data-stat':re.compile('WAR_def|b_war_def')})
                 dwar_rating = float(dwar_object.get_text()) if dwar_object != None else 0
                 # USE AVG FOR CAREER
                 dwar_rating = round(dwar_rating / num_seasons,2)
             else:
-                player_value = soup_for_homepage_stats.find('tr', attrs = {'id': 'batting_value.{}'.format(year)})
-                dwar_object = player_value.find('td',attrs={'class':'right','data-stat':'WAR_def'})
+                player_value = soup_for_homepage_stats.find('tr', attrs = {'id': re.compile(f'batting_value.{year}|players_value_batting.{year}')})
+                dwar_object = player_value.find('td',attrs={'class':'right','data-stat': re.compile('WAR_def|b_war_def')})
                 dwar_rating = dwar_object.get_text() if dwar_object != None else 0
 
         except:
@@ -2032,6 +2032,7 @@ class BaseballReferenceScraper:
             'b_war': 'bWAR',
             'p_war': 'bWAR',
             'dwar': 'dWAR',
+            'b_war_def': 'dWAR',
             'roba': 'rOBA',
             'year_id': 'year_ID',
             'bfp': 'batters_faced',
