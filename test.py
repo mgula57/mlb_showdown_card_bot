@@ -12,7 +12,7 @@ if __name__ == "__main__":
         {'name': 'Juan Encarnacion', 'year': '2007', 'edition': Edition.NONE.value},
         {'name': 'Walter Johnson', 'year': '1908', 'edition': Edition.NONE.value},
         {'name': 'Manny Ramirez (LAD)', 'year': '2008', 'edition': Edition.NONE.value},
-        {'name': 'Mike Piazza (FLA)', 'year': '1997', 'edition': Edition.NONE.value},
+        {'name': 'Mike Piazza (FLA)', 'year': '1998', 'edition': Edition.NONE.value},
         {'name': 'Aroldis Chapman (NYY)', 'year': '2016', 'edition': Edition.NONE.value},
         {'name': 'Derek Jeter', 'year': '2006+2014+2008', 'edition': Edition.SUPER_SEASON.value},
         {'name': 'Old Hoss Radbourn', 'year': '1885-1889', 'edition': Edition.NONE.value},
