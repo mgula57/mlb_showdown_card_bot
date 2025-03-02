@@ -609,12 +609,17 @@ class Chart(BaseModel):
                 if chart_category.is_out and chart_category != ChartCategory.SO:
                     multiplier = 3/4 if self.is_hitter else 3/4
                     category_limit = self.outs * multiplier if self.outs > 4 else self.outs
+                    if self.is_classic:
+                        category_limit = round(category_limit)
 
                 is_out_max = self.outs if chart_category.is_out else 20 - self.outs
                 category_remaining = is_out_max - sum([v for k,v in self.values.items() if k.is_out == chart_category.is_out])
-                max_values = min(category_limit, category_remaining)
                 final_onbase_category_to_fill = ChartCategory.BB if self.outs_full == 20 else ChartCategory._1B
-                min_values = category_remaining if chart_category in [final_onbase_category_to_fill, ChartCategory.FB] else None
+
+                # DEFINE MIN/MAX VALUES
+                is_final_category_in_section = chart_category in [final_onbase_category_to_fill, ChartCategory.FB]
+                min_values = category_remaining if is_final_category_in_section else None
+                max_values = min(category_remaining, category_remaining if is_final_category_in_section else category_limit)
 
                 # FILL CHART CATEGORY VALUES
                 # FILL METHODS:
