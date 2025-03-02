@@ -308,7 +308,7 @@ class BaseballReferenceScraper:
         for year in years_for_loop:
             # DEFENSE
             stats_dict = {'bref_id': self.baseball_ref_id, 'bref_url': url_for_homepage_stats}
-            positional_fielding = self.positions_and_defense(soup_for_homepage_stats=soup_for_homepage_stats,year=year)
+            positional_fielding = self.positions_and_defense(soup_for_homepage_stats=soup_for_homepage_stats,year=year,overall_positions_and_games=positions_and_games)
             stats_dict.update(positional_fielding)
 
             # HAND / TYPE
@@ -537,12 +537,13 @@ class BaseballReferenceScraper:
 
         return positions_and_games_played
     
-    def positions_and_defense(self, soup_for_homepage_stats:BeautifulSoup, year:int) -> dict[str, dict]:
+    def positions_and_defense(self, soup_for_homepage_stats:BeautifulSoup, year:int|str, overall_positions_and_games:dict[str:int]) -> dict[str, dict]:
         """Parse standard positions and fielding metrics into a dictionary.
 
         Args:
-          soup_for_homepage_stats: BeautifulSoup object with all stats on homepage.
-          year: Year for Player stats
+            soup_for_homepage_stats: BeautifulSoup object with all stats on homepage.
+            year: Year for Player stats
+            overall_positions_and_games: Dict with positions and games played over the players career. Ex: { 'C': {'g': 100}, '1B': {'g': 50} }.
 
         Returns:
           Dict for each position with details.
@@ -568,7 +569,14 @@ class BaseballReferenceScraper:
                     if team_name != self.team_override: continue
 
             position_name = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['pos', 'f_position'])
+            
+            # IN UPGRADED TABLES, POSITION CAN BE BLANK FOR PLAYERS WHO PLAYED ONE POSITION THEIR ENTIRE CAREER
+            # IF THAT HAPPENS, USE THE POSITION NAME FROM OVERALL GAMES PLAYED
+            if is_full_career and position_name == '' and len(overall_positions_and_games) == 1:
+                position_name = list(overall_positions_and_games.keys())[0]
+
             if position_name:
+                
                 games_played_text = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['G', 'f_games'])
                 games_played = int(games_played_text) if games_played_text else 0
 
