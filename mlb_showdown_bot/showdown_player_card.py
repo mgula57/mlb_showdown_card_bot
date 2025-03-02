@@ -751,11 +751,14 @@ class ShowdownPlayerCard(BaseModel):
                     positions_and_games_played[position] = games_at_position
                     if self.is_hitter:
                         try:
-                            # FOR MULTI YEAR CARDS THAT SPAN CROSS OVER 2016, IGNORE OAA
                             # CHECK WHAT YEARS THE CARD SPANS OVER
                             start_year = min(self.year_list)
                             end_year = max(self.year_list)
-                            use_drs_over_oaa = start_year < 2016 and end_year >= 2016
+
+                            # OAA STARTED IN 2016
+                            # USE DRS OVER OAA FOR YEARS 2014 AND EARLIER
+                            # PLAYERS THAT STARTED IN 2015 USE OAA BECAUSE MOST OF THEIR CAREER IS AFTER 2016
+                            use_drs_over_oaa = start_year <= 2014 and end_year >= 2016
                             
                             # CHECK WHICH DEFENSIVE METRIC TO USE
                             is_drs_available = 'drs' in defensive_stats.keys()

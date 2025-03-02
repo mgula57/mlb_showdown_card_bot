@@ -590,7 +590,7 @@ class BaseballReferenceScraper:
                     
                     if use_stat_per_yr:
                         drs_rating_text = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['bis_runs_total_per_season', 'f_drs_total_per_year'])
-                        drs_rating = 0 if (drs_rating_text or '') == '' else int(drs_rating_text)
+                        drs_rating = None if (drs_rating_text or '') == '' else int(drs_rating_text)
 
                     # TOTAL ZONE (1953-2003)
                     suffix = '_per_year' if use_stat_per_yr else ''
