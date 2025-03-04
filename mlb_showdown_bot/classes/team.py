@@ -406,6 +406,7 @@ class Team(str, Enum):
             case 'MIN': return {
                 '1': (190, 15, 52, 255),
                 '2': (186, 12, 47, 255),
+                '3': (211,17,69,255),
             }
             case 'NYG': return {
                 '1': (12, 35, 64, 255),
@@ -597,6 +598,7 @@ class Team(str, Enum):
             case 'MIN': return {
                 '1': (12, 35, 64, 255),
                 '2': (34, 68, 179, 255),
+                '3': (0, 43, 92, 255),
             }
             case 'NYG': return {
                 '1': (197, 198, 200, 255),
@@ -806,6 +808,7 @@ class Team(str, Enum):
             case 'MIN': return {
                 '1': list(range(1961,1987)),
                 '2': list(range(1987,2009)),
+                '3': list(range(2009,2023)),
             }
             case 'NYG': return {
                 '1': list(range(1883,1947)),
