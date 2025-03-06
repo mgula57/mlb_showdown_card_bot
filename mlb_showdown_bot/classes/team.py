@@ -819,8 +819,15 @@ class Team(str, Enum):
                 '3': list(range(1998,2011)),
             }
             case 'NYY': return {
-                '1': list(range(1900,1950)),
-                '2': list(range(1951,2010)),
+                '1': list(range(1903,1905)), # HIGHLANDERS
+                '2': list(range(1905,1906)), # HIGHLANDERS
+                '3': list(range(1906,1907)), # HIGHLANDERS
+                '4': list(range(1907,1908)), # HIGHLANDERS
+                '5': list(range(1908,1909)), # HIGHLANDERS
+                '6': list(range(1909,1936)), # HIGHLANDERS -> YANKEES
+                '7': list(range(1936,1946)), # YANKEES
+                '8': list(range(1946,1968)), # YANKEES
+                '9': list(range(1968,2010)), # YANKEES
             }
             case 'OAK': return {
                 '1': list(range(1968,1982)),
@@ -894,7 +901,7 @@ class Team(str, Enum):
         logo_name = f"{self.value}{alt_ext}{self.logo_historical_index(year=year, include_dash=True)}"
 
         # CHECK FOR ALTS
-        if set in ['EXPANDED', 'CLASSIC'] and not is_dark and logo_name in ['NYY-A','NYY-A-2']:
+        if set in ['EXPANDED', 'CLASSIC'] and not is_dark and logo_name in ['NYY-A','NYY-A-8','NYY-A-9']:
             return f'{logo_name}-ALT'
 
         return logo_name
