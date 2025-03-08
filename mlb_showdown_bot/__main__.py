@@ -143,6 +143,7 @@ def main():
             chart_version=args.chart_version,
             player_image_url=args.image_url,
             player_image_path=args.image_path,
+            player_type_override=scraper.player_type_override,
             card_img_output_folder_path=args.image_output_path,
             print_to_cli=True,
             show_image=args.show_image,

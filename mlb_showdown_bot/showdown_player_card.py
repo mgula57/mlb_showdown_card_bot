@@ -19,7 +19,7 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageChops
 from prettytable import PrettyTable
 from pprint import pprint
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
 from typing import Any, Optional, Union
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
@@ -74,10 +74,10 @@ class ShowdownPlayerCard(BaseModel):
     is_multi_year: bool = False
     bref_id: str = ''
     bref_url: str = ''
-    league: str = 'MLB'
-    team: Team = Team.MLB
+    league: str | None = 'MLB'
+    team: Team | None = Team.MLB
     nationality: Nationality = Nationality.NONE
-    player_type: PlayerType = None
+    player_type: PlayerType | None = None
     player_sub_type: Optional[PlayerSubType] = None
     player_type_override: Optional[PlayerType] = None
     nicknames: list[str] = []
@@ -129,19 +129,12 @@ class ShowdownPlayerCard(BaseModel):
 
     def __init__(self, **data) -> None:
         """Initializer for ShowdownPlayerCard Class"""
-        
-        # HANDLE EMPTY ERA INPUT AS DYNAMIC
-        if data.get('era', None) is None:
-            data['era'] = "DYNAMIC"
 
         # INIT
         super().__init__(**data)
 
         # PARSE NICKNAMES
         self.nicknames = self.extract_player_nicknames_list()
-
-        # PARSE TYPE OVERRIDE
-        self.player_type_override = self.parse_player_type_override(player_type_override=self.player_type_override, name_user_input=data.get('name', None))
 
         # IMAGE
         if data.get('image', None) is None:
@@ -210,16 +203,37 @@ class ShowdownPlayerCard(BaseModel):
 # VALIDATORS
 # ------------------------------------------------------------------------
 
-    @validator('year', always=True)
+    @model_validator(mode="before")
+    def ensure_required_inputs(cls, values: dict) -> dict:
+                
+        # HANDLE EMPTY ERA INPUT AS DYNAMIC
+        if values.get('era', None) is None:
+            values['era'] = "DYNAMIC"
+
+        # FORCE THESE ATTRIBUTES TO RUN
+        required_attributes = [
+            'name_input', 'player_type', 
+            'year_list', 'is_full_career', 'is_multi_year',
+            'bref_id', 'bref_url', 'league', 'team', 'nationality',
+            'is_stats_estimate', 'player_type_override',
+        ]
+        for attr in required_attributes:
+            if attr not in values.keys():
+                values[attr] = None
+
+        return values
+
+    @field_validator('year', mode='before')
     def clean_year(cls, year:str) -> str:
         return str(year).upper()
 
-    @validator('year_list', always=True)
-    def parse_year_list(cls, year_list:list[int], values:dict) -> list[int]:
+    @field_validator('year_list', mode='before')
+    def parse_year_list(cls, year_list:list[int], info:ValidationInfo) -> list[int]:
 
         if year_list is not None:
             if len(year_list) > 0:
                 return year_list
+        values = info.data
         year:str = values.get('year', '')
         stats:dict = values.get('stats', {})
         all_years_played:list[str] = stats.get('years_played', [])
@@ -237,29 +251,30 @@ class ShowdownPlayerCard(BaseModel):
         else:
             return [int(year)]
 
-    @validator('is_full_career', always=True)
-    def parse_is_full_career(cls, is_full_career:bool, values:dict) -> bool:
+    @field_validator('is_full_career', mode='before')
+    def parse_is_full_career(cls, is_full_career:bool, info:ValidationInfo) -> bool:
         if is_full_career:
             return is_full_career
         
-        year:str = values.get('year', '')
+        year:str = info.data.get('year', '')
         return year.upper() == 'CAREER'
     
-    @validator('is_multi_year', always=True)
-    def parse_is_multi_year(cls, is_multi_year:bool, values:dict) -> bool:
+    @field_validator('is_multi_year', mode='before')
+    def parse_is_multi_year(cls, is_multi_year:bool, info:ValidationInfo) -> bool:
         if is_multi_year:
             return is_multi_year
         
-        year_list:list[int] = values.get('year_list', [])
+        year_list:list[int] = info.data.get('year_list', [])
         return len(year_list) > 1
 
-    @validator('stats')
-    def clean_stats(cls, stats:dict, values:dict) -> dict[str, Any]:
+    @field_validator('stats')
+    def clean_stats(cls, stats:dict, info:ValidationInfo) -> dict[str, Any]:
 
         # ADD OPS IF NOT IN DICT (< 1900 CARDS)
         if 'onbase_plus_slugging' not in stats.keys() and 'slugging_perc' in stats.keys() and 'onbase_perc' in stats.keys():
             stats['onbase_plus_slugging'] = stats['slugging_perc'] + stats['onbase_perc']
 
+        values = info.data
         # REDUCE IF/FB FOR 1988
         if 'IF/FB' in stats.keys() and values.get('year', '') == '1988':
             stats['IF/FB'] = stats.get('IF/FB', 0.0) * Set(values.get('set', None)).pu_normalizer_1988
@@ -296,13 +311,12 @@ class ShowdownPlayerCard(BaseModel):
 
         return stats
     
-    @validator('era', pre=True)
-    def handle_dynamic_era(cls, era:str, values:dict) -> Era:
-
+    @field_validator('era', mode='before')
+    def handle_dynamic_era(cls, era:str, info:ValidationInfo) -> Era:
         if era.upper() != 'DYNAMIC':
             return Era(era)
         
-        year_list = values.get('year_list', [])
+        year_list = info.data.get('year_list', [])
         eras = []
         for year in year_list:
             for era in Era:
@@ -317,78 +331,79 @@ class ShowdownPlayerCard(BaseModel):
         
         return most_common_era_tuples_list[0][0]
 
-    @validator('name', pre=True)
-    def parse_name(cls, name:str, values:dict) -> str:
+    @field_validator('name', mode='before')
+    def parse_name(cls, name:str, info:ValidationInfo) -> str:
         """Use the bref name first, user input as a backup"""
-        stats:dict = values.get('stats', {})
+        stats:dict = info.data.get('stats', {})
         return stats.get('name', name)
     
-    @validator('player_type', always=True, pre=True)
-    def parse_player_type(cls, player_type:str, values:dict) -> PlayerType:
-        stats:dict = values.get('stats', {})
+    @field_validator('player_type', mode='before')
+    def parse_player_type(cls, player_type:str, info:ValidationInfo) -> PlayerType:
+        stats:dict = info.data.get('stats', {})
         player_type_from_stats = stats.get('type', None) or player_type
-
         if player_type_from_stats:
             return player_type_from_stats if type(player_type_from_stats) is PlayerType else PlayerType(player_type_from_stats)
         
         return player_type if type(player_type) is PlayerType else PlayerType(player_type)
     
-    @validator('bref_id', always=True)
-    def parse_bref_id(cls, bref_id:str, values:dict) -> str:
+    @field_validator('bref_id', mode='before')
+    def parse_bref_id(cls, bref_id:str, info:ValidationInfo) -> str:
         if bref_id:
             if len(bref_id) > 1:
                 return bref_id
-        stats: dict = values.get('stats', {})
+        stats: dict = info.data.get('stats', {})
         return stats.get('bref_id', '')
     
-    @validator('bref_url', always=True)
-    def parse_bref_url(cls, bref_url:str, values:dict) -> str:
+    @field_validator('bref_url', mode='before')
+    def parse_bref_url(cls, bref_url:str, info:ValidationInfo) -> str:
         if bref_url:
             if len(bref_url) > 0:
                 return bref_url
-        stats: dict = values.get('stats', {})
+        stats: dict = info.data.get('stats', {})
         return stats.get('bref_url', '')
     
-    @validator('is_stats_estimate', always=True)
-    def parse_is_stats_estimate(cls, is_stats_estimate:str, values:dict) -> bool:
+    @field_validator('is_stats_estimate', mode='before')
+    def parse_is_stats_estimate(cls, is_stats_estimate:str, info:ValidationInfo) -> bool:
         if is_stats_estimate:
             return is_stats_estimate
-        stats: dict = values.get('stats', {})
+        stats: dict = info.data.get('stats', {})
         return stats.get('is_stats_estimate', False)
 
-    @validator('league', always=True)
-    def parse_league(cls, league:str, values:dict) -> str:
+    @field_validator('league', mode='before')
+    def parse_league(cls, league:str, info:ValidationInfo) -> str:
         if league != 'MLB':
             return league
-        stats: dict = values.get('stats', {})
+        stats: dict = info.data.get('stats', {})
         return stats.get('lg_ID', 'MLB')
     
-    @validator('team', always=True)
-    def parse_team(cls, team:Team, values:dict) -> Team:
-        if team != Team.MLB:
+    @field_validator('team', mode='before')
+    def parse_team(cls, team:Team, info:ValidationInfo) -> Team:
+        if (team or Team.MLB) != Team.MLB:
             return team
-        stats:dict = values.get('stats', {})
+        stats:dict = info.data.get('stats', {})
         return Team(stats.get('team_ID', None))
     
-    @validator('nationality', always=True)
-    def parse_nationality(cls, nationality:Nationality, values:dict) -> Nationality:
+    @field_validator('nationality', mode='before')
+    def parse_nationality(cls, nationality:Nationality, info:ValidationInfo) -> Nationality:
         if nationality != Nationality.NONE:
             return nationality
-        stats:dict = values.get('stats', {})
+        stats:dict = info.data.get('stats', {})
         return Nationality(stats.get('nationality', None))
 
-    def parse_player_type_override(cls, player_type_override:str, name_user_input: str) -> PlayerType:
+    @field_validator('player_type_override', mode='before')
+    def parse_player_type_override(cls, player_type_override:str) -> PlayerType:
         """Check for player type override as an input and within the user inputted name."""
 
         if player_type_override:
-            return player_type_override
+            # CHECK IF PLAYER TYPE OVERRIDE IS A PLAYER TYPE ENUM
+            if type(player_type_override) is PlayerType:
+                return player_type_override
+            
+            # TRANSFORM STRING TO PLAYER TYPE ENUM
+            # EX: "(HITTER)" -> "Hitter" -> PlayerType.HITTER
+            player_type_override = player_type_override.replace('(','').replace(')','').title()
+            return PlayerType(player_type_override)
 
-        if name_user_input:
-            for type in PlayerType:
-                values_in_name = [substr for substr in type.override_user_input_substrings if f'({substr})' in name_user_input.upper()]
-                has_an_override_in_name_input = len(values_in_name) > 0
-                if has_an_override_in_name_input:
-                    return type
         
         return None
 

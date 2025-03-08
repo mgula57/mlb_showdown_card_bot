@@ -340,6 +340,7 @@ def card_creator():
             stats_period=stats_period,
             player_image_path=img_name,
             player_image_url=img_url,
+            player_type_override=scraper.player_type_override,
             chart_version=chart_version,
             set_number=set_number,
             add_image_border=add_img_border,
