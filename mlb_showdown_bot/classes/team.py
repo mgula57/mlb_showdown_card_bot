@@ -925,6 +925,12 @@ class Team(str, Enum):
                 '3': list(range(1983,1994)),
                 '4': list(range(1994,2000)),
             }
+            case 'SLB': return {
+                '1': list(range(1902,1906)),
+                '2': list(range(1906,1916)),
+                '3': list(range(1916,1936)),
+                '4': list(range(1936,1951)),
+            }
             case 'STL': return {
                 '1': list(range(1875,1927)),
                 '2': list(range(1927,1965)),
@@ -1074,6 +1080,8 @@ class Team(str, Enum):
                     case 'PIT' | 'PIT-2' | 'PIT-3': return (775, 775)
                     case 'SDP-1': return (950, 950)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (850, 850)
+                    case 'SLB-1': return (850, 850)
+                    case 'SLB-4': return (900, 900)
                     case 'SEA-2': return (850, 850)
                     case 'SFG-1': return (850, 850)
                     case 'SFG-2': return (850, 850)
@@ -1189,6 +1197,8 @@ class Team(str, Enum):
                     case 'PIT' | 'PIT-2' | 'PIT-3': return (-30, -30)
                     case 'SDP-1': return (-40, -190)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (-50, -90)
+                    case 'SLB-1': return (0, -150)
+                    case 'SLB-4': return (-90, -150)
                     case 'SEA-2': return (-80, -125)
                     case 'SFG-1': return (-85, -50)
                     case 'SFG-2': return (-85, -50)
