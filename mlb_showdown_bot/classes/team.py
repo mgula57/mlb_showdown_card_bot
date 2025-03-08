@@ -355,6 +355,10 @@ class Team(str, Enum):
                 '3': (14, 51, 134, 255),
                 '4': (14, 51, 134, 255),
                 '5': (14, 51, 134, 255),
+                '6': (12, 35, 64, 255),
+                '7': (45, 41, 38, 255),
+                '8': (45, 41, 38, 255),
+                '9': (12, 35, 64, 255),
             }
             case 'CHW': return {
                 '1': (0, 38, 99, 255),
@@ -581,6 +585,10 @@ class Team(str, Enum):
             }
             case 'CHC': return {
                 '1': (12,35,64,255),
+                '6': (12, 35, 64, 255),
+                '7': (45, 41, 38, 255),
+                '8': (45, 41, 38, 255),
+                '9': (147, 77, 17, 255),
             }
             case 'CHW': return {
                 '2': (204,9,47,255),
@@ -790,8 +798,14 @@ class Team(str, Enum):
                 '4': list(range(1985,1993)),
             }
             case 'CHC': return {
-                '1': list(range(1876,1919)),
-                '2': list(range(1919,1946)),
+                '6': list(range(1870,1906)),
+                '7': list(range(1906,1907)),
+                '8': list(range(1907,1908)),
+                '9': list(range(1908,1915)),
+                '1': list(range(1915,1927)),
+                '10': list(range(1927,1937)),
+                '2': list(range(1937,1940)),
+                '11': list(range(1940,1946)),
                 '3': list(range(1946,1957)),
                 '4': list(range(1957,1979)),
                 '5': list(range(1979,1997)),
@@ -984,7 +998,7 @@ class Team(str, Enum):
     def is_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
         logo_name = self.logo_name(year=year, is_alternate=is_alternate)
         return logo_name in [
-            'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BOS-5','BOS-A-5','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
+            'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BOS-5','BOS-A-5','BRO','CHC-1','CHC-A-1','CHC-10','CHC-A-10','CHW-2','CHW-A-2',
             'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
             'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','SDP-2','SDP-A-2','SEP-A','SEP',
             'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TBR','TOR-3','TOR-A-3'
@@ -1054,7 +1068,7 @@ class Team(str, Enum):
                     case 'BRO': return (950, 950)
                     case 'CAL-1': return (950, 950)
                     case 'CAL-2' | 'CAL-3': return (800, 800)
-                    case 'CHC-1': return (850, 850)
+                    case 'CHC-1' | 'CHC-10': return (850, 850)
                     case 'CHW': return (775, 775)
                     case 'CHW-2': return (950, 950)
                     case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4': return (900, 900)
@@ -1125,7 +1139,7 @@ class Team(str, Enum):
                     case 'ARI-1': return (-50, 0)
                     case 'ATL-A' | 'ATL-1': return (-100,0)
                     case 'CCC': return (0, 300)
-                    case 'CHC-1': return (-50, 0)
+                    case 'CHC-1' | 'CHC-10': return (-50, 0)
                     case 'CHW-2': return (250, 0)
                     case 'CLE-3' | 'CLE-5': return (0, -75)
                     case 'COL': return (0, -50)
@@ -1156,7 +1170,8 @@ class Team(str, Enum):
                     case 'BRO': return (-90,-220)
                     case 'CAL-1': return (-100, -110)
                     case 'CAL-2' | 'CAL-3': return (0, -50)
-                    case 'CHC-1': return (-60,-125)
+                    case 'CHC-1' | 'CHC-10': return (-60,-125)
+                    case 'CHC-11': return (0, -40)
                     case 'CHW': return (-60, -50)
                     case 'CHW-1': return (-60,-50)
                     case 'CHW-2': return (-90,-220)
