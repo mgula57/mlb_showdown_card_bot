@@ -770,10 +770,12 @@ class Team(str, Enum):
             case 'CLE': return {
                 '1': list(range(1871,1921)),
                 '2': list(range(1921,1946)),
-                '3': list(range(1946,1973)),
+                '3': list(range(1949,1973)),
                 '4': list(range(1973,1979)),
                 '5': list(range(1979,2013)),
                 '6': list(range(2013,2022)),
+                '7': list(range(1946,1948)), # 1946-47 LOGO
+                '8': list(range(1948,1949)), # 1948 ONE YEAR LOGO
             }
             case 'DET': return {
                 '1': list(range(1901,1957)),
@@ -985,6 +987,7 @@ class Team(str, Enum):
                     case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4': return (900, 900)
                     case 'CIN-2': return (775, 775)
                     case 'CLE': return (850, 850)
+                    case 'CLE-8': return (950, 950)
                     case 'CLE-3' | 'CLE-5': return (900, 900)
                     case 'COL': return (900, 900)
                     case 'DET-3': return (825, 825)
@@ -1084,6 +1087,7 @@ class Team(str, Enum):
                     case 'CLE': return (-125, -100)
                     case 'CLE-3' | 'CLE-5': return (-175, -220)
                     case 'CLE-6': return (-40, 0)
+                    case 'CLE-8': return (-170, -300)
                     case 'COL': return (-100, -175)
                     case 'DET-3': return (-120, -100)
                     case 'DET' : return (-80, -60)
