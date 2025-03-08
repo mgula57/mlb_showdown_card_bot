@@ -387,6 +387,13 @@ class Team(str, Enum):
                 '1': (0,33,68,255),
                 '2': (0,33,68,255),
                 '3': (0,33,68,255),
+                '4': (159,27,50,255),
+                '5': (42,39,35,255),
+                '6': (42,39,35,255),
+                '7': (0,33,68,255),
+                '8': (0,33,68,255),
+                '9': (0,33,68,255),
+                '10': (0,33,68,255),
             }
             case 'HOU': return {
                 '1': (250, 70, 22, 255),
@@ -585,6 +592,7 @@ class Team(str, Enum):
                 '1': (240,240,240,255),
                 '2': (250,70,22,255),
                 '3': (250,70,22,255),
+                '4': (42,39,35,255),
             }
             case 'HOU': return {
                 '1': (4, 30, 66, 255),
@@ -798,7 +806,14 @@ class Team(str, Enum):
                 '8': list(range(1948,1949)), # 1948 ONE YEAR LOGO
             }
             case 'DET': return {
-                '1': list(range(1901,1957)),
+                '4': list(range(1901,1903)),
+                '5': list(range(1903,1904)),
+                '6': list(range(1904,1905)),
+                '7': list(range(1905,1916)),
+                '8': list(range(1916,1917)),
+                '9': list(range(1917,1918)),
+                '10': list(range(1918,1921)),
+                '1': list(range(1921,1957)),
                 '2': list(range(1957,1994)),
                 '3': list(range(1994,2005)),
             }
@@ -1111,6 +1126,10 @@ class Team(str, Enum):
                     case 'CLE-8': return (-170, -300)
                     case 'COL': return (-100, -175)
                     case 'DET-3': return (-120, -100)
+                    case 'DET-4': return (0, -40)
+                    case 'DET-6': return (-25, -20)
+                    case 'DET-9': return (-20, -20)
+                    case 'DET-10': return (0, -20)
                     case 'DET' : return (-80, -60)
                     case 'FLA' : return (-60, -30)
                     case 'HOU-1' : return (-90, -230)
