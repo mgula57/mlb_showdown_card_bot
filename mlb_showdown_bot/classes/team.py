@@ -402,6 +402,9 @@ class Team(str, Enum):
                 '3': (12, 35, 64, 255),
                 '4': (154, 51, 36, 255),
             }
+            case 'KCA': return {
+                '1': (0, 49, 67, 255),
+            }
             case 'KCR': return {
                 '1': (0, 70, 135, 255),
                 '2': (0, 70, 135, 255),
@@ -604,6 +607,9 @@ class Team(str, Enum):
                 '2': (250, 70, 22, 255),
                 '3': (137, 115, 75, 255),
                 '4': (211, 188, 141, 255),
+            }
+            case 'KCA': return {
+                '1': (222, 0, 37, 255),
             }
             case 'KCR': return {
                 '1': (192, 154, 91, 255),
@@ -837,6 +843,9 @@ class Team(str, Enum):
                 '3': list(range(1994,2000)),
                 '4': list(range(2000,2013)),
             }
+            case 'KCA': return {
+                '1': list(range(1955,1963)),
+            }
             case 'KCR': return {
                 '1': list(range(1969,1986)),
                 '2': list(range(1986,1993)),
@@ -1050,6 +1059,7 @@ class Team(str, Enum):
                     case 'HOU-1' : return (1000, 1000)
                     case 'HOU-4' : return (950, 950)
                     case 'KCA' : return (800, 800)
+                    case 'KCA-1' : return (900, 900)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (850, 850)
                     case 'LAA': return (775, 775)
                     case 'LAD-A' | 'LAD-A-1': return (800, 800)
@@ -1159,6 +1169,7 @@ class Team(str, Enum):
                     case 'HOU-3' : return (-60, -15)
                     case 'HOU-4' : return (-130, -160)
                     case 'KCA' : return (-30, -90)
+                    case 'KCA-1' : return (-30, -120)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (-100, -100)
                     case 'LAA' | 'LAA-1': return (-60, -50)
                     case 'LAD-A' | 'LAD-A-1': return (-40, -60)
