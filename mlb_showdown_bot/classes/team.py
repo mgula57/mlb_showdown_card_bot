@@ -736,10 +736,11 @@ class Team(str, Enum):
                 '1': list(range(1872,1900)),
                 '2': list(range(1914,1916)),
                 '3': list(range(1954,1966)),
-                '4': list(range(1966,1992)),
+                '4': list(range(1970,1992)),
                 '5': list(range(1992,1995)),
                 '6': list(range(1995,2009)),
                 '7': list(range(2009,2019)),
+                '8': list(range(1966,1970)), # 1966-69 BLACK LOGO
             }
             case 'BOS': return {
                 '1': list(range(1871,1901)),
@@ -871,6 +872,9 @@ class Team(str, Enum):
             case 'TBD': return {
                 '1': list(range(1998,2001)),
             }
+            case 'TBR': return {
+                '1': list(range(2008,2019)),
+            }
             case 'TEX': return {
                 '1': list(range(1972,1982)),
                 '2': list(range(1982,1994)),
@@ -912,7 +916,7 @@ class Team(str, Enum):
             'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
             'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
             'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','SDP-2','SDP-A-2','SEP-A','SEP',
-            'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TOR-3','TOR-A-3'
+            'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TBR','TOR-3','TOR-A-3'
         ]
     
     def logo_size_multiplier(self, year:int, is_alternate:bool=False) -> float:
@@ -1009,7 +1013,8 @@ class Team(str, Enum):
                     case 'SFG' | 'SFG-4': return (950, 950)
                     case 'STL' | 'STL-2': return (850, 850)
                     case 'TBD' | 'TBD-1': return (1000, 1000)
-                    case 'TBR': return (800, 800)
+                    case 'TBR-1': return (800, 800)
+                    case 'TBR': return (950, 950)
                     case 'TEX-1': return (900, 900)
                     case 'TEX-2' | 'TEX-3': return (800, 800)
                     case 'TOR-3': return (1000, 1000)
@@ -1113,7 +1118,8 @@ class Team(str, Enum):
                     case 'SFG' | 'SFG-4': return (-65, -190)
                     case 'STL' | 'STL-2': return (-95, -120)
                     case 'TBD' | 'TBD-1': return (-160, -190)
-                    case 'TBR': return (-50, -60)
+                    case 'TBR-1': return (-50, -60)
+                    case 'TBR': return (-75, -250)
                     case 'TEX-2' | 'TEX-3': return (-50, -60)
                     case 'TEX-1': return (-80, -120)
                     case 'TOR-2': return (-30, -50)
