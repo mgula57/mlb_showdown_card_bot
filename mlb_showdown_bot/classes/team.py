@@ -915,7 +915,8 @@ class Team(str, Enum):
             }
             case 'TEX': return {
                 '1': list(range(1972,1982)),
-                '2': list(range(1982,1994)),
+                '4': list(range(1982,1984)),
+                '2': list(range(1984,1994)),
                 '3': list(range(1994,2003)),
             }
             case 'TOR': return {
@@ -1055,7 +1056,7 @@ class Team(str, Enum):
                     case 'TBR-1': return (800, 800)
                     case 'TBR': return (950, 950)
                     case 'TEX-1': return (900, 900)
-                    case 'TEX-2' | 'TEX-3': return (800, 800)
+                    case 'TEX-2' | 'TEX-3' | 'TEX-4': return (800, 800)
                     case 'TOR-3': return (1000, 1000)
                     case 'WSN-1': return (825, 825)
 
@@ -1165,7 +1166,7 @@ class Team(str, Enum):
                     case 'TBD' | 'TBD-1': return (-160, -190)
                     case 'TBR-1': return (-50, -60)
                     case 'TBR': return (-75, -250)
-                    case 'TEX-2' | 'TEX-3': return (-50, -60)
+                    case 'TEX-2' | 'TEX-3' | 'TEX-4': return (-50, -60)
                     case 'TEX-1': return (-80, -120)
                     case 'TOR-2': return (-30, -50)
                     case 'TOR-3': return (-130, -200)
