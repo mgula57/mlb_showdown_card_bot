@@ -457,6 +457,7 @@ class Team(str, Enum):
                 '1': (204, 159, 35, 255),
                 '2': (204, 159, 35, 255),
                 '3': (204, 159, 35, 255),
+                '5': (0, 38, 99, 255),
             }
             case 'SDP': return {
                 '1': (105, 63, 34, 255),
@@ -662,6 +663,7 @@ class Team(str, Enum):
                 '1': (39, 37, 31, 255),
                 '2': (39, 37, 31, 255),
                 '3': (39, 37, 31, 255),
+                '5': (204, 9, 47, 255),
             }
             case 'SDP': return {
                 '1': (255, 205, 5, 255),
@@ -916,9 +918,11 @@ class Team(str, Enum):
                 '4': list(range(1992,2019)),
             }
             case 'PIT': return {
-                '1': list(range(1900,1948)),
-                '2': list(range(1948,1970)),
-                '3': list(range(1970,1997)),
+                '5': list(range(1882,1948)),
+                '2': list(range(1948,1958)),
+                '6': list(range(1958,1967)),
+                '7': list(range(1967,1987)),
+                '1': list(range(1987,1997)),
                 '4': list(range(1997,2014)),
             }
             case 'SDP': return {
@@ -1094,7 +1098,7 @@ class Team(str, Enum):
                     case 'PHI' | 'PHI-4': return (800, 800)
                     case 'PIT-1': return (775, 775)
                     case 'PIT-4': return (875, 875)
-                    case 'PIT' | 'PIT-2' | 'PIT-3': return (775, 775)
+                    case 'PIT' | 'PIT-2' | 'PIT-5': return (775, 775)
                     case 'SDP-1': return (950, 950)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (850, 850)
                     case 'SLB-1': return (850, 850)
@@ -1212,7 +1216,8 @@ class Team(str, Enum):
                     case 'PHI' | 'PHI-4': return (-40, -50)
                     case 'PIT-1': return (-40, -40)
                     case 'PIT-4': return (-60, -75)
-                    case 'PIT' | 'PIT-2' | 'PIT-3': return (-30, -30)
+                    case 'PIT-6': return (0, -30)
+                    case 'PIT' | 'PIT-2' | 'PIT-5': return (-30, -30)
                     case 'SDP-1': return (-40, -190)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (-50, -90)
                     case 'SLB-1': return (0, -150)
