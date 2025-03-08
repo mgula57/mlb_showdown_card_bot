@@ -306,9 +306,20 @@ class BaseballReferenceScraper:
         is_data_from_statcast = False
         has_ran_oaa = False
         for year in years_for_loop:
-            # DEFENSE
             stats_dict = {'bref_id': self.baseball_ref_id, 'bref_url': url_for_homepage_stats}
+            
+            # DEFENSE
+            # RETURNED AS DICT WITH POSITIONS AND dWAR
+            # EX: {'positions': {'C': {'g': 100}, '1B': {'g': 50}}, 'dWAR': 2.0}
             positional_fielding = self.positions_and_defense(soup_for_homepage_stats=soup_for_homepage_stats,year=year,overall_positions_and_games=positions_and_games)
+
+            # HANDLE SCENARIO WHERE NO FIELDING DATA EXISTS BECAUSE PLAYER IS DH
+            positions_dict = positional_fielding.get('positions', {})
+            if len(positions_dict) == 0 and overall_type == 'Hitter':
+                
+                dh_appearances = self.__appearances_for_position(soup_for_homepage_stats=soup_for_homepage_stats, year=year, position='DH')
+                positional_fielding['positions'] = { 'DH': {'g': dh_appearances } }
+            
             stats_dict.update(positional_fielding)
 
             # HAND / TYPE
@@ -667,6 +678,45 @@ class BaseballReferenceScraper:
             'positions': positions_dict,
             'dWAR': dwar_rating,
         }
+
+    def __appearances_for_position(self, soup_for_homepage_stats:BeautifulSoup, position:str, year:str) -> int:
+        """Parse appearances for a given position.
+
+        Args:
+          soup_for_homepage_stats: BeautifulSoup object with all stats on homepage.
+          position: Position for Player stats
+          year: Year for Player stats
+
+        Returns:
+          Int for appearances at position.
+        """
+
+        # GO TO THE APPEARANCES TABLE
+        appearances_table = soup_for_homepage_stats.find('table', attrs = {'id': 'appearances'})
+        is_full_career = year == 'CAREER'
+
+        # PICK THE RIGHT SECTION
+        appearances_table_section = appearances_table.find('tfoot') if is_full_career else appearances_table.find('tbody')
+        if appearances_table_section is None:
+            return None
+
+        # LOOK AT THE FOOTER IF FULL CAREER
+        if is_full_career:
+            footer = appearances_table.find('tfoot')
+            record = footer.find('tr')
+        else:
+            # FIND tr WITH ID: appearances.{year} AND CLASS IS NOT PARTIAL TABLE
+            records = appearances_table_section.find_all('tr', attrs = {'id': f'appearances.{year}'})
+            for record in records:
+                if 'partial_table' not in record.get('class', []):
+                    break
+        
+        # GET THE POSITION COLUMN
+        number_of_games_cell = record.find('td', attrs = {'data-stat': f'games_at_{position.lower()}'})
+        if number_of_games_cell:
+            return int(number_of_games_cell.get_text())
+                
+        return None
 
     def __bWar(self, soup_for_homepage_stats:BeautifulSoup, year:int, type:str) -> float:
         """Parse bWAR (baseball reference WAR)
