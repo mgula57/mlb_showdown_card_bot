@@ -953,6 +953,9 @@ class Team(str, Enum):
                 '2': list(range(1997,2004)),
                 '3': list(range(2004,2012)),
             }
+            case 'WSH': return {
+                '1': list(range(1957,1961)),
+            }
             case 'WSN': return {
                 '1': list(range(2005,2011)),
             }
