@@ -347,6 +347,7 @@ class Team(str, Enum):
                 '2': (189, 48, 57, 255),
                 '3': (189, 48, 57, 255),
                 '4': (189, 48, 57, 255),
+                '5': (0, 48, 135, 255), # BOSTON AMERICANS
             }
             case 'CHC': return {
                 '1': (176,36,54,255),
@@ -572,6 +573,9 @@ class Team(str, Enum):
                 '2': (0,51,160,255),
                 '3': (0,51,160,255),
             }
+            case 'BOS': return {
+                '5': (0, 48, 135, 255), # BOSTON AMERICANS
+            }
             case 'CHC': return {
                 '1': (12,35,64,255),
             }
@@ -767,8 +771,9 @@ class Team(str, Enum):
                 '8': list(range(1966,1970)), # 1966-69 BLACK LOGO
             }
             case 'BOS': return {
-                '1': list(range(1871,1901)),
-                '2': list(range(1901,1924)),
+                '5': list(range(1871,1908)), # BOSTON AMERICANS
+                '1': list(range(1908,1909)),
+                '2': list(range(1909,1924)),
                 '3': list(range(1924,1961)),
                 '4': list(range(1961,1976)),
             }
@@ -961,7 +966,7 @@ class Team(str, Enum):
     def is_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
         logo_name = self.logo_name(year=year, is_alternate=is_alternate)
         return logo_name in [
-            'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
+            'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BOS-5','BOS-A-5','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
             'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
             'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','SDP-2','SDP-A-2','SEP-A','SEP',
             'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TBR','TOR-3','TOR-A-3'
@@ -1003,6 +1008,7 @@ class Team(str, Enum):
             case '2000': 
                 match logo_name:
                     case 'ATL-A' | 'ATL-1' | 'BOS-2': return (1950, 1950)
+                    case 'BOS-5': return (2100, 2100)
                     case 'ARI-1': return (2300, 2300)
                     case 'BRO': return (1800, 1800)
                     case 'CCC': return (1950, 2730)
@@ -1026,6 +1032,7 @@ class Team(str, Enum):
                     case 'ARI-1': return (1000, 1000)
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (775, 775)
                     case 'BOS-2': return (1000, 1000)
+                    case 'BOS-5': return (950, 950)
                     case 'BRO': return (950, 950)
                     case 'CAL-1': return (950, 950)
                     case 'CAL-2' | 'CAL-3': return (800, 800)
@@ -1123,6 +1130,7 @@ class Team(str, Enum):
                     case 'ATL-3': return (-75,0)
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (-60, -50)
                     case 'BOS-2': return (-90,-250)
+                    case 'BOS-5': return (-90,-200)
                     case 'BOS-3': return (-20, 0)
                     case 'BRO': return (-90,-220)
                     case 'CAL-1': return (-100, -110)
