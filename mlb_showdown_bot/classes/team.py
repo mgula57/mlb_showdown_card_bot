@@ -437,6 +437,7 @@ class Team(str, Enum):
             case 'OAK': return {
                 '1': (17, 87, 64, 255),
                 '2': (17, 87, 64, 255),
+                '3': (255, 204, 0, 255),
             }
             case 'PHI': return {
                 '1': (232, 24, 40, 255),
@@ -632,6 +633,7 @@ class Team(str, Enum):
             case 'OAK': return {
                 '1': (255, 205, 0, 255),
                 '2': (255, 205, 0, 255),
+                '3': (0, 132, 68, 255),
             }
             case 'PHI': return {
                 '2': (40, 72, 152, 255),
@@ -875,7 +877,8 @@ class Team(str, Enum):
                 '9': list(range(1968,2010)), # YANKEES
             }
             case 'OAK': return {
-                '1': list(range(1968,1982)),
+                '1': list(range(1968,1971)),
+                '3': list(range(1971,1982)),
                 '2': list(range(1982,1993)),
             }
             case 'PHI': return {
