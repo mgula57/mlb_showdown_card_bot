@@ -770,6 +770,12 @@ class Team(str, Enum):
                 '3': list(range(1924,1961)),
                 '4': list(range(1961,1976)),
             }
+            case 'CAL': return {
+                '1': list(range(1965,1971)),
+                '2': list(range(1971,1973)),
+                '3': list(range(1973,1985)),
+                '4': list(range(1985,1993)),
+            }
             case 'CHC': return {
                 '1': list(range(1876,1919)),
                 '2': list(range(1919,1946)),
@@ -1018,6 +1024,8 @@ class Team(str, Enum):
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (775, 775)
                     case 'BOS-2': return (1000, 1000)
                     case 'BRO': return (950, 950)
+                    case 'CAL-1': return (950, 950)
+                    case 'CAL-2' | 'CAL-3': return (800, 800)
                     case 'CHC-1': return (850, 850)
                     case 'CHW': return (775, 775)
                     case 'CHW-2': return (950, 950)
@@ -1114,6 +1122,8 @@ class Team(str, Enum):
                     case 'BOS-2': return (-90,-250)
                     case 'BOS-3': return (-20, 0)
                     case 'BRO': return (-90,-220)
+                    case 'CAL-1': return (-100, -110)
+                    case 'CAL-2' | 'CAL-3': return (0, -50)
                     case 'CHC-1': return (-60,-125)
                     case 'CHW': return (-60, -50)
                     case 'CHW-1': return (-60,-50)
