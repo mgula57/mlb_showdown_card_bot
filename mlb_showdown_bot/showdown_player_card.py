@@ -3197,7 +3197,12 @@ class ShowdownPlayerCard(BaseModel):
         # RETURN STATIC LOGO IF IGNORE_DYNAMIC_ELEMENTS IS ENABLED
         # IGNORES ROOKIE SEASON, SUPER SEASON
         if ignore_dynamic_elements:
+            # IF 2004/2005, ADD LIGHT OUTER GLOW
             return team_logo, adjusted_paste_coords(logo_paste_coordinates)
+        
+        # ADD GLOW FOR 04/05
+        if is_04_05:
+            team_logo = self.__add_outer_glow(image=team_logo, color='white', radius=5, enhancement_factor=0.75)
 
         # OVERRIDE IF SUPER SEASON
         if self.image.edition == Edition.SUPER_SEASON and not is_00_01:
@@ -3245,7 +3250,7 @@ class ShowdownPlayerCard(BaseModel):
             team_logo = new_logo
             logo_paste_coordinates = logo_paste_coordinates if is_cooperstown else (logo_paste_coordinates[0] - 150, logo_paste_coordinates[1])
 
-        # OVERRIDE IF ROOKIE SEASON
+        # OVERRIDE IF ROOKIE SEASON/POSTSEASON
         if is_edition_static_logo and not is_00_01:
             component = TemplateImageComponent.ROOKIE_SEASON if self.image.edition == Edition.ROOKIE_SEASON else TemplateImageComponent.POSTSEASON
             team_logo = self.__rookie_season_image() if self.image.edition == Edition.ROOKIE_SEASON else self.__postseason_image()
@@ -5915,10 +5920,9 @@ class ShowdownPlayerCard(BaseModel):
         """
         # CREATE A BLANK IMAGE WITH PADDING FOR THE GLOW EFFECT
         image_width, image_height = image.size
-        total_width = image_width + abs(offset[0]) + 2 * radius
-        total_height = image_height + abs(offset[1]) + 2 * radius
+        total_width = int(image_width + 2 * radius)
+        total_height = int(image_height + 2 * radius)
         padded_image = Image.new("RGBA", (total_width, total_height), (0, 0, 0, 0))
-        padded_image = Image.new("RGBA", (image_width + 2 * radius, image_height + 2 * radius), (0, 0, 0, 0))
         padded_image.paste(image, (radius, radius))
 
         # CREATE A MASK FOR THE GLOW EFFECT
@@ -5930,19 +5934,21 @@ class ShowdownPlayerCard(BaseModel):
         blurred_mask = mask.filter(ImageFilter.GaussianBlur(radius))
         enhanced_blurred_mask = ImageEnhance.Brightness(blurred_mask).enhance(enhancement_factor)
 
-        # APPLY A FADE TO THE MASK
-        gradient = Image.new("L", (1, radius * 2), color=0xFF)
-        for y in range(radius * 2):
-            gradient.putpixel((0, y), int(255 * (1 - y / (radius * 2))))
-        alpha_gradient = gradient.resize(padded_image.size)
-        faded_mask = ImageChops.multiply(enhanced_blurred_mask, alpha_gradient)
+        # APPLY A BLUR TO THE MASK
+        uniform_alpha = Image.new("L", padded_image.size, 255)
+        faded_mask = ImageChops.multiply(enhanced_blurred_mask, uniform_alpha)
 
         # CREATE A GLOW IMAGE USING THE BLURRED MASK AND THE GLOW COLOR
         glow = Image.new("RGBA", padded_image.size, color)
         glow.putalpha(faded_mask)
 
+        if radius == 10:
+            glow.show()
+
         # COMPOSITE THE GLOW WITH THE ORIGINAL IMAGE
-        glow.paste(padded_image, (0, 0), padded_image)
+        glow.paste(padded_image, (0,0), padded_image)
+        if radius == 10:
+            glow.show()
         
         return glow
 

@@ -1203,7 +1203,7 @@ class Set(str, Enum):
                     case '2001': return (78,1584)
                     case '2002': return (80,1380)
                     case '2003': return (1179,1074)
-                    case '2004' | '2005': return (1180,1460)
+                    case '2004' | '2005': return (1190,1480)
                     case 'CLASSIC' | 'EXPANDED': return (1160,1345)
             case TemplateImageComponent.COOPERSTOWN:
                 match self.value:
