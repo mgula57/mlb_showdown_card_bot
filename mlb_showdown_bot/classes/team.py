@@ -408,6 +408,8 @@ class Team(str, Enum):
                 '2': (4, 30, 66, 255),
                 '3': (12, 35, 64, 255),
                 '4': (154, 51, 36, 255),
+                '5': (4, 30, 66, 255),
+                '6': (12, 35, 64, 255),
             }
             case 'KCA': return {
                 '1': (0, 49, 67, 255),
@@ -625,6 +627,8 @@ class Team(str, Enum):
                 '2': (250, 70, 22, 255),
                 '3': (137, 115, 75, 255),
                 '4': (211, 188, 141, 255),
+                '5': (250, 70, 22, 255),
+                '6': (137, 115, 75, 255),
             }
             case 'KCA': return {
                 '1': (222, 0, 37, 255),
@@ -886,8 +890,10 @@ class Team(str, Enum):
             }
             case 'HOU': return {
                 '1': list(range(1962,1965)),
-                '2': list(range(1965,1994)),
-                '3': list(range(1994,2000)),
+                '5': list(range(1965,1977)),
+                '2': list(range(1977,1994)),
+                '6': list(range(1994,1995)),
+                '3': list(range(1995,2000)),
                 '4': list(range(2000,2013)),
             }
             case 'KCA': return {
@@ -1138,6 +1144,7 @@ class Team(str, Enum):
                     case 'FLA' : return (850, 850)
                     case 'HOU-1' : return (1000, 1000)
                     case 'HOU-4' : return (950, 950)
+                    case 'HOU-6' : return (950, 950)
                     case 'KCA' : return (800, 800)
                     case 'KCA-1' : return (900, 900)
                     case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (850, 850)
@@ -1250,7 +1257,7 @@ class Team(str, Enum):
                     case 'DET' : return (-80, -60)
                     case 'FLA' : return (-60, -30)
                     case 'HOU-1' : return (-90, -230)
-                    case 'HOU-3' : return (-60, -15)
+                    case 'HOU-3' | 'HOU-6': return (-80, -210)
                     case 'HOU-4' : return (-130, -160)
                     case 'KCA' : return (-30, -90)
                     case 'KCA-1' : return (-30, -120)
