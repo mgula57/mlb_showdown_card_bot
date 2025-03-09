@@ -434,6 +434,7 @@ class Team(str, Enum):
             }
             case 'NYG': return {
                 '1': (12, 35, 64, 255),
+                '2': (0, 13, 113, 255),
             }
             case 'NYM': return {
                 '1': self.primary_color,
@@ -646,6 +647,7 @@ class Team(str, Enum):
             }
             case 'NYG': return {
                 '1': (197, 198, 200, 255),
+                '2': (0, 13, 113, 255),
             }
             case 'NYY': return {
                 '1': (31, 77, 139, 255),
@@ -891,7 +893,8 @@ class Team(str, Enum):
                 '3': list(range(2009,2023)),
             }
             case 'NYG': return {
-                '1': list(range(1883,1947)),
+                '2': list(range(1883,1908)),
+                '1': list(range(1908,1947)),
             }
             case 'NYM': return {
                 '1': list(range(1962,1993)),
@@ -1007,7 +1010,7 @@ class Team(str, Enum):
         return logo_name in [
             'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BOS-5','BOS-A-5','BRO','CHC-1','CHC-A-1','CHC-10','CHC-A-10','CHW-2','CHW-A-2',
             'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
-            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','SDP-2','SDP-A-2','SEP-A','SEP',
+            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','NYG-2','NYG-A-2''SDP-2','SDP-A-2','SEP-A','SEP',
             'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TBR','TOR-3','TOR-A-3'
         ]
     
@@ -1054,6 +1057,7 @@ class Team(str, Enum):
                     case 'FLA': return (2300, 2300)
                     case 'MIN-2': return (2400, 2400)
                     case 'NYG': return (1800, 1800)
+                    case 'NYG-2': return (1800, 1800)
                     case 'PHI-2': return (1800, 1800)
                     case 'SFG-1' | 'SFG-2': return (1800, 1800)
                     case 'TBD' | 'TBD-1': return (1950, 1950)
@@ -1097,6 +1101,7 @@ class Team(str, Enum):
                     case 'MIL-4': return (950, 950)
                     case 'MIN-2': return (875, 875)
                     case 'NYG': return (850, 850)
+                    case 'NYG-2': return (950, 950)
                     case 'PHI-2': return (950, 950)
                     case 'PHI' | 'PHI-4': return (800, 800)
                     case 'PIT-1': return (775, 775)
@@ -1214,6 +1219,7 @@ class Team(str, Enum):
                     case 'MIN-1': return (-40, -40)
                     case 'MIN-2': return (-85, -85)
                     case 'NYG': return (-85, -50)
+                    case 'NYG-2': return (-30, -140)
                     case 'PHI-2': return (-125, -180)
                     case 'PHI-3': return (-40, 0)
                     case 'PHI' | 'PHI-4': return (-40, -50)
