@@ -131,8 +131,8 @@ class BaseballReferenceScraper:
         name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip().split('(')[0].strip())
         try:
             year_ints = [int(y) for y in years]
-            year_start = min( min(year_ints), max_year)
-            year_end = min( max(year_ints), max_year)
+            year_start = max( min( min(year_ints), max_year ), 1884 ) # ARCHIVE STARTS IN 1884
+            year_end = max( min( max(year_ints), max_year), 1884 ) # ARCHIVE STARTS IN 1884
         except:
             year_start = None
             year_end = None

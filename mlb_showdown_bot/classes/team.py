@@ -822,7 +822,7 @@ class Team(str, Enum):
                 '4': list(range(1985,1993)),
             }
             case 'CHC': return {
-                '6': list(range(1870,1906)),
+                '6': list(range(1900,1906)),
                 '7': list(range(1906,1907)),
                 '8': list(range(1907,1908)),
                 '9': list(range(1908,1915)),
@@ -1013,6 +1013,19 @@ class Team(str, Enum):
             if year in year_range:
                 prefix = '-' if include_dash else ''
                 return f"{prefix}{index}"
+            
+        # GET DICT ELEMENT WITH LOWEST YEAR VALUE
+        lowest_year = 9999
+        lowest_index = ''
+        for index, year_range in self.logo_historical_year_range_dict.items():
+            if year_range[0] < lowest_year:
+                lowest_year = year_range[0]
+                lowest_index = index
+        
+        # IF YEAR IS LOWER THAN LOWEST YEAR, RETURN EARLIEST LOGO AVAILABLE
+        if year < lowest_year and lowest_year != 9999:
+            prefix = '-' if include_dash else ''
+            return f"{prefix}{lowest_index}"
         
         return ''
     
