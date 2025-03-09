@@ -847,7 +847,16 @@ class Team(str, Enum):
                 '4': list(range(1976,1991)),
             }
             case 'CIN': return {
-                '1': list(range(1876,1953)),
+                '5': list(range(1890,1900)),
+                '6': list(range(1900,1901)),
+                '7': list(range(1901,1905)),
+                '8': list(range(1905,1906)),
+                '9': list(range(1906,1908)),
+                '10': list(range(1908,1913)),
+                '11': list(range(1913,1914)),
+                '12': list(range(1914,1915)),
+                '13': list(range(1915,1920)),
+                '1': list(range(1920,1953)),
                 '2': list(range(1953,1968)),
                 '3': list(range(1968,1993)),
                 '4': list(range(1993,1999)),
@@ -1044,7 +1053,8 @@ class Team(str, Enum):
         logo_name = self.logo_name(year=year, is_alternate=is_alternate)
         return logo_name in [
             'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BOS-5','BOS-A-5','BRO','CHC-1','CHC-A-1','CHC-10','CHC-A-10','CHW-2','CHW-A-2',
-            'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
+            'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CIN-8','CIN-11','CIN-12','CIN-13',
+            'CRS-A','CRS','IA-A','IA',
             'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','NYG-2','NYG-A-2','SDP-6','SDP-A-6''SEP-A','SEP',
             'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TBR','TOR-3','TOR-A-3'
         ]
@@ -1118,7 +1128,7 @@ class Team(str, Enum):
                     case 'CHC-1' | 'CHC-10': return (850, 850)
                     case 'CHW': return (775, 775)
                     case 'CHW-2': return (950, 950)
-                    case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4': return (900, 900)
+                    case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4' | 'CIN-8' | 'CIN-11' | 'CIN-12' | 'CIN-13': return (900, 900)
                     case 'CIN-2': return (775, 775)
                     case 'CLE': return (850, 850)
                     case 'CLE-8': return (950, 950)
@@ -1225,7 +1235,7 @@ class Team(str, Enum):
                     case 'CHW-2': return (-90,-220)
                     case 'CHW-4': return (-25,0)
                     case 'CHW-6': return (0,-50)
-                    case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4': return (-120,-170)
+                    case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4' | 'CIN-8' | 'CIN-11' | 'CIN-12' | 'CIN-13': return (-120,-170)
                     case 'CIN-2': return (-60, -50)
                     case 'CLE': return (-125, -100)
                     case 'CLE-3' | 'CLE-5': return (-175, -220)
