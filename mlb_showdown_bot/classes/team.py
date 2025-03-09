@@ -425,6 +425,7 @@ class Team(str, Enum):
                 '2': (0, 70, 174, 255),
                 '3': (141, 116, 74, 255),
                 '4': (18, 40, 75, 255),
+                '5': (18, 40, 75, 255),
             }
             case 'MIN': return {
                 '1': (190, 15, 52, 255),
@@ -636,6 +637,7 @@ class Team(str, Enum):
                 '2': (255, 212, 81, 255),
                 '3': (10, 105, 78, 255),
                 '4': (182, 146, 46, 255),
+                '5': (182, 146, 46, 255),
             }
             case 'MIN': return {
                 '1': (12, 35, 64, 255),
@@ -881,6 +883,7 @@ class Team(str, Enum):
                 '2': list(range(1978,1994)),
                 '3': list(range(1994,2000)),
                 '4': list(range(2000,2018)),
+                '5': list(range(2018,2020)),
             }
             case 'MIN': return {
                 '1': list(range(1961,1987)),
@@ -1247,6 +1250,7 @@ class Team(str, Enum):
                     case 'KCC' | 'KCM' | 'KCN': return (0, -90)
                     case 'LOU': return (-90, -250)
                     case 'LOW' | 'LVB': return (-165, 0)
+                    case 'MIL-5': return (-25, -60)
                     case 'MLA': return (-90, -250)
                     case 'MLB': return (-70, -200)
                     case 'MLN': return (-160, -100)
