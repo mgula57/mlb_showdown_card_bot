@@ -371,7 +371,7 @@ class ShowdownPlayerCard(BaseModel):
 
     @field_validator('league', mode='before')
     def parse_league(cls, league:str, info:ValidationInfo) -> str:
-        if league != 'MLB':
+        if (league or 'MLB') != 'MLB':
             return league
         stats: dict = info.data.get('stats', {})
         return stats.get('lg_ID', 'MLB')
