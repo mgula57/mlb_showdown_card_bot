@@ -936,9 +936,10 @@ class Team(str, Enum):
                 '1': list(range(1908,1947)),
             }
             case 'NYM': return {
-                '1': list(range(1962,1993)),
-                '2': list(range(1993,1998)),
-                '3': list(range(1998,2011)),
+                '1': list(range(1962,1981)),
+                '2': list(range(1981,1993)),
+                '3': list(range(1993,1999)),
+                '4': list(range(1999,2011)),
             }
             case 'NYY': return {
                 '1': list(range(1903,1905)), # HIGHLANDERS
