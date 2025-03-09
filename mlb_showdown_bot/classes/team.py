@@ -349,6 +349,9 @@ class Team(str, Enum):
                 '4': (189, 48, 57, 255),
                 '5': (0, 48, 135, 255), # BOSTON AMERICANS
             }
+            case 'BRO': return {
+                '1': (0, 121, 62, 255),
+            }
             case 'CHC': return {
                 '1': (176,36,54,255),
                 '2': (14, 51, 134, 255),
@@ -586,6 +589,9 @@ class Team(str, Enum):
             case 'BOS': return {
                 '5': (0, 48, 135, 255), # BOSTON AMERICANS
             }
+            case 'BRO': return {
+                '1': (123, 123, 123, 255),
+            }
             case 'CHC': return {
                 '1': (12,35,64,255),
                 '6': (12, 35, 64, 255),
@@ -796,6 +802,9 @@ class Team(str, Enum):
                 '2': list(range(1909,1924)),
                 '3': list(range(1924,1961)),
                 '4': list(range(1961,1976)),
+            }
+            case 'BRO': return {
+                '1': list(range(1937,1938)),
             }
             case 'CAL': return {
                 '1': list(range(1965,1971)),
