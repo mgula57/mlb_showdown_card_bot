@@ -470,6 +470,7 @@ class Team(str, Enum):
                 '3': (4, 30, 66, 255),
                 '4': (0, 45, 98, 255),
                 '5': (0, 45, 98, 255),
+                '6': (70, 36, 37, 255),
             }
             case 'SEA': return {
                 '1': (0, 40, 120, 255),
@@ -681,6 +682,7 @@ class Team(str, Enum):
                 '3': (227, 82, 5, 255),
                 '4': (162, 170, 173, 255),
                 '5': (162, 170, 173, 255),
+                '6': (227, 86, 37, 255),
             }
             case 'SEA': return {
                 '1': (255, 204, 0, 255),
@@ -942,8 +944,9 @@ class Team(str, Enum):
             }
             case 'SDP': return {
                 '1': list(range(1969,1985)),
-                '2': list(range(1985,1992)),
-                '3': list(range(1992,2004)),
+                '6': list(range(1985,1990)),
+                '2': list(range(1990,1991)),
+                '3': list(range(1991,2004)),
                 '4': list(range(2004,2012)),
                 '5': list(range(2012,2020)),
             }
@@ -1019,7 +1022,7 @@ class Team(str, Enum):
         return logo_name in [
             'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BOS-5','BOS-A-5','BRO','CHC-1','CHC-A-1','CHC-10','CHC-A-10','CHW-2','CHW-A-2',
             'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
-            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','NYG-2','NYG-A-2''SDP-2','SDP-A-2','SEP-A','SEP',
+            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','NYG-2','NYG-A-2','SDP-6','SDP-A-6''SEP-A','SEP',
             'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TBR','TOR-3','TOR-A-3'
         ]
     
@@ -1068,6 +1071,7 @@ class Team(str, Enum):
                     case 'NYG': return (1800, 1800)
                     case 'NYG-2': return (1800, 1800)
                     case 'PHI-2': return (1800, 1800)
+                    case 'SDP-6': return (1800, 1800)
                     case 'SFG-1' | 'SFG-2': return (1800, 1800)
                     case 'TBD' | 'TBD-1': return (1950, 1950)
 
@@ -1118,6 +1122,7 @@ class Team(str, Enum):
                     case 'PIT' | 'PIT-2' | 'PIT-5': return (775, 775)
                     case 'SDP-1': return (950, 950)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (850, 850)
+                    case 'SDP-6': return (950, 950)
                     case 'SLB-1': return (850, 850)
                     case 'SLB-4': return (900, 900)
                     case 'SEA-2': return (850, 850)
@@ -1238,6 +1243,7 @@ class Team(str, Enum):
                     case 'PIT' | 'PIT-2' | 'PIT-5': return (-30, -30)
                     case 'SDP-1': return (-40, -190)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (-50, -90)
+                    case 'SDP-6': return (-80, -190)
                     case 'SLB-1': return (0, -150)
                     case 'SLB-4': return (-90, -150)
                     case 'SEA-2': return (-80, -125)
