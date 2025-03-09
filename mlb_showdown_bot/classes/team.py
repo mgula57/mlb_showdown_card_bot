@@ -1142,7 +1142,7 @@ class Team(str, Enum):
             case '2000': 
                 match logo_name:
                     case 'ANA': return (-100, 0)
-                    case 'ARI': return (-100, 0)
+                    case 'ARI' | 'ARI-2': return (-100, 0)
                     case 'ARI-1': return (-50, 0)
                     case 'ATL-A' | 'ATL-1': return (-100,0)
                     case 'CCC': return (0, 300)
@@ -1165,7 +1165,7 @@ class Team(str, Enum):
                 match logo_name:
                     case 'ANA': return (-175,-170)
                     case 'ANA-1': return (-60, -50)
-                    case 'ARI': return (-75, 0)
+                    case 'ARI' | 'ARI-2': return (-100, -20)
                     case 'ARI-1': return (-180, -130)
                     case 'ATL': return (-90,-250)
                     case 'ATL-1': return (-100,0)
