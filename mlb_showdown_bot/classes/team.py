@@ -784,9 +784,10 @@ class Team(str, Enum):
                 '1': list(range(1998,2007))
             }
             case 'ATL': return {
-                '1': list(range(1966,1972)),
-                '2': list(range(1972,1981)),
-                '3': list(range(1981,1987)),
+                '1': list(range(1966,1968)),
+                '2': list(range(1968,1972)),
+                '3': list(range(1972,1981)),
+                '4': list(range(1981,1987)),
             }
             case 'BAL': return {
                 '1': list(range(1872,1900)),
@@ -1070,7 +1071,7 @@ class Team(str, Enum):
         match set:
             case '2000': 
                 match logo_name:
-                    case 'ATL-A' | 'ATL-1' | 'BOS-2': return (1950, 1950)
+                    case 'ATL-A'| 'BOS-2': return (1950, 1950)
                     case 'BOS-5': return (2100, 2100)
                     case 'ARI-1': return (2300, 2300)
                     case 'BRO': return (1800, 1800)
@@ -1172,7 +1173,7 @@ class Team(str, Enum):
                     case 'ANA': return (-100, 0)
                     case 'ARI' | 'ARI-2': return (-100, 0)
                     case 'ARI-1': return (-50, 0)
-                    case 'ATL-A' | 'ATL-1': return (-100,0)
+                    case 'ATL-A': return (-100,0)
                     case 'CCC': return (0, 300)
                     case 'CHC-1' | 'CHC-10': return (-50, 0)
                     case 'CHW-2': return (250, 0)
@@ -1196,8 +1197,7 @@ class Team(str, Enum):
                     case 'ARI' | 'ARI-2': return (-100, -20)
                     case 'ARI-1': return (-180, -130)
                     case 'ATL': return (-90,-250)
-                    case 'ATL-1': return (-100,0)
-                    case 'ATL-3': return (-75,0)
+                    case 'ATL-4': return (-75,0)
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (-60, -50)
                     case 'BOS-2': return (-90,-250)
                     case 'BOS-5': return (-90,-200)
