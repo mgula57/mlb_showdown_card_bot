@@ -554,7 +554,7 @@ class Team(str, Enum):
             case 'BBB': return (251, 221, 0, 255)
             case 'BEG' | 'CEG' | 'NEG' | 'WEG': return (176, 0, 0, 255)
             case 'BRG': return (0, 21, 123, 255)
-            case 'BSN': return (255, 204, 0, 255)
+            case 'BSN': return (0, 33, 68, 255)
             case 'CBE' | 'CCB': return (0, 45, 114, 255)
             case 'CEN': return (10, 34, 63, 255)
             case 'DM': return (45, 68, 146, 255)
@@ -808,6 +808,12 @@ class Team(str, Enum):
             case 'BRO': return {
                 '1': list(range(1937,1938)),
             }
+            case 'BSN': return {
+                '1': list(range(1912,1921)),
+                '2': list(range(1921,1925)),
+                '3': list(range(1925,1929)),
+                '4': list(range(1929,1945)),
+            }
             case 'CAL': return {
                 '1': list(range(1965,1971)),
                 '2': list(range(1971,1973)),
@@ -902,6 +908,9 @@ class Team(str, Enum):
                 '1': list(range(1961,1987)),
                 '2': list(range(1987,2009)),
                 '3': list(range(2009,2023)),
+            }
+            case 'MLN': return {
+                '1': list(range(1953,1956)),
             }
             case 'NYG': return {
                 '2': list(range(1883,1908)),
