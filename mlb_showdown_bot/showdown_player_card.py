@@ -598,6 +598,11 @@ class ShowdownPlayerCard(BaseModel):
             return int(self.year)
 
     @property
+    def is_single_year(self) -> bool:
+        """ Check if the player only has one year. """
+        return not self.is_multi_year
+
+    @property
     def year_range_str(self) -> str:
         """ Year range string for the player. """
         if self.is_multi_year:
@@ -749,6 +754,16 @@ class ShowdownPlayerCard(BaseModel):
 
         # MARK IF PLAYER PLAYED ALL IF POSITIONS
         has_played_all_if_positions = len([pos for pos in positions_list if pos in ['1B','2B','3B','SS']]) == 4
+
+        # CHECK IF IT'S A SHORTENED SINGLE YEAR CARD
+        # NOT COUNTING 2020, THAT HAS PRE-PROCESSED ADJUSTMENTS IN SCRAPER
+        shortened_season_multiplier = 1.0
+        if self.is_single_year:
+            match self.median_year:
+                case 1981: shortened_season_multiplier = (162 / 111)
+                case 1994: shortened_season_multiplier = (162 / 113)
+                case 1995: shortened_season_multiplier = (162 / 144)
+                case _: shortened_season_multiplier = 1.0
         
         for position_name, defensive_stats in defense_stats_dict.items():
             is_valid_position = self.is_pitcher == ('P' == position_name)
@@ -808,6 +823,7 @@ class ShowdownPlayerCard(BaseModel):
                             else:
                                 metric = DefenseMetric.DWAR
                                 defensive_rating = dWar
+                            defensive_rating = defensive_rating * shortened_season_multiplier
                             positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
                         except Exception as e:
