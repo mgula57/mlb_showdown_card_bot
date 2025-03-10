@@ -155,6 +155,7 @@ class ShowdownPlayerCard(BaseModel):
                 is_multi_colored = data.get('is_multi_colored', False),
                 nickname_index=data.get('nickname_index', None),
                 stat_highlights_type=data.get('stat_highlights_type', 'NONE'),
+                glow_multiplier=data.get('glow_multiplier', 1.0),
             )
             self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
         
@@ -5033,9 +5034,11 @@ class ShowdownPlayerCard(BaseModel):
         # APPLY GLOW OR SHADOW
         match component:
             case PlayerImageComponent.GLOW:
-                image = self.__add_outer_glow(image=image, color='white', radius=8, enhancement_factor=1.75)
+                radius = int(self.set.player_image_glow_radius * self.image.glow_multiplier)
+                image = self.__add_outer_glow(image=image, color='white', radius=radius, enhancement_factor=1.75)
             case PlayerImageComponent.SHADOW:
-                image = self.__add_outer_glow(image=image, color='black', radius=15, offset = (15,15), enhancement_factor=1.0)
+                radius = int(self.set.player_image_shadow_radius * max(self.image.glow_multiplier * 0.75, 1.0)) # DECREASE SLOPE OF RADIUS INCREASE FOR SHADOWS
+                image = self.__add_outer_glow(image=image, color='black', radius=radius, offset = (self.set.player_image_shadow_radius,self.set.player_image_shadow_radius), enhancement_factor=1.0, is_faded=True)
 
         return image
 
@@ -5904,7 +5907,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return background
 
-    def __add_outer_glow(self, image: Image.Image, color: tuple[int, int, int, int] = (255, 255, 255, 255), radius: int = 15, offset:tuple[int,int] = (0,0), enhancement_factor:float = 1.0) -> Image.Image:
+    def __add_outer_glow(self, image: Image.Image, color: tuple[int, int, int, int] = (255, 255, 255, 255), radius: int = 15, offset:tuple[int,int] = (0,0), enhancement_factor:float = 1.0, is_faded:bool = False) -> Image.Image:
         """
         Apply an outer glow effect to an image.
 
@@ -5914,6 +5917,7 @@ class ShowdownPlayerCard(BaseModel):
             radius: Radius of the glow.
             offset: Offset of the glow.
             enhancement_factor: Factor to enhance the brightness of the glow.
+            is_faded: Boolean flag to fade the glow from top to bottom (useful on shadows)
 
         Returns:
             PIL Image with outer glow.
@@ -5934,9 +5938,18 @@ class ShowdownPlayerCard(BaseModel):
         blurred_mask = mask.filter(ImageFilter.GaussianBlur(radius))
         enhanced_blurred_mask = ImageEnhance.Brightness(blurred_mask).enhance(enhancement_factor)
 
-        # APPLY A BLUR TO THE MASK
-        uniform_alpha = Image.new("L", padded_image.size, 255)
-        faded_mask = ImageChops.multiply(enhanced_blurred_mask, uniform_alpha)
+        # USE FADE IF APPLICABLE
+        if is_faded:
+            gradient = Image.new("L", (1, radius * 2), color=0xFF)
+            for y in range(radius * 2):
+                gradient.putpixel((0, y), int(255 * (1 - y / (radius * 2))))
+            alpha = gradient.resize(padded_image.size)
+        else:
+            # UNIFORM ALPHA
+            alpha = Image.new("L", padded_image.size, 255)
+        
+        # APPLY THE BLUR TO THE MASK
+        faded_mask = ImageChops.multiply(enhanced_blurred_mask, alpha)
 
         # CREATE A GLOW IMAGE USING THE BLURRED MASK AND THE GLOW COLOR
         glow = Image.new("RGBA", padded_image.size, color)

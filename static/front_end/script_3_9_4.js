@@ -685,6 +685,11 @@ $(document).ready(function() {
                 if (lastCardJson.nickname_index == 3) { moreOptionsSelections.push("Nickname-3"); }
             }
 
+            if (lastCardJson.glow_multiplier) {
+                if (lastCardJson.glow_multiplier == 2) { moreOptionsSelections.push("Glow-2"); }
+                if (lastCardJson.glow_multiplier == 3) { moreOptionsSelections.push("Glow-3"); }
+            }
+
             $('.selectpicker').selectpicker('val', moreOptionsSelections);
 
         }
@@ -766,6 +771,13 @@ $(function () {
                 nickname_index = 3
             }
 
+            var glow_multiplier = null;
+            if (moreOptionsSelected.includes("Glow-3")) {
+                glow_multiplier = 3;
+            } else if (moreOptionsSelected.includes("Glow-2")) {
+                glow_multiplier = 2;
+            }
+
             // STAT HIGHLIGHTS
             var is_stat_highlights_modern = moreOptionsSelected.includes("StatHighlightsModern");
             var is_stat_highlights_old_school = moreOptionsSelected.includes("StatHighlightsOldSchool");
@@ -821,7 +833,8 @@ $(function () {
                 period_start_date: periodStartDate,
                 period_end_date: periodEndDate,
                 period_split: periodSplit,
-                stat_highlights_type: stat_highlights
+                stat_highlights_type: stat_highlights,
+                glow_multiplier: glow_multiplier
             }
             cacheObject("last_card", JSON.stringify(card_object))
 

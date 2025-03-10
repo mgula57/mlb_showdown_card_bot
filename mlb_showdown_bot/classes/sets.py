@@ -1164,6 +1164,17 @@ class Set(str, Enum):
         
         return None
 
+    @property
+    def player_image_glow_radius(self) -> int:
+        match self.value:
+            case '2000': return 12
+            case '2001': return 8
+            case _: return 8
+    
+    @property
+    def player_image_shadow_radius(self) -> int:
+        return 15
+
     # ---------------------------------------
     # STAT HIGHLIGHTS
     # ---------------------------------------

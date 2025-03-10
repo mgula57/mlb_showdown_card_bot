@@ -43,6 +43,7 @@ parser.add_argument('-htl','--hide_team_logo', action='store_true', help='Option
 parser.add_argument('-sc','--secondary_color', action='store_true', help='Used secondary team color.')
 parser.add_argument('-mc','--is_multi_colored', action='store_true', help='Use multiple colors for chart image (CLASSIC, EXPANDED only)')
 parser.add_argument('-sh', '--stat_highlights_type', help='Type of stat highlights to use. (OLD_SCHOOL, MODERN, ALL)', default='NONE', type=str)
+parser.add_argument('-gm','--glow_multiplier', help='Glow/Shadow multiplier for card image', default=1.0, type=float)
 
 # STATS
 parser.add_argument('-sp','--stats_period', help='Period to use for stats. Allowed options are REGULAR,DATES,POST,SPLIT', default='REGULAR', type=str)
@@ -159,6 +160,7 @@ def main():
             use_secondary_color=args.secondary_color,
             is_multi_colored=args.is_multi_colored,
             stat_highlights_type=args.stat_highlights_type,
+            glow_multiplier=args.glow_multiplier,
             source=data_source,
             disable_cache_cleaning=args.disable_cache_cleaning,
             nickname_index=args.nickname_index,
