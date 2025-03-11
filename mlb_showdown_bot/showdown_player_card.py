@@ -754,16 +754,6 @@ class ShowdownPlayerCard(BaseModel):
 
         # MARK IF PLAYER PLAYED ALL IF POSITIONS
         has_played_all_if_positions = len([pos for pos in positions_list if pos in ['1B','2B','3B','SS']]) == 4
-
-        # CHECK IF IT'S A SHORTENED SINGLE YEAR CARD
-        # NOT COUNTING 2020, THAT HAS PRE-PROCESSED ADJUSTMENTS IN SCRAPER
-        shortened_season_multiplier = 1.0
-        if self.is_single_year:
-            match self.median_year:
-                case 1981: shortened_season_multiplier = (162 / 111)
-                case 1994: shortened_season_multiplier = (162 / 113)
-                case 1995: shortened_season_multiplier = (162 / 144)
-                case _: shortened_season_multiplier = 1.0
         
         for position_name, defensive_stats in defense_stats_dict.items():
             is_valid_position = self.is_pitcher == ('P' == position_name)
@@ -823,7 +813,6 @@ class ShowdownPlayerCard(BaseModel):
                             else:
                                 metric = DefenseMetric.DWAR
                                 defensive_rating = dWar
-                            defensive_rating = defensive_rating * shortened_season_multiplier
                             positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
                             in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
                         except Exception as e:
@@ -1127,17 +1116,19 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           In game defensive rating.
         """
-        # IF USING OUTS ABOVE AVG, CALCULATE RATING PER 162 GAMES
+        
         position = Position(position)
         is_1b = position == Position._1B
-        if metric == DefenseMetric.OAA:
-            rating = rating / games * 162.0
+
+        # CALCULATE RATING PER 150 GAMES IF NOT FULL CAREER
+        if not self.is_full_career:
+            rating = rating / games * 150
             # FOR OUTS ABOVE AVG OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
-            # EX: NICK AHMED 2018 - 38.45 OAA per 162
+            # EX: NICK AHMED 2018 - 38.45 OAA per 150
             #   - OAA FOR +5 = 16
             #   - OAA OVER MAX = 38.45 - 16 = 22.45
             #   - REDUCED OVER MAX = 22.45 * 0.5 = 11.23
-            #   - NEW RATING = 16 + 11.23 = 26.23            
+            #   - NEW RATING = 16 + 11.23 = 26.23
             if rating > metric.range_max and not is_1b:
                 amount_over_max = rating - metric.range_max
                 reduced_amount_over_max = amount_over_max * metric.over_max_multiplier

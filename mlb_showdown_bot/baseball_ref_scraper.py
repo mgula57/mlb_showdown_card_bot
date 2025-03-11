@@ -596,16 +596,8 @@ class BaseballReferenceScraper:
                     drs_rating_text = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['bis_runs_total', 'f_drs_total'])
                     drs_rating = None if (drs_rating_text or '') == '' else float(drs_rating_text)
                     
-                    # ACCOUNT FOR SHORTENED OR ONGOING SEASONS
-                    use_stat_per_yr = False
-                    if is_full_career:
-                        use_stat_per_yr = True
-                    else:
-                        today = datetime.today()
-                        card_year_end_date = datetime(int(year), 10, 1)
-                        is_year_end_date_before_today = today < card_year_end_date
-                        drs_is_above_0 = int(drs_rating) > 0 if drs_rating else False
-                        use_stat_per_yr = (str(year) == '2020' or is_year_end_date_before_today) and drs_is_above_0
+                    # USE PER YEAR STATS FOR CAREER LONG CARDS
+                    use_stat_per_yr = is_full_career
                     
                     if use_stat_per_yr:
                         drs_rating_text = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['bis_runs_total_per_season', 'f_drs_total_per_year'])
