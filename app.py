@@ -2,13 +2,14 @@ from flask import Flask, render_template, request, jsonify
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.postgres_db import PostgresDB
-from mlb_showdown_bot.classes.stats_period import StatsPeriod
+from mlb_showdown_bot.classes.stats_period import StatsPeriod, StatsPeriodType
 import os
 import pandas as pd
 from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
 from pprint import pprint
 from time import sleep
+from typing import Any
 
 # ----------------------------------------------------------
 # DATABASE
@@ -314,9 +315,11 @@ def card_creator():
         #  1. ARCHIVE: HISTORICAL DATA IN POSTGRES DB
         #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
         archived_data = None
+        yearly_archive_data = []
         if not ignore_cache:
             postgres_db = PostgresDB(is_archive=True)
             archived_data, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
+            yearly_archive_data = postgres_db.fetch_all_player_year_stats_from_archive(bref_id=scraper.baseball_ref_id, type_override=scraper.player_type_override)
             postgres_db.close_connection()
 
         # CHECK FOR ARCHIVED STATLINE. IF IT DOESN'T EXIST, QUERY BASEBALL REFERENCE / BASEBALL SAVANT
@@ -331,6 +334,25 @@ def card_creator():
             except:
                 if scraper.error:
                     error = scraper.error
+
+        # POPULATE TRENDS DATA FROM ARCHIVE
+        if len(yearly_archive_data) > 0:
+            trends_data: dict[int: dict[str: Any]] = {}
+            for year_archive in yearly_archive_data:
+
+                # BUILD SHOWDOWN CARD
+                try:
+                    yearly_card = ShowdownPlayerCard(
+                        name=name, year=str(year_archive.year), stats=year_archive.stats, set=set, era=era,
+                        stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(year_archive.year)),
+                        player_type_override=year_archive.player_type_override,
+                        is_variable_speed_00_01=is_variable_speed_00_01,
+                        is_running_in_flask=True,
+                    )
+                    trends_data[str(year_archive.year)] = yearly_card.trend_line_data()
+                except Exception as e:
+                    print(e)
+                    continue # SKIP YEAR
 
         # -----------------
         # 3. RUN SHOWDOWN CARD

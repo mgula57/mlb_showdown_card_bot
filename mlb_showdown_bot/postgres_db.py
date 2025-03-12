@@ -134,7 +134,7 @@ class PostgresDB:
         try:
             year_int = int(year)
         except Exception as e:
-            year_int = default_return_tuple
+            year_int = None
         
         if year_int is None or self.connection is None or stats_period_type != StatsPeriodType.REGULAR_SEASON:
             return default_return_tuple
@@ -165,6 +165,34 @@ class PostgresDB:
         load_time = round((end_time - start_time).total_seconds(),2)
         
         return (first_player_archive, load_time)
+
+    def fetch_all_player_year_stats_from_archive(self, bref_id:str, type_override:str = None) -> list[PlayerArchive]:
+        """Query the stats_archive table for all player data for a given player
+        
+        Args:
+            bref_id: Unique ID for the player defined by bref.
+            type_override: User override for specifing player type (ex: Shoehi Ohtani (Pitcher))
+
+        Returns:
+            List of stats archive data where each element is a year.
+        """
+
+        # RETURN EMPTY LIST IF NO CONNECTION
+        if self.connection is None:
+            return []
+        
+        query = sql.SQL("SELECT * FROM {table} WHERE {column} = %s ORDER BY year;") \
+                    .format(
+                        table=sql.Identifier("stats_archive"),
+                        column=sql.Identifier("bref_id")
+                    )
+        query_results_list = self.execute_query(query=query, filter_values=(bref_id, ))
+        
+        if len(query_results_list) == 0:
+            return []
+        
+        return [PlayerArchive(**row) for row in query_results_list]
+
 
     def fetch_all_stats_from_archive(self, year_list: list[int], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None) -> list[PlayerArchive]:
         """

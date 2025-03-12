@@ -2,19 +2,20 @@ import argparse
 from pprint import pprint
 import os, json
 from pathlib import Path
+from prettytable import PrettyTable
 
 # MY PACKAGES
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .baseball_ref_scraper import BaseballReferenceScraper
     from .showdown_player_card import ShowdownPlayerCard
-    from .classes.stats_period import StatsPeriod
+    from .classes.stats_period import StatsPeriod, StatsPeriodType
     from .postgres_db import PostgresDB, PlayerArchive
 except ImportError:
     # USE LOCAL IMPORT 
     from baseball_ref_scraper import BaseballReferenceScraper
     from showdown_player_card import ShowdownPlayerCard
-    from classes.stats_period import StatsPeriod
+    from classes.stats_period import StatsPeriod, StatsPeriodType
     from postgres_db import PostgresDB, PlayerArchive
 
 parser = argparse.ArgumentParser(description="Generate a player's MLB Showdown stats in a given year")
@@ -63,6 +64,8 @@ parser.add_argument('-ic','--ignore_cache', action='store_true', help='Ignore lo
 parser.add_argument('-ia','--ignore_archive', action='store_true', help='Ignore postgres showdown bot archive')
 parser.add_argument('-dc','--disable_cache_cleaning', action='store_true', help='Disable removal of cached files after minutes threshold.')
 
+# ADDITIONAL OPTIONS
+parser.add_argument('-his', '--show_historical_points', action='store_true', help='Optionally calculate all historical stats for player. Displays Year and Points in tabular form.')
 
 args = parser.parse_args()
 
@@ -88,12 +91,14 @@ def main():
     #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
     
     player_archive: PlayerArchive = None
+    full_career_player_archive_list: list[PlayerArchive] = None
     archive_load_time: float = None
     statline: dict[str: any] = None
     data_source = 'Scraper'
     if not args.ignore_archive:
         postgres_db = PostgresDB(is_archive=True)
         player_archive, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
+        full_career_player_archive_list = postgres_db.fetch_all_player_year_stats_from_archive(bref_id=scraper.baseball_ref_id, type_override=scraper.player_type_override)
         postgres_db.close_connection()
     
     if player_archive:
@@ -167,6 +172,41 @@ def main():
             ignore_cache=args.ignore_cache,
             warnings=scraper.warnings
         )
+
+    if args.show_historical_points:
+        # PRINT EACH YEAR'S CARD
+        points_per_year: dict[int, int] = {}
+        for archive in full_career_player_archive_list:
+
+            showdown = ShowdownPlayerCard(
+                name=name,
+                year=archive.year,
+                stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(archive.year)),
+                stats=archive.stats,
+                set=set,
+                era=args.era,
+                expansion=args.expansion,
+                edition=args.edition,
+                player_type_override=scraper.player_type_override,
+                print_to_cli=False,
+                command_out_override=command_out_override,
+                is_variable_speed_00_01=args.variable_spd,
+                source=data_source,
+                disable_cache_cleaning=args.disable_cache_cleaning,
+                nickname_index=args.nickname_index,
+                ignore_cache=args.ignore_cache,
+                warnings=scraper.warnings
+            )
+
+            points_per_year[str(archive.year)] = showdown.points
+
+        # PRINT HISTORICAL POINTS
+        print("\nHISTORICAL POINTS")
+        avg_points = int(round(sum(points_per_year.values()) / len(points_per_year)))
+        table = PrettyTable(field_names=['AVG'] + list(points_per_year.keys()))
+        table.add_row([str(avg_points)] + [f"{pts}" for pts in points_per_year.values()])
+        print(table)
+
 
     # PRINT TOTAL LOAD TIME
     total_load_time = (scraper.load_time if scraper.load_time else 0.00) + (showdown.load_time if showdown.load_time else 0.00) + (archive_load_time if archive_load_time else 0.0)

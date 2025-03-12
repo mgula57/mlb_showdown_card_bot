@@ -253,9 +253,11 @@ function createTrendsChart(data) {
     // PARSE VALUES
     var xValues = []
     var yValues = []
+    var customAttributes = []
     for (let day in data.trends_data) {
         xValues.push(day);
         yValues.push(data.trends_data[day]["points"]);
+        customAttributes.push(data.trends_data[day]);
     }
 
     new Chart(marksCanvas, {
@@ -267,30 +269,93 @@ function createTrendsChart(data) {
                 label: "PTS",
                 borderColor: data.radar_color,
                 backgroundColor: color(data.radar_color).alpha(0.2).rgbString(),
-                fill: true
+                fill: true,
+                customData: customAttributes,
+                // Scriptable option for point radius with a condition
+                pointRadius: (context) => {
+                    const dataPoint = context.dataset.customData[context.dataIndex];
+                    return (dataPoint.year === data.player_year) ? 6 : 3;
+                },
+                // Scriptable option for point background color with a condition
+                pointBackgroundColor: (context) => {
+                    const dataPoint = context.dataset.customData[context.dataIndex];
+                    return (dataPoint.year === data.player_year) ? 'black' : color(data.radar_color).alpha(0.4).rgbString();
+                },
             }]
         },
         options: {
+            responsive: true,
+            interaction: {
+                mode: 'index',  // Tooltip should show for all elements in the same index (hovering over empty space will show the tooltip for the closest data)
+                intersect: false // Ensures tooltip is triggered even if not directly over a point or bar
+            },
             plugins: {
                 legend: {
                     display: false
                 },
+                // Configure the Data Labels plugin:
+                datalabels: {
+                    display: (context) => {
+                        // Only display when condition is met
+                        const dataPoint = context.dataset.customData[context.dataIndex];
+                        return dataPoint.year === data.player_year;
+                    },
+                    formatter: (value, context) => {
+                        // Return whatever label you want to show—e.g., the year or custom text
+                        const dataPoint = context.dataset.customData[context.dataIndex];
+                        return dataPoint.points; // or "Your Label" or any custom formatting
+                    },
+                    anchor: 'end',  // Position label at the end of the point
+                    align: 'top',   // Align label above the point
+                    color: 'black', // Label text color (adjust as needed)
+                    font: {
+                        weight: 'bold'
+                    }
+                },
+                tooltip: {
+                    intersect: false,
+                    displayColors: false,
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            const tooltipItem = tooltipItems[0];
+                            const dataset = tooltipItem.dataset;
+                            const index = tooltipItem.dataIndex;
+                            const dataDict = dataset.customData[index]; // Get dict for the data point
+                            return `${tooltipItem.label} ${dataDict.team}: ${tooltipItem.raw} PTS`
+                        },
+                        label: function(tooltipItem) {
+                            const dataset = tooltipItem.dataset;
+                            const index = tooltipItem.dataIndex;
+                            const dataDict = dataset.customData[index]; // Get dict for the data point
+                            
+                            // Convert dict to an array of strings (each key-value pair on a new line)
+                            let tooltipLines = [];
+                            for (const [key, value] of Object.entries(dataDict)) {
+                                if (!['team', 'points', 'year'].includes(key)) {
+                                    tooltipLines.push(`${key.toUpperCase()}: ${value}`);
+                                }
+                            }
+    
+                            return tooltipLines; // Returning an array displays each entry on a new line
+                        }
+                    }
+                }
             },
             scales: {
               x: {
                 type: 'time',
                 time: {
-                    unit: 'day',
-                    parser: 'MM-dd-yyyy',
+                    unit: 'year',
+                    parser: 'yyyy',
                     displayFormats: {
-                        'day': 'MMM dd',
+                        'year': 'yyyy',
                     },
-                    tooltipFormat: "MMM dd"
+                    tooltipFormat: "yyyy"
                 }
               },
               y: {
                 min: 0,
-                max: Math.max(...yValues) + 200
+                max: Math.ceil( (Math.max(...yValues) + 50) / 200 ) * 200,
               }
             },
             elements:{

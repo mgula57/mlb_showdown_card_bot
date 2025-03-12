@@ -2758,6 +2758,39 @@ class ShowdownPlayerCard(BaseModel):
         
         return positions_string
 
+    def trend_line_data(self) -> dict[str: Any]:
+        """Provides data needed to populate the trend line shown on the showdownbot.com webpage.
+        Includes additional metadata that's shown in the tooltip.
+
+        Args:
+          None
+
+        Returns:
+          Dictionary with keys for each category and values for the trend line.
+        """
+
+        final_data = {
+            'team': self.team.value,
+            'points': self.points,
+            self.command_type.lower(): self.chart.command,
+            'outs': self.chart.outs_full,
+            'year': self.year,
+        }
+        match self.player_sub_type:
+            case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER:
+                final_data.update({
+                    'ip': self.ip,
+                    '2b': self.chart.ranges.get('2B', '-'),
+                })
+            case PlayerSubType.POSITION_PLAYER:
+                final_data.update({
+                    'hr': self.chart.ranges.get('HR', '-'),
+                    'speed': f"{self.speed.letter} ({self.speed.speed})",
+                    'defense': self.positions_and_defense_string,
+                })
+                            
+        return final_data
+
     def radar_chart_labels_as_values(self) -> tuple[list[str], list[float]]:
         """Defines the labels and values used in the radar chart shown on the front end.
 
