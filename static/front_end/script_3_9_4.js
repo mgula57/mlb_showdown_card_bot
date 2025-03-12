@@ -226,28 +226,16 @@ function createRadarChart(data) {
 }
 
 // SETUP TRENDS CHART
-function createTrendsChart(data) {
-    // SHOW CONTAINER
-    $("#trend_container").show();
-    if (data.trends_diff > 0) {
-        $("#player_trend_up_arrow").show();
-        $("#player_trend_down_arrow").hide();
-    } else if (data.trends_diff < 0) {
-        $("#player_trend_down_arrow").show();
-        $("#player_trend_up_arrow").hide();
-    } else {
-        $("#player_trend_down_arrow").hide();
-        $("#player_trend_up_arrow").hide();
-    }
+function createTrendsChart(data, elementId) {
     
     // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
-    let chartStatus = Chart.getChart("playerTrends");
+    let chartStatus = Chart.getChart(elementId);
     if (chartStatus != undefined) {
         chartStatus.destroy();
     }
     
     // CREATE NEW CHART OBJECT
-    var marksCanvas = document.getElementById("playerTrends");
+    var marksCanvas = document.getElementById(elementId);
     var color = Chart.helpers.color;
 
     // PARSE VALUES
@@ -562,7 +550,7 @@ function showCardData(data) {
 
         // TRENDS GRAPH
         if (data.trends_data != null) {
-            createTrendsChart(data=data)
+            createTrendsChart(data=data, elementId="playerTrends");
         } else {
             $("#trend_container").hide();
         }

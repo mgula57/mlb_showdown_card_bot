@@ -459,9 +459,17 @@ class BaseballReferenceScraper:
             # STORE REG SEASON GAMES FOR HITTERS. NEEDED FOR SPEED/DEFENSE CALCS
             if self.stats_period.type.is_regular_season_games_stat_needed and stats_dict.get('type', 'n/a') == 'Hitter':
                 stats_dict['G_RS'] = stats_dict.get('G', 0)
-            game_log_data = self.game_log_data(type=type, years=years_for_loop)
+            
+            # USE SINGLE YEAR IF DATE RANGE
+            # TODO: ENABLE USERS TO DO DATE RANGE ACROSS YEARS
+            years = [int(y) if y != 'CAREER' else y for y in years_for_loop]
+            years = years[:1] if self.stats_period.type == StatsPeriodType.DATE_RANGE else years
+            game_log_data = self.aggregated_game_log_data(type=type, years=years)
             if game_log_data:
                 stats_dict.update(game_log_data)
+
+        # ADD ALL GAME LOGS BY DEFAULT
+        stats_dict['game_logs'] = self.game_log_list(type=type, years=years_for_loop, reduce_size=True)
 
         # FIX EMPTY STRING DATA
         empty_str_fields_for_test = ['batting_avg', 'onbase_perc', 'slugging_perc', 'onbase_plus_slugging']
@@ -1431,8 +1439,55 @@ class BaseballReferenceScraper:
 
         return stats_dict
 
-    def game_log_data(self, type:str, years:list[str]) -> dict:
-        """Parse Game Log Data. Used in certain stat period types (Postseason, Date Range).
+    def game_log_list(self, type:str, years:list[str], stats_period_type:StatsPeriodType=StatsPeriodType.REGULAR_SEASON, reduce_size:bool=False) -> list[dict]:
+        """Parse Game Log Data into a list
+        
+        Args:
+            type: Player Type
+            years: List of years as strings.
+            stats_period_type: Type of stats period (Regular Season, Postseason, Date Range)
+            reduce_size: Reduce the size of the game log data by removing 0's
+
+        Returns:
+          Aggregated stats dict from game logs.
+        """
+
+        is_pitcher = type == 'Pitcher'
+        type_ext = 'p' if is_pitcher else 'b'
+        
+        year_pages = years[:1] if stats_period_type == StatsPeriodType.POSTSEASON else years # POSTSEASON ONLY HAS 1 PAGE
+        total_game_logs: list[dict] = []
+        
+        for year in year_pages:
+        
+            period_ext = "year=0&post=1" if stats_period_type == StatsPeriodType.POSTSEASON else f"year={year}"
+            url = f"https://www.baseball-reference.com/players/gl.fcgi?id={self.baseball_ref_id}&t={type_ext}&{period_ext}"
+            soup_game_log_page = self.__soup_for_url(url, is_baseball_ref_page=True)
+
+            # CHECK FOR ROWS
+            # NOTE: THIS HANDLES BOTH THE OLD AND "UPGRADED" TABLES
+            # OLD: ID OF TABLE WAS 'batting_gamelogs' OR 'pitching_gamelogs'
+            # UPGRADED: LOOK FOR A TABLE WITH id="players_standard_batting"/"players_standard_pitching" and data-soc-sum-scope-type="player_game"
+            type_prefix = 'pitching' if is_pitcher else 'batting'
+            game_log_records = soup_game_log_page.find_all('tr', attrs={'id': re.compile(f'{type_prefix}_gamelogs.')})
+            is_no_records_old_table = len(game_log_records) == 0
+            if is_no_records_old_table:
+                # CHECK FOR NEW UPGRADED TABLE
+                game_log_table = soup_game_log_page.find('table', attrs={'id': f'players_standard_{type_prefix}'})
+                if game_log_table:
+                    game_log_records = game_log_table.find_all('tr', attrs={'id': re.compile(f'players_standard_{type_prefix}.')})
+                    # FILTER OUT RECORDS WITH "spacer" IN CLASS
+                    game_log_records = [row for row in game_log_records if 'spacer' not in row.get('class', 'N/A')]
+
+            included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF','RBI','player_game_result',
+                                'date','team_name_abbr',]
+            game_logs_parsed: list[dict] = [self.__parse_generic_bref_row(row=game_log, included_categories=included_categories, exclude_zeros=reduce_size) for game_log in game_log_records]
+            total_game_logs.extend(game_logs_parsed)
+
+        return total_game_logs
+
+    def aggregated_game_log_data(self, type:str, years:list[str]) -> dict:
+        """Parse and aggregate game log data. Used in certain stat period types (Postseason, Date Range).
 
         Args:
           type: Player Type
@@ -1442,35 +1497,13 @@ class BaseballReferenceScraper:
           Aggregated stats dict from game logs.
         """
         
-        is_pitcher = type == 'Pitcher'
-        type_ext = 'p' if is_pitcher else 'b'
-        years = [int(y) if y != 'CAREER' else y for y in years]
-        first_year = years[0]
-        period_ext = "year=0&post=1" if self.stats_period.type == StatsPeriodType.POSTSEASON else f"year={first_year}"
-        url = f"https://www.baseball-reference.com/players/gl.fcgi?id={self.baseball_ref_id}&t={type_ext}&{period_ext}"
-        soup_game_log_page = self.__soup_for_url(url, is_baseball_ref_page=True)
-
-        # CHECK FOR ROWS
-        # NOTE: THIS HANDLES BOTH THE OLD AND "UPGRADED" TABLES
-        # OLD: ID OF TABLE WAS 'batting_gamelogs' OR 'pitching_gamelogs'
-        # UPGRADED: LOOK FOR A TABLE WITH id="players_standard_batting"/"players_standard_pitching" and data-soc-sum-scope-type="player_game"
-        type_prefix = 'pitching' if is_pitcher else 'batting'
-        game_log_records = soup_game_log_page.find_all('tr', attrs={'id': re.compile(f'{type_prefix}_gamelogs.')})
-        is_no_records_old_table = len(game_log_records) == 0
-        if is_no_records_old_table:
-            # CHECK FOR NEW UPGRADED TABLE
-            game_log_table = soup_game_log_page.find('table', attrs={'id': f'players_standard_{type_prefix}'})
-            if game_log_table:
-                game_log_records = game_log_table.find_all('tr', attrs={'id': re.compile(f'players_standard_{type_prefix}.')})
-                # FILTER OUT RECORDS WITH "spacer" IN CLASS
-                game_log_records = [row for row in game_log_records if 'spacer' not in row.get('class', 'N/A')]
-
-        included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF','RBI','player_game_result',
-                               'date','team_name_abbr',]
-        game_logs_parsed: list[dict] = [self.__parse_generic_bref_row(row=game_log, included_categories=included_categories) for game_log in game_log_records]
+        # GET GAME LOGS AS A LIST
+        game_logs_parsed: list[dict] = self.game_log_list(type=type, years=years)
         
         # AGGREGATE DATA
         aggregated_data_into_lists: dict[str, list] = {}
+        first_year = years[0]
+        is_pitcher = type == 'Pitcher'
         for game_log_data in game_logs_parsed:
 
             # REMOVE BAD UNICODE CHARACTERS
@@ -1564,13 +1597,14 @@ class BaseballReferenceScraper:
         
         return aggregated_data
 
-    def __parse_generic_bref_row(self, row:BeautifulSoup, included_categories:list[str] = [], search_for_lg_leader:bool = False) -> dict:
+    def __parse_generic_bref_row(self, row:BeautifulSoup, included_categories:list[str] = [], search_for_lg_leader:bool = False, exclude_zeros:bool=False) -> dict:
         """Parse hitting stats a pitcher allowed.
 
         Args:
           row: BeautifulSoup tr row object with stats
           included_categories: List of categories to include. If empty include all.
           search_for_lg_leader: Boolean for whether to look for league leader bold/italic text.
+          exclude_zeros: Exclude stats with 0 as a value.
 
         Returns:
           Dict with statistics
@@ -1603,7 +1637,11 @@ class BaseballReferenceScraper:
             if stat_category in fill_blanks_w_zeros and len(stat) == 0:
                 stat = '0'
             stat = self.__convert_to_numeric(stat)
-            final_stats_dict[stat_category]= stat
+
+            # SKIP IF EXCLUDE ZEROS IS TRUE AND STAT IS 0
+            if exclude_zeros and str(stat) == '0': continue
+
+            final_stats_dict[stat_category] = stat
 
         return final_stats_dict
 
