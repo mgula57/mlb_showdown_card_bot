@@ -37,7 +37,6 @@ __pycache__/
 *$py.class
 
 .DS_Store
-.python-version
 
 # MY FILES
 tests/cache/player_cache.csv
