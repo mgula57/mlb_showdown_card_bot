@@ -315,15 +315,19 @@ class BaseballReferenceScraper:
 
             # HANDLE SCENARIO WHERE NO FIELDING DATA EXISTS BECAUSE PLAYER IS DH
             positions_dict = positional_fielding.get('positions', {})
+            is_positionless = False
             if len(positions_dict) == 0 and overall_type == 'Hitter':
                 
                 dh_appearances = self.__appearances_for_position(soup_for_homepage_stats=soup_for_homepage_stats, year=year, position='DH')
+                is_positionless = dh_appearances is None
                 positional_fielding['positions'] = { 'DH': {'g': dh_appearances } }
             
             stats_dict.update(positional_fielding)
 
             # HAND / TYPE
-            type = self.type(positions_dict=stats_dict['positions'],year=year)
+            type:str = None
+            if not is_positionless:
+                type = self.type(positions_dict=stats_dict['positions'],year=year)
 
             # COVER THE CASES:
             #   - NOT HAVING A TYPE DUE TO BEING A DH
@@ -701,6 +705,7 @@ class BaseballReferenceScraper:
             return None
 
         # LOOK AT THE FOOTER IF FULL CAREER
+        record = None
         if is_full_career:
             footer = appearances_table.find('tfoot')
             record = footer.find('tr')
@@ -710,6 +715,8 @@ class BaseballReferenceScraper:
             for record in records:
                 if 'partial_table' not in record.get('class', []):
                     break
+
+        if record is None: return None
         
         # GET THE POSITION COLUMN
         number_of_games_cell = record.find('td', attrs = {'data-stat': f'games_at_{position.lower()}'})
