@@ -1656,6 +1656,7 @@ class Chart(BaseModel):
         # IF NO AVERAGES EXIST YEAR, TAKE PRIOR YEAR
         if len(year_list) == 1 and year_list[0] > max(mlb_avgs_df['Year']):
             mlb_avgs_df = mlb_avgs_df[mlb_avgs_df['Year'] == year_list[0] - 1]
+            mlb_avgs_df['Year'] = year_list[0]
 
         mlb_avgs_df = mlb_avgs_df[mlb_avgs_df['Year'].isin(year_list)]
         mlb_avgs = mlb_avgs_df.mean().to_dict()
