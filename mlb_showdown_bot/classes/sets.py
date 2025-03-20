@@ -1,4 +1,5 @@
 from enum import Enum
+from datetime import datetime
 import numpy as np
 try:
     from .metadata import SpeedMetric
@@ -43,7 +44,9 @@ class Era(Enum):
             case 'STEROID': return list(range(1994, 2010))
             case 'POST_STEROID': return list(range(2010, 2015))
             case 'STATCAST': return list(range(2015, 2023))
-            case 'PITCH_CLOCK': return list(range(2023, 2025))
+            case 'PITCH_CLOCK': 
+                current_year = datetime.now().year
+                return list(range(2023, current_year + 1))
 
     @property
     def speed_multiplier(self) -> float:
