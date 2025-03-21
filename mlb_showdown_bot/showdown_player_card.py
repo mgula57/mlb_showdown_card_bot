@@ -162,24 +162,41 @@ class ShowdownPlayerCard(BaseModel):
         disable_running_card: bool = data.get('disable_running_card', False)
         if not self.is_populated and not disable_running_card:
 
-            # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
+            # CLEAN UP AND CALCULATE MISSING/ALTERED STATS
             self.stats = self.add_estimates_to_stats(stats=self.stats)
-            self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self.__positions_and_defense(stats_dict=self.stats)
+
+            # HANDLE GAME LOGS IF APPLICABLE
+            game_logs = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
+            self.stats_period.add_stats_from_logs(game_logs=game_logs, year_list=self.year_list, is_pitcher=self.is_pitcher)
+            if self.stats_period.stats:
+                full_season_stats_used_for_sp = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
+                if self.stats_period.type.is_regular_season_games_stat_needed and self.player_type == PlayerType.PITCHER:
+                    full_season_stats_used_for_sp['G_RS'] = self.stats.get('G', 0)
+                self.stats_period.stats.update(full_season_stats_used_for_sp)
+                self.stats_period.stats = self.add_estimates_to_stats(stats=self.stats_period.stats)
+
+                # USE OVERWRITTEN FULL SEASON STATS AS PARTIALS
+                full_stats_copy = self.stats.copy()
+                full_stats_copy.update(self.stats_period.stats)
+                self.stats_period.stats = full_stats_copy
+
+            # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
+            self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self.__positions_and_defense(stats_dict=self.stats_for_card)
             self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
             self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
             self.player_sub_type = self.calculate_player_sub_type()
-            self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats.get('IP', 0)), games=self.stats.get('G', 0), games_started=self.stats.get('GS', 0), ip_per_start=self.stats.get('IP/GS', 0))
-            self.hand: Hand = self.__handedness(hand_raw=self.stats.get('hand', None))
-            self.speed: Speed = self.__speed(sprint_speed=self.stats.get('sprint_speed', None), stolen_bases=self.stats.get('SB', 0) / ( self.stats.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats.get('SB',''))) == 0, games=self.stats.get('G', 0))
+            self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', 0))
+            self.hand: Hand = self.__handedness(hand_raw=self.stats_for_card.get('hand', None))
+            self.speed: Speed = self.__speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=self.stats_for_card.get('SB', 0) / ( self.stats_for_card.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
             self.accolades: list[str] = self.parse_accolades()
-            self.icons: list[Icon] = self.__icons(awards=self.stats.get('award_summary',''))
+            self.icons: list[Icon] = self.__icons(awards=self.stats_for_card.get('award_summary',''))
 
             # CONVERT STATS TO PER 400 PA
             # MAKES MATH EASIER (20 SIDED DICE)
-            stats_for_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats)
+            stats_for_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats_for_card)
 
             self.chart: Chart = self.__most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version) - 1)
-            self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats.get('PA', 650))
+            self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats_for_card.get('PA', 650))
 
             # FOR PTS, USE STEROID ERA OPPONENT
             chart_for_pts = self.chart.model_copy()
@@ -472,7 +489,7 @@ class ShowdownPlayerCard(BaseModel):
         is_1b = '1B' in positions
         is_multi_position = len(positions) > 1
         hand_prefix = self.hand.silhouette_name(self.is_pitcher)
-        hand_throwing = self.stats['hand_throw']
+        hand_throwing = self.stats_for_card['hand_throw']
         throwing_hand_prefix = f"{hand_throwing[0].upper()}H"
 
         # CATCHERS
@@ -499,7 +516,7 @@ class ShowdownPlayerCard(BaseModel):
                 return f"{hand_prefix}-SP"
         # HITTERS
         else:
-            is_slg_above_threshold = self.stats['slugging_perc'] >= 0.475
+            is_slg_above_threshold = self.stats_for_card.get('slugging_perc', 0.0) >= 0.475
             # FOR HITTERS CHECK FOR POSITIONS
             # 1. LHH OUTFIELDER
             if is_outfield and hand_throwing == "Left" and not is_slg_above_threshold:
@@ -583,7 +600,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.is_multi_year:
             if self.is_full_career:
                 # USE MEDIAN YEAR OF YEARS PLAYED
-                years_played_ints = [int(year) for year in self.stats['years_played']]
+                years_played_ints = [int(year) for year in self.stats_for_card['years_played']]
             elif '-' in self.year:
                 # RANGE OF YEARS
                 years = self.year.split('-')
@@ -720,6 +737,15 @@ class ShowdownPlayerCard(BaseModel):
             return False
         
         return most_common_era_tuples_list[0][0] != self.era
+
+    @property
+    def stats_for_card(self) -> dict:
+        """Points to correct stats dictionary to use for card calculations.
+        Checks for available stats period (ex: Date Range, playoffs, etc.)
+        If not available, defaults to full season stats.        
+        """
+        return self.stats_period.stats or self.stats
+
 
 # ------------------------------------------------------------------------
 # DEFENSE
@@ -1370,7 +1396,7 @@ class ShowdownPlayerCard(BaseModel):
         for icon in available_icons:
 
             # ROOKIE
-            if icon == Icon.R and self.stats.get('is_rookie', False):
+            if icon == Icon.R and self.stats_for_card.get('is_rookie', False):
                 icons.append(icon)
                 continue
 
@@ -1386,14 +1412,14 @@ class ShowdownPlayerCard(BaseModel):
             
             # THRESHOLDS
             if stat_value_requirement and stat_category:
-                if self.stats.get(f"is_above_{stat_category.lower()}_threshold", False):
+                if self.stats_for_card.get(f"is_above_{stat_category.lower()}_threshold", False):
                     icons.append(icon)
                     continue
             
             # LEADER
             if stat_category:
                 is_top_2 = len([a for a in self.accolades if ("2ND" in a or "LEADER" in a) and (f" {icon.accolade_search_term}" in a and 'SO/9' not in a)]) > 0
-                is_leader = self.stats.get(f"is_{stat_category.lower()}_leader", False)
+                is_leader = self.stats_for_card.get(f"is_{stat_category.lower()}_leader", False)
                 if is_top_2 or is_leader:
                     icons.append(icon)
                     continue
@@ -1423,7 +1449,7 @@ class ShowdownPlayerCard(BaseModel):
         is_starting_pitcher = self.has_position(Position.SP)
 
         # -- PART 1: AWARDS AND RANKINGS --
-        accolades_dict = self.stats.get('accolades', {})
+        accolades_dict = self.stats_for_card.get('accolades', {})
         accolades_rank_and_priority_tuples = []
         for accolade_type, accolade_list in accolades_dict.items():
 
@@ -1555,7 +1581,7 @@ class ShowdownPlayerCard(BaseModel):
                     accolades_rank_and_priority_tuples += ordinal_accolades
         
         # ADD ROOKIE OF THE YEAR VOTING, NOT INCLUDED IN BREF ACCOLADES SECTION
-        awards_summary_list = self.stats.get('award_summary', '').upper().split(',')
+        awards_summary_list = self.stats_for_card.get('award_summary', '').upper().split(',')
         for award in awards_summary_list:
             if 'ROY-' not in award:
                 continue
@@ -1597,29 +1623,29 @@ class ShowdownPlayerCard(BaseModel):
         if self.is_pitcher:
             if is_starting_pitcher:
                 # WINS
-                wins = self.stats.get('W', 0)
+                wins = self.stats_for_card.get('W', 0)
                 if ( (wins / num_seasons) > 14 and not self.is_substring_in_list('WINS',current_accolades) ) or wins >= 300:
                     accolades_rank_and_priority_tuples.append( (f"{wins} WINS", 50, default_stat_priority) )
             else:
                 # SAVES
-                saves = self.stats.get('SV', 0)
+                saves = self.stats_for_card.get('SV', 0)
                 if (saves / num_seasons) > 20 and not self.is_substring_in_list('SAVES',current_accolades):
                     accolades_rank_and_priority_tuples.append( (f"{saves} SAVES", 51, default_stat_priority) )
             
             # ERA
-            era_2_decimals = '%.2f' % self.stats.get('earned_run_avg', 0.0)
+            era_2_decimals = '%.2f' % self.stats_for_card.get('earned_run_avg', 0.0)
             if not self.is_substring_in_list('ERA',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{era_2_decimals} ERA", 52, default_stat_priority) )
 
             # WHIP
-            whip = self.stats.get('whip', 0.000)
+            whip = self.stats_for_card.get('whip', 0.000)
             if not self.is_substring_in_list('WHIP',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{whip} WHIP", 53, default_stat_priority) )
         
         else:
         # HITTERS ----
             # HOME RUNS
-            hr = self.stats.get('HR', 0)
+            hr = self.stats_for_card.get('HR', 0)
             hr_per_year = hr / num_seasons
             is_hr_all_time = (hr >= 500 or hr_per_year >= 60)
             if ( hr_per_year >= (15 if self.year == 2020 else 30) and not self.is_substring_in_list('HR',current_accolades) ) or is_hr_all_time:
@@ -1631,11 +1657,11 @@ class ShowdownPlayerCard(BaseModel):
                 accolades_rank_and_priority_tuples.append( (f"{hr} {hr_suffix}", 50, hr_priority) )
                 
             # RBI
-            rbi = self.stats.get('RBI', 0)
+            rbi = self.stats_for_card.get('RBI', 0)
             if (rbi / num_seasons) >= 100 and not self.is_substring_in_list('RBI',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{rbi} RBI", 51, default_stat_priority) )
             # HITS
-            hits = self.stats.get('H', 0)
+            hits = self.stats_for_card.get('H', 0)
             hits_per_year = hits / num_seasons
             is_hits_all_time = (hits >= 3000 or hits_per_year >= 240)
             if ( hits_per_year >= 175 and not self.is_substring_in_list('HITS',current_accolades) ) or is_hits_all_time:
@@ -1645,7 +1671,7 @@ class ShowdownPlayerCard(BaseModel):
                 hits_priority = 0 if is_hits_all_time else default_stat_priority
                 accolades_rank_and_priority_tuples.append( (f"{hits} HITS", 52, hits_priority) )
             # BATTING AVG
-            ba = self.stats.get('batting_avg', 0.00)
+            ba = self.stats_for_card.get('batting_avg', 0.00)
             is_ba_all_time = ba >= 0.390
             if ( ba >= 0.300 and not self.is_substring_in_list('BA',current_accolades) ) or is_ba_all_time:
                 ba_3_decimals = ('%.3f' % ba).replace('0.','.')
@@ -1653,17 +1679,17 @@ class ShowdownPlayerCard(BaseModel):
                 ba_priority = 0 if is_ba_all_time else default_stat_priority
                 accolades_rank_and_priority_tuples.append( (f"{ba_3_decimals} {ba_suffix}", 53, ba_priority) )
             # OBP
-            obp = self.stats.get('onbase_perc', 0.00)
+            obp = self.stats_for_card.get('onbase_perc', 0.00)
             if obp >= 0.400 and not self.is_substring_in_list('OBP',current_accolades):
                 obp_3_decimals = ('%.3f' % obp).replace('0.','.')
                 accolades_rank_and_priority_tuples.append( (f"{obp_3_decimals} OBP", 54, default_stat_priority) )
             # SLG
-            slg = self.stats.get('slugging_perc', 0.00)
+            slg = self.stats_for_card.get('slugging_perc', 0.00)
             if slg >= 0.550 and not self.is_substring_in_list('SLG',current_accolades):
                 slg_3_decimals = ('%.3f' % slg).replace('0.','.')
                 accolades_rank_and_priority_tuples.append( (f"{slg_3_decimals} SLG%", 55, default_stat_priority) )
             # dWAR
-            dWAR = self.stats.get('dWAR', 0.00)
+            dWAR = self.stats_for_card.get('dWAR', 0.00)
             dWAR = 0 if len(str(dWAR)) == 0 else dWAR
             if float(dWAR) >= (2.5 * num_seasons) and not self.is_substring_in_list('DWAR',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{dWAR} dWAR", 56, 10) )
@@ -1673,11 +1699,11 @@ class ShowdownPlayerCard(BaseModel):
         usable_accolades = [a for a in accolades_rank_and_priority_tuples if len(a[0]) <= length_req]
         if len(usable_accolades) < 2:
             # OPS+
-            ops_plus = self.stats.get('onbase_plus_slugging_plus', None)
+            ops_plus = self.stats_for_card.get('onbase_plus_slugging_plus', None)
             if ops_plus and self.is_hitter and not self.is_substring_in_list('OPS+',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{int(ops_plus)} OPS+", 57, default_stat_priority) )
             # bWAR
-            bWAR = self.stats.get('bWAR', None)
+            bWAR = self.stats_for_card.get('bWAR', None)
             if bWAR:
                 accolades_rank_and_priority_tuples.append( (f"{bWAR} WAR", 58, default_stat_priority) )
 
@@ -1752,7 +1778,7 @@ class ShowdownPlayerCard(BaseModel):
         year_list = self.year_list if not self.is_alternate_era else self.era.year_range
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True)
         mlb_avgs_df = opponent.load_mlb_league_avg_df()
-        pa = self.stats.get('pa', 400)
+        pa = self.stats_for_card.get('pa', 400)
         
         command_options = list(set([ c for c in self.set.command_options(player_type=self.player_type) if c not in self.commands_excluded]))
         for command in command_options:
@@ -1855,7 +1881,7 @@ class ShowdownPlayerCard(BaseModel):
         ba = float(stats['batting_avg']) if len(str(stats['batting_avg'])) > 0 else 1.0
         obp = float(stats['onbase_perc']) if len(str(stats['onbase_perc'])) > 0 else 1.0
         slg = float(stats['slugging_perc']) if len(str(stats['slugging_perc'])) > 0 else 1.0
-        ops = obp + slg
+        ops = round(obp + slg, 4)
         if_fb = stats.get('IF/FB', replacement_ratio('IF/FB', slg)) or replacement_ratio('IF/FB', slg)
         go_ao = stats.get('GO/AO', replacement_ratio('GO/AO', slg)) or replacement_ratio('GO/AO', slg)
 
@@ -1879,7 +1905,7 @@ class ShowdownPlayerCard(BaseModel):
         # FB/PU EST RESULTS
         remaining_pa -= gb_results
         pu_results = round(remaining_pa * if_fb, 2)
-        fb_results = remaining_pa - pu_results
+        fb_results = round(remaining_pa - pu_results, 2)
 
         # ADD TO DICT
         stats['GB'] = gb_results
@@ -2014,7 +2040,7 @@ class ShowdownPlayerCard(BaseModel):
                     position = list(self.positions_and_defense.keys())[0].value
                     if position == Position.LFRF.value:
                         position = 'OF'
-                    position_defense = self.stats.get('positions', {}).get(position, {}).get(key, None)
+                    position_defense = self.stats_for_card.get('positions', {}).get(position, {}).get(key, None)
                     if position_defense is None:
                         continue
 
@@ -2054,7 +2080,7 @@ class ShowdownPlayerCard(BaseModel):
                 # APPLY PERCENTILE IN ORDER TO RANK
                 # EX: PLAYER WITH 30 HR / 650 PA (PERCENTILE 100% IS 20)
                 #     30 / 20 = 1.5x RATING
-                denominator = (self.stats.get('PA', 650) / 650) if category.is_pa_metric else 1.0
+                denominator = (self.stats_for_card.get('PA', 650) / 650) if category.is_pa_metric else 1.0
                 is_reversed = category.is_lower_better
                 stat_per_650 = float(stat) / denominator
                 rating = round((cutoff_for_positive_sort_rating / stat_per_650) if is_reversed else (stat_per_650 / cutoff_for_positive_sort_rating), 3)
@@ -2427,12 +2453,12 @@ class ShowdownPlayerCard(BaseModel):
         statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))
         final_dict = {
             'projected': [],
-            'stats': [],
+            'stats_for_card': [],
         }
         all_numeric_value_lists = []
         for source in final_dict.keys():
             source_dict = getattr(self, source)
-            src_value_name = source.replace('stats', 'real').replace('projected', 'proj').upper()
+            src_value_name = source.replace('stats_for_card', 'real').replace('projected', 'proj').upper()
             values = [src_value_name]
             numeric_values = []
             for key in stat_categories_dict.values():
@@ -2446,7 +2472,7 @@ class ShowdownPlayerCard(BaseModel):
         
         # ADD ROWS
         for source, values in final_dict.items():
-            statline_tbl.add_row(values, divider=source == 'stats')
+            statline_tbl.add_row(values, divider=source == 'stats_for_card')
         
         # ADD DIFFS ROW
         diffs_row = ['DIFF'] + [round(all_numeric_value_lists[0][i] - all_numeric_value_lists[1][i], 3 if i < 4 else 0) for i in range(len(all_numeric_value_lists[0]))]
@@ -2493,7 +2519,7 @@ class ShowdownPlayerCard(BaseModel):
             if self.is_pitcher and key == 'onbase_plus_slugging_plus':
                 continue
             precision = 0 if key == 'onbase_plus_slugging_plus' else 3
-            actual = int(self.stats.get(key, 0)) if precision == 0 else round(float(self.stats.get(key, 0)), precision)
+            actual = int(self.stats_for_card.get(key, 0)) if precision == 0 else round(float(self.stats_for_card.get(key, 0)), precision)
             actual_str = f"{actual:.3f}".replace('0.','.') if key != 'onbase_plus_slugging_plus' else str(actual)
             in_game = 0 if self.projected.get(key, 0) is None else ( int(self.projected.get(key, 0)) if precision == 0 else round(float(self.projected.get(key, 0)), precision) )
             in_game_str = f"{in_game:.3f}".replace('0.','.') if key != 'onbase_plus_slugging_plus' else str(int(in_game))
@@ -2501,16 +2527,16 @@ class ShowdownPlayerCard(BaseModel):
             final_player_data.append([category_prefix+cleaned_category, actual_str, in_game_str, diff])
 
         # GAMES/IP
-        final_player_data.append(['G', str(self.stats.get('G', 0)), en_dash, en_dash])
-        ip_real = self.stats.get('IP', None)
+        final_player_data.append(['G', str(self.stats_for_card.get('G', 0)), en_dash, en_dash])
+        ip_real = self.stats_for_card.get('IP', None)
         if ip_real:
-            final_player_data.append(['IP', str(self.stats.get('IP', 0)).replace('.0', ''), en_dash, en_dash])
+            final_player_data.append(['IP', str(self.stats_for_card.get('IP', 0)).replace('.0', ''), en_dash, en_dash])
 
         # PLATE APPEARANCES / AB
-        real_life_pa = int(self.stats['PA'])
+        real_life_pa = int(self.stats_for_card['PA'])
         real_life_pa_ratio = real_life_pa / self.projected.get('PA', 650.0)
         final_player_data.append([f'{category_prefix}PA', str(real_life_pa), str(real_life_pa), en_dash])
-        actual_ab = self.stats.get('AB', 0)
+        actual_ab = self.stats_for_card.get('AB', 0)
         bot_ab = round(self.projected.get('AB', 0))
         final_player_data.append([f'{category_prefix}AB', str(actual_ab), str(bot_ab), diff_string(bot_ab, bot_ab)])
 
@@ -2520,7 +2546,7 @@ class ShowdownPlayerCard(BaseModel):
         chart_categories_adjusted = [c.value for c in self.chart.chart_categories_adjusted]
         for key in result_categories:
             in_game = int(round(self.projected[key]) * real_life_pa_ratio)
-            actual = int(self.stats[key])
+            actual = int(self.stats_for_card[key])
             prefix = category_prefix if key in ['2B','3B'] else ''
             suffix = "*" if key in ['GB', 'FB', 'PU'] else ''
             suffix = '**' if key in chart_categories_adjusted else suffix
@@ -2530,8 +2556,8 @@ class ShowdownPlayerCard(BaseModel):
         category_list = ['earned_run_avg', 'whip', 'bWAR'] if self.is_pitcher else ['SB', 'dWAR', 'bWAR']
         rounded_metrics_list = ['SB']
         for category in category_list:
-            if category in self.stats.keys():
-                stat_raw = self.stats.get(category, None)
+            if category in self.stats_for_card.keys():
+                stat_raw = self.stats_for_card.get(category, None)
                 if stat_raw is None:
                     stat = en_dash
                 else:
@@ -4671,10 +4697,10 @@ class ShowdownPlayerCard(BaseModel):
                 text = 'POSTSEASON'
                 text_list = [text]
             case StatsPeriodType.DATE_RANGE:
-                text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
+                text_list = [self.stats_for_card.get('first_game_date', None), self.stats_for_card.get('last_game_date', None)]
                 text_list = [t for t in text_list if t]
-                game_1_comp = self.stats.get('first_game_date', 'g1').strip()
-                game_2_comp = self.stats.get('last_game_date', 'g2').strip()
+                game_1_comp = self.stats_for_card.get('first_game_date', 'g1').strip()
+                game_2_comp = self.stats_for_card.get('last_game_date', 'g2').strip()
                 is_single_game = game_1_comp == game_2_comp            
                 text = game_1_comp if is_single_game else ' - '.join(text_list)
                 text_list = [text] if is_single_game else text_list
@@ -4754,7 +4780,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # CALCULATE HOW MANY STATS CAN FIT
         full_text: str = ''
-        for stat in self.stat_highlights_list(stats=self.stats):
+        for stat in self.stat_highlights_list(stats=self.stats_for_card):
             text_width_next, _ = self.__font_getsize(font=font, text=f'{full_text}  {stat}')
             if text_width_next > (x_size_w_padding * 4): break
             full_text = f'{full_text}  {stat}'
