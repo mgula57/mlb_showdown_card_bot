@@ -1,6 +1,7 @@
 import math
 from statistics import mode
 from typing import Any
+from datetime import datetime, date
 
 def total_innings_pitched(ip_list: list[float]) -> float:
     """
@@ -84,6 +85,26 @@ def convert_to_numeric(string_value:str) -> (int | float | str):
         # RETURN ORIGINAL STRING
         return string_value
     
+def convert_to_date(game_log_date_str: str, year: int) -> date:
+    """Helper function for converting different formats of bref date strings to a consistent format.
+    
+    Args:
+        date_string: Date string from bref tables
+        year: Year of the game log
+        
+    Returns:
+        Date object
+    """
+    game_log_date_str_cleaned = game_log_date_str.split('(')[0].strip().replace('\xa0susp', '')
+    is_new_format = game_log_date_str.count('-') >= 2
+    if is_new_format:
+        # IN UPGRADED TABLES, DATES ARE IN THIS FORMAT "YYYY-MM-DD)"
+        return datetime.strptime(game_log_date_str_cleaned, "%Y-%m-%d").date()
+    else:
+        # IN OLD TABLES, DATES ARE IN THIS FORMAT "MMM DD"
+        game_log_date_str_full = f"{game_log_date_str_cleaned} {year}"
+        return datetime.strptime(game_log_date_str_full, "%b %d %Y").date()
+    
 def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool) -> dict:
     """Ensure all required fields are populated for player stats.
     
@@ -139,7 +160,7 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool) -> dict:
         doubles = stats_data.get('2B', 0)
         triples = stats_data.get('3B', 0)
         hr = stats_data.get('HR', 0)
-        singles = stats_data['H'] - doubles - triples - hr
+        singles = stats_data.get('H', 0) - doubles - triples - hr
         total_bases = (singles + (2 * doubles) + (3 * triples) + (4 * hr))
         stats_data['AB'] = ab
         stats_data['TB'] = total_bases
@@ -148,10 +169,10 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool) -> dict:
     if 'onbase_perc' not in current_categories:
         sf = 0 if len(str(stats_data.get('SF', ''))) == 0 else stats_data.get('SF', 0)
         obp_denominator = ( stats_data.get('AB', 0) + stats_data.get('BB', 0) + stats_data.get('HBP', 0) + sf ) if 'AB' in stats_data.keys() else stats_data['PA']
-        stats_data['onbase_perc'] = round((stats_data['H'] + stats_data['BB'] + stats_data.get('HBP', 0)) / obp_denominator, 5)
+        stats_data['onbase_perc'] = round((stats_data.get('H', 0) + stats_data.get('BB', 0) + stats_data.get('HBP', 0)) / obp_denominator, 5)
     
     if 'batting_avg' not in current_categories:
-        stats_data['batting_avg'] = round(stats_data['H'] / stats_data['AB'], 5) if stats_data.get('AB', 0) > 0 else 0.0
+        stats_data['batting_avg'] = round(stats_data.get('H', 0) / stats_data['AB'], 5) if stats_data.get('AB', 0) > 0 else 0.0
     
     if 'SB' not in current_categories:
         stats_data['SB'] = 0

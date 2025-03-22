@@ -3,19 +3,20 @@ from pprint import pprint
 import os, json
 from pathlib import Path
 from prettytable import PrettyTable
+from datetime import datetime
 
 # MY PACKAGES
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .baseball_ref_scraper import BaseballReferenceScraper
     from .showdown_player_card import ShowdownPlayerCard
-    from .classes.stats_period import StatsPeriod, StatsPeriodType
+    from .classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
     from .postgres_db import PostgresDB, PlayerArchive
 except ImportError:
     # USE LOCAL IMPORT 
     from baseball_ref_scraper import BaseballReferenceScraper
     from showdown_player_card import ShowdownPlayerCard
-    from classes.stats_period import StatsPeriod, StatsPeriodType
+    from classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
     from postgres_db import PostgresDB, PlayerArchive
 
 parser = argparse.ArgumentParser(description="Generate a player's MLB Showdown stats in a given year")
@@ -66,6 +67,7 @@ parser.add_argument('-dc','--disable_cache_cleaning', action='store_true', help=
 
 # ADDITIONAL OPTIONS
 parser.add_argument('-his', '--show_historical_points', action='store_true', help='Optionally calculate all historical stats for player. Displays Year and Points in tabular form.')
+parser.add_argument('-st', '--season_trend_date_aggregation', help='Optionally calculate season trends for player. Input should be a date aggregation to show (ex: "MONTH", "WEEK", "DAY")', default=None, type=str)
 
 args = parser.parse_args()
 
@@ -86,10 +88,11 @@ def main():
     )
     scraper = BaseballReferenceScraper(name=name,year=year,stats_period=stats_period,ignore_cache=args.ignore_cache, disable_cleaning_cache=args.disable_cache_cleaning)
     
+    # -----------------------------------
     # FETCH REAL STATS FROM EITHER:
     #  1. ARCHIVE: HISTORICAL DATA IN POSTGRES DB
     #  2. SCRAPER: LIVE REQUEST FOR BREF/SAVANT DATA
-    
+    # -----------------------------------
     player_archive: PlayerArchive = None
     full_career_player_archive_list: list[PlayerArchive] = None
     archive_load_time: float = None
@@ -108,7 +111,9 @@ def main():
         statline = scraper.player_statline()
         data_source = scraper.source
 
-    # WOTC CARD
+    # -----------------------------------
+    # BUILD AS WOTC CARD IF FLAGGED
+    # -----------------------------------
     showdown: ShowdownPlayerCard = None
     if args.is_wotc:
 
@@ -134,7 +139,9 @@ def main():
             print(f"\nProjected PTS: {pts.total_points}  Actual PTS: {showdown.points}  Diff: {showdown.points - pts.total_points}")
             print(f"{pts.breakdown_str}")
 
-    # CREATE SHOWDOWN CARD FROM STATLINE
+    # -----------------------------------
+    # CREATE SHOWDOWN CARD
+    # -----------------------------------
     stats_period = scraper.stats_period or stats_period
     if showdown is None:
         showdown = ShowdownPlayerCard(
@@ -173,12 +180,17 @@ def main():
             warnings=scraper.warnings
         )
 
-    if args.show_historical_points:
+    # -----------------------------------
+    # PRINT HISTORICAL POINTS
+    # -----------------------------------
+    historical_load_time = 0.0
+    historical_load_start_time = datetime.now()
+    if args.show_historical_points and full_career_player_archive_list:
         # PRINT EACH YEAR'S CARD
         points_per_year: dict[int, int] = {}
         for archive in full_career_player_archive_list:
 
-            showdown = ShowdownPlayerCard(
+            hist_showdown = ShowdownPlayerCard(
                 name=name,
                 year=archive.year,
                 stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(archive.year)),
@@ -198,7 +210,7 @@ def main():
                 warnings=scraper.warnings
             )
 
-            points_per_year[str(archive.year)] = showdown.points
+            points_per_year[str(archive.year)] = hist_showdown.points
 
         # PRINT HISTORICAL POINTS
         print("\nHISTORICAL POINTS")
@@ -207,9 +219,67 @@ def main():
         table.add_row([str(avg_points)] + [f"{pts}" for pts in points_per_year.values()])
         print(table)
 
+        historical_load_time = round((datetime.now() - historical_load_start_time).total_seconds(),2)
+
+    # -----------------------------------
+    # SHOW SEASON TRENDS (IF AVAILABLE)
+    # -----------------------------------
+    season_trends_load_time = 0.0
+    season_trends_load_start_time = datetime.now()
+    game_logs = statline.get(StatsPeriodType.DATE_RANGE.stats_dict_key, [])
+    is_single_year = False if showdown is None else len(showdown.year_list) == 1
+    try: date_aggregation = StatsPeriodDateAggregation(args.season_trend_date_aggregation)
+    except: date_aggregation = None
+    if date_aggregation and len(game_logs) > 0 and is_single_year:
+        year = showdown.year_list[0]
+        player_first_date = convert_to_date(game_log_date_str=game_logs[0].get('date', None), year=year)
+        player_last_date = convert_to_date(game_log_date_str=game_logs[-1].get('date', None), year=year)
+        points_per_date: dict[str, int] = {}
+        date_ranges = date_aggregation.date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date)
+        for dr in date_ranges:
+            start_date, end_date = dr
+            trends_showdown = ShowdownPlayerCard(
+                name=name,
+                year=str(year),
+                stats_period=StatsPeriod(type=StatsPeriodType.DATE_RANGE, year=str(year), start_date=start_date, end_date=end_date),
+                stats=statline,
+                set=set,
+                era=args.era,
+                expansion=args.expansion,
+                edition=args.edition,
+                player_type_override=scraper.player_type_override,
+                print_to_cli=False,
+                command_out_override=command_out_override,
+                is_variable_speed_00_01=args.variable_spd,
+                source=data_source,
+                disable_cache_cleaning=args.disable_cache_cleaning,
+                nickname_index=args.nickname_index,
+                ignore_cache=args.ignore_cache,
+                warnings=scraper.warnings
+            )
+            if trends_showdown.stats_period.stats is None:
+                print(f"NO STATS FOR {start_date} - {end_date}")
+                continue
+
+            points_per_date[end_date.strftime("%m/%d/%Y")] = trends_showdown.points
+
+        # PRINT HISTORICAL POINTS
+        print("\nSEASON TRENDS POINTS")
+        # CUTOFF POINTS_PER_DATE TO FIRST 5 AND LAST 5
+        if len(points_per_date) > 10:
+            points_per_date = dict(list(points_per_date.items())[:5] + [('...', '...')] + list(points_per_date.items())[-5:])
+        table = PrettyTable(field_names=list(points_per_date.keys()))
+        table.add_row([f"{pts}" for pts in points_per_date.values()])
+        print(table)
+
+        season_trends_load_time = round((datetime.now() - season_trends_load_start_time).total_seconds(),2)
+
 
     # PRINT TOTAL LOAD TIME
-    total_load_time = (scraper.load_time if scraper.load_time else 0.00) + (showdown.load_time if showdown.load_time else 0.00) + (archive_load_time if archive_load_time else 0.0)
+    total_load_time = (scraper.load_time if scraper.load_time else 0.00) \
+                        + (showdown.load_time if showdown.load_time else 0.00) \
+                        + (archive_load_time if archive_load_time else 0.0) \
+                        + historical_load_time + season_trends_load_time
     print(f"LOAD TIME: {total_load_time:.2f}s")
 
 if __name__ == "__main__":

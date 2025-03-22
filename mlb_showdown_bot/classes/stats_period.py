@@ -1,13 +1,14 @@
 from enum import Enum
-from pydantic import BaseModel, validator
-from datetime import date, datetime
+from pydantic import BaseModel
+from datetime import date, datetime, timedelta
 from typing import Optional, Any
 from statistics import mode
+import calendar
 
 try:
-    from .shared_functions import aggregate_stats, convert_to_numeric, fill_empty_stat_categories
+    from .shared_functions import aggregate_stats, convert_to_numeric, fill_empty_stat_categories, convert_to_date
 except ImportError:
-    from shared_functions import aggregate_stats, convert_to_numeric, fill_empty_stat_categories
+    from shared_functions import aggregate_stats, convert_to_numeric, fill_empty_stat_categories, convert_to_date
 
 class StatsPeriodType(str, Enum):
 
@@ -48,6 +49,69 @@ class StatsPeriodType(str, Enum):
             case StatsPeriodType.DATE_RANGE: return "game_logs"
             case StatsPeriodType.POSTSEASON: return "postseason_game_logs"
             case _: return None
+
+
+class StatsPeriodDateAggregation(str, Enum):
+    DAY = "DAY"
+    WEEK = "WEEK"
+    MONTH = "MONTH"
+
+    def date_ranges(self, year:str, start_date:date = None, stop_date:date = None) -> list[tuple[date, date]]:
+
+        # ONLY WORKS ON SINGLE YEAR
+        try: 
+            year = int(year)
+        except: 
+            return []
+        
+        start_date = start_date or datetime.strptime(f"{year}-03-15", "%Y-%m-%d").date()
+        stop_date = stop_date or datetime.strptime(f"{year}-10-10", "%Y-%m-%d").date()
+        date_ranges: list[tuple[date, date]] = []
+        match self:
+            case StatsPeriodDateAggregation.DAY:
+                # CREATE RUNNING RANGE OF DATES, STARTING FROM MARCH 15 UNTIL OCT 10
+                end_date = start_date
+                while end_date < stop_date:
+                    date_ranges.append((start_date, end_date))
+                    end_date = end_date + timedelta(days=1)
+
+                return date_ranges
+            
+            case StatsPeriodDateAggregation.WEEK:
+                # END DATE SHOULD BE SUNDAY OF EACH WEEK
+                end_date = start_date
+                while end_date < stop_date:
+                    days_to_sunday = 7 - end_date.weekday() if end_date.weekday() != 6 else 7
+                    end_date = min(end_date + timedelta(days=days_to_sunday), stop_date)
+                    date_ranges.append((start_date, end_date))
+
+                return date_ranges
+            
+            case StatsPeriodDateAggregation.MONTH:
+                # CHECK IF START DATE IS AFTER 18TH OF THE MONTH
+                # IF SO COMBINE WITH NEXT MONTH, ENDING AT NEXT MONTH'S END
+                # EX: MARCH 19 - APRIL 30
+                if start_date.day > 18:
+                    # MOVE END DATE TO END OF MONTH OR STOP DATE
+                    next_month = start_date.month + 1
+                    # GET THE LAST DAY OF THE NEXT MONTH
+                    last_day = calendar.monthrange(start_date.year, next_month)[1]
+                    end_date = min(date(start_date.year, next_month, last_day), stop_date)
+                    date_ranges.append((start_date, end_date))
+                
+                while end_date < stop_date:
+                    
+                    # GET THE LAST DAY OF THE NEXT MONTH
+                    next_month = end_date.month + 1
+                    last_day = calendar.monthrange(start_date.year, next_month)[1]
+                    end_date = min(date(start_date.year, next_month, last_day), stop_date)
+                    date_ranges.append((start_date, end_date))
+                
+                return date_ranges
+
+
+        
+
     
 
 class StatsPeriod(BaseModel):
@@ -171,15 +235,7 @@ class StatsPeriod(BaseModel):
             date_check = True
             game_log_date_str: str = game_log_data.get('date_game', None)
             if self.is_date_range and game_log_date_str:
-                game_log_date_str_cleaned = game_log_date_str.split('(')[0].strip().replace('\xa0susp', '')
-                is_new_format = game_log_date_str.count('-') >= 2
-                if is_new_format:
-                    # IN UPGRADED TABLES, DATES ARE IN THIS FORMAT "YYYY-MM-DD)"
-                    game_log_date = datetime.strptime(game_log_date_str_cleaned, "%Y-%m-%d").date()
-                else:
-                    # IN OLD TABLES, DATES ARE IN THIS FORMAT "MMM DD"
-                    game_log_date_str_full = f"{game_log_date_str_cleaned} {first_year}"
-                    game_log_date = datetime.strptime(game_log_date_str_full, "%b %d %Y").date()
+                game_log_date = convert_to_date(game_log_date_str, first_year)
                 
                 # CHECK IF DATE IS WITHIN RANGE
                 date_check = self.start_date <= game_log_date <= self.end_date
