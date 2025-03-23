@@ -463,18 +463,22 @@
                                           <div class="trend_container_light" id="trend_container">
                                              <div>
                                                 <!-- CAREER TRENDS -->
-                                                <label class="graph_label" for="playerTrends">
-                                                   <i class="fa-solid fa-chart-line"></i>
-                                                   Career Trends
-                                                </label>
-                                                <canvas id="playerTrends"></canvas>
+                                                <div id="playerCareerTrendsContainer">
+                                                   <label class="graph_label" for="playerCareerTrends">
+                                                      <i class="fa-solid fa-chart-line"></i>
+                                                      Career Trends
+                                                   </label>
+                                                   <canvas id="playerCareerTrends"></canvas>
+                                                </div>
 
-                                                <!-- DAILY TRENDS -->
-                                                <label class="graph_label" for="playerDailyTrends">
-                                                   <i class="fa-solid fa-chart-line"></i>
-                                                   Daily Trends
-                                                </label>
-                                                <canvas id="playerDailyTrends"></canvas>
+                                                <!-- IN SEASON TRENDS -->
+                                                <div id="playerInSeasonTrendsContainer" style="padding-top: 5px;">
+                                                   <label class="graph_label" for="playerInSeasonTrends" id="playerInSeasonTrendsLabel">
+                                                      <i class="fa-solid fa-chart-line"></i>
+                                                      Year Trends
+                                                   </label>
+                                                   <canvas id="playerInSeasonTrends"></canvas>
+                                                </div>
                                                 
                                              </div>
                                              

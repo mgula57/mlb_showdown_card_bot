@@ -232,8 +232,8 @@ def main():
     except: date_aggregation = None
     if date_aggregation and len(game_logs) > 0 and is_single_year:
         year = showdown.year_list[0]
-        player_first_date = convert_to_date(game_log_date_str=game_logs[0].get('date', None), year=year)
-        player_last_date = convert_to_date(game_log_date_str=game_logs[-1].get('date', None), year=year)
+        player_first_date = convert_to_date(game_log_date_str=game_logs[0].get('date', game_logs[0].get('date_game', None)), year=year)
+        player_last_date = convert_to_date(game_log_date_str=game_logs[-1].get('date', game_logs[-1].get('date_game', None)), year=year)
         points_per_date: dict[str, int] = {}
         date_ranges = date_aggregation.date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date)
         for dr in date_ranges:

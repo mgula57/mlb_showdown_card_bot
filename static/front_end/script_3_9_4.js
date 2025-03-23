@@ -226,7 +226,20 @@ function createRadarChart(data) {
 }
 
 // SETUP TRENDS CHART
-function createTrendsChart(data, elementId) {
+function createTrendsChart(data, trends_data, elementId, unit) {
+
+    if (trends_data == null) {
+        $(`#${elementId}Container`).hide();
+        return;
+    }
+
+    $("#trend_container").show();
+    $(`#${elementId}Container`).show();
+
+    // UPDATE TEXT IN LABEL FOR playerInSeasonTrends TO DISPLAY THE YEAR FROM data
+    if (elementId == "playerInSeasonTrends") {
+        document.getElementById("playerInSeasonTrendsLabel").text = `${data.player_year} Card Evolution`;
+    }
     
     // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
     let chartStatus = Chart.getChart(elementId);
@@ -242,10 +255,10 @@ function createTrendsChart(data, elementId) {
     var xValues = []
     var yValues = []
     var customAttributes = []
-    for (let day in data.trends_data) {
+    for (let day in trends_data) {
         xValues.push(day);
-        yValues.push(data.trends_data[day]["points"]);
-        customAttributes.push(data.trends_data[day]);
+        yValues.push(trends_data[day]["points"]);
+        customAttributes.push(trends_data[day]);
     }
 
     new Chart(marksCanvas, {
@@ -262,12 +275,12 @@ function createTrendsChart(data, elementId) {
                 // Scriptable option for point radius with a condition
                 pointRadius: (context) => {
                     const dataPoint = context.dataset.customData[context.dataIndex];
-                    return (dataPoint.year === data.player_year) ? 6 : 3;
+                    return (dataPoint.year === data.player_year && unit == 'year') ? 6 : 3;
                 },
                 // Scriptable option for point background color with a condition
                 pointBackgroundColor: (context) => {
                     const dataPoint = context.dataset.customData[context.dataIndex];
-                    return (dataPoint.year === data.player_year) ? 'black' : color(data.radar_color).alpha(0.4).rgbString();
+                    return (dataPoint.year === data.player_year && unit == 'year') ? 'black' : color(data.radar_color).alpha(0.4).rgbString();
                 },
             }]
         },
@@ -286,7 +299,7 @@ function createTrendsChart(data, elementId) {
                     display: (context) => {
                         // Only display when condition is met
                         const dataPoint = context.dataset.customData[context.dataIndex];
-                        return dataPoint.year === data.player_year;
+                        return dataPoint.year === data.player_year && unit == 'year';
                     },
                     formatter: (value, context) => {
                         // Return whatever label you want to show—e.g., the year or custom text
@@ -333,12 +346,12 @@ function createTrendsChart(data, elementId) {
               x: {
                 type: 'time',
                 time: {
-                    unit: 'year',
-                    parser: 'yyyy',
+                    unit: unit,
+                    parser: unit == 'day' ? 'yyyy-MM-dd' : 'yyyy',
                     displayFormats: {
-                        'year': 'yyyy',
+                        unit: unit == 'day' ? 'MMM dd' : 'yyyy',
                     },
-                    tooltipFormat: "yyyy"
+                    tooltipFormat: unit == 'day' ? 'MMM dd' : 'yyyy'
                 }
               },
               y: {
@@ -549,10 +562,11 @@ function showCardData(data) {
         }
 
         // TRENDS GRAPH
-        if (data.trends_data != null) {
-            createTrendsChart(data=data, elementId="playerTrends");
-        } else {
+        if (data.yearly_trends_data == null && data.in_season_trends_data == null) {
             $("#trend_container").hide();
+        } else {
+            createTrendsChart(data=data, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
+            createTrendsChart(data=data, trends_data=data.in_season_trends_data, elementId="playerInSeasonTrends", unit='day');
         }
 
         // PERIOD

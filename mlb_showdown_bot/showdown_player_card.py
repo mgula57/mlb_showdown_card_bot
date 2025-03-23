@@ -782,71 +782,82 @@ class ShowdownPlayerCard(BaseModel):
         has_played_all_if_positions = len([pos for pos in positions_list if pos in ['1B','2B','3B','SS']]) == 4
         
         for position_name, defensive_stats in defense_stats_dict.items():
-            is_valid_position = self.is_pitcher == ('P' == position_name)
-            if is_valid_position:
-                games_at_position = defensive_stats.get('g', 0)
-                position = self.__position_name_in_game(
-                    position=position_name,
-                    num_positions=num_positions,
-                    position_appearances=games_at_position,
-                    games_played=total_games_played,
-                    games_started=total_games_started,
-                    saves=total_saves,
-                    has_played_all_if_positions=has_played_all_if_positions
-                )
-                if position is not None:
-                    positions_and_games_played[position] = games_at_position
-                    if self.is_hitter:
-                        try:
-                            # CHECK WHAT YEARS THE CARD SPANS OVER
-                            start_year = min(self.year_list)
-                            end_year = max(self.year_list)
 
-                            # OAA STARTED IN 2016
-                            # USE DRS OVER OAA FOR YEARS 2014 AND EARLIER
-                            # PLAYERS THAT STARTED IN 2015 USE OAA BECAUSE MOST OF THEIR CAREER IS AFTER 2016
-                            use_drs_over_oaa = start_year <= 2014 and end_year >= 2016
-                            
-                            # CHECK WHICH DEFENSIVE METRIC TO USE
-                            is_drs_available = 'drs' in defensive_stats.keys()
-                            is_oaa_available = 'oaa' in defensive_stats.keys() and not use_drs_over_oaa
-                            oaa = defensive_stats['oaa'] if is_oaa_available else None
-                            # DRS
-                            try:
-                                if is_drs_available:
-                                    drs = int(defensive_stats['drs']) if defensive_stats['drs'] != None else None
-                                else:
-                                    drs = None
-                            except:
-                                drs = None
-                            # TZR
-                            try:
-                                tzr = int(defensive_stats['tzr']) if defensive_stats['tzr'] != None else None
-                            except:
-                                tzr = None
-                            # DWAR
-                            dWar = float(0 if len(str(stats_dict.get('dWAR', 0))) == 0 else stats_dict.get('dWAR', 0))
-                            
-                            if is_oaa_available:
-                                metric = DefenseMetric.OAA
-                                defensive_rating = oaa
-                            elif drs != None:
-                                metric = DefenseMetric.DRS
-                                defensive_rating = drs
-                            elif tzr != None: 
-                                metric = DefenseMetric.TZR
-                                defensive_rating = tzr
-                            else:
-                                metric = DefenseMetric.DWAR
-                                defensive_rating = dWar
-                            positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
-                            in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
-                        except Exception as e:
-                            print(self.name, self.year, e)
-                            in_game_defense = 0
-                        positions_and_defense[position] = in_game_defense
+            # SKIP IF VALID
+            is_valid_position = self.is_pitcher == ('P' == position_name)
+            if not is_valid_position:
+                continue
+            games_at_position = defensive_stats.get('g', 0)
+            position = self.__position_name_in_game(
+                position=position_name,
+                num_positions=num_positions,
+                position_appearances=games_at_position,
+                games_played=total_games_played,
+                games_started=total_games_started,
+                saves=total_saves,
+                has_played_all_if_positions=has_played_all_if_positions
+            )
+
+            # SKIP IF NO POSITION IN GAME WAS MATCHED
+            if position is None:
+                continue
+            positions_and_games_played[position] = games_at_position
+
+            # PITCHERS ALL HAVE POSITION OF 0
+            if self.is_pitcher:
+                positions_and_defense[position] = 0
+                continue
+
+            # CALCULATE POSITION PLAYER DEFENSE
+            try:
+                # CHECK WHAT YEARS THE CARD SPANS OVER
+                start_year = min(self.year_list)
+                end_year = max(self.year_list)
+
+                # OAA STARTED IN 2016
+                # USE DRS OVER OAA FOR YEARS 2014 AND EARLIER
+                # PLAYERS THAT STARTED IN 2015 USE OAA BECAUSE MOST OF THEIR CAREER IS AFTER 2016
+                use_drs_over_oaa = start_year <= 2014 and end_year >= 2016
+                
+                # CHECK WHICH DEFENSIVE METRIC TO USE
+                is_drs_available = 'drs' in defensive_stats.keys()
+                is_oaa_available = 'oaa' in defensive_stats.keys() and not use_drs_over_oaa
+                oaa = defensive_stats['oaa'] if is_oaa_available else None
+                # DRS
+                try:
+                    if is_drs_available:
+                        drs = int(defensive_stats['drs']) if defensive_stats['drs'] != None else None
                     else:
-                        positions_and_defense[position] = 0
+                        drs = None
+                except:
+                    drs = None
+                # TZR
+                try:
+                    tzr = int(defensive_stats['tzr']) if defensive_stats['tzr'] != None else None
+                except:
+                    tzr = None
+                # DWAR
+                dWar = float(0 if len(str(stats_dict.get('dWAR', 0))) == 0 else stats_dict.get('dWAR', 0))
+                
+                if is_oaa_available:
+                    metric = DefenseMetric.OAA
+                    defensive_rating = oaa
+                elif drs != None:
+                    metric = DefenseMetric.DRS
+                    defensive_rating = drs
+                elif tzr != None: 
+                    metric = DefenseMetric.TZR
+                    defensive_rating = tzr
+                else:
+                    metric = DefenseMetric.DWAR
+                    defensive_rating = dWar
+                positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
+                in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
+            except Exception as e:
+                print(self.name, self.year, e)
+                in_game_defense = 0
+            positions_and_defense[position] = in_game_defense
+            
 
         # COMBINE ALIKE IN-GAME POSITIONS (LF/RF, OF, IF, ...)
         initial_position_name_and_rating, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played,is_of_but_hasnt_played_cf=is_of_but_hasnt_played_cf)
@@ -1106,6 +1117,7 @@ class ShowdownPlayerCard(BaseModel):
         if position == 'P' and self.is_pitcher:
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
+            print(gsRatio, games_started, games_played)
             if gsRatio > self.set.starting_pitcher_pct_games_started:
                 # ASSIGN MINIMUM IP FOR STARTERS
                 return 'STARTER'

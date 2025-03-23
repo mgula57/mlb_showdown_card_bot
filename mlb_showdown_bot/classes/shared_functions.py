@@ -139,6 +139,9 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool) -> dict:
         if key not in current_categories:
             stats_data[key] = 0
 
+    if 'ER' in current_categories and 'IP' in current_categories and 'earned_run_avg' not in current_categories and is_pitcher:
+        stats_data['earned_run_avg'] = round(9 * stats_data['ER'] / stats_data['IP'], 3)
+
     if '2B' not in current_categories:
         if is_pitcher:
             maxDoubles = 0.25
