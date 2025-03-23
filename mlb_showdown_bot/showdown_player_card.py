@@ -181,6 +181,9 @@ class ShowdownPlayerCard(BaseModel):
                 full_stats_copy = self.stats.copy()
                 full_stats_copy.update(self.stats_period.stats)
                 self.stats_period.stats = full_stats_copy
+                stats_period_team = self.stats_period.stats.get('team_ID', None)
+                if stats_period_team:
+                    self.team = Team(stats_period_team)
 
             # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
             self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self.__positions_and_defense(stats_dict=self.stats_for_card)
