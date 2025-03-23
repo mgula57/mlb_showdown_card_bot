@@ -363,11 +363,21 @@ function createTrendsChart(data, trends_data, elementId, unit) {
                         unit: unit == 'day' ? 'MMM dd' : 'yyyy',
                     },
                     tooltipFormat: unit == 'day' ? 'MMM dd' : 'yyyy'
+                },
+                ticks: {
+                    font: {
+                        size: 10 // Smaller font size for x-axis ticks
+                    }
                 }
               },
               y: {
                 min: 0,
                 max: Math.ceil( (Math.max(...yValues) + 50) / 200 ) * 200,
+                ticks: {
+                    font: {
+                        size: 10 // Smaller font size for x-axis ticks
+                    }
+                }
               }
             },
             elements:{
