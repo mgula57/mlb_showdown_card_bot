@@ -238,7 +238,7 @@ function createTrendsChart(data, trends_data, elementId, unit) {
 
     // UPDATE TEXT IN LABEL FOR playerInSeasonTrends TO DISPLAY THE YEAR FROM data
     if (elementId == "playerInSeasonTrends") {
-        document.getElementById("playerInSeasonTrendsLabel").text = `${data.player_year} Card Evolution`;
+        document.getElementById("playerInSeasonTrendsLabel").textContent = `${data.player_year} Card Evolution`;
     }
     
     // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
@@ -260,6 +260,7 @@ function createTrendsChart(data, trends_data, elementId, unit) {
         yValues.push(trends_data[day]["points"]);
         customAttributes.push(trends_data[day]);
     }
+    'rgb(0, 59, 46)'
 
     new Chart(marksCanvas, {
         type: "line",
@@ -268,10 +269,9 @@ function createTrendsChart(data, trends_data, elementId, unit) {
             datasets: [{
                 data: yValues,
                 label: "PTS",
-                borderColor: data.radar_color,
-                backgroundColor: color(data.radar_color).alpha(0.2).rgbString(),
                 fill: true,
                 customData: customAttributes,
+                tension: 0.4,
                 // Scriptable option for point radius with a condition
                 pointRadius: (context) => {
                     const dataPoint = context.dataset.customData[context.dataIndex];
@@ -280,8 +280,19 @@ function createTrendsChart(data, trends_data, elementId, unit) {
                 // Scriptable option for point background color with a condition
                 pointBackgroundColor: (context) => {
                     const dataPoint = context.dataset.customData[context.dataIndex];
-                    return (dataPoint.year === data.player_year && unit == 'year') ? 'black' : color(data.radar_color).alpha(0.4).rgbString();
+                    return color(dataPoint.color).alpha(0.9).rgbString();
                 },
+                segment: {
+                    // Use ctx.p0DataIndex (the starting point of the segment) to get the correct color
+                    borderColor: (ctx) => {
+                        const dataIndex = ctx.p0DataIndex; // Access the starting point's index
+                        return color(customAttributes[dataIndex].color).rgbString(); // Access the fill color for the segment
+                    },
+                    backgroundColor: (ctx) => {
+                        const dataIndex = ctx.p0DataIndex; // Access the starting point's index
+                        return color(customAttributes[dataIndex].color).alpha(0.4).rgbString(); // Access the fill color for the segment
+                    }
+                }
             }]
         },
         options: {
@@ -332,7 +343,7 @@ function createTrendsChart(data, trends_data, elementId, unit) {
                             // Convert dict to an array of strings (each key-value pair on a new line)
                             let tooltipLines = [];
                             for (const [key, value] of Object.entries(dataDict)) {
-                                if (!['team', 'points', 'year'].includes(key)) {
+                                if (!['team', 'points', 'year', 'color'].includes(key)) {
                                     tooltipLines.push(`${key.toUpperCase()}: ${value}`);
                                 }
                             }

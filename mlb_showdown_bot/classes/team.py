@@ -776,6 +776,12 @@ class Team(str, Enum):
             case 'brown' | 'saddlebrown' | 'sandybrown' | 'wheat' | 'peru': return 'BROWN'
             case _: return None    
 
+    @property
+    def use_secondary_color_for_graphs(self) -> bool:
+        return self in [
+            Team.NYM,
+        ]
+
 # ------------------------------------------------------------------------
 # LOGO
 # ------------------------------------------------------------------------

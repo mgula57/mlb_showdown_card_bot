@@ -169,10 +169,12 @@ class ShowdownPlayerCard(BaseModel):
             game_logs = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
             self.stats_period.add_stats_from_logs(game_logs=game_logs, year_list=self.year_list, is_pitcher=self.is_pitcher)
             if self.stats_period.stats:
-                full_season_stats_used_for_sp = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
-                if self.stats_period.type.is_regular_season_games_stat_needed and self.player_type == PlayerType.PITCHER:
-                    full_season_stats_used_for_sp['G_RS'] = self.stats.get('G', 0)
-                self.stats_period.stats.update(full_season_stats_used_for_sp)
+                full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
+                # ADD FULL AMOUNT OF NGAMES PLAYED FOR REGULAR SEASON GAMES FOR HITTERS
+                # USED FOR DEFENSE CALCS
+                if self.stats_period.type.is_regular_season_games_stat_needed and self.player_type == PlayerType.HITTER:
+                    full_season_stats_used_for_stats_period['G_RS'] = self.stats.get('G', 0)
+                self.stats_period.stats.update(full_season_stats_used_for_stats_period)
                 self.stats_period.stats = self.add_estimates_to_stats(stats=self.stats_period.stats)
 
                 # USE OVERWRITTEN FULL SEASON STATS AS PARTIALS
@@ -1117,7 +1119,6 @@ class ShowdownPlayerCard(BaseModel):
         if position == 'P' and self.is_pitcher:
             # PITCHER IS EITHER STARTER, RELIEVER, OR CLOSER
             gsRatio = games_started / games_played
-            print(gsRatio, games_started, games_played)
             if gsRatio > self.set.starting_pitcher_pct_games_started:
                 # ASSIGN MINIMUM IP FOR STARTERS
                 return 'STARTER'
@@ -2813,6 +2814,7 @@ class ShowdownPlayerCard(BaseModel):
             self.command_type.lower(): self.chart.command,
             'outs': self.chart.outs_full,
             'year': self.year,
+            'color': self.radar_chart_color(),
         }
         match self.player_sub_type:
             case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER:
@@ -2887,7 +2889,8 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           String with RGB codes (ex: "rgba(255, 50, 25, 1.0)")
         """
-        tm_colors = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color)
+
+        tm_colors = self.__team_color_rgbs(is_secondary_color=self.team.use_secondary_color_for_graphs, ignore_team_overrides=True)
 
         return f'rgb({tm_colors[0]}, {tm_colors[1]}, {tm_colors[2]})'
 
