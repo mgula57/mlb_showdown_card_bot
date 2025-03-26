@@ -43,6 +43,7 @@
 .output_container {
     padding-left: 20px;
     padding-right: 20px;    
+    padding-top: 10px;
 }
 
 /* MAIN BODY */
@@ -71,24 +72,44 @@
     display: none;
     margin-bottom: 8px;
 }
-
 /* TREND: SHOWS TREND CHART FOR PLAYER PROGRESS */
-.trend_container_light {
-    background-color: #ffffff;
-    border-radius: 10px;
+.player_attribute_box_light {
+    color: gray;
+    background-color: white;
     box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    padding: 8px;
-    overflow: hidden;
-    display: none;
-    margin-bottom: 8px;
+    border-radius: 5px;
+    margin: 0px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-left: 5px;
+    padding-right: 5px;
+    font-size: 75%;
 }
-.trend_container_dark {
-    background-color: #9b9b9b;
-    border-radius: 10px;
-    padding: 8px;
+.player_attribute_box_dark {
+    color: rgb(182, 181, 181);
+    background-color: 'black';
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    border-radius: 5px;
+    margin: 0px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-left: 5px;
+    padding-right: 5px;
+    font-size: 75%;
+}
+/* TREND: SHOWS TREND CHART FOR PLAYER PROGRESS */
+.trend_container_light, .in_season_trend_container_light {
+    background-color: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    padding: 4px;
     overflow: hidden;
-    display: none;
-    margin-bottom: 8px;
+}
+.trend_container_dark, .in_season_trend_container_dark {
+    background-color: #9b9b9b;
+    border-radius: 20px;
+    padding: 4px;
+    overflow: hidden;
 }
 .graph_label {
     font-weight: bold;
@@ -101,16 +122,18 @@
 /* BREAKDOWN: SHOWS STATS, POINTS, ACCURACY, ETC */
 .breakdown_output_light {
     background-color: #ffffff;
-    border-radius: 10px;
+    border-radius: 20px;
     box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    padding: 8px;
-    overflow: hidden;
+    padding: 15px;
+    overflow: scroll;
+    height: 100%;
 }
 .breakdown_output_dark {
     background-color: #222222;
-    border-radius: 10px;
-    padding: 8px;
-    overflow: hidden;
+    border-radius: 20px;
+    padding: 15px;
+    overflow: scroll;
+    height: 100%;
 }
 
 /* COLUMN REPRESENTS THE FLEX COLUMN FOR THE INPUT CONTAINER */
@@ -132,11 +155,15 @@
 .card_image {
     padding: 5px;
 }
+#image_header_div {
+    padding: 5px;
+}
 
 /* ESTIMATED VALUES FOOTNOTE */
 .estimated_values_footnote_light, .rank_values_footnote_light, .opponent_values_footnote_light, .chart_adjustments_footnote_light, .points_breakdown_footnote_light {
     font-size: 50%;
     color: #000000;
+    margin: 2px;
 }
 .estimated_values_footnote_dark, .rank_values_footnote_dark, .opponent_values_footnote_dark, .chart_adjustments_footnote_dark, .points_breakdown_footnote_dark {
     font-size:50%; 
@@ -224,7 +251,7 @@
 
 /* PLAYER NAME */
 .player_name_light {
-    color: black;
+    color: gray;
     padding: 0px; 
     margin: 0px; 
     font-weight: bolder; 
@@ -235,26 +262,19 @@
     margin: 0px; 
     font-weight: bolder; 
 }
-.player_link_light {
+#message_string {
+    color: red;
+    padding: 0px; 
+    margin-bottom: 5px; 
+    display: none;
+}
+.player_details_light {
     margin: 2px; 
-    color: black;
-}
-.player_link_dark {
-    margin: 2px;
     color: gray;
 }
-.player_shOPS_plus_light {
+.player_details_dark {
     margin: 2px;
-    font-weight: bolder;
-    color: black;
-}
-.player_shOPS_plus_dark {
-    margin: 2px;
-    font-weight: bolder;
     color: gray;
-}
-#player_name_container {
-    padding-top: 20px;
 }
 #player_trend_up_arrow {
     color: green;
@@ -398,9 +418,7 @@ hr {
     padding-left: 10px;
 }
 
-#period_string {
-    color: #7a7a7a;
-}
+
 
 /* GENERAL */
 input[type='text'],
@@ -413,5 +431,29 @@ textarea {
 @media (max-width: 992px) {
     .container {
         max-width: none; /* Removes max-width */
+    }
+}
+
+/* For medium and large devices: ≥768px and <1200px */
+@media (min-width: 768px) and (max-width: 1199px) {
+    #breakdown_output {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+}
+
+/* For large devices: ≥1200px and <1400px */
+@media (min-width: 1200px) and (max-width: 1399px) {
+    #breakdown_output {
+      max-height: 542px;
+      overflow-y: auto;
+    }
+}
+
+/* For xl+ devices: ≥1400px */
+@media (min-width: 1400px) {
+    #breakdown_output {
+      max-height: 640px;
+      overflow-y: auto;
     }
 }
