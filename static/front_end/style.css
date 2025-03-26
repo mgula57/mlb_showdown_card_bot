@@ -106,10 +106,25 @@
     overflow: hidden;
 }
 .trend_container_dark, .in_season_trend_container_dark {
-    background-color: #9b9b9b;
+    background-color: #222222;
     border-radius: 20px;
     padding: 4px;
     overflow: hidden;
+}
+.trend_label_light, .in_season_trend_label_light {
+    font-weight: bold;
+    display: block;
+    text-align: center;
+    font-size: 12px;
+    opacity: 0.75;
+}
+.trend_label_dark, .in_season_trend_label_dark {
+    color: rgb(182, 181, 181);
+    font-weight: bold;
+    display: block;
+    text-align: center;
+    font-size: 12px;
+    opacity: 0.75;
 }
 .graph_label {
     font-weight: bold;
@@ -265,7 +280,7 @@
 #message_string {
     color: red;
     padding: 0px; 
-    margin-bottom: 5px; 
+    margin-bottom: 10px; 
     display: none;
 }
 .player_details_light {

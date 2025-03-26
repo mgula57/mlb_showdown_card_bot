@@ -410,12 +410,12 @@
                               
                               <div class="flex_box_custom justify-content-between" style="align-items: center; margin-bottom: 10px; ">
                                  <div id="player_details_div" class="flex_box_custom" style="align-items: center; gap: 10px;">
-                                    <h4 id="player_name" style="color: #686666; opacity: 70%;"><b> </b></h4>
+                                    <h4 id="player_name" class="player_name_light"> <b> </b></h4>
                                     
                                  </div>
                               </div>
 
-                              <h6 id="message_string"> Test </h6>
+                              <h5 id="message_string"> Test </h5>
 
                               <!-- IMAGE AND BREAKDOWNS -->
                               <div class="row d-flex justify-content-center" style="align-items: stretch;">
@@ -532,8 +532,8 @@
                                  <!-- CAREER -->
                                  <div class="col-md-12 col-xl-6" style="padding-bottom: 20px;">
                                     <div id="trend_container" class="trend_container_light" >
-                                       <label class="graph_label" for="playerCareerTrends">
-                                          Career Trends
+                                       <label id="trend_label" class="trend_label_light" for="playerCareerTrends">
+                                          <span>Career Trends</span>
                                        </label>
                                        <canvas id="playerCareerTrends"></canvas>
                                     </div>
@@ -541,9 +541,9 @@
 
                                  <!-- IN SEASON -->
                                  <div class="col-md-12 col-xl-6" style="padding-bottom: 20px;">
-                                    <div id="in_season_trend_container" class="trend_container_light">
-                                       <label class="graph_label" for="playerInSeasonTrends" id="playerInSeasonTrendsLabel">
-                                          Season Evolution
+                                    <div id="in_season_trend_container" class="in_season_trend_container_light">
+                                       <label id="in_season_trend_label" class="in_season_trend_label_light" for="playerInSeasonTrends">
+                                          <span>Season Evolution</span>
                                        </label>
                                        <canvas id="playerInSeasonTrends"></canvas>
                                     </div>

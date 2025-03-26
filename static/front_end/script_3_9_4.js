@@ -82,7 +82,6 @@ function toggleBreakdownSelection() {
 function changeImageSection(imageSelectObject) {
     var selection = imageSelectObject.value;
     for (const section of ['auto', 'link', 'upload']) { 
-        console.log(section)
         if (section == selection) {
             $("#" + section).show();
         } else {
@@ -149,7 +148,6 @@ function changeYear(newYear) {
     yearText = newYear.value;
     if (yearText.length == 4) {
         for (const date of ["start_date", "end_date"]) {
-            console.log(date)
             document.getElementById(date).value = yearText + document.getElementById(date).value.slice(4);
         }
     }
@@ -178,7 +176,7 @@ function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=fa
     // UPDATE TEXT IN LABEL FOR playerInSeasonTrends TO DISPLAY THE YEAR FROM data
     if (elementId == "playerInSeasonTrends") {
         const year = is_placeholder ? "Year" : data.player_year;
-        document.getElementById("playerInSeasonTrendsLabel").textContent = `${year} Card Evolution`;
+        document.getElementById("in_season_trend_label").textContent = `${year} Card Evolution`;
     }
     
     // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
@@ -195,7 +193,6 @@ function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=fa
     var xValues = []
     var yValues = []
     var customAttributes = []
-    console.log(trends_data);
     for (let day in trends_data) {
         xValues.push(day);
         yValues.push(trends_data[day]["points"]);
@@ -252,7 +249,7 @@ function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=fa
                         const ctx = chart.ctx;
                         ctx.save();
                         ctx.font = "bold 24px Arial";
-                        ctx.fillStyle = "rgba(200, 200, 200, 0.7)";
+                        ctx.fillStyle = "rgba(116, 116, 116, 0.7)";
                         ctx.textAlign = "center";
                         ctx.textBaseline = "middle";
                         ctx.fillText("NO DATA", chart.width / 2, chart.height / 2);
@@ -353,7 +350,7 @@ function buildGenericChartPlaceholders() {
     data = {
         player_year: "", // SO YEAR NEVER MATCHES
     };
-    light_gray_color = 'rgba(214, 212, 212, 0.08)';
+    light_gray_color = 'rgba(158, 158, 158, 0.08)';
     generic_career_data = {
         '2013': {'color': light_gray_color, 'points': 120, },
         '2014': {'color': light_gray_color, 'points': 160, },
@@ -412,7 +409,8 @@ function setTheme(themeName) {
     // ALTER CONTAINERS
     containers_to_alter = [
         "container_bg", "overlay", "input_container_column", "input_container",
-        "main_body", "breakdown_output", "radar_container", "trend_container", "in_season_trend_container",
+        "main_body", "breakdown_output", 
+        "trend_container", "in_season_trend_container", "trend_label", "in_season_trend_label",
         "player_name", "player_details", "estimated_values_footnote", 
         "chart_adjustments_footnote", "points_breakdown_footnote", "opponent_values_footnote", 
         "loader_container_rectangle", "player_attribute_box",
@@ -459,48 +457,49 @@ function setTheme(themeName) {
 }
 
 function showCardData(data) {
-    
+
+    // THEME
+    var storedTheme = localStorage.getItem('theme') || 'light';
+    const is_dark = storedTheme == 'dark'
+
     // HIDE OVERLAY
     $('#overlay').hide();
-    $('#message_string').hide();
-
+    
     // CHECK FOR ERROR
+    $('#message_string').hide();
     $("#message_string").text(data.error);
-    const isError = data.error & !data.image_path;
-    if (isError) {        
+    const isError = data.error !== null & data.image_path === null;
+    if (isError) {
         document.getElementById("message_string").style.color = "red";
         $('#message_string').show();
-        return;
     }
     
-    // THEME
-    var storedTheme = localStorage.getItem('theme')
-
     // CHANGE ERROR TO ORANGE IF WARNING
-    if (data.image_path & data.error ) {
+    if (data.image_path & data.error) {
         $('#message_string').show();
         document.getElementById("message_string").style.color = "orange";
     }
 
     // CHANGE CARD IMAGE
-    $("#card_image").attr('src', data.image_path);
-
-    // ADD MESSAGING BELOW CARD IMAGE
-    const successColor = (storedTheme == 'dark') ? "#41d21a" : "green"
-    
-    if (data.is_stats_loaded_from_library || data.is_img_loaded_from_library) {
-        console.log("Loaded From Showdown Library");
-        $('#showdown_library_logo_img').show();
-    } else {
-        $('#showdown_library_logo_img').hide();
-    }
+    $("#card_image").attr('src', data.image_path || `static/interface/BlankPlayer${(is_dark) ? '-Dark' : ''}.png`);
     
     // ADD HYPERLINK TO BREF
     if (data.player_name) {
         // document.getElementById("playerlink_href").href = data.bref_url;
         // $("#playerlink_href_text").text(data.player_year);
+        $("#player_name").show();
         $("#player_name").text(data.player_name.toUpperCase());
         // $("#player_link").text(`Set: ${data.player_set} | ${data.era} | Year(s):`);
+    } else {
+        $("#player_name").hide();
+    }
+
+    // TRENDS GRAPHS
+    if (isError) {
+        buildGenericChartPlaceholders();
+    } else {
+        createTrendsChart(data=data, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
+        createTrendsChart(data=data, trends_data=data.in_season_trends_data, elementId="playerInSeasonTrends", unit='day'); 
     }
     
     // VAR NEEDED FOR TABLE CLASSES
@@ -589,43 +588,6 @@ function showCardData(data) {
     player_chart_versions_table += '</table>';
     $("#chart_versions_table").replaceWith(player_chart_versions_table);
 
-    // TRENDS GRAPHS
-    createTrendsChart(data=data, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
-    createTrendsChart(data=data, trends_data=data.in_season_trends_data, elementId="playerInSeasonTrends", unit='day');
-
-    // PERIOD
-    $("#period_string").text(data.period);
-
-    // WARNINGS
-
-    // REMOVE EXISTING
-    var warningDivs = document.getElementsByClassName("warning_text");
-
-    // Convert the NodeList to an array for easier removal
-    var warningDivsArray = Array.from(warningDivs);
-
-    // Remove each div
-    warningDivsArray.forEach(function (div) {
-        div.remove();
-    });
-
-    var cardContainer = document.getElementById("image_header_div");
-
-    for (var warning of data.warnings) {
-
-        // CREATE A NEW PARAGRAPH ELEMENT
-        var warningElement = document.createElement("h5");
-
-        // SET THE CONTENT OF THE NEW PARAGRAPH
-        warningElement.className = "warning_text"
-        warningElement.textContent = '** ' + warning;
-        warningElement.style.color = '#9fb419';
-        warningElement.style.padding = '0px'
-
-        // APPEND THE NEW PARAGRAPH TO THE END OF THE DIV
-        cardContainer.appendChild(warningElement);
-    }
-    
 }
 
 // -------------------------------------------------------
