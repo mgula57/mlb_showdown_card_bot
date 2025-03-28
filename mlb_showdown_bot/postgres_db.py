@@ -136,7 +136,7 @@ class PostgresDB:
         except Exception as e:
             year_int = None
         
-        if year_int is None or self.connection is None or stats_period_type != StatsPeriodType.REGULAR_SEASON:
+        if year_int is None or self.connection is None or stats_period_type == StatsPeriodType.SPLIT:
             return default_return_tuple
         
         if team_override:
