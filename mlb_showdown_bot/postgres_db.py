@@ -194,7 +194,7 @@ class PostgresDB:
         return [PlayerArchive(**row) for row in query_results_list]
 
 
-    def fetch_all_stats_from_archive(self, year_list: list[int], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None) -> list[PlayerArchive]:
+    def fetch_all_stats_from_archive(self, year_list: list[int], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None, modified_start_date:str=None, modified_end_date:str=None) -> list[PlayerArchive]:
         """
         Fetch stats archive data for a list of years.
 
@@ -203,6 +203,8 @@ class PostgresDB:
           limit: Maximum number of rows to fetch. If None, fetch all rows.
           exclude_records_with_stats: Optionally filter the list for only rows where the stats column is empty. True by default.
           historical_date: Optional additional filter for snapshot date
+          modified_start_date: Optional filter for modified_date start. Would include only records modified after this date.
+          modified_end_date: Optional filter for modified_date end. Would include only records modified before this date.
 
         Returns:
           List of stats archive data.
@@ -212,6 +214,15 @@ class PostgresDB:
         values_to_filter = [tuple(year_list), historical_date]
         where_clause_values_equals_str = "=" if len(year_list) == 0 else "IN"
         conditions = [sql.SQL(' IS ' if col == "historical_date" and historical_date is None else f" {where_clause_values_equals_str} ").join([sql.Identifier(col), sql.Placeholder()]) for col in column_names_to_filter]
+
+        if modified_start_date:
+            conditions.append(sql.SQL(' >= ').join([sql.Identifier("modified_date"), sql.Placeholder()]))
+            values_to_filter.append(modified_start_date)
+
+        if modified_end_date:
+            conditions.append(sql.SQL(' <= ').join([sql.Identifier("modified_date"), sql.Placeholder()]))
+            values_to_filter.append(modified_end_date)
+            
         where_clause = sql.SQL(' AND ').join(conditions)
 
         additional_conditions: list[sql.SQL] = []

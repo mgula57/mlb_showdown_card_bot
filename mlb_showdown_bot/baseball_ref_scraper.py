@@ -14,6 +14,7 @@ import operator
 from bs4 import BeautifulSoup
 from pprint import pprint
 from datetime import datetime
+from time import sleep
 from difflib import SequenceMatcher
 import unidecode
 from thefuzz import fuzz
@@ -462,6 +463,7 @@ class BaseballReferenceScraper:
 
         # ADD ALL GAME LOGS BY DEFAULT
         for stats_period in [StatsPeriodType.DATE_RANGE, StatsPeriodType.POSTSEASON]:
+            sleep(1) # PREVENT 403 ERRORS
             stats_dict[stats_period.stats_dict_key] = self.game_log_list(type=type, years=years_for_loop, stats_period_type=stats_period, reduce_size=True)
 
         # FIX EMPTY STRING DATA
