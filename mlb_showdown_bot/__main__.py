@@ -209,7 +209,8 @@ def main():
                 ignore_cache=args.ignore_cache,
                 warnings=scraper.warnings
             )
-
+            if hist_showdown.player_type != showdown.player_type:
+                continue
             points_per_year[str(archive.year)] = hist_showdown.points
 
         # PRINT HISTORICAL POINTS

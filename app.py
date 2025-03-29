@@ -403,6 +403,8 @@ def card_creator():
                         is_variable_speed_00_01=is_variable_speed_00_01,
                         is_running_in_flask=True,
                     )
+                    if yearly_card.player_type != showdown_card.player_type:
+                        continue
                     yearly_trends_data[str(year_archive.year)] = yearly_card.trend_line_data()
                 except Exception as e:
                     print(e)
