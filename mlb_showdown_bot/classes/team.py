@@ -174,7 +174,7 @@ class Team(str, Enum):
             case 'ALT': return (104, 5, 49, 255)
             case 'ANA': return (19, 41, 75, 255)
             case 'ARI': return (167, 25, 48, 255)
-            case 'ATH': return (0, 51, 160, 255)
+            case 'ATH': return (0, 56, 49, 255)
             case 'ATL': return (206, 17, 65, 255)
             case 'BAL': return (223, 70, 1, 255)
             case 'BBB': return (184, 0, 0, 255)
@@ -327,6 +327,9 @@ class Team(str, Enum):
             }
             case 'ARI': return {
                 '1': (95, 37, 159, 255),
+            }
+            case 'ATH': return {
+                '1': (0, 51, 160, 255),
             }
             case 'ATL': return {
                 '1': (24, 48, 135, 255),
@@ -514,6 +517,7 @@ class Team(str, Enum):
         match self.value:
             case 'ANA': return (92, 136, 218, 255)
             case 'ARI': return (227, 212, 173, 255)
+            case 'ATH': return (239, 178, 30, 255)
             case 'ATL': return (19, 39, 79, 255)
             case 'BAL': return (39, 37, 31, 255)
             case 'BOS': return (12, 35, 64, 255)
@@ -584,6 +588,9 @@ class Team(str, Enum):
             }
             case 'ARI': return {
                 '1': (0,95,97,255),
+            }
+            case 'ATH': return {
+                '1': (31, 77, 139, 255),
             }
             case 'ATL': return {
                 '1': (186,22,46,255),
@@ -794,6 +801,9 @@ class Team(str, Enum):
             }
             case 'ARI': return {
                 '1': list(range(1998,2007))
+            }
+            case 'ATH': return {
+                '1': list(range(1901,1955)),
             }
             case 'ATL': return {
                 '1': list(range(1966,1968)),
@@ -1236,6 +1246,7 @@ class Team(str, Enum):
                     case 'ANA-1': return (-60, -50)
                     case 'ARI' | 'ARI-2': return (-100, -20)
                     case 'ARI-1': return (-180, -130)
+                    case 'ATH': return (-50,-100)
                     case 'ATL': return (-90,-250)
                     case 'ATL-4': return (-75,0)
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (-60, -50)
