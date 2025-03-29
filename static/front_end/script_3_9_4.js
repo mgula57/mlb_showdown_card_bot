@@ -82,7 +82,6 @@ function toggleBreakdownSelection() {
 function changeImageSection(imageSelectObject) {
     var selection = imageSelectObject.value;
     for (const section of ['auto', 'link', 'upload']) { 
-        console.log(section)
         if (section == selection) {
             $("#" + section).show();
         } else {
@@ -149,7 +148,6 @@ function changeYear(newYear) {
     yearText = newYear.value;
     if (yearText.length == 4) {
         for (const date of ["start_date", "end_date"]) {
-            console.log(date)
             document.getElementById(date).value = yearText + document.getElementById(date).value.slice(4);
         }
     }
@@ -164,133 +162,178 @@ function toggleTheme(toggleElement) {
     }
 }
 
-// SETUP RADAR CHART
-function createRadarChart(data) {
-    $("#radar_container").show();
-
-    // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
-    let chartStatus = Chart.getChart("playerRadar");
-    if (chartStatus != undefined) {
-        chartStatus.destroy();
-    }
-    
-    // CREATE NEW CHART OBJECT
-    var marksCanvas = document.getElementById("playerRadar");
-    var color = Chart.helpers.color;
-    Chart.defaults.color = "black"
-    var marksData = {
-        labels: data.radar_labels,
-        datasets: [
-            {
-                label: `${data.player_name} (${data.player_year})`,
-                backgroundColor: color(data.radar_color).alpha(0.2).rgbString(),
-                borderColor: data.radar_color,
-                borderWidth: 1,
-                pointBackgroundColor: data.radar_color,
-                data: data.radar_values
-            },
-            {
-                label: `Avg (${data.player_year})`,
-                backgroundColor: "rgb(0,0,0,0.1)",
-                borderColor: "gray",
-                borderWidth: 0.5,
-                data: data.radar_values.map(x => 50)
-            },
-        ]
-    };
-
-    var chartOptions = {
-        scales: {
-            r: {
-                pointLabels: {
-                    font: {
-                        size: 12,
-                    }
-                },
-                ticks: {
-                    callback: function() {return ""},
-                    beginAtZero: true,
-                    showLabelBackdrop: false
-                },
-                suggestedMin: 0,
-                suggestedMax: 100,
-            },
-        }
-    };
-
-    var radarChart = new Chart(marksCanvas, {
-        type: "radar",
-        data: marksData,
-        options: chartOptions
-    });
-}
+// -------------------------------------------------------
+// CHARTS
+// -------------------------------------------------------
 
 // SETUP TRENDS CHART
-function createTrendsChart(data) {
-    // SHOW CONTAINER
-    $("#trend_container").show();
-    if (data.trends_diff > 0) {
-        $("#player_trend_up_arrow").show();
-        $("#player_trend_down_arrow").hide();
-    } else if (data.trends_diff < 0) {
-        $("#player_trend_down_arrow").show();
-        $("#player_trend_up_arrow").hide();
-    } else {
-        $("#player_trend_down_arrow").hide();
-        $("#player_trend_up_arrow").hide();
+function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=false, events=["mousemove", "mouseout", "click", "touchstart", "touchmove", "touchend"]) {
+
+    if (trends_data == null) {
+        return;
+    }
+
+    // UPDATE TEXT IN LABEL FOR playerInSeasonTrends TO DISPLAY THE YEAR FROM data
+    if (elementId == "playerInSeasonTrends") {
+        const year = is_placeholder ? "Year" : data.player_year;
+        document.getElementById("in_season_trend_label").textContent = `${year} Card Evolution`;
     }
     
     // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
-    let chartStatus = Chart.getChart("playerTrends");
+    let chartStatus = Chart.getChart(elementId);
     if (chartStatus != undefined) {
         chartStatus.destroy();
     }
     
     // CREATE NEW CHART OBJECT
-    var marksCanvas = document.getElementById("playerTrends");
+    var marksCanvas = document.getElementById(elementId);
     var color = Chart.helpers.color;
 
     // PARSE VALUES
     var xValues = []
     var yValues = []
-    for (let day in data.trends_data) {
+    var customAttributes = []
+    for (let day in trends_data) {
         xValues.push(day);
-        yValues.push(data.trends_data[day]["points"]);
+        yValues.push(trends_data[day]["points"]);
+        customAttributes.push(trends_data[day]);
     }
 
-    new Chart(marksCanvas, {
+    const myChart = new Chart(marksCanvas, {
         type: "line",
         data: {
             labels: xValues,
             datasets: [{
                 data: yValues,
                 label: "PTS",
-                borderColor: data.radar_color,
-                backgroundColor: color(data.radar_color).alpha(0.2).rgbString(),
-                fill: true
+                fill: true,
+                customData: customAttributes,
+                tension: 0.4,
+                // Scriptable option for point radius with a condition
+                pointRadius: (context) => {
+                    if (is_placeholder) {
+                        return 0;
+                    }
+                    const dataPoint = context.dataset.customData[context.dataIndex];
+                    return (dataPoint.year === data.player_year && unit == 'year') ? 6 : 3;
+                },
+                // Scriptable option for point background color with a condition
+                pointBackgroundColor: (context) => {
+                    const dataPoint = context.dataset.customData[context.dataIndex];
+                    return color(dataPoint.color).alpha(0.9).rgbString();
+                },
+                segment: {
+                    // Use ctx.p0DataIndex (the starting point of the segment) to get the correct color
+                    borderColor: (ctx) => {
+                        const dataIndex = ctx.p0DataIndex; // Access the starting point's index
+                        return color(customAttributes[dataIndex].color).rgbString(); // Access the fill color for the segment
+                    },
+                    backgroundColor: (ctx) => {
+                        const dataIndex = ctx.p0DataIndex; // Access the starting point's index
+                        return color(customAttributes[dataIndex].color).alpha(0.4).rgbString(); // Access the fill color for the segment
+                    }
+                }
             }]
         },
         options: {
+            events: events,
+            responsive: true,
+            interaction: {
+                mode: 'index',  // Tooltip should show for all elements in the same index (hovering over empty space will show the tooltip for the closest data)
+                intersect: false // Ensures tooltip is triggered even if not directly over a point or bar
+            },
+            animation: {
+                onComplete: function () {
+                    if (is_placeholder) {
+                        const chart = myChart;
+                        const ctx = chart.ctx;
+                        ctx.save();
+                        ctx.font = "bold 24px Arial";
+                        ctx.fillStyle = "rgba(116, 116, 116, 0.7)";
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText("NO DATA", chart.width / 2, chart.height / 2);
+                        ctx.restore();
+                    }
+                }
+            },
             plugins: {
                 legend: {
                     display: false
                 },
+                // Configure the Data Labels plugin:
+                datalabels: {
+                    display: (context) => {
+                        // Only display when condition is met
+                        const dataPoint = context.dataset.customData[context.dataIndex];
+                        return dataPoint.year === data.player_year && unit == 'year';
+                    },
+                    formatter: (value, context) => {
+                        // Return whatever label you want to show—e.g., the year or custom text
+                        const dataPoint = context.dataset.customData[context.dataIndex];
+                        return dataPoint.points; // or "Your Label" or any custom formatting
+                    },
+                    anchor: 'end',  // Position label at the end of the point
+                    align: 'top',   // Align label above the point
+                    color: 'black', // Label text color (adjust as needed)
+                    font: {
+                        weight: 'bold'
+                    }
+                },
+                tooltip: {
+                    intersect: false,
+                    displayColors: false,
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            const tooltipItem = tooltipItems[0];
+                            const dataset = tooltipItem.dataset;
+                            const index = tooltipItem.dataIndex;
+                            const dataDict = dataset.customData[index]; // Get dict for the data point
+                            return `${tooltipItem.label} ${dataDict.team}: ${tooltipItem.raw} PTS`
+                        },
+                        label: function(tooltipItem) {
+                            const dataset = tooltipItem.dataset;
+                            const index = tooltipItem.dataIndex;
+                            const dataDict = dataset.customData[index]; // Get dict for the data point
+                            
+                            // Convert dict to an array of strings (each key-value pair on a new line)
+                            let tooltipLines = [];
+                            for (const [key, value] of Object.entries(dataDict)) {
+                                if (!['team', 'points', 'year', 'color'].includes(key)) {
+                                    tooltipLines.push(`${key.toUpperCase()}: ${value}`);
+                                }
+                            }
+    
+                            return tooltipLines; // Returning an array displays each entry on a new line
+                        }
+                    }
+                }
             },
             scales: {
               x: {
                 type: 'time',
                 time: {
-                    unit: 'day',
-                    parser: 'MM-dd-yyyy',
+                    unit: unit,
+                    parser: unit == 'day' ? 'yyyy-MM-dd' : 'yyyy',
                     displayFormats: {
-                        'day': 'MMM dd',
+                        unit: unit == 'day' ? 'MMM dd' : 'yyyy',
                     },
-                    tooltipFormat: "MMM dd"
+                    tooltipFormat: unit == 'day' ? 'MMM dd' : 'yyyy'
+                },
+                ticks: {
+                    font: {
+                        size: 10 // Smaller font size for x-axis ticks
+                    }
                 }
               },
               y: {
                 min: 0,
-                max: Math.max(...yValues) + 200
+                max: Math.ceil( (Math.max(...yValues) + 50) / 200 ) * 200,
+                ticks: {
+                    font: {
+                        size: 10 // Smaller font size for x-axis ticks
+                    }
+                }
               }
             },
             elements:{
@@ -303,13 +346,75 @@ function createTrendsChart(data) {
     });
 }
 
+function buildGenericChartPlaceholders() {
+    data = {
+        player_year: "", // SO YEAR NEVER MATCHES
+    };
+    light_gray_color = 'rgba(158, 158, 158, 0.08)';
+    generic_career_data = {
+        '2013': {'color': light_gray_color, 'points': 120, },
+        '2014': {'color': light_gray_color, 'points': 160, },
+        '2015': {'color': light_gray_color, 'points': 280, },
+        '2016': {'color': light_gray_color, 'points': 230, },
+        '2017': {'color': light_gray_color, 'points': 310, },
+        '2018': {'color': light_gray_color, 'points': 320, },
+        '2019': {'color': light_gray_color, 'points': 330, },
+        '2020': {'color': light_gray_color, 'points': 440, },
+        '2021': {'color': light_gray_color, 'points': 480, },
+        '2022': {'color': light_gray_color, 'points': 520, },
+        '2023': {'color': light_gray_color, 'points': 400, },
+        '2024': {'color': light_gray_color, 'points': 420, },
+        '2025': {'color': light_gray_color, 'points': 320, },
+    };
+    generic_in_season_data = {
+        '2025-03-30': { 'color': light_gray_color, 'points': 150 },
+        '2025-04-06': { 'color': light_gray_color, 'points': 110 },
+        '2025-04-13': { 'color': light_gray_color, 'points': 160 },
+        '2025-04-20': { 'color': light_gray_color, 'points': 250 },
+        '2025-04-27': { 'color': light_gray_color, 'points': 270 },
+        '2025-05-04': { 'color': light_gray_color, 'points': 280 },
+        '2025-05-11': { 'color': light_gray_color, 'points': 250 },
+        '2025-05-18': { 'color': light_gray_color, 'points': 230 },
+        '2025-05-25': { 'color': light_gray_color, 'points': 200 },
+        '2025-06-01': { 'color': light_gray_color, 'points': 270 },
+        '2025-06-08': { 'color': light_gray_color, 'points': 330 },
+        '2025-06-15': { 'color': light_gray_color, 'points': 350 },
+        '2025-06-22': { 'color': light_gray_color, 'points': 350 },
+        '2025-06-29': { 'color': light_gray_color, 'points': 370 },
+        '2025-07-06': { 'color': light_gray_color, 'points': 320 },
+        '2025-07-13': { 'color': light_gray_color, 'points': 350 },
+        '2025-07-20': { 'color': light_gray_color, 'points': 400 },
+        '2025-07-27': { 'color': light_gray_color, 'points': 470 },
+        '2025-08-03': { 'color': light_gray_color, 'points': 450 },
+        '2025-08-10': { 'color': light_gray_color, 'points': 480 },
+        '2025-08-17': { 'color': light_gray_color, 'points': 500 },
+        '2025-08-24': { 'color': light_gray_color, 'points': 520 },
+        '2025-08-31': { 'color': light_gray_color, 'points': 550 },
+        '2025-09-07': { 'color': light_gray_color, 'points': 500 },
+        '2025-09-14': { 'color': light_gray_color, 'points': 510 },
+        '2025-09-21': { 'color': light_gray_color, 'points': 510 },
+        '2025-09-28': { 'color': light_gray_color, 'points': 520 }
+    };
+
+    createTrendsChart(data=data, trends_data=generic_career_data, elementId="playerCareerTrends", unit='year', is_placeholder=true, events=[]);
+    createTrendsChart(data=data, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]);
+
+}
+
 function setTheme(themeName) {
     // UPDATE LOCAL STORAGE
     localStorage.setItem('theme', themeName);
 
     var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
-    containers_to_alter = ["container_bg", "overlay", "input_container_column", "input_container", "main_body", "breakdown_output", "radar_container", "trend_container", "player_name", "player_link", "player_shOPS_plus", "estimated_values_footnote", "chart_adjustments_footnote", "points_breakdown_footnote", "opponent_values_footnote", "loader_container_rectangle"]
+    containers_to_alter = [
+        "container_bg", "overlay", "input_container_column", "input_container",
+        "main_body", "breakdown_output", 
+        "trend_container", "in_season_trend_container", "trend_label", "in_season_trend_label",
+        "player_name", "player_details", "estimated_values_footnote", 
+        "chart_adjustments_footnote", "points_breakdown_footnote", "opponent_values_footnote", 
+        "loader_container_rectangle", "player_attribute_box",
+    ]
     for (const id of containers_to_alter) {
         var element = document.getElementById(id);
         if (element === null) {
@@ -352,191 +457,137 @@ function setTheme(themeName) {
 }
 
 function showCardData(data) {
-    $("#error").text(data.error);
-    document.getElementById("error").style.color = "red";
-    const isError = data.error & !data.image_path
-    // ADD STATS TO TABLE
-    if (!isError) {
-        // THEME
-        var storedTheme = localStorage.getItem('theme')
 
-        // CHANGE ERROR TO ORANGE IF WARNING
-        if (data.image_path) {
-            document.getElementById("error").style.color = "orange";
-        }
+    // THEME
+    var storedTheme = localStorage.getItem('theme') || 'light';
+    const is_dark = storedTheme == 'dark'
 
-        // CHANGE CARD IMAGE
-        $("#card_image").attr('src', data.image_path);
-
-        // ADD MESSAGING BELOW CARD IMAGE
-        const successColor = (storedTheme == 'dark') ? "#41d21a" : "green"
-        
-        if (data.is_stats_loaded_from_library || data.is_img_loaded_from_library) {
-            console.log("Loaded From Showdown Library");
-            $('#showdown_library_logo_img').show();
-        } else {
-            $('#showdown_library_logo_img').hide();
-        }
-        
-        if (data.is_automated_image) {
-            console.log("auto image");
-            document.getElementById("error").style.color = successColor;
-            $("#error").text("Automated Image!");
-        };
-        
-        // ADD HYPERLINK TO BREF
-        if (data.player_name) {
-            document.getElementById("playerlink_href").href = data.bref_url;
-            $("#playerlink_href_text").text(data.player_year);
-            $("#player_name").text(data.player_name.toUpperCase());
-            $("#player_link").text(`Set: ${data.player_set} | ${data.era} | Year(s):`);
-        }
-
-        // ADD shOPS+
-        if (data.shOPS_plus) {
-            $("#player_shOPS_plus_text").text("shOPS+");
-            $("#player_shOPS_plus").text(data.shOPS_plus);
-        } else {
-            $("#player_shOPS_plus_text").text("");
-            $("#player_shOPS_plus").text("");
-        }
-        
-        // VAR NEEDED FOR TABLE CLASSES
-        var table_class_suffix = (storedTheme == 'dark') ? " table-dark" : ""
-        var table_class_name = "table table-striped table-bordered" + table_class_suffix
-        
-        // PLAYER STATS
-        var player_stats_table = "<table class='" + table_class_name + "' id='stats_table'><tr><th> </th> <th>Real</th> <th>Bot</th> <th>Diff</th> </tr>";
-        $.each(data.player_stats, function (index, value) {
-            player_stats_table += '<tr>'
-            $.each(value, function (index, value) {
-                if (index == 0) {
-                    bold_start = '<b>';
-                    bold_end = '</b>';
-                } else {
-                    bold_start = '';
-                    bold_end = '';
-                }
-                player_stats_table += '<td>' + bold_start + value + bold_end + '</td>';
-            });
-            player_stats_table += '</tr>';
-        });
-        player_stats_table += '</table>';
-        $("#stats_table").replaceWith(player_stats_table);
-
-        // PLAYER POINTS
-        var player_points_table = "<table class='" + table_class_name + "' id='points_table'><tr> <th>Category</th> <th>Stat</th> <th>Pts</th> <th>Pctile</th> </tr>";
-        $.each(data.player_points, function (index, value) {
-            is_total_row = (data.player_points.length - 1) == index | (data.player_points.length - 2) == index;
-            const tr_class = (is_total_row) ? ' class="table-success">' : '>';
-            player_points_table += '<tr' + tr_class
-            
-            $.each(value, function (index, value) {
-                if (index == 0) {
-                    bold_start = '<b>';
-                    bold_end = '</b>';
-                } else {
-                    bold_start = '';
-                    bold_end = '';
-                }
-                player_points_table += '<td>' + bold_start + value + bold_end + '</td>';
-            });
-            player_points_table += '</tr>';
-        });
-        player_points_table += '</table>';
-        $("#points_table").replaceWith(player_points_table);
-
-        // ERA
-        var opponent_text = "<h6 style='color: #686666; padding: 0px;'><b>Avg " + data.opponent_type + " - " + data.era + "</b></h6>"
-        $("#avg_opponent_text").replaceWith(opponent_text);
-
-        var opponent_table = "<table class='" + table_class_name + "' id='opponent_table'><tr> <th> </th> <th># Chart Results</th> </tr>";
-        $.each(data.opponent, function (index, value) {
-            opponent_table += '<tr>'
-            $.each(value, function (index, value) {
-                if (index == 0) {
-                    bold_start = '<b>';
-                    bold_end = '</b>';
-                } else {
-                    bold_start = '';
-                    bold_end = '';
-                }
-                opponent_table += '<td>' + bold_start + value + bold_end + '</td>';
-            });
-            opponent_table += '</tr>';
-        });
-        opponent_table += '</table>';
-        $("#opponent_table").replaceWith(opponent_table);
-
-        // ACCURACY
-        var player_chart_versions_table = "<table class='" + table_class_name + "' id='chart_versions_table'><tr> <th>Version</th> <th>Accuracy</th> <th>OPS</th> <th>Notes</th> </tr>";
-        $.each(data.player_chart_versions, function (index, value) {
-            player_chart_versions_table += '<tr>'
-            $.each(value, function (index, value) {
-                if (index == 0) {
-                    bold_start = '<b>';
-                    bold_end = '</b>';
-                } else {
-                    bold_start = '';
-                    bold_end = '';
-                }
-                player_chart_versions_table += '<td>' + bold_start + value + bold_end + '</td>';
-            });
-            player_chart_versions_table += '</tr>';
-        });
-        player_chart_versions_table += '</table>';
-        $("#chart_versions_table").replaceWith(player_chart_versions_table);
-
-        // PLAYER RADAR CHART
-        if (data.radar_labels != null) {
-            createRadarChart(data=data)
-        }
-        else {
-            $("#radar_container").hide();
-        }
-
-        // TRENDS GRAPH
-        if (data.trends_data != null) {
-            createTrendsChart(data=data)
-        } else {
-            $("#trend_container").hide();
-        }
-
-        // PERIOD
-        $("#period_string").text(data.period);
-
-        // WARNINGS
-
-        // REMOVE EXISTING
-        var warningDivs = document.getElementsByClassName("warning_text");
-
-        // Convert the NodeList to an array for easier removal
-        var warningDivsArray = Array.from(warningDivs);
-
-        // Remove each div
-        warningDivsArray.forEach(function (div) {
-            div.remove();
-        });
-
-        var cardContainer = document.getElementById("image_header_div");
-
-        for (var warning of data.warnings) {
-
-            // CREATE A NEW PARAGRAPH ELEMENT
-            var warningElement = document.createElement("h5");
-
-            // SET THE CONTENT OF THE NEW PARAGRAPH
-            warningElement.className = "warning_text"
-            warningElement.textContent = '** ' + warning;
-            warningElement.style.color = '#9fb419';
-            warningElement.style.padding = '0px'
-
-            // APPEND THE NEW PARAGRAPH TO THE END OF THE DIV
-            cardContainer.appendChild(warningElement);
-        }
-
-    };
+    // HIDE OVERLAY
     $('#overlay').hide();
+    
+    // CHECK FOR ERROR
+    $('#message_string').hide();
+    $("#message_string").text(data.error);
+    const isError = data.error !== null & data.image_path === null;
+    if (isError) {
+        document.getElementById("message_string").style.color = "red";
+        $('#message_string').show();
+    }
+    
+    // CHANGE ERROR TO ORANGE IF WARNING
+    if (data.image_path & data.error) {
+        $('#message_string').show();
+        document.getElementById("message_string").style.color = "orange";
+    }
+
+    // CHANGE CARD IMAGE
+    $("#card_image").attr('src', data.image_path || `static/interface/BlankPlayer${(is_dark) ? '-Dark' : ''}.png`);
+    
+    // ADD HYPERLINK TO BREF
+    if (data.player_name) {
+        // document.getElementById("playerlink_href").href = data.bref_url;
+        // $("#playerlink_href_text").text(data.player_year);
+        $("#player_name").show();
+        $("#player_name").text(data.player_name.toUpperCase());
+        // $("#player_link").text(`Set: ${data.player_set} | ${data.era} | Year(s):`);
+    } else {
+        $("#player_name").hide();
+    }
+
+    // TRENDS GRAPHS
+    if (isError) {
+        buildGenericChartPlaceholders();
+    } else {
+        createTrendsChart(data=data, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
+        createTrendsChart(data=data, trends_data=data.in_season_trends_data, elementId="playerInSeasonTrends", unit='day'); 
+    }
+    
+    // VAR NEEDED FOR TABLE CLASSES
+    var table_class_suffix = (storedTheme == 'dark') ? " table-dark" : ""
+    var table_class_name = "table table-striped table-bordered" + table_class_suffix
+    
+    // PLAYER STATS
+    var player_stats_table = "<table class='" + table_class_name + "' id='stats_table'><tr><th> </th> <th>Real</th> <th>Bot</th> <th>Diff</th> </tr>";
+    $.each(data.player_stats, function (index, value) {
+        player_stats_table += '<tr>'
+        $.each(value, function (index, value) {
+            if (index == 0) {
+                bold_start = '<b>';
+                bold_end = '</b>';
+            } else {
+                bold_start = '';
+                bold_end = '';
+            }
+            player_stats_table += '<td>' + bold_start + value + bold_end + '</td>';
+        });
+        player_stats_table += '</tr>';
+    });
+    player_stats_table += '</table>';
+    $("#stats_table").replaceWith(player_stats_table);
+
+    // PLAYER POINTS
+    var player_points_table = "<table class='" + table_class_name + "' id='points_table'><tr> <th>Category</th> <th>Stat</th> <th>Pts</th> <th>Pctile</th> </tr>";
+    $.each(data.player_points, function (index, value) {
+        is_total_row = (data.player_points.length - 1) == index | (data.player_points.length - 2) == index;
+        const tr_class = (is_total_row) ? ' class="table-success">' : '>';
+        player_points_table += '<tr' + tr_class
+        
+        $.each(value, function (index, value) {
+            if (index == 0) {
+                bold_start = '<b>';
+                bold_end = '</b>';
+            } else {
+                bold_start = '';
+                bold_end = '';
+            }
+            player_points_table += '<td>' + bold_start + value + bold_end + '</td>';
+        });
+        player_points_table += '</tr>';
+    });
+    player_points_table += '</table>';
+    $("#points_table").replaceWith(player_points_table);
+
+    // ERA
+    var opponent_text = "<h6 style='color: #686666; padding: 0px;'><b>Avg " + data.opponent_type + " - " + data.era + "</b></h6>"
+    $("#avg_opponent_text").replaceWith(opponent_text);
+
+    var opponent_table = "<table class='" + table_class_name + "' id='opponent_table'><tr> <th> </th> <th># Chart Results</th> </tr>";
+    $.each(data.opponent, function (index, value) {
+        opponent_table += '<tr>'
+        $.each(value, function (index, value) {
+            if (index == 0) {
+                bold_start = '<b>';
+                bold_end = '</b>';
+            } else {
+                bold_start = '';
+                bold_end = '';
+            }
+            opponent_table += '<td>' + bold_start + value + bold_end + '</td>';
+        });
+        opponent_table += '</tr>';
+    });
+    opponent_table += '</table>';
+    $("#opponent_table").replaceWith(opponent_table);
+
+    // ACCURACY
+    var player_chart_versions_table = "<table class='" + table_class_name + "' id='chart_versions_table'><tr> <th>Version</th> <th>Accuracy</th> <th>OPS</th> <th>Notes</th> </tr>";
+    $.each(data.player_chart_versions, function (index, value) {
+        player_chart_versions_table += '<tr>'
+        $.each(value, function (index, value) {
+            if (index == 0) {
+                bold_start = '<b>';
+                bold_end = '</b>';
+            } else {
+                bold_start = '';
+                bold_end = '';
+            }
+            player_chart_versions_table += '<td>' + bold_start + value + bold_end + '</td>';
+        });
+        player_chart_versions_table += '</tr>';
+    });
+    player_chart_versions_table += '</table>';
+    $("#chart_versions_table").replaceWith(player_chart_versions_table);
+
 }
 
 // -------------------------------------------------------
@@ -685,12 +736,20 @@ $(document).ready(function() {
                 if (lastCardJson.nickname_index == 3) { moreOptionsSelections.push("Nickname-3"); }
             }
 
+            if (lastCardJson.glow_multiplier) {
+                if (lastCardJson.glow_multiplier == 2) { moreOptionsSelections.push("Glow-2"); }
+                if (lastCardJson.glow_multiplier == 3) { moreOptionsSelections.push("Glow-3"); }
+            }
+
             $('.selectpicker').selectpicker('val', moreOptionsSelections);
 
         }
     }
     // SET TABS
     setupTabs(selectedTab);
+
+    // DEFAULT CHARTS
+    buildGenericChartPlaceholders();
 });
 
 // -------------------------------------------------------
@@ -766,6 +825,13 @@ $(function () {
                 nickname_index = 3
             }
 
+            var glow_multiplier = null;
+            if (moreOptionsSelected.includes("Glow-3")) {
+                glow_multiplier = 3;
+            } else if (moreOptionsSelected.includes("Glow-2")) {
+                glow_multiplier = 2;
+            }
+
             // STAT HIGHLIGHTS
             var is_stat_highlights_modern = moreOptionsSelected.includes("StatHighlightsModern");
             var is_stat_highlights_old_school = moreOptionsSelected.includes("StatHighlightsOldSchool");
@@ -821,7 +887,8 @@ $(function () {
                 period_start_date: periodStartDate,
                 period_end_date: periodEndDate,
                 period_split: periodSplit,
-                stat_highlights_type: stat_highlights
+                stat_highlights_type: stat_highlights,
+                glow_multiplier: glow_multiplier
             }
             cacheObject("last_card", JSON.stringify(card_object))
 

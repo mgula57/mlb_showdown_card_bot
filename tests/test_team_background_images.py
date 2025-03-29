@@ -3,7 +3,7 @@ import sys
 import os
 from pathlib import Path
 from pprint import pprint
-sys.path.insert(0, '/Users/matthewgula/Documents/Python/mlb_showdown_card_bot/') # COMMENT WHEN OUT OF DEVELOPMENT
+sys.path.insert(0, '/Users/matthewgula/Repositories/mlb_showdown_card_bot/') # COMMENT WHEN OUT OF DEVELOPMENT
 from mlb_showdown_bot.classes.team import Team
 from mlb_showdown_bot.classes.sets import Set
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
@@ -29,7 +29,7 @@ sets: list[Set] = [Set(set) for set in args.sets.split(',')]
 teams: list[Team] = [tm for tm in Team] if args.teams == '' else [Team(tm) for tm in args.teams.split(',')]
 color_names_dict = {}
 for team in teams:
-    years_dict = { '0': '2023' }
+    years_dict = { '0': '2024' }
     for index, year_range in team.logo_historical_year_range_dict.items():
         years_dict[index] = str(min(year_range))
     for set in sets:
@@ -39,6 +39,7 @@ for team in teams:
                 showdown_card = ShowdownPlayerCard(
                     name='TEST',
                     year=year,
+                    player_type = 'Hitter',
                     stats={'team_ID': team.value,},
                     set=set,
                     run_stats=False,

@@ -1167,6 +1167,17 @@ class Set(str, Enum):
         
         return None
 
+    @property
+    def player_image_glow_radius(self) -> int:
+        match self.value:
+            case '2000': return 12
+            case '2001': return 8
+            case _: return 8
+    
+    @property
+    def player_image_shadow_radius(self) -> int:
+        return 15
+
     # ---------------------------------------
     # STAT HIGHLIGHTS
     # ---------------------------------------
@@ -1206,7 +1217,7 @@ class Set(str, Enum):
                     case '2001': return (78,1584)
                     case '2002': return (80,1380)
                     case '2003': return (1179,1074)
-                    case '2004' | '2005': return (1180,1460)
+                    case '2004' | '2005': return (1190,1480)
                     case 'CLASSIC' | 'EXPANDED': return (1160,1345)
             case TemplateImageComponent.COOPERSTOWN:
                 match self.value:
