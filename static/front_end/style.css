@@ -94,13 +94,12 @@
     color: gray;
     background-color: white;
     box-shadow: 0px 1px 5px 0px rgba(0, 0, 0, 0.20);
-    border-radius: 5px;
+    border-radius: 10px;
     margin: 0px;
     padding-top: 2px;
     padding-bottom: 2px;
-    padding-left: 5px;
-    padding-right: 5px;
-    font-size: 75%;
+    padding-left: 10px;
+    padding-right: 10px;
     font-weight: bold;
 }
 .player_attribute_box_dark {
@@ -129,12 +128,9 @@
     padding-top: 5px;
 }
 /* Ensure the canvas fills the container without exceeding its bounds */
-.trend_container_light canvas, 
-.in_season_trend_container_light canvas,
-.trend_container_dark canvas,
-.in_season_trend_container_dark canvas {
-    width: 100% !important;
-    height: 100% !important;
+.trend_container canvas{
+    max-width: 100% !important;
+    max-height: 100% !important;
     display: block;
 }
 .trend_label {
