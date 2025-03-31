@@ -1,4 +1,3 @@
-
 // -------------------------------------------------------
 // METHODS
 // -------------------------------------------------------
@@ -153,13 +152,24 @@ function changeYear(newYear) {
     }
 }
 
-// THEME
-function toggleTheme(toggleElement) {
-    if (toggleElement.checked) {
-        setTheme('dark');
-    } else {
-        setTheme('light');
+// ON CHANGE OF SET INPUT
+function changeSetSelection(newSet) {
+    updatedSet = newSet.value;
+    localStorage.setItem('set', updatedSet);
+    console.log(updatedSet);
+    // CHECK WHAT src OF CARD_IMAGE IS
+    if (document.getElementById('card_image').src.includes('interface')) {
+        const theme = localStorage.getItem('theme') || 'light';
+        const suffix = (theme == 'dark') ? '-Dark' : '';
+        document.getElementById('card_image').src = `static/interface/BlankPlayer-${updatedSet}${suffix}.png`;
     }
+}
+
+// THEME
+function toggleTheme() {
+    var currentTheme = localStorage.getItem('theme') || 'light';
+    var newTheme = (currentTheme == 'light') ? 'dark' : 'light';
+    setTheme(newTheme);
 }
 
 // -------------------------------------------------------
@@ -238,6 +248,7 @@ function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=fa
         options: {
             events: events,
             responsive: true,
+            maintainAspectRatio: false,
             interaction: {
                 mode: 'index',  // Tooltip should show for all elements in the same index (hovering over empty space will show the tooltip for the closest data)
                 intersect: false // Ensures tooltip is triggered even if not directly over a point or bar
@@ -398,7 +409,6 @@ function buildGenericChartPlaceholders() {
 
     createTrendsChart(data=data, trends_data=generic_career_data, elementId="playerCareerTrends", unit='year', is_placeholder=true, events=[]);
     createTrendsChart(data=data, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]);
-
 }
 
 function setTheme(themeName) {
@@ -410,10 +420,9 @@ function setTheme(themeName) {
     containers_to_alter = [
         "container_bg", "overlay", "input_container_column", "input_container",
         "main_body", "breakdown_output", 
-        "trend_container", "in_season_trend_container", "trend_label", "in_season_trend_label",
         "player_name", "player_details", "estimated_values_footnote", 
         "chart_adjustments_footnote", "points_breakdown_footnote", "opponent_values_footnote", 
-        "loader_container_rectangle", "player_attribute_box",
+        "loader_container_rectangle",
     ]
     for (const id of containers_to_alter) {
         var element = document.getElementById(id);
@@ -452,7 +461,19 @@ function setTheme(themeName) {
     const suffix = (is_dark) ? '-Dark' : ''; 
     document.getElementById('showdown_logo_img').src = `static/interface/ShowdownLogo${suffix}.png`;
     if (document.getElementById('card_image').src.includes('interface')) {
-        document.getElementById('card_image').src = `static/interface/BlankPlayer${suffix}.png`;
+        var set = localStorage.getItem('set') || '2000';
+        document.getElementById('card_image').src = `static/interface/BlankPlayer-${set}${suffix}.png`;
+    }
+
+    // CHANGE CLASSES IN BELOW LIST
+    const suffix_prior = is_dark ? '_light' : '_dark';
+    const suffix_new = is_dark ? '_dark' : '_light';
+    const classes_to_alter = ['player_attribute_box_light', 'player_attribute_box_dark']
+    for (const class_name of classes_to_alter) {
+        const elements = document.getElementsByClassName(class_name);
+        Array.from(elements).forEach(function(element) {
+            element.className = element.className.replace(suffix_prior, suffix_new);
+        });
     }
 }
 
@@ -481,15 +502,22 @@ function showCardData(data) {
     }
 
     // CHANGE CARD IMAGE
-    $("#card_image").attr('src', data.image_path || `static/interface/BlankPlayer${(is_dark) ? '-Dark' : ''}.png`);
+    var storedSet = localStorage.getItem('set') || '2000';
+    $("#card_image").attr('src', data.image_path || `static/interface/BlankPlayer-${storedSet}${(is_dark) ? '-Dark' : ''}.png`);
     
     // ADD HYPERLINK TO BREF
     if (data.player_name) {
-        // document.getElementById("playerlink_href").href = data.bref_url;
-        // $("#playerlink_href_text").text(data.player_year);
         $("#player_name").show();
         $("#player_name").text(data.player_name.toUpperCase());
-        // $("#player_link").text(`Set: ${data.player_set} | ${data.era} | Year(s):`);
+
+        // ADD CHILDREN TO PLAYER DETAILS DIV
+        $("#player_details_div").append(`
+            <div class="player_attribute_box_light">2024</div>
+            <div class="player_attribute_box_light">Element 2</div>
+            <div class="player_attribute_box_light">Element 3</div>
+            <div class="player_attribute_box_light">Element 4</div>
+            <div class="player_attribute_box_light">Element 5</div>
+        `);
     } else {
         $("#player_name").hide();
     }
@@ -662,13 +690,8 @@ $(document).ready(function() {
         if (storedSet) {
             document.getElementById("setSelection").value = storedSet.replace('2022-', '');
         }
-        var storedTheme = localStorage.getItem('theme')
-        if (storedTheme) {
-            setTheme(storedTheme);
-            if (storedTheme == 'dark') {
-                document.getElementById("dark_theme_toggle").checked = true;
-            }
-        }
+        var storedTheme = localStorage.getItem('theme') || 'light';
+        setTheme(storedTheme);
         // CHECK FOR LAST SELECTED TAB
         selectedTab = localStorage.getItem("tab");
         if (!selectedTab) {

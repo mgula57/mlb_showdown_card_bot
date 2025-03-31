@@ -34,23 +34,24 @@
 
       <div class="container">
          <div class="row">
-            <div class="col-md-4">
+            <div class="col-md-5">
                <img src="static/interface/ShowdownLogo.png" alt="Showdown Logo" class="img-fluid" id="showdown_logo_img" onclick="window.open('http://showdownbot.com', '_blank');">
             </div>
-            <div class="col-md-8">
+            <div class="col-md-7">
                   <!-- TABS -->
                   <div class="tabs">
                      <button class="tabs_button" data-for-tab="create">
                         <i class="fa-solid fa-baseball"></i>
-                        Create
+                        CREATE
                      </button>
                      <button class="tabs_button" data-for-tab="explore">
                         <i class="fa-solid fa-chart-simple"></i>
-                        Explore
+                        EXPLORE
                      </button>
-                     <div class="form-check form-switch" style="margin-left: auto; margin-top: auto; margin-bottom: auto;">                        
-                        <input class="form-check-input" type="checkbox" id="dark_theme_toggle" onchange="toggleTheme(this)">
-                        <label class="form-check-label" for="dark_theme_toggle" id="darkThemeToggleLabel">Dark Theme</label>
+                     <div style="margin-left: auto; margin-top: auto; margin-bottom: auto;">                        
+                        <button class="theme_switch" onclick="toggleTheme()">
+                           <i class="fa-solid fa-moon"></i>
+                        </button>
                      </div>
                   </div>
             </div>
@@ -147,7 +148,7 @@
                                        <div class="col-6 col-md-6">
                                           <label for="setSelection" style="color:Gray;"><b>Set</b></label>
                                           <img for="setSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="CLASSIC is compatible with '00-'01 sets, while EXPANDED works well with '02-'05. EXPANDED set increases hitter onbase values and adds results over 20+." >
-                                          <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example">
+                                          <select id="setSelection" class="form-select mb-3" aria-label=".form-select-lg example" onchange="changeSetSelection(this)">
                                              {% for year in ['2000','2001','2002','2003','2004','2005','Classic','Expanded'] %}
                                                 <option value={{ year }} {% if year == '2000' %} selected="selected" {% endif %}>{{ year }}</option>
                                              {% endfor %}
@@ -155,7 +156,7 @@
                                        </div>
                                        <div class="col-6 col-md-6">
                                           <label style="color:Gray;" for="eraSelection"> <b>Era</b> </label>
-                                          <img for="setSelection" src="static/interface/InfoButton.png" height=15 width=15 data-toggle="tooltip" data-placement="top" title="Eras determine the average opponent used to create the player's chart. See Opponent breakdown after creating a card for more detail."  >
+                                          <img for="eraSelection" src="static/interface/InfoButton.png" height=15 width=15 data-toggle="tooltip" data-placement="top" title="Eras determine the average opponent used to create the player's chart. See Opponent breakdown after creating a card for more detail."  >
                                           <select id="eraSelection" class="form-select mb-3" aria-label=".form-select-lg example">
                                              {% set era_dict = {
                                                 "DYNAMIC": "Dynamic", 
@@ -332,10 +333,10 @@
                                        <div class="col-md-12" style="padding: 8px;" >
                                           <!-- CREATE CARD BUTTON  -->
                                           <a href=# id=create_card>
-                                             <button type="submit" id="btn_custom" style="background-color: #4983D4; padding: 15px;" class="btn w-100">
+                                             <button type="submit" id="btn_custom" class="btn w-100" style="background-color: var(--primary-color); padding: 15px;">
                                                 <div class="btn_text">
                                                    <i class="fa-solid fa-baseball fa-bounce"></i>
-                                                   Create Showdown Card
+                                                   BUILD SHOWDOWN CARD
                                                 </div>
                                              </button>
                                           </a>
@@ -408,28 +409,31 @@
                            <!-- OUTPUT  -->
                            <div class="output_container">
                               
-                              <div class="flex_box_custom justify-content-between" style="align-items: center; margin-bottom: 10px; ">
-                                 <div id="player_details_div" class="flex_box_custom" style="align-items: center; gap: 10px;">
-                                    <h4 id="player_name" class="player_name_light"> <b> </b></h4>
-                                    
-                                 </div>
+                              <div id="player_details_div" class="text-grid">
+                                 <h4 id="player_name" class="player_name_light"> <b>  </b></h4>
+                                 <!-- ADD OTHER PLAYER ATTRIBUTES HERE -->
+                                 <!-- <div class="player_attribute_box_light">2024</div>
+                                 <div class="player_attribute_box_light">Element 2</div>
+                                 <div class="player_attribute_box_light">Element 3</div>
+                                 <div class="player_attribute_box_light">Element 4</div>
+                                 <div class="player_attribute_box_light">Element 5</div> -->
                               </div>
 
                               <h5 id="message_string"> Test </h5>
 
                               <!-- IMAGE AND BREAKDOWNS -->
-                              <div class="row d-flex justify-content-center" style="align-items: stretch;">
+                              <div class="row d-flex justify-content-center">
                                  
                                  <div class="col-lg-12 col-xl-7">
                                     <div class="card_container" id="card_container_div" style="padding-bottom: 20px;">
                                        <div class="card_output">
-                                          <img id="card_image" src="static/interface/BlankPlayer.png" alt="card" class="img-fluid">
+                                          <img id="card_image" src="static/interface/BlankPlayer-2000.png" alt="card" class="img-fluid">
                                        </div>
                                     </div>
                                  </div>
          
                                  <div class="col-lg-12 col-xl-5">                                    
-                                    <div class="breakdown_container">
+                                    <div class="breakdown_container" style="padding-bottom: 20px;">
 
                                           <div class="breakdown_output_light" id="breakdown_output">
                                              <select id="breakdownSelection" class="form-select mb-3" aria-label=".form-select-lg example" onchange="toggleBreakdownSelection()">
@@ -529,10 +533,11 @@
                               
                               <!-- TRENDS -->
                               <div class="row d-flex justify-content-left">
+                                 
                                  <!-- CAREER -->
                                  <div class="col-md-12 col-xl-6" style="padding-bottom: 20px;">
-                                    <div id="trend_container" class="trend_container_light" >
-                                       <label id="trend_label" class="trend_label_light" for="playerCareerTrends">
+                                    <div class="trend_container">
+                                       <label class="trend_label" for="playerCareerTrends">
                                           <span>Career Trends</span>
                                        </label>
                                        <canvas id="playerCareerTrends"></canvas>
@@ -541,15 +546,16 @@
 
                                  <!-- IN SEASON -->
                                  <div class="col-md-12 col-xl-6" style="padding-bottom: 20px;">
-                                    <div id="in_season_trend_container" class="in_season_trend_container_light">
-                                       <label id="in_season_trend_label" class="in_season_trend_label_light" for="playerInSeasonTrends">
+                                    <div class="trend_container">
+                                       <label id="in_season_trend_label" class="trend_label" for="playerInSeasonTrends">
                                           <span>Season Evolution</span>
                                        </label>
                                        <canvas id="playerInSeasonTrends"></canvas>
                                     </div>
-                                 </div>   
-                              </div>
+                                 </div>
 
+                              </div>
+                              
                            </div>
                         </div>
                      </div>
