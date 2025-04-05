@@ -420,8 +420,7 @@ function setTheme(themeName) {
     containers_to_alter = [
         "container_bg", "overlay", "input_container_column", "input_container",
         "main_body", "breakdown_output", 
-        "player_name", "player_details", "estimated_values_footnote", 
-        "chart_adjustments_footnote", "points_breakdown_footnote", "opponent_values_footnote", 
+        "estimated_values_footnote", "chart_adjustments_footnote", "points_breakdown_footnote", "opponent_values_footnote", 
         "loader_container_rectangle",
     ]
     for (const id of containers_to_alter) {
@@ -464,17 +463,6 @@ function setTheme(themeName) {
         var set = localStorage.getItem('set') || '2000';
         document.getElementById('card_image').src = `static/interface/BlankPlayer-${set}${suffix}.png`;
     }
-
-    // CHANGE CLASSES IN BELOW LIST
-    const suffix_prior = is_dark ? '_light' : '_dark';
-    const suffix_new = is_dark ? '_dark' : '_light';
-    const classes_to_alter = ['player_attribute_box_light', 'player_attribute_box_dark']
-    for (const class_name of classes_to_alter) {
-        const elements = document.getElementsByClassName(class_name);
-        Array.from(elements).forEach(function(element) {
-            element.className = element.className.replace(suffix_prior, suffix_new);
-        });
-    }
 }
 
 function showCardData(data) {
@@ -511,15 +499,21 @@ function showCardData(data) {
         $("#player_name").text(data.player_name.toUpperCase());
 
         // ADD CHILDREN TO PLAYER DETAILS DIV
-        $("#player_details_div").append(`
-            <div class="player_attribute_box_light">2024</div>
-            <div class="player_attribute_box_light">Element 2</div>
-            <div class="player_attribute_box_light">Element 3</div>
-            <div class="player_attribute_box_light">Element 4</div>
-            <div class="player_attribute_box_light">Element 5</div>
-        `);
+        // CLEAR OUT PLAYER DETAILS DIV
+        $("#player_details_div").empty();
+        $("#player_details_div").show();
+        const attributes = ['player_year', 'period']
+        for (const attr_type of attributes) { 
+            var attr_text = data[attr_type];
+            if (attr_type in ['period']) {
+                attr_text = `${attr_type}: ${attr_text}`;
+            }
+            $("#player_details_div").append(`<div class="player_attribute_box">${attr_text}</div>`);
+        }
+
     } else {
         $("#player_name").hide();
+        $("#player_details_div").hide();
     }
 
     // TRENDS GRAPHS

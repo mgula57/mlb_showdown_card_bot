@@ -5,7 +5,7 @@
     --secondary-color: rgb(154, 54, 48);
     --button-bg-color: rgb(227, 226, 226);
     --text-primary-color: #000000;
-    --text-secondary-color: #2e2e2e;
+    --text-secondary-color: #4a4a4a;
 }
 
 /* MAIN BODY */
@@ -90,30 +90,18 @@
     margin-bottom: 8px;
 }
 /* TREND: SHOWS TREND CHART FOR PLAYER PROGRESS */
-.player_attribute_box_light {
-    color: gray;
-    background-color: white;
+.player_attribute_box {
+    color: var(--text-secondary-color);
+    background-color: var(--primary-background-color);
     box-shadow: 0px 1px 5px 0px rgba(0, 0, 0, 0.20);
     border-radius: 10px;
     margin: 0px;
-    padding-top: 2px;
-    padding-bottom: 2px;
     padding-left: 10px;
     padding-right: 10px;
     font-weight: bold;
-}
-.player_attribute_box_dark {
-    color: rgb(182, 181, 181);
-    background-color: 'black';
-    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    border-radius: 5px;
-    margin: 0px;
-    padding-top: 2px;
-    padding-bottom: 2px;
-    padding-left: 5px;
-    padding-right: 5px;
-    font-size: 75%;
-    font-weight: bold;
+    font-size: small;
+    display: flex;
+    align-items: center;
 }
 /* TREND: SHOWS TREND CHART FOR PLAYER PROGRESS */
 .trend_container {
@@ -147,13 +135,6 @@
     text-align: center;
     font-size: 12px;
     opacity: 0.75;
-}
-.text-grid {
-    display: flex;
-    flex-wrap: wrap;        /* Enables wrapping to a new line */
-    gap: 10px;              /* Optional spacing between elements */
-    justify-content: left; /* Optional: center items horizontally */
-    margin-bottom: 10px;
 }
 
 /* BREAKDOWN: SHOWS STATS, POINTS, ACCURACY, ETC */
@@ -287,17 +268,24 @@
 }
 
 /* PLAYER NAME */
-.player_name_light {
-    color: gray;
+.player_name {
+    color: var(--text-secondary-color);
     padding: 0px; 
     margin: 0px; 
     font-weight: bolder; 
+    display: none;
 }
-.player_name_dark {
-    color: gray;
-    padding: 0px; 
-    margin: 0px; 
-    font-weight: bolder; 
+.text-grid {
+    display: flex;
+    flex-wrap: wrap;        /* Enables wrapping to a new line */
+    gap: 10px;              /* Optional spacing between elements */
+    justify-content: left; /* Optional: center items horizontally */
+    margin-bottom: 10px;
+    align-items: center;
+    margin: 0px;
+}
+#player_name_and_details_div {
+    margin-bottom: 10px;
 }
 #message_string {
     color: red;
