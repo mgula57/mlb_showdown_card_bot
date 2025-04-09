@@ -9,9 +9,6 @@
 }
 
 /* MAIN BODY */
-.main_body_light {
-    background-color: #ffffff;
-}
 .main_body_dark {
     background-color: #000000;
     --primary-background-color: rgb(29, 29, 29);
@@ -30,7 +27,7 @@
     margin-bottom: 20px;
     margin-right: 10px;
     margin-left: 10px;
-    background-color: #f3f3f3; /*#416a9d; */
+    background-color: #ebeaea; /*#416a9d; */
     overflow: hidden;
 }
 .container_bg_dark {
@@ -107,7 +104,6 @@
 .trend_container {
     background-color: var(--primary-background-color);
     border-radius: 20px;
-    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
     height: 250px;
     position: relative;
     padding-bottom: 25px;
@@ -138,17 +134,10 @@
 }
 
 /* BREAKDOWN: SHOWS STATS, POINTS, ACCURACY, ETC */
-.breakdown_output_light {
-    background-color: #ffffff;
+.breakdown_output {
+    background-color: var(--primary-background-color);
     border-radius: 20px;
-    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    padding: 15px;
-    overflow: scroll;
-    height: 100%;
-}
-.breakdown_output_dark {
-    background-color: #222222;
-    border-radius: 20px;
+    /* box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20); */
     padding: 15px;
     overflow: scroll;
     height: 100%;
@@ -450,6 +439,22 @@ hr {
     background-color: var(--button-bg-color);
 }
 
+.custom-toggle-group .btn {
+    font-size: 12px;
+    padding: 2px 5px;
+    height: 18px;
+    line-height: 1.2;
+    border-radius: 4px;
+}
+
+.custom-toggle-group .btn-check:checked + .btn {
+    background-color: #6c757d; /* Bootstrap secondary */
+    color: white;
+    border-color: #6c757d;
+}
+
+/* **************************************************** */
+
 /* GENERAL */
 input[type='text'],
 input[type='number'],
@@ -466,7 +471,7 @@ textarea {
 
 /* For medium and large devices: ≥768px and <1200px */
 @media (min-width: 768px) and (max-width: 1199px) {
-    #breakdown_output {
+    .breakdown_output {
         max-height: 500px;
         overflow-y: auto;
     }
@@ -474,7 +479,7 @@ textarea {
 
 /* For large devices: ≥1200px and <1400px */
 @media (min-width: 1200px) and (max-width: 1399px) {
-    #breakdown_output {
+    .breakdown_output {
       max-height: 542px;
       overflow-y: auto;
     }
@@ -482,7 +487,7 @@ textarea {
 
 /* For xl+ devices: ≥1400px */
 @media (min-width: 1400px) {
-    #breakdown_output {
+    .breakdown_output {
       max-height: 640px;
       overflow-y: auto;
     }

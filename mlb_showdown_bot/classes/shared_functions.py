@@ -95,7 +95,11 @@ def convert_to_date(game_log_date_str: str, year: int) -> date:
     Returns:
         Date object
     """
-    game_log_date_str_cleaned = game_log_date_str.split('(')[0].strip().replace('\xa0susp', '')
+    game_log_date_str_cleaned = game_log_date_str \
+                                    .split('(')[0] \
+                                    .strip() \
+                                    .replace('\xa0susp', '') \
+                                    .replace(' susp', '') 
     is_new_format = game_log_date_str.count('-') >= 2
     if is_new_format:
         # IN UPGRADED TABLES, DATES ARE IN THIS FORMAT "YYYY-MM-DD)"

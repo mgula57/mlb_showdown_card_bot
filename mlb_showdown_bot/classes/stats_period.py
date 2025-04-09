@@ -109,10 +109,15 @@ class StatsPeriodDateAggregation(str, Enum):
                 
                 return date_ranges
 
+    def get_first_date_of_aggregation(self, end_date:date) -> date:
+        match self:
+            case StatsPeriodDateAggregation.DAY:
+                return end_date
+            case StatsPeriodDateAggregation.WEEK:
+                return end_date - timedelta(days=6)
+            case StatsPeriodDateAggregation.MONTH:
+                return date(end_date.year, end_date.month, 1)
 
-        
-
-    
 
 class StatsPeriod(BaseModel):
 

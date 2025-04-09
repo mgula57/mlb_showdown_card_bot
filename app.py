@@ -389,7 +389,7 @@ def card_creator():
         # -----------------
 
         # YEARLY TRENDS
-        yearly_trends_data: dict[int: dict[str: Any]] = None
+        yearly_trends_data: dict[str: dict[str: Any]] = None
         if len(yearly_archive_data) > 0:
             yearly_trends_data = {}
             for year_archive in yearly_archive_data:
@@ -409,6 +409,11 @@ def card_creator():
                 except Exception as e:
                     print(e)
                     continue # SKIP YEAR
+            
+            if len(yearly_trends_data) > 0:
+                latest_historical_year = max(yearly_trends_data.keys())
+                if showdown_card.year > latest_historical_year:
+                    yearly_trends_data[str(showdown_card.year)] = showdown_card.trend_line_data()
 
         # WEEKLY IN SEASON TRENDS
         in_season_trends_data: dict[str: Any] = None
@@ -445,6 +450,7 @@ def card_creator():
         player_stats_data = showdown_card.player_data_for_html_table()
         player_points_data = showdown_card.points_data_for_html_table()
         player_chart_versions_data = showdown_card.chart_accuracy_data_for_html_table()
+        player_edition = showdown_card.image.edition.name.replace('_', ' ')
         opponent_data = showdown_card.opponent_data_for_html_table()
         opponent_type = "Hitter" if showdown_card.is_pitcher else "Pitcher"
         radar_labels, radar_values = showdown_card.radar_chart_labels_as_values()
@@ -532,6 +538,9 @@ def card_creator():
             opponent=opponent_data,
             opponent_type=opponent_type,
             era=player_era,
+            edition=player_edition,
+            expansion=expansion,
+            chart_version=chart_version,
             image_parallel=image_parallel,
             period=showdown_card.stats_period.string,
             warnings=showdown_card.warnings
@@ -605,6 +614,9 @@ def card_creator():
             opponent=None,
             opponent_type=None,
             era=None,
+            edition=None,
+            expansion=None,
+            chart_version=None,
             image_parallel=None,
             period=None,
             warnings=[]
@@ -628,4 +640,4 @@ def random_player_id_and_year():
     return random_player_sample['player_id'], str(random_player_sample['year'])
 
 if __name__ == '__main__':
-    app.run(debug=None)
+    app.run(debug=True)

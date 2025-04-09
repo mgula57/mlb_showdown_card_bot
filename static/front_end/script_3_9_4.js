@@ -1,3 +1,52 @@
+// --------------------------------------------------------
+// GLOBAL VARIABLES
+// --------------------------------------------------------
+let light_gray_color = 'rgba(200, 200, 200, 0.5)';
+let generic_career_data = {
+    '2013': {'color': light_gray_color, 'points': 120, },
+    '2014': {'color': light_gray_color, 'points': 160, },
+    '2015': {'color': light_gray_color, 'points': 280, },
+    '2016': {'color': light_gray_color, 'points': 230, },
+    '2017': {'color': light_gray_color, 'points': 310, },
+    '2018': {'color': light_gray_color, 'points': 320, },
+    '2019': {'color': light_gray_color, 'points': 330, },
+    '2020': {'color': light_gray_color, 'points': 440, },
+    '2021': {'color': light_gray_color, 'points': 480, },
+    '2022': {'color': light_gray_color, 'points': 520, },
+    '2023': {'color': light_gray_color, 'points': 400, },
+    '2024': {'color': light_gray_color, 'points': 420, },
+    '2025': {'color': light_gray_color, 'points': 320, },
+};
+let generic_in_season_data = {
+    '2025-03-30': { 'color': light_gray_color, 'points': 150 },
+    '2025-04-06': { 'color': light_gray_color, 'points': 110 },
+    '2025-04-13': { 'color': light_gray_color, 'points': 160 },
+    '2025-04-20': { 'color': light_gray_color, 'points': 250 },
+    '2025-04-27': { 'color': light_gray_color, 'points': 270 },
+    '2025-05-04': { 'color': light_gray_color, 'points': 280 },
+    '2025-05-11': { 'color': light_gray_color, 'points': 250 },
+    '2025-05-18': { 'color': light_gray_color, 'points': 230 },
+    '2025-05-25': { 'color': light_gray_color, 'points': 200 },
+    '2025-06-01': { 'color': light_gray_color, 'points': 270 },
+    '2025-06-08': { 'color': light_gray_color, 'points': 330 },
+    '2025-06-15': { 'color': light_gray_color, 'points': 350 },
+    '2025-06-22': { 'color': light_gray_color, 'points': 350 },
+    '2025-06-29': { 'color': light_gray_color, 'points': 370 },
+    '2025-07-06': { 'color': light_gray_color, 'points': 320 },
+    '2025-07-13': { 'color': light_gray_color, 'points': 350 },
+    '2025-07-20': { 'color': light_gray_color, 'points': 400 },
+    '2025-07-27': { 'color': light_gray_color, 'points': 470 },
+    '2025-08-03': { 'color': light_gray_color, 'points': 450 },
+    '2025-08-10': { 'color': light_gray_color, 'points': 480 },
+    '2025-08-17': { 'color': light_gray_color, 'points': 500 },
+    '2025-08-24': { 'color': light_gray_color, 'points': 520 },
+    '2025-08-31': { 'color': light_gray_color, 'points': 550 },
+    '2025-09-07': { 'color': light_gray_color, 'points': 500 },
+    '2025-09-14': { 'color': light_gray_color, 'points': 510 },
+    '2025-09-21': { 'color': light_gray_color, 'points': 510 },
+    '2025-09-28': { 'color': light_gray_color, 'points': 520 }
+};
+
 // -------------------------------------------------------
 // METHODS
 // -------------------------------------------------------
@@ -361,52 +410,7 @@ function buildGenericChartPlaceholders() {
     data = {
         player_year: "", // SO YEAR NEVER MATCHES
     };
-    light_gray_color = 'rgba(158, 158, 158, 0.08)';
-    generic_career_data = {
-        '2013': {'color': light_gray_color, 'points': 120, },
-        '2014': {'color': light_gray_color, 'points': 160, },
-        '2015': {'color': light_gray_color, 'points': 280, },
-        '2016': {'color': light_gray_color, 'points': 230, },
-        '2017': {'color': light_gray_color, 'points': 310, },
-        '2018': {'color': light_gray_color, 'points': 320, },
-        '2019': {'color': light_gray_color, 'points': 330, },
-        '2020': {'color': light_gray_color, 'points': 440, },
-        '2021': {'color': light_gray_color, 'points': 480, },
-        '2022': {'color': light_gray_color, 'points': 520, },
-        '2023': {'color': light_gray_color, 'points': 400, },
-        '2024': {'color': light_gray_color, 'points': 420, },
-        '2025': {'color': light_gray_color, 'points': 320, },
-    };
-    generic_in_season_data = {
-        '2025-03-30': { 'color': light_gray_color, 'points': 150 },
-        '2025-04-06': { 'color': light_gray_color, 'points': 110 },
-        '2025-04-13': { 'color': light_gray_color, 'points': 160 },
-        '2025-04-20': { 'color': light_gray_color, 'points': 250 },
-        '2025-04-27': { 'color': light_gray_color, 'points': 270 },
-        '2025-05-04': { 'color': light_gray_color, 'points': 280 },
-        '2025-05-11': { 'color': light_gray_color, 'points': 250 },
-        '2025-05-18': { 'color': light_gray_color, 'points': 230 },
-        '2025-05-25': { 'color': light_gray_color, 'points': 200 },
-        '2025-06-01': { 'color': light_gray_color, 'points': 270 },
-        '2025-06-08': { 'color': light_gray_color, 'points': 330 },
-        '2025-06-15': { 'color': light_gray_color, 'points': 350 },
-        '2025-06-22': { 'color': light_gray_color, 'points': 350 },
-        '2025-06-29': { 'color': light_gray_color, 'points': 370 },
-        '2025-07-06': { 'color': light_gray_color, 'points': 320 },
-        '2025-07-13': { 'color': light_gray_color, 'points': 350 },
-        '2025-07-20': { 'color': light_gray_color, 'points': 400 },
-        '2025-07-27': { 'color': light_gray_color, 'points': 470 },
-        '2025-08-03': { 'color': light_gray_color, 'points': 450 },
-        '2025-08-10': { 'color': light_gray_color, 'points': 480 },
-        '2025-08-17': { 'color': light_gray_color, 'points': 500 },
-        '2025-08-24': { 'color': light_gray_color, 'points': 520 },
-        '2025-08-31': { 'color': light_gray_color, 'points': 550 },
-        '2025-09-07': { 'color': light_gray_color, 'points': 500 },
-        '2025-09-14': { 'color': light_gray_color, 'points': 510 },
-        '2025-09-21': { 'color': light_gray_color, 'points': 510 },
-        '2025-09-28': { 'color': light_gray_color, 'points': 520 }
-    };
-
+    
     createTrendsChart(data=data, trends_data=generic_career_data, elementId="playerCareerTrends", unit='year', is_placeholder=true, events=[]);
     createTrendsChart(data=data, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]);
 }
@@ -418,8 +422,7 @@ function setTheme(themeName) {
     var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
     containers_to_alter = [
-        "container_bg", "overlay", "input_container_column", "input_container",
-        "main_body", "breakdown_output", 
+        "container_bg", "overlay", "input_container_column", "input_container", "main_body",
         "estimated_values_footnote", "chart_adjustments_footnote", "points_breakdown_footnote", "opponent_values_footnote", 
         "loader_container_rectangle",
     ]
@@ -502,12 +505,26 @@ function showCardData(data) {
         // CLEAR OUT PLAYER DETAILS DIV
         $("#player_details_div").empty();
         $("#player_details_div").show();
-        const attributes = ['player_year', 'period']
-        for (const attr_type of attributes) { 
-            var attr_text = data[attr_type];
-            if (attr_type in ['period']) {
-                attr_text = `${attr_type}: ${attr_text}`;
+        const attributes = ['player_year', 'period', 'era', 'expansion', 'edition', 'image_parallel', 'chart_version'];
+        for (const attr_type of attributes) {
+            var attr_text = String(data[attr_type]);
+            if (["NONE", "undefined", "null", "1", "BS"].includes(attr_text)) { continue; }
+
+            // CLEAN UP TEXT
+            attr_text = attr_text.toUpperCase();
+            var prefix = ['era', 'expansion', 'edition', 'chart_version'].includes(attr_type) ? `${attr_type.replace('_', ' ').toUpperCase()}: `: '';
+            const replacements = {
+                'IMAGE_': '',
+                ' ERA': '',
+                ' 0': ' ',
+                ' VERSION': '',
             }
+            for (const [key, value] of Object.entries(replacements)) {
+                attr_text = attr_text.replace(key, value);
+                prefix = prefix.replace(key, value);
+            }
+            attr_text = attr_text.trim();
+            attr_text = `${prefix}${attr_text}`;
             $("#player_details_div").append(`<div class="player_attribute_box">${attr_text}</div>`);
         }
 

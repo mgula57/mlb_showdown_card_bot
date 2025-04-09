@@ -235,11 +235,13 @@ def main():
         year = showdown.year_list[0]
         player_first_date = convert_to_date(game_log_date_str=game_logs[0].get('date', game_logs[0].get('date_game', None)), year=year)
         player_last_date = convert_to_date(game_log_date_str=game_logs[-1].get('date', game_logs[-1].get('date_game', None)), year=year)
-        points_per_date: dict[str, int] = {}
+        points_per_date_cumulative: dict[str, dict[str, int]] = {}
+        points_per_date_in_period: dict[str, dict[str, int]] = {}
         date_ranges = date_aggregation.date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date)
         for dr in date_ranges:
             start_date, end_date = dr
-            trends_showdown = ShowdownPlayerCard(
+            in_period_start_date = date_aggregation.get_first_date_of_aggregation(end_date=end_date)
+            trends_showdown_cumulative = ShowdownPlayerCard(
                 name=name,
                 year=str(year),
                 stats_period=StatsPeriod(type=StatsPeriodType.DATE_RANGE, year=str(year), start_date=start_date, end_date=end_date),
@@ -258,19 +260,45 @@ def main():
                 ignore_cache=args.ignore_cache,
                 warnings=scraper.warnings
             )
-            if trends_showdown.stats_period.stats is None:
-                print(f"NO STATS FOR {start_date} - {end_date}")
+            trends_showdown_in_period = ShowdownPlayerCard(
+                name=name,
+                year=str(year),
+                stats_period=StatsPeriod(type=StatsPeriodType.DATE_RANGE, year=str(year), start_date=in_period_start_date, end_date=end_date),
+                stats=statline,
+                set=set,
+                era=args.era,
+                expansion=args.expansion,
+                edition=args.edition,
+                player_type_override=scraper.player_type_override,
+                print_to_cli=False,
+                command_out_override=command_out_override,
+                is_variable_speed_00_01=args.variable_spd,
+                source=data_source,
+                disable_cache_cleaning=args.disable_cache_cleaning,
+                nickname_index=args.nickname_index,
+                ignore_cache=args.ignore_cache,
+                warnings=scraper.warnings
+            )
+            if trends_showdown_cumulative.stats_period.stats is None:
+                print(f"NO CUMULATIVE STATS FOR {start_date} - {end_date}")
+                continue
+            if trends_showdown_in_period.stats_period.stats is None:
+                print(f"NO IN PERIOD STATS FOR {in_period_start_date} - {end_date}")
                 continue
 
-            points_per_date[end_date.strftime("%m/%d/%Y")] = trends_showdown.points
+            points_per_date_cumulative[end_date.strftime("%m/%d/%Y")] = trends_showdown_cumulative.points
+            points_per_date_in_period[end_date.strftime("%m/%d/%Y")] = trends_showdown_in_period.points
 
         # PRINT HISTORICAL POINTS
-        print("\nSEASON TRENDS POINTS")
+        print(f"\n{year} TRENDS POINTS")
         # CUTOFF POINTS_PER_DATE TO FIRST 5 AND LAST 5
-        if len(points_per_date) > 10:
-            points_per_date = dict(list(points_per_date.items())[:5] + [('...', '...')] + list(points_per_date.items())[-5:])
-        table = PrettyTable(field_names=list(points_per_date.keys()))
-        table.add_row([f"{pts}" for pts in points_per_date.values()])
+        if len(points_per_date_cumulative) > 10:
+            points_per_date_cumulative = dict(list(points_per_date_cumulative.items())[:5] + [('...', '...')] + list(points_per_date_cumulative.items())[-5:])
+            points_per_date_in_period = dict(list(points_per_date_in_period.items())[:5] + [('...', '...')] + list(points_per_date_in_period.items())[-5:])
+        table = PrettyTable(field_names=list(points_per_date_cumulative.keys()))
+        table.add_row([f"{pts}" for pts in points_per_date_cumulative.values()])
+        table.add_row([f"{pts}" for pts in points_per_date_in_period.values()])
+
         print(table)
 
         season_trends_load_time = round((datetime.now() - season_trends_load_start_time).total_seconds(),2)
