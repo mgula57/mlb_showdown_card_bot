@@ -90,7 +90,6 @@
 .player_attribute_box {
     color: var(--text-secondary-color);
     background-color: var(--primary-background-color);
-    box-shadow: 0px 1px 5px 0px rgba(0, 0, 0, 0.20);
     border-radius: 10px;
     margin: 0px;
     padding-left: 10px;
@@ -262,19 +261,16 @@
     padding: 0px; 
     margin: 0px; 
     font-weight: bolder; 
-    display: none;
 }
 .text-grid {
     display: flex;
-    flex-wrap: wrap;        /* Enables wrapping to a new line */
-    gap: 10px;              /* Optional spacing between elements */
+    flex-wrap: wrap;       /* Enables wrapping to a new line */
+    column-gap: 10px;      /* Optional spacing between elements */
+    row-gap: 5px;          /* Optional spacing between elements */
     justify-content: left; /* Optional: center items horizontally */
     margin-bottom: 10px;
     align-items: center;
     margin: 0px;
-}
-#player_name_and_details_div {
-    margin-bottom: 10px;
 }
 #message_string {
     color: red;
@@ -282,13 +278,8 @@
     margin-bottom: 10px; 
     display: none;
 }
-.player_details_light {
-    margin: 2px; 
-    color: gray;
-}
-.player_details_dark {
-    margin: 2px;
-    color: gray;
+.player_details_div_container {
+    margin-bottom: 10px;
 }
 #player_trend_up_arrow {
     color: green;

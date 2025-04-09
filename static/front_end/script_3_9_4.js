@@ -496,15 +496,18 @@ function showCardData(data) {
     var storedSet = localStorage.getItem('set') || '2000';
     $("#card_image").attr('src', data.image_path || `static/interface/BlankPlayer-${storedSet}${(is_dark) ? '-Dark' : ''}.png`);
     
-    // ADD HYPERLINK TO BREF
+    // ADD PLAYER DETAILS
     if (data.player_name) {
-        $("#player_name").show();
-        $("#player_name").text(data.player_name.toUpperCase());
-
+        
         // ADD CHILDREN TO PLAYER DETAILS DIV
         // CLEAR OUT PLAYER DETAILS DIV
         $("#player_details_div").empty();
+
+        // ADD NAME
         $("#player_details_div").show();
+        $("#player_details_div").append(`<h4 id="player_name" class="player_name"> <b> ${data.player_name.toUpperCase()}</b></h4>`);
+                
+        // DETAILS
         const attributes = ['player_year', 'period', 'era', 'expansion', 'edition', 'image_parallel', 'chart_version'];
         for (const attr_type of attributes) {
             var attr_text = String(data[attr_type]);
@@ -529,7 +532,6 @@ function showCardData(data) {
         }
 
     } else {
-        $("#player_name").hide();
         $("#player_details_div").hide();
     }
 
