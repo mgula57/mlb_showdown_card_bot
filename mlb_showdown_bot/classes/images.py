@@ -395,6 +395,10 @@ class ImageParallel(str, Enum):
             case ImageParallel.MOONLIGHT: return "BLACK"
             case _: return None
 
+    @property
+    def name_cleaned(self) -> str:
+        """Cleaned version of the name, uppercased"""
+        return self.name.replace('_', ' ').upper()
 
 # ---------------------------------------
 # TEMPLATE IMAGE COMPONENT

@@ -541,7 +541,7 @@ def card_creator():
             edition=player_edition,
             expansion=expansion,
             chart_version=chart_version,
-            image_parallel=image_parallel,
+            image_parallel=showdown_card.image.parallel.name_cleaned,
             period=showdown_card.stats_period.string,
             warnings=showdown_card.warnings
         )

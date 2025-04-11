@@ -540,10 +540,9 @@ function showCardData(data) {
 
             // CLEAN UP TEXT
             attr_text = attr_text.toUpperCase();
-            var prefix = ['era', 'expansion', 'edition', 'chart_version'].includes(attr_type) ? `${attr_type.replace('_', ' ').toUpperCase()}: `: '';
+            var prefix = ['expansion', 'chart_version'].includes(attr_type) ? `${attr_type.replace('_', ' ').toUpperCase()}: `: '';
             const replacements = {
                 'IMAGE_': '',
-                ' ERA': '',
                 ' 0': ' ',
                 ' VERSION': '',
             }
