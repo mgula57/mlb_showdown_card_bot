@@ -490,6 +490,12 @@ function setTheme(themeName) {
         var set = localStorage.getItem('set') || '2000';
         document.getElementById('card_image').src = `static/interface/BlankPlayer-${set}${suffix}.png`;
     }
+
+    // UPDATE BUTTON ICON
+    var themeIconElement = document.getElementById('theme_switch_icon');
+    const updatedIconClasses = (is_dark) ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+    themeIconElement.className = updatedIconClasses;
+
 }
 
 function showCardData(data) {
