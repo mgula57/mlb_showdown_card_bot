@@ -158,8 +158,8 @@
     box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
     overflow: hidden;
 }
-.card_image {
-    padding: 5px;
+#card_image {
+    transition: opacity 0.4s ease-in-out;
 }
 #image_header_div {
     padding: 5px;

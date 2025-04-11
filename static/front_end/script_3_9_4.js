@@ -205,13 +205,37 @@ function changeYear(newYear) {
 function changeSetSelection(newSet) {
     updatedSet = newSet.value;
     localStorage.setItem('set', updatedSet);
-    console.log(updatedSet);
-    // CHECK WHAT src OF CARD_IMAGE IS
-    if (document.getElementById('card_image').src.includes('interface')) {
+
+    // FLIP PREVIEW IMAGE TO BE DEPENDENT ON THE SET
+    const cardImageElement = document.getElementById('card_image');
+    if (cardImageElement.src.includes('interface')) {
+
+        // DEFINE NEW SRC
         const theme = localStorage.getItem('theme') || 'light';
         const suffix = (theme == 'dark') ? '-Dark' : '';
-        document.getElementById('card_image').src = `static/interface/BlankPlayer-${updatedSet}${suffix}.png`;
+        const newImageUrl = `static/interface/BlankPlayer-${updatedSet}${suffix}.png?cb=${Date.now()}`;
+        
+        // UPDATE IMAGE WITH ANIMATION
+        animatePlayerImageTransition(newImageUrl);
     }
+}
+
+// IMAGE TRANSITION
+function animatePlayerImageTransition(url) {
+
+    // GET ELEMENT
+    const cardImageElement = document.getElementById('card_image');
+
+    // FADE OUT
+    cardImageElement.style.opacity = '0';
+            
+    // AFTER THE FADE-OUT IS COMPLETE, UPDATE THE SRC AND FADE BACK IN
+    setTimeout(() => {
+        cardImageElement.onload = () => {
+            cardImageElement.style.opacity = '1';
+        };
+        cardImageElement.src = url;
+    }, 400); // match the transition duration from CSS (in MS)
 }
 
 // THEME
@@ -494,7 +518,8 @@ function showCardData(data) {
 
     // CHANGE CARD IMAGE
     var storedSet = localStorage.getItem('set') || '2000';
-    $("#card_image").attr('src', data.image_path || `static/interface/BlankPlayer-${storedSet}${(is_dark) ? '-Dark' : ''}.png`);
+    const newImageUrl = data.image_path || `static/interface/BlankPlayer-${storedSet}${(is_dark) ? '-Dark' : ''}.png`;
+    animatePlayerImageTransition(newImageUrl);
     
     // ADD PLAYER DETAILS
     if (data.player_name) {
