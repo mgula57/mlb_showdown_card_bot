@@ -400,13 +400,6 @@ hr {
     font-weight: bolder;
 }
 
-#btn_custom {
-    border-radius: 20px; 
-    padding: 8px;
-    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    color: white;
-}
-
 .a_no_style {
     color: white;
     text-decoration: none;
@@ -442,6 +435,18 @@ hr {
     background-color: #6c757d; /* Bootstrap secondary */
     color: white;
     border-color: #6c757d;
+}
+
+.btn_custom {
+    border-radius: 20px; 
+    padding: 8px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    color: white;
+}
+
+.btn_custom:hover {
+    opacity: 0.8;
+    color: white;
 }
 
 /* **************************************************** */

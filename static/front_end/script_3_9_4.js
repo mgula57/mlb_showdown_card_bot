@@ -245,6 +245,71 @@ function toggleTheme() {
     setTheme(newTheme);
 }
 
+function disableBuildButtons(wasRandomSelected=false) {
+    const createCard = document.getElementById("create_card");
+    const createCardRandom = document.getElementById("create_card_random");
+    const createCardIcon = document.getElementById("create_card_icon");
+    const createCardRandomIcon = document.getElementById("create_card_random_icon");
+    const createCardText = document.getElementById("create_card_text");
+    const createCardRandomText = document.getElementById("create_card_random_text");
+
+    // ADD ANIMATION TO ICON'S CLASSES
+    // CHANGE TEXT
+    if (wasRandomSelected) {
+        const updatedIconClasses = createCardRandomIcon.className + ' fa-flip';
+        createCardRandomIcon.className = updatedIconClasses;
+        createCardRandomText.innerText = "SHUFFLING...";
+    } else {
+        const updatedIconClasses = createCardIcon.className + ' fa-bounce';
+        createCardIcon.className = updatedIconClasses;
+        createCardText.innerText = "BUILDING...";
+    }    
+    
+    // DISABLE BUTTONS (IF THEY'RE FORM ELEMENTS, THIS HELPS)
+    createCard.disabled = true;
+    createCardRandom.disabled = true;
+    
+    // UPDATE STYLES AND PREVENT POINTER EVENTS (CLICKS)
+    createCard.style.opacity = "0.5";
+    createCard.style.cursor = "not-allowed";
+    createCard.style.pointerEvents = "none";  
+    createCardRandom.style.opacity = "0.5";
+    createCardRandom.style.cursor = "not-allowed";
+    createCardRandom.style.pointerEvents = "none";
+}
+  
+function enableBuildButtons() {
+    const createCard = document.getElementById("create_card");
+    const createCardRandom = document.getElementById("create_card_random");
+    const createCardIcon = document.getElementById("create_card_icon");
+    const createCardRandomIcon = document.getElementById("create_card_random_icon");
+    const createCardText = document.getElementById("create_card_text");
+    const createCardRandomText = document.getElementById("create_card_random_text");
+
+
+    // REMOVE ANIMATIONS FROM ICON'S CLASSES
+    const updatedIconClasses = createCardIcon.className.replace('fa-bounce', '');
+    createCardIcon.className = updatedIconClasses;
+    const updatedIconClassesRandom = createCardRandomIcon.className.replace('fa-flip', '');
+    createCardRandomIcon.className = updatedIconClassesRandom;
+
+    // RESET TEXT
+    createCardText.innerText = "Build Showdown Card";
+    createCardRandomText.innerText = "Shuffle";
+    
+    // ENABLE BUTTONS
+    createCard.disabled = false;
+    createCardRandom.disabled = false;
+    
+    // RESET STYLES AND RESTORE POINTER EVENTS FOR NORMAL INTERACTION
+    createCard.style.opacity = "1";
+    createCard.style.cursor = "pointer";
+    createCard.style.pointerEvents = "auto";  
+    createCardRandom.style.opacity = "1";
+    createCardRandom.style.cursor = "pointer";
+    createCardRandom.style.pointerEvents = "auto";
+}
+
 // -------------------------------------------------------
 // CHARTS
 // -------------------------------------------------------
@@ -446,7 +511,7 @@ function setTheme(themeName) {
     var is_dark = themeName == 'dark'
     // ALTER CONTAINERS
     containers_to_alter = [
-        "container_bg", "overlay", "input_container_column", "input_container", "main_body",
+        "container_bg", "input_container_column", "input_container", "main_body",
         "estimated_values_footnote", "chart_adjustments_footnote", "points_breakdown_footnote", "opponent_values_footnote", 
         "loader_container_rectangle",
     ]
@@ -500,12 +565,12 @@ function setTheme(themeName) {
 
 function showCardData(data) {
 
+    // RE-ENABLE BUTTONS
+    enableBuildButtons();
+
     // THEME
     var storedTheme = localStorage.getItem('theme') || 'light';
     const is_dark = storedTheme == 'dark'
-
-    // HIDE OVERLAY
-    $('#overlay').hide();
     
     // CHECK FOR ERROR
     $('#message_string').hide();
@@ -829,11 +894,17 @@ $(function () {
 // CREATE CARD
 $(function () {
     $('a#create_card, a#create_card_random').bind('click', function (event) {
+
+        console.log("CLICKED CREATE CARD");
         is_random_card = $(event.currentTarget).attr('id') == 'create_card_random';
         is_valid = validate_form(ignoreAlert=is_random_card)
+
+        
         
         if (is_valid || is_random_card) {
-            $('#overlay').show();
+
+            // DISABLE BUTTONS
+            disableBuildButtons(wasRandomSelected=is_random_card);
             
             var image_name = ""
             var image_link = ""

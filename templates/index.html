@@ -22,16 +22,6 @@
 
    <body class="main_body_light" id="main_body">
 
-      <!-- OVERLAY FOR HIDDEN LOADER OBJECT -->
-      <div class="overlay_light" id="overlay">
-         <div class="loader_container">
-            <div class="loader_container_rectangle_light" id="loader_container_rectangle">
-               <h6 class="loader_text">Creating Showdown Card</h6>
-               <div class="loader" id="loader"></div>
-            </div>
-         </div>         
-      </div>
-
       <div class="container">
          <div class="row">
             <div class="col-md-5">
@@ -333,10 +323,10 @@
                                        <div class="col-md-12" style="padding: 8px;" >
                                           <!-- CREATE CARD BUTTON  -->
                                           <a href=# id=create_card>
-                                             <button type="submit" id="btn_custom" class="btn w-100" style="background-color: var(--primary-color); padding: 15px;">
-                                                <div class="btn_text">
-                                                   <i class="fa-solid fa-baseball fa-bounce"></i>
-                                                   BUILD SHOWDOWN CARD
+                                             <button id="create_card_button" type="submit" class="btn_custom btn w-100" style="background-color: var(--primary-color); padding: 15px;">
+                                                <div id="create_card_text_div" class="btn_text">
+                                                   <i id="create_card_icon" class="fa-solid fa-baseball"></i>
+                                                   <span id="create_card_text">Build Showdown Card</span>
                                                 </div>
                                              </button>
                                           </a>
@@ -348,10 +338,10 @@
                                        <div class="col-6 col-md-6" style="padding: 8px;" >
                                           <!-- CREATE RANDOM BUTTON  -->
                                           <a href=# id=create_card_random>
-                                             <button id="btn_custom" style="color: black;" class="btn btn-warning w-100">
+                                             <button id="create_card_random_button" style="color: black;" class="btn_custom btn btn-warning w-100">
                                                 <div class="btn_text">
-                                                   <i class="fa-solid fa-shuffle"></i>
-                                                   Shuffle
+                                                   <i id="create_card_random_icon" class="fa-solid fa-shuffle"></i>
+                                                   <span id="create_card_random_text">Shuffle</span>
                                                 </div>
                                              </button>
                                           </a>
@@ -359,7 +349,7 @@
       
                                        <div class="col-6 col-md-6" style="padding: 8px;" >
                                           <!-- RESET CARD BUTTON  -->
-                                          <button id="btn_custom" type="reset" class="btn btn-secondary btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = '';$('.selectpicker').selectpicker('deselectAll');">
+                                          <button type="reset" class="btn_custom btn btn-secondary btn w-100" onclick="document.getElementById('name').value = '';document.getElementById('year').value = '';document.getElementById('url').value = '';$('.selectpicker').selectpicker('deselectAll');">
                                              <div class="btn_text">
                                                 <i class="fa-solid fa-circle-xmark"></i>
                                                 Clear 
