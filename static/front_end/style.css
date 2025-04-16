@@ -3,6 +3,9 @@
     --primary-background-color: rgb(255, 255, 255);
     --primary-color: rgb(26, 59, 95);
     --secondary-color: rgb(154, 54, 48);
+    --warning-color: rgb(255, 193, 7);
+    --success-color: rgb(51, 202, 126);
+    --failure-color: rgb(235, 87, 87);
     --button-bg-color: rgb(227, 226, 226);
     --text-primary-color: #000000;
     --text-secondary-color: #4a4a4a;
@@ -14,6 +17,9 @@
     --primary-background-color: rgb(29, 29, 29);
     --primary-color: rgb(70, 130, 230);
     --secondary-color: rgb(208, 78, 71);
+    --warning-color: rgb(255, 193, 7);
+    --success-color: rgb(68, 224, 146);
+    --failure-color: rgb(232, 100, 100);
     --button-bg-color: rgb(86, 86, 86);
     --text-primary-color: #ffffff;
     --text-secondary-color: #dbdbdb;
@@ -447,6 +453,37 @@ hr {
 .btn_custom:hover {
     opacity: 0.8;
     color: white;
+}
+
+/* Status indicator style with sliding animation */
+.status-indicator {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 18px;
+    background-color: var(--warning-color); /* adjust as needed */
+    border-radius: 20px;
+    color: #0f0f0f;
+    z-index: 10000;
+    font-size: 14px;
+    text-align: center;
+    display: none;
+    transform: translateX(100%);
+    opacity: 0;
+    transition: transform 0.5s ease-out, opacity 0.5s ease-out;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    max-width: 200px;
+    line-height: 125%;
+}
+
+.status-indicator.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.status-indicator-subtext {
+    color: #242424;
+    font-size: 10px;
 }
 
 /* **************************************************** */

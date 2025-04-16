@@ -310,6 +310,37 @@ function enableBuildButtons() {
     createCardRandom.style.pointerEvents = "auto";
 }
 
+function showStatusIndicator(message, submessage, iconClasses, backgroundColor, removeAfterSeconds=0) {
+    const statusIndicator = document.getElementById("status-indicator");
+    const statusIndicatorText = document.getElementById("status-indicator-text");
+    const statusIndicatorSubtext = document.getElementById("status-indicator-subtext");
+    const statusIndicatorIcon = document.getElementById("status-indicator-icon");
+    
+    // UPDATE TEXT AND DISPLAY THE ELEMENT
+    statusIndicatorText.innerText = message;
+    statusIndicatorSubtext.innerText = submessage;
+    statusIndicatorIcon.className = iconClasses;
+    statusIndicator.style.display = "block";
+    statusIndicator.style.backgroundColor = backgroundColor;
+
+    // USE REQUESTANIMATIONFRAME TO ALLOW THE BROWSER TO REGISTER THE DISPLAY CHANGE
+    // ONLY IF SHOW CLASS IS NOT ALREADY PRESENT
+    if (!statusIndicator.classList.contains("show")) {
+        requestAnimationFrame(() => {
+            statusIndicator.classList.add("show");
+        });
+    }
+
+    if (removeAfterSeconds > 0) {
+        setTimeout(() => {
+            statusIndicator.classList.remove("show");
+            setTimeout(() => {
+                statusIndicator.style.display = "none";
+            }, 300); // Match the CSS transition duration
+        }, removeAfterSeconds * 1000);
+    }
+}
+
 // -------------------------------------------------------
 // CHARTS
 // -------------------------------------------------------
@@ -579,6 +610,13 @@ function showCardData(data) {
     if (isError) {
         document.getElementById("message_string").style.color = "red";
         $('#message_string').show();
+        showStatusIndicator(
+            message="Failure", 
+            submessage=data.error, 
+            iconClasses="fa-solid fa-circle-xmark",
+            backgroundColor="var(--failure-color)",
+            removeAfterSeconds=5
+        );
     }
     
     // CHANGE ERROR TO ORANGE IF WARNING
@@ -594,6 +632,16 @@ function showCardData(data) {
     
     // ADD PLAYER DETAILS
     if (data.player_name) {
+
+        // SHOW SUCCESS MESSAGE
+        // HIDE AFTER 3 SECONDS
+        showStatusIndicator(
+            message="Done!", 
+            submessage=`${data.player_name} ${data.player_year}`, 
+            iconClasses="fa-solid fa-circle-check", 
+            backgroundColor="var(--success-color)",
+            removeAfterSeconds=3
+        );
         
         // ADD CHILDREN TO PLAYER DETAILS DIV
         // CLEAR OUT PLAYER DETAILS DIV
@@ -792,6 +840,7 @@ function setupTabs(selectedTab) {
 // -------------------------------------------------------
 
 $(document).ready(function() {
+
     var selectedTab = "create"
     if(localStorage) {
         var storedSet = localStorage.getItem("set")
@@ -895,13 +944,18 @@ $(function () {
 $(function () {
     $('a#create_card, a#create_card_random').bind('click', function (event) {
 
-        console.log("CLICKED CREATE CARD");
         is_random_card = $(event.currentTarget).attr('id') == 'create_card_random';
         is_valid = validate_form(ignoreAlert=is_random_card)
-
-        
         
         if (is_valid || is_random_card) {
+
+            // NAME AND YEAR
+            var name = (is_random_card === true) ? 'Random Player' : $('input[name="name"]').val();
+            var year = (is_random_card === true) ? '' : $('input[name="year"]').val();
+            const name_and_year = `${name} ${year}`;
+
+            // SHOW STATUS
+            showStatusIndicator(message="Processing...", submessage=name_and_year, iconClasses="fa-solid fa-baseball fa-bounce", backgroundColor="var(--warning-color)");
 
             // DISABLE BUTTONS
             disableBuildButtons(wasRandomSelected=is_random_card);
@@ -928,9 +982,13 @@ $(function () {
             var era = $("#eraSelection :selected").val();
 
             // EDITION
-            var name = (is_random_card === true) ? '((RANDOM))' : $('input[name="name"]').val();
-            var year = (is_random_card === true) ? '((RANDOM))' : $('input[name="year"]').val();
             var edition = $("#editionSelection :selected").val();
+
+            // UPDATE NAME AND YEAR FOR BOT INPUT
+            // RANDOM NAME NEEDS TO BE FORMATTED IN A CERTAIN WAY
+            // NAME AND YEAR
+            name = (is_random_card === true) ? '((RANDOM))' : name;
+            year = (is_random_card === true) ? '((RANDOM))' : year;
 
             // MORE OPTIONS
             var moreOptionsSelected = [];
