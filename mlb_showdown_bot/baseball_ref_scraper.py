@@ -1494,13 +1494,20 @@ class BaseballReferenceScraper:
                 game_log_data['date_game'] = date_game.replace(u'\xa0', u' ')
                 
             # CHECK FOR DATE/YEAR FILTER
-            year_from_game_log = self.__convert_to_numeric(str(game_log_data.get('year_game', first_year)))
-            year_check = year_from_game_log in years or first_year == 'CAREER'
+
+            # IF DATE RANGE BASED, CHECK DATES
             date_check = True
             game_log_date_str: str = game_log_data.get('date_game', None)
+            is_new_format = game_log_date_str.count('-') >= 2 if game_log_date_str else False
+
+            # OLDER FORMAT HAD DEDICATED YEAR COLUMN
+            doesnt_have_dedicated_year_column = self.stats_period.type == StatsPeriodType.POSTSEASON and is_new_format and game_log_date_str
+            default_year = game_log_date_str.split('-', 1)[0] if doesnt_have_dedicated_year_column else first_year
+            year_from_game_log = self.__convert_to_numeric(str(game_log_data.get('year_game', default_year)))
+            year_check = year_from_game_log in years or first_year == 'CAREER'
+            
             if self.stats_period.is_date_range and game_log_date_str:
                 game_log_date_str_cleaned = game_log_date_str.split('(')[0].strip().replace('\xa0susp', '')
-                is_new_format = game_log_date_str.count('-') >= 2
                 if is_new_format:
                     # IN UPGRADED TABLES, DATES ARE IN THIS FORMAT "YYYY-MM-DD)"
                     game_log_date = datetime.strptime(game_log_date_str_cleaned, "%Y-%m-%d").date()
