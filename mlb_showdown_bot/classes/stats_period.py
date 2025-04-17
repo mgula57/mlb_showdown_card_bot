@@ -235,12 +235,20 @@ class StatsPeriod(BaseModel):
                 game_log_data['date_game'] = date_game.replace(u'\xa0', u' ')
                 
             # CHECK FOR DATE/YEAR FILTER
-            year_from_game_log = convert_to_numeric(str(game_log_data.get('year_game', first_year)))
-            year_check = year_from_game_log in year_list
+            
+            # IF DATE RANGE BASED, CHECK DATES
             date_check = True
             game_log_date_str: str = game_log_data.get('date_game', None)
+            is_new_format = game_log_date_str.count('-') >= 2 if game_log_date_str else False
+
+            # OLDER FORMAT HAD DEDICATED YEAR COLUMN
+            doesnt_have_dedicated_year_column = self.type == StatsPeriodType.POSTSEASON and is_new_format and game_log_date_str
+            default_year = game_log_date_str.split('-', 1)[0] if doesnt_have_dedicated_year_column else first_year
+            year_from_game_log = convert_to_numeric(str(game_log_data.get('year_game', default_year)))
+            year_check = year_from_game_log in year_list
+
             if self.is_date_range and game_log_date_str:
-                game_log_date = convert_to_date(game_log_date_str, first_year)
+                game_log_date = convert_to_date(game_log_date_str, default_year)
                 
                 # CHECK IF DATE IS WITHIN RANGE
                 date_check = self.start_date <= game_log_date <= self.end_date
