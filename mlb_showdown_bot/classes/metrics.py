@@ -57,7 +57,7 @@ class DefenseMetric(Enum):
     @property
     def over_max_multiplier(self) -> float:
         """ Reduces outliers in OAA by reducing values over the defense maximum """
-        return 0.5 if self.value == 'oaa' else 1.0
+        return 0.5 if self == DefenseMetric.OAA else 0.6
     
 class Stat(Enum):
 

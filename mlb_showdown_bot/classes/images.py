@@ -395,6 +395,10 @@ class ImageParallel(str, Enum):
             case ImageParallel.MOONLIGHT: return "BLACK"
             case _: return None
 
+    @property
+    def name_cleaned(self) -> str:
+        """Cleaned version of the name, uppercased"""
+        return self.name.replace('_', ' ').upper()
 
 # ---------------------------------------
 # TEMPLATE IMAGE COMPONENT
@@ -496,6 +500,7 @@ class ShowdownImage(BaseModel):
     nickname_index: Optional[int] = None
     is_multi_colored: bool = False
     stat_highlights_type: StatHighlightsType = StatHighlightsType.NONE
+    glow_multiplier: float = 1.0
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:
