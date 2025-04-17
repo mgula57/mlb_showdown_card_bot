@@ -951,11 +951,38 @@ $(function () {
 
             // NAME AND YEAR
             var name = (is_random_card === true) ? 'Random Player' : $('input[name="name"]').val();
-            var year = (is_random_card === true) ? '' : $('input[name="year"]').val();
-            const name_and_year = `${name} ${year}`;
+            var year = $('input[name="year"]').val();
+
+            // CHART ALTERNATES
+            var selectedOffset = $("#chartVersionSelection :selected").val();
+            var era = $("#eraSelection :selected").val();
+
+            // EDITION
+            var edition = $("#editionSelection :selected").val();
 
             // SHOW STATUS
-            showStatusIndicator(message="Processing...", submessage=name_and_year, iconClasses="fa-solid fa-baseball fa-bounce", backgroundColor="var(--warning-color)");
+            var additional_context = year;
+            if (is_random_card) {
+                var elements = [];
+                if (year.length > 0) {
+                    elements.push(`from ${year}`);
+                }
+                if (elements.length < 1 && era !== 'DYNAMIC') {
+                    const eraTitled = era.toLowerCase()
+                                        .split(' ')
+                                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                        .join(' ');
+                    elements.push(`during ${eraTitled}`);
+                }
+                if (edition == "CC") {
+                    elements.push("in the Hall of Fame");
+                } else if (edition == "SS") {
+                    elements.push("that was an All-Star or had 5+ bWAR");
+                }
+                additional_context = elements.join(" ");
+            }
+            const subMessage = `${name} ${additional_context}`;
+            showStatusIndicator(message="Processing...", submessage=subMessage, iconClasses="fa-solid fa-baseball fa-bounce", backgroundColor="var(--warning-color)");
 
             // DISABLE BUTTONS
             disableBuildButtons(wasRandomSelected=is_random_card);
@@ -977,18 +1004,10 @@ $(function () {
                 image_parallel = $("#parallelSelection :selected").val();
             }
 
-            // CHART ALTERNATES
-            var selectedOffset = $("#chartVersionSelection :selected").val();
-            var era = $("#eraSelection :selected").val();
-
-            // EDITION
-            var edition = $("#editionSelection :selected").val();
-
             // UPDATE NAME AND YEAR FOR BOT INPUT
             // RANDOM NAME NEEDS TO BE FORMATTED IN A CERTAIN WAY
             // NAME AND YEAR
             name = (is_random_card === true) ? '((RANDOM))' : name;
-            year = (is_random_card === true) ? '((RANDOM))' : year;
 
             // MORE OPTIONS
             var moreOptionsSelected = [];

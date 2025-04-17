@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown_bot.postgres_db import PostgresDB
+from mlb_showdown_bot.postgres_db import PostgresDB, PlayerArchive
 from mlb_showdown_bot.classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
 import os
 import pandas as pd
@@ -298,7 +298,7 @@ def card_creator():
         is_random = name.upper() == '((RANDOM))'
         if is_random:
             # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
-            name, year = random_player_id_and_year()
+            name, year = random_player_id_and_year(year=year, era=era, edition=edition)
 
         # DEFINE PERIOD
         stats_period = StatsPeriod(type=period_type, year=year, start_date=period_start_date, end_date=period_end_date, split=period_split)
@@ -631,7 +631,38 @@ def upload():
     except:
         name = ''
 
-def random_player_id_and_year():
+def random_player_id_and_year(year:str, era:str, edition:str) -> tuple[str, str]:
+    """ Get Random Player Id and Year. Account for user inputs (if any).
+    
+    Args:
+      year: User inputted year
+      era: User inputted Era
+      edition: User Inputted edition
+
+    Return:
+      Player Bref Id and Year
+    """
+
+    # CONNECT TO DB
+    postgres_db = PostgresDB(is_archive=True)
+
+    # IF NO CONNECTION, USE FILE
+    if postgres_db.connection:
+        # QUERY DATABASE FOR RANDOM PLAYER
+        random_player:PlayerArchive = postgres_db.fetch_random_player_stats_from_archive(
+                                            year_input=year,
+                                            era=era,
+                                            edition=edition,
+                                        )
+        # CLOSE CONNECTION
+        postgres_db.close_connection()
+
+        # RETURN RANDOM PLAYER IF MATCH WAS FOUND
+        if random_player:
+            return (random_player.bref_id, str(random_player.year))
+
+    # BACKUP: LOAD FROM FILE
+    # DOES NOT ACCOUNT FOR USER INPUTS
     random_players_filepath = os.path.join(Path(os.path.dirname(__file__)),'random_players.csv')
     random_players_pd = pd.read_csv(random_players_filepath, index_col=None)
     random_players_qualified = random_players_pd[(random_players_pd['games_played'] > 50) | (random_players_pd['games_pitched'] > 20)]

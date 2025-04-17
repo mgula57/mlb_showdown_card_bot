@@ -60,7 +60,6 @@ def aggregate_stats(category:list, stats:list, aggregation_method: str) -> Any:
         stats = [s for s in stats if len(str(s)) != 0]
         return sum(stats)
     
-
 def convert_to_numeric(string_value:str) -> (int | float | str):
     """Will convert a string to either int or float if able, otherwise return as string
 
@@ -201,3 +200,23 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool) -> dict:
         stats_data['whip'] = round(( stats_data.get('BB', 0) + stats_data.get('H', 0) ) / stats_data.get('IP', 0), 3)
 
     return stats_data
+
+def convert_year_string_to_list(year_input:str, all_years_played:list[str] = []) -> list[int]:
+    """Take year input/string and convert to a list of year ints
+    Ex: 
+      - '2000' -> [2000]
+      - '2000-2004' -> [2000,2001,2002,2003,2004]
+    """
+    if year_input.upper() == 'CAREER':
+        return [int(year) for year in all_years_played]
+    elif '-' in year_input:
+        # RANGE OF YEARS
+        years = year_input.split('-')
+        year_start = int(years[0].strip())
+        year_end = int(years[1].strip())
+        return list(range(year_start,year_end+1))
+    elif '+' in year_input:
+        years = year_input.split('+')
+        return [int(x.strip()) for x in years]
+    else:
+        return [int(year_input)]

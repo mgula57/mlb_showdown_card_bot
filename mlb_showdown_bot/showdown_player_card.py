@@ -37,6 +37,7 @@ try:
     from .classes.metadata import Speed, SpeedLetter, Hand
     from .classes import colors
     from .classes.stats_period import StatsPeriod, StatsPeriodType
+    from .classes.shared_functions import convert_year_string_to_list
     from .version import __version__
 except ImportError:
     # USE LOCAL IMPORT
@@ -54,6 +55,7 @@ except ImportError:
     from classes.metadata import Speed, SpeedLetter, Hand
     from classes import colors
     from classes.stats_period import StatsPeriod, StatsPeriodType
+    from classes.shared_functions import convert_year_string_to_list
     from version import __version__
 
 class ShowdownPlayerCard(BaseModel):
@@ -260,19 +262,7 @@ class ShowdownPlayerCard(BaseModel):
         year:str = values.get('year', '')
         stats:dict = values.get('stats', {})
         all_years_played:list[str] = stats.get('years_played', [])
-        if year.upper() == 'CAREER':
-            return [int(year) for year in all_years_played]
-        elif '-' in year:
-            # RANGE OF YEARS
-            years = year.split('-')
-            year_start = int(years[0].strip())
-            year_end = int(years[1].strip())
-            return list(range(year_start,year_end+1))
-        elif '+' in year:
-            years = year.split('+')
-            return [int(x.strip()) for x in years]
-        else:
-            return [int(year)]
+        return convert_year_string_to_list(year_input=year, all_years_played=all_years_played)
 
     @field_validator('is_full_career', mode='before')
     def parse_is_full_career(cls, is_full_career:bool, info:ValidationInfo) -> bool:
