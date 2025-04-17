@@ -978,6 +978,10 @@ $(function () {
                     elements.push("in the Hall of Fame");
                 } else if (edition == "SS") {
                     elements.push("that was an All-Star or had 5+ bWAR");
+                } else if (edition == "RS") {
+                    elements.push("that was a Rookie");
+                } else if (edition == "ASG") {
+                    elements.push("that was an All-Star");
                 }
                 additional_context = elements.join(" ");
             }

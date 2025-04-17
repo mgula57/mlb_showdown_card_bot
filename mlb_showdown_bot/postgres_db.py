@@ -340,6 +340,12 @@ class PostgresDB:
                 # ONLY HALL OF FAME PLAYERS
                 # HANDLED BY CHECKING FOR "is_hof" key = true inside of "stats" JSONB field
                 edition_where_clause = sql.SQL("jsonb_extract_path(stats, 'is_hof')::BOOLEAN IS TRUE")
+            case Edition.ALL_STAR_GAME:
+                # MUST BE AN ALL STAR
+                edition_where_clause = sql.SQL("jsonb_extract_path(stats, 'award_summary')::text like '%%AS%%'")
+            case Edition.ROOKIE_SEASON:
+                # MUST BE A ROOKIE
+                edition_where_clause = sql.SQL("jsonb_extract_path(stats, 'is_rookie')::BOOLEAN IS TRUE")
             case Edition.SUPER_SEASON:
                 # EITHER WAS AN ALL STAR OR MET bWAR REQUIREMENT
                 bwar_min = int(5.0 * min_multiplier)
