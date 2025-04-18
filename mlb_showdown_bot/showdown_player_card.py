@@ -4194,7 +4194,7 @@ class ShowdownPlayerCard(BaseModel):
 
                 accolades_used.append(accolade)
 
-                accolade_formatted = accolade.replace('AL ', 'A.L. ').replace('NL ', 'N.L. ')
+                accolade_formatted = accolade if is_after_03 else accolade.replace('AL ', 'A.L. ').replace('NL ', 'N.L. ') 
                 accolade_text = self.__text_image(
                     text = accolade_formatted,
                     size = (1800,480),
