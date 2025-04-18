@@ -3508,36 +3508,48 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # CREATE NEW IMAGE FOR LOGO AND ERA TEXT
-        img_size = (620,620)
-        logo_img_with_text = Image.new('RGBA',img_size)
+        img_size = (500,500)
+        img_width = img_size[0]
+        padding = 35
+        background_color = colors.BLACK if self.image.is_dark_mode else colors.WHITE
+        logo_img_with_text = Image.new('RGBA',img_size, color=background_color)
 
         # LOAD LOGO IMAGE
         is_dark_mode = self.image.is_dark_mode
         dark_mode_extension = '-DARK' if is_dark_mode else ''
-        logo_size = self.set.template_component_size(TemplateImageComponent.BOT_LOGO)
         logo_img_name = f"BOT-LOGO{dark_mode_extension}"
         logo_img = Image.open(self.__template_img_path(logo_img_name))
 
-        # ADD VERSION NUMBER
+        # VERSION NUMBER
         helvetica_neue_cond_bold_path = self.__font_path('HelveticaNeueCondensedBold')
-        text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=65)
-        # DATE NUMBER
-        version_text = self.__text_image(text=f"v{self.version}", size=(500, 500), font=text_font, alignment="right")
-        logo_img.paste("#b5b4b4", (-15, 326), version_text)
+        version_text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=65)
+        version_text = self.__text_image(text=f"v{self.version}", size=(img_width, 125), font=version_text_font, alignment="right")
 
         # ERA TEXT
         helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
+        era_background_size = (img_width, 100)
+        era_background_color = "#373737" if is_dark_mode else "#dedede"
+        era_padding = 15
+        era_text_paste_location = (0, 435)
         era_font = ImageFont.truetype(helvetica_neue_lt_path, size=70)
         era_txt_color = "#b5b5b5" if is_dark_mode else "#585858"
-        era_text = self.__text_image(text=self.era.value_no_era_suffix, size=(620, 100), font=era_font, alignment="center")
-        text_paste_location = (0, 435) 
+        era_text = self.__text_image(text=self.era.value_no_era_suffix, size=era_background_size, font=era_font, alignment="center")
+        era_text_background = Image.new('RGBA', (era_background_size[0], era_background_size[1] + era_padding), color=era_background_color)
         
-        # PASTE TO BLANK 600x600 IMAGE
-        x_centered = int((img_size[1] - 500) / 2)
-        logo_img_with_text.paste(logo_img, (x_centered, 0), logo_img)
-        logo_img_with_text.paste(era_txt_color, text_paste_location, era_text)
+        # PASTE TO BLANK 500x500 IMAGE
+        x_centered = int((img_width - logo_img.size[0]) / 2)
+        logo_img_with_text.paste(logo_img, (x_centered, padding), logo_img)
+        logo_img_with_text.paste(era_text_background, (era_text_paste_location[0], era_text_paste_location[1] - era_padding), era_text_background)
+        logo_img_with_text.paste(era_txt_color, era_text_paste_location, era_text)
+        logo_img_with_text.paste(era_txt_color, (-5, 330), version_text)
 
-        return logo_img_with_text.resize(logo_size, Image.Resampling.LANCZOS)
+        # RESIZE FINAL TIME AND ADD BORDER RADIUS
+        logo_size = self.set.template_component_size(TemplateImageComponent.BOT_LOGO)
+        logo_size = int(logo_size[0] * 0.80), int(logo_size[1] * 0.80)
+        logo_img_with_text = logo_img_with_text.resize(logo_size, Image.Resampling.LANCZOS)
+        logo_img_with_text = self.__round_corners(logo_img_with_text, 15)
+
+        return logo_img_with_text
 
     def __2000_player_name_container_image(self) -> Image.Image:
         """Gets template asset image for 2000 name container.

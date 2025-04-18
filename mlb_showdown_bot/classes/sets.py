@@ -1329,11 +1329,11 @@ class Set(str, Enum):
                     case 'EXPANDED': return (15,20)
             case TemplateImageComponent.BOT_LOGO:
                 match self.value:
-                    case '2000' | '2001': return (1250,1945)
-                    case '2002': return (62,1900)
-                    case '2003': return (655,1740)
-                    case '2004' | '2005': return (1268,1965)
-                    case 'CLASSIC' | 'EXPANDED': return (1320,1975)
+                    case '2000' | '2001': return (1270,1945)
+                    case '2002': return (86,1900)
+                    case '2003': return (672,1740)
+                    case '2004' | '2005': return (1285,1965)
+                    case 'CLASSIC' | 'EXPANDED': return (1337,1975)
             case TemplateImageComponent.SPLIT:
                 match self.value:
                     case '2000': return (330, 1860)
