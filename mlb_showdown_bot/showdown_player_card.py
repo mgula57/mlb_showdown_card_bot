@@ -4163,7 +4163,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # FONTS
         super_season_year_path = self.__font_path('URW Corporate W01 Normal')
-        super_season_accolade_path = self.__font_path('Zurich Bold Italic BT')
+        super_season_accolade_path = self.__font_path('HelveticaNeueCondensedHeavyOblique', extension='otf')
         super_season_year_font = ImageFont.truetype(super_season_year_path, size=225)
         super_season_accolade_font = ImageFont.truetype(super_season_accolade_path, size=150)
 
@@ -4174,11 +4174,11 @@ class ShowdownPlayerCard(BaseModel):
             slot_max_characters_dict = {i: self.set.super_season_text_length_cutoff(i) for i in [1,2,3] }
 
             # ACCOLADES
-            x_position = 18 if is_after_03 else 9
-            x_incremental = 10 if is_after_03 else 1
-            y_position = 338 if is_after_03 else 324
-            accolade_rotation = 15 if is_after_03 else 13
-            accolade_spacing = 41 if is_after_03 else 72
+            x_position = 13 if is_after_03 else 5
+            x_incremental = 9 if is_after_03 else 1
+            y_position = 328 if is_after_03 else 319
+            accolade_rotation = 13 if is_after_03 else 11
+            accolade_spacing = 41 if is_after_03 else 73
             accolades_used = []
             for index, max_characters in slot_max_characters_dict.items():
                 accolades_available = [a for a in self.accolades if (a not in accolades_used and len(a) <= max_characters)]                
@@ -4193,14 +4193,16 @@ class ShowdownPlayerCard(BaseModel):
                     accolade = accolades_available[1]
 
                 accolades_used.append(accolade)
+
+                accolade_formatted = accolade.replace('AL ', 'A.L. ').replace('NL ', 'N.L. ')
                 accolade_text = self.__text_image(
-                    text = accolade,
+                    text = accolade_formatted,
                     size = (1800,480),
                     font = super_season_accolade_font,
                     alignment = "center",
-                    rotation = accolade_rotation
                 )
-                accolade_text = accolade_text.resize((375,150), Image.Resampling.LANCZOS)
+                accolade_text = accolade_text.resize((375,100), Image.Resampling.LANCZOS)
+                accolade_text = accolade_text.rotate(accolade_rotation, expand=1, resample=Image.BICUBIC)
                 accolade_text_images.append( (accolade_text, (x_position, y_position), accolade) )
                 x_position += x_incremental
                 y_position += accolade_spacing
