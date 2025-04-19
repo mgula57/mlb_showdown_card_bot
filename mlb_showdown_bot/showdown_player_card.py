@@ -3228,7 +3228,7 @@ class ShowdownPlayerCard(BaseModel):
                 # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
                 logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
                 team_logo_path = self.__team_logo_path(name=logo_name)
-                is_wide_logo = logo_name == 'ASG-2022'
+                is_wide_logo = logo_name in ['ASG-2022', 'ASG-2025']
                 if is_04_05 and is_cooperstown:
                     logo_size = (330,330)
                     logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.COOPERSTOWN)
@@ -4532,7 +4532,7 @@ class ShowdownPlayerCard(BaseModel):
             case Edition.ALL_STAR_GAME | Edition.COOPERSTOWN_COLLECTION:
                 logo_name = 'CCC' if self.image.edition == Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
                 logo_size_x, logo_size_y = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
-                logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name == 'ASG-2022' else (logo_size_x, logo_size_y)
+                logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name in ['ASG-2022', 'ASG-2025'] else (logo_size_x, logo_size_y)
                 logo_path = self.__team_logo_path(name=logo_name)
                 logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.Resampling.LANCZOS)
                 image.paste(logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), logo)
