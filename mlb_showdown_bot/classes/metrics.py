@@ -9,18 +9,14 @@ class DefenseMetric(Enum):
     
     @property
     def range_min(self) -> float:
-        match self.value:
-            case 'oaa': return -16
-            case 'drs': return -20
-            case 'tzr': return -18
-            case 'dWAR': return -2.5
+        return (-1 * self.range_max)
 
     @property
     def range_max(self) -> float:
         match self.value:
             case 'oaa': return 16
-            case 'drs': return 20
-            case 'tzr': return 18
+            case 'drs': return 19
+            case 'tzr': return 17
             case 'dWAR': return 2.5
 
     @property

@@ -849,7 +849,6 @@ class ShowdownPlayerCard(BaseModel):
                 positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
                 in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
             except Exception as e:
-                print(self.name, self.year, e)
                 in_game_defense = 0
             positions_and_defense[position] = in_game_defense
             
@@ -1163,7 +1162,8 @@ class ShowdownPlayerCard(BaseModel):
             #   - NEW RATING = 16 + 11.23 = 26.23
             if rating > metric.range_max and not is_1b:
                 amount_over_max = rating - metric.range_max
-                reduced_amount_over_max = amount_over_max * metric.over_max_multiplier
+                small_sample_reduction = min((games / 120), 1.0) * (0.5 if games < 120 else 1.0) # CUT DOWN SMALL SAMPLES
+                reduced_amount_over_max = amount_over_max * metric.over_max_multiplier * small_sample_reduction
                 rating = reduced_amount_over_max + metric.range_max
 
         max_defense_for_position = self.set.position_defense_max(position=position)

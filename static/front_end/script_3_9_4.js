@@ -498,7 +498,7 @@ function createTrendsChart(player_year, trends_data, elementId, unit, is_placeho
 
                             keys.forEach(key => {
                                 const keyTitled = key == 'shOPS+' ? 'shOPS+' : key.toUpperCase();
-                                tooltipLines.push(`${keyTitled}: ${dataDict[key]}`);
+                                tooltipLines.push(`${keyTitled}: ${dataDict[key] ?? 'N/A'}`);
                             });
     
                             return tooltipLines; // Returning an array displays each entry on a new line
