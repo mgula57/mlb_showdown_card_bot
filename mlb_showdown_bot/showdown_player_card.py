@@ -4174,11 +4174,11 @@ class ShowdownPlayerCard(BaseModel):
             slot_max_characters_dict = {i: self.set.super_season_text_length_cutoff(i) for i in [1,2,3] }
 
             # ACCOLADES
-            x_position = 13 if is_after_03 else 5
+            x_position = 13 if is_after_03 else 0
             x_incremental = 9 if is_after_03 else 1
-            y_position = 328 if is_after_03 else 319
-            accolade_rotation = 13 if is_after_03 else 11
-            accolade_spacing = 41 if is_after_03 else 73
+            y_position = 328 if is_after_03 else 316
+            accolade_rotation = 13 if is_after_03 else 12
+            accolade_spacing = 41 if is_after_03 else 74
             accolades_used = []
             for index, max_characters in slot_max_characters_dict.items():
                 accolades_available = [a for a in self.accolades if (a not in accolades_used and len(a) <= max_characters)]                
