@@ -5052,8 +5052,8 @@ class ShowdownPlayerCard(BaseModel):
 
                 y_cords = {
                     PlayerImageComponent.ELLIPSE_EXTRALARGE: 60 if random_bool_2 else 320,
-                    PlayerImageComponent.ELLIPSE_LARGE: 800 if random_bool_2 else 40,
-                    PlayerImageComponent.ELLIPSE_MEDIUM: 290 if random_bool_2 else 850,
+                    PlayerImageComponent.ELLIPSE_LARGE: 950 if random_bool_2 else 40,
+                    PlayerImageComponent.ELLIPSE_MEDIUM: 650 if random_bool_2 else 850,
                     PlayerImageComponent.ELLIPSE_SMALL: 1400 if random_bool_2 else 1300,
                 }
                 is_reversed_map = {
@@ -5068,7 +5068,7 @@ class ShowdownPlayerCard(BaseModel):
                     ellipse_circle_image = self.__circle_image(size=ellipse_type.frame_size, fill=(0,0,0,0), border_size=5, border_fill=(210,210,210,100))
                     ellipse_width, _ = ellipse_circle_image.size
                     match ellipse_type:
-                        case PlayerImageComponent.ELLIPSE_EXTRALARGE | PlayerImageComponent.ELLIPSE_LARGE:
+                        case PlayerImageComponent.ELLIPSE_EXTRALARGE:
                             # GET THE RANGE OF PIXELS ON X THAT ARE NOT TRANSPARENT
                             # RETURN MIDDLE OF MIN VS MAX
                             populated_x_coords: int = []
