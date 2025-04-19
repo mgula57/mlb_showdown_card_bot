@@ -5051,11 +5051,13 @@ class ShowdownPlayerCard(BaseModel):
                 random_bool_2 = year_ord > 54
 
                 y_cords = {
-                    PlayerImageComponent.ELLIPSE_LARGE: 850 if random_bool_2 else 800,
-                    PlayerImageComponent.ELLIPSE_MEDIUM: 400 if random_bool_2 else 300,
-                    PlayerImageComponent.ELLIPSE_SMALL: 1300 if random_bool_2 else 1400,
+                    PlayerImageComponent.ELLIPSE_EXTRALARGE: 60 if random_bool_2 else 320,
+                    PlayerImageComponent.ELLIPSE_LARGE: 800 if random_bool_2 else 40,
+                    PlayerImageComponent.ELLIPSE_MEDIUM: 290 if random_bool_2 else 850,
+                    PlayerImageComponent.ELLIPSE_SMALL: 1400 if random_bool_2 else 1300,
                 }
                 is_reversed_map = {
+                    PlayerImageComponent.ELLIPSE_EXTRALARGE: False,
                     PlayerImageComponent.ELLIPSE_LARGE: random_bool_1,
                     PlayerImageComponent.ELLIPSE_MEDIUM: not random_bool_1,
                     PlayerImageComponent.ELLIPSE_SMALL: random_bool_1,
@@ -5063,22 +5065,46 @@ class ShowdownPlayerCard(BaseModel):
                 img_width, _ = image.size
                 for ellipse_type, ycord in y_cords.items():
                     is_reversed = is_reversed_map.get(ellipse_type, False)
-                    for x_index in range(1, img_width):
-                        x_cord = img_width - x_index if is_reversed else x_index
-                        coordinates = (x_cord, ycord)
-                        try:
-                            pixel = image.getpixel(coordinates)
-                            pixel_opacity = pixel[3]
-                        except:
-                            break
-                        if pixel_opacity > 200: # OUT OF 255
-                            ellipse_circle_image = Image.open(self.__card_art_path(ellipse_type.value)).convert('RGBA')
-                            ellipse_width, _ = ellipse_circle_image.size
-                            ellipse_x_movement_mutliplier = 0.60 if is_reversed else 0.30
-                            x_adjustment = -1 * int(ellipse_width * ellipse_x_movement_mutliplier)
-                            coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
+                    ellipse_circle_image = self.__circle_image(size=ellipse_type.frame_size, fill=(0,0,0,0), border_size=5, border_fill=(210,210,210,100))
+                    ellipse_width, _ = ellipse_circle_image.size
+                    match ellipse_type:
+                        case PlayerImageComponent.ELLIPSE_EXTRALARGE | PlayerImageComponent.ELLIPSE_LARGE:
+                            # GET THE RANGE OF PIXELS ON X THAT ARE NOT TRANSPARENT
+                            # RETURN MIDDLE OF MIN VS MAX
+                            populated_x_coords: int = []
+                            for x_cord in range(1, img_width):
+                                coordinates = (x_cord, ycord)
+                                try:
+                                    pixel = image.getpixel(coordinates)
+                                    pixel_opacity = pixel[3]
+                                except:
+                                    break
+                                if pixel_opacity > 200: # OUT OF 255
+                                    populated_x_coords.append(x_cord)
+                            
+                            if len(populated_x_coords) > 0:
+                                x_cord = int(statistics.median(populated_x_coords))
+                            else:
+                                x_cord = int(img_width / 2)
+                            x_cord = x_cord - int(ellipse_width * 0.5)
+                            coordinates_adjusted = (x_cord, ycord)
                             player_img_components.append((ellipse_circle_image, coordinates_adjusted))
-                            break
+                        case _:
+                            # FIND EDGE IN PARTICULAR DIRECTION
+                            for x_index in range(1, img_width):
+                                x_cord = img_width - x_index if is_reversed else x_index
+                                coordinates = (x_cord, ycord)
+                                try:
+                                    pixel = image.getpixel(coordinates)
+                                    pixel_opacity = pixel[3]
+                                except:
+                                    break
+                                if pixel_opacity > 200: # OUT OF 255                                    
+                                    ellipse_x_movement_mutliplier = 0.60 if is_reversed else 0.30
+                                    x_adjustment = -1 * int(ellipse_width * ellipse_x_movement_mutliplier)
+                                    coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
+                                    player_img_components.append((ellipse_circle_image, coordinates_adjusted))
+                                    break
 
             # PASTE IMAGE
             player_img_components.append((image, paste_coordinates))
@@ -5961,6 +5987,32 @@ class ShowdownPlayerCard(BaseModel):
         rect_image = Image.new("RGB", (width, height), fill)
 
         return rect_image
+
+    def __circle_image(self, size:int, fill:tuple|str, border_size:int, border_fill:tuple|str) -> Image.Image:
+        """Create a new circle image with a particular fill and size.
+
+        Args:
+          size: Radius of the circle.
+          fill: Fill color of the circle.
+          border_size: Size of the border.
+          border_fill: Fill color of the border.
+
+        Returns:
+          PIL Image for circle.
+        """
+
+        image = Image.new('RGBA', (size, size), (0,0,0,0))
+        draw = ImageDraw.Draw(image)
+        
+        # OUTER CIRCLE: DRAW THE FULL CIRCLE WITH BORDER COLOR
+        outer_bounds = (0, 0, size - 1, size - 1)
+        draw.ellipse(outer_bounds, fill=border_fill)
+        
+        # INNER CIRCLE: DRAW A SMALLER CIRCLE INSET BY BORDER_WIDTH, FILLED WITH TRANSPARENT (ERASING THE INTERIOR)
+        inner_bounds = (border_size, border_size, size - border_size - 1, size - border_size - 1)
+        draw.ellipse(inner_bounds, fill=fill)
+    
+        return image
 
     def __add_drop_shadow(self, image:Image.Image, blur_radius:int = 15, color: float | tuple[float, ...] | str | None = 0) -> Image.Image:
         """

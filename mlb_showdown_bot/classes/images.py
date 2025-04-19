@@ -104,6 +104,7 @@ class PlayerImageComponent(str, Enum):
     DARKENER = "DARKENER"
     COOPERSTOWN = "COOPERSTOWN"
     POSTSEASON = "POSTSEASON"
+    ELLIPSE_EXTRALARGE = "ELLIPSE-EXTRALARGE"
     ELLIPSE_LARGE = "ELLIPSE-LARGE"
     ELLIPSE_MEDIUM = "ELLIPSE-MEDIUM"
     ELLIPSE_SMALL = "ELLIPSE-SMALL"
@@ -134,6 +135,7 @@ class PlayerImageComponent(str, Enum):
             case "TEAM_LOGO": return "TEAM_LOGOS"
             case "NAME_CONTAINER_2000": return "NAME_CONTAINER"
             case "SILHOUETTE": return "SILHOUETTE"
+            case "ELLIPSE_LARGE" | "ELLIPSE_MEDIUM" | "ELLIPSE_SMALL": return "CIRCLE"
             case _: return "CARD_ART"
 
     @property
@@ -201,7 +203,7 @@ class PlayerImageComponent(str, Enum):
 
     @property
     def is_ellipse(self) -> bool:
-        return self.name in ['ELLIPSE_LARGE','ELLIPSE_MEDIUM','ELLIPSE_SMALL',]
+        return self.name in ['ELLIPSE_LARGE','ELLIPSE_MEDIUM','ELLIPSE_SMALL','ELLIPSE_EXTRALARGE']
     
     @property
     def layering_index(self) -> int:
@@ -241,6 +243,16 @@ class PlayerImageComponent(str, Enum):
             'SILHOUETTE',
         ]
         return ordered_list.index(self.name) if self.name in ordered_list else None
+
+    @property
+    def frame_size(self) -> int:
+        """Returns the size of the frame for the image component. Only applies to images that are built via Python."""
+        match self.name:
+            case "ELLIPSE_EXTRALARGE": return 500
+            case "ELLIPSE_LARGE": return 375
+            case "ELLIPSE_MEDIUM": return 275
+            case "ELLIPSE_SMALL": return 200
+            case _: return None
 
 # ---------------------------------------
 # SPECIAL EDITION
