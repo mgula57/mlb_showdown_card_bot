@@ -2808,12 +2808,14 @@ class ShowdownPlayerCard(BaseModel):
             'outs': self.chart.outs_full,
             'year': self.year,
             'color': self.radar_chart_color(),
+            'shOPS+': self.projected.get('onbase_plus_slugging_plus', 'N/A'),
         }
         match self.player_sub_type:
             case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER:
                 final_data.update({
                     'ip': self.ip,
                     '2b': self.chart.ranges.get('2B', '-'),
+                    'so': self.chart.ranges.get('SO', '-'),
                 })
             case PlayerSubType.POSITION_PLAYER:
                 final_data.update({

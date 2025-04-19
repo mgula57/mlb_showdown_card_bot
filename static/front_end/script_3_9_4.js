@@ -346,7 +346,7 @@ function showStatusIndicator(message, submessage, iconClasses, backgroundColor, 
 // -------------------------------------------------------
 
 // SETUP TRENDS CHART
-function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=false, events=["mousemove", "mouseout", "click", "touchstart", "touchmove", "touchend"]) {
+function createTrendsChart(player_year, trends_data, elementId, unit, is_placeholder=false, events=["mousemove", "mouseout", "click", "touchstart", "touchmove", "touchend"]) {
 
     if (trends_data == null) {
         return;
@@ -354,7 +354,7 @@ function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=fa
 
     // UPDATE TEXT IN LABEL FOR playerInSeasonTrends TO DISPLAY THE YEAR FROM data
     if (elementId == "playerInSeasonTrends") {
-        const year = is_placeholder ? "Year" : data.player_year;
+        const year = is_placeholder ? "Year" : player_year;
         document.getElementById("in_season_trend_label").textContent = `${year} Card Evolution`;
     }
     
@@ -394,7 +394,7 @@ function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=fa
                         return 0;
                     }
                     const dataPoint = context.dataset.customData[context.dataIndex];
-                    return (dataPoint.year === data.player_year && unit == 'year') ? 6 : 3;
+                    return (dataPoint.year === player_year && unit == 'year') ? 6 : 3;
                 },
                 // Scriptable option for point background color with a condition
                 pointBackgroundColor: (context) => {
@@ -446,7 +446,7 @@ function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=fa
                     display: (context) => {
                         // Only display when condition is met
                         const dataPoint = context.dataset.customData[context.dataIndex];
-                        return dataPoint.year === data.player_year && unit == 'year';
+                        return dataPoint.year === player_year && unit == 'year';
                     },
                     formatter: (value, context) => {
                         // Return whatever label you want to show—e.g., the year or custom text
@@ -478,11 +478,28 @@ function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=fa
                             
                             // Convert dict to an array of strings (each key-value pair on a new line)
                             let tooltipLines = [];
-                            for (const [key, value] of Object.entries(dataDict)) {
-                                if (!['team', 'points', 'year', 'color'].includes(key)) {
-                                    tooltipLines.push(`${key.toUpperCase()}: ${value}`);
-                                }
-                            }
+
+                            // Add `control`/`onbase` and `outs` to the beginning
+                            const commandValue = dataDict.onbase ? dataDict.onbase : dataDict.control;
+                            const commandStr = dataDict.onbase ? "OB" : "CO";
+                            tooltipLines.push(`${commandStr}: ${commandValue} | OUTS: ${dataDict.outs}`);
+
+                            // Custom order version
+                            const customOrder = ['ip', 'so', '2b', 'hr', 'speed', 'defense', 'shOPS+']; // Adjust as needed
+
+                            let keys = Object.keys(dataDict)
+                                .filter(key => !['control', 'onbase', 'outs', 'team', 'points', 'year', 'color'].includes(key))
+                                .sort((a, b) => {
+                                    // Use the index in customOrder, or push non-listed ones to the end
+                                    const posA = customOrder.indexOf(a) === -1 ? customOrder.length : customOrder.indexOf(a);
+                                    const posB = customOrder.indexOf(b) === -1 ? customOrder.length : customOrder.indexOf(b);
+                                    return posA - posB;
+                                });
+
+                            keys.forEach(key => {
+                                const keyTitled = key == 'shOPS+' ? 'shOPS+' : key.toUpperCase();
+                                tooltipLines.push(`${keyTitled}: ${dataDict[key]}`);
+                            });
     
                             return tooltipLines; // Returning an array displays each entry on a new line
                         }
@@ -527,12 +544,9 @@ function createTrendsChart(data, trends_data, elementId, unit, is_placeholder=fa
 }
 
 function buildGenericChartPlaceholders() {
-    data = {
-        player_year: "", // SO YEAR NEVER MATCHES
-    };
     
-    createTrendsChart(data=data, trends_data=generic_career_data, elementId="playerCareerTrends", unit='year', is_placeholder=true, events=[]);
-    createTrendsChart(data=data, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]);
+    createTrendsChart(player_year="", trends_data=generic_career_data, elementId="playerCareerTrends", unit='year', is_placeholder=true, events=[]);
+    createTrendsChart(player_year="", trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]);
 }
 
 function setTheme(themeName) {
@@ -682,10 +696,15 @@ function showCardData(data) {
     if (isError) {
         buildGenericChartPlaceholders();
     } else {
-        createTrendsChart(data=data, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
-        createTrendsChart(data=data, trends_data=data.in_season_trends_data, elementId="playerInSeasonTrends", unit='day'); 
+        createTrendsChart(player_year=data.player_year, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
+        console.log(data.in_season_trends_data);
+        if (data.in_season_trends_data === null) {
+            createTrendsChart(player_year=data.player_year, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]); 
+        } else {
+            createTrendsChart(player_year=data.player_year, trends_data=data.in_season_trends_data, elementId="playerInSeasonTrends", unit='day'); 
+        }
     }
-    
+    console.log(data);
     // VAR NEEDED FOR TABLE CLASSES
     var table_class_suffix = (storedTheme == 'dark') ? " table-dark" : ""
     var table_class_name = "table table-striped table-bordered" + table_class_suffix
@@ -986,7 +1005,7 @@ $(function () {
                 additional_context = elements.join(" ");
             }
             const subMessage = `${name} ${additional_context}`;
-            showStatusIndicator(message="Processing...", submessage=subMessage, iconClasses="fa-solid fa-baseball fa-bounce", backgroundColor="var(--warning-color)");
+            showStatusIndicator(message="Building...", submessage=subMessage, iconClasses="fa-solid fa-baseball fa-bounce", backgroundColor="var(--warning-color)");
 
             // DISABLE BUTTONS
             disableBuildButtons(wasRandomSelected=is_random_card);
