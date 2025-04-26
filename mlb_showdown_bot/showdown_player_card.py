@@ -2566,7 +2566,7 @@ class ShowdownPlayerCard(BaseModel):
         # DEFENSE (IF APPLICABLE)
         for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
             for metric, value in metric_and_value_dict.items():
-                final_player_data.append([f'{metric.value.upper()}-{position}',str(round(value)),en_dash, en_dash])
+                final_player_data.append([f'{metric.value.upper()}-{position.value}',str(round(value)),en_dash, en_dash])
         
         return final_player_data
 
