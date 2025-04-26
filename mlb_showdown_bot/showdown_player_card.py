@@ -112,7 +112,7 @@ class ShowdownPlayerCard(BaseModel):
     positions_and_defense: dict[Position, int] = {}
     positions_and_defense_for_visuals: dict[str, int] = {}
     positions_and_defense_string: str = ''
-    positions_and_real_life_ratings: dict[str, dict[DefenseMetric, Union[float, int]]] = {}
+    positions_and_real_life_ratings: dict[Position, dict[DefenseMetric, Union[float, int]]] = {}
     positions_and_games_played: dict[Position, int] = {}
     command_out_accuracies: dict[str, float] = {}
     command_out_accuracy_breakdowns: dict[str, dict[Stat, ChartAccuracyBreakdown]] = {}
@@ -478,10 +478,11 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         positions = self.positions_and_defense.keys()
-        is_catcher = any(pos in positions for pos in ['C','CA'])
-        is_middle_infield = any(pos in positions for pos in ['IF','2B','SS'])
-        is_outfield = any(pos in positions for pos in ['OF','CF','LF/RF'])
-        is_1b = '1B' in positions
+        is_catcher = Position.CA in positions
+        is_1b = Position._1B in positions
+        is_middle_infield = any(pos.is_middle_infield for pos in positions)
+        is_outfield = any(pos.is_outfield for pos in positions)
+        
         is_multi_position = len(positions) > 1
         hand_prefix = self.hand.silhouette_name(self.is_pitcher)
         hand_throwing = self.stats_for_card['hand_throw']
@@ -503,12 +504,12 @@ class ShowdownPlayerCard(BaseModel):
         # PITCHERS
         if self.is_pitcher:
             # PITCHERS ARE CLASSIFIED AS SP, RP, CL
-            if 'RELIEVER' in positions:
+            if Position.RP in positions:
                 return f"{hand_prefix}-RP"
-            elif 'CLOSER' in positions:
+            elif Position.CL in positions:
                 return f"{hand_prefix}-CL"
-            else:
-                return f"{hand_prefix}-SP"
+            
+            return f"{hand_prefix}-SP"
         # HITTERS
         else:
             is_slg_above_threshold = self.stats_for_card.get('slugging_perc', 0.0) >= 0.475
@@ -543,9 +544,9 @@ class ShowdownPlayerCard(BaseModel):
         num_positions = 0
         for position in self.positions_and_defense.keys():
             match position:
-                case "LF/RF": num_positions += 2
-                case "IF": num_positions += 4
-                case "OF": num_positions += 3
+                case Position.LFRF: num_positions += 2
+                case Position.IF: num_positions += 4
+                case Position.OF: num_positions += 3
                 case _: num_positions += 1 # DEFAULT
         return num_positions
     
@@ -763,15 +764,15 @@ class ShowdownPlayerCard(BaseModel):
         total_games_started = stats_dict.get('GS', 0)
         total_saves = stats_dict.get('SV', 0)
 
-        positions_and_defense = {}
-        positions_and_games_played = {}
-        positions_and_real_life_ratings = {}
+        positions_and_defense: dict[Position, int] = {}
+        positions_and_games_played: dict[Position, int] = {}
+        positions_and_real_life_ratings: dict[Position, dict[DefenseMetric, Union[float, int]]] = {}
 
         # FLAG IF OF IS AVAILABLE BUT NOT CF (SHOHEI OHTANI 2021 CASE)
         defense_stats_dict:dict = stats_dict.get('positions', {})
         positions_list: list[str] = list(defense_stats_dict.keys())
         num_positions = len(positions_list)
-        is_of_but_hasnt_played_cf = 'OF' in positions_list and 'CF' not in positions_list
+        is_of_but_hasnt_played_cf = Position.OF in positions_list and Position.CF not in positions_list
 
         # MARK IF PLAYER PLAYED ALL IF POSITIONS
         has_played_all_if_positions = len([pos for pos in positions_list if pos in ['1B','2B','3B','SS']]) == 4
@@ -783,7 +784,7 @@ class ShowdownPlayerCard(BaseModel):
             if not is_valid_position:
                 continue
             games_at_position = defensive_stats.get('g', 0)
-            position = self.__position_name_in_game(
+            position: Position = self.__position_in_game(
                 position=position_name,
                 num_positions=num_positions,
                 position_appearances=games_at_position,
@@ -865,7 +866,7 @@ class ShowdownPlayerCard(BaseModel):
             final_positions_in_game = {Position.DH: 0}
 
         # RE-SORT POSITIONS
-        final_positions_in_game = dict(sorted(final_positions_in_game.items(), key=lambda item: Position(item[0]).extract_games_played_used_for_sort(final_position_games_played), reverse=True))
+        final_positions_in_game = dict(sorted(final_positions_in_game.items(), key=lambda item: item[0].extract_games_played_used_for_sort(final_position_games_played), reverse=True))
         
         return final_positions_in_game, positions_and_real_life_ratings, final_position_games_played
 
@@ -913,73 +914,73 @@ class ShowdownPlayerCard(BaseModel):
 
         positions_set = set(positions_and_defense.keys())
         # IF HAS EITHER CORNER OUTFIELD POSITION
-        if 'LF' in positions_set or 'RF' in positions_set:
+        if Position.LF in positions_set or Position.RF in positions_set:
             # IF BOTH LF AND RF
-            if set(['LF','RF']).issubset(positions_set):
-                lf_games = positions_and_games_played['LF']
-                rf_games = positions_and_games_played['RF']
+            if set([Position.LF,Position.RF]).issubset(positions_set):
+                lf_games = positions_and_games_played[Position.LF]
+                rf_games = positions_and_games_played[Position.RF]
                 lf_rf_games = lf_games + rf_games
                 # WEIGHTED AVG
-                lf_rf_rating = round(( (positions_and_defense['LF']*lf_games) + (positions_and_defense['RF']*rf_games) ) / lf_rf_games)
-                del positions_and_defense['LF']
-                del positions_and_defense['RF']
-                del positions_and_games_played['LF']
-                del positions_and_games_played['RF']
+                lf_rf_rating = round(( (positions_and_defense[Position.LF]*lf_games) + (positions_and_defense[Position.RF]*rf_games) ) / lf_rf_games)
+                del positions_and_defense[Position.LF]
+                del positions_and_defense[Position.RF]
+                del positions_and_games_played[Position.LF]
+                del positions_and_games_played[Position.RF]
             # IF JUST LF
-            elif 'LF' in positions_set:
-                lf_rf_rating = positions_and_defense['LF']
-                lf_rf_games = positions_and_games_played['LF']
-                del positions_and_defense['LF']
-                del positions_and_games_played['LF']
+            elif Position.LF in positions_set:
+                lf_rf_rating = positions_and_defense[Position.LF]
+                lf_rf_games = positions_and_games_played[Position.LF]
+                del positions_and_defense[Position.LF]
+                del positions_and_games_played[Position.LF]
             # IF JUST RF
             else:
-                lf_rf_rating = positions_and_defense['RF']
-                lf_rf_games = positions_and_games_played['RF']
-                del positions_and_defense['RF']
-                del positions_and_games_played['RF']
-            positions_and_defense['LF/RF'] = lf_rf_rating
-            positions_and_games_played['LF/RF'] = lf_rf_games
+                lf_rf_rating = positions_and_defense[Position.RF]
+                lf_rf_games = positions_and_games_played[Position.RF]
+                del positions_and_defense[Position.RF]
+                del positions_and_games_played[Position.RF]
+            positions_and_defense[Position.LFRF] = lf_rf_rating
+            positions_and_games_played[Position.LFRF] = lf_rf_games
             positions_set = set(positions_and_defense.keys())
         
         # IF PLAYER HAS ALL OUTFIELD POSITIONS
-        non_outfield_positions = [pos for pos in positions_and_defense.keys() if pos not in ['LF/RF','CF','OF','RF','LF','DH']]
-        if set(['LF/RF','CF','OF']).issubset(positions_set):
-            if self.set.is_outfield_split and positions_and_defense['LF/RF'] != positions_and_defense['CF'] and len(non_outfield_positions) < 2:
-                del positions_and_defense['OF']
-                del positions_and_games_played['OF']
+        non_outfield_positions = [pos for pos in positions_and_defense.keys() if not pos.is_outfield and pos != Position.DH]
+        if set([Position.LFRF,Position.CF,Position.OF]).issubset(positions_set):
+            if self.set.is_outfield_split and positions_and_defense[Position.LFRF] != positions_and_defense[Position.CF] and len(non_outfield_positions) < 2:
+                del positions_and_defense[Position.OF]
+                del positions_and_games_played[Position.OF]
             else:
-                del positions_and_defense['LF/RF']
-                del positions_and_defense['CF']
-                del positions_and_games_played['LF/RF']
-                del positions_and_games_played['CF']
+                del positions_and_defense[Position.LFRF]
+                del positions_and_defense[Position.CF]
+                del positions_and_games_played[Position.LFRF]
+                del positions_and_games_played[Position.CF]
         # IF JUST OF
-        elif 'OF' in positions_set and ('LF/RF' in positions_set or 'CF' in positions_set):
-            del positions_and_defense['OF']
-            del positions_and_games_played['OF']
+        elif Position.OF in positions_set and (Position.LFRF in positions_set or Position.CF in positions_set):
+            del positions_and_defense[Position.OF]
+            del positions_and_games_played[Position.OF]
         
         # IS CF AND 2000/2001
         # 2000/2001 SETS ALWAYS INCLUDED LF/RF FOR CF PLAYERS
-        if 'CF' in positions_set and len(positions_and_defense) == 1 and self.set.is_cf_eligible_for_lfrf:
-            if 'CF' in positions_and_defense.keys():
-                cf_defense = positions_and_defense['CF']
-                lf_rf_defense = round(positions_and_defense['CF'] / 2)
+        if Position.CF in positions_set and len(positions_and_defense) == 1 and self.set.is_cf_eligible_for_lfrf:
+            if Position.CF in positions_and_defense.keys():
+                cf_defense = positions_and_defense[Position.CF]
+                lf_rf_defense = round(positions_and_defense[Position.CF] / 2)
                 if lf_rf_defense == cf_defense:
-                    positions_and_games_played['OF'] = positions_and_games_played['CF']
-                    positions_and_defense['OF'] = cf_defense
-                    del positions_and_defense['CF']
-                    del positions_and_games_played['CF']
+                    positions_and_games_played[Position.OF] = positions_and_games_played[Position.CF]
+                    positions_and_defense[Position.OF] = cf_defense
+                    del positions_and_defense[Position.CF]
+                    del positions_and_games_played[Position.CF]
                 else:
-                    positions_and_defense['LF/RF'] = lf_rf_defense
-                    positions_and_games_played['LF/RF'] = 0
+                    positions_and_defense[Position.LFRF] = lf_rf_defense
+                    positions_and_games_played[Position.LFRF] = 0
         
         # CHANGE OF TO LF/RF IF PLAYER HASNT PLAYED CF
-        # EXCEPTION IS PRE-1900, WHERE 'OF' POSITIONAL BREAKOUTS ARE NOT AVAILABLE
+        # EXCEPTION IS PRE-1900, WHERE OF POSITIONAL BREAKOUTS ARE NOT AVAILABLE
         start_year = min(self.year_list)
-        if 'OF' in positions_set and is_of_but_hasnt_played_cf and 'OF' in positions_and_defense.keys() and start_year > 1900:
-            positions_and_games_played['LF/RF'] = positions_and_games_played['OF']
-            positions_and_defense['LF/RF'] = positions_and_defense['OF']
-            del positions_and_defense['OF']
-            del positions_and_games_played['OF']
+        if Position.OF in positions_set and is_of_but_hasnt_played_cf and Position.OF in positions_and_defense.keys() and start_year > 1900:
+            positions_and_games_played[Position.LFRF] = positions_and_games_played[Position.OF]
+            positions_and_defense[Position.LFRF] = positions_and_defense[Position.OF]
+            del positions_and_defense[Position.OF]
+            del positions_and_games_played[Position.OF]
 
         return positions_and_defense, positions_and_games_played
 
@@ -1088,8 +1089,8 @@ class ShowdownPlayerCard(BaseModel):
         
         return [position1, position2]
 
-    def __position_name_in_game(self, position:str, num_positions:int, position_appearances:int, games_played:int, games_started:int, saves:int, has_played_all_if_positions:bool) -> str:
-        """Cleans position name to conform to game standards.
+    def __position_in_game(self, position:str, num_positions:int, position_appearances:int, games_played:int, games_started:int, saves:int, has_played_all_if_positions:bool) -> Position:
+        """Cleans position name to conform to game standards. Converts to position object
 
         Args:
           position: Baseball Reference name for position.
@@ -1114,11 +1115,11 @@ class ShowdownPlayerCard(BaseModel):
             gsRatio = games_started / games_played
             if gsRatio > self.set.starting_pitcher_pct_games_started:
                 # ASSIGN MINIMUM IP FOR STARTERS
-                return 'STARTER'
+                return Position.SP
             if saves > self.set.closer_min_saves_required:
-                return 'CLOSER'
+                return Position.CL
             else:
-                return 'RELIEVER'
+                return Position.RP
         elif ( position_appearances < self.set.min_number_of_games_defense and pct_of_games_played < (self.set.min_pct_of_games_defense(is_multi_year=False) * pos_min_multiplier) ) \
               or (self.is_multi_year and pct_of_games_played < (self.set.min_pct_of_games_defense(is_multi_year=True) * pos_min_multiplier ) ):
             # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
@@ -1128,12 +1129,11 @@ class ShowdownPlayerCard(BaseModel):
             return None
         elif not self.set.is_00_01 and position == 'C':
             # CHANGE CATCHER POSITION NAME DEPENDING ON CONTEXT YEAR
-            return 'CA'
-        else:
-            # RETURN BASEBALL REFERENCE STRING VALUE
-            return position
+            return Position.CA
+        
+        return Position(position)
 
-    def __convert_to_in_game_defense(self, position:str, rating:float, metric:DefenseMetric, games:int) -> int:
+    def __convert_to_in_game_defense(self, position:Position, rating:float, metric:DefenseMetric, games:int) -> int:
         """Converts the best available fielding metric to in game defense at a position.
            Uses DRS for 2003+, TZR for 1953-2002, dWAR for <1953.
            More modern defensive metrics (like DRS) are not available for historical
@@ -1149,7 +1149,6 @@ class ShowdownPlayerCard(BaseModel):
           In game defensive rating.
         """
         
-        position: Position = Position(position)
         is_1b = position == Position._1B
 
         # CALCULATE RATING PER 150 GAMES IF NOT FULL CAREER
@@ -2484,8 +2483,15 @@ class ShowdownPlayerCard(BaseModel):
             statline_tbl.add_row(values, divider=source == 'stats_for_card')
         
         # ADD DIFFS ROW
-        diffs_row = ['DIFF'] + [round(all_numeric_value_lists[0][i] - all_numeric_value_lists[1][i], 3 if i < 4 else 0) for i in range(len(all_numeric_value_lists[0]))]
-        statline_tbl.add_row(diffs_row)
+        cleaned_diffs: list[str] = ['DIFF']
+        projections_showdown = all_numeric_value_lists[0]
+        real_life = all_numeric_value_lists[1]
+        for index, key in enumerate(stat_categories_dict.values()):
+            diff_value = projections_showdown[index] - real_life[index]
+            diff_value_str = self.__stat_formatted(category=key, value=diff_value)
+            cleaned_diffs.append(diff_value_str)
+
+        statline_tbl.add_row(cleaned_diffs)
 
         print('\nPROJECTED STATS')
         print(statline_tbl)

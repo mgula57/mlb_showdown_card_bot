@@ -241,7 +241,15 @@ class Position(MultiValueEnum):
 
     @property
     def is_infield(self) -> bool:
-        return self.name in ['_1B','_2B','_3B','SS',]
+        return self in [Position._1B, Position._2B, Position._3B, Position.SS, Position.IF]
+
+    @property
+    def is_middle_infield(self) -> bool:
+        return self in [Position.IF, Position._2B, Position.SS]
+    
+    @property
+    def is_outfield(self) -> bool:
+        return self in [Position.LF, Position.CF, Position.RF, Position.OF, Position.LFRF,]
     
     @property
     def is_pitcher(self) -> bool:
