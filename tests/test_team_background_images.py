@@ -44,7 +44,7 @@ for team in teams:
                     set=set,
                     run_stats=False,
                     use_secondary_color=is_secondary,
-                    disable_running_card=True
+                    build_on_init=False
                 )
 
                 if args.color_names:

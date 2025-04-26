@@ -31,7 +31,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
     def __init__(self, data_source: WotcDataSource = WotcDataSource.FILE, update_projections:bool = False, stats:dict = None, **data):
         match data_source:
             case WotcDataSource.FILE:
-                data['disable_running_card'] = True
+                data['build_on_init'] = False
                 if data.get('stats', None) is None:
                     data['stats'] = stats or {}
                 super().__init__(**data)
@@ -52,7 +52,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     data['year'] = str(int(ss_year) if ss_year else set_year)
                 data['stats'] = {}
                 data['source'] = 'WOTC'
-                data['disable_running_card'] = True
+                data['build_on_init'] = False
                 data['is_wotc'] = True
                 data['set_year_plus_one'] = True
 

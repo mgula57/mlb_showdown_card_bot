@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ValidationInfo, field_validator
 from typing import Optional
 
 try:
@@ -501,7 +501,7 @@ class ShowdownImage(BaseModel):
     output_file_name: Optional[str] = None
     set_name: Optional[str] = None
     set_year: Optional[int] = None
-    set_number: str = '—'
+    set_number: Optional[str] = None
     add_one_to_set_year: bool = False
     show_year_text: bool = False
     is_bordered: bool = False
@@ -541,9 +541,8 @@ class ShowdownImage(BaseModel):
                 self.special_edition = SpecialEdition.TEAM_COLOR_BLAST_DARK
                 return 
             
-    @validator('nickname_index', always=True, pre=True)
+    @field_validator('nickname_index', mode='before')
     def clean_nickname_index(cls, nickname_index:int) -> int:
-
         if nickname_index is None:
             return None
         

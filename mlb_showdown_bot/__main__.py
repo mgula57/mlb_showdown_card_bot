@@ -9,13 +9,13 @@ from datetime import datetime
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .baseball_ref_scraper import BaseballReferenceScraper
-    from .showdown_player_card import ShowdownPlayerCard
+    from .showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
     from .classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
     from .postgres_db import PostgresDB, PlayerArchive
 except ImportError:
     # USE LOCAL IMPORT 
     from baseball_ref_scraper import BaseballReferenceScraper
-    from showdown_player_card import ShowdownPlayerCard
+    from showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
     from classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
     from postgres_db import PostgresDB, PlayerArchive
 
@@ -32,10 +32,10 @@ parser.add_argument('-e','--era',help='The baseball era to use.',default='DYNAMI
 # IMAGE
 parser.add_argument('-url','--image_url',help='URL link to Player background image',default=None)
 parser.add_argument('-path','--image_path',help='Path to Player background image on local machine',default=None)
-parser.add_argument('-o_path','--image_output_path',help='Path to folder for card image output',default='')
+parser.add_argument('-o_path','--image_output_path',help='Path to folder for card image output',default=None)
 parser.add_argument('-exp','--expansion',help='Add optional expansion logo (ex: TD, PR)',default='BS')
 parser.add_argument('-ed','--edition',help='Add optional edition (Values: None, Super Season, All-Star Game, Cooperstown Collection, Holiday, Nationality, Rookie Season)',default='NONE')
-parser.add_argument('-num','--set_num',help='Assign card a set number',default='')
+parser.add_argument('-num','--set_num',help='Assign card a set number',default=None)
 parser.add_argument('-show','--show_image', action='store_true', help='Optionally open the final Player Card Image upon completion')
 parser.add_argument('-pl','--parallel', help='Optionally add image parallel design like Rainbow Foil, Black & White, Sparkle, etc.', default='NONE', type=str)
 parser.add_argument('-bor','--add_border', action='store_true', help='Optionally add border to player image')
@@ -151,33 +151,34 @@ def main():
             stats=statline,
             set=set,
             era=args.era,
-            expansion=args.expansion,
-            edition=args.edition,
             chart_version=args.chart_version,
-            player_image_url=args.image_url,
-            player_image_path=args.image_path,
             player_type_override=scraper.player_type_override,
-            card_img_output_folder_path=args.image_output_path,
-            print_to_cli=True,
-            show_image=args.show_image,
-            set_number=str(args.set_num),
             command_out_override=command_out_override,
-            add_image_border=args.add_border,
-            is_dark_mode=args.dark_mode,
             is_variable_speed_00_01=args.variable_spd,
-            parallel=args.parallel,
-            show_year_text=args.show_year_text,
-            set_year_plus_one=args.set_year_plus_one,
-            hide_team_logo=args.hide_team_logo,
-            use_secondary_color=args.secondary_color,
-            is_multi_colored=args.is_multi_colored,
-            stat_highlights_type=args.stat_highlights_type,
-            glow_multiplier=args.glow_multiplier,
             source=data_source,
             disable_cache_cleaning=args.disable_cache_cleaning,
-            nickname_index=args.nickname_index,
             ignore_cache=args.ignore_cache,
-            warnings=scraper.warnings
+            warnings=scraper.warnings,
+            image = ShowdownImage(
+                edition = args.edition,
+                expansion = args.expansion,
+                source = ImageSource(url=args.image_url, path=args.image_path),
+                parallel = args.parallel,
+                output_folder_path = args.image_output_path,
+                set_number = args.set_num,
+                add_one_to_set_year = args.set_year_plus_one,
+                show_year_text = args.show_year_text,
+                is_bordered = args.add_border,
+                is_dark_mode = args.dark_mode,
+                hide_team_logo = args.hide_team_logo,
+                use_secondary_color = args.secondary_color,
+                is_multi_colored = args.is_multi_colored,
+                nickname_index=args.nickname_index,
+                stat_highlights_type=args.stat_highlights_type,
+                glow_multiplier=args.glow_multiplier,
+            ),
+            print_to_cli=True,
+            show_image=args.show_image
         )
 
     # -----------------------------------

@@ -63,7 +63,7 @@ class ShowdownPlayerCard(BaseModel):
     # REQUIRED
     year: str
     set: Set
-    stats: dict # TODO: VALIDATE NO HBP DOUBLE COUNTING WHEN INIT FROM DICT
+    stats: dict
     year_list: list[int] = []
     era: Era
     name: str
@@ -98,6 +98,7 @@ class ShowdownPlayerCard(BaseModel):
     is_wotc: bool = False
     
     # ENVIRONMENT
+    build_on_init: bool = True
     is_running_in_flask: bool = False
     load_time: float = 0.0
     warnings: list[str] = []
@@ -134,95 +135,88 @@ class ShowdownPlayerCard(BaseModel):
 
         # INIT
         super().__init__(**data)
+        
+        # IF CARD IS NOT ALREADY POPULATED BY DATA INPUT, BUILD THE CARD
+        # TO DISABLE THIS AND BUILD VIA THE `build_card()` FUNCTION, SET `build_on_init` TO FALSE
+        if not self.is_populated and self.build_on_init:
+            self.build_card(show_image=data.get('show_image', False), print_to_cli=data.get('print_to_cli', False))
 
-        # PARSE NICKNAMES
+# ------------------------------------------------------------------------
+# RUN THE ACTUAL CARD STATS
+# ------------------------------------------------------------------------
+
+    def build_card(self, show_image:bool=False, print_to_cli:bool=False) -> None:
+        """Build the card's attributes given provided metadata and stats.
+        Results in either an image outputted to the file system or a CLI printout.
+
+        Args:
+            show_image (bool): Whether to show the card image after building it.
+            print_to_cli (bool): Whether to print the card information to the CLI.
+
+        Returns:
+            None
+        """
+
+        # CLEAN UP AND CALCULATE MISSING/ALTERED STATS
+        self.stats = self.clean_stats(stats=self.stats)
+
+        # ADD NICKNAMES
         self.nicknames = self.extract_player_nicknames_list()
 
-        # IMAGE
-        if data.get('image', None) is None:
-            self.image: ShowdownImage = ShowdownImage(
-                edition = data.get('edition', Edition.NONE),
-                expansion = data.get('expansion', Expansion.BS),
-                source = ImageSource(url=data.get('player_image_url', None), path=data.get('player_image_path', None)),
-                parallel = data.get('parallel', ImageParallel.NONE),
-                output_folder_path = data.get('card_img_output_folder_path', '') if len(data.get('card_img_output_folder_path', '')) > 0 else os.path.join(os.path.dirname(__file__), 'output'),
-                set_name = data.get('set_name', None),
-                set_number = data.get('set_number', '') if data.get('set_number', '') != '' else self.set.default_set_number(self.year),
-                add_one_to_set_year = data.get('set_year_plus_one', False) and self.set.is_eligibile_for_year_plus_one,
-                show_year_text = data.get('show_year_text', False) and self.set.is_eligibile_for_year_container,
-                is_bordered = data.get('add_image_border', False),
-                is_dark_mode = data.get('is_dark_mode', False),
-                hide_team_logo = data.get('hide_team_logo', False),
-                use_secondary_color = data.get('use_secondary_color', False),
-                is_multi_colored = data.get('is_multi_colored', False),
-                nickname_index=data.get('nickname_index', None),
-                stat_highlights_type=data.get('stat_highlights_type', 'NONE'),
-                glow_multiplier=data.get('glow_multiplier', 1.0),
-            )
-            self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
+        # HANDLE GAME LOGS IF APPLICABLE
+        game_logs = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
+        self.stats_period.add_stats_from_logs(game_logs=game_logs, year_list=self.year_list, is_pitcher=self.is_pitcher)
+        if self.stats_period.stats:
+            full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
+            # ADD FULL AMOUNT OF NGAMES PLAYED FOR REGULAR SEASON GAMES FOR HITTERS
+            # USED FOR DEFENSE CALCS
+            if self.stats_period.type.is_regular_season_games_stat_needed and self.player_type == PlayerType.HITTER:
+                full_season_stats_used_for_stats_period['G_RS'] = self.stats.get('G', 0)
+            self.stats_period.stats.update(full_season_stats_used_for_stats_period)
+            self.stats_period.stats = self.clean_stats(stats=self.stats_period.stats)
+
+            # USE OVERWRITTEN FULL SEASON STATS AS PARTIALS
+            full_stats_copy = self.stats.copy()
+            full_stats_copy.update(self.stats_period.stats)
+            self.stats_period.stats = full_stats_copy
+            stats_period_team = self.stats_period.stats.get('team_ID', None)
+            if stats_period_team:
+                self.team = Team(stats_period_team)
+
+        # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
+        self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self.__positions_and_defense(stats_dict=self.stats_for_card)
+        self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
+        self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
+        self.player_sub_type = self.calculate_player_sub_type()
+        self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', 0))
+        self.hand: Hand = self.__handedness(hand_raw=self.stats_for_card.get('hand', None))
+        self.speed: Speed = self.__speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=self.stats_for_card.get('SB', 0) / ( self.stats_for_card.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
+        self.accolades: list[str] = self.parse_accolades()
+        self.icons: list[Icon] = self.__icons(awards=self.stats_for_card.get('award_summary',''))
+
+        # CONVERT STATS TO PER 400 PA
+        # MAKES MATH EASIER (20 SIDED DICE)
+        stats_for_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats_for_card)
+
+        self.chart: Chart = self.__most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version) - 1)
+        self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats_for_card.get('PA', 650))
+
+        # FOR PTS, USE STEROID ERA OPPONENT
+        chart_for_pts = self.chart.model_copy()
+        chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=True)
+        projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
+        projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
+
+        self.points_breakdown: Points = self.calculate_points(projected=projections_for_pts,
+                                        positions_and_defense=self.positions_and_defense,
+                                        speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
+        self.points: int = self.points_breakdown.total_points
+
+        if show_image or self.image.output_folder_path:
+            self.card_image(show=show_image)
         
-        disable_running_card: bool = data.get('disable_running_card', False)
-        if not self.is_populated and not disable_running_card:
-
-            # CLEAN UP AND CALCULATE MISSING/ALTERED STATS
-            self.stats = self.add_estimates_to_stats(stats=self.stats)
-
-            # HANDLE GAME LOGS IF APPLICABLE
-            game_logs = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
-            self.stats_period.add_stats_from_logs(game_logs=game_logs, year_list=self.year_list, is_pitcher=self.is_pitcher)
-            if self.stats_period.stats:
-                full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
-                # ADD FULL AMOUNT OF NGAMES PLAYED FOR REGULAR SEASON GAMES FOR HITTERS
-                # USED FOR DEFENSE CALCS
-                if self.stats_period.type.is_regular_season_games_stat_needed and self.player_type == PlayerType.HITTER:
-                    full_season_stats_used_for_stats_period['G_RS'] = self.stats.get('G', 0)
-                self.stats_period.stats.update(full_season_stats_used_for_stats_period)
-                self.stats_period.stats = self.add_estimates_to_stats(stats=self.stats_period.stats)
-
-                # USE OVERWRITTEN FULL SEASON STATS AS PARTIALS
-                full_stats_copy = self.stats.copy()
-                full_stats_copy.update(self.stats_period.stats)
-                self.stats_period.stats = full_stats_copy
-                stats_period_team = self.stats_period.stats.get('team_ID', None)
-                if stats_period_team:
-                    self.team = Team(stats_period_team)
-
-            # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
-            self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self.__positions_and_defense(stats_dict=self.stats_for_card)
-            self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
-            self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
-            self.player_sub_type = self.calculate_player_sub_type()
-            self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', 0))
-            self.hand: Hand = self.__handedness(hand_raw=self.stats_for_card.get('hand', None))
-            self.speed: Speed = self.__speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=self.stats_for_card.get('SB', 0) / ( self.stats_for_card.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
-            self.accolades: list[str] = self.parse_accolades()
-            self.icons: list[Icon] = self.__icons(awards=self.stats_for_card.get('award_summary',''))
-
-            # CONVERT STATS TO PER 400 PA
-            # MAKES MATH EASIER (20 SIDED DICE)
-            stats_for_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats_for_card)
-
-            self.chart: Chart = self.__most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version) - 1)
-            self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats_for_card.get('PA', 650))
-
-            # FOR PTS, USE STEROID ERA OPPONENT
-            chart_for_pts = self.chart.model_copy()
-            chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=True)
-            projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
-            projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
-
-            self.points_breakdown: Points = self.calculate_points(projected=projections_for_pts,
-                                            positions_and_defense=self.positions_and_defense,
-                                            speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
-            self.points: int = self.points_breakdown.total_points
-
-            show_image = data.get('show_image', False)
-            is_card_image_path = len(data.get('card_img_output_folder_path', '')) > 0
-            if show_image or is_card_image_path:
-                self.card_image(show=show_image)
-            
-            if data.get('print_to_cli', False):
-                self.print_player()
+        if print_to_cli:
+            self.print_player()
 
 # ------------------------------------------------------------------------
 # VALIDATORS
@@ -279,50 +273,6 @@ class ShowdownPlayerCard(BaseModel):
         
         year_list:list[int] = info.data.get('year_list', [])
         return len(year_list) > 1
-
-    @field_validator('stats')
-    def clean_stats(cls, stats:dict, info:ValidationInfo) -> dict[str, Any]:
-
-        # ADD OPS IF NOT IN DICT (< 1900 CARDS)
-        if 'onbase_plus_slugging' not in stats.keys() and 'slugging_perc' in stats.keys() and 'onbase_perc' in stats.keys():
-            stats['onbase_plus_slugging'] = stats['slugging_perc'] + stats['onbase_perc']
-
-        values = info.data
-        # REDUCE IF/FB FOR 1988
-        if 'IF/FB' in stats.keys() and values.get('year', '') == '1988':
-            stats['IF/FB'] = stats.get('IF/FB', 0.0) * Set(values.get('set', None)).pu_normalizer_1988
-
-        # ADD FIP FOR PITCHERS
-        is_pitcher = stats.get('type', '') == 'Pitcher'
-        if is_pitcher and 'fip' not in stats.keys():
-
-            # PARSE YEAR LIST
-            # TODO: FIGURE OUT HOW TO NOT REPEAT THIS CODE
-            all_years_played:list[str] = stats.get('years_played', [])
-            year = values.get('year', '2000')
-            if year.upper() == 'CAREER': year_list = [int(year) for year in all_years_played]
-            elif '-' in year:
-                # RANGE OF YEARS
-                years = year.split('-')
-                year_start = int(years[0].strip())
-                year_end = int(years[1].strip())
-                year_list = list(range(year_start,year_end+1))
-            elif '+' in year: year_list = [int(x.strip()) for x in year.split('+')]
-            else: year_list = [int(year)]
-            
-            fip_constant = sc.FIP_CONSTANT.get(statistics.median(year_list), 3.2)
-            hr_weighted = 13 * stats.get('HR', 0)
-            bb_weighted = 3 * stats.get('BB', 0)
-            so_weighted = 2 * stats.get('SO', 0)
-            ip = stats.get('IP', 1)
-            stats['fip'] = round(( (hr_weighted + bb_weighted - so_weighted) / ip) + fip_constant, 2)
-            
-        # ADD K/9 FOR PITCHERS
-        if is_pitcher and 'strikeouts_per_nine' not in stats.keys():
-            k_per_9 = stats.get('SO', 0) * 9 / stats.get('IP', 1)
-            stats['strikeouts_per_nine'] = round(k_per_9, 2)
-
-        return stats
     
     @field_validator('era', mode='before')
     def handle_dynamic_era(cls, era:str, info:ValidationInfo) -> Era:
@@ -336,7 +286,7 @@ class ShowdownPlayerCard(BaseModel):
                 if year in era.year_range:
                     eras.append(era)
         
-        # FILTER TO MOST
+        # FILTER TO MOST COMMON
         most_common_era_tuples_list = Counter(eras).most_common(1)
 
         if len(most_common_era_tuples_list) == 0:
@@ -437,7 +387,6 @@ class ShowdownPlayerCard(BaseModel):
             return nicknames_list
         except:
             return []
-
 
 # ------------------------------------------------------------------------
 # STATIC PROPERTIES
@@ -1858,7 +1807,7 @@ class ShowdownPlayerCard(BaseModel):
 # REAL LIFE STATS METHODS
 # ------------------------------------------------------------------------
 
-    def add_estimates_to_stats(self, stats:dict) -> dict:
+    def clean_stats(self, stats:dict) -> dict:
         """Add estimated stats to the player's season stats.
 
         Args:
@@ -1884,6 +1833,30 @@ class ShowdownPlayerCard(BaseModel):
             base = 0.16 if metric == 'IF/FB' else 1.5
             ratio = round(base * multiplier, 3)
             return ratio
+        
+        # DO NOTHING IF STATS HAVE ALREADY BEEN CLEANED/ESTIMATED
+        # CAN TELL BY CHECKING FOR GB, FB, PU
+        if 'GB' in stats and 'FB' in stats and 'PU' in stats:
+            return stats
+    
+        # REDUCE IF/FB FOR 1988
+        if 'IF/FB' in stats.keys() and self.year == '1988':
+            stats['IF/FB'] = stats.get('IF/FB', 0.0) * self.set.pu_normalizer_1988
+
+        # ADD FIP FOR PITCHERS
+        if self.is_pitcher and 'fip' not in stats.keys():
+            
+            fip_constant = sc.FIP_CONSTANT.get(self.median_year, 3.2)
+            hr_weighted = 13 * stats.get('HR', 0)
+            bb_weighted = 3 * stats.get('BB', 0)
+            so_weighted = 2 * stats.get('SO', 0)
+            ip = stats.get('IP', 1)
+            stats['fip'] = round(( (hr_weighted + bb_weighted - so_weighted) / ip) + fip_constant, 2)
+            
+        # ADD K/9 FOR PITCHERS
+        if self.is_pitcher and 'strikeouts_per_nine' not in stats.keys():
+            k_per_9 = stats.get('SO', 0) * 9 / stats.get('IP', 1)
+            stats['strikeouts_per_nine'] = round(k_per_9, 2)
 
         # CLEAN SLASHLINE
         ba = float(stats['batting_avg']) if len(str(stats['batting_avg'])) > 0 else 1.0
@@ -2937,6 +2910,9 @@ class ShowdownPlayerCard(BaseModel):
             card_image = Image.open(BytesIO(response.content))
             self.save_image(image=card_image, start_time=start_time, show=show, disable_add_border=True)
             return
+        
+        # CHECK FOR SPECIAL EDITION
+        self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
         
         # BACKGROUND IMAGE
         card_image = self.__background_image()
@@ -4082,10 +4058,13 @@ class ShowdownPlayerCard(BaseModel):
         set_image_location = self.set.template_component_paste_coordinates(TemplateImageComponent.SET)
         set_text_color = self.set.template_component_font_color(TemplateImageComponent.SET, is_dark_mode=self.image.is_dark_mode)
 
+        # IF USER DID NOT ASSIGN A ET NUMBER VALUE, ASSIGN THE SET'S DEFAULT
+        set_number_visual = self.image.set_number or self.set.default_set_number(self.year)
+
         if self.set.has_unified_set_and_year_strings:
             # SET AND NUMBER IN SAME STRING
             set_text = self.__text_image(
-                text = self.image.set_number,
+                text = set_number_visual,
                 size = (600, 300),
                 font = set_font,
                 alignment = "center"
@@ -4122,13 +4101,12 @@ class ShowdownPlayerCard(BaseModel):
             year_text = year_text.resize((int(set_year_size[0] / 3.75), int(set_year_size[1] / 3.75)), Image.Resampling.LANCZOS)
             set_image.paste(set_text_color, set_image_location, year_text)
 
-            is_default = self.image.set_number == '—'
-            hide_set_number = is_default and self.set.is_showdown_bot
+            hide_set_number = self.image.set_number is None and self.set.is_showdown_bot
             if not hide_set_number:
                 # CARD NUMBER
                 alignment = "left" if self.set.is_showdown_bot else "center"
                 number_text = self.__text_image(
-                    text = self.image.set_number,
+                    text = set_number_visual,
                     size = (600 if self.set.is_wotc else 430, 450),
                     font = set_font,
                     alignment = alignment
@@ -4770,7 +4748,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # CALCULATE METRIC LIMIT
         is_expansion_img = self.image.expansion.has_image
-        is_set_num = self.image.set_number != self.set.default_set_number(self.year)
+        is_set_num = self.image.set_number is not None
         is_period_box = self.stats_period.type != StatsPeriodType.REGULAR_SEASON
         is_year_and_stats_period_boxes = self.image.show_year_text and is_period_box
         y_text_offset = 3
@@ -6218,11 +6196,12 @@ class ShowdownPlayerCard(BaseModel):
         if self.set.convert_final_image_to_rgb:
             image = image.convert('RGB')
 
-        save_img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
-        image.save(save_img_path, dpi=(300, 300), quality=100)
+        if self.image.output_folder_path:
+            save_img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
+            image.save(save_img_path, dpi=(300, 300), quality=100)
         
         if self.is_running_in_flask:
-            flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image.output_file_name)
+            flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output', self.image.output_file_name)
             image.save(flask_img_path, dpi=(300, 300), quality=100)
 
         # OPEN THE IMAGE LOCALLY

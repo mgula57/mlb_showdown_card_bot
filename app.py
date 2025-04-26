@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
+from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
 from mlb_showdown_bot.postgres_db import PostgresDB, PlayerArchive
 from mlb_showdown_bot.classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
@@ -259,7 +259,7 @@ def card_creator():
         name = request.args.get('name', '').title()
         year = str(request.args.get('year', ''))
         set = str(request.args.get('set', '')).upper()
-        set_number = str(request.args.get('set_num', ''))
+        set_number = str(request.args.get('set_num', None))
         expansion = str(request.args.get('expansion', 'BS'))
         edition = str(request.args.get('edition', 'NONE'))
         era = str(request.args.get('era', 'DYNAMIC'))
@@ -341,32 +341,33 @@ def card_creator():
             year=year,
             stats=statline,
             set=set,
-            expansion=expansion,
-            edition=edition,
             era=era,
             stats_period=stats_period,
-            player_image_path=img_name,
-            player_image_url=img_url,
             player_type_override=scraper.player_type_override,
             chart_version=chart_version,
-            set_number=set_number,
-            add_image_border=add_img_border,
-            is_dark_mode=is_dark_mode,
             is_variable_speed_00_01=is_variable_speed_00_01,
-            parallel=image_parallel,
-            show_year_text=show_year_text,
-            set_year_plus_one=set_year_plus_one,
-            hide_team_logo=hide_team_logo,
             date_override=date_override,
-            use_secondary_color=is_secondary_color,
-            is_multi_colored=is_multi_colored,
-            stat_highlights_type=stat_highlights_type,
-            glow_multiplier=glow_multiplier,
             is_running_in_flask=True,
             source=data_source,
-            nickname_index=nickname_index,
             ignore_cache=ignore_cache,
-            warnings=scraper.warnings
+            warnings=scraper.warnings,
+            image = ShowdownImage(
+                edition = edition,
+                expansion = expansion,
+                source = ImageSource(url=img_url, path=img_name),
+                parallel = image_parallel,
+                set_number = set_number,
+                add_one_to_set_year = set_year_plus_one,
+                show_year_text = show_year_text,
+                is_bordered = add_img_border,
+                is_dark_mode = is_dark_mode,
+                hide_team_logo = hide_team_logo,
+                use_secondary_color = is_secondary_color,
+                is_multi_colored = is_multi_colored,
+                nickname_index = nickname_index,
+                stat_highlights_type = stat_highlights_type,
+                glow_multiplier= glow_multiplier,
+            ),
         )
 
         # -----------------
