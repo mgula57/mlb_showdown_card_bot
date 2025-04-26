@@ -54,6 +54,16 @@ class Stat(Enum):
     _3B = "3B"
     HR = "HR"
 
+    DEF_CA = "def_ca"
+    DEF_1B = "def_1b"
+    DEF_2B = "def_2b"
+    DEF_3B = "def_3b"
+    DEF_SS = "def_ss"
+    DEF_LFRF = "def_lfrf"
+    DEF_CF = "def_cf"
+    DEF_IF = "def_if"
+    DEF_OF = "def_of"
+
     @property
     def is_all_or_nothing(self) -> bool:
         return self in [Stat.COMMAND_OUTS]
@@ -90,12 +100,14 @@ class Stat(Enum):
             case Stat.SPEED: return "speed"
             case Stat.IP: return "ip"
             case Stat.POINTS: return "points"
+            case Stat.DEF_CA | Stat.DEF_1B | Stat.DEF_2B | Stat.DEF_3B | Stat.DEF_SS | Stat.DEF_LFRF | Stat.DEF_CF | Stat.DEF_IF | Stat.DEF_OF: return "positions_and_defense"
             case _: return "chart.category_results_count_dict"
 
     @property
     def label(self) -> str:
         match self:
             case Stat.OBP | Stat.OPS | Stat.SLG | Stat.COMMAND | Stat.OUTS | Stat.SPEED | Stat.IP | Stat.POINTS | Stat.HR_START | Stat._2B_START | Stat.COMMAND_OUTS: return self.name
+            case Stat.DEF_CA | Stat.DEF_1B | Stat.DEF_2B | Stat.DEF_3B | Stat.DEF_SS | Stat.DEF_LFRF | Stat.DEF_CF | Stat.DEF_IF | Stat.DEF_OF: return self.name.replace('DEF_', 'DEF ')
             case _: return self.value
 
 
@@ -206,15 +218,20 @@ class CardComparison(BaseModel):
                 case "ip":
                     wotc_stat = self.wotc.ip
                     bot_stat = self.bot.ip
+                case "positions_and_defense":
+                    position = Position(stat.value.replace('def_', '').upper())
+                    wotc_stat = self.wotc.positions_and_defense.get(position, None)
+                    bot_stat = self.bot.positions_and_defense.get(position, None)
                 case "chart.category_results_count_dict":
                     wotc_stat = self.wotc.chart.category_results_count_dict.get(stat.value, 0) + (self.wotc.chart.category_results_count_dict.get(Stat._1B_PLUS.value, 0) if stat == Stat._1B else 0)
                     bot_stat = self.bot_matching_command_outs.chart.category_results_count_dict.get(stat.value, 0) + (self.bot_matching_command_outs.chart.category_results_count_dict.get(Stat._1B_PLUS.value, 0) if stat == Stat._1B else 0)
             
-            self.stat_comparisons[stat] = StatComparison(
-                stat=stat,
-                wotc=wotc_stat,
-                bot=bot_stat
-            )
+            if wotc_stat is not None and bot_stat is not None:
+                self.stat_comparisons[stat] = StatComparison(
+                    stat=stat,
+                    wotc=wotc_stat,
+                    bot=bot_stat
+                )
         
         self.overall_accuracy = self.weighted_accuracy
 
@@ -246,10 +263,17 @@ class CardComparison(BaseModel):
 
         data: dict = {'overall_accuracy': self.overall_accuracy}
         wotc_fields_to_include = ['name', 'set', 'year', 'player_type',]
-        common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed', 'ip', 'chart.ranges', 'chart.values', 'icons_str', 'chart.command_estimated', 'chart.is_command_out_anomaly']
+        common_fields_to_include = ['chart.command_outs_concat', 'chart.outs', 'points', 'projected', 'speed.speed', 'ip', 
+                                    'chart.ranges', 'chart.values', 'icons_str', 'chart.command_estimated', 'chart.is_command_out_anomaly', ]
         for type in ['wotc', 'bot', 'bot_matching_command_outs']:
             card: ShowdownPlayerCard = getattr(self, type)
             data.update({f'{type}_{field}': (getattr(getattr(card, field.split('.')[0]), field.split('.')[1]) if '.' in field else getattr(card, field)) for field in common_fields_to_include})
+            # ADD REAL FIELDING
+            for pos, sub_dict in card.positions_and_real_life_ratings.items():
+                # GET FIRST VALUE OF SUB_DICT
+                if len(sub_dict) > 0:
+                    pos_str = 'ca' if pos.lower() == 'c' else pos.lower()
+                    data.update({f'real_life_{pos_str}': next(iter(sub_dict.values()))})
             if type == 'wotc':
                 card_as_json = card.model_dump(mode='json')
                 data.update({f'{field}': card_as_json.get(field, None) for field in wotc_fields_to_include})

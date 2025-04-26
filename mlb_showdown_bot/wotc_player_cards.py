@@ -73,12 +73,12 @@ class WotcPlayerCard(ShowdownPlayerCard):
                 data['speed'] = Speed(speed=speed, letter=letter)
 
                 # POSITIONS
-                positions_and_defense: dict[str, int] = {}
+                positions_and_defense: dict[Position, int] = {}
                 for i in range(1, 4):
                     position = data.get(f'position{i}', None)
                     if position:
                         defense = data.get(f'fielding{i}', 0)
-                        positions_and_defense[position] = defense
+                        positions_and_defense[Position(position)] = defense
                 data['positions_and_defense'] = positions_and_defense
 
                 # ICONS

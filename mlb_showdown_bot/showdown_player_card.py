@@ -849,6 +849,7 @@ class ShowdownPlayerCard(BaseModel):
                 positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
                 in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
             except Exception as e:
+                print(e)
                 in_game_defense = 0
             positions_and_defense[position] = in_game_defense
             
@@ -1148,7 +1149,7 @@ class ShowdownPlayerCard(BaseModel):
           In game defensive rating.
         """
         
-        position = Position(position)
+        position: Position = Position(position)
         is_1b = position == Position._1B
 
         # CALCULATE RATING PER 150 GAMES IF NOT FULL CAREER
@@ -1160,15 +1161,19 @@ class ShowdownPlayerCard(BaseModel):
             #   - OAA OVER MAX = 38.45 - 16 = 22.45
             #   - REDUCED OVER MAX = 22.45 * 0.5 = 11.23
             #   - NEW RATING = 16 + 11.23 = 26.23
-            if rating > metric.range_max and not is_1b:
-                amount_over_max = rating - metric.range_max
+            metric_max = metric.range_max(position_str=position.value, set_str=self.set.value)
+            if rating > metric_max and not is_1b:
+                amount_over_max = rating - metric_max
                 small_sample_reduction = min((games / 120), 1.0) * (0.5 if games < 120 else 1.0) # CUT DOWN SMALL SAMPLES
                 reduced_amount_over_max = amount_over_max * metric.over_max_multiplier * small_sample_reduction
-                rating = reduced_amount_over_max + metric.range_max
+                rating = reduced_amount_over_max + metric_max
 
+        min_defense_for_position = self.set.position_defense_min(position=position)
         max_defense_for_position = self.set.position_defense_max(position=position)
-        percentile = (rating-metric.range_min) / metric.range_total_values
-        defense_raw = percentile * max_defense_for_position
+        percentile = (rating - metric.range_min(position_str=position.value, set_str=self.set.value)) \
+                        / metric.range_total_values(position_str=position.value, set_str=self.set.value)
+                        
+        defense_raw = min_defense_for_position + ( percentile * (max_defense_for_position - min_defense_for_position) )
         defense = round(defense_raw) if defense_raw > 0 or self.set.is_showdown_bot else 0
         
         # FOR NEGATIVES, CAP DEFENSE AT -2

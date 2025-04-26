@@ -209,13 +209,34 @@ class Set(str, Enum):
     def catcher_position_name(self) -> str:
         return 'C' if self.is_00_01 else 'CA'
 
+    def position_defense_min(self, position:Position) -> float:
+        match position:
+            case Position.CA:
+                match self:
+                    case Set._2004 | Set._2005 | Set.EXPANDED: return 2
+        
+        return 0
+
     def position_defense_max(self, position:Position) -> float:
         match position:
-            case Position.CA: return 11 if self == Set._2001 else 12
+            case Position.CA:
+                match self:
+                    case Set._2001: return 10
+                    case _: return 11
             case Position._1B: return 1
-            case Position._2B: return 5
-            case Position._3B: return 4.5 if self.is_showdown_bot else 4
-            case Position.SS: return 6 if self.is_showdown_bot else 5
+            case Position._2B: 
+                match self:
+                    case Set._2004 | Set._2005: return 4.5
+                    case _: return 5
+            case Position._3B: 
+                match self:
+                    case Set.EXPANDED | Set.CLASSIC: return 4.0
+                    case _: return 3.25
+            case Position.SS:
+                match self:
+                    case Set._2000: return 5.5
+                    case Set.CLASSIC | Set.EXPANDED: return 6
+                    case _: return 5
             case Position.CF: return 3.5 if self.is_showdown_bot else 3
             case Position.LFRF | Position.OF | Position.RF | Position.LF: return 2
             case Position.IF: return 1
@@ -540,7 +561,7 @@ class Set(str, Enum):
         match self.value:
             case '2000':
                 match position:
-                    case Position.CA: return 1.0
+                    case Position.CA: return 1.25
                     case Position._1B: return 0.25
                     case Position._2B: return 1.0
                     case Position._3B: return 1.0
@@ -573,7 +594,7 @@ class Set(str, Enum):
                     case Position.IF: return 1.0
             case '2003':
                 match position:
-                    case Position.CA: return 1.0
+                    case Position.CA: return 1.25
                     case Position._1B: return 0.5
                     case Position._2B: return 1.15
                     case Position._3B: return 1.10
@@ -584,7 +605,7 @@ class Set(str, Enum):
                     case Position.IF: return 1.0
             case '2004' | '2005':
                 match position:
-                    case Position.CA: return 1.0
+                    case Position.CA: return 1.25
                     case Position._1B: return 0.5
                     case Position._2B: return 1.0
                     case Position._3B: return 1.0

@@ -172,7 +172,7 @@ class Position(MultiValueEnum):
     CF = 'CF'
     OF = 'OF'
     IF = 'IF'
-    LFRF = 'LF/RF'
+    LFRF = 'LF/RF', 'LFRF'
     DH = "DH"
 
     SP = "STARTER"
