@@ -50,6 +50,9 @@ class StatsPeriodType(str, Enum):
             case StatsPeriodType.POSTSEASON: return "postseason_game_logs"
             case _: return None
 
+    @property
+    def check_for_realtime_stats(self) -> bool:
+        return self in [StatsPeriodType.REGULAR_SEASON, StatsPeriodType.DATE_RANGE]
 
 class StatsPeriodDateAggregation(str, Enum):
     DAY = "DAY"

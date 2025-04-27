@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
+from mlb_showdown_bot.mlb_stats_api import get_player_realtime_game_logs
 from mlb_showdown_bot.postgres_db import PostgresDB, PlayerArchive
 from mlb_showdown_bot.classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
 import os
@@ -9,6 +10,7 @@ from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
 from pprint import pprint
 from time import sleep
+from datetime import datetime
 from typing import Any
 
 # ----------------------------------------------------------
@@ -230,6 +232,7 @@ def card_creator():
     is_multi_colored: bool = None
     stat_highlights_type: str = None
     glow_multiplier: float = None
+    disable_realtime: bool = None
 
     # RANDOMIZER
     is_random: bool = None
@@ -289,6 +292,7 @@ def card_creator():
         stat_highlights_type = request.args.get('stat_highlights_type', 'NONE')
         glow_multiplier = request.args.get('glow_multiplier', None)
         glow_multiplier = 1.0 if len(str(glow_multiplier or '')) == 0 else float(glow_multiplier)
+        disable_realtime = request.args.get('disable_realtime', '').lower() == 'true'
 
         # DELAY SLIGHTLY IF IMG UPLOAD TO LET THE IMAGE FINISH UPLOADING
         if img_name:
@@ -333,6 +337,29 @@ def card_creator():
                 if scraper.error:
                     error = scraper.error   
 
+        # -----------------------------------
+        # HIT MLB API FOR REALTIME STATS
+        # ONLY APPLIES WHEN
+        #   1. YEAR IS CURRENT YEAR
+        #   2. REALTIME STATS ARE ENABLED
+        #   3. STATS PERIOD IS REGULAR SEASON
+        # -----------------------------------
+        realtime_game_logs: dict = None
+        run_realtime_stats = year == str(datetime.now().year) \
+                                and not disable_realtime \
+                                and stats_period.type.check_for_realtime_stats
+        if run_realtime_stats:
+            realtime_game_logs = get_player_realtime_game_logs(
+                player_name=statline.get('name', ''), 
+                player_team=statline.get('team_ID', ''),
+                year=year, 
+                is_pitcher=statline.get('type', '') == 'Pitcher',
+                existing_statline=statline,
+                user_input_date_max = stats_period.end_date
+            )
+            if len(realtime_game_logs) > 0:
+                data_source += ', MLB API'
+
         # -----------------
         # 3. RUN SHOWDOWN CARD
         # -----------------
@@ -340,6 +367,7 @@ def card_creator():
             name=name,
             year=year,
             stats=statline,
+            realtime_game_logs=realtime_game_logs,
             set=set,
             era=era,
             stats_period=stats_period,

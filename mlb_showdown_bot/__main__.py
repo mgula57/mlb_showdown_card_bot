@@ -9,12 +9,14 @@ from datetime import datetime
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .baseball_ref_scraper import BaseballReferenceScraper
+    from .mlb_stats_api import get_player_realtime_game_logs
     from .showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
     from .classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
     from .postgres_db import PostgresDB, PlayerArchive
 except ImportError:
     # USE LOCAL IMPORT 
     from baseball_ref_scraper import BaseballReferenceScraper
+    from mlb_stats_api import get_player_realtime_game_logs
     from showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
     from classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
     from postgres_db import PostgresDB, PlayerArchive
@@ -64,6 +66,7 @@ parser.add_argument('-isl','--ignore_showdown_library', action='store_true', hel
 parser.add_argument('-ic','--ignore_cache', action='store_true', help='Ignore local cache')
 parser.add_argument('-ia','--ignore_archive', action='store_true', help='Ignore postgres showdown bot archive')
 parser.add_argument('-dc','--disable_cache_cleaning', action='store_true', help='Disable removal of cached files after minutes threshold.')
+parser.add_argument('-drt','--disable_realtime', action='store_true', help='Skip query and integration of current days stats from MLB API.')
 
 # ADDITIONAL OPTIONS
 parser.add_argument('-his', '--show_historical_points', action='store_true', help='Optionally calculate all historical stats for player. Displays Year and Points in tabular form.')
@@ -75,7 +78,7 @@ def main():
     """ Executed when running as a script """
 
     name = args.name.title()
-    year = args.year
+    year = str(args.year)
     set = args.set
     command_out_override = None if args.co_override is None else tuple([int(x) for x in args.co_override.split('-')])
 
@@ -110,6 +113,29 @@ def main():
     else:
         statline = scraper.player_statline()
         data_source = scraper.source
+
+    # -----------------------------------
+    # HIT MLB API FOR REALTIME STATS
+    # ONLY APPLIES WHEN
+    # 1. YEAR IS CURRENT YEAR
+    # 2. REALTIME STATS ARE ENABLED
+    # 3. STATS PERIOD IS REGULAR SEASON
+    # -----------------------------------
+    realtime_game_logs: dict = None
+    run_realtime_stats = year == str(datetime.now().year) \
+                            and not args.disable_realtime \
+                            and stats_period.type.check_for_realtime_stats
+    if run_realtime_stats:
+        realtime_game_logs = get_player_realtime_game_logs(
+            player_name=statline.get('name', ''), 
+            player_team=statline.get('team_ID', ''),
+            year=year, 
+            is_pitcher=statline.get('type', '') == 'Pitcher',
+            existing_statline=statline,
+            user_input_date_max = stats_period.end_date
+        )
+        if len(realtime_game_logs) > 0:
+            data_source += ', MLB API'
 
     # -----------------------------------
     # BUILD AS WOTC CARD IF FLAGGED
@@ -149,6 +175,7 @@ def main():
             year=year,
             stats_period=stats_period,
             stats=statline,
+            realtime_game_logs=realtime_game_logs,
             set=set,
             era=args.era,
             chart_version=args.chart_version,

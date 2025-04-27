@@ -919,6 +919,7 @@ $(document).ready(function() {
             if (lastCardJson.show_year_text) { moreOptionsSelections.push("YearContainer"); }
             if (lastCardJson.set_year_plus_one) { moreOptionsSelections.push("SetYearPlus1"); }
             if (lastCardJson.ignore_cache) { moreOptionsSelections.push("IgnoreCache"); }
+            if (lastCardJson.disable_realtime) { moreOptionsSelections.push("DisableRealtime"); }
 
             if (lastCardJson.stat_highlights_type == "ALL") {
                 moreOptionsSelections.push("StatHighlightsModern");
@@ -1051,6 +1052,7 @@ $(function () {
             var ignore_cache = moreOptionsSelected.includes("IgnoreCache");
             var is_secondary_color = moreOptionsSelected.includes("SecondaryColor");
             var is_multi_colored = moreOptionsSelected.includes("MultiColor");
+            var disable_realtime = moreOptionsSelected.includes("DisableRealtime");
 
             // NICKNAME INDEX
             var nickname_index = null;
@@ -1125,7 +1127,8 @@ $(function () {
                 period_end_date: periodEndDate,
                 period_split: periodSplit,
                 stat_highlights_type: stat_highlights,
-                glow_multiplier: glow_multiplier
+                glow_multiplier: glow_multiplier,
+                disable_realtime: disable_realtime
             }
             cacheObject("last_card", JSON.stringify(card_object))
 

@@ -70,6 +70,7 @@ class ShowdownPlayerCard(BaseModel):
 
     # TIME PERIOD
     stats_period: StatsPeriod = StatsPeriod()
+    realtime_game_logs: Optional[list[dict]] = None
 
     # DERIVED
     is_full_career: bool = False
@@ -164,7 +165,9 @@ class ShowdownPlayerCard(BaseModel):
         self.nicknames = self.extract_player_nicknames_list()
 
         # HANDLE GAME LOGS IF APPLICABLE
-        game_logs = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
+        game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
+        if self.realtime_game_logs:
+            game_logs += self.realtime_game_logs
         self.stats_period.add_stats_from_logs(game_logs=game_logs, year_list=self.year_list, is_pitcher=self.is_pitcher)
         if self.stats_period.stats:
             full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
@@ -6196,13 +6199,15 @@ class ShowdownPlayerCard(BaseModel):
         if self.set.convert_final_image_to_rgb:
             image = image.convert('RGB')
 
-        if self.image.output_folder_path:
-            save_img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
-            image.save(save_img_path, dpi=(300, 300), quality=100)
+        
         
         if self.is_running_in_flask:
             flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output', self.image.output_file_name)
             image.save(flask_img_path, dpi=(300, 300), quality=100)
+        else:
+            default_path = os.path.join(os.path.dirname(__file__), 'output')
+            save_img_path = os.path.join(self.image.output_folder_path or default_path, self.image.output_file_name)
+            image.save(save_img_path, dpi=(300, 300), quality=100)
 
         # OPEN THE IMAGE LOCALLY
         if show:
