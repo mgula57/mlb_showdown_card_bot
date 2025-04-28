@@ -6,10 +6,12 @@ from datetime import datetime, date
 # MY PACKAGES
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
-    from .classes.stats_period import StatsPeriodType, convert_to_date
+    from .classes.stats_period import StatsPeriod, StatsPeriodType, convert_to_date
+    from .classes.team import Team
 except ImportError:
     # USE LOCAL IMPORT 
-    from classes.stats_period import StatsPeriodType, convert_to_date
+    from classes.stats_period import StatsPeriod, StatsPeriodType, convert_to_date
+    from classes.team import Team
 
 stat_map_mlb_api_to_bref: dict[str,str] = {
     'atBats': 'AB',
@@ -74,17 +76,7 @@ def get_player_realtime_game_logs(player_name:str, player_team:str, year:int, is
     latest_date_in_bref_stats = max(all_game_dates) if len(all_game_dates) > 0 else None
 
     # FIND MLB API PLAYER ID
-    url = f"https://statsapi.mlb.com/api/v1/people/search?names={player_name}&limit=5&active=true"
-    response = requests.get(url)
-    data = response.json()
-
-    # RETURN NONE IF NO PLAYER FOUND
-    people_list = data['people']
-    if not people_list: return None
-    if len(people_list) == 0: return None
-
-    # EXTRACT PLAYER ID
-    player_data = data['people'][0]
+    player_data = get_player_data(player_name=player_name, team_abbreviation=player_team)
     player_id = player_data['id']
 
     # QUERY REALTIME GAME LOGS
@@ -150,6 +142,7 @@ def get_player_realtime_game_logs(player_name:str, player_team:str, year:int, is
             game_player_stats_normalized['game_pk'] = game_pk
             game_player_stats_normalized['game_number'] = game_number
             game_player_stats_normalized['game_player_summary'] = game_player_summary_str
+            game_player_stats_normalized['player_id'] = player_id
 
             all_game_data.append(game_player_stats_normalized)
 
@@ -157,3 +150,241 @@ def get_player_realtime_game_logs(player_name:str, player_team:str, year:int, is
             return all_game_data
         
     return None
+
+def get_game_status_data(game_pk:str, game_date:str, additional_details:dict) -> dict:
+    """
+    Gets the game status data for a given game PK.
+
+    Args:
+        game_pk (str): The game PK.
+
+    Returns:
+        dict: The game status data.
+    """
+    if game_pk is None:
+        return
+    url = f"https://statsapi.mlb.com/api/v1/game/{game_pk}/linescore"
+    response = requests.get(url)
+    game_data = response.json()
+    if response.status_code == 404:
+        return
+    
+    # EXTRACT RELEVANT GAME INFO
+    # DATA COMES IN LIKE:
+    # {
+    #   'balls': 2,
+    #   'strikes': 2,
+    #   'outs': 1,
+    #   'isTopInning': True,
+    #   'currentInning': 9,
+    #   'currentInningOrdinal': '9th',
+    #   'defense': {'batter': {'fullName': 'Tommy Edman',
+    #                          'id': 669242,
+    #                          'link': '/api/v1/people/669242'},
+    #               'battingOrder': 1,
+    #               'pitcher': {'fullName': 'Tanner Scott',
+    #                           'id': 656945,
+    #                           'link': '/api/v1/people/656945'},
+    #               ...
+    #   'offense': {'batter': {'fullName': 'Andrew McCutchen',
+    #                          'id': 457705,
+    #                          'link': '/api/v1/people/457705'},
+    #               'battingOrder': 3,
+    #               'team': {'id': 134,
+    #                        'link': '/api/v1/teams/134',
+    #                        'name': 'Pittsburgh Pirates'}},
+    #   'teams': {'away': {'errors': 1, 'hits': 8, 'leftOnBase': 8, 'runs': 4},
+    #             'home': {'errors': 0, 'hits': 11, 'leftOnBase': 8, 'runs': 8}}}
+    #    ...
+    # }
+
+    # SIMPLIFY/UNNEST DATA
+    is_top_inning = game_data.get('isTopInning', None)
+    teams_subkey_home = 'defense' if is_top_inning else 'offense'
+    teams_subkey_away = 'offense' if is_top_inning else 'defense'
+    team_id_home = game_data.get(teams_subkey_home, {}).get('team', {}).get('id', None)
+    team_id_away = game_data.get(teams_subkey_away, {}).get('team', {}).get('id', None)
+    team_data_home = get_team_data(team_id_home)
+    team_data_away = get_team_data(team_id_away)
+    if team_data_home is None or team_data_away is None:
+        return None
+    
+    # MOVE DATAPOINTS TO TOP LEVEL
+    #  - CURRENT HITTER NAME
+    #  - CURRENT HITTER BATTING ORDER
+    #  - CURRENT PITCHER NAME
+    #  - RUNS HOME TEAM
+    #  - RUNS AWAY TEAM
+    pitcher_name = game_data.get('defense', {}).get('pitcher', {}).get('fullName', None)
+    batter_name = game_data.get('offense', {}).get('batter', {}).get('fullName', None)
+    batter_batting_order = game_data.get('offense', {}).get('battingOrder', None)
+    runs_home = game_data.get('teams', {}).get('home', {}).get('runs', None)
+    runs_away = game_data.get('teams', {}).get('away', {}).get('runs', None)
+    
+    # EXTRACT TEAM ABBREVATIONS/COLORS
+    team_data_home = team_data_home.get('abbreviation', None)
+    team_data_away = team_data_away.get('abbreviation', None)
+    team_data_home_color = Team(team_data_home).color(year=datetime.now().year)
+    team_data_away_color = Team(team_data_away).color(year=datetime.now().year)
+
+    game_data.update({
+        'date': game_date,
+        'home_team_abbreviation': team_data_home,
+        'away_team_abbreviation': team_data_away,
+        'home_team_id': team_id_home,
+        'away_team_id': team_id_away,
+        'home_team_runs': runs_home,
+        'away_team_runs': runs_away,
+        'home_team_color': team_data_home_color,
+        'away_team_color': team_data_away_color,
+        'current_batter_name': batter_name,
+        'current_batter_batting_order': batter_batting_order,
+        'current_pitcher_name': pitcher_name,
+    })
+    game_data.update(additional_details)
+    
+    return game_data
+   
+def get_teams_data(team_ids:list[int] = None, team_abbrevations:list[str] = None) -> dict:
+    """
+    Gets the teams data from the MLB API.
+
+    Args:
+        team_ids (list, optional): List of team IDs to filter by. Defaults to None.
+        team_abbrevations (list, optional): List of team abbreviations to filter by. Defaults to None.
+
+    Returns:
+        dict: The teams data.
+    """
+    url = f"https://statsapi.mlb.com/api/v1/teams?season=2025&sportId=1&activeStatus=Y"
+    response = requests.get(url)
+    data = response.json()
+    if response.status_code == 404:
+        return
+    
+    # EXTRACT TEAM INFO
+    team_data_list = data.get('teams', None)
+    if not team_data_list: return None
+    
+    # FILTER TEAM DATA
+    if team_ids is not None:
+        team_data = [team for team in team_data_list if team['id'] in team_ids]
+    elif team_abbrevations is not None:
+        team_data = [team for team in team_data_list if team['abbreviation'] in team_abbrevations]
+    else:
+        team_data = team_data_list
+    
+    if len(team_data) == 0:
+        return None
+    
+    return team_data
+
+def get_team_data(team_id:int) -> dict:
+    """
+    Gets the team data from the MLB API.
+
+    Args:
+        team_id (int): The team ID.
+
+    Returns:
+        dict: The team data.
+    """
+    team_data = get_teams_data(team_ids=[team_id])
+    if team_data is None: return None
+    if len(team_data) == 0: return None
+    return team_data[0]
+
+def get_player_data(player_name:str, team_abbreviation:str = None) -> dict:
+    """Get player data from the MLB API. 
+    Ranks based on natural order from search API, unless team_abbreviation is provided.
+    
+    Args:
+        player_name (str): The name of the player.
+        team_abbreviation (str, optional): The team abbreviation to prioritize. Defaults to None.
+
+    Returns:
+        dict: The player data.
+    """
+
+    # EXTRACT TEAM ID TO PRIORITIZE
+    team_id = None
+    if team_abbreviation is not None:
+        teams_data = get_teams_data(team_abbrevations=[team_abbreviation])
+        if teams_data:
+            team_id = teams_data[0].get('id', None)
+            if team_id:
+                team_id = int(team_id)
+
+    # FIND MLB API PLAYER ID
+    team_filter = f"&teamId={team_id}" if team_id is not None else ""
+    url = f"https://statsapi.mlb.com/api/v1/people/search?names={player_name}&limit=5&active=true{team_filter}"
+    response = requests.get(url)
+    data = response.json()
+    if response.status_code == 404:
+        return
+
+    # RETURN NONE IF NO PLAYER FOUND
+    people_list = data.get('people', None)
+    if not people_list: return None
+    if len(people_list) == 0: return None
+
+    # EXTRACT PLAYER ID
+    return people_list[0]
+
+def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, stats_period:StatsPeriod, is_disabled:bool=False) -> tuple[list[dict], dict]:
+    """
+    Gets the player's latest game stats and that game's boxscore data from the MLB API.
+    
+    Args:
+        year (str): The year of the season.
+        bref_stats (dict): The player's stats from baseball reference. Used to filter dates.
+        stats_period (StatsPeriod): The stats period object.
+        is_disabled (bool): Whether the player is disabled or not.
+
+    Returns:
+        tuple[list[dict], dict]: A tuple containing the player's game logs and the game's boxscore data.
+    """
+
+    # SKIP IF DISABLED
+    current_year = datetime.now().year
+    is_current_year = str(year) == str(current_year)
+    if is_disabled or not is_current_year or not stats_period.type.check_for_realtime_stats:
+        return None, None
+    
+    player_name = bref_stats.get('name', '')
+    player_team = bref_stats.get('team_ID', '')
+    is_pitcher = bref_stats.get('type', '') == 'Pitcher'
+    realtime_game_logs = get_player_realtime_game_logs(
+        player_name=player_name, 
+        player_team=player_team,
+        year=year, 
+        is_pitcher=is_pitcher,
+        existing_statline=bref_stats,
+        user_input_date_max = stats_period.end_date
+    )
+
+    # SEARCH FOR OLDER GAME IF NO NEW GAME IS RETURNED ABOVE
+    # NOTE THE CHANGE IN STATLINE AND DATE MAX INPUT
+    if realtime_game_logs is None:
+        realtime_game_logs = get_player_realtime_game_logs(
+            player_name=player_name, 
+            player_team=player_team,
+            year=year, 
+            is_pitcher=is_pitcher,
+            existing_statline={},
+            user_input_date_max=None
+        )
+
+    if realtime_game_logs is None:
+        return None, None
+    
+    # GET BOX SCORE OF LATEST GAME
+    latest_player_game_stats = realtime_game_logs[-1]
+    game_pk = latest_player_game_stats.get('game_pk', None)
+    latest_player_game_boxscore_data = get_game_status_data(
+        game_pk=game_pk, 
+        game_date=latest_player_game_stats.get('date', None), 
+        additional_details={'game_player_summary': latest_player_game_stats}
+    )
+
+    return realtime_game_logs, latest_player_game_boxscore_data

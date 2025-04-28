@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
 from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown_bot.mlb_stats_api import get_player_realtime_game_logs
+from mlb_showdown_bot.mlb_stats_api import get_player_realtime_game_stats_and_game_boxscore
 from mlb_showdown_bot.postgres_db import PostgresDB, PlayerArchive
 from mlb_showdown_bot.classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
 import os
@@ -340,25 +340,16 @@ def card_creator():
         # -----------------------------------
         # HIT MLB API FOR REALTIME STATS
         # ONLY APPLIES WHEN
-        #   1. YEAR IS CURRENT YEAR
-        #   2. REALTIME STATS ARE ENABLED
-        #   3. STATS PERIOD IS REGULAR SEASON
+        # 1. YEAR IS CURRENT YEAR
+        # 2. REALTIME STATS ARE ENABLED
+        # 3. STATS PERIOD IS REGULAR SEASON
         # -----------------------------------
-        realtime_game_logs: dict = None
-        run_realtime_stats = year == str(datetime.now().year) \
-                                and not disable_realtime \
-                                and stats_period.type.check_for_realtime_stats
-        if run_realtime_stats:
-            realtime_game_logs = get_player_realtime_game_logs(
-                player_name=statline.get('name', ''), 
-                player_team=statline.get('team_ID', ''),
-                year=year, 
-                is_pitcher=statline.get('type', '') == 'Pitcher',
-                existing_statline=statline,
-                user_input_date_max = stats_period.end_date
-            )
-            if len(realtime_game_logs) > 0:
-                data_source += ', MLB API'
+        player_realtime_game_logs, latest_player_game_boxscore_data = get_player_realtime_game_stats_and_game_boxscore(
+            year=datetime.now().year,
+            bref_stats=statline,
+            stats_period=stats_period,
+            is_disabled=disable_realtime,
+        )
 
         # -----------------
         # 3. RUN SHOWDOWN CARD
@@ -367,7 +358,7 @@ def card_creator():
             name=name,
             year=year,
             stats=statline,
-            realtime_game_logs=realtime_game_logs,
+            realtime_game_logs=player_realtime_game_logs,
             set=set,
             era=era,
             stats_period=stats_period,
@@ -564,6 +555,7 @@ def card_creator():
             yearly_trends_data=yearly_trends_data,
             in_season_trends_data=in_season_trends_data,
             trends_diff=0,
+            game_boxscore_data=latest_player_game_boxscore_data,
             opponent=opponent_data,
             opponent_type=opponent_type,
             era=player_era,
@@ -640,6 +632,7 @@ def card_creator():
             yearly_trends_data=None,
             in_season_trends_data=None,
             trends_diff=0,
+            game_boxscore_data=None,
             opponent=None,
             opponent_type=None,
             era=None,

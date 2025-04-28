@@ -9,15 +9,15 @@ from datetime import datetime
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .baseball_ref_scraper import BaseballReferenceScraper
-    from .mlb_stats_api import get_player_realtime_game_logs
-    from .showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
+    from .mlb_stats_api import get_player_realtime_game_stats_and_game_boxscore
+    from .showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource, Team
     from .classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
     from .postgres_db import PostgresDB, PlayerArchive
 except ImportError:
     # USE LOCAL IMPORT 
     from baseball_ref_scraper import BaseballReferenceScraper
-    from mlb_stats_api import get_player_realtime_game_logs
-    from showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
+    from mlb_stats_api import get_player_realtime_game_stats_and_game_boxscore
+    from showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource, Team
     from classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
     from postgres_db import PostgresDB, PlayerArchive
 
@@ -121,21 +121,12 @@ def main():
     # 2. REALTIME STATS ARE ENABLED
     # 3. STATS PERIOD IS REGULAR SEASON
     # -----------------------------------
-    realtime_game_logs: dict = None
-    run_realtime_stats = year == str(datetime.now().year) \
-                            and not args.disable_realtime \
-                            and stats_period.type.check_for_realtime_stats
-    if run_realtime_stats:
-        realtime_game_logs = get_player_realtime_game_logs(
-            player_name=statline.get('name', ''), 
-            player_team=statline.get('team_ID', ''),
-            year=year, 
-            is_pitcher=statline.get('type', '') == 'Pitcher',
-            existing_statline=statline,
-            user_input_date_max = stats_period.end_date
-        )
-        if len(realtime_game_logs) > 0:
-            data_source += ', MLB API'
+    player_realtime_game_logs, latest_player_game_boxscore_data = get_player_realtime_game_stats_and_game_boxscore(
+        year=datetime.now().year,
+        bref_stats=statline,
+        stats_period=stats_period,
+        is_disabled=args.disable_realtime,
+    )
 
     # -----------------------------------
     # BUILD AS WOTC CARD IF FLAGGED
@@ -175,7 +166,7 @@ def main():
             year=year,
             stats_period=stats_period,
             stats=statline,
-            realtime_game_logs=realtime_game_logs,
+            realtime_game_logs=player_realtime_game_logs,
             set=set,
             era=args.era,
             chart_version=args.chart_version,
