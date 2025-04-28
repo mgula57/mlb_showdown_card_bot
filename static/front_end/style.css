@@ -486,6 +486,57 @@ hr {
     font-size: 10px;
 }
 
+/* GAME BOXSCORE */
+#game_boxscore_div {
+    background-color: var(--primary-background-color);
+    border-radius: 10px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    overflow: hidden;
+    margin-bottom: 15px;
+    display: none;
+    width: fit-content;
+}
+
+.game_boxscore_team {
+    padding: 5px 8px;
+}
+
+.game_boxscore_team_text {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ffffff;
+    margin: 0px;
+}
+
+.game_boxscore_score_text {
+    font-size: 14px;
+    font-weight: bolder;
+    color: #ffffff;
+    margin: 0px;
+    padding: 0px 5px;
+}
+
+.game_boxscore_inning {
+    font-size: 14px;
+    font-weight: bolder;
+    color: var(--text-primary-color);
+    margin: 0px;
+    padding: 0px 8px;
+    display: flex;
+    align-items: center;
+}
+
+.game_boxscore_player_summary {
+    font-size: 14px;
+    font-weight: bolder;
+    color: var(--text-secondary-color);
+    margin: 0px;
+    padding: 0px 8px;
+    display: flex;
+    align-items: center;
+    padding-right: 10px;
+}
+
 /* **************************************************** */
 
 /* GENERAL */

@@ -224,8 +224,29 @@ def get_game_status_data(game_pk:str, game_date:str, additional_details:dict) ->
     # EXTRACT TEAM ABBREVATIONS/COLORS
     team_data_home = team_data_home.get('abbreviation', None)
     team_data_away = team_data_away.get('abbreviation', None)
-    team_data_home_color = Team(team_data_home).color(year=datetime.now().year)
-    team_data_away_color = Team(team_data_away).color(year=datetime.now().year)
+    team_data_home_color = Team(team_data_home).rgb_color_for_html(year=datetime.now().year)
+    team_data_away_color = Team(team_data_away).rgb_color_for_html(year=datetime.now().year)
+
+    # LOGIC TO TELL IF GAME HAS ENDED
+    current_inning = game_data.get('currentInning', 0)
+    current_inning_ordinal = game_data.get('currentInningOrdinal', '1st')
+    current_outs = game_data.get('outs', 0)
+    if current_inning >= 9:
+        if is_top_inning:
+            # CHECK IF HOME TEAM IS WINNING AND OUTS ARE 3
+            if runs_home > runs_away and current_outs == 3:
+                is_game_over = True
+        else:
+            # CHECK IF AWAY TEAM IS WINNING AND OUTS ARE 3
+            if runs_away > runs_home and current_outs == 3:
+                is_game_over = True
+            # CHECK IF HOME TEAM IS WINNING
+            if runs_home > runs_away:
+                is_game_over = True
+    else:
+        is_game_over = False
+    
+    current_inning_visual = "FINAL" if is_game_over else f'{"▲" if is_top_inning else "▼"} {current_inning_ordinal}'
 
     game_data.update({
         'date': game_date,
@@ -240,6 +261,8 @@ def get_game_status_data(game_pk:str, game_date:str, additional_details:dict) ->
         'current_batter_name': batter_name,
         'current_batter_batting_order': batter_batting_order,
         'current_pitcher_name': pitcher_name,
+        'has_game_ended': is_game_over,
+        'current_inning_visual': current_inning_visual,
     })
     game_data.update(additional_details)
     
@@ -380,6 +403,9 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
     
     # GET BOX SCORE OF LATEST GAME
     latest_player_game_stats = realtime_game_logs[-1]
+    latest_player_game_stats.update({
+        'name': player_name,
+    })
     game_pk = latest_player_game_stats.get('game_pk', None)
     latest_player_game_boxscore_data = get_game_status_data(
         game_pk=game_pk, 

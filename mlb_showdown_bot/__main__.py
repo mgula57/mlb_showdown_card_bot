@@ -122,7 +122,7 @@ def main():
     # 3. STATS PERIOD IS REGULAR SEASON
     # -----------------------------------
     player_realtime_game_logs, latest_player_game_boxscore_data = get_player_realtime_game_stats_and_game_boxscore(
-        year=datetime.now().year,
+        year=year,
         bref_stats=statline,
         stats_period=stats_period,
         is_disabled=args.disable_realtime,

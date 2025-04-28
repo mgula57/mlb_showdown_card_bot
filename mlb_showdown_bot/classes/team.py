@@ -739,6 +739,11 @@ class Team(str, Enum):
             color_historical = (196, 206, 211, 255)
 
         return color_historical
+    
+    def rgb_color_for_html(self, year:int) -> str:
+        """RGB color for HTML"""
+        color = self.color(year=year, is_secondary=self.use_secondary_color_for_graphs)
+        return f"rgb({color[0]}, {color[1]}, {color[2]})"
         
     def __closest_color(self, requested_color: tuple[int,int,int]) -> str:
         """Closest matched name of color given rgbs"""

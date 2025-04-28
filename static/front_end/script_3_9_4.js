@@ -704,6 +704,35 @@ function showCardData(data) {
             createTrendsChart(player_year=data.player_year, trends_data=data.in_season_trends_data, elementId="playerInSeasonTrends", unit='day'); 
         }
     }
+
+    // GAME BOXSCORE
+    const boxscoreDiv = document.getElementById('game_boxscore_div');
+    console.log(data.game_boxscore_data);
+    if (data.game_boxscore_data === undefined || data.game_boxscore_data === null) {
+        boxscoreDiv.style.display = 'none';
+    } else {
+        boxscoreDiv.style.display = 'flex';
+        
+        // UPDATE TEXT ELEMENTS
+        $("#game_boxscore_inning").text(data.game_boxscore_data?.current_inning_visual ?? "N/A");
+        $("#game_boxscore_team_text_home").text(data.game_boxscore_data?.home_team_abbreviation ?? "N/A");
+        $("#game_boxscore_team_text_away").text(data.game_boxscore_data?.away_team_abbreviation ?? "N/A");
+        $("#game_boxscore_team_score_home").text(data.game_boxscore_data?.home_team_runs ?? "N/A");
+        $("#game_boxscore_team_score_away").text(data.game_boxscore_data?.away_team_runs ?? "N/A");
+
+        // BACKGROUND COLOR FOR TEAMS
+        const home_team_color = data.game_boxscore_data?.home_team_color ?? "rgb(0, 0, 0)";
+        const away_team_color = data.game_boxscore_data?.away_team_color ?? "rgb(0, 0, 0)";
+        document.getElementById('game_boxscore_team_home').style.backgroundColor = home_team_color;
+        document.getElementById('game_boxscore_team_away').style.backgroundColor = away_team_color;
+
+        // PLAYER STATLINE
+        const player_statline = data.game_boxscore_data?.game_player_summary?.game_player_summary ?? "-"
+        const player_full_name = data.game_boxscore_data?.game_player_summary?.name ?? "N/A"
+        const player_last_name = player_full_name.split(" ").slice(1).join(" ").replace('.', '');
+        $("#game_boxscore_player_summary").text(`${player_last_name}: ${player_statline}`);
+    }
+
     console.log(data);
     // VAR NEEDED FOR TABLE CLASSES
     var table_class_suffix = (storedTheme == 'dark') ? " table-dark" : ""
