@@ -654,7 +654,7 @@ function showCardData(data) {
             submessage=`${data.player_name} ${data.player_year}`, 
             iconClasses="fa-solid fa-circle-check", 
             backgroundColor="var(--success-color)",
-            removeAfterSeconds=2
+            removeAfterSeconds=2.5
         );
         
         // ADD CHILDREN TO PLAYER DETAILS DIV

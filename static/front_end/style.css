@@ -460,7 +460,7 @@ hr {
     position: fixed;
     top: 20px;
     right: 20px;
-    padding: 12px 18px;
+    padding: 14px 22px;
     background-color: var(--warning-color); /* adjust as needed */
     border-radius: 20px;
     color: #0f0f0f;
@@ -474,6 +474,16 @@ hr {
     box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
     max-width: 200px;
     line-height: 125%;
+}
+
+.status-indicator-button {
+    background: none;
+    border: none;
+    margin: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    display: block;
 }
 
 .status-indicator.show {
