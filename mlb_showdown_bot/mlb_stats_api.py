@@ -157,6 +157,8 @@ def get_game_status_data(game_pk:str, game_date:str, additional_details:dict) ->
 
     Args:
         game_pk (str): The game PK.
+        game_date (str): The date of the game.
+        additional_details (dict): Additional details to add to the game data.
 
     Returns:
         dict: The game status data.
@@ -247,9 +249,14 @@ def get_game_status_data(game_pk:str, game_date:str, additional_details:dict) ->
         is_game_over = False
     
     current_inning_visual = "FINAL" if is_game_over else f'{"▲" if is_top_inning else "▼"} {current_inning_ordinal}'
+    game_date_short = game_date[5:].replace('-', '/')
+    if game_date_short.startswith('0'):
+        game_date_short = game_date_short[1:]
 
     game_data.update({
+        'game_pk': game_pk,
         'date': game_date,
+        'date_short': game_date_short,
         'home_team_abbreviation': team_data_home,
         'away_team_abbreviation': team_data_away,
         'home_team_id': team_id_home,
@@ -371,7 +378,7 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
     # SKIP IF DISABLED
     current_year = datetime.now().year
     is_current_year = str(year) == str(current_year)
-    if is_disabled or not is_current_year or not stats_period.type.check_for_realtime_stats:
+    if is_disabled or not is_current_year or not stats_period.type.check_for_realtime_stats or stats_period.end_date < datetime.now().date():
         return None, None
     
     player_name = bref_stats.get('name', '')
@@ -389,6 +396,7 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
     # SEARCH FOR OLDER GAME IF NO NEW GAME IS RETURNED ABOVE
     # NOTE THE CHANGE IN STATLINE AND DATE MAX INPUT
     if realtime_game_logs is None:
+        print("CHECKING AGAIN")
         realtime_game_logs = get_player_realtime_game_logs(
             player_name=player_name, 
             player_team=player_team,
@@ -412,5 +420,6 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
         game_date=latest_player_game_stats.get('date', None), 
         additional_details={'game_player_summary': latest_player_game_stats}
     )
+    pprint(latest_player_game_stats)
 
     return realtime_game_logs, latest_player_game_boxscore_data

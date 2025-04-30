@@ -663,7 +663,16 @@ function showCardData(data) {
 
         // ADD NAME
         $("#player_details_div").show();
-        $("#player_details_div").append(`<h4 id="player_name" class="player_name"> <b> ${data.player_name.toUpperCase()}</b></h4>`);
+        $("#player_details_div").append(`
+            <a href="${data.bref_url}" class="style-less-a" target="_blank" rel="noopener noreferrer"">
+                <h4 id="player_name" class="player_name"> <b> ${data.player_name.toUpperCase()}</b></h4>
+            </a>
+        `);
+
+        const isLive = (data?.game_boxscore_data?.has_game_ended ?? true) == false;
+        if (isLive) {
+            $("#player_details_div").append(`<div class="player_attribute_live_box" data-toggle="tooltip" data-placement="top" title="This card is updating live as the game progresses! Come back after each at-bat/inning and re-build the card to see how it changes!" >LIVE ●</div>`);
+        }
                 
         // DETAILS
         const attributes = ['player_year', 'period', 'era', 'expansion', 'edition', 'image_parallel', 'chart_version'];
@@ -697,7 +706,6 @@ function showCardData(data) {
         buildGenericChartPlaceholders();
     } else {
         createTrendsChart(player_year=data.player_year, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
-        console.log(data.in_season_trends_data);
         if (data.in_season_trends_data === null) {
             createTrendsChart(player_year=data.player_year, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]); 
         } else {
@@ -707,7 +715,6 @@ function showCardData(data) {
 
     // GAME BOXSCORE
     const boxscoreDiv = document.getElementById('game_boxscore_div');
-    console.log(data.game_boxscore_data);
     if (data.game_boxscore_data === undefined || data.game_boxscore_data === null) {
         boxscoreDiv.style.display = 'none';
     } else {
@@ -715,10 +722,21 @@ function showCardData(data) {
         
         // UPDATE TEXT ELEMENTS
         $("#game_boxscore_inning").text(data.game_boxscore_data?.current_inning_visual ?? "N/A");
-        $("#game_boxscore_team_text_home").text(data.game_boxscore_data?.home_team_abbreviation ?? "N/A");
-        $("#game_boxscore_team_text_away").text(data.game_boxscore_data?.away_team_abbreviation ?? "N/A");
-        $("#game_boxscore_team_score_home").text(data.game_boxscore_data?.home_team_runs ?? "N/A");
-        $("#game_boxscore_team_score_away").text(data.game_boxscore_data?.away_team_runs ?? "N/A");
+        const home_scoreboard = `${data.game_boxscore_data?.home_team_abbreviation ?? "N/A"} ${data.game_boxscore_data?.home_team_runs ?? "0"}`;
+        const away_scoreboard = `${data.game_boxscore_data?.away_team_abbreviation ?? "N/A"} ${data.game_boxscore_data?.away_team_runs ?? "0"}`;
+
+        $("#game_boxscore_team_text_home").text(home_scoreboard);
+        $("#game_boxscore_team_text_away").text(away_scoreboard);
+
+        // ADD A DATE IF SCORE IS FINAL
+        if (data.game_boxscore_data?.has_game_ended ?? false) {
+            const game_date = data.game_boxscore_data?.date_short ?? "";
+            $("#game_boxscore_date").text(game_date);
+        }
+
+        // ADD LINK TO BOXSCORE
+        const gamePK = data.game_boxscore_data?.game_pk ?? "";
+        $("#game_boxscore_link").attr("href", `https://www.mlb.com/gameday/${gamePK}`);
 
         // BACKGROUND COLOR FOR TEAMS
         const home_team_color = data.game_boxscore_data?.home_team_color ?? "rgb(0, 0, 0)";
@@ -733,7 +751,6 @@ function showCardData(data) {
         $("#game_boxscore_player_summary").text(`${player_last_name}: ${player_statline}`);
     }
 
-    console.log(data);
     // VAR NEEDED FOR TABLE CLASSES
     var table_class_suffix = (storedTheme == 'dark') ? " table-dark" : ""
     var table_class_name = "table table-striped table-bordered" + table_class_suffix

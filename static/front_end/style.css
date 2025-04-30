@@ -92,10 +92,21 @@
     display: none;
     margin-bottom: 8px;
 }
-/* TREND: SHOWS TREND CHART FOR PLAYER PROGRESS */
 .player_attribute_box {
     color: var(--text-secondary-color);
     background-color: var(--primary-background-color);
+    border-radius: 10px;
+    margin: 0px;
+    padding-left: 10px;
+    padding-right: 10px;
+    font-weight: bold;
+    font-size: small;
+    display: flex;
+    align-items: center;
+}
+.player_attribute_live_box {
+    color: #ffffff;
+    background-color: var(--secondary-color);
     border-radius: 10px;
     margin: 0px;
     padding-left: 10px;
@@ -476,7 +487,7 @@ hr {
     line-height: 125%;
 }
 
-.status-indicator-button {
+.style-less-button {
     background: none;
     border: none;
     margin: 0;
@@ -486,14 +497,31 @@ hr {
     display: block;
 }
 
+.style-less-a {
+    text-decoration: none;
+    color: inherit;
+    background: none;
+    border: none;
+    outline: none;
+}
+
 .status-indicator.show {
     transform: translateX(0);
     opacity: 1;
 }
 
-.status-indicator-subtext {
+#status-indicator-subtext {
     color: #242424;
-    font-size: 10px;
+    font-size: 12px;
+}
+
+#jump_to_text {
+    color: #444444;
+    font-size: 11px;
+    display: none;
+    margin: 0px;
+    padding: 0px;
+    text-decoration: underline;
 }
 
 /* GAME BOXSCORE */
@@ -509,6 +537,8 @@ hr {
 
 .game_boxscore_team {
     padding: 5px 8px;
+    display: flex;
+    align-items: center;
 }
 
 .game_boxscore_team_text {
@@ -516,6 +546,9 @@ hr {
     font-weight: bold;
     color: #ffffff;
     margin: 0px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
 }
 
 .game_boxscore_score_text {
@@ -526,25 +559,44 @@ hr {
     padding: 0px 5px;
 }
 
+.game_boxscore_inning_and_date {
+    display: flex;
+    flex-direction: auto;
+    justify-content: center;
+    align-items: center;
+    padding: 0px 8px;
+    gap: 5px;
+}
 .game_boxscore_inning {
     font-size: 14px;
     font-weight: bolder;
     color: var(--text-primary-color);
     margin: 0px;
-    padding: 0px 8px;
+    
     display: flex;
-    align-items: center;
+    align-items: bottom;
+    white-space: nowrap;
+}
+.game_boxscore_date {
+    font-size: 10px;
+    font-weight: bolder;
+    color: var(--text-primary-color);
+    margin: 0px;
+    display: flex;
+    align-items: top;
+    white-space: nowrap;
 }
 
 .game_boxscore_player_summary {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: bolder;
     color: var(--text-secondary-color);
     margin: 0px;
-    padding: 0px 8px;
+    padding: 0px 0px;
     display: flex;
     align-items: center;
-    padding-right: 10px;
+    line-height: 1.2;
+    padding-right: 8px;
 }
 
 /* **************************************************** */
@@ -560,6 +612,13 @@ textarea {
 @media (max-width: 992px) {
     .container {
         max-width: none; /* Removes max-width */
+    }
+}
+
+/* Show only when screen width is between 576px and 768px */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    #jump_to_text {
+      display: block;
     }
 }
 
