@@ -209,13 +209,34 @@ class Set(str, Enum):
     def catcher_position_name(self) -> str:
         return 'C' if self.is_00_01 else 'CA'
 
+    def position_defense_min(self, position:Position) -> float:
+        match position:
+            case Position.CA:
+                match self:
+                    case Set._2004 | Set._2005 | Set.EXPANDED: return 2
+        
+        return 0
+
     def position_defense_max(self, position:Position) -> float:
         match position:
-            case Position.CA: return 11 if self == Set._2001 else 12
+            case Position.CA:
+                match self:
+                    case Set._2001: return 10
+                    case _: return 11
             case Position._1B: return 1
-            case Position._2B: return 5
-            case Position._3B: return 4.5 if self.is_showdown_bot else 4
-            case Position.SS: return 6 if self.is_showdown_bot else 5
+            case Position._2B: 
+                match self:
+                    case Set._2004 | Set._2005: return 4.5
+                    case _: return 5
+            case Position._3B: 
+                match self:
+                    case Set.EXPANDED | Set.CLASSIC: return 4.0
+                    case _: return 3.25
+            case Position.SS:
+                match self:
+                    case Set._2000: return 5.5
+                    case Set.CLASSIC | Set.EXPANDED: return 6
+                    case _: return 5
             case Position.CF: return 3.5 if self.is_showdown_bot else 3
             case Position.LFRF | Position.OF | Position.RF | Position.LF: return 2
             case Position.IF: return 1
@@ -540,7 +561,7 @@ class Set(str, Enum):
         match self.value:
             case '2000':
                 match position:
-                    case Position.CA: return 1.0
+                    case Position.CA: return 1.25
                     case Position._1B: return 0.25
                     case Position._2B: return 1.0
                     case Position._3B: return 1.0
@@ -573,7 +594,7 @@ class Set(str, Enum):
                     case Position.IF: return 1.0
             case '2003':
                 match position:
-                    case Position.CA: return 1.0
+                    case Position.CA: return 1.25
                     case Position._1B: return 0.5
                     case Position._2B: return 1.15
                     case Position._3B: return 1.10
@@ -584,7 +605,7 @@ class Set(str, Enum):
                     case Position.IF: return 1.0
             case '2004' | '2005':
                 match position:
-                    case Position.CA: return 1.0
+                    case Position.CA: return 1.25
                     case Position._1B: return 0.5
                     case Position._2B: return 1.0
                     case Position._3B: return 1.0
@@ -1167,6 +1188,17 @@ class Set(str, Enum):
         
         return None
 
+    @property
+    def player_image_glow_radius(self) -> int:
+        match self.value:
+            case '2000': return 12
+            case '2001': return 8
+            case _: return 8
+    
+    @property
+    def player_image_shadow_radius(self) -> int:
+        return 15
+
     # ---------------------------------------
     # STAT HIGHLIGHTS
     # ---------------------------------------
@@ -1206,7 +1238,7 @@ class Set(str, Enum):
                     case '2001': return (78,1584)
                     case '2002': return (80,1380)
                     case '2003': return (1179,1074)
-                    case '2004' | '2005': return (1180,1460)
+                    case '2004' | '2005': return (1190,1480)
                     case 'CLASSIC' | 'EXPANDED': return (1160,1345)
             case TemplateImageComponent.COOPERSTOWN:
                 match self.value:
@@ -1318,11 +1350,11 @@ class Set(str, Enum):
                     case 'EXPANDED': return (15,20)
             case TemplateImageComponent.BOT_LOGO:
                 match self.value:
-                    case '2000' | '2001': return (1250,1945)
-                    case '2002': return (62,1900)
-                    case '2003': return (655,1740)
-                    case '2004' | '2005': return (1268,1965)
-                    case 'CLASSIC' | 'EXPANDED': return (1320,1975)
+                    case '2000' | '2001': return (1270,1945)
+                    case '2002': return (86,1900)
+                    case '2003': return (672,1740)
+                    case '2004' | '2005': return (1285,1965)
+                    case 'CLASSIC' | 'EXPANDED': return (1337,1975)
             case TemplateImageComponent.SPLIT:
                 match self.value:
                     case '2000': return (330, 1860)

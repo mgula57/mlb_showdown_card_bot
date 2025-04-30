@@ -9,8 +9,14 @@ from typing import Optional
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
     from .classes.stats_period import StatsPeriodType
+    from .classes.images import Edition
+    from .classes.sets import Era
+    from .classes.shared_functions import convert_year_string_to_list
 except ImportError:    
     from classes.stats_period import StatsPeriodType
+    from classes.images import Edition
+    from classes.sets import Era
+    from classes.shared_functions import convert_year_string_to_list
 
 class PlayerArchive(BaseModel):
     id: str
@@ -134,9 +140,9 @@ class PostgresDB:
         try:
             year_int = int(year)
         except Exception as e:
-            year_int = default_return_tuple
+            year_int = None
         
-        if year_int is None or self.connection is None or stats_period_type != StatsPeriodType.REGULAR_SEASON:
+        if year_int is None or self.connection is None or stats_period_type == StatsPeriodType.SPLIT:
             return default_return_tuple
         
         if team_override:
@@ -166,7 +172,34 @@ class PostgresDB:
         
         return (first_player_archive, load_time)
 
-    def fetch_all_stats_from_archive(self, year_list: list[int], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None) -> list[PlayerArchive]:
+    def fetch_all_player_year_stats_from_archive(self, bref_id:str, type_override:str = None) -> list[PlayerArchive]:
+        """Query the stats_archive table for all player data for a given player
+        
+        Args:
+            bref_id: Unique ID for the player defined by bref.
+            type_override: User override for specifing player type (ex: Shoehi Ohtani (Pitcher))
+
+        Returns:
+            List of stats archive data where each element is a year.
+        """
+
+        # RETURN EMPTY LIST IF NO CONNECTION
+        if self.connection is None:
+            return []
+        
+        query = sql.SQL("SELECT * FROM {table} WHERE {column} = %s ORDER BY year;") \
+                    .format(
+                        table=sql.Identifier("stats_archive"),
+                        column=sql.Identifier("bref_id")
+                    )
+        query_results_list = self.execute_query(query=query, filter_values=(bref_id, ))
+        
+        if len(query_results_list) == 0:
+            return []
+        
+        return [PlayerArchive(**row) for row in query_results_list]
+
+    def fetch_all_stats_from_archive(self, year_list: list[int], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None, modified_start_date:str=None, modified_end_date:str=None) -> list[PlayerArchive]:
         """
         Fetch stats archive data for a list of years.
 
@@ -175,6 +208,8 @@ class PostgresDB:
           limit: Maximum number of rows to fetch. If None, fetch all rows.
           exclude_records_with_stats: Optionally filter the list for only rows where the stats column is empty. True by default.
           historical_date: Optional additional filter for snapshot date
+          modified_start_date: Optional filter for modified_date start. Would include only records modified after this date.
+          modified_end_date: Optional filter for modified_date end. Would include only records modified before this date.
 
         Returns:
           List of stats archive data.
@@ -184,6 +219,15 @@ class PostgresDB:
         values_to_filter = [tuple(year_list), historical_date]
         where_clause_values_equals_str = "=" if len(year_list) == 0 else "IN"
         conditions = [sql.SQL(' IS ' if col == "historical_date" and historical_date is None else f" {where_clause_values_equals_str} ").join([sql.Identifier(col), sql.Placeholder()]) for col in column_names_to_filter]
+
+        if modified_start_date:
+            conditions.append(sql.SQL(' >= ').join([sql.Identifier("modified_date"), sql.Placeholder()]))
+            values_to_filter.append(modified_start_date)
+
+        if modified_end_date:
+            conditions.append(sql.SQL(' <= ').join([sql.Identifier("modified_date"), sql.Placeholder()]))
+            values_to_filter.append(modified_end_date)
+            
         where_clause = sql.SQL(' AND ').join(conditions)
 
         additional_conditions: list[sql.SQL] = []
@@ -235,6 +279,107 @@ class PostgresDB:
                     )
         filters = (tuple(players_stats_ids), )
         return self.execute_query(query=query, filter_values=filters)
+
+    def fetch_random_player_stats_from_archive(self, year_input:str = None, era:str = None, edition:str = None) -> PlayerArchive:
+        """Fetch a random player's stats from the database given certain parameters
+        
+        Args:
+            year_input: Year(s) input by user. Will be used first over era if inputted by user.
+            era: Era to filter by. Will be used if years is not inputted.
+            edition: Edition to filter by. Each edition has a different filter applied:
+                      - Cooperstown Collection: Only players in the Hall of Fame
+                      - Super Season: Must either be an all star or meet bWAR requirement.
+                      - All Star Game: Must be an all star.
+                      - Rookie Season: Must be a rookie.
+
+        Returns:
+            PlayerArchive object with player stats.
+        """
+
+        # FILTER TO > 50 GAMES FOR HITTER, > 45 IP FOR PITCHER
+        conditions:list[sql.SQL] = []
+        values_to_filter:list = []
+
+        year_list: list[int] = []
+        if year_input:
+            
+            # CREATE RANGE FROM YEAR STRING
+            year_list = convert_year_string_to_list(year_input) or []
+
+        # YEAR LIST IS EMPTY, USE ERA TO SAMPLE YEARS
+        if len(year_list) == 0 and era is not None:
+            try:
+                era_object = Era(era)
+                year_list = era_object.year_range
+            except:
+                year_list = []
+            
+        if len(year_list) > 0:
+            conditions.append(sql.SQL(" IN ").join([sql.Identifier("year"), sql.Placeholder()]))
+            values_to_filter.append(tuple(year_list))
+            
+        where_clause = sql.SQL(' AND ').join(conditions) if len(conditions) > 0 else sql.SQL("TRUE")
+
+        # DEFINE MINIMUMS
+        hitter_games_minimum_statement =  sql.SQL(" and ").join([
+            sql.SQL(" = ").join([sql.Identifier("player_type"), sql.Placeholder()]), # HITTER
+            sql.SQL(" > ").join([sql.Identifier("g"), sql.Placeholder()]),           # AND GAMES > 50
+        ])
+        pitcher_ip_minimum_statement = sql.SQL(" and ").join([
+            sql.SQL(" = ").join([sql.Identifier("player_type"), sql.Placeholder()]), # PITCHER
+            sql.SQL(" > ").join([sql.Identifier("ip"), sql.Placeholder()]),           # AND IP > 45
+        ])
+        min_multiplier = 0.55 if 2020 in year_list else 1
+        hitter_minimum_games = int(80 * min_multiplier)
+        pitcher_minimum_ip = int(45 * min_multiplier)
+        values_to_filter += ["HITTER", hitter_minimum_games, "PITCHER", pitcher_minimum_ip]
+
+        # HANDLE SPECIAL CASES FOR EDITIONS
+        match Edition(edition):
+            case Edition.COOPERSTOWN_COLLECTION:
+                # ONLY HALL OF FAME PLAYERS
+                # HANDLED BY CHECKING FOR "is_hof" key = true inside of "stats" JSONB field
+                edition_where_clause = sql.SQL("jsonb_extract_path(stats, 'is_hof')::BOOLEAN IS TRUE")
+            case Edition.ALL_STAR_GAME:
+                # MUST BE AN ALL STAR
+                edition_where_clause = sql.SQL("jsonb_extract_path(stats, 'award_summary')::text like '%%AS%%'")
+            case Edition.ROOKIE_SEASON:
+                # MUST BE A ROOKIE
+                edition_where_clause = sql.SQL("jsonb_extract_path(stats, 'is_rookie')::BOOLEAN IS TRUE")
+            case Edition.SUPER_SEASON:
+                # EITHER WAS AN ALL STAR OR MET bWAR REQUIREMENT
+                bwar_min = int(5.0 * min_multiplier)
+                edition_where_clause = sql.SQL(
+                    "(case when length((stats->>'bWAR')) = 0 then 0.0 else (stats->>'bWAR')::float end) >= {} OR jsonb_extract_path(stats, 'award_summary')::text like '%%AS%%'"
+                ).format(sql.Placeholder())
+                values_to_filter.append(bwar_min)
+            case _:
+                edition_where_clause = sql.SQL("TRUE")
+        
+        query = sql.SQL("""
+                        SELECT *
+                        FROM {table} 
+                        WHERE TRUE
+                            AND ({where_clause})
+                            AND ( ({hitter_games_minimum}) or ({pitcher_ip_minimum}) ) 
+                            AND ({edition_where_clause}) 
+                        ORDER BY RANDOM() LIMIT 1"""
+                    ).format(
+                        table=sql.Identifier("stats_archive"),
+                        where_clause=where_clause,
+                        hitter_games_minimum=hitter_games_minimum_statement,
+                        pitcher_ip_minimum=pitcher_ip_minimum_statement,
+                        edition_where_clause=edition_where_clause
+                    )
+        
+        filters = tuple(values_to_filter)
+        result_list = self.execute_query(query=query, filter_values=filters)
+
+        if len(result_list) == 0: return None
+
+        return PlayerArchive(**result_list[0])
+    
+
 
 # ------------------------------------------------------------------------
 # TABLES

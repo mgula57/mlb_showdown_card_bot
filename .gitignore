@@ -58,3 +58,4 @@ frontend/node_modules/
 
 # CREDS
 firebase_creds.json
+*.pem

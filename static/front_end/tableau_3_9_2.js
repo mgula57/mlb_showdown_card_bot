@@ -19,8 +19,6 @@ vizElement.style.width = '100%';
 vizElement.style.minHeight = isMobile ? '650px' : '875px';
 vizElement.style.maxHeight = '900px';
 
-console.log(getWidth())
-
 // ADD PARAM TO FORCE EITHER DESKTOP OR MOBILE LAYOUT
 var deviceElementvizElement = document.getElementById('deviceParam')
 deviceElementvizElement.value = isMobile ? "phone" : "desktop";
@@ -30,7 +28,6 @@ if (localStorage) {
     var storedSet = (localStorage.getItem("set") ?? "2000").toUpperCase();
     var deviceElementvizElement = document.getElementById('filterParam')
     deviceElementvizElement.value = `set_selection=${storedSet}`;
-    console.log(`Populating Explore Set - ${storedSet}`)
 }
 
 // ADD TABLEAU JS
