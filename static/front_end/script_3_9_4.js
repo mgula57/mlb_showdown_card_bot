@@ -673,7 +673,28 @@ function showCardData(data) {
         if (isLive) {
             $("#player_details_div").append(`<div class="player_attribute_live_box" data-toggle="tooltip" data-placement="top" title="This card is updating live as the game progresses! Come back after each at-bat/inning and re-build the card to see how it changes!" >LIVE ●</div>`);
         }
-                
+
+        // ADD POINTS
+        const points = data?.player_total_points ?? 0;
+        if (points > 0) {
+            const keys = Object.keys(data?.in_season_trends_data).sort();  // sorts keys lexicographically (good for ISO date strings)
+            if (keys.length < 2) {
+                $("#player_details_div").append(`<div class="player_attribute_box">${points} PTS</div>`);
+            } else {
+                const start_date = keys[keys.length - 2];
+                const start_points = data?.in_season_trends_data[start_date]?.points;
+                const points_diff = points - start_points;
+                const up_or_downtriangle = (points_diff > 0) ? '▲' : '▼'; 
+                const color = (points_diff > 0) ? 'green' : 'red';
+                $("#player_details_div").append(`
+                    <div class="player_attribute_box">
+                        ${points} PTS 
+                        <span class="player_attribute_box_subtext" style="color:${color}"> ${up_or_downtriangle}${Math.abs(points_diff)} THIS WEEK</span>
+                    </div>
+                `);
+            }
+        }
+        
         // DETAILS
         const attributes = ['player_year', 'period', 'era', 'expansion', 'edition', 'image_parallel', 'chart_version'];
         for (const attr_type of attributes) {

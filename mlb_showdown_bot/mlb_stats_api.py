@@ -1,7 +1,7 @@
 
 import requests
 from pprint import pprint
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 # MY PACKAGES
 try:
@@ -53,7 +53,7 @@ stats_converted_to_float_list = [
     'era', 'whip', 'inningsPitched',
 ]
 
-def get_player_realtime_game_logs(player_name:str, player_team:str, year:int, is_pitcher:bool, existing_statline:dict[str: any], user_input_date_max:date = None) -> list[dict]:
+def get_player_realtime_game_logs(player_name:str, player_team:str, year:int, is_pitcher:bool, existing_statline:dict[str: any], user_input_date_max:date = None, user_input_date_min:date = None) -> list[dict]:
     """
     Hits the MLB API to get the player's game logs for the current season.
     Filters out any games that are already in the existing statline or outside the user input date range.
@@ -123,7 +123,8 @@ def get_player_realtime_game_logs(player_name:str, player_team:str, year:int, is
 
             game_date = convert_to_date(game_date_str, year)
             is_game_already_included = False if latest_date_in_bref_stats is None else game_date <= latest_date_in_bref_stats
-            is_game_outside_user_bounds = False if user_input_date_max is None else game_date > user_input_date_max
+            is_game_outside_user_bounds = (False if user_input_date_max is None else game_date > user_input_date_max) \
+                                            or (False if user_input_date_min is None else game_date < user_input_date_min)
             if is_game_already_included or is_game_outside_user_bounds:
                 continue
 
@@ -376,7 +377,8 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
     """
 
     # SKIP IF DISABLED
-    current_year = datetime.now().year
+    current_date = datetime.now().date()
+    current_year = current_date.year
     is_current_year = str(year) == str(current_year)
     if is_disabled or not is_current_year or not stats_period.type.check_for_realtime_stats or stats_period.end_date < datetime.now().date():
         return None, None
@@ -396,14 +398,14 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
     # SEARCH FOR OLDER GAME IF NO NEW GAME IS RETURNED ABOVE
     # NOTE THE CHANGE IN STATLINE AND DATE MAX INPUT
     if realtime_game_logs is None:
-        print("CHECKING AGAIN")
         realtime_game_logs = get_player_realtime_game_logs(
             player_name=player_name, 
             player_team=player_team,
             year=year, 
             is_pitcher=is_pitcher,
             existing_statline={},
-            user_input_date_max=None
+            user_input_date_max=None,
+            user_input_date_min=current_date - timedelta(days=1)
         )
 
     if realtime_game_logs is None:
@@ -420,6 +422,5 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
         game_date=latest_player_game_stats.get('date', None), 
         additional_details={'game_player_summary': latest_player_game_stats}
     )
-    pprint(latest_player_game_stats)
 
     return realtime_game_logs, latest_player_game_boxscore_data

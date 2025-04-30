@@ -84,7 +84,7 @@ class StatsPeriodDateAggregation(str, Enum):
                 # END DATE SHOULD BE SUNDAY OF EACH WEEK
                 end_date = start_date
                 while end_date < stop_date:
-                    days_to_sunday = 7 - end_date.weekday() if end_date.weekday() != 6 else 7
+                    days_to_sunday = 6 - end_date.weekday() if end_date.weekday() != 6 else 7
                     end_date = min(end_date + timedelta(days=days_to_sunday), stop_date)
                     date_ranges.append((start_date, end_date))
 

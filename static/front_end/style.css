@@ -104,6 +104,12 @@
     display: flex;
     align-items: center;
 }
+.player_attribute_box_subtext {
+    margin: 0px;
+    padding-left: 5px;
+    font-weight: bold;
+    font-size: x-small;
+}
 .player_attribute_live_box {
     color: #ffffff;
     background-color: var(--secondary-color);
