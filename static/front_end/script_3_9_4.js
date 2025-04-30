@@ -213,7 +213,7 @@ function changeSetSelection(newSet) {
         // DEFINE NEW SRC
         const theme = localStorage.getItem('theme') || 'light';
         const suffix = (theme == 'dark') ? '-Dark' : '';
-        const newImageUrl = `static/interface/BlankPlayer-${updatedSet}${suffix}.png?cb=${Date.now()}`;
+        const newImageUrl = `static/interface/BlankPlayer-${updatedSet.toUpperCase()}${suffix}.png?cb=${Date.now()}`;
         
         // UPDATE IMAGE WITH ANIMATION
         animatePlayerImageTransition(newImageUrl);
@@ -694,7 +694,7 @@ function showCardData(data) {
                 `);
             }
         }
-        
+
         // DETAILS
         const attributes = ['player_year', 'period', 'era', 'expansion', 'edition', 'image_parallel', 'chart_version'];
         for (const attr_type of attributes) {
