@@ -234,6 +234,7 @@ def get_game_status_data(game_pk:str, game_date:str, additional_details:dict) ->
     current_inning = game_data.get('currentInning', 0)
     current_inning_ordinal = game_data.get('currentInningOrdinal', '1st')
     current_outs = game_data.get('outs', 0)
+    is_game_over = False
     if current_inning >= 9:
         if is_top_inning:
             # CHECK IF HOME TEAM IS WINNING AND OUTS ARE 3
@@ -246,8 +247,6 @@ def get_game_status_data(game_pk:str, game_date:str, additional_details:dict) ->
             # CHECK IF HOME TEAM IS WINNING
             if runs_home > runs_away:
                 is_game_over = True
-    else:
-        is_game_over = False
     
     current_inning_visual = "FINAL" if is_game_over else f'{"▲" if is_top_inning else "▼"} {current_inning_ordinal}'
     game_date_short = game_date[5:].replace('-', '/')

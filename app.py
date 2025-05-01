@@ -355,39 +355,28 @@ def card_creator():
         # 3. RUN SHOWDOWN CARD
         # -----------------
         showdown_card = ShowdownPlayerCard(
-            name=name,
-            year=year,
-            stats=statline,
-            realtime_game_logs=player_realtime_game_logs,
-            set=set,
-            era=era,
-            stats_period=stats_period,
-            player_type_override=scraper.player_type_override,
-            chart_version=chart_version,
-            is_variable_speed_00_01=is_variable_speed_00_01,
-            date_override=date_override,
-            is_running_in_flask=True,
-            source=data_source,
-            ignore_cache=ignore_cache,
-            warnings=scraper.warnings,
+            name=name, year=year, stats=statline, realtime_game_logs=player_realtime_game_logs,
+            set=set, era=era, stats_period=stats_period, player_type_override=scraper.player_type_override, chart_version=chart_version,
+            is_variable_speed_00_01=is_variable_speed_00_01, date_override=date_override, is_running_in_flask=True, 
+            source=data_source, ignore_cache=ignore_cache, warnings=scraper.warnings,
             image = ShowdownImage(
-                edition = edition,
-                expansion = expansion,
-                source = ImageSource(url=img_url, path=img_name),
-                parallel = image_parallel,
-                set_number = set_number,
-                add_one_to_set_year = set_year_plus_one,
-                show_year_text = show_year_text,
-                is_bordered = add_img_border,
-                is_dark_mode = is_dark_mode,
-                hide_team_logo = hide_team_logo,
-                use_secondary_color = is_secondary_color,
-                is_multi_colored = is_multi_colored,
-                nickname_index = nickname_index,
-                stat_highlights_type = stat_highlights_type,
-                glow_multiplier= glow_multiplier,
+                edition=edition, expansion=expansion, source=ImageSource(url=img_url, path=img_name), parallel=image_parallel,
+                set_number=set_number, add_one_to_set_year=set_year_plus_one, show_year_text=show_year_text, is_bordered=add_img_border, 
+                is_dark_mode=is_dark_mode, hide_team_logo=hide_team_logo, use_secondary_color=is_secondary_color, is_multi_colored=is_multi_colored,
+                nickname_index=nickname_index, stat_highlights_type=stat_highlights_type, glow_multiplier=glow_multiplier,
             ),
         )
+
+        # ADD CHANGE IN POINTS IF LATEST PLAYER GAME BOXSCORE DATA
+        if player_realtime_game_logs and latest_player_game_boxscore_data:
+            previous_showdown_card = ShowdownPlayerCard(
+                name=name, year=year, stats=statline, realtime_game_logs=None, # DON'T INCLUDE REALTIME GAME LOGS
+                set=set, era=era, stats_period=stats_period, player_type_override=scraper.player_type_override, chart_version=chart_version,
+                is_variable_speed_00_01=is_variable_speed_00_01, date_override=date_override, is_running_in_flask=True, 
+                source=data_source, ignore_cache=ignore_cache, warnings=scraper.warnings,
+            )
+            change_in_points = showdown_card.points - previous_showdown_card.points
+            latest_player_game_boxscore_data['change_in_points'] = change_in_points
 
         # -----------------
         # 4. GENERATE CARD IMAGE

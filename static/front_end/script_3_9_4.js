@@ -759,6 +759,14 @@ function showCardData(data) {
         const gamePK = data.game_boxscore_data?.game_pk ?? "";
         $("#game_boxscore_link").attr("href", `https://www.mlb.com/gameday/${gamePK}`);
 
+        // ADD CHANGE IN POINTS
+        const points_change = data.game_boxscore_data?.change_in_points ?? null;
+        if (points_change !== null) {
+            const points_change_text = (points_change >= 0) ? `▲${points_change} PTS` : `▼${points_change} PTS`;
+            $("#game_boxscore_player_points_change").text(points_change_text);
+            $("#game_boxscore_player_points_change").css("color", (points_change >= 0) ? "green" : "red");
+        }
+
         // BACKGROUND COLOR FOR TEAMS
         const home_team_color = data.game_boxscore_data?.home_team_color ?? "rgb(0, 0, 0)";
         const away_team_color = data.game_boxscore_data?.away_team_color ?? "rgb(0, 0, 0)";
