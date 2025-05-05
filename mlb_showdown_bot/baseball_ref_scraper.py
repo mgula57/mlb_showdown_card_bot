@@ -9,11 +9,12 @@ import json
 import string
 import math
 import statistics
+import pytz
 from statistics import mode
 import operator
 from bs4 import BeautifulSoup
 from pprint import pprint
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import sleep
 from difflib import SequenceMatcher
 import unidecode
@@ -2017,15 +2018,16 @@ class BaseballReferenceScraper:
         if not os.path.isfile(full_path) or self.ignore_cache:
             return None
         
-        # RETURN NONE IF FILE IS OVER 10 MINS OLD
-        mins_since_modification = self.__file_mins_since_modification(path=full_path)
-        if mins_since_modification > 30.0 and not self.disable_cleaning_cache:
+        # RETURN NONE IF FILE IS EXPIRED
+        is_file_stale = self.__file_cache_expiration_datetime(full_path) < self.__datetime_est(datetime.now().timestamp())
+        if is_file_stale:
+            self.__remove_old_files(folder_path=folder_path)
             return None
 
         file = open(full_path, 'r')
         data = json.loads(file.read())
 
-        # REMOVE STALE FILES
+        # REMOVE OTHER STALE FILES
         self.__remove_old_files(folder_path=folder_path)
         
         return data
@@ -2048,7 +2050,7 @@ class BaseballReferenceScraper:
         # REMOVE STALE FILES
         self.__remove_old_files(folder_path=folder_path)
     
-    def __remove_old_files(self, folder_path:str, mins_cutoff:float = 30.0) -> None:
+    def __remove_old_files(self, folder_path:str) -> None:
 
         # DISABLE CLEANING
         if self.disable_cleaning_cache:
@@ -2058,26 +2060,38 @@ class BaseballReferenceScraper:
         for item in os.listdir(folder_path):
             if item != '.gitkeep':
                 item_path = os.path.join(folder_path, item)
-                is_file_stale = self.__file_mins_since_modification(item_path) >= mins_cutoff
+                is_file_stale = self.__file_cache_expiration_datetime(item_path) < self.__datetime_est(datetime.now().timestamp())
                 if is_file_stale:
                     os.remove(item_path)
 
-    def __file_mins_since_modification(self, path:str) -> float:
-        """Checks modified date of file.
-           Used for cleaning and reading from cache.
+    def __file_cache_expiration_datetime(self, path:str) -> datetime:
+        """Check modified date and add timeframe of validity to it. 
 
+        Rules:
+            - If modified between 7:00 AM and 10:00 AM EST, valid for 30 mins
+            - If modified between 10:01 AM EST and 6:59 AM the next day, valid until 7:00 AM EST the next day
+        
         Args:
-          path: String path to file in os.
+            - path: String path to file in os.
 
         Returns:
-            Float with time in mins since modification.
+            - datetime object with expiration date.
         """
 
-        datetime_current = datetime.now()
-        datetime_uploaded = datetime.fromtimestamp(os.path.getmtime(path))
-        file_age_mins = (datetime_current - datetime_uploaded).total_seconds() / 60.0
+        # GET FILE MODIFIED TIME IN EST TIMEZONE
+        datetime_uploaded = self.__datetime_est(timestamp=os.path.getmtime(path))
 
-        return file_age_mins
+        # CHECK IF FILE WAS MODIFIED BETWEEN 7:00 AM and 10:00 AM EST
+        if datetime_uploaded.hour >= 7 and datetime_uploaded.hour < 10:
+            return datetime_uploaded + timedelta(minutes=30)
+        
+        # CHECK IF FILE WAS MODIFIED BETWEEN 10:01 AM EST and 6:59 AM the next day
+        return datetime_uploaded.replace(hour=7, minute=0, second=0, microsecond=0) + timedelta(days=1)
+
+    def __datetime_est(self, timestamp:float) -> datetime:
+        """Convert timestamp to EST timezone"""
+        est = pytz.timezone('US/Eastern')
+        return datetime.fromtimestamp(timestamp, tz=est)
     
     def __name_last_initial(self, name:str) -> str:
         """Parse first initial of Player's last name.

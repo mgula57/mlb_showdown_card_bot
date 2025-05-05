@@ -380,7 +380,11 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
     current_date = datetime.now().date()
     current_year = current_date.year
     is_current_year = str(year) == str(current_year)
-    if is_disabled or not is_current_year or not stats_period.type.check_for_realtime_stats or stats_period.end_date < datetime.now().date():
+    if is_disabled or \
+            bref_stats is None or \
+            not is_current_year or \
+            not stats_period.type.check_for_realtime_stats or \
+            stats_period.end_date < datetime.now().date():
         return None, None
     
     player_name = bref_stats.get('name', '')

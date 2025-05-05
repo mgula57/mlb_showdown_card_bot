@@ -7,6 +7,7 @@ from mlb_showdown_bot.classes.stats_period import StatsPeriod, StatsPeriodType, 
 import os
 import pandas as pd
 import copy
+import traceback
 from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
 from pprint import pprint
@@ -331,13 +332,9 @@ def card_creator():
             data_source = 'Archive'
         else:
             data_source = 'Baseball Reference'
-            try:
-                statline = scraper.player_statline()
-                data_source = scraper.source
-            except:
-                if scraper.error:
-                    error = scraper.error   
-
+            statline = scraper.player_statline()
+            data_source = scraper.source
+        
         # -----------------------------------
         # HIT MLB API FOR REALTIME STATS
         # ONLY APPLIES WHEN
@@ -566,6 +563,7 @@ def card_creator():
     except Exception as e:
         error_full = str(e)[:250]
         print(error_full)
+        traceback.print_exc()
         log_card_submission_to_db(
             name=name,
             year=year,
