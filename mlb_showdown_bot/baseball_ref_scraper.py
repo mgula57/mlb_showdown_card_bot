@@ -37,7 +37,7 @@ class BaseballReferenceScraper:
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, name:str, year:str, stats_period:StatsPeriod = StatsPeriod(), ignore_cache:bool=False, disable_cleaning_cache:bool=False, cache_folder_path:str=None, disable_stats_period_range_updates:bool=False) -> None:
+    def __init__(self, name:str, year:str, stats_period:StatsPeriod = StatsPeriod(), ignore_cache:bool=False, disable_cleaning_cache:bool=False, cache_folder_path:str=None, disable_stats_period_range_updates:bool=False, is_running_on_website:bool=False) -> None:
 
         self.year_input = year.upper()
         is_full_career = year.upper() == 'CAREER'
@@ -65,6 +65,7 @@ class BaseballReferenceScraper:
         self.disable_stats_period_range_updates = disable_stats_period_range_updates
         self.load_time = None
         self.stats_period = stats_period
+        self.is_running_on_website = is_running_on_website
         
         # PARSE MULTI YEARS
         if isinstance(year, list):
@@ -462,10 +463,11 @@ class BaseballReferenceScraper:
         stats_dict['accolades'] = self.__accolades_dict(soup_for_homepage_stats=soup_for_homepage_stats, years_included=years_for_loop)
 
         # ADD ALL GAME LOGS BY DEFAULT
-        for stats_period in [StatsPeriodType.DATE_RANGE, StatsPeriodType.POSTSEASON]:
-            sleep(1) # PREVENT 403 ERRORS
+        periods = [StatsPeriodType.DATE_RANGE] if self.is_running_on_website else [StatsPeriodType.DATE_RANGE, StatsPeriodType.POSTSEASON]
+        for stats_period in periods:
+            if len(periods) > 1: sleep(1.0) # SLEEP TO AVOID 429 ERRORS
             stats_dict[stats_period.stats_dict_key] = self.game_log_list(type=type, years=years_for_loop, stats_period_type=stats_period, reduce_size=True)
-
+            
         # FIX EMPTY STRING DATA
         empty_str_fields_for_test = ['batting_avg', 'onbase_perc', 'slugging_perc', 'onbase_plus_slugging']
         for field in empty_str_fields_for_test:

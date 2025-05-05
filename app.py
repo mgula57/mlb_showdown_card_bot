@@ -362,7 +362,7 @@ def card_creator():
         showdown_card = ShowdownPlayerCard(
             name=name, year=year, stats=statline, realtime_game_logs=player_realtime_game_logs,
             set=set, era=era, stats_period=stats_period, player_type_override=scraper.player_type_override, chart_version=chart_version,
-            is_variable_speed_00_01=is_variable_speed_00_01, date_override=date_override, is_running_in_flask=True, 
+            is_variable_speed_00_01=is_variable_speed_00_01, date_override=date_override, is_running_on_website=True, 
             source=data_source, ignore_cache=ignore_cache, warnings=scraper.warnings,
             image = ShowdownImage(
                 edition=edition, expansion=expansion, source=ImageSource(url=img_url, path=img_name), parallel=image_parallel,
@@ -378,7 +378,7 @@ def card_creator():
                 name=name, year=year, stats=original_statline, realtime_game_logs=None, # DON'T INCLUDE REALTIME GAME LOGS
                 set=set, era=era, stats_period=original_stats_period,
                 player_type_override=scraper.player_type_override, chart_version=chart_version,
-                is_variable_speed_00_01=is_variable_speed_00_01, date_override=date_override, is_running_in_flask=True, 
+                is_variable_speed_00_01=is_variable_speed_00_01, date_override=date_override, is_running_on_website=True, 
                 source=data_source, ignore_cache=ignore_cache, warnings=scraper.warnings,
             )
             change_in_points = showdown_card.points - previous_showdown_card.points
@@ -416,7 +416,7 @@ def card_creator():
                         stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(year_archive.year)),
                         player_type_override=year_archive.player_type_override,
                         is_variable_speed_00_01=is_variable_speed_00_01,
-                        is_running_in_flask=True,
+                        is_running_on_website=True,
                     )
                     if yearly_card.player_type != showdown_card.player_type:
                         continue
@@ -450,7 +450,7 @@ def card_creator():
                         stats_period=StatsPeriod(type=StatsPeriodType.DATE_RANGE, year=str(year), start_date=start_date, end_date=end_date),
                         player_type_override=scraper.player_type_override,
                         is_variable_speed_00_01=is_variable_speed_00_01,
-                        is_running_in_flask=True,
+                        is_running_on_website=True,
                     )
                     in_season_trends_data[end_date_str] = weekly_card.trend_line_data()
                 except Exception as e:

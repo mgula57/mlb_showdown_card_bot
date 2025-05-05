@@ -100,7 +100,7 @@ class ShowdownPlayerCard(BaseModel):
     
     # ENVIRONMENT
     build_on_init: bool = True
-    is_running_in_flask: bool = False
+    is_running_on_website: bool = False
     load_time: float = 0.0
     warnings: list[str] = []
 
@@ -6201,7 +6201,7 @@ class ShowdownPlayerCard(BaseModel):
 
         
         
-        if self.is_running_in_flask:
+        if self.is_running_on_website:
             flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output', self.image.output_file_name)
             image.save(flask_img_path, dpi=(300, 300), quality=100)
         else:
