@@ -680,7 +680,9 @@ function showCardData(data) {
         const points = data?.player_total_points ?? 0;
         if (points > 0) {
             const keys = Object.keys(data?.in_season_trends_data ?? []).sort();  // sorts keys lexicographically (good for ISO date strings)
-            if (keys.length < 2) {
+            const year = data?.player_year ?? "N/A";
+            const doesNotMatchYear = (year != String(new Date().getFullYear()));
+            if (keys.length < 2 || doesNotMatchYear) {
                 $("#player_details_div").append(`<div class="player_attribute_box">${points} PTS</div>`);
             } else {
                 const start_date = keys[keys.length - 2];
