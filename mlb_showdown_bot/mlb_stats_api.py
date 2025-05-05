@@ -252,6 +252,7 @@ def get_game_status_data(game_pk:str, game_date:str, additional_details:dict) ->
     game_date_short = game_date[5:].replace('-', '/')
     if game_date_short.startswith('0'):
         game_date_short = game_date_short[1:]
+        game_date_short = game_date_short.replace('/0', '/')
 
     game_data.update({
         'game_pk': game_pk,

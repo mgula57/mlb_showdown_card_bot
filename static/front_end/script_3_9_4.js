@@ -394,12 +394,14 @@ function createTrendsChart(player_year, trends_data, elementId, unit, is_placeho
                         return 0;
                     }
                     const dataPoint = context.dataset.customData[context.dataIndex];
-                    return (dataPoint.year === player_year && unit == 'year') ? 6 : 3;
+                    const year = dataPoint?.year ?? "n/a"
+                    return (year === player_year && unit == 'year') ? 6 : 3;
                 },
                 // Scriptable option for point background color with a condition
                 pointBackgroundColor: (context) => {
                     const dataPoint = context.dataset.customData[context.dataIndex];
-                    return color(dataPoint.color).alpha(0.9).rgbString();
+                    const teamColor = dataPoint?.color ?? light_gray_color;
+                    return color(teamColor).alpha(0.9).rgbString();
                 },
                 segment: {
                     // Use ctx.p0DataIndex (the starting point of the segment) to get the correct color
@@ -677,7 +679,7 @@ function showCardData(data) {
         // ADD POINTS
         const points = data?.player_total_points ?? 0;
         if (points > 0) {
-            const keys = Object.keys(data?.in_season_trends_data).sort();  // sorts keys lexicographically (good for ISO date strings)
+            const keys = Object.keys(data?.in_season_trends_data ?? []).sort();  // sorts keys lexicographically (good for ISO date strings)
             if (keys.length < 2) {
                 $("#player_details_div").append(`<div class="player_attribute_box">${points} PTS</div>`);
             } else {
@@ -961,8 +963,8 @@ $(document).ready(function() {
 
             // NAME AND YEAR
             // DONT APPLY FOR FIRST RELEASE. GET FEEDBACK ON THIS
-            // document.getElementById("name").value = lastCardJson.name;
-            // document.getElementById("year").value = lastCardJson.year;
+            document.getElementById("name").value = lastCardJson.name;
+            document.getElementById("year").value = lastCardJson.year;
 
             // STATS PERIOD
             document.getElementById("periodSelection").value = lastCardJson.period;
