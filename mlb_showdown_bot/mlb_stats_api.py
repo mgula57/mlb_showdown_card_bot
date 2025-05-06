@@ -373,7 +373,7 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
         is_disabled (bool): Whether the player is disabled or not.
 
     Returns:
-        tuple[list[dict], dict]: A tuple containing the player's game logs and the game's boxscore data.
+        tuple[list[dict], dict]: A tuple containing the player's game logs and the game's boxscore data as well as boolean with whether the game is additional or already in the stats.
     """
 
     # SKIP IF DISABLED
@@ -385,7 +385,7 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
             not is_current_year or \
             not stats_period.type.check_for_realtime_stats or \
             stats_period.end_date < datetime.now().date():
-        return None, None
+        return None, None, None
     
     player_name = bref_stats.get('name', '')
     player_team = bref_stats.get('team_ID', '')
@@ -401,7 +401,9 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
 
     # SEARCH FOR OLDER GAME IF NO NEW GAME IS RETURNED ABOVE
     # NOTE THE CHANGE IN STATLINE AND DATE MAX INPUT
+    is_game_already_in_statline = False
     if realtime_game_logs is None:
+        is_game_already_in_statline = True
         realtime_game_logs = get_player_realtime_game_logs(
             player_name=player_name, 
             player_team=player_team,
@@ -413,7 +415,7 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
         )
 
     if realtime_game_logs is None:
-        return None, None
+        return None, None, None
     
     # GET BOX SCORE OF LATEST GAME
     latest_player_game_stats = realtime_game_logs[-1]
@@ -427,4 +429,4 @@ def get_player_realtime_game_stats_and_game_boxscore(year:str, bref_stats:dict, 
         additional_details={'game_player_summary': latest_player_game_stats}
     )
 
-    return realtime_game_logs, latest_player_game_boxscore_data
+    return realtime_game_logs, latest_player_game_boxscore_data, is_game_already_in_statline

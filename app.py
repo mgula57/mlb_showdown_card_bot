@@ -342,12 +342,15 @@ def card_creator():
         # 2. REALTIME STATS ARE ENABLED
         # 3. STATS PERIOD IS REGULAR SEASON
         # -----------------------------------
-        player_realtime_game_logs, latest_player_game_boxscore_data = get_player_realtime_game_stats_and_game_boxscore(
+        player_realtime_game_logs, latest_player_game_boxscore_data, is_game_already_included_in_statline = get_player_realtime_game_stats_and_game_boxscore(
             year=year,
             bref_stats=statline,
             stats_period=stats_period,
             is_disabled=disable_realtime,
         )
+        if player_realtime_game_logs:
+            # UPDATE SOURCE
+            data_source += ', MLB Stats API'
         
         # -----------------
         # 3. RUN SHOWDOWN CARD
@@ -357,7 +360,7 @@ def card_creator():
         original_statline = copy.deepcopy(statline)
         original_stats_period = stats_period.model_copy(deep=True)
         showdown_card = ShowdownPlayerCard(
-            name=name, year=year, stats=statline, realtime_game_logs=player_realtime_game_logs,
+            name=name, year=year, stats=statline, realtime_game_logs=None if is_game_already_included_in_statline else player_realtime_game_logs,
             set=set, era=era, stats_period=stats_period, player_type_override=scraper.player_type_override, chart_version=chart_version,
             is_variable_speed_00_01=is_variable_speed_00_01, date_override=date_override, is_running_on_website=True, 
             source=data_source, ignore_cache=ignore_cache, warnings=scraper.warnings,

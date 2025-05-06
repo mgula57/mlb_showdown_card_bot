@@ -121,12 +121,15 @@ def main():
     # 2. REALTIME STATS ARE ENABLED
     # 3. STATS PERIOD IS REGULAR SEASON
     # -----------------------------------
-    player_realtime_game_logs, latest_player_game_boxscore_data = get_player_realtime_game_stats_and_game_boxscore(
+    player_realtime_game_logs, latest_player_game_boxscore_data, is_game_already_included_in_statline = get_player_realtime_game_stats_and_game_boxscore(
         year=year,
         bref_stats=statline,
         stats_period=stats_period,
         is_disabled=args.disable_realtime,
     )
+    if player_realtime_game_logs:
+        # UPDATE SOURCE
+        data_source += ', MLB Stats API'
 
     # -----------------------------------
     # BUILD AS WOTC CARD IF FLAGGED
@@ -166,7 +169,7 @@ def main():
             year=year,
             stats_period=stats_period,
             stats=statline,
-            realtime_game_logs=player_realtime_game_logs,
+            realtime_game_logs=None if is_game_already_included_in_statline else player_realtime_game_logs,
             set=set,
             era=args.era,
             chart_version=args.chart_version,
