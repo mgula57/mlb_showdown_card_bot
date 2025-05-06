@@ -51,6 +51,14 @@ let generic_in_season_data = {
 // METHODS
 // -------------------------------------------------------
 
+function toTitleCase(str) {
+    return str
+        .toLowerCase()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
 // VALIDATE FORM
 function validate_form(ignoreAlert) {
     // ENSURE THAT REQUIRED FIELDS ARE FILLED OUT
@@ -1051,7 +1059,7 @@ $(function () {
         if (is_valid || is_random_card) {
 
             // NAME AND YEAR
-            var name = (is_random_card === true) ? 'Random Player' : $('input[name="name"]').val();
+            var name = (is_random_card === true) ? 'Random Player' : toTitleCase($('input[name="name"]').val());
             var year = $('input[name="year"]').val();
 
             // CHART ALTERNATES
@@ -1069,10 +1077,7 @@ $(function () {
                     elements.push(`from ${year}`);
                 }
                 if (elements.length < 1 && era !== 'DYNAMIC') {
-                    const eraTitled = era.toLowerCase()
-                                        .split(' ')
-                                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                                        .join(' ');
+                    const eraTitled = toTitleCase(era);
                     elements.push(`during ${eraTitled}`);
                 }
                 if (edition == "CC") {
