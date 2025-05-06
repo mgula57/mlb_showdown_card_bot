@@ -774,7 +774,7 @@ function showCardData(data) {
         // ADD CHANGE IN POINTS
         const points_change = data.game_boxscore_data?.change_in_points ?? 0;
         if (points_change !== 0) {
-            const points_change_text = (points_change >= 0) ? `▲${points_change} PTS` : `▼${points_change} PTS`;
+            const points_change_text = (points_change >= 0) ? `▲${points_change} PTS` : `▼${Math.abs(points_change)} PTS`;
             $("#game_boxscore_player_points_change").text(points_change_text);
             $("#game_boxscore_player_points_change").css("color", (points_change >= 0) ? "green" : "red");
         } else {
