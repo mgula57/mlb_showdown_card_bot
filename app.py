@@ -439,12 +439,13 @@ def card_creator():
             in_season_trends_data = {}
             year = showdown_card.year_list[0]
             player_first_date = convert_to_date(game_log_date_str=game_logs[0].get('date', game_logs[0].get('date_game', None)), year=year)
-            player_first_date = max(player_first_date, datetime(year=int(year), month=4, day=1).date())
             player_last_date = convert_to_date(game_log_date_str=game_logs[-1].get('date', game_logs[-1].get('date_game', None)), year=year)
             date_ranges = StatsPeriodDateAggregation.WEEK.date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date)
             for dr in date_ranges:
                 start_date, end_date = dr
                 end_date_str = end_date.strftime('%Y-%m-%d')
+                end_date_minimum = min(datetime(year=int(year), month=4, day=1), datetime.now()).date()
+                if end_date < end_date_minimum: continue # SKIP EARLY SEASON
                 try:
                     weekly_card = ShowdownPlayerCard(
                         name=name, year=str(year), stats=statline, set=set, era=era,
