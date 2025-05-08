@@ -4,18 +4,17 @@ from typing import Union, Optional
 from collections import ChainMap
 from pprint import pprint
 from operator import itemgetter
-import pandas as pd
 import numpy as np
-import os
-from pathlib import Path
 import math
 
 try:
     from .value_range import ValueRange
     from .metrics import Stat
+    from .mlb_season_averages import MLB_SEASON_AVGS
 except ImportError:
     from value_range import ValueRange
     from metrics import Stat
+    from mlb_season_averages import MLB_SEASON_AVGS
 
 # ---------------------------------------
 # CHART CATEGORY
@@ -276,6 +275,7 @@ class Chart(BaseModel):
     is_command_out_anomaly: bool = False
     chart_categories_adjusted: list[ChartCategory] = []
     command_estimated: float = None
+    slot_values: dict[int, float] = {}
 
     # SPECIAL FLAGS
     is_baseline: bool = False
@@ -298,11 +298,12 @@ class Chart(BaseModel):
 
         # CONVERT FROM WOTC DATA
         if self.is_wotc_conversion:
+            self.slot_values = self.__generate_slot_values()
             self.generate_values_and_results_from_wotc_data(results_list=wotc_chart_results)
 
         # POPULATE ESTIMATED COMMAND
         if self.command_estimated is None and not self.is_baseline and not self.is_wotc_conversion:
-            self.command_estimated = self.calculate_estimated_command(mlb_avgs_df=data.get('mlb_avgs_df', None))
+            self.command_estimated = self.calculate_estimated_command()
 
         # MAKE SURE BOTH OUTS AND OUTS_FULL ARE POPULATED
         if self.outs > 0 and self.outs_full == 0:
@@ -310,6 +311,7 @@ class Chart(BaseModel):
 
         # POPULATE VALUES DICT
         if len(self.values) == 0:
+            self.slot_values = self.__generate_slot_values()
             self.generate_values_and_results()
 
         # MAKE SURE BOTH OUTS AND OUTS_FULL ARE POPULATED
@@ -382,8 +384,7 @@ class Chart(BaseModel):
     def onbase_results(self) -> float | int:
         return sum([v for k,v in self.values.items() if not k.is_out])
 
-    @property
-    def slot_values(self) -> dict[int, float]:
+    def __generate_slot_values(self) -> dict[int, float]:
         
         # EACH SLOT IS WORTH 1 FOR CLASSIC
         if not self.has_over_21_slot_values:
@@ -663,7 +664,7 @@ class Chart(BaseModel):
                                 add_results_to_dict(category=ChartCategory.GB, num_results=gb_results, current_chart_index=current_chart_index)
                                 current_chart_index += gb_results
                 
-                self.values[chart_category] = values
+                self.values[chart_category] = round(values, 4)
                 add_results_to_dict(category=chart_category, num_results=results, current_chart_index=current_chart_index)
                 current_chart_index += (results * -1 if chart_category.is_filled_in_desc_order else results)
                 
@@ -722,6 +723,11 @@ class Chart(BaseModel):
         # ------------------------------
         if self.set == '2002':
             self.__apply_2002_post_20_adjustments()
+
+        # ------------------------------
+        # ROUND VALUES TO 4 DECIMALS
+        # ------------------------------
+        self.values = { k: round(v, 4) for k, v in self.values.items() }
 
         return
 
@@ -815,11 +821,11 @@ class Chart(BaseModel):
 
         # SKIP ROUNDING IF CATEGORY IS NONE (EX: OUTS) OR CHART IS NOT EXPANDED
         if category is None or not self.is_expanded:
-            return raw_value, raw_results
+            return round(raw_value, 4), raw_results
         
         # ROUND TO NEAREST SLOT WORTH
         if category.is_out or current_chart_index is None:
-            return raw_value, raw_results
+            return round(raw_value, 4), raw_results
         
         # ITERATE THROUGH EACH SLOT WORTH RESULT AND ROUND
         end = 1 if category.is_filled_in_desc_order else self.total_possible_slots
@@ -844,7 +850,7 @@ class Chart(BaseModel):
             num_results += 1
             diff_last_index = new_potential_value_vs_original
         
-        return values_total, num_results
+        return round(values_total, 4), num_results
 
     def generate_range_strings(self) -> None:
         """Use the current chart results list to generate string representations for the chart.
@@ -897,7 +903,7 @@ class Chart(BaseModel):
     def update_outs_from_values(self) -> None:
         """Update outs based on values"""
         out_value_list = [v for k,v in self.values.items() if k.is_out]
-        self.outs = sum(out_value_list) if len(out_value_list) > 0 else 0
+        self.outs = round(sum(out_value_list) if len(out_value_list) > 0 else 0, 3)
         self.update_outs_full()
 
     def update_outs_full(self) -> None:
@@ -1580,7 +1586,7 @@ class Chart(BaseModel):
                         y_int = -1.90
         return x, y_int
 
-    def calculate_estimated_command(self, mlb_avgs_df: pd.DataFrame = None) -> float:
+    def calculate_estimated_command(self) -> float:
         """
         Estimated command based on wotc formulas and real OBP. Store in self. 
         Only applies to 2003+ sets.
@@ -1594,21 +1600,17 @@ class Chart(BaseModel):
         # ONLY APPLY TO 2003+ SETS
         if self.set not in ['2003', '2004', '2005', 'EXPANDED']:
             return None
-        
-        # LOAD MLB AVGS
-        if mlb_avgs_df is None:
-            mlb_avgs_df = self.load_mlb_league_avg_df()
 
         # ADJUST FORMULA BASED ON ERA
         # START BY GETTING AVGS FOR WOTC SET YEAR
-        mlb_avgs_wotc_set = self.__avg_mlb_stats_dict_for_years(year_list=[self.set_year], mlb_avgs_df=mlb_avgs_df)
+        mlb_avgs_wotc_set = self.__avg_mlb_stats_dict_for_years(year_list=[self.set_year])
         x_factor, y_int = self.__estimated_command_x_and_y_const
         wotc_set_year_obp = mlb_avgs_wotc_set.get('OBP', 0)
         command_for_avg_wotc_obp = estimate_command_from_wotc(x_factor, y_int, wotc_set_year_obp)
                 
         # GET AVG OBP IN PLAYER'S ERA
         years = self.era_year_list
-        mlb_avgs = self.__avg_mlb_stats_dict_for_years(year_list=years, mlb_avgs_df=mlb_avgs_df)
+        mlb_avgs = self.__avg_mlb_stats_dict_for_years(year_list=years)
         player_year_avg_obp = mlb_avgs.get('OBP', 0)
 
         # IF YEAR IS SAME AS WOTC, DON'T ADJUST THE X_FACTOR
@@ -1649,27 +1651,41 @@ class Chart(BaseModel):
     # ERA ADJUSTMENT
     # ---------------------------------------
 
-    def __avg_mlb_stats_dict_for_years(self, year_list:list[int], mlb_avgs_df:pd.DataFrame = None) -> dict:
+    def __avg_mlb_stats_dict_for_years(self, year_list:list[int]) -> dict:
         """Get average MLB stats for a list of years"""
-        if mlb_avgs_df is None: mlb_avgs_df = self.load_mlb_league_avg_df()
 
-        # IF NO AVERAGES EXIST YEAR, TAKE PRIOR YEAR
-        if len(year_list) == 1 and year_list[0] > max(mlb_avgs_df['Year']):
-            last_year = year_list[0] - 1
-            mlb_avgs_df.loc[mlb_avgs_df['Year'] == last_year, 'Year'] = year_list[0]
+        # HELPERS
+        max_year_mlb_avgs = max(MLB_SEASON_AVGS.keys())
+        num_years_card = len(year_list)
+        max_year_card = max(year_list) if len(year_list) > 0 else 0
 
-        mlb_avgs_df = mlb_avgs_df[mlb_avgs_df['Year'].isin(year_list)]
-        mlb_avgs = mlb_avgs_df.mean().to_dict()
+        # IF SINGLE YEAR, TAKE ACTUALS FOR THAT YEAR OR THE PREVIOUS YEAR
+        if num_years_card == 1:
+            year = min(max_year_card, max_year_mlb_avgs)
+            return MLB_SEASON_AVGS.get(year, {})
+        
+        # IF MULTIPLE YEARS, TAKE AVERAGE OF THE YEARS
+        # FILTER MLB AVERAGES FOR THE YEARS
+        all_years: dict[int, dict[str, float | int]] = {k: v for k, v in MLB_SEASON_AVGS.items() if k in year_list}
+        if len(all_years) == 0:
+            return {}
+        
+        # AVERAGE THE VALUES
+        mlb_avgs:dict[str, list[float | int]] = {}
+        for year_data in all_years.values():
+            for key, value in year_data.items():
+                if isinstance(value, (int, float)):  # Ensure the value is numeric
+                    if value is None: continue
+                    existing_value = mlb_avgs.get(key, [])
+                    existing_value.append(value)
+                    mlb_avgs[key] = existing_value
+        for key, values in mlb_avgs.items():
+            if isinstance(values, list) and len(values) > 0:
+                mlb_avgs[key] = round(sum(values) / len(values), 4)
+            else:
+                mlb_avgs[key] = None
+        
         return mlb_avgs
-
-    def load_mlb_league_avg_df(self) -> pd.DataFrame:
-        """Load MLB Averages for chart"""
-        mlb_avgs_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'data', 'mlb_averages.csv')
-        mlb_avgs_df = pd.read_csv(mlb_avgs_path)
-        for col in mlb_avgs_df.columns:
-            if col != 'Year':
-                mlb_avgs_df[col] = mlb_avgs_df[col].astype(float)
-        return mlb_avgs_df
 
     def wotc_set_adjustment_factor(self, for_hitter_chart:bool) -> float:
         """Get adjustment factor for WOTC set"""
@@ -1706,8 +1722,6 @@ class Chart(BaseModel):
             stat_during_wotc = round(mlb_avgs_wotc_set.get(stat, None) * (1 + wotc_set_adjustment_factor), 4)
             
             stat_to_adjust_to = mlb_avgs.get(stat, default_value)
-            if np.isnan(stat_to_adjust_to):
-                stat_to_adjust_to = default_value
             stat_avg = (stat_to_adjust_to + stat_during_wotc) / 2
             diff_reduced = (stat_to_adjust_to - stat_during_wotc) * diff_reduction_multiplier
             pct_change = ( diff_reduced / stat_avg )
@@ -1723,13 +1737,11 @@ class Chart(BaseModel):
             if self.set_year == year_list[0]:
                 return
         
-        mlb_avgs_df = self.load_mlb_league_avg_df()
-
         # FILTER FOR ORIGINAL YEAR
-        mlb_avgs_wotc_set = self.__avg_mlb_stats_dict_for_years(year_list=[self.set_year], mlb_avgs_df=mlb_avgs_df)
+        mlb_avgs_wotc_set = self.__avg_mlb_stats_dict_for_years(year_list=[self.set_year])
 
         # FILTER YEAR COLUMN IN YEAR LIST
-        mlb_avgs = self.__avg_mlb_stats_dict_for_years(year_list=year_list, mlb_avgs_df=mlb_avgs_df)
+        mlb_avgs = self.__avg_mlb_stats_dict_for_years(year_list=year_list)
 
         # DEFINE ADJUSTMENT FACTOR
         # 50% BECAUSE OPPOSITE TYPE AND COMMAND ARE ALSO ADJUSTED

@@ -162,7 +162,9 @@ class ShowdownPlayerCard(BaseModel):
         self.stats = self.clean_stats(stats=self.stats)
 
         # ADD NICKNAMES
-        self.nicknames = self.extract_player_nicknames_list()
+        # ONLY RUN ON WEBSITE FOR OPTIMIZATION PURPOSES
+        if self.is_running_on_website:
+            self.nicknames = self.extract_player_nicknames_list()
 
         # HANDLE GAME LOGS IF APPLICABLE
         game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
@@ -1737,7 +1739,6 @@ class ShowdownPlayerCard(BaseModel):
         # SET CONSTANTS
         year_list = self.year_list if not self.is_alternate_era else self.era.year_range
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True)
-        mlb_avgs_df = opponent.load_mlb_league_avg_df()
         pa = self.stats_for_card.get('pa', 400)
         
         command_options = list(set([ c for c in self.set.command_options(player_type=self.player_type) if c not in self.commands_excluded]))
@@ -1770,7 +1771,6 @@ class ShowdownPlayerCard(BaseModel):
                     is_pitcher=self.is_pitcher,
                     player_subtype=self.player_sub_type.value,
                     command_accuracy_weight=command_accuracy_weight,
-                    mlb_avgs_df=mlb_avgs_df,
                 )
 
                 # IF COMMAND OUT COMBO HAS ALREADY BEEN CALC'D PREVIOUSLY, SKIP
@@ -1793,7 +1793,6 @@ class ShowdownPlayerCard(BaseModel):
                 stats_per_400_pa=stats_per_400_pa,
                 is_pitcher=self.is_pitcher,
                 player_subtype=self.player_sub_type.value,
-                mlb_avgs_df=mlb_avgs_df
             )
             chart.accuracy = 1.0
             charts.append(chart)
