@@ -367,7 +367,7 @@ Innings pitched is calculated based a Pitcher's innings pitched / games played (
 - STARTER: IP/GS
 - RELIEVER: (IP - (GS * IP/GS)) / (G-GS)
 
-Ex: Nestor Cortes (2021) (RELIEVER)
+Ex: Ranger Suarez (2021) (RELIEVER)
 ```
 Stats:
     G: 39
