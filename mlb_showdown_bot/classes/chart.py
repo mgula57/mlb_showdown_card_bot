@@ -1721,7 +1721,7 @@ class Chart(BaseModel):
         def mlb_pct_change_between_eras(stat: str, diff_reduction_multiplier:float = 1.0, default_value:float = None, ignore_pitcher_flip:bool = False, wotc_set_adjustment_factor:float = 0.0) -> float:
             stat_during_wotc = round(mlb_avgs_wotc_set.get(stat, None) * (1 + wotc_set_adjustment_factor), 4)
             
-            stat_to_adjust_to = mlb_avgs.get(stat, default_value)
+            stat_to_adjust_to = mlb_avgs.get(stat, None) or default_value
             stat_avg = (stat_to_adjust_to + stat_during_wotc) / 2
             diff_reduced = (stat_to_adjust_to - stat_during_wotc) * diff_reduction_multiplier
             pct_change = ( diff_reduced / stat_avg )
