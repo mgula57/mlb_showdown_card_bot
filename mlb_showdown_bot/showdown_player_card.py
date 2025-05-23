@@ -195,7 +195,9 @@ class ShowdownPlayerCard(BaseModel):
         self.player_sub_type = self.calculate_player_sub_type()
         self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', 0))
         self.hand: Hand = self.__handedness(hand_raw=self.stats_for_card.get('hand', None))
-        self.speed: Speed = self.__speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=self.stats_for_card.get('SB', 0) / ( self.stats_for_card.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
+        sb_safe = self.stats_for_card.get('SB', 0) if len(str(self.stats_for_card.get('SB',''))) > 0 else 0
+        pa_safe = self.stats_for_card.get('PA', 0) if len(str(self.stats_for_card.get('PA',''))) > 0 else 0
+        self.speed: Speed = self.__speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=sb_safe / ( pa_safe / 650.0 ), is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
         self.accolades: list[str] = self.parse_accolades()
         self.icons: list[Icon] = self.__icons(awards=self.stats_for_card.get('award_summary',''))
 
