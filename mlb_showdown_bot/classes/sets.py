@@ -221,7 +221,7 @@ class Set(str, Enum):
         match position:
             case Position.CA:
                 match self:
-                    case Set._2001: return 10
+                    case Set._2001: return 10.5
                     case _: return 11
             case Position._1B: return 1
             case Position._2B: 
@@ -231,7 +231,7 @@ class Set(str, Enum):
             case Position._3B: 
                 match self:
                     case Set.EXPANDED | Set.CLASSIC: return 4.0
-                    case _: return 3.25
+                    case _: return 3.50
             case Position.SS:
                 match self:
                     case Set._2000: return 5.5
