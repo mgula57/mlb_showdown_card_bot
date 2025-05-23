@@ -197,7 +197,8 @@ class ShowdownPlayerCard(BaseModel):
         self.hand: Hand = self.__handedness(hand_raw=self.stats_for_card.get('hand', None))
         sb_safe = self.stats_for_card.get('SB', 0) if len(str(self.stats_for_card.get('SB',''))) > 0 else 0
         pa_safe = self.stats_for_card.get('PA', 0) if len(str(self.stats_for_card.get('PA',''))) > 0 else 0
-        self.speed: Speed = self.__speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=sb_safe / ( pa_safe / 650.0 ), is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
+        sb_per_650_pa = sb_safe / (pa_safe / 650.0) if pa_safe > 0 else 0
+        self.speed: Speed = self.__speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=sb_per_650_pa, is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
         self.accolades: list[str] = self.parse_accolades()
         self.icons: list[Icon] = self.__icons(awards=self.stats_for_card.get('award_summary',''))
 
