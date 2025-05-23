@@ -1621,7 +1621,7 @@ class ShowdownPlayerCard(BaseModel):
                 accolades_rank_and_priority_tuples.append( (f"{hr} {hr_suffix}", 50, hr_priority) )
                 
             # RBI
-            rbi = self.stats_for_card.get('RBI', 0)
+            rbi = self.stats_for_card.get('RBI', 0) if len(str(self.stats_for_card.get('RBI', 0))) > 0 else 0
             if (rbi / num_seasons) >= 100 and not self.is_substring_in_list('RBI',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{rbi} RBI", 51, default_stat_priority) )
             # HITS
