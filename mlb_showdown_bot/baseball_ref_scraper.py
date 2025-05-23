@@ -182,7 +182,7 @@ class BaseballReferenceScraper:
 
         # SET RESULT LIMIT TO INCREASE SPEED AND MINIMIZE ERRORS
         result_limit = 4
-        url_search_name_and_year = 'https://www.google.com/search?q=baseball+reference+{}+{}+stats&num={}'.format(name_for_url, year, result_limit)
+        url_search_name_and_year = f'https://www.bing.com/search?q=baseball+reference+{name_for_url}+{year}+stats&count={result_limit}'
         soup_search_name_and_year = self.__soup_for_url(url_search_name_and_year)
 
         last_initial = self.__name_last_initial(name)
