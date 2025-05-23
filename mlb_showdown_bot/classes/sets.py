@@ -1206,6 +1206,13 @@ class Set(str, Enum):
     def stat_highlight_container_size(self, is_year_and_stats_period_boxes:bool=False, is_expansion:bool=False, is_set_number:bool=False, is_period_box:bool=False, is_multi_year:bool=False, is_full_career:bool=False) -> str:
         """ Return size class for stat highlight container (ex: LARGE, MEDIUM, SMALL) """
         match self.value:
+            case '2000' | '2001':
+                if is_year_and_stats_period_boxes and is_expansion:
+                    return 'SMALL'
+                elif (is_period_box and is_expansion) or is_year_and_stats_period_boxes:
+                    return 'MEDIUM'
+                else:
+                    return 'LARGE'
             case 'CLASSIC' | 'EXPANDED':
                 # NOTE: PERIOD BOX IS COUNTED TWICE
                 num_extra_spaces = len([b for b in [is_set_number, is_expansion, is_period_box, is_period_box, is_multi_year or is_full_career] if b])
@@ -1215,7 +1222,6 @@ class Set(str, Enum):
                     case 2: return 'MEDIUM'
                     case 0 | 1: return 'LARGE'
                     case _: return 'SMALL'
-            case '2003': return 'MEDIUM' if is_year_and_stats_period_boxes else 'LARGE'
             case _: return 'LARGE'
 
     @property
