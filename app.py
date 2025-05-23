@@ -324,6 +324,13 @@ def card_creator():
         yearly_archive_data = postgres_db.fetch_all_player_year_stats_from_archive(bref_id=scraper.baseball_ref_id, type_override=scraper.player_type_override)
         if not ignore_cache:
             archived_data, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
+            # VALIDATE THAT ARCHIVE STATS ARE NOT EMPTY WHEN USING GAME LOGS
+            # APPLIES TO DATE RANGE AND POST SEASON
+            if archived_data and (scraper.stats_period or stats_period).type.uses_game_logs:
+                # CHECK IF ARCHIVE STATS ARE EMPTY
+                game_logs = archived_data.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, []) or []
+                if len(game_logs) == 0:
+                    archived_data = None     
         postgres_db.close_connection()
 
         # CHECK FOR ARCHIVED STATLINE. IF IT DOESN'T EXIST, QUERY BASEBALL REFERENCE / BASEBALL SAVANT
