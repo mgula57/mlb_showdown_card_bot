@@ -3,7 +3,7 @@
 
 [Showdown Bot](https://showdownbot.com) is the simplest way of creating custom MLB Showdown cards. Simply enter a player's **name**, **season**, and **image**. The Showdown Bot takes care of the rest. 
 
-![](./static/interface/Example.gif)
+![](./static/interface/RM-Demo.gif)
 
 ----
 
@@ -117,13 +117,13 @@ showdown.card_image(show=True)
 
 At minimum, the bot takes a player's NAME and SEASON as inputs. The first step is identifying which player the user is trying to create a card for. 
 
-Included in the Bot's files is a mapping of Player Name (ex: Jacob DeGrom) -> Baseball Reference Id (ex: degroja01). The Bot will use this mapping if the entered name matches ONE player in the mapping file.
+Included in the Bot's files is a mapping of Player Name (ex: Jacob DeGrom) -> Baseball Reference Id (ex: degroja01) and their years played. The Bot will use this mapping to try to find the closest name/year match.
 
-Because there have been around 20,000 unique players in the history of the MLB, there are cases of multiple players sharing the same name (ex: Frank Thomas _(1951-1966)_ and Frank Thomas _(1990-2008)_).
+If there is no match, the bot searches the phrase **"baseball reference {name} {year}"**. (Ex: "RM-"). Using Bing's indexing algorithm, the bot chooses the first search result and derives the player's unique baseball reference id from it. 
 
-To solve for this, the bot first searches the phrase **"baseball reference {name} {year}"**. (Ex: "baseball reference frank thomas 1994"). Using Google's indexing algorithm, the bot chooses the first search result and derives the player's unique baseball reference id from it. 
+![Image](./static/interface/RM-BingSearch.png)
 
-![Image](./static/interface/GoogleSearch.png)
+_**TIP:** If the Bot throws an error for a player/year combination you know to be valid, try entering their baseball reference player ID (ex: degroja01) as the name._
 
 ### Gather Player Data
 
@@ -132,11 +132,11 @@ The bot uses [Baseball Reference](https://www.baseball-reference.com) as it's so
 Stats are extracted from the the baseball reference page for the player id selected in the previous step. Stats like batting average, home runs, and defensive metrics (tzr/drs) are extracted only for the chosen season(s). For pitchers, opponent batting results are used (ex: batting average against). 
 
 Some of this player data is unavailable for certain years or timeframes. Below is a list of unsupported time periods:
-1. Postseason (no batting against data)
-2. Minor Leagues (no batting against data)
-3. Spring Training (no batting against data)
+1. Minor Leagues (no batting against data)
+2. Spring Training (no batting against data)
+3. Foreign Leagues (ex: NPB)
 
-If the selected season occured after 2015, sprint speed is also extracted from [Baseball Savant](https://baseballsavant.mlb.com/sprint_speed_leaderboard). A player's average sprint speed is used to determine in-game SPEED.
+If the selected season occured after 2015, sprint speed and outs above avg are also extracted from [Baseball Savant](https://baseballsavant.mlb.com/sprint_speed_leaderboard).
 
 ### Overrides
 
@@ -253,7 +253,7 @@ All Sets Use these categories of comparison for accuracy:
 
 For expanded sets after 2002, WOTC used a linear scale to help determine command based on real OBP. This is different than other sets that allowed more low command, high out cards (ex: 2C, 19 Out). See the graph below for a scatterplot of 2004 pitcher command vs real OBP. Most pitchers follow the same formula with the exception of a few outliers.
 
-![Image](./static/interface/2004PitcherCommandGraph.png)
+![Image](./static/interface/RM-2004PitcherCommandGraph.png)
 
 The Bot follows a similar formula but allows more flexibility and probability of these outlier command/out combinations (ex: 1C, 20 Out) as long as the expected OPS accuracy meets a certain threshold. Usually these *outlier charts* will have their baseline accuracy reduced by 1-5% to reduce the volume of outliers. It will also adjust the scale across Eras where league avg OBP values change compared to the Steroid Era. The estimated command is then used as an accuracy category.
 
@@ -291,16 +291,18 @@ In-game defensive ratings are calculated based on either Outs Above Avg (OAA), T
 - 2003-2015: DRS
 - 2016-PRES: OAA (EXCEPT CATCHERS)
 
-All these metrics work by comparing a certain player to the average replacement at that position (0). For example a +10 TZR is an above average rating, while a -7 TZR is below average.
+All these metrics work by comparing a certain player to the average replacement at that position (0). For example a +10 TZR is an above average rating, while a -7 TZR is below average. 
 
-The player's in-game rating is calculated with a percentile within a range. The player's in-game rating is calculated based on that percentile multiplied by the highest rating for each position (Ex: **3B: +4**, **SS: +5**, **LF/RF: +2**).
+All metrics are normalized to a per 150 game rating. Small sample sizes are adjusted when a player's rating falls outside the normal range after adjusting to 150 games.
 
-Ex: David Wright 2007 (+12 DRS)
+The player's in-game rating is calculated with a percentile within a range. The player's in-game rating is calculated based on that percentile multiplied by the highest rating for each position (Ex: **SS: +5**, **LF/RF: +2**).
+
+Ex: Francisco Lindor 2016 (+10 DRS in 155 games) in 2001 set
 ```
-* 3B Rating = Percentile * 3B In-Game Max  
-* 3B Rating = 0.8 * 4
-* 3B Rating = 3.2
-* 3B Rating = +3
+* SS Rating = Percentile * SS In-Game Max
+* SS Rating = 0.911 * 5
+* SS Rating = 4.55
+* SS Rating = +5
 ```
 
 For multi-year cards, the bot will take an average or median depending on which metric is used. Below is the breakdown for each metric.
@@ -539,6 +541,7 @@ shOPS+ takes a player's projected in-game OPS and normalizes it across the entir
 
 For example, Yandy Diaz's 2022 **CLASSIC** card (10 Onbase) had a projected .838 OPS, which was 48% better than the 2022 MLB average after being adjusted to account for higher control pitching. As a result, his shOPS+ was 148.
 
+The `Command Adjustment Factor` is a way for shOPS+ to account for normal Showdown draft tendencies. Managers tend to weight gaining the advantage over number of outs on their player's chart. One player's stats against the "avg" player in a set may not match the typical card drafted in a real Showdown draft setting.
 
 **Calculation:**
 
@@ -546,18 +549,6 @@ For example, Yandy Diaz's 2022 **CLASSIC** card (10 Onbase) had a projected .838
 ```
 ((PLAYER_PROJ_OBP / LEAGUE_AVG_PROJ_OBP) + (PLAYER_PROJ_SLG * COMMAND_ADJUSTMENT_FACTOR / LEAGUE_AVG_PROJ_SLG) - 1) x 100
 ```
-
-**How does the Command Adjustment work?**
-
-The `Command Adjustment Factor` is a way for shOPS+ to account for normal Showdown draft tendencies. Managers tend to weight gaining the advantage over number of outs on their player's chart. One player's stats against the "avg" player in a set may not match the typical card drafted in a real Showdown draft setting.
-
-For example, let's compare **Mike Clevinger** vs **Blake Snell** in the **CLASSIC** set.
-
-![Image](./static/interface/shOPSComparison.png)
-
-These 2 cards have very similar projected OPS against (Clevinger having the slight edge at .622 vs Snell's .625), meaning their non-adjusted shOPS+ numbers are similar (Clevinger at 116, Snell at 114).
-
-Most Showdown managers however would see a larger difference between these 2 cards, as Mike Clevinger's +4 Control performs significantly better against higher Onbase opponents, especially with no 2B on his chart. shOPS+ accounts for that, applying a **1.04** adjustment factor to Clevinger's SLG and a **0.94** to Snell. This results in a larger disparity between the 2 pitchers, with Clevinger ending with a 120 shOPS+ vs Snell's 108.
 
 ## **Editions**
 
@@ -572,7 +563,7 @@ Use Editions to add style variety to your cards. There are currently 6 different
 
 ### **Cooperstown Collection**
 
-![Image](./static/interface/CooperstownPlayers.png)
+![Image](./static/interface/RM-CooperstownPlayers.png)
 
 Cooperstown theme is available on all sets. It replaces the player's team logo with a the official Cooperstown Collection logo, changes the template color in 04/05 sets, and some certain players adds new player art.
 
@@ -580,7 +571,7 @@ Custom player art is available in 2003, 2004, and 2005 sets. CLASSIC/EXPANDED se
 
 ### **Super Season**
 
-![Image](./static/interface/SuperSeasonPlayers.png)
+![Image](./static/interface/RM-SuperSeasonPlayers.png)
 
 Super Seasons highlight outstanding single season performances throughout baseball history. A custom super season logo may replace the player's team logo, and certain years add a list of up to 3 accolades. 2004 and 2005 sets feature a special red template, as well as a grid pattern in the background of all showdown library sourced player images.
 
@@ -668,7 +659,7 @@ bWAR   | -           |     -             |    -
 
 Here is an example of how the Bot ranks accolades for 1999 Chipper Jones:
 
-![Image](./static/interface/SuperSeasonAccolades.png)
+![Image](./static/interface/RM-SuperSeasonAccolades.png)
 
 Rank | 2000-2002 Sets        | 2003-2005 Sets
 ---  | ----------------------| --------------
@@ -692,7 +683,7 @@ Note that in the final version for the 2004 set, _NL MVP_ is shown despite it be
 
 ### **Nationality**
 
-![Image](./static/interface/NationalityPlayers.png)
+![Image](./static/interface/RM-NationalityPlayers.png)
 
 Replaces a player's MLB team with their birthplace country. Adds a custom background for all sets that is inspired by WOTC promo cards. For automated images, there will be some World Baseball Classic player images available.
 
@@ -724,25 +715,25 @@ List of supported countries:
 
 ### **All-Star Game**
 
-![Image](./static/interface/AllStarPlayers.png)
+![Image](./static/interface/RM-AllStarPlayers.png)
 
 All Star Game logos are available on all sets for all seasons since 1980. Since 2021, custom background art and is available and will continued to be updated every year.
 
 ### **Rookie Season**
 
-![Image](./static/interface/RookiePlayers.png)
+![Image](./static/interface/RM-RookiePlayers.png)
 
-Rookie Season replaces a player's team logo with a custom rookie season icon. Some players in CLASSIC/EXPANDED sets also have special edition flashback card art shown above.
+Rookie Season replaces a player's team logo with a custom rookie season icon.
 
 ### **Holiday**
 
-![Image](./static/interface/HolidayPlayers.png)
+![Image](./static/interface/RM-HolidayPlayers.png)
 
 The Holiday theme adds a simple Christmas Tree inspired border to any card. This includes user uploaded photos, automated images, and silhouettes. 
 
 ### **Postseason**
 
-![Image](./static/interface/Postseason.png)
+![Image](./static/interface/RM-Postseason.png)
 
 Adds postseason logo to images. Only available when the Postseason period is selected.
 
@@ -756,15 +747,13 @@ Adds postseason logo to images. Only available when the Postseason period is sel
 The CLASSIC/EXPANDED set designs takes elements from classic MLB Showdown sets and add a modern twist, resulting in a streamlined design that will look great with any background image. Chart and Command colors will change from team to team, creating a blend of 2000/2001's color with 2004/2005's simplicity.
 
 
-![Image](./static/interface/Example2022Headliner.png)
-
-
+![Image](./static/interface/RM-ExampleSBSetHeadliner.png)
 
 ### **Styles**
 
 These sets are split between **Classic** and **Expanded** styles, with the goal of offering modern cards to every type of Showdown fan. The Classic style is most compatible with 2000/2001 sets, while Expanded fits with 2002-2005 sets. You will see a visual indicator of the card style in the bottom left of each card.
 
-![Image](./static/interface/Example2022SetDifference.png)
+![Image](./static/interface/RM-SBSetDifference.png)
 
 ### **Classic**
 
@@ -792,14 +781,11 @@ Changes from 2005 set:
 
 There is now an additional option for **Dark Mode**, available on all sets. Works with any player!
 
-![Image](./static/interface/Example2022LightVsDark.png)
-
-
-<img align="right" src="./static/interface/ShowdownLibraryLogo.png" width="90">
+![Image](./static/interface/RM-LightVsDark.png)
 
 ## Parallels
 
-![Image](./static/interface/Parallels.png)
+![Image](./static/interface/RM-Parallels.png)
 
 **Image Parallels** add unique and bold designs to make Showdown cards pop! They work on all automated images and across all sets.
 
@@ -856,7 +842,7 @@ Certain stat inputs are unavailable for exact date ranges. The following stat in
 
 Filter to stats from a particular split on baseball reference. See player's "Splits" pages for available values. Name must match exactly.
 
-![Image](./static/interface/Splits.png)
+![Image](./static/interface/RM-Splits.png)
 
 Certain stat inputs are unavailable for splits. The following stat inputs will use full regular season values:
 - Sprint Speed
@@ -917,6 +903,9 @@ Replace the player's name with their nicknames sourced from [here](https://www.b
 
 Expands speed options for 2000 and 2001 sets to use the full range of numbers between 8 and 28.
 
+### Glow x2, x3
+Like more glow? Will add 2x or 3x the glow/shadow to automated images.
+
 ## Uploading Custom Images
 
 Tips for uploading your own custom images:
@@ -926,31 +915,6 @@ Tips for uploading your own custom images:
  - Showdown bot will center and crop your image for you, so make sure the player is centered in the original.
  - If image uploads fail, wait a few seconds and try again. Sometimes larger image will take 5-10 seconds to upload.
  - For 2000/2001, cut out the player image for best results. Add an outer glow to match the original sets. The team background will be added automatically.
-
-## Showdown Library 
-
-The Showdown Library is a backend system used to: 
-1. Store historical data. 
-2. Allow Showdown fans access to cards more efficiently.
-3. Power advanced features.
-4. Centralize Showdown Bot data into one location.
-
-It leverages the combination of Firebase's Realtime Database and the Google Drive API to deliver realtime Showdown Cards without the need for on-demand processing. 
-
-When a user submits a card on Showdown Bot, it will check to see if the user requested card is stored in the database, and if so will return the card and corresponding image in less than a second.
-
-There are some cases in which the Bot will leverage the data from Showdown Library, but will still need to generate an image live. 
-
-List of reasons it will not used pre-stored image:
-- No automated image exists.
-- Non V1 Card.
-- Custom set number
-- Has special edition (ex: CC, SS, RS)
-- Expansion does not match (ex: TD, PR)
-- Has variable speed ('00-'01 Only)
-- Is a Foil
-- Img Link was provided by the user
-- Img Upload was provided by the user
 
 ----
 ## Showdown Explorer

@@ -79,7 +79,7 @@ class ShowdownPlayerCard(BaseModel):
     bref_url: str = ''
     league: str | None = 'MLB'
     team: Team | None = Team.MLB
-    nationality: Nationality = Nationality.NONE
+    nationality: Nationality | None = Nationality.NONE
     player_type: PlayerType | None = None
     player_sub_type: Optional[PlayerSubType] = None
     player_type_override: Optional[PlayerType] = None
@@ -356,10 +356,10 @@ class ShowdownPlayerCard(BaseModel):
     
     @field_validator('nationality', mode='before')
     def parse_nationality(cls, nationality:Nationality, info:ValidationInfo) -> Nationality:
-        if nationality != Nationality.NONE:
+        if (nationality or Nationality.NONE) != Nationality.NONE:
             return nationality
         stats:dict = info.data.get('stats', {})
-        return Nationality(stats.get('nationality', None))
+        return Nationality(stats.get('nationality', Nationality.NONE))
 
     @field_validator('player_type_override', mode='before')
     def parse_player_type_override(cls, player_type_override:str) -> PlayerType:
@@ -1137,10 +1137,9 @@ class ShowdownPlayerCard(BaseModel):
         max_defense_for_position = self.set.position_defense_max(position=position)
         percentile = (rating - metric.range_min(position_str=position.value, set_str=self.set.value)) \
                         / metric.range_total_values(position_str=position.value, set_str=self.set.value)
-                        
+                   
         defense_raw = min_defense_for_position + ( percentile * (max_defense_for_position - min_defense_for_position) )
         defense = round(defense_raw) if defense_raw > 0 or self.set.is_showdown_bot else 0
-        
         # FOR NEGATIVES, CAP DEFENSE AT -2
         defense = max(self.set.defense_floor, defense)
 
@@ -3441,7 +3440,7 @@ class ShowdownPlayerCard(BaseModel):
             # DEFINE COLOR(S) FOR CHART CONTAINER
             team_override = self.team_override_for_images
             fill_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
-            is_multi_colored = self.image.is_multi_colored or ( self.image.special_edition == SpecialEdition.NATIONALITY and len(self.nationality.colors) > 2 )
+            is_multi_colored = self.image.is_multi_colored or ( self.image.special_edition == SpecialEdition.NATIONALITY and len(self.nationality.colors) > 1 )
 
             if is_multi_colored:
                 # GRADIENT
@@ -4063,7 +4062,7 @@ class ShowdownPlayerCard(BaseModel):
         set_image_location = self.set.template_component_paste_coordinates(TemplateImageComponent.SET)
         set_text_color = self.set.template_component_font_color(TemplateImageComponent.SET, is_dark_mode=self.image.is_dark_mode)
 
-        # IF USER DID NOT ASSIGN A ET NUMBER VALUE, ASSIGN THE SET'S DEFAULT
+        # IF USER DID NOT ASSIGN A SET NUMBER VALUE, ASSIGN THE SET'S DEFAULT
         set_number_visual = self.image.set_number or self.set.default_set_number(self.year)
 
         if self.set.has_unified_set_and_year_strings:

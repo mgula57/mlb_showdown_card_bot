@@ -264,7 +264,8 @@ def card_creator():
         name = request.args.get('name', '').title()
         year = str(request.args.get('year', ''))
         set = str(request.args.get('set', '')).upper()
-        set_number = str(request.args.get('set_num', None))
+        set_number = str(request.args.get('set_num', ''))
+        set_number = None if len(set_number) == 0 else set_number
         expansion = str(request.args.get('expansion', 'BS'))
         edition = str(request.args.get('edition', 'NONE'))
         era = str(request.args.get('era', 'DYNAMIC'))
