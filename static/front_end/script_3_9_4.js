@@ -974,8 +974,10 @@ $(document).ready(function() {
             // WHEN FRONT END IS UPGRADED, THIS WILL BE REPLACED
 
             // NAME AND YEAR
-            // DONT APPLY FOR FIRST RELEASE. GET FEEDBACK ON THIS
-            document.getElementById("name").value = lastCardJson.name;
+            // IGNORE WHEN LAST CARD WAS RANDOM
+            if ( (lastCardJson.name ?? "").toLowerCase() != "((random))" ) {
+                document.getElementById("name").value = lastCardJson.name;
+            }
             document.getElementById("year").value = lastCardJson.year;
 
             // STATS PERIOD

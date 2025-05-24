@@ -80,7 +80,12 @@
                                        <div class="col-12 col-md-12">
                                           <label for="name" style="color:Gray;"><b>Name</b></label>
                                           <img for="name" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Bot not finding your card? Try inputting the baseball reference id (ex: troutmi01). Apply a card override! Examples include 2-way players (ex: Shohei Ohtani (Pitcher)) and partial team seasons (Ex: Max Scherzer (LAD)). Partial team seasons only available post 1918." >
-                                          <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" autofocus required>
+                                          <div class="input-group">
+                                             <input type="text" name="name" class="form-control" id="name" placeholder="Ex: Mike Trout" autofocus required>
+                                             <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('name').value = '';">
+                                                Clear
+                                             </button>
+                                          </div>
                                        </div>
                                     </div>
                                  </div>
