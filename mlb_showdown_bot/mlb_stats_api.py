@@ -80,7 +80,8 @@ def get_player_realtime_game_logs(player_name:str, player_team:str, year:int, is
     player_id = player_data['id']
 
     # QUERY REALTIME GAME LOGS
-    stats_url = f"https://statsapi.mlb.com/api/v1/people/{player_id}/stats?stats=gameLog&season={year}"
+    group = 'pitching' if is_pitcher else 'hitting'
+    stats_url = f"https://statsapi.mlb.com/api/v1/people/{player_id}/stats?stats=gameLog&group={group}&season={year}"
     stats_response = requests.get(stats_url)
     stats_data = stats_response.json()
     total_stats: dict = stats_data['stats']
