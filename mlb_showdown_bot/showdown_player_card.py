@@ -1915,14 +1915,6 @@ class ShowdownPlayerCard(BaseModel):
         if len(stats) == 0:
             return {}
 
-        # SUBTRACT SACRIFICES?
-        sh = stats.get('SH', 0)
-        sf = stats.get('SF', 0)
-        all_sacrifices = sh + sf
-
-        # SUBTRACT INVOLUNTARY PA RESULTS
-        ibb = stats.get('IBB', 0)
-
         pct_of_n_pa = (float(stats['PA'])) / plate_appearances
 
         # POPULATE DICT WITH VALUES UNCHANGED BY SHIFT IN PA

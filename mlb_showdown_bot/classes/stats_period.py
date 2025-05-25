@@ -94,6 +94,7 @@ class StatsPeriodDateAggregation(str, Enum):
                 # CHECK IF START DATE IS AFTER 18TH OF THE MONTH
                 # IF SO COMBINE WITH NEXT MONTH, ENDING AT NEXT MONTH'S END
                 # EX: MARCH 19 - APRIL 30
+                end_date = start_date
                 if start_date.day > 18:
                     # MOVE END DATE TO END OF MONTH OR STOP DATE
                     next_month = start_date.month + 1
@@ -317,6 +318,6 @@ class StatsPeriod(BaseModel):
                 pass
 
         # FILL IN EMPTY CATEGORIES
-        aggregated_data = fill_empty_stat_categories(aggregated_data, is_pitcher)
+        aggregated_data = fill_empty_stat_categories(stats_data=aggregated_data, is_pitcher=is_pitcher, is_game_logs=True)
         
         self.stats = aggregated_data

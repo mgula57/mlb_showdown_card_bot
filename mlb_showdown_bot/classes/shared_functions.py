@@ -108,11 +108,13 @@ def convert_to_date(game_log_date_str: str, year: int) -> date:
         game_log_date_str_full = f"{game_log_date_str_cleaned} {year}"
         return datetime.strptime(game_log_date_str_full, "%b %d %Y").date()
     
-def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool) -> dict:
+def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bool=False) -> dict:
     """Ensure all required fields are populated for player stats.
     
     Args:
-        data: Current dict for stats.
+        stats_data: Current dict for stats.
+        is_pitcher: True if pitcher, False if batter
+        is_game_logs: True if game logs, False if season long stats
 
     Returns:
         Update stats dict
@@ -136,6 +138,11 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool) -> dict:
         # ESTIMATE PA AGAINST
         else:
             stats_data['PA'] = stats_data.get('IP', 0) * 4.25 # NEED TO ESTIMATE PA BASED ON AVG PA PER INNING
+
+    # PITCHER GAME LOGS DO NOT HAVE SH, SO DERIVE FROM PA
+    if is_game_logs and is_pitcher and 'SH' not in current_categories:
+        stats_data['SH'] = stats_data.get('PA', 0) - stats_data.get('AB', 0) - stats_data.get('BB', 0) - stats_data.get('HBP', 0) - stats_data.get('SF', 0)
+        current_categories = stats_data.keys() # RESET CURRENT CATEGORIES
     
     keys_to_fill = ['SH','HBP','IBB','SF','SO']
     for key in keys_to_fill:
