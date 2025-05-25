@@ -146,10 +146,9 @@ function changeImageSection(imageSelectObject) {
     }
 }
 
-function changePeriodSection(windowSelectObject) {
+function changePeriodSection(selection) {
     
     // SHOW/HIDE SECTIONS
-    var selection = windowSelectObject.value;
     const sections_and_ids = {
         'DATES': [
             'div_start_date',
@@ -982,8 +981,11 @@ $(document).ready(function() {
 
             // STATS PERIOD
             document.getElementById("periodSelection").value = lastCardJson.period;
-            // document.getElementById("date-start").value = lastCardJson.period_start_date;
-            // document.getElementById("date-end").value = lastCardJson.period_end_date;
+            changePeriodSection(lastCardJson.period);
+            if (lastCardJson.period == "DATES") {
+                document.getElementById("start_date").value = lastCardJson.period_start_date;
+                document.getElementById("end_date").value = lastCardJson.period_end_date;
+            }
             document.getElementById("split").value = lastCardJson.period_split;
 
             // ERA, EXPANSION, EDITION

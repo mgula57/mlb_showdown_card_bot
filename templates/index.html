@@ -103,7 +103,7 @@
                                        <div class="col-6 col-md-6">
                                           <label for="periodSelection" style="color:Gray;"><b>Period</b></label>
                                           <img for="periodSelection" src="static/interface/InfoButton.png" width=15 height=15 data-toggle="tooltip" data-placement="top" title="Period of time used for stats. Note that full season values will be used for stats unavailable daily. (ex: Sprint Speed, Defense)." >
-                                          <select id="periodSelection" class="form-select mb-3" aria-label=".form-select-lg example" onchange="changePeriodSection(this)">
+                                          <select id="periodSelection" class="form-select mb-3" aria-label=".form-select-lg example" onchange="changePeriodSection(this.value)">
                                              {% set period_dict = {
                                                 "REGULAR": "Regular Season",
                                                 "POST": "Postseason",
