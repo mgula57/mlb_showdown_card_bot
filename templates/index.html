@@ -33,6 +33,71 @@
          </button>
       </div>
 
+      <!-- WHATS NEW MODAL -->
+
+      <div id="div_whats_new_modal_container">
+         <div class="div_whats_new_modal_content">
+            
+            <div style="text-align:center;">
+               <img id="logo_whats_new" src="static/interface/ShowdownLogo.png" alt="Showdown Logo" style="height:35px; margin-bottom:18px;">
+               <h4 style="margin:0; padding: 2px;">🚀 What’s New</h4>
+               <p style="color:#888; margin-top:0px; font-size:14px;">Version 3.9.4</p>
+            </div>
+
+            <div style="margin-top:16px;">
+               <!-- Feature 1 -->
+               <div class="div_whats_new_feature_section">
+                  <div>🔴</div>
+                  <div>
+                     <strong>Live Cards</strong><br />
+                     <div class="div_whats_new_paragraph">
+                        <small>Cards now update in real time during games — see how a big at-bat or breakout performance transforms your favorite player's Showdown card!</small>
+                     </div>
+                  </div>
+               </div>
+
+               <!-- Feature 2 -->
+               <div class="div_whats_new_feature_section">
+                  <div>📈</div>
+                  <div>
+                     <strong>Trends</strong><br />
+                     <div class="div_whats_new_paragraph">
+                        <small>Visualize player performance like never before! Two new graphs show long-term career trends and week-by-week card changes throughout the season.</small>
+                     </div>
+                  </div>
+               </div>
+
+               <!-- Feature 3 -->
+               <div class="div_whats_new_feature_section">
+                  <div>🔀</div>
+                  <div>
+                     <strong>Dynamic Shuffle</strong><br />
+                     <div class="div_whats_new_paragraph">
+                        <small>The shuffle button now responds to your inputs — get lost in a rabbit hole of Hall of Famers, All-Stars, or random players from your favorite era.</small>
+                     </div>
+                  </div>
+               </div>
+
+               <!-- Feature 4 -->
+               <div class="div_whats_new_feature_section">
+                  <div>🛠️</div>
+                  <div>
+                     <strong>And More!</strong><br />
+                     <div class="div_whats_new_paragraph">
+                        <small>Other tweaks include smoother UI, updated defense logic, customizable player glow, and more polish throughout.</small>
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            <a href="https://github.com/mgula57/mlb_showdown_card_bot/releases" style="display:block; margin-top:20px; color:#0073e6; text-align:center; font-size:14px;" target="_blank" rel="noopener noreferrer">Find out more</a>
+
+            <button onclick="closeWhatsNewModal()" class="whats_new_button">
+               Start Building
+            </button>
+         </div>
+      </div>
+
       <div class="container">
          <div class="row">
             <div class="col-md-5">
@@ -49,7 +114,12 @@
                         <i class="fa-solid fa-chart-simple"></i>
                         EXPLORE
                      </button>
-                     <div style="margin-left: auto; margin-top: auto; margin-bottom: auto;">                        
+                     <div style="display:flex; gap: 5px; margin-left: auto; margin-top: auto; margin-bottom: auto;">
+                        
+                        <button id="button_whats_new" class="button_whats_new" onclick="showWhatsNewModal()">
+                           🚀 What's New?
+                        </button>
+                        
                         <button class="theme_switch" onclick="toggleTheme()">
                            <i id="theme_switch_icon" class="fa-solid fa-moon"></i>
                         </button>

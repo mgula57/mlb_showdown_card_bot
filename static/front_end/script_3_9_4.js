@@ -146,6 +146,19 @@ function changeImageSection(imageSelectObject) {
     }
 }
 
+function closeWhatsNewModal() {
+    // HIDE MODAL
+    document.getElementById('div_whats_new_modal_container').style.display = 'none';
+
+    // SET LOCAL STORAGE TO NOT SHOW AGAIN
+    localStorage.setItem('whats_new_modal_shown', true);
+}
+
+function showWhatsNewModal() {
+    // SHOW MODAL
+    document.getElementById('div_whats_new_modal_container').style.display = 'flex'
+}
+
 function changePeriodSection(selection) {
     
     // SHOW/HIDE SECTIONS
@@ -605,6 +618,7 @@ function setTheme(themeName) {
     // IMAGES
     const suffix = (is_dark) ? '-Dark' : ''; 
     document.getElementById('showdown_logo_img').src = `static/interface/ShowdownLogo${suffix}.png`;
+    document.getElementById('logo_whats_new').src = `static/interface/ShowdownLogo${suffix}.png`;
     if (document.getElementById('card_image').src.includes('interface')) {
         var set = localStorage.getItem('set') || '2000';
         document.getElementById('card_image').src = `static/interface/BlankPlayer-${set}${suffix}.png`;
@@ -961,6 +975,12 @@ $(document).ready(function() {
         if (!selectedTab) {
             selectedTab = "create";
             localStorage.setItem('tab', selectedTab);
+        }
+
+        // CHECK IF USER HAS SEEN THE WHATS NEW MODAL
+        var hasSeenWhatsNew = localStorage.getItem("whats_new_modal_shown") || false;
+        if (hasSeenWhatsNew == false) {
+            showWhatsNewModal();
         }
 
         // POPULATE LAST CARD SETTINGS
