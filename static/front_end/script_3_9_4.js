@@ -375,7 +375,8 @@ function createTrendsChart(player_year, trends_data, elementId, unit, is_placeho
     // UPDATE TEXT IN LABEL FOR playerInSeasonTrends TO DISPLAY THE YEAR FROM data
     if (elementId == "playerInSeasonTrends") {
         const year = is_placeholder ? "Year" : player_year;
-        document.getElementById("in_season_trend_label").textContent = `${year} Card Evolution`;
+        const suffix = is_placeholder ? " (Available 2020+)" : "";
+        document.getElementById("in_season_trend_label").textContent = `${year} Card Evolution${suffix}`;
     }
     
     // DESTROY EXITING CHART INSTANCE TO REUSE <CANVAS> ELEMENT
