@@ -12,7 +12,7 @@ from pathlib import Path
 from flask_sqlalchemy import SQLAlchemy
 from pprint import pprint
 from time import sleep
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 # ----------------------------------------------------------
@@ -381,7 +381,13 @@ def card_creator():
         )
 
         # ADD CHANGE IN POINTS IF LATEST PLAYER GAME BOXSCORE DATA
-        if player_realtime_game_logs and latest_player_game_boxscore_data:
+        previous_showdown_card: ShowdownPlayerCard = None
+        if player_realtime_game_logs and latest_player_game_boxscore_data:            
+            # GRAB DATE OF LATEST GAME (EX: 2025-05-25) AND SUBTRACT ONE
+            realtime_game_date_str = latest_player_game_boxscore_data.get('date', None)
+            realtime_game_date = convert_to_date(game_log_date_str=realtime_game_date_str, year=datetime.now().year) if realtime_game_date_str else datetime.now().date()
+            date_cutoff = realtime_game_date - timedelta(days=1)
+            original_stats_period.end_date = date_cutoff
             previous_showdown_card = ShowdownPlayerCard(
                 name=name, year=year, stats=original_statline, realtime_game_logs=None, # DON'T INCLUDE REALTIME GAME LOGS
                 set=set, era=era, stats_period=original_stats_period,
@@ -466,6 +472,11 @@ def card_creator():
                 except Exception as e:
                     print(e)
                     continue
+            
+            # ALSO ADD PREVIOUS DAY'S CARD FOR COMPARISON
+            if previous_showdown_card:
+                end_date_str = previous_showdown_card.stats_period.end_date.strftime('%Y-%m-%d')
+                in_season_trends_data[end_date_str] = previous_showdown_card.trend_line_data()
         
         # -----------------
         # 6. SETUP METADATA SHOWN NEXT TO CARD
