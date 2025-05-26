@@ -621,7 +621,7 @@ function setTheme(themeName) {
     document.getElementById('logo_whats_new').src = `static/interface/ShowdownLogo${suffix}.png`;
     if (document.getElementById('card_image').src.includes('interface')) {
         var set = localStorage.getItem('set') || '2000';
-        document.getElementById('card_image').src = `static/interface/BlankPlayer-${set}${suffix}.png`;
+        document.getElementById('card_image').src = `static/interface/BlankPlayer-${set.toUpperCase()}${suffix}.png`;
     }
 
     // UPDATE BUTTON ICON
@@ -664,7 +664,7 @@ function showCardData(data) {
 
     // CHANGE CARD IMAGE
     var storedSet = localStorage.getItem('set') || '2000';
-    const newImageUrl = data.image_path || `static/interface/BlankPlayer-${storedSet}${(is_dark) ? '-Dark' : ''}.png`;
+    const newImageUrl = data.image_path || `static/interface/BlankPlayer-${storedSet.toUpperCase()}${(is_dark) ? '-Dark' : ''}.png`;
     animatePlayerImageTransition(newImageUrl);
     
     // ADD PLAYER DETAILS
