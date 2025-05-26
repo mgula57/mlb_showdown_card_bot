@@ -19,7 +19,7 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageChops
 from prettytable import PrettyTable
 from pprint import pprint
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
 from typing import Any, Optional, Union
 try:
     # ASSUME THIS IS A SUBMODULE IN A PACKAGE
@@ -37,6 +37,7 @@ try:
     from .classes.metadata import Speed, SpeedLetter, Hand
     from .classes import colors
     from .classes.stats_period import StatsPeriod, StatsPeriodType
+    from .classes.shared_functions import convert_year_string_to_list
     from .version import __version__
 except ImportError:
     # USE LOCAL IMPORT
@@ -54,6 +55,7 @@ except ImportError:
     from classes.metadata import Speed, SpeedLetter, Hand
     from classes import colors
     from classes.stats_period import StatsPeriod, StatsPeriodType
+    from classes.shared_functions import convert_year_string_to_list
     from version import __version__
 
 class ShowdownPlayerCard(BaseModel):
@@ -61,23 +63,24 @@ class ShowdownPlayerCard(BaseModel):
     # REQUIRED
     year: str
     set: Set
-    stats: dict # TODO: VALIDATE NO HBP DOUBLE COUNTING WHEN INIT FROM DICT
+    stats: dict
     year_list: list[int] = []
     era: Era
     name: str
 
     # TIME PERIOD
     stats_period: StatsPeriod = StatsPeriod()
+    realtime_game_logs: Optional[list[dict]] = None
 
     # DERIVED
     is_full_career: bool = False
     is_multi_year: bool = False
     bref_id: str = ''
     bref_url: str = ''
-    league: str = 'MLB'
-    team: Team = Team.MLB
-    nationality: Nationality = Nationality.NONE
-    player_type: PlayerType = None
+    league: str | None = 'MLB'
+    team: Team | None = Team.MLB
+    nationality: Nationality | None = Nationality.NONE
+    player_type: PlayerType | None = None
     player_sub_type: Optional[PlayerSubType] = None
     player_type_override: Optional[PlayerType] = None
     nicknames: list[str] = []
@@ -96,7 +99,8 @@ class ShowdownPlayerCard(BaseModel):
     is_wotc: bool = False
     
     # ENVIRONMENT
-    is_running_in_flask: bool = False
+    build_on_init: bool = True
+    is_running_on_website: bool = False
     load_time: float = 0.0
     warnings: list[str] = []
 
@@ -110,7 +114,7 @@ class ShowdownPlayerCard(BaseModel):
     positions_and_defense: dict[Position, int] = {}
     positions_and_defense_for_visuals: dict[str, int] = {}
     positions_and_defense_string: str = ''
-    positions_and_real_life_ratings: dict[str, dict[DefenseMetric, Union[float, int]]] = {}
+    positions_and_real_life_ratings: dict[Position, dict[DefenseMetric, Union[float, int]]] = {}
     positions_and_games_played: dict[Position, int] = {}
     command_out_accuracies: dict[str, float] = {}
     command_out_accuracy_breakdowns: dict[str, dict[Stat, ChartAccuracyBreakdown]] = {}
@@ -129,187 +133,168 @@ class ShowdownPlayerCard(BaseModel):
 
     def __init__(self, **data) -> None:
         """Initializer for ShowdownPlayerCard Class"""
-        
-        # HANDLE EMPTY ERA INPUT AS DYNAMIC
-        if data.get('era', None) is None:
-            data['era'] = "DYNAMIC"
 
         # INIT
         super().__init__(**data)
-
-        # PARSE NICKNAMES
-        self.nicknames = self.extract_player_nicknames_list()
-
-        # PARSE TYPE OVERRIDE
-        self.player_type_override = self.parse_player_type_override(player_type_override=self.player_type_override, name_user_input=data.get('name', None))
-
-        # IMAGE
-        if data.get('image', None) is None:
-            self.image: ShowdownImage = ShowdownImage(
-                edition = data.get('edition', Edition.NONE),
-                expansion = data.get('expansion', Expansion.BS),
-                source = ImageSource(url=data.get('player_image_url', None), path=data.get('player_image_path', None)),
-                parallel = data.get('parallel', ImageParallel.NONE),
-                output_folder_path = data.get('card_img_output_folder_path', '') if len(data.get('card_img_output_folder_path', '')) > 0 else os.path.join(os.path.dirname(__file__), 'output'),
-                set_name = data.get('set_name', None),
-                set_number = data.get('set_number', '') if data.get('set_number', '') != '' else self.set.default_set_number(self.year),
-                add_one_to_set_year = data.get('set_year_plus_one', False) and self.set.is_eligibile_for_year_plus_one,
-                show_year_text = data.get('show_year_text', False) and self.set.is_eligibile_for_year_container,
-                is_bordered = data.get('add_image_border', False),
-                is_dark_mode = data.get('is_dark_mode', False),
-                hide_team_logo = data.get('hide_team_logo', False),
-                use_secondary_color = data.get('use_secondary_color', False),
-                is_multi_colored = data.get('is_multi_colored', False),
-                nickname_index=data.get('nickname_index', None),
-                stat_highlights_type=data.get('stat_highlights_type', 'NONE'),
-            )
-            self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
         
-        disable_running_card: bool = data.get('disable_running_card', False)
-        if not self.is_populated and not disable_running_card:
+        # IF CARD IS NOT ALREADY POPULATED BY DATA INPUT, BUILD THE CARD
+        # TO DISABLE THIS AND BUILD VIA THE `build_card()` FUNCTION, SET `build_on_init` TO FALSE
+        if not self.is_populated and self.build_on_init:
+            self.build_card(show_image=data.get('show_image', False), print_to_cli=data.get('print_to_cli', False))
 
-            # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
-            self.stats = self.add_estimates_to_stats(stats=self.stats)
-            self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self.__positions_and_defense(stats_dict=self.stats)
-            self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
-            self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
-            self.player_sub_type = self.calculate_player_sub_type()
-            self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats.get('IP', 0)), games=self.stats.get('G', 0), games_started=self.stats.get('GS', 0), ip_per_start=self.stats.get('IP/GS', 0))
-            self.hand: Hand = self.__handedness(hand_raw=self.stats.get('hand', None))
-            self.speed: Speed = self.__speed(sprint_speed=self.stats.get('sprint_speed', None), stolen_bases=self.stats.get('SB', 0) / ( self.stats.get('PA', 0) / 650.0 ), is_sb_empty=len(str(self.stats.get('SB',''))) == 0, games=self.stats.get('G', 0))
-            self.accolades: list[str] = self.parse_accolades()
-            self.icons: list[Icon] = self.__icons(awards=self.stats.get('award_summary',''))
+# ------------------------------------------------------------------------
+# RUN THE ACTUAL CARD STATS
+# ------------------------------------------------------------------------
 
-            # CONVERT STATS TO PER 400 PA
-            # MAKES MATH EASIER (20 SIDED DICE)
-            stats_for_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats)
+    def build_card(self, show_image:bool=False, print_to_cli:bool=False) -> None:
+        """Build the card's attributes given provided metadata and stats.
+        Results in either an image outputted to the file system or a CLI printout.
 
-            self.chart: Chart = self.__most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version) - 1)
-            self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats.get('PA', 650))
+        Args:
+            show_image (bool): Whether to show the card image after building it.
+            print_to_cli (bool): Whether to print the card information to the CLI.
 
-            # FOR PTS, USE STEROID ERA OPPONENT
-            chart_for_pts = self.chart.model_copy()
-            chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=True)
-            projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
-            projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
+        Returns:
+            None
+        """
 
-            self.points_breakdown: Points = self.calculate_points(projected=projections_for_pts,
-                                            positions_and_defense=self.positions_and_defense,
-                                            speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
-            self.points: int = self.points_breakdown.total_points
+        # CLEAN UP AND CALCULATE MISSING/ALTERED STATS
+        self.stats = self.clean_stats(stats=self.stats)
 
-            show_image = data.get('show_image', False)
-            is_card_image_path = len(data.get('card_img_output_folder_path', '')) > 0
-            if show_image or is_card_image_path:
-                self.card_image(show=show_image)
-            
-            if data.get('print_to_cli', False):
-                self.print_player()
+        # ADD NICKNAMES
+        # ONLY RUN ON WEBSITE FOR OPTIMIZATION PURPOSES
+        if self.is_running_on_website:
+            self.nicknames = self.extract_player_nicknames_list()
+
+        # HANDLE GAME LOGS IF APPLICABLE
+        game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
+        if self.realtime_game_logs:
+            game_logs += self.realtime_game_logs
+        self.stats_period.add_stats_from_logs(game_logs=game_logs, year_list=self.year_list, is_pitcher=self.is_pitcher)
+        if self.stats_period.stats:
+            full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
+            # ADD FULL AMOUNT OF NGAMES PLAYED FOR REGULAR SEASON GAMES FOR HITTERS
+            # USED FOR DEFENSE CALCS
+            if self.stats_period.type.is_regular_season_games_stat_needed and self.player_type == PlayerType.HITTER:
+                full_season_stats_used_for_stats_period['G_RS'] = self.stats.get('G', 0)
+            self.stats_period.stats.update(full_season_stats_used_for_stats_period)
+            self.stats_period.stats = self.clean_stats(stats=self.stats_period.stats)
+
+            # USE OVERWRITTEN FULL SEASON STATS AS PARTIALS
+            full_stats_copy = self.stats.copy()
+            full_stats_copy.update(self.stats_period.stats)
+            self.stats_period.stats = full_stats_copy
+            stats_period_team = self.stats_period.stats.get('team_ID', None)
+            if stats_period_team:
+                self.team = Team(stats_period_team)
+
+        # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
+        self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self.__positions_and_defense(stats_dict=self.stats_for_card)
+        self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
+        self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
+        self.player_sub_type = self.calculate_player_sub_type()
+        self.ip: int = self.__innings_pitched(innings_pitched=float(self.stats_for_card.get('IP', 0)), games=self.stats_for_card.get('G', 0), games_started=self.stats_for_card.get('GS', 0), ip_per_start=self.stats_for_card.get('IP/GS', 0))
+        self.hand: Hand = self.__handedness(hand_raw=self.stats_for_card.get('hand', None))
+        sb_safe = self.stats_for_card.get('SB', 0) if len(str(self.stats_for_card.get('SB',''))) > 0 else 0
+        pa_safe = self.stats_for_card.get('PA', 0) if len(str(self.stats_for_card.get('PA',''))) > 0 else 0
+        sb_per_650_pa = sb_safe / (pa_safe / 650.0) if pa_safe > 0 else 0
+        self.speed: Speed = self.__speed(sprint_speed=self.stats_for_card.get('sprint_speed', None), stolen_bases=sb_per_650_pa, is_sb_empty=len(str(self.stats_for_card.get('SB',''))) == 0, games=self.stats_for_card.get('G', 0))
+        self.accolades: list[str] = self.parse_accolades()
+        self.icons: list[Icon] = self.__icons(awards=self.stats_for_card.get('award_summary',''))
+
+        # CONVERT STATS TO PER 400 PA
+        # MAKES MATH EASIER (20 SIDED DICE)
+        stats_for_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats_for_card)
+
+        self.chart: Chart = self.__most_accurate_chart(stats_per_400_pa=stats_for_400_pa, offset=int(self.chart_version) - 1)
+        self.projected: dict = self.projected_statline(stats_per_400_pa=self.chart.projected_stats_per_400_pa, command=self.chart.command, pa=self.stats_for_card.get('PA', 650))
+
+        # FOR PTS, USE STEROID ERA OPPONENT
+        chart_for_pts = self.chart.model_copy()
+        chart_for_pts.opponent = self.set.wotc_baseline_chart(self.player_type.opponent_type, my_type=self.player_sub_type, adjust_for_simulation_accuracy=True)
+        projections_for_pts_per_400_pa = chart_for_pts.projected_stats_per_400_pa
+        projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
+
+        self.points_breakdown: Points = self.calculate_points(projected=projections_for_pts,
+                                        positions_and_defense=self.positions_and_defense,
+                                        speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
+        self.points: int = self.points_breakdown.total_points
+
+        if show_image or self.image.output_folder_path:
+            self.card_image(show=show_image)
+        
+        if print_to_cli:
+            self.print_player()
 
 # ------------------------------------------------------------------------
 # VALIDATORS
 # ------------------------------------------------------------------------
 
-    @validator('year', always=True)
+    @model_validator(mode="before")
+    def ensure_required_inputs(cls, values: dict) -> dict:
+                
+        # HANDLE EMPTY ERA INPUT AS DYNAMIC
+        if values.get('era', None) is None:
+            values['era'] = "DYNAMIC"
+
+        # FORCE THESE ATTRIBUTES TO RUN
+        required_attributes = [
+            'name_input', 'player_type', 
+            'year_list', 'is_full_career', 'is_multi_year',
+            'bref_id', 'bref_url', 'league', 'team', 'nationality',
+            'is_stats_estimate', 'player_type_override',
+        ]
+        for attr in required_attributes:
+            if attr not in values.keys():
+                values[attr] = None
+
+        return values
+
+    @field_validator('year', mode='before')
     def clean_year(cls, year:str) -> str:
         return str(year).upper()
 
-    @validator('year_list', always=True)
-    def parse_year_list(cls, year_list:list[int], values:dict) -> list[int]:
+    @field_validator('year_list', mode='before')
+    def parse_year_list(cls, year_list:list[int], info:ValidationInfo) -> list[int]:
 
         if year_list is not None:
             if len(year_list) > 0:
                 return year_list
+        values = info.data
         year:str = values.get('year', '')
         stats:dict = values.get('stats', {})
         all_years_played:list[str] = stats.get('years_played', [])
-        if year.upper() == 'CAREER':
-            return [int(year) for year in all_years_played]
-        elif '-' in year:
-            # RANGE OF YEARS
-            years = year.split('-')
-            year_start = int(years[0].strip())
-            year_end = int(years[1].strip())
-            return list(range(year_start,year_end+1))
-        elif '+' in year:
-            years = year.split('+')
-            return [int(x.strip()) for x in years]
-        else:
-            return [int(year)]
+        return convert_year_string_to_list(year_input=year, all_years_played=all_years_played)
 
-    @validator('is_full_career', always=True)
-    def parse_is_full_career(cls, is_full_career:bool, values:dict) -> bool:
+    @field_validator('is_full_career', mode='before')
+    def parse_is_full_career(cls, is_full_career:bool, info:ValidationInfo) -> bool:
         if is_full_career:
             return is_full_career
         
-        year:str = values.get('year', '')
+        year:str = info.data.get('year', '')
         return year.upper() == 'CAREER'
     
-    @validator('is_multi_year', always=True)
-    def parse_is_multi_year(cls, is_multi_year:bool, values:dict) -> bool:
+    @field_validator('is_multi_year', mode='before')
+    def parse_is_multi_year(cls, is_multi_year:bool, info:ValidationInfo) -> bool:
         if is_multi_year:
             return is_multi_year
         
-        year_list:list[int] = values.get('year_list', [])
+        year_list:list[int] = info.data.get('year_list', [])
         return len(year_list) > 1
-
-    @validator('stats')
-    def clean_stats(cls, stats:dict, values:dict) -> dict[str, Any]:
-
-        # ADD OPS IF NOT IN DICT (< 1900 CARDS)
-        if 'onbase_plus_slugging' not in stats.keys() and 'slugging_perc' in stats.keys() and 'onbase_perc' in stats.keys():
-            stats['onbase_plus_slugging'] = stats['slugging_perc'] + stats['onbase_perc']
-
-        # REDUCE IF/FB FOR 1988
-        if 'IF/FB' in stats.keys() and values.get('year', '') == '1988':
-            stats['IF/FB'] = stats.get('IF/FB', 0.0) * Set(values.get('set', None)).pu_normalizer_1988
-
-        # ADD FIP FOR PITCHERS
-        is_pitcher = stats.get('type', '') == 'Pitcher'
-        if is_pitcher and 'fip' not in stats.keys():
-
-            # PARSE YEAR LIST
-            # TODO: FIGURE OUT HOW TO NOT REPEAT THIS CODE
-            all_years_played:list[str] = stats.get('years_played', [])
-            year = values.get('year', '2000')
-            if year.upper() == 'CAREER': year_list = [int(year) for year in all_years_played]
-            elif '-' in year:
-                # RANGE OF YEARS
-                years = year.split('-')
-                year_start = int(years[0].strip())
-                year_end = int(years[1].strip())
-                year_list = list(range(year_start,year_end+1))
-            elif '+' in year: year_list = [int(x.strip()) for x in year.split('+')]
-            else: year_list = [int(year)]
-            
-            fip_constant = sc.FIP_CONSTANT.get(statistics.median(year_list), 3.2)
-            hr_weighted = 13 * stats.get('HR', 0)
-            bb_weighted = 3 * stats.get('BB', 0)
-            so_weighted = 2 * stats.get('SO', 0)
-            ip = stats.get('IP', 1)
-            stats['fip'] = round(( (hr_weighted + bb_weighted - so_weighted) / ip) + fip_constant, 2)
-            
-        # ADD K/9 FOR PITCHERS
-        if is_pitcher and 'strikeouts_per_nine' not in stats.keys():
-            k_per_9 = stats.get('SO', 0) * 9 / stats.get('IP', 1)
-            stats['strikeouts_per_nine'] = round(k_per_9, 2)
-
-        return stats
     
-    @validator('era', pre=True)
-    def handle_dynamic_era(cls, era:str, values:dict) -> Era:
-
+    @field_validator('era', mode='before')
+    def handle_dynamic_era(cls, era:str, info:ValidationInfo) -> Era:
         if era.upper() != 'DYNAMIC':
             return Era(era)
         
-        year_list = values.get('year_list', [])
+        year_list = info.data.get('year_list', [])
         eras = []
         for year in year_list:
             for era in Era:
                 if year in era.year_range:
                     eras.append(era)
         
-        # FILTER TO MOST
+        # FILTER TO MOST COMMON
         most_common_era_tuples_list = Counter(eras).most_common(1)
 
         if len(most_common_era_tuples_list) == 0:
@@ -317,78 +302,79 @@ class ShowdownPlayerCard(BaseModel):
         
         return most_common_era_tuples_list[0][0]
 
-    @validator('name', pre=True)
-    def parse_name(cls, name:str, values:dict) -> str:
+    @field_validator('name', mode='before')
+    def parse_name(cls, name:str, info:ValidationInfo) -> str:
         """Use the bref name first, user input as a backup"""
-        stats:dict = values.get('stats', {})
+        stats:dict = info.data.get('stats', {})
         return stats.get('name', name)
     
-    @validator('player_type', always=True, pre=True)
-    def parse_player_type(cls, player_type:str, values:dict) -> PlayerType:
-        stats:dict = values.get('stats', {})
+    @field_validator('player_type', mode='before')
+    def parse_player_type(cls, player_type:str, info:ValidationInfo) -> PlayerType:
+        stats:dict = info.data.get('stats', {})
         player_type_from_stats = stats.get('type', None) or player_type
-
         if player_type_from_stats:
             return player_type_from_stats if type(player_type_from_stats) is PlayerType else PlayerType(player_type_from_stats)
         
         return player_type if type(player_type) is PlayerType else PlayerType(player_type)
     
-    @validator('bref_id', always=True)
-    def parse_bref_id(cls, bref_id:str, values:dict) -> str:
+    @field_validator('bref_id', mode='before')
+    def parse_bref_id(cls, bref_id:str, info:ValidationInfo) -> str:
         if bref_id:
             if len(bref_id) > 1:
                 return bref_id
-        stats: dict = values.get('stats', {})
+        stats: dict = info.data.get('stats', {})
         return stats.get('bref_id', '')
     
-    @validator('bref_url', always=True)
-    def parse_bref_url(cls, bref_url:str, values:dict) -> str:
+    @field_validator('bref_url', mode='before')
+    def parse_bref_url(cls, bref_url:str, info:ValidationInfo) -> str:
         if bref_url:
             if len(bref_url) > 0:
                 return bref_url
-        stats: dict = values.get('stats', {})
+        stats: dict = info.data.get('stats', {})
         return stats.get('bref_url', '')
     
-    @validator('is_stats_estimate', always=True)
-    def parse_is_stats_estimate(cls, is_stats_estimate:str, values:dict) -> bool:
+    @field_validator('is_stats_estimate', mode='before')
+    def parse_is_stats_estimate(cls, is_stats_estimate:str, info:ValidationInfo) -> bool:
         if is_stats_estimate:
             return is_stats_estimate
-        stats: dict = values.get('stats', {})
+        stats: dict = info.data.get('stats', {})
         return stats.get('is_stats_estimate', False)
 
-    @validator('league', always=True)
-    def parse_league(cls, league:str, values:dict) -> str:
-        if league != 'MLB':
+    @field_validator('league', mode='before')
+    def parse_league(cls, league:str, info:ValidationInfo) -> str:
+        if (league or 'MLB') != 'MLB':
             return league
-        stats: dict = values.get('stats', {})
+        stats: dict = info.data.get('stats', {})
         return stats.get('lg_ID', 'MLB')
     
-    @validator('team', always=True)
-    def parse_team(cls, team:Team, values:dict) -> Team:
-        if team != Team.MLB:
+    @field_validator('team', mode='before')
+    def parse_team(cls, team:Team, info:ValidationInfo) -> Team:
+        if (team or Team.MLB) != Team.MLB:
             return team
-        stats:dict = values.get('stats', {})
+        stats:dict = info.data.get('stats', {})
         return Team(stats.get('team_ID', None))
     
-    @validator('nationality', always=True)
-    def parse_nationality(cls, nationality:Nationality, values:dict) -> Nationality:
-        if nationality != Nationality.NONE:
+    @field_validator('nationality', mode='before')
+    def parse_nationality(cls, nationality:Nationality, info:ValidationInfo) -> Nationality:
+        if (nationality or Nationality.NONE) != Nationality.NONE:
             return nationality
-        stats:dict = values.get('stats', {})
-        return Nationality(stats.get('nationality', None))
+        stats:dict = info.data.get('stats', {})
+        return Nationality(stats.get('nationality', Nationality.NONE))
 
-    def parse_player_type_override(cls, player_type_override:str, name_user_input: str) -> PlayerType:
+    @field_validator('player_type_override', mode='before')
+    def parse_player_type_override(cls, player_type_override:str) -> PlayerType:
         """Check for player type override as an input and within the user inputted name."""
 
         if player_type_override:
-            return player_type_override
+            # CHECK IF PLAYER TYPE OVERRIDE IS A PLAYER TYPE ENUM
+            if type(player_type_override) is PlayerType:
+                return player_type_override
+            
+            # TRANSFORM STRING TO PLAYER TYPE ENUM
+            # EX: "(HITTER)" -> "Hitter" -> PlayerType.HITTER
+            player_type_override = player_type_override.replace('(','').replace(')','').title()
+            return PlayerType(player_type_override)
 
-        if name_user_input:
-            for type in PlayerType:
-                values_in_name = [substr for substr in type.override_user_input_substrings if f'({substr})' in name_user_input.upper()]
-                has_an_override_in_name_input = len(values_in_name) > 0
-                if has_an_override_in_name_input:
-                    return type
         
         return None
 
@@ -409,7 +395,6 @@ class ShowdownPlayerCard(BaseModel):
             return nicknames_list
         except:
             return []
-
 
 # ------------------------------------------------------------------------
 # STATIC PROPERTIES
@@ -450,13 +435,14 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         positions = self.positions_and_defense.keys()
-        is_catcher = any(pos in positions for pos in ['C','CA'])
-        is_middle_infield = any(pos in positions for pos in ['IF','2B','SS'])
-        is_outfield = any(pos in positions for pos in ['OF','CF','LF/RF'])
-        is_1b = '1B' in positions
+        is_catcher = Position.CA in positions
+        is_1b = Position._1B in positions
+        is_middle_infield = any(pos.is_middle_infield for pos in positions)
+        is_outfield = any(pos.is_outfield for pos in positions)
+        
         is_multi_position = len(positions) > 1
         hand_prefix = self.hand.silhouette_name(self.is_pitcher)
-        hand_throwing = self.stats['hand_throw']
+        hand_throwing = self.stats_for_card['hand_throw']
         throwing_hand_prefix = f"{hand_throwing[0].upper()}H"
 
         # CATCHERS
@@ -475,15 +461,15 @@ class ShowdownPlayerCard(BaseModel):
         # PITCHERS
         if self.is_pitcher:
             # PITCHERS ARE CLASSIFIED AS SP, RP, CL
-            if 'RELIEVER' in positions:
+            if Position.RP in positions:
                 return f"{hand_prefix}-RP"
-            elif 'CLOSER' in positions:
+            elif Position.CL in positions:
                 return f"{hand_prefix}-CL"
-            else:
-                return f"{hand_prefix}-SP"
+            
+            return f"{hand_prefix}-SP"
         # HITTERS
         else:
-            is_slg_above_threshold = self.stats['slugging_perc'] >= 0.475
+            is_slg_above_threshold = self.stats_for_card.get('slugging_perc', 0.0) >= 0.475
             # FOR HITTERS CHECK FOR POSITIONS
             # 1. LHH OUTFIELDER
             if is_outfield and hand_throwing == "Left" and not is_slg_above_threshold:
@@ -515,9 +501,9 @@ class ShowdownPlayerCard(BaseModel):
         num_positions = 0
         for position in self.positions_and_defense.keys():
             match position:
-                case "LF/RF": num_positions += 2
-                case "IF": num_positions += 4
-                case "OF": num_positions += 3
+                case Position.LFRF: num_positions += 2
+                case Position.IF: num_positions += 4
+                case Position.OF: num_positions += 3
                 case _: num_positions += 1 # DEFAULT
         return num_positions
     
@@ -567,7 +553,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.is_multi_year:
             if self.is_full_career:
                 # USE MEDIAN YEAR OF YEARS PLAYED
-                years_played_ints = [int(year) for year in self.stats['years_played']]
+                years_played_ints = [int(year) for year in self.stats_for_card['years_played']]
             elif '-' in self.year:
                 # RANGE OF YEARS
                 years = self.year.split('-')
@@ -580,6 +566,11 @@ class ShowdownPlayerCard(BaseModel):
             return int(round(statistics.median(years_played_ints)))
         else:
             return int(self.year)
+
+    @property
+    def is_single_year(self) -> bool:
+        """ Check if the player only has one year. """
+        return not self.is_multi_year
 
     @property
     def year_range_str(self) -> str:
@@ -700,6 +691,15 @@ class ShowdownPlayerCard(BaseModel):
         
         return most_common_era_tuples_list[0][0] != self.era
 
+    @property
+    def stats_for_card(self) -> dict:
+        """Points to correct stats dictionary to use for card calculations.
+        Checks for available stats period (ex: Date Range, playoffs, etc.)
+        If not available, defaults to full season stats.        
+        """
+        return self.stats_period.stats or self.stats
+
+
 # ------------------------------------------------------------------------
 # DEFENSE
 # ------------------------------------------------------------------------
@@ -721,85 +721,96 @@ class ShowdownPlayerCard(BaseModel):
         total_games_started = stats_dict.get('GS', 0)
         total_saves = stats_dict.get('SV', 0)
 
-        positions_and_defense = {}
-        positions_and_games_played = {}
-        positions_and_real_life_ratings = {}
+        positions_and_defense: dict[Position, int] = {}
+        positions_and_games_played: dict[Position, int] = {}
+        positions_and_real_life_ratings: dict[Position, dict[DefenseMetric, Union[float, int]]] = {}
 
         # FLAG IF OF IS AVAILABLE BUT NOT CF (SHOHEI OHTANI 2021 CASE)
         defense_stats_dict:dict = stats_dict.get('positions', {})
         positions_list: list[str] = list(defense_stats_dict.keys())
         num_positions = len(positions_list)
-        is_of_but_hasnt_played_cf = 'OF' in positions_list and 'CF' not in positions_list
+        is_of_but_hasnt_played_cf = Position.OF in positions_list and Position.CF not in positions_list
 
         # MARK IF PLAYER PLAYED ALL IF POSITIONS
         has_played_all_if_positions = len([pos for pos in positions_list if pos in ['1B','2B','3B','SS']]) == 4
         
         for position_name, defensive_stats in defense_stats_dict.items():
-            is_valid_position = self.is_pitcher == ('P' == position_name)
-            if is_valid_position:
-                games_at_position = defensive_stats.get('g', 0)
-                position = self.__position_name_in_game(
-                    position=position_name,
-                    num_positions=num_positions,
-                    position_appearances=games_at_position,
-                    games_played=total_games_played,
-                    games_started=total_games_started,
-                    saves=total_saves,
-                    has_played_all_if_positions=has_played_all_if_positions
-                )
-                if position is not None:
-                    positions_and_games_played[position] = games_at_position
-                    if self.is_hitter:
-                        try:
-                            # CHECK WHAT YEARS THE CARD SPANS OVER
-                            start_year = min(self.year_list)
-                            end_year = max(self.year_list)
 
-                            # OAA STARTED IN 2016
-                            # USE DRS OVER OAA FOR YEARS 2014 AND EARLIER
-                            # PLAYERS THAT STARTED IN 2015 USE OAA BECAUSE MOST OF THEIR CAREER IS AFTER 2016
-                            use_drs_over_oaa = start_year <= 2014 and end_year >= 2016
-                            
-                            # CHECK WHICH DEFENSIVE METRIC TO USE
-                            is_drs_available = 'drs' in defensive_stats.keys()
-                            is_oaa_available = 'oaa' in defensive_stats.keys() and not use_drs_over_oaa
-                            oaa = defensive_stats['oaa'] if is_oaa_available else None
-                            # DRS
-                            try:
-                                if is_drs_available:
-                                    drs = int(defensive_stats['drs']) if defensive_stats['drs'] != None else None
-                                else:
-                                    drs = None
-                            except:
-                                drs = None
-                            # TZR
-                            try:
-                                tzr = int(defensive_stats['tzr']) if defensive_stats['tzr'] != None else None
-                            except:
-                                tzr = None
-                            # DWAR
-                            dWar = float(0 if len(str(stats_dict.get('dWAR', 0))) == 0 else stats_dict.get('dWAR', 0))
-                            
-                            if is_oaa_available:
-                                metric = DefenseMetric.OAA
-                                defensive_rating = oaa
-                            elif drs != None:
-                                metric = DefenseMetric.DRS
-                                defensive_rating = drs
-                            elif tzr != None: 
-                                metric = DefenseMetric.TZR
-                                defensive_rating = tzr
-                            else:
-                                metric = DefenseMetric.DWAR
-                                defensive_rating = dWar
-                            positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
-                            in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
-                        except Exception as e:
-                            print(self.name, self.year, e)
-                            in_game_defense = 0
-                        positions_and_defense[position] = in_game_defense
+            # SKIP IF VALID
+            is_valid_position = self.is_pitcher == ('P' == position_name)
+            if not is_valid_position:
+                continue
+            games_at_position = defensive_stats.get('g', 0)
+            position: Position = self.__position_in_game(
+                position=position_name,
+                num_positions=num_positions,
+                position_appearances=games_at_position,
+                games_played=total_games_played,
+                games_started=total_games_started,
+                saves=total_saves,
+                has_played_all_if_positions=has_played_all_if_positions
+            )
+
+            # SKIP IF NO POSITION IN GAME WAS MATCHED
+            if position is None:
+                continue
+            positions_and_games_played[position] = games_at_position
+
+            # PITCHERS ALL HAVE POSITION OF 0
+            if self.is_pitcher:
+                positions_and_defense[position] = 0
+                continue
+
+            # CALCULATE POSITION PLAYER DEFENSE
+            try:
+                # CHECK WHAT YEARS THE CARD SPANS OVER
+                start_year = min(self.year_list)
+                end_year = max(self.year_list)
+
+                # OAA STARTED IN 2016
+                # USE DRS OVER OAA FOR YEARS 2014 AND EARLIER
+                # PLAYERS THAT STARTED IN 2015 USE OAA BECAUSE MOST OF THEIR CAREER IS AFTER 2016
+                use_drs_over_oaa = start_year <= 2014 and end_year >= 2016
+                
+                # CHECK WHICH DEFENSIVE METRIC TO USE
+                is_drs_available = 'drs' in defensive_stats.keys()
+                is_oaa_available = 'oaa' in defensive_stats.keys() and not use_drs_over_oaa
+                oaa = defensive_stats['oaa'] if is_oaa_available else None
+                # DRS
+                try:
+                    if is_drs_available:
+                        drs = int(defensive_stats['drs']) if defensive_stats['drs'] != None else None
                     else:
-                        positions_and_defense[position] = 0
+                        drs = None
+                except:
+                    drs = None
+                # TZR
+                try:
+                    tzr = int(defensive_stats['tzr']) if defensive_stats['tzr'] != None else None
+                except:
+                    tzr = None
+                # DWAR
+                dWar = float(0 if len(str(stats_dict.get('dWAR', 0))) == 0 else stats_dict.get('dWAR', 0))
+                
+                if is_oaa_available:
+                    metric = DefenseMetric.OAA
+                    defensive_rating = oaa
+                elif drs != None:
+                    metric = DefenseMetric.DRS
+                    defensive_rating = drs
+                elif tzr != None: 
+                    metric = DefenseMetric.TZR
+                    defensive_rating = tzr
+                else:
+                    metric = DefenseMetric.DWAR
+                    defensive_rating = dWar
+                positions_and_real_life_ratings[position] = { metric: round(defensive_rating,3) }
+                in_game_defense = self.__convert_to_in_game_defense(position=position,rating=defensive_rating,metric=metric,games=games_at_position)
+            except Exception as e:
+                print(e)
+                in_game_defense = 0
+            positions_and_defense[position] = in_game_defense
+            
 
         # COMBINE ALIKE IN-GAME POSITIONS (LF/RF, OF, IF, ...)
         initial_position_name_and_rating, final_position_games_played = self.__combine_like_positions(positions_and_defense, positions_and_games_played,is_of_but_hasnt_played_cf=is_of_but_hasnt_played_cf)
@@ -812,7 +823,7 @@ class ShowdownPlayerCard(BaseModel):
             final_positions_in_game = {Position.DH: 0}
 
         # RE-SORT POSITIONS
-        final_positions_in_game = dict(sorted(final_positions_in_game.items(), key=lambda item: Position(item[0]).extract_games_played_used_for_sort(final_position_games_played), reverse=True))
+        final_positions_in_game = dict(sorted(final_positions_in_game.items(), key=lambda item: item[0].extract_games_played_used_for_sort(final_position_games_played), reverse=True))
         
         return final_positions_in_game, positions_and_real_life_ratings, final_position_games_played
 
@@ -860,73 +871,73 @@ class ShowdownPlayerCard(BaseModel):
 
         positions_set = set(positions_and_defense.keys())
         # IF HAS EITHER CORNER OUTFIELD POSITION
-        if 'LF' in positions_set or 'RF' in positions_set:
+        if Position.LF in positions_set or Position.RF in positions_set:
             # IF BOTH LF AND RF
-            if set(['LF','RF']).issubset(positions_set):
-                lf_games = positions_and_games_played['LF']
-                rf_games = positions_and_games_played['RF']
+            if set([Position.LF,Position.RF]).issubset(positions_set):
+                lf_games = positions_and_games_played[Position.LF]
+                rf_games = positions_and_games_played[Position.RF]
                 lf_rf_games = lf_games + rf_games
                 # WEIGHTED AVG
-                lf_rf_rating = round(( (positions_and_defense['LF']*lf_games) + (positions_and_defense['RF']*rf_games) ) / lf_rf_games)
-                del positions_and_defense['LF']
-                del positions_and_defense['RF']
-                del positions_and_games_played['LF']
-                del positions_and_games_played['RF']
+                lf_rf_rating = round(( (positions_and_defense[Position.LF]*lf_games) + (positions_and_defense[Position.RF]*rf_games) ) / lf_rf_games)
+                del positions_and_defense[Position.LF]
+                del positions_and_defense[Position.RF]
+                del positions_and_games_played[Position.LF]
+                del positions_and_games_played[Position.RF]
             # IF JUST LF
-            elif 'LF' in positions_set:
-                lf_rf_rating = positions_and_defense['LF']
-                lf_rf_games = positions_and_games_played['LF']
-                del positions_and_defense['LF']
-                del positions_and_games_played['LF']
+            elif Position.LF in positions_set:
+                lf_rf_rating = positions_and_defense[Position.LF]
+                lf_rf_games = positions_and_games_played[Position.LF]
+                del positions_and_defense[Position.LF]
+                del positions_and_games_played[Position.LF]
             # IF JUST RF
             else:
-                lf_rf_rating = positions_and_defense['RF']
-                lf_rf_games = positions_and_games_played['RF']
-                del positions_and_defense['RF']
-                del positions_and_games_played['RF']
-            positions_and_defense['LF/RF'] = lf_rf_rating
-            positions_and_games_played['LF/RF'] = lf_rf_games
+                lf_rf_rating = positions_and_defense[Position.RF]
+                lf_rf_games = positions_and_games_played[Position.RF]
+                del positions_and_defense[Position.RF]
+                del positions_and_games_played[Position.RF]
+            positions_and_defense[Position.LFRF] = lf_rf_rating
+            positions_and_games_played[Position.LFRF] = lf_rf_games
             positions_set = set(positions_and_defense.keys())
         
         # IF PLAYER HAS ALL OUTFIELD POSITIONS
-        non_outfield_positions = [pos for pos in positions_and_defense.keys() if pos not in ['LF/RF','CF','OF','RF','LF','DH']]
-        if set(['LF/RF','CF','OF']).issubset(positions_set):
-            if self.set.is_outfield_split and positions_and_defense['LF/RF'] != positions_and_defense['CF'] and len(non_outfield_positions) < 2:
-                del positions_and_defense['OF']
-                del positions_and_games_played['OF']
+        non_outfield_positions = [pos for pos in positions_and_defense.keys() if not pos.is_outfield and pos != Position.DH]
+        if set([Position.LFRF,Position.CF,Position.OF]).issubset(positions_set):
+            if self.set.is_outfield_split and positions_and_defense[Position.LFRF] != positions_and_defense[Position.CF] and len(non_outfield_positions) < 2:
+                del positions_and_defense[Position.OF]
+                del positions_and_games_played[Position.OF]
             else:
-                del positions_and_defense['LF/RF']
-                del positions_and_defense['CF']
-                del positions_and_games_played['LF/RF']
-                del positions_and_games_played['CF']
+                del positions_and_defense[Position.LFRF]
+                del positions_and_defense[Position.CF]
+                del positions_and_games_played[Position.LFRF]
+                del positions_and_games_played[Position.CF]
         # IF JUST OF
-        elif 'OF' in positions_set and ('LF/RF' in positions_set or 'CF' in positions_set):
-            del positions_and_defense['OF']
-            del positions_and_games_played['OF']
+        elif Position.OF in positions_set and (Position.LFRF in positions_set or Position.CF in positions_set):
+            del positions_and_defense[Position.OF]
+            del positions_and_games_played[Position.OF]
         
         # IS CF AND 2000/2001
         # 2000/2001 SETS ALWAYS INCLUDED LF/RF FOR CF PLAYERS
-        if 'CF' in positions_set and len(positions_and_defense) == 1 and self.set.is_cf_eligible_for_lfrf:
-            if 'CF' in positions_and_defense.keys():
-                cf_defense = positions_and_defense['CF']
-                lf_rf_defense = round(positions_and_defense['CF'] / 2)
+        if Position.CF in positions_set and len(positions_and_defense) == 1 and self.set.is_cf_eligible_for_lfrf:
+            if Position.CF in positions_and_defense.keys():
+                cf_defense = positions_and_defense[Position.CF]
+                lf_rf_defense = round(positions_and_defense[Position.CF] / 2)
                 if lf_rf_defense == cf_defense:
-                    positions_and_games_played['OF'] = positions_and_games_played['CF']
-                    positions_and_defense['OF'] = cf_defense
-                    del positions_and_defense['CF']
-                    del positions_and_games_played['CF']
+                    positions_and_games_played[Position.OF] = positions_and_games_played[Position.CF]
+                    positions_and_defense[Position.OF] = cf_defense
+                    del positions_and_defense[Position.CF]
+                    del positions_and_games_played[Position.CF]
                 else:
-                    positions_and_defense['LF/RF'] = lf_rf_defense
-                    positions_and_games_played['LF/RF'] = 0
+                    positions_and_defense[Position.LFRF] = lf_rf_defense
+                    positions_and_games_played[Position.LFRF] = 0
         
         # CHANGE OF TO LF/RF IF PLAYER HASNT PLAYED CF
-        # EXCEPTION IS PRE-1900, WHERE 'OF' POSITIONAL BREAKOUTS ARE NOT AVAILABLE
+        # EXCEPTION IS PRE-1900, WHERE OF POSITIONAL BREAKOUTS ARE NOT AVAILABLE
         start_year = min(self.year_list)
-        if 'OF' in positions_set and is_of_but_hasnt_played_cf and 'OF' in positions_and_defense.keys() and start_year > 1900:
-            positions_and_games_played['LF/RF'] = positions_and_games_played['OF']
-            positions_and_defense['LF/RF'] = positions_and_defense['OF']
-            del positions_and_defense['OF']
-            del positions_and_games_played['OF']
+        if Position.OF in positions_set and is_of_but_hasnt_played_cf and Position.OF in positions_and_defense.keys() and start_year > 1900:
+            positions_and_games_played[Position.LFRF] = positions_and_games_played[Position.OF]
+            positions_and_defense[Position.LFRF] = positions_and_defense[Position.OF]
+            del positions_and_defense[Position.OF]
+            del positions_and_games_played[Position.OF]
 
         return positions_and_defense, positions_and_games_played
 
@@ -1035,8 +1046,8 @@ class ShowdownPlayerCard(BaseModel):
         
         return [position1, position2]
 
-    def __position_name_in_game(self, position:str, num_positions:int, position_appearances:int, games_played:int, games_started:int, saves:int, has_played_all_if_positions:bool) -> str:
-        """Cleans position name to conform to game standards.
+    def __position_in_game(self, position:str, num_positions:int, position_appearances:int, games_played:int, games_started:int, saves:int, has_played_all_if_positions:bool) -> Position:
+        """Cleans position name to conform to game standards. Converts to position object
 
         Args:
           position: Baseball Reference name for position.
@@ -1061,11 +1072,11 @@ class ShowdownPlayerCard(BaseModel):
             gsRatio = games_started / games_played
             if gsRatio > self.set.starting_pitcher_pct_games_started:
                 # ASSIGN MINIMUM IP FOR STARTERS
-                return 'STARTER'
+                return Position.SP
             if saves > self.set.closer_min_saves_required:
-                return 'CLOSER'
+                return Position.CL
             else:
-                return 'RELIEVER'
+                return Position.RP
         elif ( position_appearances < self.set.min_number_of_games_defense and pct_of_games_played < (self.set.min_pct_of_games_defense(is_multi_year=False) * pos_min_multiplier) ) \
               or (self.is_multi_year and pct_of_games_played < (self.set.min_pct_of_games_defense(is_multi_year=True) * pos_min_multiplier ) ):
             # IF POSIITION DOES NOT MEET REQUIREMENT, RETURN NONE
@@ -1075,12 +1086,11 @@ class ShowdownPlayerCard(BaseModel):
             return None
         elif not self.set.is_00_01 and position == 'C':
             # CHANGE CATCHER POSITION NAME DEPENDING ON CONTEXT YEAR
-            return 'CA'
-        else:
-            # RETURN BASEBALL REFERENCE STRING VALUE
-            return position
+            return Position.CA
+        
+        return Position(position)
 
-    def __convert_to_in_game_defense(self, position:str, rating:float, metric:DefenseMetric, games:int) -> int:
+    def __convert_to_in_game_defense(self, position:Position, rating:float, metric:DefenseMetric, games:int) -> int:
         """Converts the best available fielding metric to in game defense at a position.
            Uses DRS for 2003+, TZR for 1953-2002, dWAR for <1953.
            More modern defensive metrics (like DRS) are not available for historical
@@ -1095,27 +1105,41 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           In game defensive rating.
         """
-        # IF USING OUTS ABOVE AVG, CALCULATE RATING PER 162 GAMES
-        position = Position(position)
+        
         is_1b = position == Position._1B
-        if metric == DefenseMetric.OAA:
-            rating = rating / games * 162.0
-            # FOR OUTS ABOVE AVG OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
-            # EX: NICK AHMED 2018 - 38.45 OAA per 162
+
+        # CALCULATE RATING PER 150 GAMES IF NOT FULL CAREER
+        if not self.is_full_career:
+            rating = rating / games * 150
+
+            # CUTS DOWN SMALL SAMPLE SIZES, WHERE PLAYERS HAVE PLAYED < 30 GAMES
+            small_sample_reduction = min((games / 30), 1.0)
+            rating *= small_sample_reduction
+
+            # FOR DEFENSIVE OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
+            # EX: NICK AHMED 2018 - 38.45 OAA per 150
             #   - OAA FOR +5 = 16
             #   - OAA OVER MAX = 38.45 - 16 = 22.45
             #   - REDUCED OVER MAX = 22.45 * 0.5 = 11.23
-            #   - NEW RATING = 16 + 11.23 = 26.23            
-            if rating > metric.range_max and not is_1b:
-                amount_over_max = rating - metric.range_max
-                reduced_amount_over_max = amount_over_max * metric.over_max_multiplier
-                rating = reduced_amount_over_max + metric.range_max
+            #   - NEW RATING = 16 + 11.23 = 26.23
+            # APPLIES AN ADDITIONAL REDUCTION FOR PLAYERS THAT HAVE PLAYED < 120 GAMES
+            #  EX: 60 GAMES PLAYED WOULD REDUCE EXCESS AMOUNT BY 50%. 
+            #      DOES NOT EFFECT VALUES UP UNTIL EXCESS (EX: 1-5 FOR SS)
+            
+            metric_max = metric.range_max(position_str=position.value, set_str=self.set.value)
+            if rating > metric_max and not is_1b:
+                amount_over_max = rating - metric_max
+                over_max_small_sample_reduction = min((games / 120), 1.0)
+                reduced_amount_over_max = amount_over_max * metric.over_max_multiplier * over_max_small_sample_reduction
+                rating = reduced_amount_over_max + metric_max
 
+        min_defense_for_position = self.set.position_defense_min(position=position)
         max_defense_for_position = self.set.position_defense_max(position=position)
-        percentile = (rating-metric.range_min) / metric.range_total_values
-        defense_raw = percentile * max_defense_for_position
+        percentile = (rating - metric.range_min(position_str=position.value, set_str=self.set.value)) \
+                        / metric.range_total_values(position_str=position.value, set_str=self.set.value)
+                   
+        defense_raw = min_defense_for_position + ( percentile * (max_defense_for_position - min_defense_for_position) )
         defense = round(defense_raw) if defense_raw > 0 or self.set.is_showdown_bot else 0
-        
         # FOR NEGATIVES, CAP DEFENSE AT -2
         defense = max(self.set.defense_floor, defense)
 
@@ -1129,17 +1153,6 @@ class ShowdownPlayerCard(BaseModel):
                 defense = -1
             else:
                 defense = 0
-        
-        # CAP DEFENSE IF GAMES PLAYED IS SMALL
-        # < 45 GAMES, CAP DEFENSE AT 50% OF MAX
-        # < 100 GAMES, CAP DEFENSE AT MAX
-        # MAX IS REDUCED CHANGES FOR SMALL SAMPLE SIZES (< 25 GAMES)
-        games_multiplier = max( min(games / 25, 1) , 0.5 )
-        is_defense_over_the_max = defense >= ( max_defense_for_position * games_multiplier )
-        if games < 45 and is_defense_over_the_max:
-            defense = int(round(max_defense_for_position * 0.6))
-        elif games < 100 and is_defense_over_the_max:
-            defense = int(max_defense_for_position)
 
         # CAP DEFENSE AT +0 IF IN NEGATIVES AND GAMES PLAYED IS UNDER 0 (CLASSIC/EXPANDED SETS)
         defense = 0 if defense < 0 and games < 50 else defense
@@ -1347,7 +1360,7 @@ class ShowdownPlayerCard(BaseModel):
         for icon in available_icons:
 
             # ROOKIE
-            if icon == Icon.R and self.stats.get('is_rookie', False):
+            if icon == Icon.R and self.stats_for_card.get('is_rookie', False):
                 icons.append(icon)
                 continue
 
@@ -1363,14 +1376,14 @@ class ShowdownPlayerCard(BaseModel):
             
             # THRESHOLDS
             if stat_value_requirement and stat_category:
-                if self.stats.get(f"is_above_{stat_category.lower()}_threshold", False):
+                if self.stats_for_card.get(f"is_above_{stat_category.lower()}_threshold", False):
                     icons.append(icon)
                     continue
             
             # LEADER
             if stat_category:
                 is_top_2 = len([a for a in self.accolades if ("2ND" in a or "LEADER" in a) and (f" {icon.accolade_search_term}" in a and 'SO/9' not in a)]) > 0
-                is_leader = self.stats.get(f"is_{stat_category.lower()}_leader", False)
+                is_leader = self.stats_for_card.get(f"is_{stat_category.lower()}_leader", False)
                 if is_top_2 or is_leader:
                     icons.append(icon)
                     continue
@@ -1400,7 +1413,7 @@ class ShowdownPlayerCard(BaseModel):
         is_starting_pitcher = self.has_position(Position.SP)
 
         # -- PART 1: AWARDS AND RANKINGS --
-        accolades_dict = self.stats.get('accolades', {})
+        accolades_dict = self.stats_for_card.get('accolades', {})
         accolades_rank_and_priority_tuples = []
         for accolade_type, accolade_list in accolades_dict.items():
 
@@ -1532,7 +1545,7 @@ class ShowdownPlayerCard(BaseModel):
                     accolades_rank_and_priority_tuples += ordinal_accolades
         
         # ADD ROOKIE OF THE YEAR VOTING, NOT INCLUDED IN BREF ACCOLADES SECTION
-        awards_summary_list = self.stats.get('award_summary', '').upper().split(',')
+        awards_summary_list = self.stats_for_card.get('award_summary', '').upper().split(',')
         for award in awards_summary_list:
             if 'ROY-' not in award:
                 continue
@@ -1574,29 +1587,29 @@ class ShowdownPlayerCard(BaseModel):
         if self.is_pitcher:
             if is_starting_pitcher:
                 # WINS
-                wins = self.stats.get('W', 0)
+                wins = self.stats_for_card.get('W', 0)
                 if ( (wins / num_seasons) > 14 and not self.is_substring_in_list('WINS',current_accolades) ) or wins >= 300:
                     accolades_rank_and_priority_tuples.append( (f"{wins} WINS", 50, default_stat_priority) )
             else:
                 # SAVES
-                saves = self.stats.get('SV', 0)
+                saves = self.stats_for_card.get('SV', 0)
                 if (saves / num_seasons) > 20 and not self.is_substring_in_list('SAVES',current_accolades):
                     accolades_rank_and_priority_tuples.append( (f"{saves} SAVES", 51, default_stat_priority) )
             
             # ERA
-            era_2_decimals = '%.2f' % self.stats.get('earned_run_avg', 0.0)
+            era_2_decimals = '%.2f' % self.stats_for_card.get('earned_run_avg', 0.0)
             if not self.is_substring_in_list('ERA',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{era_2_decimals} ERA", 52, default_stat_priority) )
 
             # WHIP
-            whip = self.stats.get('whip', 0.000)
+            whip = self.stats_for_card.get('whip', 0.000)
             if not self.is_substring_in_list('WHIP',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{whip} WHIP", 53, default_stat_priority) )
         
         else:
         # HITTERS ----
             # HOME RUNS
-            hr = self.stats.get('HR', 0)
+            hr = self.stats_for_card.get('HR', 0)
             hr_per_year = hr / num_seasons
             is_hr_all_time = (hr >= 500 or hr_per_year >= 60)
             if ( hr_per_year >= (15 if self.year == 2020 else 30) and not self.is_substring_in_list('HR',current_accolades) ) or is_hr_all_time:
@@ -1608,11 +1621,11 @@ class ShowdownPlayerCard(BaseModel):
                 accolades_rank_and_priority_tuples.append( (f"{hr} {hr_suffix}", 50, hr_priority) )
                 
             # RBI
-            rbi = self.stats.get('RBI', 0)
+            rbi = self.stats_for_card.get('RBI', 0) if len(str(self.stats_for_card.get('RBI', 0))) > 0 else 0
             if (rbi / num_seasons) >= 100 and not self.is_substring_in_list('RBI',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{rbi} RBI", 51, default_stat_priority) )
             # HITS
-            hits = self.stats.get('H', 0)
+            hits = self.stats_for_card.get('H', 0)
             hits_per_year = hits / num_seasons
             is_hits_all_time = (hits >= 3000 or hits_per_year >= 240)
             if ( hits_per_year >= 175 and not self.is_substring_in_list('HITS',current_accolades) ) or is_hits_all_time:
@@ -1622,7 +1635,7 @@ class ShowdownPlayerCard(BaseModel):
                 hits_priority = 0 if is_hits_all_time else default_stat_priority
                 accolades_rank_and_priority_tuples.append( (f"{hits} HITS", 52, hits_priority) )
             # BATTING AVG
-            ba = self.stats.get('batting_avg', 0.00)
+            ba = self.stats_for_card.get('batting_avg', 0.00)
             is_ba_all_time = ba >= 0.390
             if ( ba >= 0.300 and not self.is_substring_in_list('BA',current_accolades) ) or is_ba_all_time:
                 ba_3_decimals = ('%.3f' % ba).replace('0.','.')
@@ -1630,17 +1643,17 @@ class ShowdownPlayerCard(BaseModel):
                 ba_priority = 0 if is_ba_all_time else default_stat_priority
                 accolades_rank_and_priority_tuples.append( (f"{ba_3_decimals} {ba_suffix}", 53, ba_priority) )
             # OBP
-            obp = self.stats.get('onbase_perc', 0.00)
+            obp = self.stats_for_card.get('onbase_perc', 0.00)
             if obp >= 0.400 and not self.is_substring_in_list('OBP',current_accolades):
                 obp_3_decimals = ('%.3f' % obp).replace('0.','.')
                 accolades_rank_and_priority_tuples.append( (f"{obp_3_decimals} OBP", 54, default_stat_priority) )
             # SLG
-            slg = self.stats.get('slugging_perc', 0.00)
+            slg = self.stats_for_card.get('slugging_perc', 0.00)
             if slg >= 0.550 and not self.is_substring_in_list('SLG',current_accolades):
                 slg_3_decimals = ('%.3f' % slg).replace('0.','.')
                 accolades_rank_and_priority_tuples.append( (f"{slg_3_decimals} SLG%", 55, default_stat_priority) )
             # dWAR
-            dWAR = self.stats.get('dWAR', 0.00)
+            dWAR = self.stats_for_card.get('dWAR', 0.00)
             dWAR = 0 if len(str(dWAR)) == 0 else dWAR
             if float(dWAR) >= (2.5 * num_seasons) and not self.is_substring_in_list('DWAR',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{dWAR} dWAR", 56, 10) )
@@ -1650,11 +1663,11 @@ class ShowdownPlayerCard(BaseModel):
         usable_accolades = [a for a in accolades_rank_and_priority_tuples if len(a[0]) <= length_req]
         if len(usable_accolades) < 2:
             # OPS+
-            ops_plus = self.stats.get('onbase_plus_slugging_plus', None)
+            ops_plus = self.stats_for_card.get('onbase_plus_slugging_plus', None)
             if ops_plus and self.is_hitter and not self.is_substring_in_list('OPS+',current_accolades):
                 accolades_rank_and_priority_tuples.append( (f"{int(ops_plus)} OPS+", 57, default_stat_priority) )
             # bWAR
-            bWAR = self.stats.get('bWAR', None)
+            bWAR = self.stats_for_card.get('bWAR', None)
             if bWAR:
                 accolades_rank_and_priority_tuples.append( (f"{bWAR} WAR", 58, default_stat_priority) )
 
@@ -1728,8 +1741,7 @@ class ShowdownPlayerCard(BaseModel):
         # SET CONSTANTS
         year_list = self.year_list if not self.is_alternate_era else self.era.year_range
         opponent = self.set.opponent_chart(player_sub_type=self.player_sub_type, era=self.era, year_list=year_list, adjust_for_simulation_accuracy=True)
-        mlb_avgs_df = opponent.load_mlb_league_avg_df()
-        pa = self.stats.get('pa', 400)
+        pa = self.stats_for_card.get('pa', 400)
         
         command_options = list(set([ c for c in self.set.command_options(player_type=self.player_type) if c not in self.commands_excluded]))
         for command in command_options:
@@ -1761,7 +1773,6 @@ class ShowdownPlayerCard(BaseModel):
                     is_pitcher=self.is_pitcher,
                     player_subtype=self.player_sub_type.value,
                     command_accuracy_weight=command_accuracy_weight,
-                    mlb_avgs_df=mlb_avgs_df,
                 )
 
                 # IF COMMAND OUT COMBO HAS ALREADY BEEN CALC'D PREVIOUSLY, SKIP
@@ -1784,7 +1795,6 @@ class ShowdownPlayerCard(BaseModel):
                 stats_per_400_pa=stats_per_400_pa,
                 is_pitcher=self.is_pitcher,
                 player_subtype=self.player_sub_type.value,
-                mlb_avgs_df=mlb_avgs_df
             )
             chart.accuracy = 1.0
             charts.append(chart)
@@ -1801,7 +1811,7 @@ class ShowdownPlayerCard(BaseModel):
 # REAL LIFE STATS METHODS
 # ------------------------------------------------------------------------
 
-    def add_estimates_to_stats(self, stats:dict) -> dict:
+    def clean_stats(self, stats:dict) -> dict:
         """Add estimated stats to the player's season stats.
 
         Args:
@@ -1827,12 +1837,36 @@ class ShowdownPlayerCard(BaseModel):
             base = 0.16 if metric == 'IF/FB' else 1.5
             ratio = round(base * multiplier, 3)
             return ratio
+        
+        # DO NOTHING IF STATS HAVE ALREADY BEEN CLEANED/ESTIMATED
+        # CAN TELL BY CHECKING FOR GB, FB, PU
+        if 'GB' in stats and 'FB' in stats and 'PU' in stats:
+            return stats
+    
+        # REDUCE IF/FB FOR 1988
+        if 'IF/FB' in stats.keys() and self.year == '1988':
+            stats['IF/FB'] = stats.get('IF/FB', 0.0) * self.set.pu_normalizer_1988
+
+        # ADD FIP FOR PITCHERS
+        if self.is_pitcher and 'fip' not in stats.keys():
+            
+            fip_constant = sc.FIP_CONSTANT.get(self.median_year, 3.2)
+            hr_weighted = 13 * stats.get('HR', 0)
+            bb_weighted = 3 * stats.get('BB', 0)
+            so_weighted = 2 * stats.get('SO', 0)
+            ip = stats.get('IP', 1)
+            stats['fip'] = round(( (hr_weighted + bb_weighted - so_weighted) / ip) + fip_constant, 2)
+            
+        # ADD K/9 FOR PITCHERS
+        if self.is_pitcher and 'strikeouts_per_nine' not in stats.keys():
+            k_per_9 = stats.get('SO', 0) * 9 / stats.get('IP', 1)
+            stats['strikeouts_per_nine'] = round(k_per_9, 2)
 
         # CLEAN SLASHLINE
         ba = float(stats['batting_avg']) if len(str(stats['batting_avg'])) > 0 else 1.0
         obp = float(stats['onbase_perc']) if len(str(stats['onbase_perc'])) > 0 else 1.0
         slg = float(stats['slugging_perc']) if len(str(stats['slugging_perc'])) > 0 else 1.0
-        ops = obp + slg
+        ops = round(obp + slg, 4)
         if_fb = stats.get('IF/FB', replacement_ratio('IF/FB', slg)) or replacement_ratio('IF/FB', slg)
         go_ao = stats.get('GO/AO', replacement_ratio('GO/AO', slg)) or replacement_ratio('GO/AO', slg)
 
@@ -1856,7 +1890,7 @@ class ShowdownPlayerCard(BaseModel):
         # FB/PU EST RESULTS
         remaining_pa -= gb_results
         pu_results = round(remaining_pa * if_fb, 2)
-        fb_results = remaining_pa - pu_results
+        fb_results = round(remaining_pa - pu_results, 2)
 
         # ADD TO DICT
         stats['GB'] = gb_results
@@ -1880,14 +1914,6 @@ class ShowdownPlayerCard(BaseModel):
         """
         if len(stats) == 0:
             return {}
-
-        # SUBTRACT SACRIFICES?
-        sh = stats.get('SH', 0)
-        sf = stats.get('SF', 0)
-        all_sacrifices = sh + sf
-
-        # SUBTRACT INVOLUNTARY PA RESULTS
-        ibb = stats.get('IBB', 0)
 
         pct_of_n_pa = (float(stats['PA'])) / plate_appearances
 
@@ -1991,7 +2017,7 @@ class ShowdownPlayerCard(BaseModel):
                     position = list(self.positions_and_defense.keys())[0].value
                     if position == Position.LFRF.value:
                         position = 'OF'
-                    position_defense = self.stats.get('positions', {}).get(position, {}).get(key, None)
+                    position_defense = self.stats_for_card.get('positions', {}).get(position, {}).get(key, None)
                     if position_defense is None:
                         continue
 
@@ -2031,7 +2057,7 @@ class ShowdownPlayerCard(BaseModel):
                 # APPLY PERCENTILE IN ORDER TO RANK
                 # EX: PLAYER WITH 30 HR / 650 PA (PERCENTILE 100% IS 20)
                 #     30 / 20 = 1.5x RATING
-                denominator = (self.stats.get('PA', 650) / 650) if category.is_pa_metric else 1.0
+                denominator = (self.stats_for_card.get('PA', 650) / 650) if category.is_pa_metric else 1.0
                 is_reversed = category.is_lower_better
                 stat_per_650 = float(stat) / denominator
                 rating = round((cutoff_for_positive_sort_rating / stat_per_650) if is_reversed else (stat_per_650 / cutoff_for_positive_sort_rating), 3)
@@ -2404,12 +2430,12 @@ class ShowdownPlayerCard(BaseModel):
         statline_tbl = PrettyTable(field_names=[' '] + list(stat_categories_dict.keys()))
         final_dict = {
             'projected': [],
-            'stats': [],
+            'stats_for_card': [],
         }
         all_numeric_value_lists = []
         for source in final_dict.keys():
             source_dict = getattr(self, source)
-            src_value_name = source.replace('stats', 'real').replace('projected', 'proj').upper()
+            src_value_name = source.replace('stats_for_card', 'real').replace('projected', 'proj').upper()
             values = [src_value_name]
             numeric_values = []
             for key in stat_categories_dict.values():
@@ -2423,11 +2449,18 @@ class ShowdownPlayerCard(BaseModel):
         
         # ADD ROWS
         for source, values in final_dict.items():
-            statline_tbl.add_row(values, divider=source == 'stats')
+            statline_tbl.add_row(values, divider=source == 'stats_for_card')
         
         # ADD DIFFS ROW
-        diffs_row = ['DIFF'] + [round(all_numeric_value_lists[0][i] - all_numeric_value_lists[1][i], 3 if i < 4 else 0) for i in range(len(all_numeric_value_lists[0]))]
-        statline_tbl.add_row(diffs_row)
+        cleaned_diffs: list[str] = ['DIFF']
+        projections_showdown = all_numeric_value_lists[0]
+        real_life = all_numeric_value_lists[1]
+        for index, key in enumerate(stat_categories_dict.values()):
+            diff_value = projections_showdown[index] - real_life[index]
+            diff_value_str = self.__stat_formatted(category=key, value=diff_value)
+            cleaned_diffs.append(diff_value_str)
+
+        statline_tbl.add_row(cleaned_diffs)
 
         print('\nPROJECTED STATS')
         print(statline_tbl)
@@ -2470,7 +2503,7 @@ class ShowdownPlayerCard(BaseModel):
             if self.is_pitcher and key == 'onbase_plus_slugging_plus':
                 continue
             precision = 0 if key == 'onbase_plus_slugging_plus' else 3
-            actual = int(self.stats.get(key, 0)) if precision == 0 else round(float(self.stats.get(key, 0)), precision)
+            actual = int(self.stats_for_card.get(key, 0)) if precision == 0 else round(float(self.stats_for_card.get(key, 0)), precision)
             actual_str = f"{actual:.3f}".replace('0.','.') if key != 'onbase_plus_slugging_plus' else str(actual)
             in_game = 0 if self.projected.get(key, 0) is None else ( int(self.projected.get(key, 0)) if precision == 0 else round(float(self.projected.get(key, 0)), precision) )
             in_game_str = f"{in_game:.3f}".replace('0.','.') if key != 'onbase_plus_slugging_plus' else str(int(in_game))
@@ -2478,16 +2511,16 @@ class ShowdownPlayerCard(BaseModel):
             final_player_data.append([category_prefix+cleaned_category, actual_str, in_game_str, diff])
 
         # GAMES/IP
-        final_player_data.append(['G', str(self.stats.get('G', 0)), en_dash, en_dash])
-        ip_real = self.stats.get('IP', None)
+        final_player_data.append(['G', str(self.stats_for_card.get('G', 0)), en_dash, en_dash])
+        ip_real = self.stats_for_card.get('IP', None)
         if ip_real:
-            final_player_data.append(['IP', str(self.stats.get('IP', 0)).replace('.0', ''), en_dash, en_dash])
+            final_player_data.append(['IP', str(self.stats_for_card.get('IP', 0)).replace('.0', ''), en_dash, en_dash])
 
         # PLATE APPEARANCES / AB
-        real_life_pa = int(self.stats['PA'])
+        real_life_pa = int(self.stats_for_card['PA'])
         real_life_pa_ratio = real_life_pa / self.projected.get('PA', 650.0)
         final_player_data.append([f'{category_prefix}PA', str(real_life_pa), str(real_life_pa), en_dash])
-        actual_ab = self.stats.get('AB', 0)
+        actual_ab = self.stats_for_card.get('AB', 0)
         bot_ab = round(self.projected.get('AB', 0))
         final_player_data.append([f'{category_prefix}AB', str(actual_ab), str(bot_ab), diff_string(bot_ab, bot_ab)])
 
@@ -2497,7 +2530,7 @@ class ShowdownPlayerCard(BaseModel):
         chart_categories_adjusted = [c.value for c in self.chart.chart_categories_adjusted]
         for key in result_categories:
             in_game = int(round(self.projected[key]) * real_life_pa_ratio)
-            actual = int(self.stats[key])
+            actual = int(self.stats_for_card[key])
             prefix = category_prefix if key in ['2B','3B'] else ''
             suffix = "*" if key in ['GB', 'FB', 'PU'] else ''
             suffix = '**' if key in chart_categories_adjusted else suffix
@@ -2507,8 +2540,8 @@ class ShowdownPlayerCard(BaseModel):
         category_list = ['earned_run_avg', 'whip', 'bWAR'] if self.is_pitcher else ['SB', 'dWAR', 'bWAR']
         rounded_metrics_list = ['SB']
         for category in category_list:
-            if category in self.stats.keys():
-                stat_raw = self.stats.get(category, None)
+            if category in self.stats_for_card.keys():
+                stat_raw = self.stats_for_card.get(category, None)
                 if stat_raw is None:
                     stat = en_dash
                 else:
@@ -2529,7 +2562,7 @@ class ShowdownPlayerCard(BaseModel):
         # DEFENSE (IF APPLICABLE)
         for position, metric_and_value_dict in self.positions_and_real_life_ratings.items():
             for metric, value in metric_and_value_dict.items():
-                final_player_data.append([f'{metric.value.upper()}-{position}',str(round(value)),en_dash, en_dash])
+                final_player_data.append([f'{metric.value.upper()}-{position.value}',str(round(value)),en_dash, en_dash])
         
         return final_player_data
 
@@ -2735,6 +2768,42 @@ class ShowdownPlayerCard(BaseModel):
         
         return positions_string
 
+    def trend_line_data(self) -> dict[str: Any]:
+        """Provides data needed to populate the trend line shown on the showdownbot.com webpage.
+        Includes additional metadata that's shown in the tooltip.
+
+        Args:
+          None
+
+        Returns:
+          Dictionary with keys for each category and values for the trend line.
+        """
+
+        final_data = {
+            'team': self.team.value,
+            'points': self.points,
+            self.command_type.lower(): self.chart.command,
+            'outs': self.chart.outs_full,
+            'year': self.year,
+            'color': self.radar_chart_color(),
+            'shOPS+': self.projected.get('onbase_plus_slugging_plus', 'N/A'),
+        }
+        match self.player_sub_type:
+            case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER:
+                final_data.update({
+                    'ip': self.ip,
+                    '2b': self.chart.ranges.get('2B', '-'),
+                    'so': self.chart.ranges.get('SO', '-'),
+                })
+            case PlayerSubType.POSITION_PLAYER:
+                final_data.update({
+                    'hr': self.chart.ranges.get('HR', '-'),
+                    'speed': f"{self.speed.letter} ({self.speed.speed})",
+                    'defense': self.positions_and_defense_string,
+                })
+                            
+        return final_data
+
     def radar_chart_labels_as_values(self) -> tuple[list[str], list[float]]:
         """Defines the labels and values used in the radar chart shown on the front end.
 
@@ -2793,7 +2862,8 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           String with RGB codes (ex: "rgba(255, 50, 25, 1.0)")
         """
-        tm_colors = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color)
+
+        tm_colors = self.__team_color_rgbs(is_secondary_color=self.team.use_secondary_color_for_graphs, ignore_team_overrides=True)
 
         return f'rgb({tm_colors[0]}, {tm_colors[1]}, {tm_colors[2]})'
 
@@ -2836,6 +2906,9 @@ class ShowdownPlayerCard(BaseModel):
             card_image = Image.open(BytesIO(response.content))
             self.save_image(image=card_image, start_time=start_time, show=show, disable_add_border=True)
             return
+        
+        # CHECK FOR SPECIAL EDITION
+        self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=self.year, is_04_05=self.set.is_04_05)
         
         # BACKGROUND IMAGE
         card_image = self.__background_image()
@@ -3136,7 +3209,7 @@ class ShowdownPlayerCard(BaseModel):
                 # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
                 logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
                 team_logo_path = self.__team_logo_path(name=logo_name)
-                is_wide_logo = logo_name == 'ASG-2022'
+                is_wide_logo = logo_name in ['ASG-2022', 'ASG-2025']
                 if is_04_05 and is_cooperstown:
                     logo_size = (330,330)
                     logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.COOPERSTOWN)
@@ -3182,7 +3255,12 @@ class ShowdownPlayerCard(BaseModel):
         # RETURN STATIC LOGO IF IGNORE_DYNAMIC_ELEMENTS IS ENABLED
         # IGNORES ROOKIE SEASON, SUPER SEASON
         if ignore_dynamic_elements:
+            # IF 2004/2005, ADD LIGHT OUTER GLOW
             return team_logo, adjusted_paste_coords(logo_paste_coordinates)
+        
+        # ADD GLOW FOR 04/05
+        if is_04_05:
+            team_logo = self.__add_outer_glow(image=team_logo, color='white', radius=5, enhancement_factor=0.75)
 
         # OVERRIDE IF SUPER SEASON
         if self.image.edition == Edition.SUPER_SEASON and not is_00_01:
@@ -3230,7 +3308,7 @@ class ShowdownPlayerCard(BaseModel):
             team_logo = new_logo
             logo_paste_coordinates = logo_paste_coordinates if is_cooperstown else (logo_paste_coordinates[0] - 150, logo_paste_coordinates[1])
 
-        # OVERRIDE IF ROOKIE SEASON
+        # OVERRIDE IF ROOKIE SEASON/POSTSEASON
         if is_edition_static_logo and not is_00_01:
             component = TemplateImageComponent.ROOKIE_SEASON if self.image.edition == Edition.ROOKIE_SEASON else TemplateImageComponent.POSTSEASON
             team_logo = self.__rookie_season_image() if self.image.edition == Edition.ROOKIE_SEASON else self.__postseason_image()
@@ -3354,7 +3432,7 @@ class ShowdownPlayerCard(BaseModel):
             # DEFINE COLOR(S) FOR CHART CONTAINER
             team_override = self.team_override_for_images
             fill_color = self.__team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
-            is_multi_colored = self.image.is_multi_colored or ( self.image.special_edition == SpecialEdition.NATIONALITY and len(self.nationality.colors) > 2 )
+            is_multi_colored = self.image.is_multi_colored or ( self.image.special_edition == SpecialEdition.NATIONALITY and len(self.nationality.colors) > 1 )
 
             if is_multi_colored:
                 # GRADIENT
@@ -3413,36 +3491,48 @@ class ShowdownPlayerCard(BaseModel):
         """
 
         # CREATE NEW IMAGE FOR LOGO AND ERA TEXT
-        img_size = (620,620)
-        logo_img_with_text = Image.new('RGBA',img_size)
+        img_size = (500,500)
+        img_width = img_size[0]
+        padding = 35
+        background_color = colors.BLACK if self.image.is_dark_mode else colors.WHITE
+        logo_img_with_text = Image.new('RGBA',img_size, color=background_color)
 
         # LOAD LOGO IMAGE
         is_dark_mode = self.image.is_dark_mode
         dark_mode_extension = '-DARK' if is_dark_mode else ''
-        logo_size = self.set.template_component_size(TemplateImageComponent.BOT_LOGO)
         logo_img_name = f"BOT-LOGO{dark_mode_extension}"
         logo_img = Image.open(self.__template_img_path(logo_img_name))
 
-        # ADD VERSION NUMBER
+        # VERSION NUMBER
         helvetica_neue_cond_bold_path = self.__font_path('HelveticaNeueCondensedBold')
-        text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=65)
-        # DATE NUMBER
-        version_text = self.__text_image(text=f"v{self.version}", size=(500, 500), font=text_font, alignment="right")
-        logo_img.paste("#b5b4b4", (-15, 326), version_text)
+        version_text_font = ImageFont.truetype(helvetica_neue_cond_bold_path, size=65)
+        version_text = self.__text_image(text=f"v{self.version}", size=(img_width, 125), font=version_text_font, alignment="right")
 
         # ERA TEXT
         helvetica_neue_lt_path = self.__font_path('Helvetica-Neue-LT-Std-97-Black-Condensed-Oblique')
+        era_background_size = (img_width, 100)
+        era_background_color = "#373737" if is_dark_mode else "#dedede"
+        era_padding = 15
+        era_text_paste_location = (0, 435)
         era_font = ImageFont.truetype(helvetica_neue_lt_path, size=70)
         era_txt_color = "#b5b5b5" if is_dark_mode else "#585858"
-        era_text = self.__text_image(text=self.era.value_no_era_suffix, size=(620, 100), font=era_font, alignment="center")
-        text_paste_location = (0, 435) 
+        era_text = self.__text_image(text=self.era.value_no_era_suffix, size=era_background_size, font=era_font, alignment="center")
+        era_text_background = Image.new('RGBA', (era_background_size[0], era_background_size[1] + era_padding), color=era_background_color)
         
-        # PASTE TO BLANK 600x600 IMAGE
-        x_centered = int((img_size[1] - 500) / 2)
-        logo_img_with_text.paste(logo_img, (x_centered, 0), logo_img)
-        logo_img_with_text.paste(era_txt_color, text_paste_location, era_text)
+        # PASTE TO BLANK 500x500 IMAGE
+        x_centered = int((img_width - logo_img.size[0]) / 2)
+        logo_img_with_text.paste(logo_img, (x_centered, padding), logo_img)
+        logo_img_with_text.paste(era_text_background, (era_text_paste_location[0], era_text_paste_location[1] - era_padding), era_text_background)
+        logo_img_with_text.paste(era_txt_color, era_text_paste_location, era_text)
+        logo_img_with_text.paste(era_txt_color, (-5, 330), version_text)
 
-        return logo_img_with_text.resize(logo_size, Image.Resampling.LANCZOS)
+        # RESIZE FINAL TIME AND ADD BORDER RADIUS
+        logo_size = self.set.template_component_size(TemplateImageComponent.BOT_LOGO)
+        logo_size = int(logo_size[0] * 0.80), int(logo_size[1] * 0.80)
+        logo_img_with_text = logo_img_with_text.resize(logo_size, Image.Resampling.LANCZOS)
+        logo_img_with_text = self.__round_corners(logo_img_with_text, 15)
+
+        return logo_img_with_text
 
     def __2000_player_name_container_image(self) -> Image.Image:
         """Gets template asset image for 2000 name container.
@@ -3964,10 +4054,13 @@ class ShowdownPlayerCard(BaseModel):
         set_image_location = self.set.template_component_paste_coordinates(TemplateImageComponent.SET)
         set_text_color = self.set.template_component_font_color(TemplateImageComponent.SET, is_dark_mode=self.image.is_dark_mode)
 
+        # IF USER DID NOT ASSIGN A SET NUMBER VALUE, ASSIGN THE SET'S DEFAULT
+        set_number_visual = self.image.set_number or self.set.default_set_number(self.year)
+
         if self.set.has_unified_set_and_year_strings:
             # SET AND NUMBER IN SAME STRING
             set_text = self.__text_image(
-                text = self.image.set_number,
+                text = set_number_visual,
                 size = (600, 300),
                 font = set_font,
                 alignment = "center"
@@ -4004,13 +4097,12 @@ class ShowdownPlayerCard(BaseModel):
             year_text = year_text.resize((int(set_year_size[0] / 3.75), int(set_year_size[1] / 3.75)), Image.Resampling.LANCZOS)
             set_image.paste(set_text_color, set_image_location, year_text)
 
-            is_default = self.image.set_number == '—'
-            hide_set_number = is_default and self.set.is_showdown_bot
+            hide_set_number = self.image.set_number is None and self.set.is_showdown_bot
             if not hide_set_number:
                 # CARD NUMBER
                 alignment = "left" if self.set.is_showdown_bot else "center"
                 number_text = self.__text_image(
-                    text = self.image.set_number,
+                    text = set_number_visual,
                     size = (600 if self.set.is_wotc else 430, 450),
                     font = set_font,
                     alignment = alignment
@@ -4056,7 +4148,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # FONTS
         super_season_year_path = self.__font_path('URW Corporate W01 Normal')
-        super_season_accolade_path = self.__font_path('Zurich Bold Italic BT')
+        super_season_accolade_path = self.__font_path('HelveticaNeueCondensedHeavyOblique', extension='otf')
         super_season_year_font = ImageFont.truetype(super_season_year_path, size=225)
         super_season_accolade_font = ImageFont.truetype(super_season_accolade_path, size=150)
 
@@ -4067,11 +4159,11 @@ class ShowdownPlayerCard(BaseModel):
             slot_max_characters_dict = {i: self.set.super_season_text_length_cutoff(i) for i in [1,2,3] }
 
             # ACCOLADES
-            x_position = 18 if is_after_03 else 9
-            x_incremental = 10 if is_after_03 else 1
-            y_position = 338 if is_after_03 else 324
-            accolade_rotation = 15 if is_after_03 else 13
-            accolade_spacing = 41 if is_after_03 else 72
+            x_position = 13 if is_after_03 else 0
+            x_incremental = 9 if is_after_03 else 1
+            y_position = 328 if is_after_03 else 316
+            accolade_rotation = 13 if is_after_03 else 12
+            accolade_spacing = 41 if is_after_03 else 74
             accolades_used = []
             for index, max_characters in slot_max_characters_dict.items():
                 accolades_available = [a for a in self.accolades if (a not in accolades_used and len(a) <= max_characters)]                
@@ -4086,14 +4178,16 @@ class ShowdownPlayerCard(BaseModel):
                     accolade = accolades_available[1]
 
                 accolades_used.append(accolade)
+
+                accolade_formatted = accolade if is_after_03 else accolade.replace('AL ', 'A.L. ').replace('NL ', 'N.L. ') 
                 accolade_text = self.__text_image(
-                    text = accolade,
+                    text = accolade_formatted,
                     size = (1800,480),
                     font = super_season_accolade_font,
                     alignment = "center",
-                    rotation = accolade_rotation
                 )
-                accolade_text = accolade_text.resize((375,150), Image.Resampling.LANCZOS)
+                accolade_text = accolade_text.resize((375,100), Image.Resampling.LANCZOS)
+                accolade_text = accolade_text.rotate(accolade_rotation, expand=1, resample=Image.BICUBIC)
                 accolade_text_images.append( (accolade_text, (x_position, y_position), accolade) )
                 x_position += x_incremental
                 y_position += accolade_spacing
@@ -4421,7 +4515,7 @@ class ShowdownPlayerCard(BaseModel):
             case Edition.ALL_STAR_GAME | Edition.COOPERSTOWN_COLLECTION:
                 logo_name = 'CCC' if self.image.edition == Edition.COOPERSTOWN_COLLECTION else f'ASG-{self.year}'
                 logo_size_x, logo_size_y = self.set.template_component_size(TemplateImageComponent.TEAM_LOGO)
-                logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name == 'ASG-2022' else (logo_size_x, logo_size_y)
+                logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name in ['ASG-2022', 'ASG-2025'] else (logo_size_x, logo_size_y)
                 logo_path = self.__team_logo_path(name=logo_name)
                 logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.Resampling.LANCZOS)
                 image.paste(logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), logo)
@@ -4610,10 +4704,10 @@ class ShowdownPlayerCard(BaseModel):
                 text = 'POSTSEASON'
                 text_list = [text]
             case StatsPeriodType.DATE_RANGE:
-                text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
+                text_list = [self.stats_for_card.get('first_game_date', None), self.stats_for_card.get('last_game_date', None)]
                 text_list = [t for t in text_list if t]
-                game_1_comp = self.stats.get('first_game_date', 'g1').strip()
-                game_2_comp = self.stats.get('last_game_date', 'g2').strip()
+                game_1_comp = self.stats_for_card.get('first_game_date', 'g1').strip()
+                game_2_comp = self.stats_for_card.get('last_game_date', 'g2').strip()
                 is_single_game = game_1_comp == game_2_comp            
                 text = game_1_comp if is_single_game else ' - '.join(text_list)
                 text_list = [text] if is_single_game else text_list
@@ -4650,7 +4744,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # CALCULATE METRIC LIMIT
         is_expansion_img = self.image.expansion.has_image
-        is_set_num = self.image.set_number != self.set.default_set_number(self.year)
+        is_set_num = self.image.set_number is not None
         is_period_box = self.stats_period.type != StatsPeriodType.REGULAR_SEASON
         is_year_and_stats_period_boxes = self.image.show_year_text and is_period_box
         y_text_offset = 3
@@ -4693,7 +4787,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # CALCULATE HOW MANY STATS CAN FIT
         full_text: str = ''
-        for stat in self.stat_highlights_list(stats=self.stats):
+        for stat in self.stat_highlights_list(stats=self.stats_for_card):
             text_width_next, _ = self.__font_getsize(font=font, text=f'{full_text}  {stat}')
             if text_width_next > (x_size_w_padding * 4): break
             full_text = f'{full_text}  {stat}'
@@ -4942,11 +5036,13 @@ class ShowdownPlayerCard(BaseModel):
                 random_bool_2 = year_ord > 54
 
                 y_cords = {
-                    PlayerImageComponent.ELLIPSE_LARGE: 850 if random_bool_2 else 800,
-                    PlayerImageComponent.ELLIPSE_MEDIUM: 400 if random_bool_2 else 300,
-                    PlayerImageComponent.ELLIPSE_SMALL: 1300 if random_bool_2 else 1400,
+                    PlayerImageComponent.ELLIPSE_EXTRALARGE: 60 if random_bool_2 else 320,
+                    PlayerImageComponent.ELLIPSE_LARGE: 950 if random_bool_2 else 40,
+                    PlayerImageComponent.ELLIPSE_MEDIUM: 650 if random_bool_2 else 850,
+                    PlayerImageComponent.ELLIPSE_SMALL: 1400 if random_bool_2 else 1300,
                 }
                 is_reversed_map = {
+                    PlayerImageComponent.ELLIPSE_EXTRALARGE: False,
                     PlayerImageComponent.ELLIPSE_LARGE: random_bool_1,
                     PlayerImageComponent.ELLIPSE_MEDIUM: not random_bool_1,
                     PlayerImageComponent.ELLIPSE_SMALL: random_bool_1,
@@ -4954,22 +5050,46 @@ class ShowdownPlayerCard(BaseModel):
                 img_width, _ = image.size
                 for ellipse_type, ycord in y_cords.items():
                     is_reversed = is_reversed_map.get(ellipse_type, False)
-                    for x_index in range(1, img_width):
-                        x_cord = img_width - x_index if is_reversed else x_index
-                        coordinates = (x_cord, ycord)
-                        try:
-                            pixel = image.getpixel(coordinates)
-                            pixel_opacity = pixel[3]
-                        except:
-                            break
-                        if pixel_opacity > 200: # OUT OF 255
-                            ellipse_circle_image = Image.open(self.__card_art_path(ellipse_type.value)).convert('RGBA')
-                            ellipse_width, _ = ellipse_circle_image.size
-                            ellipse_x_movement_mutliplier = 0.60 if is_reversed else 0.30
-                            x_adjustment = -1 * int(ellipse_width * ellipse_x_movement_mutliplier)
-                            coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
+                    ellipse_circle_image = self.__circle_image(size=ellipse_type.frame_size, fill=(0,0,0,0), border_size=5, border_fill=(210,210,210,100))
+                    ellipse_width, _ = ellipse_circle_image.size
+                    match ellipse_type:
+                        case PlayerImageComponent.ELLIPSE_EXTRALARGE:
+                            # GET THE RANGE OF PIXELS ON X THAT ARE NOT TRANSPARENT
+                            # RETURN MIDDLE OF MIN VS MAX
+                            populated_x_coords: int = []
+                            for x_cord in range(1, img_width):
+                                coordinates = (x_cord, ycord)
+                                try:
+                                    pixel = image.getpixel(coordinates)
+                                    pixel_opacity = pixel[3]
+                                except:
+                                    break
+                                if pixel_opacity > 200: # OUT OF 255
+                                    populated_x_coords.append(x_cord)
+                            
+                            if len(populated_x_coords) > 0:
+                                x_cord = int(statistics.median(populated_x_coords))
+                            else:
+                                x_cord = int(img_width / 2)
+                            x_cord = x_cord - int(ellipse_width * 0.5)
+                            coordinates_adjusted = (x_cord, ycord)
                             player_img_components.append((ellipse_circle_image, coordinates_adjusted))
-                            break
+                        case _:
+                            # FIND EDGE IN PARTICULAR DIRECTION
+                            for x_index in range(1, img_width):
+                                x_cord = img_width - x_index if is_reversed else x_index
+                                coordinates = (x_cord, ycord)
+                                try:
+                                    pixel = image.getpixel(coordinates)
+                                    pixel_opacity = pixel[3]
+                                except:
+                                    break
+                                if pixel_opacity > 200: # OUT OF 255                                    
+                                    ellipse_x_movement_mutliplier = 0.60 if is_reversed else 0.30
+                                    x_adjustment = -1 * int(ellipse_width * ellipse_x_movement_mutliplier)
+                                    coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
+                                    player_img_components.append((ellipse_circle_image, coordinates_adjusted))
+                                    break
 
             # PASTE IMAGE
             player_img_components.append((image, paste_coordinates))
@@ -5013,9 +5133,11 @@ class ShowdownPlayerCard(BaseModel):
         # APPLY GLOW OR SHADOW
         match component:
             case PlayerImageComponent.GLOW:
-                image = self.__add_outer_glow(image=image, color='white', radius=8, enhancement_factor=1.75)
+                radius = int(self.set.player_image_glow_radius * self.image.glow_multiplier)
+                image = self.__add_outer_glow(image=image, color='white', radius=radius, enhancement_factor=1.75)
             case PlayerImageComponent.SHADOW:
-                image = self.__add_outer_glow(image=image, color='black', radius=15, offset = (15,15), enhancement_factor=1.0)
+                radius = int(self.set.player_image_shadow_radius * max(self.image.glow_multiplier * 0.75, 1.0)) # DECREASE SLOPE OF RADIUS INCREASE FOR SHADOWS
+                image = self.__add_outer_glow(image=image, color='black', radius=radius, offset = (self.set.player_image_shadow_radius,self.set.player_image_shadow_radius), enhancement_factor=1.0, is_faded=True)
 
         return image
 
@@ -5851,6 +5973,32 @@ class ShowdownPlayerCard(BaseModel):
 
         return rect_image
 
+    def __circle_image(self, size:int, fill:tuple|str, border_size:int, border_fill:tuple|str) -> Image.Image:
+        """Create a new circle image with a particular fill and size.
+
+        Args:
+          size: Radius of the circle.
+          fill: Fill color of the circle.
+          border_size: Size of the border.
+          border_fill: Fill color of the border.
+
+        Returns:
+          PIL Image for circle.
+        """
+
+        image = Image.new('RGBA', (size, size), (0,0,0,0))
+        draw = ImageDraw.Draw(image)
+        
+        # OUTER CIRCLE: DRAW THE FULL CIRCLE WITH BORDER COLOR
+        outer_bounds = (0, 0, size - 1, size - 1)
+        draw.ellipse(outer_bounds, fill=border_fill)
+        
+        # INNER CIRCLE: DRAW A SMALLER CIRCLE INSET BY BORDER_WIDTH, FILLED WITH TRANSPARENT (ERASING THE INTERIOR)
+        inner_bounds = (border_size, border_size, size - border_size - 1, size - border_size - 1)
+        draw.ellipse(inner_bounds, fill=fill)
+    
+        return image
+
     def __add_drop_shadow(self, image:Image.Image, blur_radius:int = 15, color: float | tuple[float, ...] | str | None = 0) -> Image.Image:
         """
         Add a drop shadow to an image.
@@ -5884,7 +6032,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return background
 
-    def __add_outer_glow(self, image: Image.Image, color: tuple[int, int, int, int] = (255, 255, 255, 255), radius: int = 15, offset:tuple[int,int] = (0,0), enhancement_factor:float = 1.0) -> Image.Image:
+    def __add_outer_glow(self, image: Image.Image, color: tuple[int, int, int, int] = (255, 255, 255, 255), radius: int = 15, offset:tuple[int,int] = (0,0), enhancement_factor:float = 1.0, is_faded:bool = False) -> Image.Image:
         """
         Apply an outer glow effect to an image.
 
@@ -5894,16 +6042,16 @@ class ShowdownPlayerCard(BaseModel):
             radius: Radius of the glow.
             offset: Offset of the glow.
             enhancement_factor: Factor to enhance the brightness of the glow.
+            is_faded: Boolean flag to fade the glow from top to bottom (useful on shadows)
 
         Returns:
             PIL Image with outer glow.
         """
         # CREATE A BLANK IMAGE WITH PADDING FOR THE GLOW EFFECT
         image_width, image_height = image.size
-        total_width = image_width + abs(offset[0]) + 2 * radius
-        total_height = image_height + abs(offset[1]) + 2 * radius
+        total_width = int(image_width + 2 * radius)
+        total_height = int(image_height + 2 * radius)
         padded_image = Image.new("RGBA", (total_width, total_height), (0, 0, 0, 0))
-        padded_image = Image.new("RGBA", (image_width + 2 * radius, image_height + 2 * radius), (0, 0, 0, 0))
         padded_image.paste(image, (radius, radius))
 
         # CREATE A MASK FOR THE GLOW EFFECT
@@ -5915,19 +6063,30 @@ class ShowdownPlayerCard(BaseModel):
         blurred_mask = mask.filter(ImageFilter.GaussianBlur(radius))
         enhanced_blurred_mask = ImageEnhance.Brightness(blurred_mask).enhance(enhancement_factor)
 
-        # APPLY A FADE TO THE MASK
-        gradient = Image.new("L", (1, radius * 2), color=0xFF)
-        for y in range(radius * 2):
-            gradient.putpixel((0, y), int(255 * (1 - y / (radius * 2))))
-        alpha_gradient = gradient.resize(padded_image.size)
-        faded_mask = ImageChops.multiply(enhanced_blurred_mask, alpha_gradient)
+        # USE FADE IF APPLICABLE
+        if is_faded:
+            gradient = Image.new("L", (1, radius * 2), color=0xFF)
+            for y in range(radius * 2):
+                gradient.putpixel((0, y), int(255 * (1 - y / (radius * 2))))
+            alpha = gradient.resize(padded_image.size)
+        else:
+            # UNIFORM ALPHA
+            alpha = Image.new("L", padded_image.size, 255)
+        
+        # APPLY THE BLUR TO THE MASK
+        faded_mask = ImageChops.multiply(enhanced_blurred_mask, alpha)
 
         # CREATE A GLOW IMAGE USING THE BLURRED MASK AND THE GLOW COLOR
         glow = Image.new("RGBA", padded_image.size, color)
         glow.putalpha(faded_mask)
 
+        if radius == 10:
+            glow.show()
+
         # COMPOSITE THE GLOW WITH THE ORIGINAL IMAGE
-        glow.paste(padded_image, (0, 0), padded_image)
+        glow.paste(padded_image, (0,0), padded_image)
+        if radius == 10:
+            glow.show()
         
         return glow
 
@@ -6033,12 +6192,15 @@ class ShowdownPlayerCard(BaseModel):
         if self.set.convert_final_image_to_rgb:
             image = image.convert('RGB')
 
-        save_img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
-        image.save(save_img_path, dpi=(300, 300), quality=100)
         
-        if self.is_running_in_flask:
-            flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent,'static', 'output', self.image.output_file_name)
+        
+        if self.is_running_on_website:
+            flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output', self.image.output_file_name)
             image.save(flask_img_path, dpi=(300, 300), quality=100)
+        else:
+            default_path = os.path.join(os.path.dirname(__file__), 'output')
+            save_img_path = os.path.join(self.image.output_folder_path or default_path, self.image.output_file_name)
+            image.save(save_img_path, dpi=(300, 300), quality=100)
 
         # OPEN THE IMAGE LOCALLY
         if show:

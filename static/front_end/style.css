@@ -1,3 +1,32 @@
+/* Define your shared color variables */
+:root {
+    --primary-background-color: rgb(255, 255, 255);
+    --secondary-background-color: rgb(219, 219, 219);
+    --primary-color: rgb(26, 59, 95);
+    --secondary-color: rgb(154, 54, 48);
+    --warning-color: rgb(255, 193, 7);
+    --success-color: rgb(51, 202, 126);
+    --failure-color: rgb(235, 87, 87);
+    --button-bg-color: rgb(227, 226, 226);
+    --text-primary-color: #000000;
+    --text-secondary-color: #4a4a4a;
+}
+
+/* MAIN BODY */
+.main_body_dark {
+    background-color: #000000;
+    --primary-background-color: rgb(29, 29, 29);
+    --secondary-background-color: rgb(47, 47, 47);
+    --primary-color: rgb(70, 130, 230);
+    --secondary-color: rgb(208, 78, 71);
+    --warning-color: rgb(255, 193, 7);
+    --success-color: rgb(68, 224, 146);
+    --failure-color: rgb(232, 100, 100);
+    --button-bg-color: rgb(86, 86, 86);
+    --text-primary-color: #ffffff;
+    --text-secondary-color: #dbdbdb;
+}
+
 /* CONTAINER: HOLDS BOTH INPUT AND OUTPUTS */
 .container_bg_light {
     border-radius: 20px;
@@ -6,7 +35,7 @@
     margin-bottom: 20px;
     margin-right: 10px;
     margin-left: 10px;
-    background-color: #f3f3f3; /*#416a9d; */
+    background-color: #ebeaea; /*#416a9d; */
     overflow: hidden;
 }
 .container_bg_dark {
@@ -43,14 +72,8 @@
 .output_container {
     padding-left: 20px;
     padding-right: 20px;    
-}
-
-/* MAIN BODY */
-.main_body_light {
-    background-color: #ffffff;
-}
-.main_body_dark {
-    background-color: #000000;
+    padding-top: 10px;
+    gap: 10px;
 }
 
 /* RADAR: SHOWS RADAR CHART FOR PLAYER ATTRIBUTES */
@@ -71,24 +94,60 @@
     display: none;
     margin-bottom: 8px;
 }
-
-/* TREND: SHOWS TREND CHART FOR PLAYER PROGRESS */
-.trend_container_light {
-    background-color: #ffffff;
+.player_attribute_box {
+    color: var(--text-secondary-color);
+    background-color: var(--primary-background-color);
     border-radius: 10px;
-    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    padding: 8px;
-    overflow: hidden;
-    display: none;
-    margin-bottom: 8px;
+    margin: 0px;
+    padding-left: 10px;
+    padding-right: 10px;
+    font-weight: bold;
+    font-size: small;
+    display: flex;
+    align-items: center;
 }
-.trend_container_dark {
-    background-color: #9b9b9b;
+.player_attribute_box_subtext {
+    margin: 0px;
+    padding-left: 5px;
+    font-weight: bold;
+    font-size: x-small;
+}
+.player_attribute_live_box {
+    color: #ffffff;
+    background-color: var(--secondary-color);
     border-radius: 10px;
-    padding: 8px;
-    overflow: hidden;
-    display: none;
-    margin-bottom: 8px;
+    margin: 0px;
+    padding-left: 10px;
+    padding-right: 10px;
+    font-weight: bold;
+    font-size: small;
+    display: flex;
+    align-items: center;
+}
+/* TREND: SHOWS TREND CHART FOR PLAYER PROGRESS */
+.trend_container {
+    background-color: var(--primary-background-color);
+    border-radius: 20px;
+    height: 250px;
+    position: relative;
+    padding-bottom: 25px;
+    padding-right: 5px;
+    padding-left: 5px;
+    padding-top: 5px;
+}
+/* Ensure the canvas fills the container without exceeding its bounds */
+.trend_container canvas{
+    max-width: 100% !important;
+    max-height: 100% !important;
+    display: block;
+}
+.trend_label {
+    color: var(--text-secondary-color);
+    font-weight: bold;
+    display: block;
+    text-align: center;
+    font-size: 12px;
+    opacity: 0.75;
 }
 .graph_label {
     font-weight: bold;
@@ -99,18 +158,13 @@
 }
 
 /* BREAKDOWN: SHOWS STATS, POINTS, ACCURACY, ETC */
-.breakdown_output_light {
-    background-color: #ffffff;
-    border-radius: 10px;
-    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    padding: 8px;
-    overflow: hidden;
-}
-.breakdown_output_dark {
-    background-color: #222222;
-    border-radius: 10px;
-    padding: 8px;
-    overflow: hidden;
+.breakdown_output {
+    background-color: var(--primary-background-color);
+    border-radius: 20px;
+    /* box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20); */
+    padding: 15px;
+    overflow: scroll;
+    height: 100%;
 }
 
 /* COLUMN REPRESENTS THE FLEX COLUMN FOR THE INPUT CONTAINER */
@@ -129,7 +183,10 @@
     box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
     overflow: hidden;
 }
-.card_image {
+#card_image {
+    transition: opacity 0.4s ease-in-out;
+}
+#image_header_div {
     padding: 5px;
 }
 
@@ -137,6 +194,7 @@
 .estimated_values_footnote_light, .rank_values_footnote_light, .opponent_values_footnote_light, .chart_adjustments_footnote_light, .points_breakdown_footnote_light {
     font-size: 50%;
     color: #000000;
+    margin: 2px;
 }
 .estimated_values_footnote_dark, .rank_values_footnote_dark, .opponent_values_footnote_dark, .chart_adjustments_footnote_dark, .points_breakdown_footnote_dark {
     font-size:50%; 
@@ -145,8 +203,7 @@
 
 /* LOGO IMAGE */
 #showdown_logo_img {
-    max-width: 250px;
-    max-height: 200px;
+    height: 45px;
     padding-left: 10px;
     padding-right: 10px;
     padding-top: 10px;
@@ -174,23 +231,24 @@
 /* TABS CONTAINER */
 .tabs {
     display: flex;
-    padding-top: 15px;
+    padding-top: 10px;
     padding-left: 10px;
     padding-right: 5px;
 }
 
 /* TABS BUTTON */
 .tabs_button {
-    padding: 10px;
-    padding-left: 20px;
-    padding-right: 20px;
+    padding: 8px 15px;
     border-radius: 20px;
-    background-color: rgb(227, 226, 226);
+    background-color: var(--button-bg-color);
     margin-right: 10px;
     border: none;
     outline: none;
     cursor: pointer;
-    color: rgb(37, 37, 37);
+    color: var(--text-secondary-color);
+    font-size: 80%;
+    font-weight: bolder;
+    white-space: nowrap;
 }
 
 /* TABS BUTTON WHEN BEING CLICKED */
@@ -200,8 +258,7 @@
 
 /* TABS BUTTON WHEN BEING CLICKED */
 .tabs_button--active {
-    background-color: rgb(73, 131, 212);
-    font-weight: bold;
+    background-color: var(--primary-color);
     color: white;
 }
 
@@ -223,38 +280,30 @@
 }
 
 /* PLAYER NAME */
-.player_name_light {
-    color: black;
+.player_name {
+    color: var(--text-secondary-color);
     padding: 0px; 
     margin: 0px; 
     font-weight: bolder; 
 }
-.player_name_dark {
-    color: gray;
+.text-grid {
+    display: flex;
+    flex-wrap: wrap;       /* Enables wrapping to a new line */
+    column-gap: 10px;      /* Optional spacing between elements */
+    row-gap: 5px;          /* Optional spacing between elements */
+    justify-content: left; /* Optional: center items horizontally */
+    margin-bottom: 10px;
+    align-items: center;
+    margin: 0px;
+}
+#message_string {
+    color: red;
     padding: 0px; 
-    margin: 0px; 
-    font-weight: bolder; 
+    margin-bottom: 10px; 
+    display: none;
 }
-.player_link_light {
-    margin: 2px; 
-    color: black;
-}
-.player_link_dark {
-    margin: 2px;
-    color: gray;
-}
-.player_shOPS_plus_light {
-    margin: 2px;
-    font-weight: bolder;
-    color: black;
-}
-.player_shOPS_plus_dark {
-    margin: 2px;
-    font-weight: bolder;
-    color: gray;
-}
-#player_name_container {
-    padding-top: 20px;
+.player_details_div_container {
+    margin-bottom: 10px;
 }
 #player_trend_up_arrow {
     color: green;
@@ -368,21 +417,11 @@ hr {
     height: 1px;
     border-width: 0;
     background-color:#4f4f4f;
-    margin-top: 20px;
-    margin-bottom: 0px;
-    margin-left: 10px;
-    margin-right: 10px;
+    margin: 5px;
 }
 
 .btn_text {
     font-weight: bolder;
-}
-
-#btn_custom {
-    border-radius: 20px; 
-    padding: 10px;
-    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
-    color: white;
 }
 
 .a_no_style {
@@ -397,10 +436,268 @@ hr {
     padding-bottom: 5px;
     padding-left: 10px;
 }
-
-#period_string {
-    color: #7a7a7a;
+.theme_switch {
+    border: none;
+    outline: none;
+    padding: 6px;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    color: var(--text-primary-color);
+    background-color: var(--button-bg-color);
 }
+
+.custom-toggle-group .btn {
+    font-size: 12px;
+    padding: 2px 5px;
+    height: 18px;
+    line-height: 1.2;
+    border-radius: 4px;
+}
+
+.custom-toggle-group .btn-check:checked + .btn {
+    background-color: #6c757d; /* Bootstrap secondary */
+    color: white;
+    border-color: #6c757d;
+}
+
+.btn_custom {
+    border-radius: 20px; 
+    padding: 8px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    color: white;
+}
+
+.btn_custom:hover {
+    opacity: 0.8;
+    color: white;
+}
+
+/* Status indicator style with sliding animation */
+.status-indicator {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 14px 22px;
+    background-color: var(--warning-color); /* adjust as needed */
+    border-radius: 20px;
+    color: #0f0f0f;
+    z-index: 10000;
+    font-size: 14px;
+    text-align: center;
+    display: none;
+    transform: translateX(100%);
+    opacity: 0;
+    transition: transform 0.5s ease-out, opacity 0.5s ease-out;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    max-width: 200px;
+    line-height: 125%;
+}
+
+.style-less-button {
+    background: none;
+    border: none;
+    margin: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    display: block;
+}
+
+.style-less-a {
+    text-decoration: none;
+    color: inherit;
+    background: none;
+    border: none;
+    outline: none;
+}
+
+.status-indicator.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+#status-indicator-subtext {
+    color: #242424;
+    font-size: 12px;
+}
+
+#jump_to_text {
+    color: #444444;
+    font-size: 11px;
+    display: none;
+    margin: 0px;
+    padding: 0px;
+    text-decoration: underline;
+}
+
+/* GAME BOXSCORE */
+#game_boxscore_div {
+    background-color: var(--primary-background-color);
+    border-radius: 10px;
+    box-shadow: 0px 1px 15px 0px rgba(0, 0, 0, 0.20);
+    overflow: hidden;
+    margin-bottom: 15px;
+    display: none;
+    width: fit-content;
+    padding-right: 8px;
+}
+
+.game_boxscore_team {
+    padding: 5px 8px;
+    display: flex;
+    align-items: center;
+}
+
+.game_boxscore_team_text {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ffffff;
+    margin: 0px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+}
+
+.game_boxscore_score_text {
+    font-size: 14px;
+    font-weight: bolder;
+    color: #ffffff;
+    margin: 0px;
+    padding: 0px 5px;
+}
+
+.game_boxscore_inning_and_date {
+    display: flex;
+    flex-direction: auto;
+    justify-content: center;
+    align-items: center;
+    padding: 0px 8px;
+    gap: 5px;
+}
+.game_boxscore_inning {
+    font-size: 14px;
+    font-weight: bolder;
+    color: var(--text-primary-color);
+    margin: 0px;
+    
+    display: flex;
+    align-items: bottom;
+    white-space: nowrap;
+}
+.game_boxscore_date {
+    font-size: 10px;
+    font-weight: bolder;
+    color: var(--text-primary-color);
+    margin: 0px;
+    display: flex;
+    align-items: top;
+    white-space: nowrap;
+}
+
+.game_boxscore_player_summary {
+    font-size: 12px;
+    font-weight: bolder;
+    color: var(--text-secondary-color);
+    margin: 0px;
+    padding: 0px;
+    display: flex;
+    align-items: center;
+    line-height: 1.2;
+}
+
+.game_boxscore_player_points_change {
+    font-size: 10px;
+    font-weight: bolder;
+    margin: 0px;
+    padding: 0px;
+    display: flex;
+    align-items: center;
+    padding-left: 5px;
+    white-space: nowrap;
+}
+
+/* Whats New */
+
+.button_whats_new {
+    background-color: var(--secondary-background-color); 
+    color: var(--text-primary-color); 
+    margin: 0px; 
+    padding: 3px 8px;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    font-size: 11px;
+    border-radius: 10px;
+}
+
+.button_whats_new_x {
+    display: flex;
+    justify-content: flex-end; 
+    align-items: center;
+    width: 100%;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--text-primary-color);
+    background-color: transparent;
+}
+
+#div_whats_new_modal_container {
+    display: none;
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh; 
+    background: rgba(0,0,0,0.6); 
+    z-index: 999; 
+    align-items: center; 
+    justify-content: center;
+    transition: opacity 0.4s ease-in-out;
+}
+
+.div_whats_new_modal_content {
+    background: var(--primary-background-color); 
+    border-radius: 12px; 
+    width: 90%; 
+    max-width: 400px; 
+    max-height: 90%;
+    padding: 30px 24px; 
+    font-family: sans-serif; 
+    text-align: left; 
+    box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    color: var(--text-primary-color);
+    overflow: scroll;
+}
+
+.div_whats_new_feature_section {
+    display: flex; 
+    gap: 12px; 
+    margin-bottom: 15px;
+}
+
+.div_whats_new_paragraph {
+    line-height: 1.3;
+    font-size: 14px;
+}
+
+.whats_new_button {
+    width: 100%; 
+    background: var(--secondary-color); 
+    color: white; 
+    border: none; 
+    padding: 12px; 
+    margin-top: 16px; 
+    font-weight: bold; 
+    font-size: 16px; 
+    border-radius: 10px; 
+    cursor: pointer;
+}
+
+/* **************************************************** */
 
 /* GENERAL */
 input[type='text'],
@@ -413,5 +710,36 @@ textarea {
 @media (max-width: 992px) {
     .container {
         max-width: none; /* Removes max-width */
+    }
+}
+
+/* Show only when screen width is between 576px and 768px */
+@media (max-width: 767.98px) {
+    #jump_to_text {
+      display: block;
+    }
+}
+
+/* For medium and large devices: ≥768px and <1200px */
+@media (min-width: 768px) and (max-width: 1199px) {
+    .breakdown_output {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+}
+
+/* For large devices: ≥1200px and <1400px */
+@media (min-width: 1200px) and (max-width: 1399px) {
+    .breakdown_output {
+      max-height: 542px;
+      overflow-y: auto;
+    }
+}
+
+/* For xl+ devices: ≥1400px */
+@media (min-width: 1400px) {
+    .breakdown_output {
+      max-height: 640px;
+      overflow-y: auto;
     }
 }

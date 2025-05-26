@@ -199,7 +199,7 @@ class Firebase:
 # PARSING
 # ------------------------------------------------------------------------
 
-    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, set: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, image_parallel, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, date_override, is_running_in_flask) -> ShowdownPlayerCard:
+    def load_showdown_card(self, ignore_showdown_library: bool, bref_id: str, year: str, set: str, expansion: str, edition: str, player_image_path, player_image_url, offset, set_number, add_image_border, is_dark_mode, is_variable_speed_00_01, image_parallel, team_override, set_year_plus_one, pitcher_override, hitter_override, hide_team_logo, date_override, is_running_on_website) -> ShowdownPlayerCard:
         """Load cached player showdown data from database.
 
         Args:
@@ -275,7 +275,7 @@ class Firebase:
             image_parallel=image_parallel,
             set_year_plus_one=set_year_plus_one,
             date_override=date_override,
-            is_running_in_flask=is_running_in_flask,
+            is_running_on_website=is_running_on_website,
             source='Showdown Library'
         )
         ignore_keys_list = ['has_custom_set_number', 'set_number', 'expansion', 'is_variable_speed_00_01','edition']
