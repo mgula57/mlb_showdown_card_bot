@@ -631,6 +631,20 @@ hr {
     border-radius: 10px;
 }
 
+.button_whats_new_x {
+    display: flex;
+    justify-content: flex-end; 
+    align-items: center;
+    width: 100%;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--text-primary-color);
+    background-color: transparent;
+}
+
 #div_whats_new_modal_container {
     display: none;
     position: fixed; 
@@ -650,11 +664,13 @@ hr {
     border-radius: 12px; 
     width: 90%; 
     max-width: 400px; 
+    max-height: 90%;
     padding: 30px 24px; 
     font-family: sans-serif; 
     text-align: left; 
     box-shadow: 0 0 20px rgba(0,0,0,0.3);
     color: var(--text-primary-color);
+    overflow: scroll;
 }
 
 .div_whats_new_feature_section {
