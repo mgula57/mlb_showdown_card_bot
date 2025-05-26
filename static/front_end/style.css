@@ -238,8 +238,8 @@
 
 /* TABS BUTTON */
 .tabs_button {
-    padding: 10px 20px;
-    border-radius: 25px;
+    padding: 8px 15px;
+    border-radius: 20px;
     background-color: var(--button-bg-color);
     margin-right: 10px;
     border: none;
@@ -248,6 +248,7 @@
     color: var(--text-secondary-color);
     font-size: 80%;
     font-weight: bolder;
+    white-space: nowrap;
 }
 
 /* TABS BUTTON WHEN BEING CLICKED */
@@ -626,8 +627,7 @@ hr {
     border: none;
     outline: none;
     cursor: pointer;
-    white-space: nowrap;
-    font-size: 13px;
+    font-size: 11px;
     border-radius: 10px;
 }
 

@@ -212,8 +212,7 @@ function changePeriodSection(selection) {
 }
 
 // ON CHANGE OF YEAR INPUT
-function changeYear(newYear) {
-    yearText = newYear.value;
+function changeYear(yearText) {
     if (yearText.length == 4) {
         for (const date of ["start_date", "end_date"]) {
             document.getElementById(date).value = yearText + document.getElementById(date).value.slice(4);
@@ -999,6 +998,7 @@ $(document).ready(function() {
                 document.getElementById("name").value = lastCardJson.name;
             }
             document.getElementById("year").value = lastCardJson.year;
+            changeYear(lastCardJson.year);
 
             // STATS PERIOD
             document.getElementById("periodSelection").value = lastCardJson.period;
