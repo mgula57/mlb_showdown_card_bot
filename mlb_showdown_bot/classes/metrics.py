@@ -7,25 +7,95 @@ class DefenseMetric(Enum):
     TZR = 'tzr'
     DWAR = 'dWAR'
     
-    @property
-    def range_min(self) -> float:
-        match self.value:
-            case 'oaa': return -16
-            case 'drs': return -20
-            case 'tzr': return -18
-            case 'dWAR': return -2.5
+    def range_min(self, position_str:str, set_str:str) -> float:
+        """ Returns the minimum range value for the given position """
+        multiplier = 1.0
+        match position_str:
+            case 'C':
+                match set_str:
+                    case '2000' | 'CLASSIC': multiplier = 1.1
+            case '2B': 
+                match set_str:
+                    case '2000' | '2001'| 'CLASSIC': multiplier = 1.3
+                    case '2004' | '2005' | 'EXPANDED': multiplier = 1.3
+            case 'SS': 
+                match set_str:
+                    case '2000' | '2001' | 'CLASSIC': multiplier = 1.3
+                    case '2004' | '2005' | 'EXPANDED': multiplier = 1.2
+            case '3B': 
+                match set_str:
+                    case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.2
+            case 'LF' | 'RF': 
+                match set_str:
+                    case '2000' | '2001' | 'CLASSIC': multiplier = 1.3
+                    case '2002': multiplier = 1.1
+            case 'OF': 
+                match set_str:
+                    case '2000' | '2001' | 'CLASSIC': multiplier = 1.3
+            case 'CF':
+                match set_str:
+                    case '2000': multiplier = 1.3
+                    case '2001' | 'CLASSIC': multiplier = 1.3
+                    case '2002': multiplier = 1.5
 
-    @property
-    def range_max(self) -> float:
-        match self.value:
-            case 'oaa': return 16
-            case 'drs': return 20
-            case 'tzr': return 18
-            case 'dWAR': return 2.5
+        min_basis = -1 * self.range_max(position_str, set_str)
+        match self:
+            case DefenseMetric.DWAR:
+                match position_str:
+                    case 'LF' | 'RF' | 'CF': min_basis *= 1.5
+                    case 'OF': min_basis *= 1.5
+            case DefenseMetric.OAA:
+                match position_str:
+                    case 'LF' | 'RF': min_basis *= 1.3
+                
+        return (min_basis * multiplier)
 
-    @property
-    def range_total_values(self) -> float:
-        return self.range_max - self.range_min
+    def range_max(self, position_str:str, set_str:str) -> float:
+        """ Returns the maximum range value for the given position """
+        multiplier = 1.0
+        match position_str:
+            case 'C': 
+                match set_str:
+                    case '2004' | '2005' | 'EXPANDED': multiplier = 1.25
+                    case _: multiplier = 1.3
+            case '2B': 
+                match set_str:
+                    case '2000' | '2001' | 'CLASSIC': multiplier = 1.4
+                    case '2004' | '2005' | 'EXPANDED': multiplier = 1.3
+            case 'SS':
+                match set_str:
+                    case '2000' | '2001' | 'CLASSIC': multiplier = 1.4
+                    case '2003': multiplier = 1.2
+                    case '2004' | '2005' | 'EXPANDED': multiplier = 1.3
+            case '3B': 
+                match set_str:
+                    case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.2
+            case 'LF' | 'RF': 
+                match set_str:
+                    case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.3
+            case 'OF': 
+                match set_str:
+                    case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.3
+            case 'CF':
+                match set_str:
+                    case '2000' | '2001' | '2002' | 'CLASSIC': multiplier = 1.3
+        match self:
+            case DefenseMetric.OAA:
+                match position_str:
+                    case 'LF' | 'RF' | 'OF': basis = 10
+                    case _: basis = 16
+                return basis * multiplier
+            case DefenseMetric.DRS: return 19 * multiplier
+            case DefenseMetric.TZR: return 17 * multiplier
+            case DefenseMetric.DWAR: 
+                match position_str:
+                    case 'C': basis = 2.25
+                    case 'LF' | 'RF' | 'CF' | 'OF': basis = 1.25
+                    case _: basis = 2.0
+                return basis * multiplier
+
+    def range_total_values(self, position_str:str, set_str:str) -> float:
+        return self.range_max(position_str, set_str) - self.range_min(position_str, set_str)
 
     @property
     def first_base_plus_2_cutoff(self) -> float:
@@ -33,8 +103,8 @@ class DefenseMetric(Enum):
         match self.value:
             case 'oaa': return 13
             case 'drs': return 17
-            case 'tzr': return 15
-            case 'dWAR': return 0.8
+            case 'tzr': return 16
+            case 'dWAR': return 1.5
 
     @property
     def first_base_plus_1_cutoff(self) -> int:
@@ -57,7 +127,7 @@ class DefenseMetric(Enum):
     @property
     def over_max_multiplier(self) -> float:
         """ Reduces outliers in OAA by reducing values over the defense maximum """
-        return 0.5 if self.value == 'oaa' else 1.0
+        return 0.5 if self == DefenseMetric.OAA else 0.85
     
 class Stat(Enum):
 

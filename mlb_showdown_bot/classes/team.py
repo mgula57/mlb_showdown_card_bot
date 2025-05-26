@@ -350,6 +350,10 @@ class Team(str, Enum):
                 '2': (189, 48, 57, 255),
                 '3': (189, 48, 57, 255),
                 '4': (189, 48, 57, 255),
+                '5': (0, 48, 135, 255), # BOSTON AMERICANS
+            }
+            case 'BRO': return {
+                '1': (0, 121, 62, 255),
             }
             case 'CHC': return {
                 '1': (176,36,54,255),
@@ -357,12 +361,22 @@ class Team(str, Enum):
                 '3': (14, 51, 134, 255),
                 '4': (14, 51, 134, 255),
                 '5': (14, 51, 134, 255),
+                '6': (12, 35, 64, 255),
+                '7': (45, 41, 38, 255),
+                '8': (45, 41, 38, 255),
+                '9': (12, 35, 64, 255),
             }
             case 'CHW': return {
                 '1': (0, 38, 99, 255),
                 '2': (0, 38, 99, 255),
                 '3': (0, 38, 99, 255),
                 '4': (0, 38, 99, 255),
+                '5': (190, 15, 52, 255),
+                '6': (10, 35, 67, 255),
+                '7': (10, 35, 67, 255),
+                '8': (10, 35, 67, 255),
+                '9': (10, 35, 67, 255),
+                '10': (10, 35, 67, 255),
             }
             case 'CIN': return {
                 '1': (198,1,31,255),
@@ -377,22 +391,37 @@ class Team(str, Enum):
                 '4': (215,0,44,255),
                 '5': (215,0,44,255),
                 '6': (226,29,56,255),
+                '7': (215,0,44,255),
+                '8': (215,0,44,255),
             }
             case 'DET': return {
                 '1': (0,33,68,255),
                 '2': (0,33,68,255),
                 '3': (0,33,68,255),
+                '4': (159,27,50,255),
+                '5': (42,39,35,255),
+                '6': (42,39,35,255),
+                '7': (0,33,68,255),
+                '8': (0,33,68,255),
+                '9': (0,33,68,255),
+                '10': (0,33,68,255),
             }
             case 'HOU': return {
                 '1': (250, 70, 22, 255),
                 '2': (4, 30, 66, 255),
                 '3': (12, 35, 64, 255),
                 '4': (154, 51, 36, 255),
+                '5': (4, 30, 66, 255),
+                '6': (12, 35, 64, 255),
+            }
+            case 'KCA': return {
+                '1': (0, 49, 67, 255),
             }
             case 'KCR': return {
                 '1': (0, 70, 135, 255),
                 '2': (0, 70, 135, 255),
                 '3': (0, 70, 135, 255),
+                '4': (0, 70, 135, 255),
             }
             case 'LAA': return {
                 '1': (191, 13, 62, 255),
@@ -405,6 +434,7 @@ class Team(str, Enum):
                 '2': (0, 70, 174, 255),
                 '3': (141, 116, 74, 255),
                 '4': (18, 40, 75, 255),
+                '5': (18, 40, 75, 255),
             }
             case 'MIN': return {
                 '1': (190, 15, 52, 255),
@@ -413,6 +443,7 @@ class Team(str, Enum):
             }
             case 'NYG': return {
                 '1': (12, 35, 64, 255),
+                '2': (0, 13, 113, 255),
             }
             case 'NYM': return {
                 '1': self.primary_color,
@@ -425,6 +456,7 @@ class Team(str, Enum):
             case 'OAK': return {
                 '1': (17, 87, 64, 255),
                 '2': (17, 87, 64, 255),
+                '3': (255, 204, 0, 255),
             }
             case 'PHI': return {
                 '1': (232, 24, 40, 255),
@@ -436,6 +468,7 @@ class Team(str, Enum):
                 '1': (204, 159, 35, 255),
                 '2': (204, 159, 35, 255),
                 '3': (204, 159, 35, 255),
+                '5': (0, 38, 99, 255),
             }
             case 'SDP': return {
                 '1': (105, 63, 34, 255),
@@ -443,6 +476,7 @@ class Team(str, Enum):
                 '3': (4, 30, 66, 255),
                 '4': (0, 45, 98, 255),
                 '5': (0, 45, 98, 255),
+                '6': (70, 36, 37, 255),
             }
             case 'SEA': return {
                 '1': (0, 40, 120, 255),
@@ -527,7 +561,7 @@ class Team(str, Enum):
             case 'BBB': return (251, 221, 0, 255)
             case 'BEG' | 'CEG' | 'NEG' | 'WEG': return (176, 0, 0, 255)
             case 'BRG': return (0, 21, 123, 255)
-            case 'BSN': return (255, 204, 0, 255)
+            case 'BSN': return (0, 33, 68, 255)
             case 'CBE' | 'CCB': return (0, 45, 114, 255)
             case 'CEN': return (10, 34, 63, 255)
             case 'DM': return (45, 68, 146, 255)
@@ -563,13 +597,29 @@ class Team(str, Enum):
                 '2': (0,51,160,255),
                 '3': (0,51,160,255),
             }
+            case 'BOS': return {
+                '5': (0, 48, 135, 255), # BOSTON AMERICANS
+            }
+            case 'BRO': return {
+                '1': (123, 123, 123, 255),
+            }
             case 'CHC': return {
                 '1': (12,35,64,255),
+                '6': (12, 35, 64, 255),
+                '7': (45, 41, 38, 255),
+                '8': (45, 41, 38, 255),
+                '9': (147, 77, 17, 255),
             }
             case 'CHW': return {
                 '2': (204,9,47,255),
                 '3': (204,9,47,255),
                 '4': (204,9,47,255),
+                '5': (67,67,67,255),
+                '6': (67,67,67,255),
+                '7': (67,67,67,255),
+                '8': (67,67,67,255),
+                '9': (67,67,67,255),
+                '10': (67,67,67,255),
             }
             case 'CLE': return {
                 '6': (26, 46, 90, 255),
@@ -578,17 +628,24 @@ class Team(str, Enum):
                 '1': (240,240,240,255),
                 '2': (250,70,22,255),
                 '3': (250,70,22,255),
+                '4': (42,39,35,255),
             }
             case 'HOU': return {
                 '1': (4, 30, 66, 255),
                 '2': (250, 70, 22, 255),
                 '3': (137, 115, 75, 255),
                 '4': (211, 188, 141, 255),
+                '5': (250, 70, 22, 255),
+                '6': (137, 115, 75, 255),
+            }
+            case 'KCA': return {
+                '1': (222, 0, 37, 255),
             }
             case 'KCR': return {
                 '1': (192, 154, 91, 255),
                 '2': (192, 154, 91, 255),
                 '3': (192, 154, 91, 255),
+                '4': (192, 154, 91, 255),
             }
             case 'LAA': return {
                 '1': (4, 28, 44, 255),
@@ -601,6 +658,7 @@ class Team(str, Enum):
                 '2': (255, 212, 81, 255),
                 '3': (10, 105, 78, 255),
                 '4': (182, 146, 46, 255),
+                '5': (182, 146, 46, 255),
             }
             case 'MIN': return {
                 '1': (12, 35, 64, 255),
@@ -609,6 +667,7 @@ class Team(str, Enum):
             }
             case 'NYG': return {
                 '1': (197, 198, 200, 255),
+                '2': (0, 13, 113, 255),
             }
             case 'NYY': return {
                 '1': (31, 77, 139, 255),
@@ -617,6 +676,7 @@ class Team(str, Enum):
             case 'OAK': return {
                 '1': (255, 205, 0, 255),
                 '2': (255, 205, 0, 255),
+                '3': (0, 132, 68, 255),
             }
             case 'PHI': return {
                 '2': (40, 72, 152, 255),
@@ -627,6 +687,7 @@ class Team(str, Enum):
                 '1': (39, 37, 31, 255),
                 '2': (39, 37, 31, 255),
                 '3': (39, 37, 31, 255),
+                '5': (204, 9, 47, 255),
             }
             case 'SDP': return {
                 '1': (255, 205, 5, 255),
@@ -634,6 +695,7 @@ class Team(str, Enum):
                 '3': (227, 82, 5, 255),
                 '4': (162, 170, 173, 255),
                 '5': (162, 170, 173, 255),
+                '6': (227, 86, 37, 255),
             }
             case 'SEA': return {
                 '1': (255, 204, 0, 255),
@@ -677,6 +739,11 @@ class Team(str, Enum):
             color_historical = (196, 206, 211, 255)
 
         return color_historical
+    
+    def rgb_color_for_html(self, year:int) -> str:
+        """RGB color for HTML"""
+        color = self.color(year=year, is_secondary=self.use_secondary_color_for_graphs)
+        return f"rgb({color[0]}, {color[1]}, {color[2]})"
         
     def __closest_color(self, requested_color: tuple[int,int,int]) -> str:
         """Closest matched name of color given rgbs"""
@@ -721,6 +788,12 @@ class Team(str, Enum):
             case 'brown' | 'saddlebrown' | 'sandybrown' | 'wheat' | 'peru': return 'BROWN'
             case _: return None    
 
+    @property
+    def use_secondary_color_for_graphs(self) -> bool:
+        return self in [
+            Team.NYM,
+        ]
+
 # ------------------------------------------------------------------------
 # LOGO
 # ------------------------------------------------------------------------
@@ -738,40 +811,79 @@ class Team(str, Enum):
                 '1': list(range(1901,1955)),
             }
             case 'ATL': return {
-                '1': list(range(1966,1972)),
-                '2': list(range(1972,1981)),
-                '3': list(range(1981,1987)),
+                '1': list(range(1966,1968)),
+                '2': list(range(1968,1972)),
+                '3': list(range(1972,1981)),
+                '4': list(range(1981,1987)),
             }
             case 'BAL': return {
                 '1': list(range(1872,1900)),
                 '2': list(range(1914,1916)),
                 '3': list(range(1954,1966)),
-                '4': list(range(1966,1992)),
+                '4': list(range(1970,1992)),
                 '5': list(range(1992,1995)),
                 '6': list(range(1995,2009)),
                 '7': list(range(2009,2019)),
+                '8': list(range(1966,1970)), # 1966-69 BLACK LOGO
             }
             case 'BOS': return {
-                '1': list(range(1871,1901)),
-                '2': list(range(1901,1924)),
+                '5': list(range(1871,1908)), # BOSTON AMERICANS
+                '1': list(range(1908,1909)),
+                '2': list(range(1909,1924)),
                 '3': list(range(1924,1961)),
                 '4': list(range(1961,1976)),
             }
+            case 'BRO': return {
+                '1': list(range(1937,1938)),
+            }
+            case 'BSN': return {
+                '1': list(range(1912,1921)),
+                '2': list(range(1921,1925)),
+                '3': list(range(1925,1929)),
+                '4': list(range(1929,1945)),
+            }
+            case 'CAL': return {
+                '1': list(range(1965,1971)),
+                '2': list(range(1971,1973)),
+                '3': list(range(1973,1985)),
+                '4': list(range(1985,1993)),
+            }
             case 'CHC': return {
-                '1': list(range(1876,1919)),
-                '2': list(range(1919,1946)),
+                '6': list(range(1900,1906)),
+                '7': list(range(1906,1907)),
+                '8': list(range(1907,1908)),
+                '9': list(range(1908,1915)),
+                '1': list(range(1915,1927)),
+                '10': list(range(1927,1937)),
+                '2': list(range(1937,1940)),
+                '11': list(range(1940,1946)),
                 '3': list(range(1946,1957)),
                 '4': list(range(1957,1979)),
                 '5': list(range(1979,1997)),
             }
             case 'CHW': return {
-                '1': list(range(1901,1939)),
+                '5': list(range(1901,1903)),
+                '6': list(range(1903,1904)),
+                '7': list(range(1904,1906)),
+                '8': list(range(1906,1908)),
+                '9': list(range(1908,1910)),
+                '10': list(range(1910,1912)),
+                '1': list(range(1912,1939)),
                 '2': list(range(1939,1960)),
                 '3': list(range(1960,1976)),
                 '4': list(range(1976,1991)),
             }
             case 'CIN': return {
-                '1': list(range(1876,1953)),
+                '5': list(range(1890,1900)),
+                '6': list(range(1900,1901)),
+                '7': list(range(1901,1905)),
+                '8': list(range(1905,1906)),
+                '9': list(range(1906,1908)),
+                '10': list(range(1908,1913)),
+                '11': list(range(1913,1914)),
+                '12': list(range(1914,1915)),
+                '13': list(range(1915,1920)),
+                '1': list(range(1920,1953)),
                 '2': list(range(1953,1968)),
                 '3': list(range(1968,1993)),
                 '4': list(range(1993,1999)),
@@ -779,24 +891,40 @@ class Team(str, Enum):
             case 'CLE': return {
                 '1': list(range(1871,1921)),
                 '2': list(range(1921,1946)),
-                '3': list(range(1946,1973)),
+                '3': list(range(1949,1973)),
                 '4': list(range(1973,1979)),
                 '5': list(range(1979,2013)),
                 '6': list(range(2013,2022)),
+                '7': list(range(1946,1948)), # 1946-47 LOGO
+                '8': list(range(1948,1949)), # 1948 ONE YEAR LOGO
             }
             case 'DET': return {
-                '1': list(range(1901,1957)),
+                '4': list(range(1901,1903)),
+                '5': list(range(1903,1904)),
+                '6': list(range(1904,1905)),
+                '7': list(range(1905,1916)),
+                '8': list(range(1916,1917)),
+                '9': list(range(1917,1918)),
+                '10': list(range(1918,1921)),
+                '1': list(range(1921,1957)),
                 '2': list(range(1957,1994)),
                 '3': list(range(1994,2005)),
+                '11': list(range(2005,2016)),
             }
             case 'HOU': return {
                 '1': list(range(1962,1965)),
-                '2': list(range(1965,1994)),
-                '3': list(range(1994,2000)),
+                '5': list(range(1965,1977)),
+                '2': list(range(1977,1994)),
+                '6': list(range(1994,1995)),
+                '3': list(range(1995,2000)),
                 '4': list(range(2000,2013)),
             }
+            case 'KCA': return {
+                '1': list(range(1955,1963)),
+            }
             case 'KCR': return {
-                '1': list(range(1969,1986)),
+                '4': list(range(1969,1979)),
+                '1': list(range(1979,1986)),
                 '2': list(range(1986,1993)),
                 '3': list(range(1993,2002)),
             }
@@ -814,26 +942,40 @@ class Team(str, Enum):
                 '2': list(range(1978,1994)),
                 '3': list(range(1994,2000)),
                 '4': list(range(2000,2018)),
+                '5': list(range(2018,2020)),
             }
             case 'MIN': return {
                 '1': list(range(1961,1987)),
                 '2': list(range(1987,2009)),
                 '3': list(range(2009,2023)),
             }
+            case 'MLN': return {
+                '1': list(range(1953,1956)),
+            }
             case 'NYG': return {
-                '1': list(range(1883,1947)),
+                '2': list(range(1883,1908)),
+                '1': list(range(1908,1947)),
             }
             case 'NYM': return {
-                '1': list(range(1962,1993)),
-                '2': list(range(1993,1998)),
-                '3': list(range(1998,2011)),
+                '1': list(range(1962,1981)),
+                '2': list(range(1981,1993)),
+                '3': list(range(1993,1999)),
+                '4': list(range(1999,2011)),
             }
             case 'NYY': return {
-                '1': list(range(1900,1950)),
-                '2': list(range(1951,2010)),
+                '1': list(range(1903,1905)), # HIGHLANDERS
+                '2': list(range(1905,1906)), # HIGHLANDERS
+                '3': list(range(1906,1907)), # HIGHLANDERS
+                '4': list(range(1907,1908)), # HIGHLANDERS
+                '5': list(range(1908,1909)), # HIGHLANDERS
+                '6': list(range(1909,1936)), # HIGHLANDERS -> YANKEES
+                '7': list(range(1936,1946)), # YANKEES
+                '8': list(range(1946,1968)), # YANKEES
+                '9': list(range(1968,2010)), # YANKEES
             }
             case 'OAK': return {
-                '1': list(range(1968,1982)),
+                '1': list(range(1968,1971)),
+                '3': list(range(1971,1982)),
                 '2': list(range(1982,1993)),
             }
             case 'PHI': return {
@@ -843,15 +985,18 @@ class Team(str, Enum):
                 '4': list(range(1992,2019)),
             }
             case 'PIT': return {
-                '1': list(range(1900,1948)),
-                '2': list(range(1948,1970)),
-                '3': list(range(1970,1997)),
+                '5': list(range(1882,1948)),
+                '2': list(range(1948,1958)),
+                '6': list(range(1958,1967)),
+                '7': list(range(1967,1987)),
+                '1': list(range(1987,1997)),
                 '4': list(range(1997,2014)),
             }
             case 'SDP': return {
                 '1': list(range(1969,1985)),
-                '2': list(range(1985,1992)),
-                '3': list(range(1992,2004)),
+                '6': list(range(1985,1990)),
+                '2': list(range(1990,1991)),
+                '3': list(range(1991,2004)),
                 '4': list(range(2004,2012)),
                 '5': list(range(2012,2020)),
             }
@@ -866,6 +1011,12 @@ class Team(str, Enum):
                 '3': list(range(1983,1994)),
                 '4': list(range(1994,2000)),
             }
+            case 'SLB': return {
+                '1': list(range(1902,1906)),
+                '2': list(range(1906,1916)),
+                '3': list(range(1916,1936)),
+                '4': list(range(1936,1951)),
+            }
             case 'STL': return {
                 '1': list(range(1875,1927)),
                 '2': list(range(1927,1965)),
@@ -874,15 +1025,22 @@ class Team(str, Enum):
             case 'TBD': return {
                 '1': list(range(1998,2001)),
             }
+            case 'TBR': return {
+                '1': list(range(2008,2019)),
+            }
             case 'TEX': return {
                 '1': list(range(1972,1982)),
-                '2': list(range(1982,1994)),
+                '4': list(range(1982,1984)),
+                '2': list(range(1984,1994)),
                 '3': list(range(1994,2003)),
             }
             case 'TOR': return {
                 '1': list(range(1977,1997)),
                 '2': list(range(1997,2004)),
                 '3': list(range(2004,2012)),
+            }
+            case 'WSH': return {
+                '1': list(range(1957,1961)),
             }
             case 'WSN': return {
                 '1': list(range(2005,2011)),
@@ -895,6 +1053,19 @@ class Team(str, Enum):
             if year in year_range:
                 prefix = '-' if include_dash else ''
                 return f"{prefix}{index}"
+            
+        # GET DICT ELEMENT WITH LOWEST YEAR VALUE
+        lowest_year = 9999
+        lowest_index = ''
+        for index, year_range in self.logo_historical_year_range_dict.items():
+            if year_range[0] < lowest_year:
+                lowest_year = year_range[0]
+                lowest_index = index
+        
+        # IF YEAR IS LOWER THAN LOWEST YEAR, RETURN EARLIEST LOGO AVAILABLE
+        if year < lowest_year and lowest_year != 9999:
+            prefix = '-' if include_dash else ''
+            return f"{prefix}{lowest_index}"
         
         return ''
     
@@ -904,7 +1075,7 @@ class Team(str, Enum):
         logo_name = f"{self.value}{alt_ext}{self.logo_historical_index(year=year, include_dash=True)}"
 
         # CHECK FOR ALTS
-        if set in ['EXPANDED', 'CLASSIC'] and not is_dark and logo_name in ['NYY-A','NYY-A-2']:
+        if set in ['EXPANDED', 'CLASSIC'] and not is_dark and logo_name in ['NYY-A','NYY-A-8','NYY-A-9']:
             return f'{logo_name}-ALT'
 
         return logo_name
@@ -912,10 +1083,11 @@ class Team(str, Enum):
     def is_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
         logo_name = self.logo_name(year=year, is_alternate=is_alternate)
         return logo_name in [
-            'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BRO','CHC-1','CHC-A-1','CHW-2','CHW-A-2',
-            'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CRS-A','CRS','IA-A','IA',
-            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','SDP-2','SDP-A-2','SEP-A','SEP',
-            'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TOR-3','TOR-A-3'
+            'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BOS-5','BOS-A-5','BRO','CHC-1','CHC-A-1','CHC-10','CHC-A-10','CHW-2','CHW-A-2',
+            'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CIN-8','CIN-11','CIN-12','CIN-13',
+            'CRS-A','CRS','IA-A','IA',
+            'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','NYG-2','NYG-A-2','SDP-6','SDP-A-6''SEP-A','SEP',
+            'SFG-2','SFG-3','SFG-4','SFG','STL-2','TBD-1','TBD','TBD-A-1','TBD-A','TBR','TOR-3','TOR-A-3'
         ]
     
     def logo_size_multiplier(self, year:int, is_alternate:bool=False) -> float:
@@ -953,14 +1125,17 @@ class Team(str, Enum):
         match set:
             case '2000': 
                 match logo_name:
-                    case 'ATL-A' | 'ATL-1' | 'BOS-2': return (1950, 1950)
+                    case 'ATL-A'| 'BOS-2': return (1950, 1950)
+                    case 'BOS-5': return (2100, 2100)
                     case 'ARI-1': return (2300, 2300)
                     case 'BRO': return (1800, 1800)
                     case 'CCC': return (1950, 2730)
                     case 'FLA': return (2300, 2300)
                     case 'MIN-2': return (2400, 2400)
                     case 'NYG': return (1800, 1800)
+                    case 'NYG-2': return (1800, 1800)
                     case 'PHI-2': return (1800, 1800)
+                    case 'SDP-6': return (1800, 1800)
                     case 'SFG-1' | 'SFG-2': return (1800, 1800)
                     case 'TBD' | 'TBD-1': return (1950, 1950)
 
@@ -977,34 +1152,44 @@ class Team(str, Enum):
                     case 'ARI-1': return (1000, 1000)
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (775, 775)
                     case 'BOS-2': return (1000, 1000)
+                    case 'BOS-5': return (950, 950)
                     case 'BRO': return (950, 950)
-                    case 'CHC-1': return (850, 850)
+                    case 'CAL-1': return (950, 950)
+                    case 'CAL-2' | 'CAL-3': return (800, 800)
+                    case 'CHC-1' | 'CHC-10': return (850, 850)
                     case 'CHW': return (775, 775)
                     case 'CHW-2': return (950, 950)
-                    case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4': return (900, 900)
+                    case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4' | 'CIN-8' | 'CIN-11' | 'CIN-12' | 'CIN-13': return (900, 900)
                     case 'CIN-2': return (775, 775)
                     case 'CLE': return (850, 850)
+                    case 'CLE-8': return (950, 950)
                     case 'CLE-3' | 'CLE-5': return (900, 900)
                     case 'COL': return (900, 900)
                     case 'DET-3': return (825, 825)
                     case 'FLA' : return (850, 850)
                     case 'HOU-1' : return (1000, 1000)
                     case 'HOU-4' : return (950, 950)
+                    case 'HOU-6' : return (950, 950)
                     case 'KCA' : return (800, 800)
-                    case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (850, 850)
+                    case 'KCA-1' : return (900, 900)
+                    case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' | 'KCR-4': return (850, 850)
                     case 'LAA': return (775, 775)
                     case 'LAD-A' | 'LAD-A-1': return (800, 800)
                     case 'MIL-3': return (800, 800)
                     case 'MIL-4': return (950, 950)
                     case 'MIN-2': return (875, 875)
                     case 'NYG': return (850, 850)
+                    case 'NYG-2': return (950, 950)
                     case 'PHI-2': return (950, 950)
                     case 'PHI' | 'PHI-4': return (800, 800)
                     case 'PIT-1': return (775, 775)
                     case 'PIT-4': return (875, 875)
-                    case 'PIT' | 'PIT-2' | 'PIT-3': return (775, 775)
+                    case 'PIT' | 'PIT-2' | 'PIT-5': return (775, 775)
                     case 'SDP-1': return (950, 950)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (850, 850)
+                    case 'SDP-6': return (950, 950)
+                    case 'SLB-1': return (850, 850)
+                    case 'SLB-4': return (900, 900)
                     case 'SEA-2': return (850, 850)
                     case 'SFG-1': return (850, 850)
                     case 'SFG-2': return (850, 850)
@@ -1012,9 +1197,10 @@ class Team(str, Enum):
                     case 'SFG' | 'SFG-4': return (950, 950)
                     case 'STL' | 'STL-2': return (850, 850)
                     case 'TBD' | 'TBD-1': return (1000, 1000)
-                    case 'TBR': return (800, 800)
+                    case 'TBR-1': return (800, 800)
+                    case 'TBR': return (950, 950)
                     case 'TEX-1': return (900, 900)
-                    case 'TEX-2' | 'TEX-3': return (800, 800)
+                    case 'TEX-2' | 'TEX-3' | 'TEX-4': return (800, 800)
                     case 'TOR-3': return (1000, 1000)
                     case 'WSN-1': return (825, 825)
 
@@ -1040,16 +1226,16 @@ class Team(str, Enum):
             case '2000': 
                 match logo_name:
                     case 'ANA': return (-100, 0)
-                    case 'ARI': return (-100, 0)
+                    case 'ARI' | 'ARI-2': return (-100, 0)
                     case 'ARI-1': return (-50, 0)
-                    case 'ATL-A' | 'ATL-1': return (-100,0)
+                    case 'ATL-A': return (-100,0)
                     case 'CCC': return (0, 300)
-                    case 'CHC-1': return (-50, 0)
+                    case 'CHC-1' | 'CHC-10': return (-50, 0)
                     case 'CHW-2': return (250, 0)
                     case 'CLE-3' | 'CLE-5': return (0, -75)
                     case 'COL': return (0, -50)
                     case 'FLA': return (0, 150)
-                    case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (50, 0)
+                    case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' | 'KCR-4': return (50, 0)
                     case 'MIA-1': return (0, -100)
                     case 'PIT-4': return (0, -60)
                     case 'TBD' | 'TBD-1': return (-150, 0)
@@ -1063,35 +1249,45 @@ class Team(str, Enum):
                 match logo_name:
                     case 'ANA': return (-175,-170)
                     case 'ANA-1': return (-60, -50)
-                    case 'ARI': return (-75, 0)
+                    case 'ARI' | 'ARI-2': return (-100, -20)
                     case 'ARI-1': return (-180, -130)
                     case 'ATH': return (-50,-100)
                     case 'ATL': return (-90,-250)
-                    case 'ATL-1': return (-100,0)
-                    case 'ATL-3': return (-75,0)
+                    case 'ATL-4': return (-75,0)
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (-60, -50)
                     case 'BOS-2': return (-90,-250)
+                    case 'BOS-5': return (-90,-200)
                     case 'BOS-3': return (-20, 0)
                     case 'BRO': return (-90,-220)
-                    case 'CHC-1': return (-60,-125)
+                    case 'CAL-1': return (-100, -110)
+                    case 'CAL-2' | 'CAL-3': return (0, -50)
+                    case 'CHC-1' | 'CHC-10': return (-60,-125)
+                    case 'CHC-11': return (0, -40)
                     case 'CHW': return (-60, -50)
                     case 'CHW-1': return (-60,-50)
                     case 'CHW-2': return (-90,-220)
                     case 'CHW-4': return (-25,0)
-                    case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4': return (-120,-170)
+                    case 'CHW-6': return (0,-50)
+                    case 'CIN' | 'CIN-1' | 'CIN-3' | 'CIN-4' | 'CIN-8' | 'CIN-11' | 'CIN-12' | 'CIN-13': return (-120,-170)
                     case 'CIN-2': return (-60, -50)
                     case 'CLE': return (-125, -100)
                     case 'CLE-3' | 'CLE-5': return (-175, -220)
                     case 'CLE-6': return (-40, 0)
+                    case 'CLE-8': return (-170, -300)
                     case 'COL': return (-100, -175)
                     case 'DET-3': return (-120, -100)
+                    case 'DET-4': return (0, -40)
+                    case 'DET-6': return (-25, -20)
+                    case 'DET-9': return (-20, -20)
+                    case 'DET-10': return (0, -20)
                     case 'DET' : return (-80, -60)
                     case 'FLA' : return (-60, -30)
                     case 'HOU-1' : return (-90, -230)
-                    case 'HOU-3' : return (-60, -15)
+                    case 'HOU-3' | 'HOU-6': return (-80, -210)
                     case 'HOU-4' : return (-130, -160)
                     case 'KCA' : return (-30, -90)
-                    case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' : return (-100, -100)
+                    case 'KCA-1' : return (-30, -120)
+                    case 'KCR' | 'KCR-1' | 'KCR-2' | 'KCR-3' | 'KCR-4': return (-100, -100)
                     case 'LAA' | 'LAA-1': return (-60, -50)
                     case 'LAD-A' | 'LAD-A-1': return (-40, -60)
                     case 'MIA-A': return (-40, -75)
@@ -1102,14 +1298,19 @@ class Team(str, Enum):
                     case 'MIN-1': return (-40, -40)
                     case 'MIN-2': return (-85, -85)
                     case 'NYG': return (-85, -50)
+                    case 'NYG-2': return (-30, -140)
                     case 'PHI-2': return (-125, -180)
                     case 'PHI-3': return (-40, 0)
                     case 'PHI' | 'PHI-4': return (-40, -50)
                     case 'PIT-1': return (-40, -40)
                     case 'PIT-4': return (-60, -75)
-                    case 'PIT' | 'PIT-2' | 'PIT-3': return (-30, -30)
+                    case 'PIT-6': return (0, -30)
+                    case 'PIT' | 'PIT-2' | 'PIT-5': return (-30, -30)
                     case 'SDP-1': return (-40, -190)
                     case 'SDP-2' | 'SDP-3' | 'SDP-4': return (-50, -90)
+                    case 'SDP-6': return (-80, -190)
+                    case 'SLB-1': return (0, -150)
+                    case 'SLB-4': return (-90, -150)
                     case 'SEA-2': return (-80, -125)
                     case 'SFG-1': return (-85, -50)
                     case 'SFG-2': return (-85, -50)
@@ -1117,8 +1318,9 @@ class Team(str, Enum):
                     case 'SFG' | 'SFG-4': return (-65, -190)
                     case 'STL' | 'STL-2': return (-95, -120)
                     case 'TBD' | 'TBD-1': return (-160, -190)
-                    case 'TBR': return (-50, -60)
-                    case 'TEX-2' | 'TEX-3': return (-50, -60)
+                    case 'TBR-1': return (-50, -60)
+                    case 'TBR': return (-75, -250)
+                    case 'TEX-2' | 'TEX-3' | 'TEX-4': return (-50, -60)
                     case 'TEX-1': return (-80, -120)
                     case 'TOR-2': return (-30, -50)
                     case 'TOR-3': return (-130, -200)
@@ -1134,6 +1336,7 @@ class Team(str, Enum):
                     case 'KCC' | 'KCM' | 'KCN': return (0, -90)
                     case 'LOU': return (-90, -250)
                     case 'LOW' | 'LVB': return (-165, 0)
+                    case 'MIL-5': return (-25, -60)
                     case 'MLA': return (-90, -250)
                     case 'MLB': return (-70, -200)
                     case 'MLN': return (-160, -100)

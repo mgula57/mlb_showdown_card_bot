@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ValidationInfo, field_validator
 from typing import Optional
 
 try:
@@ -104,6 +104,7 @@ class PlayerImageComponent(str, Enum):
     DARKENER = "DARKENER"
     COOPERSTOWN = "COOPERSTOWN"
     POSTSEASON = "POSTSEASON"
+    ELLIPSE_EXTRALARGE = "ELLIPSE-EXTRALARGE"
     ELLIPSE_LARGE = "ELLIPSE-LARGE"
     ELLIPSE_MEDIUM = "ELLIPSE-MEDIUM"
     ELLIPSE_SMALL = "ELLIPSE-SMALL"
@@ -134,6 +135,7 @@ class PlayerImageComponent(str, Enum):
             case "TEAM_LOGO": return "TEAM_LOGOS"
             case "NAME_CONTAINER_2000": return "NAME_CONTAINER"
             case "SILHOUETTE": return "SILHOUETTE"
+            case "ELLIPSE_LARGE" | "ELLIPSE_MEDIUM" | "ELLIPSE_SMALL": return "CIRCLE"
             case _: return "CARD_ART"
 
     @property
@@ -201,7 +203,7 @@ class PlayerImageComponent(str, Enum):
 
     @property
     def is_ellipse(self) -> bool:
-        return self.name in ['ELLIPSE_LARGE','ELLIPSE_MEDIUM','ELLIPSE_SMALL',]
+        return self.name in ['ELLIPSE_LARGE','ELLIPSE_MEDIUM','ELLIPSE_SMALL','ELLIPSE_EXTRALARGE']
     
     @property
     def layering_index(self) -> int:
@@ -241,6 +243,16 @@ class PlayerImageComponent(str, Enum):
             'SILHOUETTE',
         ]
         return ordered_list.index(self.name) if self.name in ordered_list else None
+
+    @property
+    def frame_size(self) -> int:
+        """Returns the size of the frame for the image component. Only applies to images that are built via Python."""
+        match self.name:
+            case "ELLIPSE_EXTRALARGE": return 500
+            case "ELLIPSE_LARGE": return 375
+            case "ELLIPSE_MEDIUM": return 275
+            case "ELLIPSE_SMALL": return 200
+            case _: return None
 
 # ---------------------------------------
 # SPECIAL EDITION
@@ -395,6 +407,10 @@ class ImageParallel(str, Enum):
             case ImageParallel.MOONLIGHT: return "BLACK"
             case _: return None
 
+    @property
+    def name_cleaned(self) -> str:
+        """Cleaned version of the name, uppercased"""
+        return self.name.replace('_', ' ').upper()
 
 # ---------------------------------------
 # TEMPLATE IMAGE COMPONENT
@@ -485,7 +501,7 @@ class ShowdownImage(BaseModel):
     output_file_name: Optional[str] = None
     set_name: Optional[str] = None
     set_year: Optional[int] = None
-    set_number: str = '—'
+    set_number: Optional[str] = None
     add_one_to_set_year: bool = False
     show_year_text: bool = False
     is_bordered: bool = False
@@ -496,6 +512,7 @@ class ShowdownImage(BaseModel):
     nickname_index: Optional[int] = None
     is_multi_colored: bool = False
     stat_highlights_type: StatHighlightsType = StatHighlightsType.NONE
+    glow_multiplier: float = 1.0
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:
@@ -524,9 +541,8 @@ class ShowdownImage(BaseModel):
                 self.special_edition = SpecialEdition.TEAM_COLOR_BLAST_DARK
                 return 
             
-    @validator('nickname_index', always=True, pre=True)
+    @field_validator('nickname_index', mode='before')
     def clean_nickname_index(cls, nickname_index:int) -> int:
-
         if nickname_index is None:
             return None
         

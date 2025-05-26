@@ -91,6 +91,8 @@ class PointsBreakdown(BaseModel):
     def metric_and_category_name(self) -> str:
         if self.metric == PointsMetric.DEFENSE:
             return self.metric_category if self.metric_category in ['CLOSER', 'DH'] else f'{self.metric.abbreviation} ({self.metric_category})'
+        if self.metric == PointsMetric.ICON:
+            return f"{self.metric_category} ICON"
         return self.metric.abbreviation
 
 
