@@ -169,7 +169,7 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
             stats_data['3B'] = 0
     
     if 'slugging_perc' not in current_categories:
-        ab = stats_data.get('AB') if stats_data.get('AB', None) else stats_data['PA'] - stats_data['BB'] - stats_data['HBP']
+        ab = stats_data.get('AB') if stats_data.get('AB', None) else stats_data.get('PA', 0) - stats_data.get('BB', 0) - stats_data.get('HBP', 0)
         doubles = stats_data.get('2B', 0)
         triples = stats_data.get('3B', 0)
         hr = stats_data.get('HR', 0)
