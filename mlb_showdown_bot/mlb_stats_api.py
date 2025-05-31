@@ -77,6 +77,7 @@ def get_player_realtime_game_logs(player_name:str, player_team:str, year:int, is
 
     # FIND MLB API PLAYER ID
     player_data = get_player_data(player_name=player_name, team_abbreviation=player_team)
+    if not player_data: return None
     player_id = player_data['id']
 
     # QUERY REALTIME GAME LOGS
