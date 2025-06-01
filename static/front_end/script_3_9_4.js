@@ -1078,6 +1078,7 @@ $(document).ready(function() {
             if (lastCardJson.show_year_text) { moreOptionsSelections.push("YearContainer"); }
             if (lastCardJson.set_year_plus_one) { moreOptionsSelections.push("SetYearPlus1"); }
             if (lastCardJson.ignore_cache) { moreOptionsSelections.push("IgnoreCache"); }
+            if (lastCardJson.ignore_archive || false) { moreOptionsSelections.push("IgnoreArchive"); }
             if (lastCardJson.disable_realtime) { moreOptionsSelections.push("DisableRealtime"); }
 
             if (lastCardJson.stat_highlights_type == "ALL") {
@@ -1206,6 +1207,7 @@ $(function () {
             var is_variable_spd = moreOptionsSelected.includes("VariableSpeed");
             var ignore_showdown_library = moreOptionsSelected.includes("IgnoreShowdownLibrary");
             var ignore_cache = moreOptionsSelected.includes("IgnoreCache");
+            var ignore_archive = moreOptionsSelected.includes("IgnoreArchive");
             var is_secondary_color = moreOptionsSelected.includes("SecondaryColor");
             var is_multi_colored = moreOptionsSelected.includes("MultiColor");
             var disable_realtime = moreOptionsSelected.includes("DisableRealtime");
@@ -1275,6 +1277,7 @@ $(function () {
                 era: era,
                 parallel: image_parallel,
                 ignore_cache: ignore_cache,
+                ignore_archive: ignore_archive,
                 is_secondary_color: is_secondary_color,
                 is_multi_colored: is_multi_colored,
                 nickname_index: nickname_index,

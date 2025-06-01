@@ -230,6 +230,7 @@ def card_creator():
     date_override: str = None
     is_secondary_color: bool = None
     ignore_cache: bool = None
+    ignore_archive: bool = None
     nickname_index: int = None
     is_multi_colored: bool = None
     stat_highlights_type: str = None
@@ -258,7 +259,9 @@ def card_creator():
         # 1. PARSE INPUTS
         # -----------------
 
+        # VARIABLES USED FOR ERROR HANDLING
         error = 'Input Error. Please Try Again'
+        yearly_archive_data: list[PlayerArchive] = []
 
         # INPUTS
         name = request.args.get('name', '').title()
@@ -290,6 +293,7 @@ def card_creator():
         is_secondary_color = request.args.get('is_secondary_color', '').lower() == 'true'
         is_multi_colored = request.args.get('is_multi_colored', '').lower() == 'true'
         ignore_cache = request.args.get('ignore_cache', '').lower() == 'true'
+        ignore_archive = request.args.get('ignore_archive', '').lower() == 'true'
         nickname_index = request.args.get('nickname_index', None)
         nickname_index = None if len(str(nickname_index or '')) == 0 else nickname_index
         stat_highlights_type = request.args.get('stat_highlights_type', 'NONE')
@@ -323,7 +327,7 @@ def card_creator():
         archived_data = None
         postgres_db = PostgresDB(is_archive=True)
         yearly_archive_data = postgres_db.fetch_all_player_year_stats_from_archive(bref_id=scraper.baseball_ref_id, type_override=scraper.player_type_override)
-        if not ignore_cache:
+        if not ignore_archive:
             archived_data, archive_load_time = postgres_db.fetch_player_stats_from_archive(year=scraper.year_input, bref_id=scraper.baseball_ref_id, team_override=scraper.team_override, type_override=scraper.player_type_override, stats_period_type=stats_period.type)
             # VALIDATE THAT ARCHIVE STATS ARE NOT EMPTY WHEN USING GAME LOGS
             # APPLIES TO DATE RANGE AND POST SEASON
@@ -586,7 +590,29 @@ def card_creator():
 
     except Exception as e:
         error_full = str(e)[:250]
-        print(error_full)
+
+        # HELPFUL CONTEXT FOR ERRORS
+        player_year_range = [p.year for p in yearly_archive_data] if len(yearly_archive_data) > 0 else [0]
+        first_year = min(player_year_range)
+        last_year = max(player_year_range)
+        try: year_int = int(year) 
+        except: year_int = None
+        is_user_year_before_player_career_start = year_int < first_year if year_int else False
+        is_error_cannot_find_bref_page = "cannot find bref page" in error_full.lower()
+        
+        # ERROR SENT TO USER
+        error_for_user = error
+        if "429 - TOO MANY REQUESTS TO " in error_full.upper() and "baseball-ref" in error_full.lower():
+            # ALERT USER THAT BREF IS LOCKING OUT THE BOT
+            error_for_user = "There have been too many requests to bref. Try again in 30-60 mins"
+        elif is_error_cannot_find_bref_page:
+            # TRY TO GIVE CONTEXT INTO WHY A BASEBALL REFERENCE PAGE WAS NOT FOUND FOR THE NAME/YEAR
+            error_for_user = "Player not found on Baseball Reference, please check the name and year. "
+            if is_user_year_before_player_career_start:
+                error_for_year += f"The year you've chosen is outside of the range of the player's career ({first_year} to {last_year})"
+            else:
+                error_for_user += "If looking for a rookie try using their bref id as the name (ex: 'ramirjo01')"
+
         traceback.print_exc()
         log_card_submission_to_db(
             name=name,
@@ -631,7 +657,7 @@ def card_creator():
         )
         return jsonify(
             image_path=None,
-            error=error,
+            error=error_for_user,
             is_automated_image=is_automated_image,
             is_img_loaded_from_library=is_img_loaded_from_library,
             is_stats_loaded_from_library=is_stats_loaded_from_library,
