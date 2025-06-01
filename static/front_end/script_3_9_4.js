@@ -60,7 +60,8 @@ function toTitleCase(str) {
 }
 
 // VALIDATE FORM
-function validate_form(ignoreAlert) {
+function validate_form(event, ignoreAlert) {
+
     // ENSURE THAT REQUIRED FIELDS ARE FILLED OUT
     var name = document.getElementById("name").value;
     var year = document.getElementById("year").value;
@@ -75,6 +76,19 @@ function validate_form(ignoreAlert) {
         return false;
     }
 
+    // NAME MUST EITHER INCLUDE TRAILING NUMBERS AND BE LESS THAN 10 CHARACTERS (AKA A BREF ID)
+    // OR HAVE MULTIPLE WORDS
+    const nameUnder10Chars = name.length < 10;
+    const endsWithNumbers = /\d+$/.test(name);
+    const isOneWord = name.trim().split(' ').length < 2;
+    if (!(nameUnder10Chars && endsWithNumbers) && isOneWord) {
+        if (ignoreAlert == false) {
+            alert("Please enter a valid name. Must be either a full name (e.g. 'John Smith') or a BREF ID (e.g. 'smithj01').");
+        }
+        event.preventDefault();
+        return false;
+    }
+
     // YEAR MUST BE POPULATED
     if (year == null || year == "" || Number.isInteger(year)) {
         if (ignoreAlert == false) {
@@ -83,11 +97,39 @@ function validate_form(ignoreAlert) {
         return false;
     }
 
+    // YEAR MUST BE LESS THAN 4 DIGITS IF JUST NUMERIC
+    // IF IT IS A RANGE, CHECK THAT IT IS EITHER 'CAREER' OR A RANGE OF 4 DIGIT YEARS 
+    const isNotLongEnoughYear = year.length < 4;
+    const isNotCareer = year.trim().toLowerCase() !== 'career';
+    const isAllNumeric = /^[0-9]+$/.test(year.replace(/\+/g, '').replace(/-/g, '').trim());
+    const hasNonNumericChars = isAllNumeric === false;
+    const isInvalidYear = isNotCareer && hasNonNumericChars;
+    if (isNotLongEnoughYear || isInvalidYear) {
+        if (ignoreAlert == false) {
+            alert("Please enter a valid year. Must be a single year (e.g. '2020'), a range (e.g. '2020-2021'), or a 'CAREER'");
+        }
+        event.preventDefault();
+        return false;
+    }
+
+    // CHECK IF YEAR IS IN THE FUTURE
+    const currentYear = new Date().getFullYear();
+    const yearAsInt = isNaN(parseInt(year)) ? 0 : parseInt(year);
+    const isInFuture = yearAsInt > currentYear;
+    if (isInFuture) {
+        if (ignoreAlert == false) {
+            alert("Please enter a valid year. Cannot be in the future.");
+        }
+        event.preventDefault();
+        return false;
+    }
+
     // SPLIT MUST BE POPULATED (IF PERIOD IS SPLIT)
     if (period == 'SPLIT' & (split_name == null || split_name == "") ) {
         if (ignoreAlert == false) {
             alert("Please enter a split, or switch to a different period type.");
         }
+        event.preventDefault();
         return false;
     }
     return true;
@@ -1082,7 +1124,7 @@ $(function () {
     $('a#create_card, a#create_card_random').bind('click', function (event) {
 
         is_random_card = $(event.currentTarget).attr('id') == 'create_card_random';
-        is_valid = validate_form(ignoreAlert=is_random_card)
+        is_valid = validate_form(event, ignoreAlert=is_random_card)
         
         if (is_valid || is_random_card) {
 
