@@ -1108,30 +1108,29 @@ class ShowdownPlayerCard(BaseModel):
         
         is_1b = position == Position._1B
 
-        # CALCULATE RATING PER 150 GAMES IF NOT FULL CAREER
-        if not self.is_full_career:
-            rating = rating / games * 150
+        # CALCULATE RATING PER 150 GAMES
+        rating = rating / games * 150
 
-            # CUTS DOWN SMALL SAMPLE SIZES, WHERE PLAYERS HAVE PLAYED < 30 GAMES
-            small_sample_reduction = min((games / 30), 1.0)
-            rating *= small_sample_reduction
+        # CUTS DOWN SMALL SAMPLE SIZES, WHERE PLAYERS HAVE PLAYED < 30 GAMES
+        small_sample_reduction = min((games / 30), 1.0)
+        rating *= small_sample_reduction
 
-            # FOR DEFENSIVE OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
-            # EX: NICK AHMED 2018 - 38.45 OAA per 150
-            #   - OAA FOR +5 = 16
-            #   - OAA OVER MAX = 38.45 - 16 = 22.45
-            #   - REDUCED OVER MAX = 22.45 * 0.5 = 11.23
-            #   - NEW RATING = 16 + 11.23 = 26.23
-            # APPLIES AN ADDITIONAL REDUCTION FOR PLAYERS THAT HAVE PLAYED < 120 GAMES
-            #  EX: 60 GAMES PLAYED WOULD REDUCE EXCESS AMOUNT BY 50%. 
-            #      DOES NOT EFFECT VALUES UP UNTIL EXCESS (EX: 1-5 FOR SS)
-            
-            metric_max = metric.range_max(position_str=position.value, set_str=self.set.value)
-            if rating > metric_max and not is_1b:
-                amount_over_max = rating - metric_max
-                over_max_small_sample_reduction = min((games / 120), 1.0)
-                reduced_amount_over_max = amount_over_max * metric.over_max_multiplier * over_max_small_sample_reduction
-                rating = reduced_amount_over_max + metric_max
+        # FOR DEFENSIVE OUTLIERS, SLIGHTLY DISCOUNT DEFENSE OVER THE MAX
+        # EX: NICK AHMED 2018 - 38.45 OAA per 150
+        #   - OAA FOR +5 = 16
+        #   - OAA OVER MAX = 38.45 - 16 = 22.45
+        #   - REDUCED OVER MAX = 22.45 * 0.5 = 11.23
+        #   - NEW RATING = 16 + 11.23 = 26.23
+        # APPLIES AN ADDITIONAL REDUCTION FOR PLAYERS THAT HAVE PLAYED < 120 GAMES
+        #  EX: 60 GAMES PLAYED WOULD REDUCE EXCESS AMOUNT BY 50%. 
+        #      DOES NOT EFFECT VALUES UP UNTIL EXCESS (EX: 1-5 FOR SS)
+        
+        metric_max = metric.range_max(position_str=position.value, set_str=self.set.value)
+        if rating > metric_max and not is_1b:
+            amount_over_max = rating - metric_max
+            over_max_small_sample_reduction = min((games / 120), 1.0)
+            reduced_amount_over_max = amount_over_max * metric.over_max_multiplier * over_max_small_sample_reduction
+            rating = reduced_amount_over_max + metric_max
 
         min_defense_for_position = self.set.position_defense_min(position=position)
         max_defense_for_position = self.set.position_defense_max(position=position)

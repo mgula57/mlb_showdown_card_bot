@@ -60,7 +60,8 @@ function toTitleCase(str) {
 }
 
 // VALIDATE FORM
-function validate_form(ignoreAlert) {
+function validate_form(event, ignoreAlert) {
+
     // ENSURE THAT REQUIRED FIELDS ARE FILLED OUT
     var name = document.getElementById("name").value;
     var year = document.getElementById("year").value;
@@ -75,6 +76,19 @@ function validate_form(ignoreAlert) {
         return false;
     }
 
+    // NAME MUST EITHER INCLUDE TRAILING NUMBERS AND BE LESS THAN 10 CHARACTERS (AKA A BREF ID)
+    // OR HAVE MULTIPLE WORDS
+    const nameUnder10Chars = name.length < 10;
+    const endsWithNumbers = /\d+$/.test(name);
+    const isOneWord = name.trim().split(' ').length < 2;
+    if (!(nameUnder10Chars && endsWithNumbers) && isOneWord) {
+        if (ignoreAlert == false) {
+            alert("Please enter a valid name. Must be either a full name (e.g. 'John Smith') or a BREF ID (e.g. 'smithj01').");
+        }
+        event.preventDefault();
+        return false;
+    }
+
     // YEAR MUST BE POPULATED
     if (year == null || year == "" || Number.isInteger(year)) {
         if (ignoreAlert == false) {
@@ -83,11 +97,39 @@ function validate_form(ignoreAlert) {
         return false;
     }
 
+    // YEAR MUST BE LESS THAN 4 DIGITS IF JUST NUMERIC
+    // IF IT IS A RANGE, CHECK THAT IT IS EITHER 'CAREER' OR A RANGE OF 4 DIGIT YEARS 
+    const isNotLongEnoughYear = year.length < 4;
+    const isNotCareer = year.trim().toLowerCase() !== 'career';
+    const isAllNumeric = /^[0-9]+$/.test(year.replace(/\+/g, '').replace(/-/g, '').trim());
+    const hasNonNumericChars = isAllNumeric === false;
+    const isInvalidYear = isNotCareer && hasNonNumericChars;
+    if (isNotLongEnoughYear || isInvalidYear) {
+        if (ignoreAlert == false) {
+            alert("Please enter a valid year. Must be a single year (e.g. '2020'), a range (e.g. '2020-2021'), or a 'CAREER'");
+        }
+        event.preventDefault();
+        return false;
+    }
+
+    // CHECK IF YEAR IS IN THE FUTURE
+    const currentYear = new Date().getFullYear();
+    const yearAsInt = isNaN(parseInt(year)) ? 0 : parseInt(year);
+    const isInFuture = yearAsInt > currentYear;
+    if (isInFuture) {
+        if (ignoreAlert == false) {
+            alert("Please enter a valid year. Cannot be in the future.");
+        }
+        event.preventDefault();
+        return false;
+    }
+
     // SPLIT MUST BE POPULATED (IF PERIOD IS SPLIT)
     if (period == 'SPLIT' & (split_name == null || split_name == "") ) {
         if (ignoreAlert == false) {
             alert("Please enter a split, or switch to a different period type.");
         }
+        event.preventDefault();
         return false;
     }
     return true;
@@ -754,7 +796,12 @@ function showCardData(data) {
     if (isError) {
         buildGenericChartPlaceholders();
     } else {
-        createTrendsChart(player_year=data.player_year, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
+        if (data.in_season_trends_data === null) {
+            createTrendsChart(player_year=data.player_year, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]); 
+        } else {
+            createTrendsChart(player_year=data.player_year, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
+        }
+        
         if (data.in_season_trends_data === null) {
             createTrendsChart(player_year=data.player_year, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]); 
         } else {
@@ -1036,6 +1083,7 @@ $(document).ready(function() {
             if (lastCardJson.show_year_text) { moreOptionsSelections.push("YearContainer"); }
             if (lastCardJson.set_year_plus_one) { moreOptionsSelections.push("SetYearPlus1"); }
             if (lastCardJson.ignore_cache) { moreOptionsSelections.push("IgnoreCache"); }
+            if (lastCardJson.ignore_archive || false) { moreOptionsSelections.push("IgnoreArchive"); }
             if (lastCardJson.disable_realtime) { moreOptionsSelections.push("DisableRealtime"); }
 
             if (lastCardJson.stat_highlights_type == "ALL") {
@@ -1082,7 +1130,7 @@ $(function () {
     $('a#create_card, a#create_card_random').bind('click', function (event) {
 
         is_random_card = $(event.currentTarget).attr('id') == 'create_card_random';
-        is_valid = validate_form(ignoreAlert=is_random_card)
+        is_valid = validate_form(event, ignoreAlert=is_random_card)
         
         if (is_valid || is_random_card) {
 
@@ -1164,6 +1212,7 @@ $(function () {
             var is_variable_spd = moreOptionsSelected.includes("VariableSpeed");
             var ignore_showdown_library = moreOptionsSelected.includes("IgnoreShowdownLibrary");
             var ignore_cache = moreOptionsSelected.includes("IgnoreCache");
+            var ignore_archive = moreOptionsSelected.includes("IgnoreArchive");
             var is_secondary_color = moreOptionsSelected.includes("SecondaryColor");
             var is_multi_colored = moreOptionsSelected.includes("MultiColor");
             var disable_realtime = moreOptionsSelected.includes("DisableRealtime");
@@ -1233,6 +1282,7 @@ $(function () {
                 era: era,
                 parallel: image_parallel,
                 ignore_cache: ignore_cache,
+                ignore_archive: ignore_archive,
                 is_secondary_color: is_secondary_color,
                 is_multi_colored: is_multi_colored,
                 nickname_index: nickname_index,
