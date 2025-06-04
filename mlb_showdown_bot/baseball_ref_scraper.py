@@ -1252,6 +1252,9 @@ class BaseballReferenceScraper:
                 advanced_stats[team_id_key] = updated_team_id
                 advanced_stats[league_id_key] = updated_league_id
 
+        if len(advanced_stats) == 0:
+            return {}
+        
         # FILL IN EMPTY STATS
         advanced_stats = fill_empty_stat_categories(advanced_stats, is_pitcher = type == 'Pitcher')
 

@@ -79,8 +79,16 @@ class CardLog(db.Model):
     is_multi_colored = db.Column(db.Boolean)
     stat_highlights_type = db.Column(db.String(64))
     glow_multiplier = db.Column(db.Numeric(10,2))
+    error_for_user = db.Column(db.String(256))
 
-    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index, period, period_start_date, period_end_date, period_split, is_multi_colored, stat_highlights_type, glow_multiplier):
+    def __init__(self, name, year, set, is_cooperstown, is_super_season, img_url, img_name, 
+                 error, is_all_star_game, expansion, stats_offset, set_num, is_holiday, is_dark_mode, 
+                 is_rookie_season, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, 
+                 is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, 
+                 hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, 
+                 scraper_load_time, card_load_time, is_secondary_color, nickname_index, 
+                 period, period_start_date, period_end_date, period_split, 
+                 is_multi_colored, stat_highlights_type, glow_multiplier, error_for_user):
         """ DEFAULT INIT FOR DB OBJECT """
         self.name = name
         self.year = year
@@ -127,8 +135,15 @@ class CardLog(db.Model):
         self.is_multi_colored = is_multi_colored
         self.stat_highlights_type = stat_highlights_type
         self.glow_multiplier = glow_multiplier
+        self.error_for_user = error_for_user
 
-def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, is_secondary_color, nickname_index, period, period_start_date, period_end_date, period_split, is_multi_colored, stat_highlights_type, glow_multiplier):
+def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansion, stats_offset, 
+                              set_num, is_dark_mode, is_variable_spd_00_01, is_random, is_automated_image, 
+                              is_foil, is_stats_loaded_from_library, is_img_loaded_from_library, add_year_container, 
+                              ignore_showdown_library, set_year_plus_one, edition, hide_team_logo, date_override, era, 
+                              image_parallel, bref_id, team, data_source, image_source, scraper_load_time, card_load_time, 
+                              is_secondary_color, nickname_index, period, period_start_date, period_end_date, period_split, 
+                              is_multi_colored, stat_highlights_type, glow_multiplier, error_for_user):
     """SEND LOG OF CARD SUBMISSION TO DB"""
     try:
         card_log = CardLog(
@@ -175,7 +190,8 @@ def log_card_submission_to_db(name, year, set, img_url, img_name, error, expansi
             period_split=period_split,
             is_multi_colored=is_multi_colored,
             stat_highlights_type=stat_highlights_type,
-            glow_multiplier=glow_multiplier
+            glow_multiplier=glow_multiplier,
+            error_for_user=error_for_user
         )
         db.session.add(card_log)
         db.session.commit()
@@ -346,6 +362,9 @@ def card_creator():
             data_source = 'Baseball Reference'
             statline = scraper.player_statline()
             data_source = scraper.source
+
+        if len(statline) == 0:
+            raise ValueError(f"Unable to find player stats for {name} in {year}. Please check the name and year.")
         
         # -----------------------------------
         # HIT MLB API FOR REALTIME STATS
@@ -552,7 +571,8 @@ def card_creator():
             period_split=period_split,
             is_multi_colored=is_multi_colored,
             stat_highlights_type=stat_highlights_type,
-            glow_multiplier=glow_multiplier
+            glow_multiplier=glow_multiplier,
+            error_for_user=None  # NO ERROR FOR USER, JUST LOGGING
         )
         return jsonify(
             image_path=card_image_path,
@@ -592,26 +612,41 @@ def card_creator():
         error_full = str(e)[:250]
 
         # HELPFUL CONTEXT FOR ERRORS
-        player_year_range = [p.year for p in yearly_archive_data] if len(yearly_archive_data) > 0 else [0]
-        first_year = min(player_year_range)
-        last_year = max(player_year_range)
         try: year_int = int(year) 
         except: year_int = None
+        player_year_range = [p.year for p in yearly_archive_data] if len(yearly_archive_data) > 0 else []
+        if year_int is not None and len(player_year_range) == 0:
+            # NO ARCHIVED DATA, USE YEAR INT
+            player_year_range = [year_int]
+        first_year = min(player_year_range)
+        last_year = max(player_year_range)
+
+        # CHANGE LAST YEAR TO CURRENT YEAR IF ARCHIVE IS AS OF LAST YEAR
+        # ONLY APPLIES IF MLB SEASON HAS STARTED AND ITS BEFORE NOVEMBER
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        if last_year == (current_year - 1) and current_month >= 3 and current_month < 11:
+            last_year = current_year
+
+        # FINAL BOOLS
         is_user_year_before_player_career_start = year_int < first_year if year_int else False
-        is_error_cannot_find_bref_page = "cannot find bref page" in error_full.lower()
-        
+        is_error_cannot_find_bref_page = "cannot find bref page" in error_full.lower() or ''
+        is_error_too_many_requests_to_bref = "429 - TOO MANY REQUESTS TO " in error_full.upper() and "baseball-ref" in error_full.lower()
+
         # ERROR SENT TO USER
         error_for_user = error
-        if "429 - TOO MANY REQUESTS TO " in error_full.upper() and "baseball-ref" in error_full.lower():
+        if is_error_too_many_requests_to_bref:
             # ALERT USER THAT BREF IS LOCKING OUT THE BOT
-            error_for_user = "There have been too many requests to bref. Try again in 30-60 mins"
+            error_for_user = "There have been too many Bot requests to bref in the last hour. Try again in 30-60 mins."
         elif is_error_cannot_find_bref_page:
             # TRY TO GIVE CONTEXT INTO WHY A BASEBALL REFERENCE PAGE WAS NOT FOUND FOR THE NAME/YEAR
-            error_for_user = "Player not found on Baseball Reference, please check the name and year. "
+            error_for_user = "Player/year not found on Baseball Reference. "
             if is_user_year_before_player_career_start:
-                error_for_year += f"The year you've chosen is outside of the range of the player's career ({first_year} to {last_year})"
+                error_for_user += f"The year you've chosen is outside of the range of the player's career ({first_year} to {last_year})"
             else:
                 error_for_user += "If looking for a rookie try using their bref id as the name (ex: 'ramirjo01')"
+        elif is_user_year_before_player_career_start:
+            error_for_user = f"The year you've chosen ({year}) is outside of the range of {name}'s career ({first_year} to {last_year})"
 
         traceback.print_exc()
         log_card_submission_to_db(
@@ -653,7 +688,8 @@ def card_creator():
             period_split=period_split,
             is_multi_colored=is_multi_colored,
             stat_highlights_type=stat_highlights_type,
-            glow_multiplier=glow_multiplier
+            glow_multiplier=glow_multiplier,
+            error_for_user=error_for_user
         )
         return jsonify(
             image_path=None,

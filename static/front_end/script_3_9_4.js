@@ -796,7 +796,12 @@ function showCardData(data) {
     if (isError) {
         buildGenericChartPlaceholders();
     } else {
-        createTrendsChart(player_year=data.player_year, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
+        if (data.in_season_trends_data === null) {
+            createTrendsChart(player_year=data.player_year, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]); 
+        } else {
+            createTrendsChart(player_year=data.player_year, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
+        }
+        
         if (data.in_season_trends_data === null) {
             createTrendsChart(player_year=data.player_year, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]); 
         } else {
