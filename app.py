@@ -635,6 +635,7 @@ def card_creator():
 
         # ERROR SENT TO USER
         error_for_user = error
+        year_range_error_message = f"The year you selected ({year}) falls outside of {name}'s career span, which is from {first_year} to {last_year}."
         if is_error_too_many_requests_to_bref:
             # ALERT USER THAT BREF IS LOCKING OUT THE BOT
             error_for_user = "There have been too many Bot requests to bref in the last hour. Try again in 30-60 mins."
@@ -642,11 +643,11 @@ def card_creator():
             # TRY TO GIVE CONTEXT INTO WHY A BASEBALL REFERENCE PAGE WAS NOT FOUND FOR THE NAME/YEAR
             error_for_user = "Player/year not found on Baseball Reference. "
             if is_user_year_before_player_career_start:
-                error_for_user += f"The year you've chosen is outside of the range of the player's career ({first_year} to {last_year})"
+                error_for_user += year_range_error_message
             else:
                 error_for_user += "If looking for a rookie try using their bref id as the name (ex: 'ramirjo01')"
         elif is_user_year_before_player_career_start:
-            error_for_user = f"The year you've chosen ({year}) is outside of the range of {name}'s career ({first_year} to {last_year})"
+            error_for_user = year_range_error_message
 
         traceback.print_exc()
         log_card_submission_to_db(
