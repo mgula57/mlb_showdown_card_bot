@@ -445,7 +445,7 @@ def card_creator():
             
             if len(yearly_trends_data) > 0:
                 latest_historical_year = max(yearly_trends_data.keys())
-                if showdown_card.year > latest_historical_year:
+                if showdown_card.year > latest_historical_year and not showdown_card.is_multi_year:
                     yearly_trends_data[str(showdown_card.year)] = showdown_card.trend_line_data()
 
         # WEEKLY IN SEASON TRENDS
