@@ -187,11 +187,6 @@ class BaseballReferenceScraper:
 
         last_initial = self.__name_last_initial(name)
         search_results = soup_search_name_and_year.find_all("a", href=re.compile("https://www.baseball-reference.com/players/{}/".format(last_initial)))
-        
-        # GOOGLE WILL BLOCK REQUESTS IF IT DETECTS THE BOT.
-        if len(soup_search_name_and_year.find_all(text="Why did this happen?")) > 0:
-            self.error = 'Google has an overload of requests coming from your IP Address. Wait a few minutes and try again.'
-            raise RuntimeError(self.error)
 
         # NO BASEBALL REFERENCE RESULTS FOR THAT NAME AND YEAR
         if search_results == []:
@@ -1257,6 +1252,9 @@ class BaseballReferenceScraper:
                 advanced_stats[team_id_key] = updated_team_id
                 advanced_stats[league_id_key] = updated_league_id
 
+        if len(advanced_stats) == 0:
+            return {}
+        
         # FILL IN EMPTY STATS
         advanced_stats = fill_empty_stat_categories(advanced_stats, is_pitcher = type == 'Pitcher')
 
