@@ -1065,7 +1065,6 @@ class Team(str, Enum):
         # IF YEAR IS LOWER THAN LOWEST YEAR, RETURN EARLIEST LOGO AVAILABLE
         if year < lowest_year and lowest_year != 9999:
             prefix = '-' if include_dash else ''
-            print(f"WARNING: Year {year} is lower than the lowest year {lowest_year} for team {self.value}. Returning earliest logo index: {lowest_index}")
             return f"{prefix}{lowest_index}"
         
         return ''
