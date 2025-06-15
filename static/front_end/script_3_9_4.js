@@ -748,8 +748,8 @@ function showCardData(data) {
             if (keys.length < 2 || doesNotMatchYear) {
                 $("#player_details_div").append(`<div class="player_attribute_box">${points} PTS</div>`);
             } else {
-                const start_date = keys[keys.length - 2];
-                const start_points = data?.in_season_trends_data[start_date]?.points;
+                const start_date = keys[keys.length - 3];
+                const start_points = data?.in_season_trends_data[start_date]?.points || 0;
                 const points_diff = points - start_points;
                 var up_or_downtriangle = (points_diff < 0) ? '▼' : '▲'; 
                 var color = (points_diff < 0) ? 'red' : 'green';
@@ -796,8 +796,8 @@ function showCardData(data) {
     if (isError) {
         buildGenericChartPlaceholders();
     } else {
-        if (data.in_season_trends_data === null) {
-            createTrendsChart(player_year=data.player_year, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]); 
+        if (data.yearly_trends_data === null) {
+            createTrendsChart(player_year=data.player_year, trends_data=generic_career_data, elementId="playerCareerTrends", unit='year', is_placeholder=true, events=[]); 
         } else {
             createTrendsChart(player_year=data.player_year, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
         }
