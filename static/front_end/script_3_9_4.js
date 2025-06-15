@@ -794,7 +794,6 @@ function showCardData(data) {
 
     // TRENDS GRAPHS
     if (isError) {
-        console.log("Error loading trends data, building placeholders instead.");
         buildGenericChartPlaceholders();
     } else {
         if (data.yearly_trends_data === null) {
