@@ -794,10 +794,11 @@ function showCardData(data) {
 
     // TRENDS GRAPHS
     if (isError) {
+        console.log("Error loading trends data, building placeholders instead.");
         buildGenericChartPlaceholders();
     } else {
-        if (data.in_season_trends_data === null) {
-            createTrendsChart(player_year=data.player_year, trends_data=generic_in_season_data, elementId="playerInSeasonTrends", unit='day', is_placeholder=true, events=[]); 
+        if (data.yearly_trends_data === null) {
+            createTrendsChart(player_year=data.player_year, trends_data=generic_career_data, elementId="playerCareerTrends", unit='year', is_placeholder=true, events=[]); 
         } else {
             createTrendsChart(player_year=data.player_year, trends_data=data.yearly_trends_data, elementId="playerCareerTrends", unit='year');
         }
