@@ -172,7 +172,7 @@ class Team(str, Enum):
             case 'ABC': return (172, 0, 0, 255)
             case 'AG': return (2, 2, 2, 255)
             case 'ALT': return (104, 5, 49, 255)
-            case 'ANA': return (19, 41, 75, 255)
+            case 'ANA': return (186,0,33,255)
             case 'ARI': return (167, 25, 48, 255)
             case 'ATH': return (0, 56, 49, 255)
             case 'ATL': return (206, 17, 65, 255)
@@ -323,7 +323,7 @@ class Team(str, Enum):
     def primary_color_historical(self) -> tuple[int,int,int,int]:
         match self.value:
             case 'ANA': return {
-                '1': (186,0,33,255),
+                '1': (19, 41, 75, 255),
             }
             case 'ARI': return {
                 '1': (95, 37, 159, 255),
@@ -353,7 +353,8 @@ class Team(str, Enum):
                 '5': (0, 48, 135, 255), # BOSTON AMERICANS
             }
             case 'BRO': return {
-                '1': (0, 121, 62, 255),
+                '1': (8, 41, 132, 255),
+                '2': (0, 121, 62, 255),
             }
             case 'CHC': return {
                 '1': (176,36,54,255),
@@ -515,7 +516,7 @@ class Team(str, Enum):
     @property
     def secondary_color(self) -> tuple[int,int,int,int]:
         match self.value:
-            case 'ANA': return (92, 136, 218, 255)
+            case 'ANA': return (0,50,99,255)
             case 'ARI': return (227, 212, 173, 255)
             case 'ATH': return (239, 178, 30, 255)
             case 'ATL': return (19, 39, 79, 255)
@@ -584,7 +585,7 @@ class Team(str, Enum):
     def secondary_color_historical(self) -> tuple[int,int,int,int]:
         match self.value:
             case 'ANA': return {
-                '1': (0,50,99,255),
+                '1': (92, 136, 218, 255),
             }
             case 'ARI': return {
                 '1': (0,95,97,255),
@@ -601,7 +602,8 @@ class Team(str, Enum):
                 '5': (0, 48, 135, 255), # BOSTON AMERICANS
             }
             case 'BRO': return {
-                '1': (123, 123, 123, 255),
+                '1': (191, 192, 191, 255),
+                '2': (123, 123, 123, 255),
             }
             case 'CHC': return {
                 '1': (12,35,64,255),
@@ -802,7 +804,7 @@ class Team(str, Enum):
     def logo_historical_year_range_dict(self) -> dict[str, list[int]]:
         match self.value:
             case 'ANA': return {
-                '1': list(range(2002, 2005)),
+                '1': list(range(1997, 2002)),
             }
             case 'ARI': return {
                 '1': list(range(1998,2007))
@@ -834,7 +836,8 @@ class Team(str, Enum):
                 '4': list(range(1961,1976)),
             }
             case 'BRO': return {
-                '1': list(range(1937,1938)),
+                '1': list(range(1900,1937)),
+                '2': list(range(1937,1938)),
             }
             case 'BSN': return {
                 '1': list(range(1912,1921)),
@@ -1083,7 +1086,7 @@ class Team(str, Enum):
     def is_logo_wide(self, year:int, is_alternate:bool=False) -> bool:
         logo_name = self.logo_name(year=year, is_alternate=is_alternate)
         return logo_name in [
-            'ANA','ANA-A','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BOS-5','BOS-A-5','BRO','CHC-1','CHC-A-1','CHC-10','CHC-A-10','CHW-2','CHW-A-2',
+            'ANA-1','ANA-A-1','ATL','BAL-5','BAL-A-7','BOS-2','BOS-A-2','BOS-5','BOS-A-5','BRO','CHC-1','CHC-A-1','CHC-10','CHC-A-10','CHW-2','CHW-A-2',
             'CIN-1','CIN-3','CIN-4','CIN-A-1','CIN-A-3','CIN-A-4','CIN-A','CIN','CIN-8','CIN-11','CIN-12','CIN-13',
             'CRS-A','CRS','IA-A','IA',
             'IC-A','IC','LOU-A','LOU','MIL-4','MLA-A','MLA','MLB','NYG-2','NYG-A-2','SDP-6','SDP-A-6''SEP-A','SEP',
@@ -1146,8 +1149,8 @@ class Team(str, Enum):
                     case _: return (2600, 2600) if self.is_logo_wide(year=year,is_alternate=is_alternate) else (2200, 2200)
             case '2001': 
                 match logo_name:
-                    case 'ANA': return (1000, 1000)
-                    case 'ANA-1': return (775, 775)
+                    case 'ANA-1': return (1000, 1000)
+                    case 'ANA': return (775, 775)
                     case 'ATL': return (1000, 1000)
                     case 'ARI-1': return (1000, 1000)
                     case 'BAL-5' | 'BAL-6' | 'BAL-7': return (775, 775)
@@ -1225,7 +1228,7 @@ class Team(str, Enum):
         match set:
             case '2000': 
                 match logo_name:
-                    case 'ANA': return (-100, 0)
+                    case 'ANA-1': return (-100, 0)
                     case 'ARI' | 'ARI-2': return (-100, 0)
                     case 'ARI-1': return (-50, 0)
                     case 'ATL-A': return (-100,0)
@@ -1247,8 +1250,8 @@ class Team(str, Enum):
                     case _: return (0,0)
             case '2001': 
                 match logo_name:
-                    case 'ANA': return (-175,-170)
-                    case 'ANA-1': return (-60, -50)
+                    case 'ANA-1': return (-175,-170)
+                    case 'ANA': return (-60, -50)
                     case 'ARI' | 'ARI-2': return (-100, -20)
                     case 'ARI-1': return (-180, -130)
                     case 'ATH': return (-50,-100)

@@ -394,13 +394,18 @@
                                        </div>
                                     </div>   
                                     <div class="row" id="link" style="display: none;">
-                                       <div class="col-md-12" >
-                                          <input type="text" name="url" class="form-control" id="url" placeholder="Paste Link">
+                                       <div class="col-md-12">
+                                          <div class="input-group mb-3">
+                                             <input type="text" name="url" class="form-control" id="url" placeholder="Paste Link">
+                                             <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('url').value = '';">
+                                                Clear
+                                             </button>
+                                          </div>
                                        </div>
                                     </div>   
                                     <div class="row" id="upload" style="display: none;">
                                        <div class="col-md-12">
-                                          <input class="form-control" type="file" id="img_upload" accept="image/*">
+                                          <input class="form-control mb-3" type="file" id="img_upload" accept="image/*">
                                        </div>
                                     </div>
                                  </div>
