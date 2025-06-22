@@ -7,12 +7,9 @@ import os, json
 from pathlib import Path
 from rich.progress import track
 
-try:
-    from .showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points, Position
-    from .postgres_db import PostgresDB, PlayerArchive
-except ImportError:
-    from showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points, Position
-    from postgres_db import PostgresDB, PlayerArchive
+# INTERNAL
+from ..showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points, Position
+from ...database.postgres_db import PostgresDB, PlayerArchive
 
 # ------------------------------
 # WOTC PLAYER CARD

@@ -5,21 +5,12 @@ from pathlib import Path
 from prettytable import PrettyTable
 from datetime import datetime
 
-# MY PACKAGES
-try:
-    # ASSUME THIS IS A SUBMODULE IN A PACKAGE
-    from .baseball_ref_scraper import BaseballReferenceScraper
-    from .mlb_stats_api import get_player_realtime_game_stats_and_game_boxscore
-    from .showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource, Team
-    from .classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
-    from .postgres_db import PostgresDB, PlayerArchive
-except ImportError:
-    # USE LOCAL IMPORT 
-    from baseball_ref_scraper import BaseballReferenceScraper
-    from mlb_stats_api import get_player_realtime_game_stats_and_game_boxscore
-    from showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource, Team
-    from classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
-    from postgres_db import PostgresDB, PlayerArchive
+# INTERNAL
+from core.integrations.baseball_ref_scraper import BaseballReferenceScraper
+from core.integrations.mlb_stats_api import get_player_realtime_game_stats_and_game_boxscore
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
+from core.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
+from core.database.postgres_db import PostgresDB, PlayerArchive
 
 parser = argparse.ArgumentParser(description="Generate a player's MLB Showdown stats in a given year")
 
@@ -113,7 +104,7 @@ def main():
             # CHECK IF ARCHIVE STATS ARE EMPTY
             game_logs = player_archive.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, []) or []
             if len(game_logs) == 0:
-                player_archive = None            
+                player_archive = None
     
     if player_archive:
         statline = player_archive.stats

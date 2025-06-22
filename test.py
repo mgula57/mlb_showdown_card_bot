@@ -1,7 +1,7 @@
-from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard, StatsPeriod, StatsPeriodType
-from mlb_showdown_bot.classes.sets import Set
-from mlb_showdown_bot.classes.images import Edition
+from mlb_showdown_bot.core.card.stats.baseball_ref_scraper import BaseballReferenceScraper
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, StatsPeriod, StatsPeriodType
+from mlb_showdown_bot.core.card.sets import Set
+from mlb_showdown_bot.core.card.images import Edition
 from termcolor import colored
 from time import sleep
 
@@ -36,6 +36,7 @@ if __name__ == "__main__":
     # TEST EACH PLAYER IN EACH SET
     failures = 0
     error_messages = []
+    set = Set._2000
     for player_inputs in inputs_to_test:
         result = 'SUCCESS'
         try:
@@ -51,18 +52,16 @@ if __name__ == "__main__":
             )
 
             # GET PLAYER DATA
-            scraper = BaseballReferenceScraper(name=name,year=year)
-            statline = scraper.player_statline()
+            scraper = BaseballReferenceScraper(stats_period=stats_period, **player_inputs)
+            statline = scraper.scrape_baseball_reference()
             for set in Set:
                 # CREATE SHOWDOWN CARD 
                 showdown = ShowdownPlayerCard(
-                    name=name,
-                    year=year,
                     stats=statline,
                     set=set.value,
-                    edition=edition,
                     stats_period=stats_period,
-                    print_to_cli=False
+                    print_to_cli=False,
+                    **player_inputs
                 )
                 showdown.card_image()
                 if showdown.image.error:

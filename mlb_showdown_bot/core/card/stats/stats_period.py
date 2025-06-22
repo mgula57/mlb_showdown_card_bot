@@ -1,14 +1,12 @@
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
 from datetime import date, datetime, timedelta
 from typing import Optional, Any
 from statistics import mode
 import calendar
 
-try:
-    from .shared_functions import aggregate_stats, convert_to_numeric, fill_empty_stat_categories, convert_to_date
-except ImportError:
-    from shared_functions import aggregate_stats, convert_to_numeric, fill_empty_stat_categories, convert_to_date
+# INTERNAL
+from ..utils.shared_functions import aggregate_stats, convert_to_numeric, fill_empty_stat_categories, convert_to_date, convert_year_string_to_list
 
 class StatsPeriodType(str, Enum):
 
@@ -126,8 +124,13 @@ class StatsPeriodDateAggregation(str, Enum):
 class StatsPeriod(BaseModel):
 
     # ATTRIBUTES
+    year: str
     type: StatsPeriodType = StatsPeriodType.REGULAR_SEASON
-    year: str = None
+
+    # MULTI-YEAR
+    year_list: list[int] = []
+    is_full_career: bool = False
+    is_multi_year: bool = False
 
     # DATE RANGE
     start_date: Optional[date] = None
@@ -135,6 +138,9 @@ class StatsPeriod(BaseModel):
 
     # SPLIT
     split: Optional[str] = None
+
+    # SOURCE
+    source: str = 'Unknown'
 
     # STATS
     # FILLED IN SHOWDOWN BOT CLASS
@@ -170,6 +176,63 @@ class StatsPeriod(BaseModel):
                 self.split = None
         
 
+    # ---------------------------------
+    # VALIDATORS
+    # ---------------------------------
+
+    @model_validator(mode="before")
+    def ensure_required_inputs(cls, values: dict) -> dict:
+
+        if not isinstance(values, dict):
+            # IF VALUES IS NOT A DICT, RETURN AS-IS (OR RAISE AN ERROR)
+            return values
+
+        # FORCE THESE ATTRIBUTES TO RUN
+        required_attributes = [
+            'year_list', 'is_multi_year', 'is_full_career', 
+        ]
+        for attr in required_attributes:
+            if attr not in values.keys():
+                values[attr] = None
+
+        return values
+
+    @field_validator('year', mode='before')
+    def clean_year(cls, year:str) -> str:
+        return str(year).upper()
+
+    @field_validator('year_list', mode='before')
+    def parse_year_list(cls, year_list:list[int], info:ValidationInfo) -> list[int]:
+
+        if year_list is not None:
+            if len(year_list) > 0:
+                return year_list
+        values = info.data
+        year:str = values.get('year', '')
+        stats:dict = values.get('stats', {})
+        all_years_played:list[str] = stats.get('years_played', [])
+        return convert_year_string_to_list(year_input=year, all_years_played=all_years_played)
+
+    @field_validator('is_full_career', mode='before')
+    def parse_is_full_career(cls, is_full_career:bool, info:ValidationInfo) -> bool:
+        if is_full_career:
+            return is_full_career
+        
+        year:str = info.data.get('year', '')
+        return year.upper() == 'CAREER'
+    
+    @field_validator('is_multi_year', mode='before')
+    def parse_is_multi_year(cls, is_multi_year:bool, info:ValidationInfo) -> bool:
+        if is_multi_year:
+            return is_multi_year
+        
+        year_list:list[int] = info.data.get('year_list', [])
+        return len(year_list) > 1
+    
+    # ---------------------------------
+    # PROPERTIES
+    # ---------------------------------
+
     @property
     def id(self) -> str:
         values = [self.type.value, self.split]
@@ -178,6 +241,15 @@ class StatsPeriod(BaseModel):
     @property
     def is_date_range(self) -> bool:
         return self.start_date and self.end_date
+    
+    @property
+    def year_int(self) -> int:
+        """
+        Returns the year as an integer if it is a single year, otherwise returns None.
+        """
+        if len(self.year_list) == 1:
+            return self.year_list[0]
+        return None
     
     @property
     def string(self) -> str:
@@ -201,21 +273,32 @@ class StatsPeriod(BaseModel):
             case StatsPeriodType.POSTSEASON: return f"No postseason data available"
             case StatsPeriodType.SPLIT: return f"Split '{self.split or 'N/A'}' not found"
 
+    @property
+    def check_for_realtime_stats(self) -> bool:
+        """
+        Returns True if the stats period type is REGULAR_SEASON or DATE_RANGE and the user inputted date range includes the current date.
+        This is used to determine if realtime stats should be fetched from the MLB API.
+        """
+        is_today_included = False if self.end_date is None else self.end_date >= date.today()
+        return self.type.check_for_realtime_stats and is_today_included
+
+    # ---------------------------------
+    # METHODS
+    # ---------------------------------
+
     def reset(self) -> None:
         self.type = StatsPeriodType.REGULAR_SEASON
         self.start_date = None
         self.end_date = None
         self.split = None
 
-    def add_stats_from_logs(self, game_logs:list[dict[str, Any]], year_list: list[int], is_pitcher:bool) -> None:
+    def add_stats_from_logs(self, game_logs:list[dict[str, Any]], is_pitcher:bool) -> None:
         """
         Add stats from game logs to the stats dictionary
         
         Args:
             game_logs (list[dict[str, Any]]): List of game logs. Can be regular season or postseason
-            year_list (list[int]): List of years to filter by
             is_pitcher (bool): If the player is a pitcher
-            team_override (str): Optionally filter out records that don't match the team ID
 
         Returns:
             None
@@ -226,7 +309,7 @@ class StatsPeriod(BaseModel):
         
         # ADD STATS TO DICTIONARY
         stats_as_lists: dict[str, list] = {}
-        first_year = year_list[0]
+        first_year = self.year_list[0]
         for game_log_data in game_logs:
 
             # ------------------------
@@ -249,7 +332,7 @@ class StatsPeriod(BaseModel):
             doesnt_have_dedicated_year_column = self.type == StatsPeriodType.POSTSEASON and is_new_format and game_log_date_str
             default_year = game_log_date_str.split('-', 1)[0] if doesnt_have_dedicated_year_column else first_year
             year_from_game_log = convert_to_numeric(str(game_log_data.get('year_game', default_year)))
-            year_check = year_from_game_log in year_list
+            year_check = year_from_game_log in self.year_list
 
             if self.is_date_range and game_log_date_str:
                 game_log_date = convert_to_date(game_log_date_str, default_year)

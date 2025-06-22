@@ -11,9 +11,9 @@ from unidecode import unidecode
 import sys
 
 sys.path.append('..')
-from postgres_db import PostgresDB
-from showdown_player_card import ShowdownPlayerCard
-from classes.player_position import PlayerType
+from mlb_showdown_bot.core.database.postgres_db import PostgresDB
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard
+from mlb_showdown_bot.core.shared.player_position import PlayerType
 
 parser = argparse.ArgumentParser(description="Export Showdown Bot Data to a CSV file.")
 parser.add_argument('-hof','--hof', action='store_true', help='Only Hall of Fame Players', required=False)

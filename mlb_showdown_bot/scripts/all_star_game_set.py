@@ -6,8 +6,8 @@ from datetime import datetime
 from time import sleep
 
 sys.path.append('..')
-from baseball_ref_scraper import BaseballReferenceScraper
-from showdown_player_card import ShowdownPlayerCard, StatsPeriod, Set, StatHighlightsType, Edition
+from mlb_showdown_bot.core.card.stats.baseball_ref_scraper import BaseballReferenceScraper
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, StatsPeriod, Set, StatHighlightsType, Edition
 
 parser = argparse.ArgumentParser(description="Create an all star game set for cards.")
 parser.add_argument('-y','--year', type=int, help='Year to use for cards.', required=True)

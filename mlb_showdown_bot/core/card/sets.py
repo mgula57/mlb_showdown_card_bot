@@ -1,18 +1,13 @@
 from enum import Enum
 from datetime import datetime
 import numpy as np
-try:
-    from .metadata import SpeedMetric
-    from .player_position import PlayerType, PlayerSubType, Position
-    from .points import PointsMetric, ValueRange
-    from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
-    from .chart import Chart, ChartCategory
-except ImportError:
-    from metadata import SpeedMetric
-    from player_position import PlayerType, PlayerSubType, Position
-    from points import PointsMetric, ValueRange
-    from images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
-    from chart import Chart, ChartCategory
+
+# INTERNAL
+from ..shared.speed import SpeedMetric
+from ..shared.player_position import PlayerType, PlayerSubType, Position
+from .points import PointsMetric, ValueRange
+from .images import PlayerImageComponent, TemplateImageComponent, ImageParallel, Expansion, SpecialEdition
+from .chart import Chart, ChartCategory
 
 
 class Era(Enum):

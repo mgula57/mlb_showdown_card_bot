@@ -1,10 +1,9 @@
 from pydantic import BaseModel
 from typing import Optional
 from enum import Enum
-try:
-    from .value_range import ValueRange
-except ImportError:
-    from value_range import ValueRange
+
+# INTERNAL
+from .utils.value_range import ValueRange
 
 class PointsMetric(Enum):
 

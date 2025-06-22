@@ -1,9 +1,9 @@
 from flask import Flask, render_template, request, jsonify
-from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
-from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown_bot.mlb_stats_api import get_player_realtime_game_stats_and_game_boxscore
-from mlb_showdown_bot.postgres_db import PostgresDB, PlayerArchive
-from mlb_showdown_bot.classes.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, ShowdownImage, ImageSource
+from mlb_showdown_bot.core.card.stats.baseball_ref_scraper import BaseballReferenceScraper
+from mlb_showdown_bot.core.card.stats.mlb_stats_api import get_player_realtime_game_stats_and_game_boxscore
+from mlb_showdown_bot.core.database.postgres_db import PostgresDB, PlayerArchive
+from mlb_showdown_bot.core.card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation, convert_to_date
 import os
 import pandas as pd
 import copy

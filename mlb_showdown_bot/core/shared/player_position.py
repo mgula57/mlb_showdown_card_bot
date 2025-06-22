@@ -1,11 +1,9 @@
 from enum import Enum
 from aenum import MultiValueEnum
-try:
-    from .stat_highlights import StatHighlightsCategory, StatHighlightsType
-except ImportError:
-    from stat_highlights import StatHighlightsCategory, StatHighlightsType
-     
 
+# INTERNAL
+from ..card.stats.stat_highlights import StatHighlightsCategory, StatHighlightsType
+     
 class PlayerSubType(Enum):
 
     POSITION_PLAYER = 'position_player'

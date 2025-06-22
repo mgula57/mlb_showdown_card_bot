@@ -1,0 +1,959 @@
+{
+  "bref_id": "wittbo02",
+  "bref_url": "https://www.baseball-reference.com/players/w/wittbo02.shtml",
+  "positions": {
+    "SS": {
+      "g": 76,
+      "tzr": 3.0,
+      "drs": 3.0,
+      "oaa": 14.986
+    },
+    "DH": {
+      "g": 2,
+      "tzr": null,
+      "drs": null
+    }
+  },
+  "dWAR": 0.8,
+  "bWAR": 3.5,
+  "type": "Hitter",
+  "hand": "Right",
+  "hand_throw": "Right",
+  "name": "Bobby Witt Jr.",
+  "years_played": [
+    "2022",
+    "2023",
+    "2024",
+    "2025"
+  ],
+  "nationality": "US",
+  "rookie_status_year": 2022,
+  "is_hof": false,
+  "is_rookie": false,
+  "year_ID": 2025,
+  "age": 25,
+  "team_ID": "KCR",
+  "lg_ID": "AL",
+  "G": 77,
+  "PA": 334,
+  "AB": 300,
+  "R": 42,
+  "H": 85,
+  "2B": 26,
+  "3B": 3,
+  "is_hr_leader": false,
+  "HR": 10,
+  "RBI": 40,
+  "is_sb_leader": false,
+  "SB": 21,
+  "CS": 6,
+  "BB": 26,
+  "is_so_leader": false,
+  "SO": 61,
+  "batting_avg": 0.283,
+  "onbase_perc": 0.341,
+  "slugging_perc": 0.49,
+  "onbase_plus_slugging": 0.831,
+  "onbase_plus_slugging_plus": 131,
+  "rOBA": 0.365,
+  "rbat_plus": 131,
+  "TB": 147,
+  "GIDP": 1,
+  "HBP": 3,
+  "SH": 0,
+  "SF": 5,
+  "IBB": 6,
+  "pos_season": "*6/D",
+  "award_summary": "",
+  "1B": 46,
+  "GO/AO": 0.5,
+  "IF/FB": 0.1,
+  "is_above_hr_threshold": false,
+  "is_above_so_threshold": false,
+  "is_above_sb_threshold": false,
+  "is_above_w_threshold": false,
+  "sprint_speed": 30.4,
+  "outs_above_avg": {
+    "SS": 14.986
+  },
+  "accolades": {
+    "WAR": [
+      "2025 AL 3.5 (5TH)"
+    ],
+    "H": [
+      "2025 AL 85 (7TH)"
+    ],
+    "TB": [
+      "2025 AL 147 (5TH)"
+    ],
+    "2B": [
+      "2025 AL 26 (1ST)"
+    ],
+    "3B": [
+      "2025 AL 3 (3RD)"
+    ],
+    "SB": [
+      "2025 AL 21 (3RD)"
+    ]
+  },
+  "game_logs": [
+    {
+      "date": "2025-03-27",
+      "team_ID": "KCR",
+      "player_game_span": "CG(10)",
+      "PA": 5,
+      "AB": 5,
+      "R": 1,
+      "H": 1,
+      "SB": 1,
+      "SO": 3
+    },
+    {
+      "date": "2025-03-29",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "2B": 1,
+      "RBI": 1,
+      "CS": 1
+    },
+    {
+      "date": "2025-03-30",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 4,
+      "H": 1,
+      "RBI": 1,
+      "BB": 1,
+      "SO": 2
+    },
+    {
+      "date": "2025-03-31",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 6,
+      "AB": 5,
+      "R": 1,
+      "H": 2,
+      "RBI": 1,
+      "SB": 2,
+      "HBP": 1
+    },
+    {
+      "date": "2025-04-01",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "H": 1,
+      "2B": 1,
+      "BB": 1,
+      "IBB": 1
+    },
+    {
+      "date": "2025-04-02",
+      "team_ID": "KCR",
+      "player_game_span": "CG(11)",
+      "PA": 4,
+      "AB": 4,
+      "SO": 1
+    },
+    {
+      "date": "2025-04-04",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 4,
+      "R": 2,
+      "H": 1,
+      "BB": 1,
+      "SO": 1,
+      "IBB": 1
+    },
+    {
+      "date": "2025-04-05",
+      "team_ID": "KCR",
+      "player_game_span": "GS-9",
+      "PA": 4,
+      "AB": 4,
+      "R": 1,
+      "H": 1,
+      "HR": 1,
+      "RBI": 1
+    },
+    {
+      "date": "2025-04-06",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "R": 1,
+      "H": 2,
+      "2B": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-04-07",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "RBI": 1
+    },
+    {
+      "date": "2025-04-08",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "R": 2,
+      "H": 1,
+      "2B": 1,
+      "BB": 1
+    },
+    {
+      "date": "2025-04-09",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "H": 1,
+      "2B": 1,
+      "BB": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-04-10",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "R": 1,
+      "H": 2,
+      "2B": 1,
+      "RBI": 1,
+      "SB": 1,
+      "SF": 1
+    },
+    {
+      "date": "2025-04-11",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 2,
+      "H": 2,
+      "BB": 2
+    },
+    {
+      "date": "2025-04-12",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "R": 1,
+      "H": 1,
+      "SB": 1,
+      "BB": 1,
+      "SO": 2
+    },
+    {
+      "date": "2025-04-13",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1
+    },
+    {
+      "date": "2025-04-14",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "R": 1,
+      "H": 2,
+      "HR": 1,
+      "RBI": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-04-15",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "2B": 1,
+      "RBI": 1
+    },
+    {
+      "date": "2025-04-16",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "R": 1,
+      "H": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-04-17",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 4,
+      "H": 1,
+      "2B": 1,
+      "BB": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-04-18",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "R": 2,
+      "H": 2,
+      "2B": 1,
+      "SB": 1
+    },
+    {
+      "date": "2025-04-19",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1
+    },
+    {
+      "date": "2025-04-20",
+      "team_ID": "KCR",
+      "player_game_span": "CG(10)",
+      "PA": 5,
+      "AB": 4,
+      "R": 1,
+      "H": 1,
+      "RBI": 1,
+      "CS": 1,
+      "SF": 1
+    },
+    {
+      "date": "2025-04-22",
+      "team_ID": "KCR",
+      "player_game_span": "CG(11)",
+      "PA": 5,
+      "AB": 3,
+      "H": 1,
+      "SB": 1,
+      "BB": 2,
+      "SO": 1,
+      "IBB": 1
+    },
+    {
+      "date": "2025-04-24 (1)",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 4,
+      "R": 1,
+      "H": 1,
+      "2B": 1,
+      "SO": 1,
+      "HBP": 1
+    },
+    {
+      "date": "2025-04-24 (2)",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "R": 2,
+      "H": 1,
+      "RBI": 1,
+      "SB": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-04-25",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 3,
+      "CS": 1
+    },
+    {
+      "date": "2025-04-26",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "2B": 1
+    },
+    {
+      "date": "2025-04-27",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "2B": 1,
+      "RBI": 1,
+      "SO": 3
+    },
+    {
+      "date": "2025-04-29",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "H": 1,
+      "SB": 1,
+      "BB": 1
+    },
+    {
+      "date": "2025-04-30",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "R": 1,
+      "H": 2,
+      "RBI": 1,
+      "CS": 1
+    },
+    {
+      "date": "2025-05-01",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 6,
+      "AB": 3,
+      "R": 1,
+      "H": 1,
+      "HR": 1,
+      "RBI": 3,
+      "BB": 2,
+      "SO": 1,
+      "HBP": 1
+    },
+    {
+      "date": "2025-05-02",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "SO": 2
+    },
+    {
+      "date": "2025-05-03",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "SO": 1
+    },
+    {
+      "date": "2025-05-04",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "R": 1,
+      "H": 2,
+      "2B": 1,
+      "HR": 1,
+      "RBI": 2,
+      "SO": 1
+    },
+    {
+      "date": "2025-05-05",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "R": 1,
+      "H": 2,
+      "2B": 1,
+      "RBI": 1,
+      "SB": 2,
+      "BB": 1
+    },
+    {
+      "date": "2025-05-06",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "H": 1,
+      "RBI": 1
+    },
+    {
+      "date": "2025-05-07",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "R": 1,
+      "H": 1,
+      "HR": 1,
+      "RBI": 2,
+      "SO": 1
+    },
+    {
+      "date": "2025-05-08",
+      "team_ID": "KCR",
+      "player_game_span": "GS-8",
+      "PA": 5,
+      "AB": 5,
+      "R": 2,
+      "H": 4,
+      "2B": 2,
+      "RBI": 2,
+      "SB": 2
+    },
+    {
+      "date": "2025-05-09",
+      "team_ID": "KCR",
+      "player_game_span": "CG(12)",
+      "PA": 5,
+      "AB": 3,
+      "BB": 2,
+      "SO": 2,
+      "IBB": 1
+    },
+    {
+      "date": "2025-05-10",
+      "team_ID": "KCR",
+      "player_game_span": "GS-9",
+      "PA": 4,
+      "AB": 4,
+      "R": 1,
+      "H": 2,
+      "2B": 1,
+      "SB": 1,
+      "SO": 2
+    },
+    {
+      "date": "2025-05-11",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "SO": 3
+    },
+    {
+      "date": "2025-05-12",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 4,
+      "R": 1,
+      "H": 2,
+      "3B": 1,
+      "RBI": 2,
+      "SF": 1
+    },
+    {
+      "date": "2025-05-13",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "GIDP": 1
+    },
+    {
+      "date": "2025-05-14",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 3,
+      "H": 1,
+      "3B": 1,
+      "SB": 1,
+      "BB": 2,
+      "SO": 1,
+      "IBB": 1
+    },
+    {
+      "date": "2025-05-16",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "R": 1,
+      "H": 2,
+      "3B": 1,
+      "SB": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-05-17",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "SO": 1
+    },
+    {
+      "date": "2025-05-18",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4
+    },
+    {
+      "date": "2025-05-19",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "2B": 1
+    },
+    {
+      "date": "2025-05-20",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "RBI": 1,
+      "CS": 1,
+      "SO": 2
+    },
+    {
+      "date": "2025-05-21",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 4,
+      "R": 1,
+      "H": 2,
+      "2B": 1,
+      "RBI": 2,
+      "SF": 1
+    },
+    {
+      "date": "2025-05-23",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "SB": 1
+    },
+    {
+      "date": "2025-05-24",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "H": 1,
+      "SB": 2,
+      "SO": 4
+    },
+    {
+      "date": "2025-05-25",
+      "team_ID": "KCR",
+      "player_game_span": "CG(10)",
+      "PA": 5,
+      "AB": 5,
+      "H": 1,
+      "2B": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-05-26",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "SO": 1
+    },
+    {
+      "date": "2025-05-27",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "SB": 1,
+      "BB": 1
+    },
+    {
+      "date": "2025-05-28",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "H": 1,
+      "2B": 1,
+      "RBI": 2,
+      "SO": 1,
+      "SF": 1
+    },
+    {
+      "date": "2025-05-30",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "R": 1,
+      "H": 1,
+      "HR": 1,
+      "RBI": 1
+    },
+    {
+      "date": "2025-05-31",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 3,
+      "AB": 3,
+      "SO": 1
+    },
+    {
+      "date": "2025-06-01",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "2B": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-06-03",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 4,
+      "R": 2,
+      "H": 2,
+      "HR": 1,
+      "RBI": 4,
+      "BB": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-06-05 (1)",
+      "team_ID": "KCR",
+      "player_game_span": "CG(10)",
+      "PA": 5,
+      "AB": 3,
+      "R": 1,
+      "H": 1,
+      "SB": 1,
+      "BB": 2,
+      "SO": 1,
+      "IBB": 1
+    },
+    {
+      "date": "2025-06-05 (2)",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "R": 1,
+      "H": 1,
+      "SO": 3
+    },
+    {
+      "date": "2025-06-06",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 2,
+      "SO": 1
+    },
+    {
+      "date": "2025-06-07",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "SO": 2
+    },
+    {
+      "date": "2025-06-08",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "R": 1,
+      "H": 2,
+      "HR": 1,
+      "RBI": 2
+    },
+    {
+      "date": "2025-06-10",
+      "team_ID": "KCR",
+      "player_game_span": "GS-8",
+      "PA": 3,
+      "AB": 3,
+      "H": 1
+    },
+    {
+      "date": "2025-06-11",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "SO": 1
+    },
+    {
+      "date": "2025-06-12",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "SO": 1
+    },
+    {
+      "date": "2025-06-13",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4
+    },
+    {
+      "date": "2025-06-14",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "BB": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-06-15",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "R": 1,
+      "H": 2,
+      "2B": 1,
+      "RBI": 1,
+      "CS": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-06-17",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "R": 2,
+      "H": 2,
+      "2B": 1,
+      "HR": 1,
+      "RBI": 1
+    },
+    {
+      "date": "2025-06-18",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 4,
+      "R": 2,
+      "H": 1,
+      "BB": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-06-19",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "R": 1,
+      "H": 2,
+      "2B": 1,
+      "BB": 1
+    },
+    {
+      "date": "2025-06-20",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "R": 1,
+      "H": 1,
+      "HR": 1,
+      "RBI": 1,
+      "SO": 1
+    },
+    {
+      "date": "2025-06-21",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "2B": 1
+    }
+  ],
+  "postseason_game_logs": [
+    {
+      "date": "2024-10-01",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "H": 1,
+      "RBI": 1,
+      "CS": 1
+    },
+    {
+      "date": "2024-10-02",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "H": 2,
+      "RBI": 1,
+      "SO": 1
+    },
+    {
+      "date": "2024-10-05",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "SO": 1
+    },
+    {
+      "date": "2024-10-07",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 5,
+      "AB": 5,
+      "SO": 3
+    },
+    {
+      "date": "2024-10-09",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 3,
+      "H": 1,
+      "BB": 1,
+      "SO": 1
+    },
+    {
+      "date": "2024-10-10",
+      "team_ID": "KCR",
+      "player_game_span": "CG",
+      "PA": 4,
+      "AB": 4,
+      "R": 1,
+      "H": 1
+    }
+  ]
+}

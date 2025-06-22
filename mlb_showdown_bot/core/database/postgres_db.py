@@ -6,17 +6,12 @@ from psycopg2 import sql
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
-try:
-    # ASSUME THIS IS A SUBMODULE IN A PACKAGE
-    from .classes.stats_period import StatsPeriodType
-    from .classes.images import Edition
-    from .classes.sets import Era
-    from .classes.shared_functions import convert_year_string_to_list
-except ImportError:    
-    from classes.stats_period import StatsPeriodType
-    from classes.images import Edition
-    from classes.sets import Era
-    from classes.shared_functions import convert_year_string_to_list
+
+# INTERNAL
+from ..card.stats.stats_period import StatsPeriodType
+from ..card.images import Edition
+from ..card.sets import Era
+from ..card.utils.shared_functions import convert_year_string_to_list
 
 class PlayerArchive(BaseModel):
     id: str
@@ -82,6 +77,10 @@ class PostgresDB:
         """Close the connection if it exists"""
         if self.connection:
             self.connection.close()
+
+# ------------------------------------------------------------------------
+# CHECK FOR STATS IN ARCHIVE
+# ------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------
 # QUERIES

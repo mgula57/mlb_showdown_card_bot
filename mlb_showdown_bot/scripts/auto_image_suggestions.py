@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from prettytable import PrettyTable
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
-from postgres_db import PostgresDB, PlayerArchive
+from mlb_showdown_bot.core.database.postgres_db import PostgresDB, PlayerArchive
 
 parser = argparse.ArgumentParser(description="Search baseball reference for best auto images to add.")
 parser.add_argument('-pst','--player_subtype', help='Player Sub Types (POSITION_PLAYER, STARTING_PITCHER, RELIEF_PITCHER)', type=str, required=False, default=None)

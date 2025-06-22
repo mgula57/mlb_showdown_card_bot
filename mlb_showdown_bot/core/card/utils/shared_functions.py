@@ -107,7 +107,30 @@ def convert_to_date(game_log_date_str: str, year: int) -> date:
         # IN OLD TABLES, DATES ARE IN THIS FORMAT "MMM DD"
         game_log_date_str_full = f"{game_log_date_str_cleaned} {year}"
         return datetime.strptime(game_log_date_str_full, "%b %d %Y").date()
+
+def convert_year_input_to_int(year_input: any) -> int:
+    """Convert year input to an integer if possible.
+    Will return None if the input cannot be converted (ex: `['2004', '2006']`, `'2020-2022'`)
     
+    Args:
+        year_input: Year input, can be int or str
+    
+    Returns:
+        int: Year as an integer
+    """
+    if isinstance(year_input, int):
+        return year_input
+    elif isinstance(year_input, str):
+        if year_input.isdigit():
+            return int(year_input)
+        else:
+            return None
+    else:
+        try:
+            return int(year_input)
+        except ValueError:
+            return None
+
 def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bool=False) -> dict:
     """Ensure all required fields are populated for player stats.
     

@@ -2,10 +2,8 @@ from enum import Enum
 from pydantic import BaseModel, ValidationInfo, field_validator
 from typing import Optional
 
-try:
-    from .stat_highlights import StatHighlightsType, StatHighlightsCategory
-except ImportError:
-    from stat_highlights import StatHighlightsType, StatHighlightsCategory
+# INTERNAL
+from .stats.stat_highlights import StatHighlightsType, StatHighlightsCategory
 
 # ---------------------------------------
 # EDITION

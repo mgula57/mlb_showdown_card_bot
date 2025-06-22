@@ -4,9 +4,9 @@ import os
 from pathlib import Path
 from pprint import pprint
 sys.path.insert(0, '/Users/matthewgula/Repositories/mlb_showdown_card_bot/') # COMMENT WHEN OUT OF DEVELOPMENT
-from mlb_showdown_bot.classes.team import Team
-from mlb_showdown_bot.classes.sets import Set
-from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
+from mlb_showdown_bot.core.shared.team import Team
+from mlb_showdown_bot.core.card.sets import Set
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard
 
 # PARSE ARGS
 parser = argparse.ArgumentParser(description="Test auto-generation of team backgrounds")

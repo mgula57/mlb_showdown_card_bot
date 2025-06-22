@@ -7,14 +7,10 @@ from operator import itemgetter
 import numpy as np
 import math
 
-try:
-    from .value_range import ValueRange
-    from .metrics import Stat
-    from .mlb_season_averages import MLB_SEASON_AVGS
-except ImportError:
-    from value_range import ValueRange
-    from metrics import Stat
-    from mlb_season_averages import MLB_SEASON_AVGS
+# INTERNAL
+from .utils.value_range import ValueRange
+from .stats.metrics import Stat
+from ..data.mlb_season_averages import MLB_SEASON_AVGS
 
 # ---------------------------------------
 # CHART CATEGORY
