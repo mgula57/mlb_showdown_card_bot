@@ -140,6 +140,13 @@ def get_player_realtime_game_logs(player_name:str, player_team:str, year:int, is
                                             for key, value in game_player_stats_raw.items() 
                                             if key in stat_map_mlb_api_to_bref.keys() }
             
+            # ADD IP_GS FOR PITCHERS
+            games_started = game_player_stats_normalized.get('GS', 0)
+            innings_pitched = game_player_stats_normalized.get('IP', 0)
+            if games_started > 0 and innings_pitched > 0:
+                # ADD IP AS IP_GS
+                game_player_stats_normalized['IP_GS'] = innings_pitched
+            
             # ADD GAME PK AND NUMBER
             game_player_stats_normalized['date'] = game_date_str
             game_player_stats_normalized['game_pk'] = game_pk
