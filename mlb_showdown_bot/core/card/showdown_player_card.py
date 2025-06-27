@@ -32,6 +32,7 @@ from ..shared.speed import Speed, SpeedLetter
 from ..shared.hand import Hand
 
 from .utils import showdown_constants as sc, colors
+from .utils.shared_functions import convert_to_date
 
 from .stats.accolade import Accolade
 from .stats.metrics import DefenseMetric
@@ -152,7 +153,15 @@ class ShowdownPlayerCard(BaseModel):
         # HANDLE GAME LOGS IF APPLICABLE
         game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
         if self.realtime_game_logs:
-            game_logs += self.realtime_game_logs
+            added_game_logs = self.realtime_game_logs
+            # FILTER FILTER REALTIME GAME LOGS TO NOT HAVE DUPLICATES
+            latest_bref_date_str = game_logs[-1].get('date', None) if len(game_logs) > 0 else None
+            latest_bref_date = convert_to_date(game_log_date_str=latest_bref_date_str, year=datetime.now().year) if latest_bref_date_str else None
+            if latest_bref_date:
+                # FILTER OUT THE LATEST GAME LOGS FROM REALTIME LOGS
+                # TO AVOID DUPLICATES
+                added_game_logs = [gl for gl in self.realtime_game_logs if convert_to_date(gl.get('date', '1970-01-01')) > latest_bref_date]
+            game_logs += added_game_logs
         self.stats_period.add_stats_from_logs(game_logs=game_logs, is_pitcher=self.is_pitcher)
         if self.stats_period.stats:
             full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
@@ -2343,8 +2352,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # COMMAND AND OUTS
         accuracy_suffix = f'**{round(self.chart.command_out_accuracy_weight * 100,2)}%' if self.chart.command_out_accuracy_weight != 1.0 else ''
-        real_outs = f'({round(self.chart.outs, 3)})' if int(self.chart.outs) != self.chart.outs else ''
-        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS {real_outs} {accuracy_suffix} ")
+        print(f"\n{self.chart.command} {self.command_type.upper()} {self.chart.outs_full} OUTS {accuracy_suffix} ")
 
         chart_tbl = PrettyTable(field_names=[col.value + ('*' if col in self.chart.chart_categories_adjusted else '') for col in self.chart.categories_list])
         chart_tbl.add_row(self.chart.ranges_list)

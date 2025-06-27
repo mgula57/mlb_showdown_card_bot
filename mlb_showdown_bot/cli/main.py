@@ -4,10 +4,10 @@ from pydantic import BaseModel
 from pprint import pprint
 
 # INTERNAL
-from ..core.card.card_generation import generate_card
+from ..core.card.card_generation import *
 
 # SETUP TYPER APP
-app = typer.Typer()
+app = typer.Typer(pretty_exceptions_enable=False)
 
 @app.command()
 def card(
@@ -66,9 +66,29 @@ def card(
         print_to_cli: bool = typer.Option(True, "--print_to_cli", "-print", help="Show visual representation of card in the CLI"),
         show_image: bool = typer.Option(False, "--show_image", "-show", help="Optionally open the final Player Card Image upon completion"),
 ):
+    # FINAL PAYLOAD
+    payload: dict = {}
+
+    # PARAMS
     ctx = click.get_current_context()
     params = ctx.params
-    generate_card(**params)
+
+    # ACTUAL CARD GENERATION
+    actual_card = generate_card(**params)
+    payload["card"] = actual_card.as_json()
+
+    show_historical_points = params.get("show_historical_points", False)
+    in_season_trend_aggregation = params.get("season_trend_date_aggregation", None)
+
+    if show_historical_points:
+        historical_season_trends_data = generate_all_historical_yearly_cards_for_player(actual_card=actual_card, **params)
+        payload["historical_season_trends"] = historical_season_trends_data
+
+    if season_trend_date_aggregation:
+        in_season_trends_data = generate_in_season_trends_for_player(actual_card=actual_card, date_aggregation=in_season_trend_aggregation, **params)
+        payload["in_season_trends"] = in_season_trends_data
+
+    return payload
 
 @app.command()
 def sim(year: int = typer.Option(..., "--year", "-y", help="Year of the simulation")):

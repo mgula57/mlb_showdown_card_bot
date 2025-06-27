@@ -17,11 +17,6 @@ class MLBStatsAPI(BaseModel):
     team_abbreviation: Optional[str] = None # TEAM ABBREVIATION
     is_pitcher: Optional[bool] = None # TRUE IF PITCHER, FALSE IF HITTER
 
-    # DATE RANGE
-    latest_date_in_bref_stats: Optional[date] = None # LATEST DATE IN BREF STATS
-    user_input_date_min: Optional[date] = None # USER INPUT MIN DATE
-    user_input_date_max: Optional[date] = None # USER INPUT MAX DATE
-
     # FROM THE API
     player_id: Optional[int] = None # PLAYER ID FROM MLB API
     player_metadata: Optional[dict] = None
@@ -394,7 +389,8 @@ class MLBStatsAPI(BaseModel):
         
         # EXTRACT GAME LOGS
         total_stats: list[dict] = data.get('stats', None)
-        if not total_stats: return None
+        if not total_stats: 
+            return None
 
         # EXTRACT TODAY'S GAME(S)
         # DATA LOOKS LIKE:
@@ -430,12 +426,6 @@ class MLBStatsAPI(BaseModel):
                 if not game_date_str: 
                     continue
 
-                game_date = convert_to_date(game_date_str, self.stats_period.year_int)
-                is_game_outside_user_bounds = (False if self.user_input_date_max is None else game_date > self.user_input_date_max) \
-                                                or (False if self.user_input_date_min is None else game_date < self.user_input_date_min)
-                if is_game_outside_user_bounds:
-                    continue
-
                 # EXTRACT PLAYER STATS
                 game_metadata: dict = split.get('game', {})
                 game_pk = game_metadata.get('gamePk', None)
@@ -445,6 +435,13 @@ class MLBStatsAPI(BaseModel):
                 game_player_stats_normalized = {self._map_mlb_api_stat_names_to_bref[key]: float(value) if self._mlb_api_stats_datatype_dict.get(key, 'str') == 'float' else value
                                                 for key, value in game_player_stats_raw.items()
                                                 if key in self._map_mlb_api_stat_names_to_bref.keys() }
+                
+                # ADD IP_GS FOR PITCHERS
+                games_started = game_player_stats_normalized.get('GS', 0)
+                innings_pitched = game_player_stats_normalized.get('IP', 0)
+                if games_started > 0 and innings_pitched > 0:
+                    # ADD IP AS IP_GS
+                    game_player_stats_normalized['IP_GS'] = innings_pitched
                 
                 # ADD GAME PK AND NUMBER
                 game_player_stats_normalized['date'] = game_date_str

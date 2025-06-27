@@ -84,7 +84,7 @@ def convert_to_numeric(string_value:str) -> (int | float | str):
         # RETURN ORIGINAL STRING
         return string_value
     
-def convert_to_date(game_log_date_str: str, year: int) -> date:
+def convert_to_date(game_log_date_str: str, year: int = None) -> date:
     """Helper function for converting different formats of bref date strings to a consistent format.
     
     Args:
