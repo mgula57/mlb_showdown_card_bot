@@ -2,13 +2,15 @@ from pprint import pprint
 from typing import Any
 from prettytable import PrettyTable
 from datetime import datetime
+import traceback
+import json
 
 # INTERNAL
 from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
 from .stats.mlb_stats_api import MLBStatsAPI
-from ..database.postgres_db import PostgresDB
+from ..database.postgres_db import PostgresDB, PlayerArchive
 from .utils.shared_functions import convert_to_date
 
 def clean_kwargs(kwargs: dict) -> dict:
@@ -17,45 +19,131 @@ def clean_kwargs(kwargs: dict) -> dict:
         kwargs = {k.replace(replacement, ''): v for k, v in kwargs.items()}
     return kwargs
 
-def generate_card(**kwargs) -> ShowdownPlayerCard:
-    """Responsible for processing Showdown Bot Player Cards across API, CLI, and Web App."""
-
-    # REMOVE `image` PREFIXES FROM KEYS
-    kwargs = clean_kwargs(kwargs)
+def generate_card(**kwargs) -> dict[str, Any]:
+    """
+    Responsible for processing Showdown Bot Player Cards across API, CLI, and Web App.
     
-    # PREPARE STATS
-    stats_period_type = kwargs.get('stats_period_type', 'REGULAR')
-    stats_period = StatsPeriod(type=stats_period_type, **kwargs)
-    stats: dict[str: any] = None
+    Output is a JSON object containing the following objects:
+    - `card`: ShowdownPlayerCard object with all stats
+    - `historical_season_trends`: List of historical yearly cards for the player, if `show_historical_points` is True
+    - `in_season_trends`: Dictionary of in-season trends for the player, if `season_trend_date_aggregation` is provided
+    - `error`: Error message if an error occurs during card generation, otherwise None
 
-    # SETUP BASEBALL REFERENCE SCRAPER
-    # DONT ACTUALLY RUN IT YET
-    baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)    
-    stats = baseball_reference_stats.fetch_player_stats()
+    Args:
+        **kwargs: Keyword arguments that can include:
+            - name: Name of the player (required)
+            - year: Year of the player (required)
+            - ... (other parameters as needed for card generation)
+    
+    Returns:
+        A dictionary containing the card data and any additional information.
+        If an error occurs, it will contain an 'error' key with the error message.
+    """
 
-    # -----------------------------------
-    # HIT MLB API FOR REALTIME STATS
-    # ONLY APPLIES WHEN
-    # 1. YEAR IS CURRENT YEAR
-    # 2. REALTIME STATS ARE ENABLED
-    # 3. STATS PERIOD IS REGULAR SEASON
-    # -----------------------------------
-    name_from_stats = stats.get('name', kwargs.get('name', None))
-    team_abbreviation = stats.get('team_ID', None)
-    is_pitcher = stats.get('type', PlayerType.HITTER.value) == PlayerType.PITCHER.value
-    player_mlb_api_stats = MLBStatsAPI(
-                            name=name_from_stats, stats_period=stats_period, 
-                            team_abbreviation=team_abbreviation, is_pitcher=is_pitcher,
-                            is_disabled=kwargs.get('disable_realtime', False)
-                        )
-    player_mlb_api_stats.populate_all_player_data()
+    # SETUP KNOWN PARAMETERS
+    stats: dict[str, Any] = {}
+    final_card_payload: dict[str, Any] = {}
+    
+    try:
 
-    # PROCESS CARD
-    image_source = ImageSource(**kwargs)
-    image = ShowdownImage(image_source=image_source, **kwargs)
-    card = ShowdownPlayerCard(stats_period=stats_period, stats=stats, realtime_game_logs=player_mlb_api_stats.game_logs, image=image, **kwargs)
+        # REMOVE IMAGE PREFIXES FROM KEYS
+        kwargs = clean_kwargs(kwargs)
+        
+        # PREPARE STATS
+        stats_period_type = kwargs.get('stats_period_type', 'REGULAR')
+        stats_period = StatsPeriod(type=stats_period_type, **kwargs)
+        stats: dict[str: any] = None
 
-    return card
+        # SETUP BASEBALL REFERENCE SCRAPER
+        # DONT ACTUALLY RUN IT YET
+        baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)    
+        stats = baseball_reference_stats.fetch_player_stats()
+
+        # -----------------------------------
+        # HIT MLB API FOR REALTIME STATS
+        # ONLY APPLIES WHEN
+        # 1. YEAR IS CURRENT YEAR
+        # 2. REALTIME STATS ARE ENABLED
+        # 3. STATS PERIOD IS REGULAR SEASON
+        # -----------------------------------
+        name_from_stats = stats.get('name', kwargs.get('name', None))
+        team_abbreviation = stats.get('team_ID', None)
+        is_pitcher = stats.get('type', PlayerType.HITTER.value) == PlayerType.PITCHER.value
+        player_mlb_api_stats = MLBStatsAPI(
+                                name=name_from_stats, stats_period=stats_period, 
+                                team_abbreviation=team_abbreviation, is_pitcher=is_pitcher,
+                                is_disabled=kwargs.get('disable_realtime', False)
+                            )
+        player_mlb_api_stats.populate_all_player_data()
+
+        # PROCESS CARD
+        image_source = ImageSource(**kwargs)
+        image = ShowdownImage(image_source=image_source, **kwargs)
+        card = ShowdownPlayerCard(stats_period=stats_period, stats=stats, realtime_game_logs=player_mlb_api_stats.game_logs, image=image, **kwargs)
+        final_card_payload['card'] = card.as_json()
+        
+        show_historical_points = kwargs.get("show_historical_points", False)
+        in_season_trend_aggregation = kwargs.get("season_trend_date_aggregation", None)
+
+        if show_historical_points:
+            historical_season_trends_data = generate_all_historical_yearly_cards_for_player(actual_card=card, **kwargs)
+            final_card_payload["historical_season_trends"] = historical_season_trends_data
+
+        if in_season_trend_aggregation:
+            in_season_trends_data = generate_in_season_trends_for_player(actual_card=card, date_aggregation=in_season_trend_aggregation, **kwargs)
+            final_card_payload["in_season_trends"] = in_season_trends_data
+
+        return final_card_payload
+
+    except Exception as e:
+
+        error_full = str(e)[:250]
+
+        # INPUTS
+        name = kwargs.get('name', 'Unknown Player')
+        year = kwargs.get('year', 'Unknown Year')
+
+        # HELPFUL CONTEXT FOR ERRORS
+        try: input_year_int = int(year)
+        except: input_year_int = None
+        player_years_as_strings = stats.get('years_played', [])
+        player_years_as_ints = [int(y) for y in player_years_as_strings]
+        first_year = min(player_years_as_ints) if len(player_years_as_ints) > 0 else 0
+        last_year = max(player_years_as_ints) if len(player_years_as_ints) > 0 else 9999
+
+        # CHANGE LAST YEAR TO CURRENT YEAR IF ARCHIVE IS AS OF LAST YEAR
+        # ONLY APPLIES IF MLB SEASON HAS STARTED AND ITS BEFORE NOVEMBER
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        if last_year == (current_year - 1) and current_month >= 3 and current_month < 11:
+            last_year = current_year
+
+        # FINAL BOOLS
+        is_user_year_before_player_career_start = input_year_int < first_year if input_year_int else False
+        is_error_cannot_find_bref_page = "cannot find bref page" in error_full.lower() or ''
+        is_error_too_many_requests_to_bref = "429 - TOO MANY REQUESTS TO " in error_full.upper() and "baseball-ref" in error_full.lower()
+
+        # ERROR SENT TO USER
+        error_for_user = error_full
+        year_range_error_message = f"The year you selected ({year}) falls outside of {name}'s career span, which is from {first_year} to {last_year}."
+        if is_error_too_many_requests_to_bref:
+            # ALERT USER THAT BREF IS LOCKING OUT THE BOT
+            error_for_user = "There have been too many Bot requests to bref in the last hour. Try again in 30-60 mins."
+        elif is_error_cannot_find_bref_page:
+            # TRY TO GIVE CONTEXT INTO WHY A BASEBALL REFERENCE PAGE WAS NOT FOUND FOR THE NAME/YEAR
+            error_for_user = "Player/year not found on Baseball Reference. "
+            if is_user_year_before_player_career_start:
+                error_for_user += year_range_error_message
+            else:
+                error_for_user += "If looking for a rookie try using their bref id as the name (ex: 'ramirjo01')"
+        elif is_user_year_before_player_career_start:
+            error_for_user = year_range_error_message
+
+        traceback.print_exc()
+
+        final_card_payload['error'] = error_for_user
+    
+        return final_card_payload
 
 def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCard, **kwargs) -> list[dict]:
     """Generate all historical yearly cards for a player."""
@@ -75,12 +163,13 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     # ITERATE THROUGH EACH YEAR
     yearly_trends_data: dict[str: dict[str: Any]] = {}
     kwargs.pop('name', None) # Remove name from kwargs to avoid confusion
+    kwargs.pop('print_to_cli', None) # Remove print_to_cli from kwargs to avoid confusion
     for year_archive in yearly_archive_data:
 
         # BUILD SHOWDOWN CARD
         try:
             filtered_kwargs = {k: v for k, v in kwargs.items() if k not in [
-                "name", "year", "stats", "stats_period", "player_type_override"
+                "name", "year", "stats", "stats_period", "player_type_override",
             ]}
             yearly_card = ShowdownPlayerCard(
                 name=year_archive.name, 
@@ -88,6 +177,7 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
                 stats=year_archive.stats,
                 stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(year_archive.year)),
                 player_type_override=year_archive.player_type_override,
+                print_to_cli=False,
                 **filtered_kwargs
             )
             if yearly_card.player_type != actual_card.player_type:
@@ -162,3 +252,32 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
         print(table)
 
     return in_season_trends_data
+
+def generate_random_player_id_and_year(year:str, era:str, edition:str) -> tuple[str, str]:
+    """ Get Random Player Id and Year. Account for user inputs (if any).
+    
+    Args:
+      year: User inputted year
+      era: User inputted Era
+      edition: User Inputted edition
+
+    Return:
+      Player Bref Id and Year
+    """
+
+    # CONNECT TO DB
+    postgres_db = PostgresDB(is_archive=True)
+
+    # IF NO CONNECTION, USE FILE
+    if not postgres_db.connection:
+        return None
+    
+    # QUERY DATABASE FOR RANDOM PLAYER
+    random_player:PlayerArchive = postgres_db.fetch_random_player_stats_from_archive(year_input=year, era=era, edition=edition)
+    
+    # CLOSE CONNECTION
+    postgres_db.close_connection()
+
+    # RETURN RANDOM PLAYER IF MATCH WAS FOUND
+    if random_player:
+        return (random_player.bref_id, str(random_player.year))

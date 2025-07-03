@@ -74,19 +74,7 @@ def card(
     params = ctx.params
 
     # ACTUAL CARD GENERATION
-    actual_card = generate_card(**params)
-    payload["card"] = actual_card.as_json()
-
-    show_historical_points = params.get("show_historical_points", False)
-    in_season_trend_aggregation = params.get("season_trend_date_aggregation", None)
-
-    if show_historical_points:
-        historical_season_trends_data = generate_all_historical_yearly_cards_for_player(actual_card=actual_card, **params)
-        payload["historical_season_trends"] = historical_season_trends_data
-
-    if season_trend_date_aggregation:
-        in_season_trends_data = generate_in_season_trends_for_player(actual_card=actual_card, date_aggregation=in_season_trend_aggregation, **params)
-        payload["in_season_trends"] = in_season_trends_data
+    payload = generate_card(**params)
 
     return payload
 
