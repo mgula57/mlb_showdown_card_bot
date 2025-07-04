@@ -82,6 +82,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
         card = ShowdownPlayerCard(stats_period=stats_period, stats=stats, realtime_game_logs=player_mlb_api_stats.game_logs, image=image, **kwargs)
         final_card_payload['card'] = card.as_json()
         
+        # EXTRA OPTIONS
         show_historical_points = kwargs.get("show_historical_points", False)
         in_season_trend_aggregation = kwargs.get("season_trend_date_aggregation", None)
 

@@ -19,6 +19,7 @@ from time import sleep
 from difflib import SequenceMatcher
 import unidecode
 from thefuzz import fuzz
+from typing import Optional
 
 # INTERNAL
 from ...shared.team import Team
@@ -58,7 +59,6 @@ class BaseballReferenceScraper(BaseModel):
     error: str = None
     load_time: float = None
     warnings: list[str] = []
-    
 
 # ------------------------------------------------------------------------
 # INIT
@@ -133,28 +133,34 @@ class BaseballReferenceScraper(BaseModel):
         
         # CHECK THE ARCHIVE
         if not self.ignore_archive:
-            postgres_db = PostgresDB(is_archive=True)
-            player_archive, _ = postgres_db.fetch_player_stats_from_archive(year=self.year, bref_id=self.baseball_ref_id, team_override=self.team_override, type_override=self.player_type_override, stats_period_type=self.stats_period.type)
-            postgres_db.close_connection()
-
-            # VALIDATE THAT ARCHIVE STATS ARE NOT EMPTY WHEN USING GAME LOGS
-            # APPLIES TO DATE RANGE AND POST SEASON
-            if player_archive and self.stats_period.type.uses_game_logs:
-                # CHECK IF ARCHIVE STATS ARE EMPTY
-                game_logs = player_archive.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, []) or []
-                if len(game_logs) == 0:
-                    player_archive = None
-            
-            if player_archive:
-                self.stats_period.source = 'Archive'
+            archive_stats = self.fetch_player_stats_from_archive()
+            if archive_stats:
                 end_time = datetime.now()
                 self.load_time = round((end_time - start_time).total_seconds(),2)
-                return player_archive.stats
+                return archive_stats
         
         # SCRAPE BREF
         bref_stats = self.scrape_baseball_reference()
 
         return bref_stats
+
+    def fetch_player_stats_from_archive(self) -> dict:
+        """Fetch player data from the archive."""
+
+        postgres_db = PostgresDB(is_archive=True)
+        player_archive, _ = postgres_db.fetch_player_stats_from_archive(year=self.year, bref_id=self.baseball_ref_id, team_override=self.team_override, type_override=self.player_type_override, stats_period_type=self.stats_period.type)
+        postgres_db.close_connection()
+
+        # VALIDATE THAT ARCHIVE STATS ARE NOT EMPTY WHEN USING GAME LOGS
+        # APPLIES TO DATE RANGE AND POST SEASON
+        if player_archive and self.stats_period.type.uses_game_logs:
+            # CHECK IF ARCHIVE STATS ARE EMPTY
+            game_logs = player_archive.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, []) or []
+            if len(game_logs) == 0:
+                return None
+        
+        self.stats_period.source = 'Archive'
+        return player_archive.stats
 
 # ------------------------------------------------------------------------
 # SCRAPE WEBSITES
