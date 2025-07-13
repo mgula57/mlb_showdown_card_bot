@@ -128,9 +128,7 @@ class PlayerImageComponent(str, Enum):
     NAME_CONTAINER_2000 = "NAME_CONTAINER_2000"
 
     # STARS
-    STARS_1 = "STARS_1"
-    STARS_2 = "STARS_2"
-    STARS_3 = "STARS_3"
+    STARS = "STARS"
 
     @property
     def load_source(self) -> str:
@@ -141,7 +139,7 @@ class PlayerImageComponent(str, Enum):
             case "NAME_CONTAINER_2000": return "NAME_CONTAINER"
             case "SILHOUETTE": return "SILHOUETTE"
             case "ELLIPSE_LARGE" | "ELLIPSE_MEDIUM" | "ELLIPSE_SMALL": return "CIRCLE"
-            case "STARS_1" | "STARS_2" | "STARS_3": return "STARS"
+            case "STARS": return "STARS"
             case _: return "CARD_ART"
 
     @property
@@ -260,17 +258,6 @@ class PlayerImageComponent(str, Enum):
             case "ELLIPSE_SMALL": return 200
             case _: return None
 
-    @property
-    def x_coordinate_multiplier(self) -> int:
-        """Returns the x coordinate adjustment for the image component. Only applies to images that are built via Python."""
-        match self:
-            case PlayerImageComponent.STARS_1:
-                return 0.05
-            case PlayerImageComponent.STARS_2:
-                return -0.7
-            case PlayerImageComponent.STARS_3:
-                return -0.10
-            case _: return 0
 
 # ---------------------------------------
 # SPECIAL EDITION
