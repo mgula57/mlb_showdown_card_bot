@@ -5109,6 +5109,29 @@ class ShowdownPlayerCard(BaseModel):
                                     player_img_components.append((ellipse_circle_image, coordinates_adjusted))
                                     break
 
+            # STARS
+            has_stars = img_component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE] and self.image.special_edition == SpecialEdition.ASG_2025
+            if has_stars:
+                # ACCOUNT FOR CROPPING AND RESIZING OF PLAYER IMAGE DEPENDING ON THE SET
+                _, player_image_crop_adjustment_y = self.set.player_image_crop_adjustment(special_edition=self.image.special_edition)
+                offset = -1 * player_image_crop_adjustment_y
+                star_y_coordinates = {
+                    PlayerImageComponent.STARS_1: 100 + offset,
+                    PlayerImageComponent.STARS_2: 600 + offset,
+                    PlayerImageComponent.STARS_3: 1000 + offset,
+                }
+                for stars_type, ycord in star_y_coordinates.items():
+                    is_reversed = stars_type != PlayerImageComponent.STARS_2
+                    stars_image = Image.open(self.__card_art_path(PlayerImageComponent.STARS_2.name))
+                    stars_image_width = stars_image.size[0]
+                    # FIND EDGE IN PARTICULAR DIRECTION
+                    x_cord = self.__find_first_x_coordinate_with_opacity(image=image, y_cord=ycord, is_reversed=is_reversed, starting_x=200)
+                    if x_cord is None:
+                        continue
+                    x_adjustment = ( int(stars_image_width * stars_type.x_coordinate_multiplier) )
+                    coordinates_adjusted = (int(x_cord + x_adjustment), int(ycord))
+                    player_img_components.append((stars_image, coordinates_adjusted))
+
             # PASTE IMAGE
             player_img_components.append((image, paste_coordinates))
 
@@ -5147,6 +5170,19 @@ class ShowdownPlayerCard(BaseModel):
         if component.opacity < 1.0:
             opacity_255_scale = int(255 * component.opacity)
             image.putalpha(opacity_255_scale)
+
+        # SPECIAL CASES
+        if self.image.special_edition == SpecialEdition.ASG_2025 and component == PlayerImageComponent.GLOW:
+            # ADD BOTH SHADOW AND GLOW TO ASG 2025
+            shadow_radius = 100
+            glow_radius = 12
+            bg_shadow_image = self.__add_outer_glow(image=image, color='black', radius=shadow_radius, offset = (0,0), enhancement_factor=1.3, is_faded=True)
+            fg_glow_image = self.__add_outer_glow(image=image, color='white', radius=glow_radius, enhancement_factor=1.75)
+            
+            paste_location = (shadow_radius-glow_radius, shadow_radius-glow_radius)
+            bg_shadow_image.paste(fg_glow_image, paste_location, fg_glow_image)
+            
+            return bg_shadow_image
 
         # APPLY GLOW OR SHADOW
         match component:
@@ -5516,7 +5552,31 @@ class ShowdownPlayerCard(BaseModel):
         
         # CROP AND CENTER TO BORDERED SIZE
         return self.__center_and_crop(image, self.set.card_size_bordered), (0,0)
-    
+
+    def __find_first_x_coordinate_with_opacity(self, image:Image.Image, y_cord:int, is_reversed:bool=False, starting_x:int=1) -> int:
+        """Find the first x coordinate in the image that has a pixel with opacity > 200 at the given y coordinate.
+
+        Args:
+          image: PIL Image to search for pixel.
+          y_cord: Y coordinate to search for pixel.
+          is_reversed: Boolean to determine if search should be reversed (right to left).
+          minimum_x: Optional minimum x coordinate to start search from (default is 1).
+
+        Returns:
+          X coordinate of the first pixel with opacity > 200, or -1 if not found.
+        """
+        img_width, _ = image.size
+        for x_index in range(starting_x, img_width):
+            x_cord = img_width - x_index if is_reversed else x_index
+            coordinates = (x_cord, y_cord)
+            try:
+                pixel = image.getpixel(coordinates)
+                pixel_opacity = pixel[3]
+            except:
+                break
+            if pixel_opacity > 200:
+                return x_cord
+        return -1
 
 # ------------------------------------------------------------------------
 # IMAGE HELPER METHODS
