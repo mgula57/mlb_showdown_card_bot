@@ -2931,7 +2931,7 @@ class ShowdownPlayerCard(BaseModel):
         name_text, color = self.__player_name_text_image()
         name_image_component = TemplateImageComponent.PLAYER_NAME
         name_paste_location = self.set.template_component_paste_coordinates(component=name_image_component, special_edition=self.image.special_edition)
-        is_special_style = self.set.is_special_edition_name_styling(self.image.edition)
+        is_special_style = self.set.is_special_edition_name_styling(self.image.special_edition)
         if self.set.is_00_01 and not is_special_style:
             # ADD BACKGROUND BLUR EFFECT FOR 2001 CARDS
             name_text_blurred = name_text.filter(ImageFilter.BLUR)
@@ -2940,7 +2940,9 @@ class ShowdownPlayerCard(BaseModel):
         card_image.paste(color, self.__coordinates_adjusted_for_bordering(name_paste_location),  name_text)
 
         # ADD TEAM LOGO
-        is_2000_logo_override = self.image.edition.has_additional_logo_00_01 and self.set == Set._2000 and self.image.special_edition != SpecialEdition.ASG_2024
+        is_2000_logo_override = self.image.edition.has_additional_logo_00_01 \
+                                    and self.set == Set._2000 \
+                                    and self.image.special_edition not in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
         disable_team_logo = self.image.hide_team_logo or is_2000_logo_override
         if not disable_team_logo:
             team_logo, team_logo_coords = self.__team_logo_image()
@@ -3043,7 +3045,7 @@ class ShowdownPlayerCard(BaseModel):
         match self.image.special_edition:
             case SpecialEdition.NATIONALITY:
                 custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality.value}.png")
-            case SpecialEdition.ASG_2023:
+            case SpecialEdition.ASG_2023 | SpecialEdition.ASG_2025:
                 custom_image_path = self.__card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
             case SpecialEdition.ASG_2024:
                 # CREATE SPECIAL ASG 2024 BACKGROUND
@@ -3066,7 +3068,6 @@ class ShowdownPlayerCard(BaseModel):
                     image = Image.open(path)
                     image = self.__apply_image_component_style_adjustments(image=image, component=component)
                     background_image.paste(image, (0,0), image)
-
 
         # CUSTOM BACKGROUND 
         if custom_image_path:
@@ -3194,8 +3195,8 @@ class ShowdownPlayerCard(BaseModel):
         logo_size_multiplier = 1.0
 
         # OVERRIDE SIZE/PASTE LOCATION FOR SPECIAL EDITIONS
-        if self.set == Set._2000 and self.image.special_edition == SpecialEdition.ASG_2024:
-            # USE 2001 SETTINGS FOR 2000 ASG 2024
+        if is_00_01 and self.image.special_edition in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]:
+            # USE 2001 SETTINGS FOR 2000 ASG 2024/2025
             logo_size = Set._2001.template_component_size(TemplateImageComponent.TEAM_LOGO)
             logo_paste_coordinates = Set._2001.template_component_paste_coordinates(TemplateImageComponent.TEAM_LOGO)
 
@@ -3208,13 +3209,18 @@ class ShowdownPlayerCard(BaseModel):
                 # OVERRIDE TEAM LOGO WITH EITHER CC OR ASG
                 logo_name = 'CCC' if is_cooperstown else f'ASG-{self.year}'
                 team_logo_path = self.__team_logo_path(name=logo_name)
-                is_wide_logo = logo_name in ['ASG-2022', 'ASG-2025']
+                is_wide_logo = logo_name in ['ASG-2022', 'ASG-2025', ]
                 if is_04_05 and is_cooperstown:
                     logo_size = (330,330)
                     logo_paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.COOPERSTOWN)
                 elif is_wide_logo and is_all_star_game:
                     logo_size = (logo_size[0] + 85, logo_size[1] + 85)
-                    x_movement = -40 if self.set.is_00_01 else -85
+                    match logo_name:
+                        case 'ASG-2022':
+                            x_movement = -85
+                        case 'ASG-2025':
+                            x_movement = -45
+                            
                     logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
             else:
                 # TRY TO LOAD TEAM LOGO FROM FOLDER. LOAD ALTERNATE LOGOS FOR 2004/2005
@@ -3389,6 +3395,12 @@ class ShowdownPlayerCard(BaseModel):
                 edition_extension = f'-{self.nationality.template_color}'
             elif self.image.special_edition == SpecialEdition.ASG_2024:
                 edition_extension = f'-GRAY-DARK'
+            elif self.image.special_edition == SpecialEdition.ASG_2025:
+                match self.league:
+                    case 'AL':
+                        edition_extension = '-BLUE'
+                    case 'NL':
+                        edition_extension = '-RED'
             elif self.image.parallel == ImageParallel.TEAM_COLOR_BLAST and team_color_name:
                 edition_extension = f'-{team_color_name}'
             elif self.image.parallel.template_color_04_05:
@@ -3743,11 +3755,17 @@ class ShowdownPlayerCard(BaseModel):
         match self.image.special_edition:
             
             # USE TEXAS FONT FOR ASG 2024
-            case SpecialEdition.ASG_2024:
-                name_font_path = self.__font_path('Texas')
+            case SpecialEdition.ASG_2024 | SpecialEdition.ASG_2025:
+                font_name = 'Texas' if self.image.special_edition == SpecialEdition.ASG_2024 else 'Futura Black'
+                name_font_path = self.__font_path(font_name)
                 font_frame_width = 705
                 name_text_img = Image.new('RGBA', (font_frame_width, 300))
                 for name_part in tuple([first, last]):
+
+                    # IF 2025, USE TITLE CASE AND MOVE DOWM TEXT
+                    name_part_formatted = name_part
+                    if self.image.special_edition == SpecialEdition.ASG_2025:
+                        name_part_formatted = name_part_formatted.title()
 
                     # NAME LENGTH HANDLING                    
                     font_size = int( (145 if name_part == last else 80) )
@@ -4517,6 +4535,7 @@ class ShowdownPlayerCard(BaseModel):
                 logo_size = (logo_size_x + 85, logo_size_y + 85) if logo_name in ['ASG-2022', 'ASG-2025'] else (logo_size_x, logo_size_y)
                 logo_path = self.__team_logo_path(name=logo_name)
                 logo = Image.open(logo_path).convert("RGBA").resize(logo_size, Image.Resampling.LANCZOS)
+                paste_coordinates = (paste_coordinates[0] - 50, paste_coordinates[1] - 10) if logo_name == 'ASG-2025' else paste_coordinates
                 image.paste(logo, self.__coordinates_adjusted_for_bordering(paste_coordinates), logo)
             case Edition.SUPER_SEASON:
                 super_season_img, y_adjustment = self.__super_season_image()
@@ -5432,6 +5451,20 @@ class ShowdownPlayerCard(BaseModel):
                 PlayerImageComponent.CUSTOM_FOREGROUND_4: self.__card_art_path(f'ASG-2024-STAR'),
             })
 
+            # REMOVE PLAYER NAME CONTAINER FOR 2000 SET
+            if self.set == Set._2000:
+                components_dict.pop(PlayerImageComponent.NAME_CONTAINER_2000, None)
+
+            return components_dict
+
+        # ALL STAR 2025
+        if self.image.special_edition == SpecialEdition.ASG_2025:
+            components_dict = { c:v for c, v in special_components_for_context.items() if not c.is_loaded_via_download }
+            components_dict.update({
+                PlayerImageComponent.GLOW: None,
+                PlayerImageComponent.CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2025-BG-{self.league}'),
+            })
+            
             # REMOVE PLAYER NAME CONTAINER FOR 2000 SET
             if self.set == Set._2000:
                 components_dict.pop(PlayerImageComponent.NAME_CONTAINER_2000, None)

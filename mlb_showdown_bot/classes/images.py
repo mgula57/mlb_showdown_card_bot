@@ -262,6 +262,7 @@ class SpecialEdition(str, Enum):
     
     ASG_2023 = "ASG 2023"
     ASG_2024 = "ASG 2024"
+    ASG_2025 = "ASG 2025"
     COOPERSTOWN_COLLECTION = "CC"
     SUPER_SEASON = "SS"
     TEAM_COLOR_BLAST_DARK = "TCBD"
@@ -282,11 +283,11 @@ class SpecialEdition(str, Enum):
             
     @property
     def hide_2000_player_name(self) -> bool:
-        return self in [SpecialEdition.ASG_2024]
+        return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
 
     @property
     def has_full_bleed_background(self) -> bool:
-        return self in [SpecialEdition.ASG_2024]
+        return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
 
     @property
     def image_component_saturation_adjustments_dict(self) -> dict[PlayerImageComponent, float]:
@@ -523,6 +524,10 @@ class ShowdownImage(BaseModel):
             
             if self.edition == Edition.ALL_STAR_GAME and year == '2024':
                 self.special_edition = SpecialEdition.ASG_2024
+                return 
+            
+            if self.edition == Edition.ALL_STAR_GAME and year == '2025':
+                self.special_edition = SpecialEdition.ASG_2025
                 return 
             
             if self.edition == Edition.SUPER_SEASON and is_04_05:

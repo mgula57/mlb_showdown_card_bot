@@ -1087,7 +1087,7 @@ class Set(str, Enum):
     def is_special_edition_name_styling(self, special_edition:SpecialEdition) -> bool:
         # SPECIAL EDITIONS
         match special_edition:
-            case SpecialEdition.ASG_2024:
+            case SpecialEdition.ASG_2024 | SpecialEdition.ASG_2025:
                 return self.value in ['2000','2001']
         
         return False
@@ -1250,8 +1250,10 @@ class Set(str, Enum):
                 match self.value:
                     case '2004' | '2005': return (981,1335)
             case TemplateImageComponent.PLAYER_NAME:
-                if special_edition == SpecialEdition.ASG_2024 and self in [Set._2000, Set._2001]:
-                    return (360, 1565)
+                if special_edition in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025] and self in [Set._2000, Set._2001]:
+                    match special_edition:
+                        case SpecialEdition.ASG_2024: return (360, 1565)
+                        case SpecialEdition.ASG_2025: return (360, 1600)
                 match self.value:
                     case '2000': return (137,0)
                     case '2001': return (105,0)
