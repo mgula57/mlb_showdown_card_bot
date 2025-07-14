@@ -3219,7 +3219,7 @@ class ShowdownPlayerCard(BaseModel):
                         case 'ASG-2022':
                             x_movement = -85
                         case 'ASG-2025':
-                            x_movement = -45
+                            x_movement = -65 if self.set in [Set._2003, Set._2004, Set._2005, Set.EXPANDED, Set.CLASSIC] else -45
                             
                     logo_paste_coordinates = (logo_paste_coordinates[0] + x_movement,logo_paste_coordinates[1] - 40)
             else:
