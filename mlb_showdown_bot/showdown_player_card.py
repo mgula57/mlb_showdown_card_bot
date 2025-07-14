@@ -6139,37 +6139,6 @@ class ShowdownPlayerCard(BaseModel):
         
         return glow
 
-    def _apply_horizontal_opacity_fade(self, image: Image.Image, is_reverse:bool = False, min_pct_opacity: float = 0) -> Image.Image:
-        """Apply a left-to-right opacity gradient to an RGBA image.
-        
-        Args:
-            image: PIL Image to apply the gradient to.
-            is_reverse: Boolean to determine if the gradient should be reversed (right to left).
-            min_pct_opacity: Minimum percentage of opacity to apply at the start of the gradient (ex: 0.5)
-        """
-        
-        width, height = image.size
-        min_opacity_255 = int(255 * min_pct_opacity)
-        
-        # CREATE A GRADIENT MASK
-        gradient = Image.new('L', (width, 1), color=0xFF)
-        for x in range(width):
-            frac = x / (width - 1)
-            if is_reverse:
-                frac = 1 - frac
-            alpha = int(min_opacity_255 + (255 - min_opacity_255) * frac)
-            gradient.putpixel((x, 0), alpha)
-       
-        # RESIZE GRADIENT TO IMAGE HEIGHT
-        alpha_mask = gradient.resize((width, height))
-
-        # APPLY THE MASK TO THE IMAGE'S ALPHA CHANNEL
-        orig_alpha = image.getchannel('A')
-        image = image.copy()
-        new_alpha = ImageChops.multiply(orig_alpha, alpha_mask)
-        image.putalpha(new_alpha)
-
-        return image
 
 # ------------------------------------------------------------------------
 # SHOWDOWN IMAGE LIBRARY IMPORT
