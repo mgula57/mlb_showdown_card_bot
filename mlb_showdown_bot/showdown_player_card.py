@@ -3758,7 +3758,7 @@ class ShowdownPlayerCard(BaseModel):
             case SpecialEdition.ASG_2024 | SpecialEdition.ASG_2025:
                 font_name = 'Texas' if self.image.special_edition == SpecialEdition.ASG_2024 else 'Futura Black'
                 name_font_path = self.__font_path(font_name)
-                font_frame_width = 705
+                font_frame_width = 705 if self.image.special_edition == SpecialEdition.ASG_2024 else 725
                 name_text_img = Image.new('RGBA', (font_frame_width, 300))
                 for name_part in tuple([first, last]):
 
@@ -3773,7 +3773,7 @@ class ShowdownPlayerCard(BaseModel):
 
                     # ESIMATE FONT SIZING
                     text_width, _ = self.__estimate_text_size(name_part, name_font)
-                    name_length_multiplier = max( 1 - ( max( text_width - font_frame_width, 0) / font_frame_width ), 0.25)
+                    name_length_multiplier = max( 1 - ( max( text_width - font_frame_width, 0) / font_frame_width ), 0.4)
                     new_font_size = int( font_size * name_length_multiplier )
                     new_name_font = ImageFont.truetype(name_font_path, size=new_font_size)
                     
