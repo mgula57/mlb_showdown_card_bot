@@ -1,6 +1,7 @@
 // --------------------------------------------------------
 // GLOBAL VARIABLES
 // --------------------------------------------------------
+let version = '3.9.5';
 let light_gray_color = 'rgba(200, 200, 200, 0.5)';
 let generic_career_data = {
     '2013': {'color': light_gray_color, 'points': 120, },
@@ -193,7 +194,7 @@ function closeWhatsNewModal() {
     document.getElementById('div_whats_new_modal_container').style.display = 'none';
 
     // SET LOCAL STORAGE TO NOT SHOW AGAIN
-    localStorage.setItem('whats_new_modal_shown', true);
+    localStorage.setItem(`whats_new_modal_shown_${version}`, true);
 }
 
 function showWhatsNewModal() {
@@ -1028,7 +1029,7 @@ $(document).ready(function() {
         }
 
         // CHECK IF USER HAS SEEN THE WHATS NEW MODAL
-        var hasSeenWhatsNew = localStorage.getItem("whats_new_modal_shown") || false;
+        var hasSeenWhatsNew = localStorage.getItem(`whats_new_modal_shown_${version}`) || false;
         if (hasSeenWhatsNew == false) {
             showWhatsNewModal();
         }
