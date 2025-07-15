@@ -5113,9 +5113,9 @@ class ShowdownPlayerCard(BaseModel):
             has_stars = img_component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE] and self.image.special_edition == SpecialEdition.ASG_2025
             if has_stars:
                 stars_image = Image.open(self.__card_art_path(PlayerImageComponent.STARS.name))
-                centered_paste_coordinates = (750-int(stars_image.size[0]/2),220)
+                centered_paste_coordinates = (750-int(stars_image.size[0]/2),175)
                 player_image_adjustment = self.set.player_image_crop_adjustment(special_edition=self.image.special_edition)
-                star_paste_coordinates = self.__coordinates_adjusted_for_bordering(coordinates=(centered_paste_coordinates[0] - player_image_adjustment[0], centered_paste_coordinates[1] - player_image_adjustment[1]),is_disabled=not img_component.adjust_paste_coordinates_for_bordered)
+                star_paste_coordinates = (centered_paste_coordinates[0] - player_image_adjustment[0], centered_paste_coordinates[1] - player_image_adjustment[1])
                 player_img_components.append((stars_image, star_paste_coordinates))
 
             # PASTE IMAGE
@@ -6230,7 +6230,8 @@ class ShowdownPlayerCard(BaseModel):
           None
         """
 
-        self.image.output_file_name = f'{self.name}-{str(datetime.now())}.png'
+        if self.image.output_file_name is None:
+            self.image.output_file_name = f'{self.name}-{str(datetime.now())}.png'
         if self.image.set_name:
             self.image.output_file_name = f'{self.image.set_number} {self.name}{img_name_suffix}.png'            
         
