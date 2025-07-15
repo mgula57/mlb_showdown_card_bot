@@ -5160,15 +5160,10 @@ class ShowdownPlayerCard(BaseModel):
         # SPECIAL CASES
         if self.image.special_edition == SpecialEdition.ASG_2025 and component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE]:
             # ADD BOTH SHADOW AND GLOW TO ASG 2025
-            shadow_radius = 100
-            glow_radius = 12
-            bg_shadow_image = self.__add_outer_glow(image=image, color='black', radius=shadow_radius, offset = (0,0), enhancement_factor=1.3, is_faded=True)
-            fg_glow_image = self.__add_outer_glow(image=image, color='white', radius=glow_radius, enhancement_factor=1.75)
-
-            paste_location = (shadow_radius-glow_radius, shadow_radius-glow_radius)
-            bg_shadow_image.paste(fg_glow_image, paste_location, fg_glow_image)
+            glow_radius = 13
+            fg_glow_image = self.__add_outer_glow(image=image, color='white', radius=glow_radius, enhancement_factor=2.0, is_faded=True)
             
-            return bg_shadow_image
+            return fg_glow_image
 
         # APPLY GLOW OR SHADOW
         match component:
