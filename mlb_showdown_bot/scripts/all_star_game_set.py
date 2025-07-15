@@ -7,7 +7,7 @@ from time import sleep
 
 sys.path.append('..')
 from baseball_ref_scraper import BaseballReferenceScraper
-from showdown_player_card import ShowdownPlayerCard, StatsPeriod, Set, StatHighlightsType, Edition
+from showdown_player_card import ShowdownPlayerCard, StatsPeriod, Set, StatHighlightsType, Edition, ShowdownImage
 
 parser = argparse.ArgumentParser(description="Create an all star game set for cards.")
 parser.add_argument('-y','--year', type=int, help='Year to use for cards.', required=True)
@@ -64,16 +64,17 @@ for set in sets:
             stats_period = bref_scraper.stats_period or stats_period,
             stats=stats,
             set=set,
-            edition=Edition.ALL_STAR_GAME,
-            card_img_output_folder_path=set_folder_path,
             print_to_cli=False,
             set_name = 'All Star Game',
-            set_number=str(card_number).zfill(3),
-            add_image_border=True,
-            show_year_text=set not in [Set.CLASSIC, Set.EXPANDED, Set._2004, Set._2005],
             is_variable_speed_00_01=False,
-            stat_highlights_type=StatHighlightsType.ALL,
             disable_cache_cleaning=True,
+            image = ShowdownImage(
+                edition=Edition.ALL_STAR_GAME,
+                set_number=str(card_number).zfill(3), is_bordered=True, 
+                stat_highlights_type=StatHighlightsType.ALL,
+                output_folder_path=set_folder_path,
+                output_file_name=f"{str(card_number).zfill(3)}_{player_name}.png",
+            ),
         )
 
         if bref_scraper.source != 'Local Cache':

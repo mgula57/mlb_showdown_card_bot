@@ -1128,7 +1128,7 @@ class Set(str, Enum):
                 case Set._2004 | Set._2005: return (0, int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
         if special_edition in [SpecialEdition.ASG_2025]:
             match self:
-                case Set._2000 | Set._2001: return (25,-460) # 2025 ASG HAS LOTS OF SPACE TO THE LEFT SIDE
+                case Set._2000 | Set._2001: return (25,-400) # 2025 ASG HAS LOTS OF SPACE TO THE LEFT SIDE
 
         match self.value:
             case '2000': return (-25,-300)
