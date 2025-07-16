@@ -35,7 +35,9 @@ for set in sets:
     for index, row in roster_pd.iterrows():
         
         # CARD INFO
+        
         player_name: str = row['Name']
+        bref_id:str = row['Bref Id']
         year_str = str(args.year)
         card_number = index+1
         print(f"  {str(card_number).zfill(3)}/{len(roster_pd)}: {player_name[:12].ljust(20)}", end='\r')
@@ -48,7 +50,7 @@ for set in sets:
             end_date=f"{args.year}-07-16", # CHANGE THIS PER YEAR
         )
         bref_scraper = BaseballReferenceScraper(
-            name=player_name, 
+            name=bref_id, 
             year=year_str, 
             stats_period=stats_period, 
             disable_cleaning_cache=True, 
