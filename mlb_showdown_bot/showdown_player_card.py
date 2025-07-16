@@ -2040,7 +2040,7 @@ class ShowdownPlayerCard(BaseModel):
 
                 # CHECK FOR VALUE
                 stat = stats.get(key, None)
-                if stat is None:
+                if stat is None or len(str(stat)) == 0:
                     continue
                 stat_formatted = self.__stat_formatted(key, stat)
 
@@ -2086,7 +2086,8 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           Formatted stat string.
         """
-
+        if len(str(value)) == 0 or value is None:
+            return '0'
         match category:
             case 'batting_avg' | 'onbase_perc' | 'slugging_perc' | 'onbase_plus_slugging':
                 return f"{value:.3f}".replace('0.', '.')
@@ -2096,7 +2097,7 @@ class ShowdownPlayerCard(BaseModel):
                 return f"{value:.0f}"
             case 'dWAR' | 'bWAR' | 'strikeouts_per_nine':
                 return f"{float(value):.1f}"
-            case _: return str(round(value))
+            case _: return str(round(value)) if value is not None else 0
 
 # ------------------------------------------------------------------------
 # PLAYER VALUE METHODS
