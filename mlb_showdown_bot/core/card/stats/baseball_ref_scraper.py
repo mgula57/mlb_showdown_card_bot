@@ -151,6 +151,10 @@ class BaseballReferenceScraper(BaseModel):
         player_archive, _ = postgres_db.fetch_player_stats_from_archive(year=self.year, bref_id=self.baseball_ref_id, team_override=self.team_override, type_override=self.player_type_override, stats_period_type=self.stats_period.type)
         postgres_db.close_connection()
 
+        # IF NO ARCHIVE DATA, RETURN NONE
+        if not player_archive:
+            return None
+
         # VALIDATE THAT ARCHIVE STATS ARE NOT EMPTY WHEN USING GAME LOGS
         # APPLIES TO DATE RANGE AND POST SEASON
         if player_archive and self.stats_period.type.uses_game_logs:

@@ -103,6 +103,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
         # INPUTS
         name = kwargs.get('name', 'Unknown Player')
         year = kwargs.get('year', 'Unknown Year')
+        stats = stats or {}
 
         # HELPFUL CONTEXT FOR ERRORS
         try: input_year_int = int(year)

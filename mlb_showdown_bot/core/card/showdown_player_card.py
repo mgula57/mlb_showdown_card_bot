@@ -5073,7 +5073,7 @@ class ShowdownPlayerCard(BaseModel):
             # STARS
             has_stars = img_component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE] and self.image.special_edition == SpecialEdition.ASG_2025
             if has_stars:
-                stars_image = Image.open(self.__card_art_path(PlayerImageComponent.STARS.name))
+                stars_image = Image.open(self._card_art_path(PlayerImageComponent.STARS.name))
                 centered_paste_coordinates = (750-int(stars_image.size[0]/2),175)
                 player_image_adjustment = self.set.player_image_crop_adjustment(special_edition=self.image.special_edition)
                 star_paste_coordinates = (centered_paste_coordinates[0] - player_image_adjustment[0], centered_paste_coordinates[1] - player_image_adjustment[1])
@@ -5122,7 +5122,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.special_edition == SpecialEdition.ASG_2025 and component in [PlayerImageComponent.GLOW, PlayerImageComponent.SILHOUETTE]:
             # ADD BOTH SHADOW AND GLOW TO ASG 2025
             glow_radius = 13
-            fg_glow_image = self.__add_outer_glow(image=image, color='white', radius=glow_radius, enhancement_factor=2.0, is_faded=True)
+            fg_glow_image = self._add_outer_glow(image=image, color='white', radius=glow_radius, enhancement_factor=2.0, is_faded=True)
             
             return fg_glow_image
 
@@ -5440,7 +5440,7 @@ class ShowdownPlayerCard(BaseModel):
             components_dict = { c:v for c, v in special_components_for_context.items() if not c.is_loaded_via_download }
             components_dict.update({
                 PlayerImageComponent.GLOW: None,
-                PlayerImageComponent.CUSTOM_BACKGROUND: self.__card_art_path(f'ASG-2025-BG-{self.league}'),
+                PlayerImageComponent.CUSTOM_BACKGROUND: self._card_art_path(f'ASG-2025-BG-{self.league}'),
             })
         
             # REMOVE PLAYER NAME CONTAINER FOR 2000 SET
