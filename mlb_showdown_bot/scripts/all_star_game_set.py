@@ -7,7 +7,7 @@ from time import sleep
 
 sys.path.append('..')
 from mlb_showdown_bot.core.card.stats.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, StatsPeriod, Set, StatHighlightsType, Edition
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, StatsPeriod, Set, StatHighlightsType, Edition, ShowdownImage
 
 parser = argparse.ArgumentParser(description="Create an all star game set for cards.")
 parser.add_argument('-y','--year', type=int, help='Year to use for cards.', required=True)
@@ -35,7 +35,9 @@ for set in sets:
     for index, row in roster_pd.iterrows():
         
         # CARD INFO
+        
         player_name: str = row['Name']
+        bref_id:str = row['Bref Id']
         year_str = str(args.year)
         card_number = index+1
         print(f"  {str(card_number).zfill(3)}/{len(roster_pd)}: {player_name[:12].ljust(20)}", end='\r')
@@ -48,7 +50,7 @@ for set in sets:
             end_date=f"{args.year}-07-16", # CHANGE THIS PER YEAR
         )
         bref_scraper = BaseballReferenceScraper(
-            name=player_name, 
+            name=bref_id, 
             year=year_str, 
             stats_period=stats_period, 
             disable_cleaning_cache=True, 
@@ -64,16 +66,17 @@ for set in sets:
             stats_period = bref_scraper.stats_period or stats_period,
             stats=stats,
             set=set,
-            edition=Edition.ALL_STAR_GAME,
-            card_img_output_folder_path=set_folder_path,
             print_to_cli=False,
             set_name = 'All Star Game',
-            set_number=str(card_number).zfill(3),
-            add_image_border=True,
-            show_year_text=set not in [Set.CLASSIC, Set.EXPANDED, Set._2004, Set._2005],
             is_variable_speed_00_01=False,
-            stat_highlights_type=StatHighlightsType.ALL,
             disable_cache_cleaning=True,
+            image = ShowdownImage(
+                edition=Edition.ALL_STAR_GAME,
+                set_number=str(card_number).zfill(3), is_bordered=True, 
+                stat_highlights_type=StatHighlightsType.ALL,
+                output_folder_path=set_folder_path,
+                output_file_name=f"{str(card_number).zfill(3)}_{player_name}.png",
+            ),
         )
 
         if bref_scraper.source != 'Local Cache':

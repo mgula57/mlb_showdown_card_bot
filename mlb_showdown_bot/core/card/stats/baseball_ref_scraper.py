@@ -1446,7 +1446,7 @@ class BaseballReferenceScraper(BaseModel):
                     game_log_records = [row for row in game_log_records if 'spacer' not in row.get('class', 'N/A')]
 
             included_categories = ['year_game','ps_round','date_game','team_ID','player_game_span','IP','H','R','ER','BB','SO','HR','HBP','batters_faced','PA','SB','CS','AB','2B','3B','IBB','GIDP','SF','RBI','player_game_result',
-                                'date','team_name_abbr',]
+                                'date','team_name_abbr','game_decision',]
             game_logs_parsed: list[dict] = [self.__parse_generic_bref_row(row=game_log, included_categories=included_categories, exclude_zeros=reduce_size) for game_log in game_log_records]
             total_game_logs.extend(game_logs_parsed)
 
@@ -1495,6 +1495,23 @@ class BaseballReferenceScraper(BaseModel):
 
             # SKIP IF EXCLUDE ZEROS IS TRUE AND STAT IS 0
             if exclude_zeros and str(stat) == '0': continue
+
+            # CHECK FOR SAVES, WINS AND LOSSES WITHIN DECISION COLUMN
+            # POSSIBLE GAME DECISIONS:
+            # W (WIN), L (LOSS), BW (BLOWN SAVE AND WIN), BL (BLOWN SAVE AND LOSS), S (SAVE), H (HOLD)
+            if stat_category == 'game_decision' and stat is not None:
+                stat_str_safe = str(stat).upper()
+                
+                # WIN SCENARIOS
+                result_tag = stat_str_safe.split('(', 1)[0]
+                result_dict = {
+                    'W': result_tag in ['W', 'BW',],
+                    'L': result_tag in ['L', 'BL',],
+                    'SV': result_tag in ['S',],
+                }
+                for result_stat_category, did_happen in result_dict.items():
+                    if did_happen:
+                        final_stats_dict[result_stat_category] = 1
 
             final_stats_dict[stat_category] = stat
 
@@ -1992,7 +2009,7 @@ class BaseballReferenceScraper(BaseModel):
             'onbase_plus_slugging_plus','award_summary','rbat_plus','rOBA',
             'whip','batters_faced','earned_run_avg','batting_avg_bip','year_game',
             'ps_round','date_game','player_game_span','player_game_result',
-            'date','date_game','team_name_abbr',
+            'date','date_game','team_name_abbr','game_decision',
         ]
         if stat_category not in categories_to_keep_default_case:
             stat_category = stat_category.upper()

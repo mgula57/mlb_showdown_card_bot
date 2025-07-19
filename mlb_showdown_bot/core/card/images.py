@@ -125,6 +125,9 @@ class PlayerImageComponent(str, Enum):
     TEAM_LOGO = "TEAM_LOGO"
     NAME_CONTAINER_2000 = "NAME_CONTAINER_2000"
 
+    # STARS
+    STARS = "STARS"
+
     @property
     def load_source(self) -> str:
         match self.name:
@@ -134,6 +137,7 @@ class PlayerImageComponent(str, Enum):
             case "NAME_CONTAINER_2000": return "NAME_CONTAINER"
             case "SILHOUETTE": return "SILHOUETTE"
             case "ELLIPSE_LARGE" | "ELLIPSE_MEDIUM" | "ELLIPSE_SMALL": return "CIRCLE"
+            case "STARS": return "STARS"
             case _: return "CARD_ART"
 
     @property
@@ -252,6 +256,7 @@ class PlayerImageComponent(str, Enum):
             case "ELLIPSE_SMALL": return 200
             case _: return None
 
+
 # ---------------------------------------
 # SPECIAL EDITION
 # ---------------------------------------
@@ -260,6 +265,7 @@ class SpecialEdition(str, Enum):
     
     ASG_2023 = "ASG 2023"
     ASG_2024 = "ASG 2024"
+    ASG_2025 = "ASG 2025"
     COOPERSTOWN_COLLECTION = "CC"
     SUPER_SEASON = "SS"
     TEAM_COLOR_BLAST_DARK = "TCBD"
@@ -280,11 +286,11 @@ class SpecialEdition(str, Enum):
             
     @property
     def hide_2000_player_name(self) -> bool:
-        return self in [SpecialEdition.ASG_2024]
+        return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
 
     @property
     def has_full_bleed_background(self) -> bool:
-        return self in [SpecialEdition.ASG_2024]
+        return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
 
     @property
     def image_component_saturation_adjustments_dict(self) -> dict[PlayerImageComponent, float]:
@@ -521,6 +527,10 @@ class ShowdownImage(BaseModel):
             
             if self.edition == Edition.ALL_STAR_GAME and year == '2024':
                 self.special_edition = SpecialEdition.ASG_2024
+                return 
+            
+            if self.edition == Edition.ALL_STAR_GAME and year == '2025':
+                self.special_edition = SpecialEdition.ASG_2025
                 return 
             
             if self.edition == Edition.SUPER_SEASON and is_04_05:

@@ -1082,7 +1082,7 @@ class Set(str, Enum):
     def is_special_edition_name_styling(self, special_edition:SpecialEdition) -> bool:
         # SPECIAL EDITIONS
         match special_edition:
-            case SpecialEdition.ASG_2024:
+            case SpecialEdition.ASG_2024 | SpecialEdition.ASG_2025:
                 return self.value in ['2000','2001']
         
         return False
@@ -1096,28 +1096,41 @@ class Set(str, Enum):
         return '1htwN6r-9QNHJzg6Jq56dGXuJxD2QNaGv' # UNIVERSAL
     
     def player_image_crop_size(self, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
+
+        # SPECIAL CASES
+        if special_edition in [SpecialEdition.ASG_2024]:
+            match self:
+                case Set._2000: return (1200,1680) # MATCH 01 IF ASG
+                case Set._2004 | Set._2005: return (1350,1890) # MAKE SLIGHTLY LARGER        
+        if special_edition in [SpecialEdition.ASG_2025]:
+            match self:
+                case Set._2000 | Set._2001: return (1350,1890)
+                case Set.CLASSIC | Set.EXPANDED: return (1305,1827)
+
         match self.value:
-            case '2000':
-                if special_edition == SpecialEdition.ASG_2024: return (1200,1680) # MATCH 01 IF ASG
-                else: return (1500,2100)
+            case '2000': return (1500,2100)
             case '2001': return (1200,1680)
             case '2002' | '2003': return (1305,1827)
-            case '2004' | '2005': 
-                if special_edition == SpecialEdition.ASG_2024: return (1350,1890)
-                else: return (1500,2100)
+            case '2004' | '2005': return (1500,2100)
             case 'CLASSIC' | 'EXPANDED': return (1200,1680)
 
     def player_image_crop_adjustment(self, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
+
+        # SPECIAL CASES
+        if special_edition in [SpecialEdition.ASG_2024]:
+            match self:
+                case Set._2000: return (-35,-460) # MATCH 01 IF ASG
+                case Set._2004 | Set._2005: return (0, int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
+        if special_edition in [SpecialEdition.ASG_2025]:
+            match self:
+                case Set._2000 | Set._2001: return (25,-400) # 2025 ASG HAS LOTS OF SPACE TO THE LEFT SIDE
+
         match self.value:
-            case '2000':
-                if special_edition == SpecialEdition.ASG_2024: return (-35,-460) # MATCH 01 IF ASG
-                else: return (-25,-300)
+            case '2000': return (-25,-300)
             case '2001': return (-35,-460)
             case '2002': return (75,-250)
             case '2003': return (75,-150)
-            case '2004' | '2005': 
-                if special_edition == SpecialEdition.ASG_2024: return (0,int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
-                else: return (0,0)
+            case '2004' | '2005': return (0,0)
             case 'CLASSIC' | 'EXPANDED': return (0,int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
             
     def player_image_components_list(self, is_special:bool=False) -> list[PlayerImageComponent]:
@@ -1245,8 +1258,10 @@ class Set(str, Enum):
                 match self.value:
                     case '2004' | '2005': return (981,1335)
             case TemplateImageComponent.PLAYER_NAME:
-                if special_edition == SpecialEdition.ASG_2024 and self in [Set._2000, Set._2001]:
-                    return (360, 1565)
+                if special_edition in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025] and self in [Set._2000, Set._2001]:
+                    match special_edition:
+                        case SpecialEdition.ASG_2024: return (360, 1565)
+                        case SpecialEdition.ASG_2025: return (360, 1600)
                 match self.value:
                     case '2000': return (137,0)
                     case '2001': return (105,0)
