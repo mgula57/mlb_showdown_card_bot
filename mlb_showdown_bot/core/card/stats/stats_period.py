@@ -281,6 +281,14 @@ class StatsPeriod(BaseModel):
         """
         is_today_included = False if self.end_date is None else self.end_date >= date.today()
         return self.type.check_for_realtime_stats and is_today_included
+    
+    @property
+    def is_this_year(self) -> bool:
+        """
+        Returns True if the stats period is for the current year.
+        """
+        current_year = date.today().year
+        return self.year_int == current_year if self.year_int else False
 
     # ---------------------------------
     # METHODS

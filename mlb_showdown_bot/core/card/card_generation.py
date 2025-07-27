@@ -42,8 +42,29 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
     # SETUP KNOWN PARAMETERS
     stats: dict[str, Any] = {}
+    card: ShowdownPlayerCard = None
+    additional_logs: dict[str, Any] = {}
     final_card_payload: dict[str, Any] = {}
-    
+
+    # SETUP LOGGING
+    log_to_db = kwargs.get('store_in_logs', False)
+    card_log_db = kwargs.get('db_connection', None)
+    if log_to_db:
+        # CONNECT TO DB
+        card_log_db = card_log_db or PostgresDB(is_archive=False)
+        if not card_log_db.connection:
+            card_log_db = None
+            print("Failed to connect to database for logging. Continuing without logging.")
+    else:
+        card_log_db = None
+
+    # ADD RANDOM PLAYER ID AND YEAR IF NEEDED
+    if kwargs.get('randomize', False):
+        # GET RANDOM PLAYER ID AND YEAR
+        random_player_id, random_year = generate_random_player_id_and_year(**kwargs)
+        kwargs['name'] = random_player_id
+        kwargs['year'] = random_year
+
     try:
 
         # REMOVE IMAGE PREFIXES FROM KEYS
@@ -55,8 +76,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
         stats: dict[str: any] = None
 
         # SETUP BASEBALL REFERENCE SCRAPER
-        # DONT ACTUALLY RUN IT YET
-        baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)    
+        baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)
         stats = baseball_reference_stats.fetch_player_stats()
 
         # -----------------------------------
@@ -80,7 +100,6 @@ def generate_card(**kwargs) -> dict[str, Any]:
         image_source = ImageSource(**kwargs)
         image = ShowdownImage(image_source=image_source, **kwargs)
         card = ShowdownPlayerCard(stats_period=stats_period, stats=stats, realtime_game_logs=player_mlb_api_stats.game_logs, image=image, **kwargs)
-        final_card_payload['card'] = card.as_json()
         
         # EXTRA OPTIONS
         show_historical_points = kwargs.get("show_historical_points", False)
@@ -88,11 +107,26 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
         if show_historical_points:
             historical_season_trends_data = generate_all_historical_yearly_cards_for_player(actual_card=card, **kwargs)
-            final_card_payload["historical_season_trends"] = historical_season_trends_data
+            additional_logs["historical_season_trends"] = historical_season_trends_data
 
         if in_season_trend_aggregation:
             in_season_trends_data = generate_in_season_trends_for_player(actual_card=card, date_aggregation=in_season_trend_aggregation, **kwargs)
-            final_card_payload["in_season_trends"] = in_season_trends_data
+            additional_logs["in_season_trends"] = in_season_trends_data
+
+        # THERE WERE NO ERRORS IF WE GOT HERE
+        additional_logs['error'] = None
+        additional_logs['error_for_user'] = None
+
+        # ADD ANY OTHER CONTEXTUAL LOGGING
+        additional_logs['scraper_load_time'] = baseball_reference_stats.load_time
+
+        # ADD CODE TO LOG CARD TO DB
+        if card_log_db:
+            card_log_db.log_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_logs)
+
+        # CONVERT CARD TO DICT AND RETURN IT
+        final_card_payload = additional_logs
+        final_card_payload['card'] = card.as_json()
 
         return final_card_payload
 
@@ -141,9 +175,33 @@ def generate_card(**kwargs) -> dict[str, Any]:
         elif is_user_year_before_player_career_start:
             error_for_user = year_range_error_message
 
+        print("--------- ERROR MESSAGE ---------")
         traceback.print_exc()
+        print("---------------------------------")
 
-        final_card_payload['error'] = error_for_user
+        # ADD CODE TO LOG CARD TO DB
+        if card_log_db:
+            # LOG THE ERROR
+            card_log_db.log_card_submission(
+                card=card,  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
+                user_inputs=kwargs,
+                additional_attributes={
+                    'error': error_full,
+                    'error_for_user': error_for_user,
+                    'historical_season_trends': None,
+                    'in_season_trends': None,
+                    'scraper_load_time': None,
+                    'version': ''
+                }
+            )
+
+        final_card_payload = {
+            'card': card,  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
+            'error': error_full,
+            'error_for_user': error_for_user,
+            'historical_season_trends': [],
+            'in_season_trends': {},
+        }
     
         return final_card_payload
 
@@ -166,6 +224,8 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     yearly_trends_data: dict[str: dict[str: Any]] = {}
     kwargs.pop('name', None) # Remove name from kwargs to avoid confusion
     kwargs.pop('print_to_cli', None) # Remove print_to_cli from kwargs to avoid confusion
+    kwargs.pop('show_image', None) # Remove show_image from kwargs to avoid confusion
+    
     for year_archive in yearly_archive_data:
 
         # BUILD SHOWDOWN CARD
@@ -180,6 +240,7 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
                 stats_period=StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(year_archive.year)),
                 player_type_override=year_archive.player_type_override,
                 print_to_cli=False,
+                show_image=False,
                 **filtered_kwargs
             )
             if yearly_card.player_type != actual_card.player_type:
@@ -212,6 +273,7 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     kwargs = clean_kwargs(kwargs)
     # ALSO REMOVE PRINT TO CLI
     kwargs.pop('print_to_cli', None)
+    kwargs.pop('show_image', None)
     
     # CHECK FOR GAME LOGS
     game_logs = actual_card.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, [])
@@ -255,13 +317,14 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
 
     return in_season_trends_data
 
-def generate_random_player_id_and_year(year:str, era:str, edition:str) -> tuple[str, str]:
+def generate_random_player_id_and_year(**kwargs) -> tuple[str, str]:
     """ Get Random Player Id and Year. Account for user inputs (if any).
     
     Args:
-      year: User inputted year
-      era: User inputted Era
-      edition: User Inputted edition
+        **kwargs: Keyword arguments that can include:
+            - year: Year of the player (optional)
+            - era: Era of the player (optional)
+            - edition: Edition of the player (optional)
 
     Return:
       Player Bref Id and Year
@@ -275,8 +338,12 @@ def generate_random_player_id_and_year(year:str, era:str, edition:str) -> tuple[
         return None
     
     # QUERY DATABASE FOR RANDOM PLAYER
-    random_player:PlayerArchive = postgres_db.fetch_random_player_stats_from_archive(year_input=year, era=era, edition=edition)
-    
+    random_player:PlayerArchive = postgres_db.fetch_random_player_stats_from_archive(
+        year_input=kwargs.get('year', None),
+        era=kwargs.get('era', None),
+        edition=kwargs.get('edition', None)
+    )
+
     # CLOSE CONNECTION
     postgres_db.close_connection()
 

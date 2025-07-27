@@ -11,8 +11,8 @@ app = typer.Typer(pretty_exceptions_enable=False)
 
 @app.command()
 def card(
-        name: str = typer.Option(..., "--name", "-n", help="Player name"),
-        year: str = typer.Option(..., "--year", "-y", help="The year of the player"),
+        name: str = typer.Option(None, "--name", "-n", help="Player name"),
+        year: str = typer.Option(None, "--year", "-y", help="The year of the player"),
 
         # SET
         set: str = typer.Option("2000", "--set", "-s", help="The showdown set meta to use (2000-2005)"),
@@ -51,7 +51,9 @@ def card(
         nickname_index: Optional[int] = typer.Option(None, "--nickname_index", "-nick", help="Optionally choose a nickname to show for images. Enter a number based on ordering from bref, max is 3"),
         is_wotc: bool = typer.Option(False, "--is_wotc", "-wotc", help="Try loading from WOTC cards."),
         
-        # CACHE
+        # DATABASE/CACHE
+        store_in_logs: bool = typer.Option(False, "--store_in_logs", "-store", help="Optionally store card in logs."),
+        db_connection: bool = typer.Option(None, "--db_connection", "-dbc", help="Optionally pass a database connection for logs."),
         ignore_showdown_library: bool = typer.Option(False, "--ignore_showdown_library", "-isl", help="Optionally force ignore Showdown Library, will create card live."),
         ignore_cache: bool = typer.Option(False, "--ignore_cache", "-ic", help="Ignore local cache"),
         ignore_archive: bool = typer.Option(False, "--ignore_archive", "-ia", help="Ignore postgres showdown bot archive"),
@@ -65,6 +67,9 @@ def card(
         # DISPLAYING CARD
         print_to_cli: bool = typer.Option(True, "--print_to_cli", "-print", help="Show visual representation of card in the CLI"),
         show_image: bool = typer.Option(False, "--show_image", "-show", help="Optionally open the final Player Card Image upon completion"),
+
+        # RANDOM
+        randomize: bool = typer.Option(False, "--randomize", "-rand", help="Generate a random player card"),
 ):
     # FINAL PAYLOAD
     payload: dict = {}

@@ -1,16 +1,16 @@
 import os
 import psycopg2
+import traceback
 from psycopg2.extras import RealDictCursor
+from psycopg2 import extensions, extras
 from psycopg2.extensions import AsIs
 from psycopg2 import sql
 from datetime import datetime
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
 
 # INTERNAL
-from ..card.stats.stats_period import StatsPeriodType
-from ..card.images import Edition
-from ..card.sets import Era
+from ..card.showdown_player_card import ShowdownPlayerCard, Era, Edition, StatsPeriodType, __version__
 from ..card.utils.shared_functions import convert_year_string_to_list
 
 class PlayerArchive(BaseModel):
@@ -70,6 +70,10 @@ class PostgresDB:
         try:
             self.connection = psycopg2.connect(DATABASE_URL, sslmode='require')
             self.connection.autocommit = True
+
+            # THIS WILL ENABLE NATURAL PASSING OF DICTS AS JSONB
+            extensions.register_adapter(dict, extras.Json)
+
         except Exception as e:
             self.connection = None
 
@@ -79,12 +83,9 @@ class PostgresDB:
             self.connection.close()
 
 # ------------------------------------------------------------------------
-# CHECK FOR STATS IN ARCHIVE
-# ------------------------------------------------------------------------
-
-# ------------------------------------------------------------------------
 # QUERIES
 # ------------------------------------------------------------------------
+
 
     def execute_query(self, query:sql.SQL, filter_values:tuple) -> list[dict]:
         """Execute a query and transform data to list of dictionaries.
@@ -383,7 +384,7 @@ class PostgresDB:
 # ------------------------------------------------------------------------
 # TABLES
 # ------------------------------------------------------------------------
-#   
+
     def create_stats_archive_table(self, table_suffix:str='') -> None:
         """"""
 
@@ -421,7 +422,112 @@ class PostgresDB:
             db_cursor.execute(create_table_statement)
         except:
             return
-		
+
+
+# ------------------------------------------------------------------------
+# LOGGING
+# ------------------------------------------------------------------------
+
+    def log_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
+        """
+        Store card submission data in the card_log table.
+
+        Args:
+            ShowdownPlayerCard: Card object to log.
+            user_inputs: User inputs to log, including any additional attributes.
+            additional_attributes: Additional attributes to log, if any.
+
+        Returns:
+            Error message if any, otherwise None.
+        """
+
+        if not self.connection:
+            print("No database connection available for logging.")
+            return 
+            
+        # BUILD CARD SUBMISSION OBJECT
+        columns_not_on_card_object = [
+            'error', 'error_for_user', 'scraper_load_time', 'historical_season_trends', 'in_season_trends'
+        ]
+        if card:
+            # CARD IS POPULATED
+            card_submission = {
+                'name': card.name,
+                'year': card.year, 
+                'set': card.set.value, 
+                'is_cooperstown': None,                                 # DEPRECATED
+                'is_super_season': None,                                # DEPRECATED
+                'img_url': card.image.source.url,
+                'img_name': card.image.source.path, 
+                'is_all_star_game': None,                               # DEPRECATED
+                'expansion': card.image.expansion,
+                'stats_offset': card.chart_version,
+                'set_num': card.image.set_number,
+                'is_holiday': None,                                     # DEPRECATED
+                'is_dark_mode': card.image.is_dark_mode,
+                'is_rookie_season': None,                               # DEPRECATED
+                'is_variable_spd_00_01': card.is_variable_speed_00_01, 
+                'is_random': None,                                      # DEPRECATED
+                'is_automated_image': card.image.source.is_automated, 
+                'is_foil': None,                                        # DEPRECATED
+                'is_stats_loaded_from_library': False,                  # DEPRECATED
+                'is_img_loaded_from_library': False,                    # DEPRECATED
+                'add_year_container': card.image.show_year_text,
+                'ignore_showdown_library': None,                        # DEPRECATED
+                'set_year_plus_one': card.image.add_one_to_set_year,
+                'edition': card.image.edition,
+                'hide_team_logo': card.image.hide_team_logo,
+                'date_override': card.date_override,
+                'era': card.era.value if card.era else None, 
+                'image_parallel': card.image.parallel.value if card.image.parallel else None, 
+                'bref_id': card.bref_id, 
+                'team': card.team.value, 
+                'data_source': card.stats_period.source, 
+                'image_source': card.image.source.type.value, 
+                'card_load_time': card.load_time, 
+                'is_secondary_color': card.image.use_secondary_color, 
+                'nickname_index': card.image.nickname_index, 
+                'period': card.stats_period.type.value if card.stats_period else None, 
+                'period_start_date': card.stats_period.start_date if card.stats_period else None,
+                'period_end_date': card.stats_period.end_date if card.stats_period else None,
+                'period_split': card.stats_period.split if card.stats_period else None,
+                'is_multi_colored': card.image.is_multi_colored if card.image else None,
+                'stat_highlights_type': card.image.stat_highlights_type.value if card.image else None,
+                'glow_multiplier': card.image.glow_multiplier if card.image else None,
+            }
+        else:
+            # NO CARD GENERATED
+            card_submission = {
+                'name': user_inputs.get('name', None),
+                'year': user_inputs.get('year', None),
+                'set': user_inputs.get('set', None),
+            }
+
+        # ADD ADDITIONAL ATTRIBUTES
+        for key, value in additional_attributes.items():
+            if key in columns_not_on_card_object:
+                card_submission[key] = value
+
+        # ADD USER INPUTS AND VERSION
+        card_submission['user_inputs'] = user_inputs
+        card_submission['version'] = __version__
+
+        # INSERT INTO THE DATABASE
+        column_list = list(card_submission.keys())
+        columns = ', '.join(column_list)
+        placeholders = ', '.join(['%s'] * len(column_list))
+        values = list(card_submission.values())
+        sql = f"INSERT INTO card_log ({columns}) VALUES ({placeholders})"
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, values)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error logging card submission to DB: {error}")
+            self.connection.rollback()
+            return None
+
     def upsert_stats_archive_row(self, cursor, data:dict, skip_upsert:bool = False) -> None:
         """Upsert record into stats archive. 
         Insert record if it does not exist, otherwise update the row's `stats` and `modified_date` values

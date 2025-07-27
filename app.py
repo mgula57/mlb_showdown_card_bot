@@ -4,23 +4,13 @@ from pprint import pprint
 from time import sleep
 
 # INTERNAL
-from mlb_showdown_bot.core.card.card_generation import generate_card, generate_random_player_id_and_year
-from mlb_showdown_bot.core.database.models import db
+from mlb_showdown_bot.core.card.card_generation import generate_card
 
 # ----------------------------------------------------------
-# DATABASE
+# APP
 # ----------------------------------------------------------
 
 app = Flask(__name__)
-
-# SETUP DB
-uri = os.environ.get('DATABASE_URL')
-if uri:
-    if uri.startswith("postgres://"):
-        uri = uri.replace("postgres://", "postgresql://", 1)
-app.config['SQLALCHEMY_DATABASE_URI'] = uri
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db.init_app(app)
 
 # ----------------------------------------------------------
 # FRONT END
@@ -42,14 +32,9 @@ def card_creator():
 
     # RANDOM
     is_random = kwargs.get('name', '').upper() == '((RANDOM))'
-    if is_random:
-        # IF RANDOMIZED, ADD RANDOM NAME AND YEAR
-        name, year = generate_random_player_id_and_year(**kwargs)
-        kwargs['name'] = name
-        kwargs['year'] = year
 
     # NORMAL CARD GENERATION
-    card_data = generate_card(is_random=is_random, **kwargs)
+    card_data = generate_card(randomize=is_random, **kwargs)
     
     return jsonify(card_data)
 

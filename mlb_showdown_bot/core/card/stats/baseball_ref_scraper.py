@@ -91,8 +91,8 @@ class BaseballReferenceScraper(BaseModel):
             if default_bref_id:
                 self.baseball_ref_id = default_bref_id
             else:
-                # SEARCH GOOGLE
-                self.baseball_ref_id = self.search_google_for_b_ref_id(self.name, self.year)
+                # SEARCH BING
+                self.baseball_ref_id = self.search_bing_for_b_ref_id(self.name, self.year)
 
 # ------------------------------------------------------------------------
 # PROPERTIES
@@ -172,7 +172,7 @@ class BaseballReferenceScraper(BaseModel):
     def __check_for_default_bref_id(self, name:str, years: list[str]) -> str:
         """Check for player name string in default csv with names and bref ids
 
-        Purpose is to see if bot can avoid needing to scrape Google.
+        Purpose is to see if bot can avoid needing to scrape Bing.
 
         Args:
           name: Full name of Player
@@ -216,10 +216,10 @@ class BaseballReferenceScraper(BaseModel):
             bref_id = player_ids_pd_filtered.head(1)['brefid'].values[0]
             return bref_id if len(bref_id) > 0 else None
 
-    def search_google_for_b_ref_id(self, name:str, year:str) -> str:
+    def search_bing_for_b_ref_id(self, name:str, year:str) -> str:
         """Convert name to a baseball reference Player ID.
 
-        Goes by rank on google search for search: 'baseball reference "name" "year"'.
+        Goes by rank on bing search for search: 'baseball reference "name" "year"'.
         This is needed to find the player_id used to scrape baseball reference.
 
         Args:
@@ -246,7 +246,15 @@ class BaseballReferenceScraper(BaseModel):
         # NO BASEBALL REFERENCE RESULTS FOR THAT NAME AND YEAR
         if search_results == []:
             self.error = f'Cannot Find BRef Page for {name} in {year}'
-            raise AttributeError(self.error)
+            if not self.stats_period.is_this_year:
+                raise AttributeError(self.error)
+            
+            # IF IT'S THE CURRENT YEAR, SEE IF THE STATS WOULD WORK WITH A A GUESS OF THE ID
+            # MOSTLY RESOLVES ISSUES WITH ROOKIES
+            last_name = self.__last_name(name)
+            first_name = name.split(' ')[0]
+            bref_id = f'{last_name[:5]}{first_name[:2]}01'
+            return bref_id
         
         top_result_url = search_results[0]["href"]
         player_b_ref_id = top_result_url.split('.shtml')[0].split('/')[-1]
@@ -2155,6 +2163,31 @@ class BaseballReferenceScraper(BaseModel):
         est = pytz.timezone('US/Eastern')
         return datetime.fromtimestamp(timestamp, tz=est)
     
+    def __last_name(self, name: str) -> str:
+        """ Attempt to parse last name from full name.
+        Args:
+          name: Full name of Player
+        
+        Returns:
+          Last name of Player (ex: 'Ken Griffey Jr' -> 'Griffey')
+        """
+
+        remove_punctuation = str.maketrans('', '', string.punctuation)
+        name_wo_punctuation = name.translate(remove_punctuation)
+
+        name_no_suffix = name_wo_punctuation.lower()
+        illegal_suffixes = [' jr', ' sr']
+        for suffix in illegal_suffixes:
+            if name_no_suffix.endswith(suffix):
+                name_no_suffix = name_no_suffix.replace(suffix, '')
+
+        name_parts = name_no_suffix.split(' ')
+        if len(name_parts) < 2:
+            # IF ONLY ONE PART, RETURN AS LAST NAME
+            return name_parts[0]
+
+        return name_parts[1]
+
     def __name_last_initial(self, name:str) -> str:
         """Parse first initial of Player's last name.
 
@@ -2167,16 +2200,8 @@ class BaseballReferenceScraper(BaseModel):
           First Initial of Last Name (ex: 'Ken Griffey Jr' -> 'g')
         """
 
-        remove_punctuation = str.maketrans('', '', string.punctuation)
-        name_wo_punctuation = name.translate(remove_punctuation)
-
-        name_no_suffix = name_wo_punctuation.lower()
-        illegal_suffixes = [' jr', ' sr']
-        for suffix in illegal_suffixes:
-            if name_no_suffix.endswith(suffix):
-                name_no_suffix = name_no_suffix.replace(suffix, '')
-
-        last_initial = name_no_suffix.split(' ')[1][:1]
+        last_name = self.__last_name(name)
+        last_initial = last_name[:1]
         return last_initial
         
     def __sum_ip(self, ip_list: list[float]) -> float:
