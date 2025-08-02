@@ -1887,6 +1887,8 @@ class BaseballReferenceScraper(BaseModel):
                 continue
             if 'YR' in year_str.upper():
                 continue
+            if year_str.strip() == '':
+                continue
             year = int(year_str)
             if len(years_filter_list) < 1 or (year in years_filter_list):
                 team = self.__extract_text_for_element(object=year_object, tag='td', attr_key='data-stat', values=['team_ID', 'team_name_abbr'])
