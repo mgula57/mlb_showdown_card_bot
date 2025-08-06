@@ -1,6 +1,6 @@
-import React, { useState, type ReactNode } from "react";
+import React from "react";
 import { NavLink } from "react-router-dom";
-import { FaChevronRight, FaChevronLeft, FaBars } from "react-icons/fa";
+import { FaChevronRight, FaChevronLeft } from "react-icons/fa";
 import { SideMenuItem, sideMenuItems } from "./SideMenuItem"; // Adjust the import path as necessary
 import showdownLogo from "../../assets/logo-light.png"; // Adjust the path as necessary
 
