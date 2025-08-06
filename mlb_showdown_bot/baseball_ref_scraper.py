@@ -1864,7 +1864,8 @@ class BaseballReferenceScraper:
         """
         table_prefix = 'batting' if type == 'Hitter' else 'pitching'
         standard_table = homepage_soup.find('div', attrs = {'id': re.compile(f'all_{table_prefix}_standard|all_players_standard_{table_prefix}')})
-        year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard\.|players_standard_{table_prefix}\.')})
+        standard_table_body = standard_table.find('tbody') if standard_table else None
+        year_soup_objects_list = standard_table_body.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard\.|players_standard_{table_prefix}\.')}) if standard_table_body else []
         stat_list = []
         for year_object in year_soup_objects_list:
             is_total = ' Yr' in year_object.get('id', '')
