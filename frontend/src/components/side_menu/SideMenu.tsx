@@ -4,6 +4,7 @@ import { FaChevronRight, FaChevronLeft } from "react-icons/fa";
 import { SideMenuItem, sideMenuItems } from "./SideMenuItem";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
 import ShowdownBotLogo from "../shared/ShowdownBotLogo";
+import ThemeToggleButton from "./ThemeToggleButton";
 
 /** Interface for the side menu props. */
 type SideMenuProps = {
@@ -38,6 +39,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen }) => {
                 h-screen ${isOpen ? 'w-48' : 'w-12'} space-y-4
                 bg-secondary border-r-divider shadow-sm
                 transition-all duration-300 ease-in-out
+                flex flex-col
             `}>
                 {/* Header: Logo and Menu Button */}
                 <div className={`${isOpen ? 'flex space-x-2' : ''} h-12 p-4 pb-2 w-full items-center cursor-pointer`}>
@@ -69,6 +71,11 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen }) => {
                         </li>
                     ))}
                 </ul>
+
+                {/* Footer: Theme Toggle Button */}
+                <div className="p-2">
+                    <ThemeToggleButton />
+                </div>
 
             </nav>
 

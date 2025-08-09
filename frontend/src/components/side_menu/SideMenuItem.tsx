@@ -1,8 +1,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
-import { FaGear } from "react-icons/fa6"
-import { FaChartBar, FaHome } from "react-icons/fa";
+import { FaChartBar, FaHome, FaBaseballBall } from "react-icons/fa";
 
 /** Props for the side menu item component */
 type SideMenuItemProps = {
@@ -43,7 +42,7 @@ export const sideMenuItems: SideMenuItemType[] = [
     },
     {
         text: "Customs",
-        icon: FaGear,
+        icon: FaBaseballBall,
         path: "/customs"
     },
     {
