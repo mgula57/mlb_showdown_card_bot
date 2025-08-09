@@ -7,15 +7,16 @@ type FormDropdownProps = {
     options: SelectOption[];
     selectedOption: string;
     onChange: (value: string) => void;
+    className?: string; // Optional className for additional styling
 };
 
 /** 
  * FormDropdown component for selecting an option from a dropdown list.
  * Handles changes and updates the parent state.
  */
-const FormDropdown: React.FC<FormDropdownProps> = ({ label, options, selectedOption, onChange }) => {
+const FormDropdown: React.FC<FormDropdownProps> = ({ label, options, selectedOption, onChange, className="" }) => {
     return (
-        <div>
+        <div className={className}>
             {/* Label */}
             <label className="text-sm font-medium text-secondary">{label}</label>
 

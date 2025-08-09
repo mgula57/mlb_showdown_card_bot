@@ -6,6 +6,7 @@ type SelectOption = {
     value: string;
     image?: string;
     symbol?: string;
+    icon?: React.ReactNode;
     borderColor?: string;
     textColor?: string;
 }
@@ -22,6 +23,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options })
 
     /** State to manage dropdown open/close */
     const [isOpen, setIsOpen] = useState(false);
+    const [openAbove, setOpenAbove] = useState(false); // NEW
 
     // Refs to manage click outside detection
     const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -53,13 +55,34 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options })
         }
     };
 
+    /** Measure the dropdown position and set direction based on available space */
+    const measureAndSetDirection = () => {
+        if (!buttonRef.current || !dropdownRef.current) return;
+        const btnRect = buttonRef.current.getBoundingClientRect();
+        const menuRect = dropdownRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - btnRect.bottom;
+        const spaceAbove = btnRect.top;
+        // Flip if not enough below and more space above
+        setOpenAbove(spaceBelow < menuRect.height && spaceAbove > spaceBelow);
+    };
+
     // Add event listener for clicks outside the dropdown when it is open
     useEffect(() => {
         if (!isOpen) return;
 
+        measureAndSetDirection();
+        const handleUpdate = () => measureAndSetDirection();
+        window.addEventListener('resize', handleUpdate);
+        window.addEventListener('scroll', handleUpdate, true);
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isOpen]);
+        
+        return () => {
+            window.removeEventListener('resize', handleUpdate);
+            window.removeEventListener('scroll', handleUpdate, true);
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+
+    }, [isOpen, options.length]);
 
     /** Helper functions to render any passed in image */
     const renderImage = (image: string | undefined) => {
@@ -73,6 +96,14 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options })
     const renderSymbol = (symbol: string | undefined) => {
         if (symbol) {
             return <span className="mr-2">{symbol}</span>;
+        }
+        return null;
+    };
+
+    /** Helper functions to render any passed in icon */
+    const renderIcon = (icon: React.ReactNode) => {
+        if (icon) {
+            return <span className="bg-secondary">{icon}</span>;
         }
         return null;
     };
@@ -98,6 +129,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options })
                 <div className="flex overflow-clip">
                     { renderImage(options.find(option => option.value === value)?.image) }
                     { renderSymbol(options.find(option => option.value === value)?.symbol) }
+                    { renderIcon(options.find(option => option.value === value)?.icon) }
                     {options.find(option => option.value === value)?.label || null}
                 </div>
             </button>
@@ -107,7 +139,10 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options })
                 <div 
                     ref={dropdownRef}
                     className={`
-                        absolute z-10 max-w-1/2 mt-1 
+                        absolute z-10
+                        ${openAbove ? '-translate-y-[calc(100%+3rem)]' : 'mt-1'}
+                        transform
+                        min-w-2/3 md:min-w-48
                         bg-secondary rounded-xl shadow-lg 
                         text-nowrap overflow-clip
                     `}
