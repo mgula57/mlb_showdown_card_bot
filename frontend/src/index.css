@@ -9,6 +9,7 @@
     
     --background-primary: #f0f4f8;
     --background-secondary: #ffffff;
+    --background-teritiary: #e8ebed;
 
     --divider: #e0e0e0;
 }
@@ -23,6 +24,7 @@
 
         --background-primary: #2d2d32;
         --background-secondary: #232526;
+        --background-teritiary: #3a3a3f;
 
         --divider: #444444;
     }
@@ -37,12 +39,20 @@
         background-color: var(--background-secondary);
     }
 
+    .bg-tertiary {
+        background-color: var(--background-tertiary);
+    }
+
     .text-primary {
         color: var(--primary);
     }
 
     .text-secondary {
         color: var(--secondary);
+    }
+
+    .border-form-element {
+        border-color: var(--divider);
     }
 
 }

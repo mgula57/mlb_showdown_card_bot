@@ -1,6 +1,7 @@
 import React, { type ReactNode, useState } from "react";
 import SideMenu from "./side_menu/SideMenu";
 import ShowdownBotLogo from "./shared/ShowdownBotLogo";
+import { useLocation } from "react-router-dom";
 
 // *********************************
 // App Layout
@@ -18,20 +19,26 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     const [isSideMenuOpen, setIsSideMenuOpen] = useState(true);
 
-    const contentPadding = isSideMenuOpen ? 'pl-52' : 'pl-16';
+    const contentPadding = isSideMenuOpen ? 'pl-48' : 'pl-12';
+    const location = useLocation();
+    const locationName = location.pathname.split('/')[1] || 'home';
 
     return (
         <div className="bg-primary flex h-screen relative w-screen">
             {/* Sidebar */}
             <SideMenu isOpen={isSideMenuOpen} setIsOpen={setIsSideMenuOpen} />
 
-            <div className={`flex flex-col h-full transition-[padding-left] duration-300 ${contentPadding}`}>
+            <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 ${contentPadding}`}>
                 {/* Header */}
                 <header className={
                     `flex h-12 p-4 w-full items-center 
+                    space-x-4
                     border-b-gray-600 shadow-sm
                 `}>
                     {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48" />}
+                    <h1 className="text-xl font-semibold text-secondary">
+                        {locationName.charAt(0).toUpperCase() + locationName.slice(1) || 'Home'}
+                    </h1>
                 </header>
 
                 {/* Main content */}
