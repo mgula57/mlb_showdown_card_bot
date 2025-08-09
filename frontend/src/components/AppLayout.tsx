@@ -16,24 +16,26 @@ type AppLayoutProps = {
  */
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
-    const [isSideMenuOpen, setIsSideMenuOpen] = useState(true);``
+    const [isSideMenuOpen, setIsSideMenuOpen] = useState(true);
+
+    const contentPadding = isSideMenuOpen ? 'pl-52' : 'pl-16';
 
     return (
         <div className="bg-primary flex h-screen relative w-screen">
             {/* Sidebar */}
             <SideMenu isOpen={isSideMenuOpen} setIsOpen={setIsSideMenuOpen} />
 
-            <div className='flex flex-col w-full'>
+            <div className={`flex flex-col h-full transition-[padding-left] duration-300 ${contentPadding}`}>
                 {/* Header */}
                 <header className={
-                    `flex ml-12 h-12 p-4 w-full items-center 
+                    `flex h-12 p-4 w-full items-center 
                     border-b-gray-600 shadow-sm
                 `}>
                     {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48" />}
                 </header>
 
                 {/* Main content */}
-                <main className={`${isSideMenuOpen ? 'ml-52' : 'ml-16'} flex-1 py-8 overflow-auto w-full relative`}>
+                <main className={`flex-1 py-2overflow-auto w-full relative`}>
                     { children }
                 </main>
             </div>
