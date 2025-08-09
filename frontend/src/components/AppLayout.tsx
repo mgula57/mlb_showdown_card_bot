@@ -1,5 +1,6 @@
 import React, { type ReactNode, useState } from "react";
 import SideMenu from "./side_menu/SideMenu";
+import ShowdownBotLogo from "./shared/ShowdownBotLogo";
 
 // *********************************
 // App Layout
@@ -15,17 +16,28 @@ type AppLayoutProps = {
  */
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
-    const [isSideMenuOpen, setIsSideMenuOpen] = useState(true);
+    const [isSideMenuOpen, setIsSideMenuOpen] = useState(true);``
 
     return (
-        <div className="flex h-screen relative">
+        <div className="bg-primary flex h-screen relative w-screen">
             {/* Sidebar */}
             <SideMenu isOpen={isSideMenuOpen} setIsOpen={setIsSideMenuOpen} />
 
-            {/* Main content */}
-            <main className={`${isSideMenuOpen ? 'ml-48' : 'ml-12'} flex-1 p-8 md:p-8 overflow-auto w-full`}>
-                { children }
-            </main>
+            <div className='flex flex-col w-full -z-10'>
+                {/* Header */}
+                <header className={
+                    `flex ml-12 h-12 p-4 w-full items-center 
+                    border-b-gray-600 shadow-sm
+                `}>
+                    {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48" />}
+                </header>
+
+                {/* Main content */}
+                <main className={`${isSideMenuOpen ? 'ml-52' : 'ml-16'} flex-1 py-8 overflow-auto w-full relative`}>
+                    { children }
+                </main>
+            </div>
+            
         </div>
     );
 };

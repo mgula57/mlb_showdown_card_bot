@@ -1,14 +1,48 @@
 @import "tailwindcss";
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+:root {
+    --primary: #000000;
+    --secondary: #292929;
+
+    --showdown-blue: #1a3b5f;
+    --showdown-red: #9a362f;
+    
+    --background-primary: #f0f4f8;
+    --background-secondary: #ffffff;
+
+    --divider: #e0e0e0;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --primary: #ffffff;
+        --secondary: #dfdfdf;
+
+        --showdown-blue: #4682e6;
+        --showdown-red: #d04e47;
+
+        --background-primary: #3D3F45;
+        --background-secondary: #2B2E30;
+
+        --divider: #444444;
+    }
+}
+
+@layer utilities {
+    .bg-primary {
+        background-color: var(--background-primary);
+    }
+
+    .bg-secondary {
+        background-color: var(--background-secondary);
+    }
+
+    .text-primary {
+        color: var(--primary);
+    }
+
+    .text-secondary {
+        color: var(--secondary);
+    }
+
 }
