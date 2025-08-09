@@ -23,7 +23,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             {/* Sidebar */}
             <SideMenu isOpen={isSideMenuOpen} setIsOpen={setIsSideMenuOpen} />
 
-            <div className='flex flex-col w-full -z-10'>
+            <div className='flex flex-col w-full'>
                 {/* Header */}
                 <header className={
                     `flex ml-12 h-12 p-4 w-full items-center 

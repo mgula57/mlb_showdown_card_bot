@@ -50,7 +50,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen }) => {
                     }
 
                     {/* Open/Close Button */}
-                    <button onClick={handleToggle} className="text-primary hover:text-secondary transition-colors duration-200">
+                    <button onClick={handleToggle} className="hover:text-secondary transition-colors duration-200">
                         {isOpen ? <FaChevronLeft /> : <FaChevronRight />}
                     </button>
                     

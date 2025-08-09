@@ -28,7 +28,7 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
                 ${isSideMenuOpen ? 'justify-start pl-4' : 'justify-center'}
                 ${selectedItem?.path === item.path ? 'bg-primary' : ''}
             `}>
-                { item.icon && <item.icon className="text-primary"/>}
+                { item.icon && <item.icon/>}
                 <h2 className={`${isSideMenuOpen ? 'block' : 'hidden'} pl-2 text-lg font-semibold text-primary`}>{item.text}</h2>
         </NavLink>
     );

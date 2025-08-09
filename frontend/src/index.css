@@ -21,8 +21,8 @@
         --showdown-blue: #4682e6;
         --showdown-red: #d04e47;
 
-        --background-primary: #3D3F45;
-        --background-secondary: #2B2E30;
+        --background-primary: #2d2d32;
+        --background-secondary: #232526;
 
         --divider: #444444;
     }
@@ -45,4 +45,10 @@
         color: var(--secondary);
     }
 
+}
+
+/* Set default text color for entire app */
+body {
+    color: var(--primary);
+    background-color: var(--background-primary);
 }
