@@ -1,18 +1,19 @@
 import React from 'react';
-import { FaCheckCircle, FaCircle } from 'react-icons/fa';
+import { FaCheckCircle, FaCircle, FaRegCircle } from 'react-icons/fa';
 
 /** Props for the FormEnabler component */
 type FormEnablerProps = {
     label: string;
     isEnabled: boolean;
     onChange: (isEnabled: boolean) => void;
+    className?: string; // Optional className for additional styling
 };
 
 /** 
  * FormEnabler component for toggling a form element's enabled state.
  * Displays a button that can be clicked to enable/disable the form element.
  */
-const FormEnabler: React.FC<FormEnablerProps> = ({ label, isEnabled, onChange }) => {
+const FormEnabler: React.FC<FormEnablerProps> = ({ label, isEnabled, onChange, className = "" }) => {
 
     return (
         <button 
@@ -23,11 +24,12 @@ const FormEnabler: React.FC<FormEnablerProps> = ({ label, isEnabled, onChange })
                 font-semibold text-nowrap 
                 ${isEnabled ? 'text-green-500' : 'text-gray-400 border-gray-200'}
                 ${isEnabled ? 'border-green-500 border-1' : 'border border-form-element'}
+                ${className}
             `} 
             onClick={() => onChange(isEnabled)}
         >
             {/* Show a checkmark or a circle based on the enabled state */}
-            {isEnabled ? <FaCheckCircle /> : <FaCircle />}
+            {isEnabled ? <FaCheckCircle /> : <FaRegCircle />}
             {label}
         </button>
     );

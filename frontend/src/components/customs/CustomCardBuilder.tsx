@@ -15,9 +15,12 @@ import editionCC from '../../assets/edition-cc.png';
 import editionPOST from '../../assets/edition-post.png';
 import editionSS from '../../assets/edition-ss.png';
 
+// Icons
+import { FaTable, FaImage, FaLayerGroup, FaUser } from 'react-icons/fa';
+
 /** State for the custom card form */
 interface CustomCardFormState {
-    // Basics
+    // Name and Year
     name: string; // ex: "Mike Trout"
     year: string; // ex: "2023"
     period: string; // e.g. "REGULAR"
@@ -37,13 +40,20 @@ interface CustomCardFormState {
     image_outer_glow: string; // e.g. "Glow 1x"
     image_url?: string | null; // e.g. "https://example.com/image.png"
     image_upload?: File | null; // For file uploads
+
+    // Image Extras
     add_image_border: boolean; // Whether to add a border to the image
     is_dark_mode: boolean; // Whether the card is in dark mode
     remove_team_branding: boolean; // Whether to remove team branding from the image
+    stats_type?: string; // e.g. "ALL", "OLD", "MODERN"
+    nickname_index?: string; // e.g. "NICKNAME 1",
+    show_year_plus_one?: boolean; // Whether to show the year + 1 in the set section
+    show_year_text?: boolean; // Whether to show the year text as a label on the card
 
     // Chart
-
-    // Extras
+    chart_version?: string; // e.g. "1"
+    era?: string; // e.g. "Dynamic"
+    is_variable_speed_00_01?: boolean; // Whether to use variable speed for 00-01
 
 }
 
@@ -58,7 +68,9 @@ const CustomCardBuilder: React.FC = () => {
         expansion: "BS", set_number: "", edition: "NONE", 
         image_source: "AUTO", image_parallel: "NONE", image_coloring: "PRIMARY", image_outer_glow: "1",
         image_url: "", image_upload: null, 
-        add_image_border: false, is_dark_mode: false, remove_team_branding: false
+        add_image_border: false, is_dark_mode: false, remove_team_branding: false,
+        stats_type: "NONE", nickname_index: "NONE", show_year_plus_one: false, show_year_text: false,
+        chart_version: "1", era: "DYNAMIC", is_variable_speed_00_01: false
     });
 
     // Expansion options
@@ -144,9 +156,9 @@ const CustomCardBuilder: React.FC = () => {
 
     const statsTypeOptions: SelectOption[] = [
         { "label": "None", "value": "NONE" },
-        { "label": "All", "value": "ALL" },
         { "label": "Old School", "value": "OLD" },
         { "label": "Modern", "value": "MODERN" },
+        { "label": "Both", "value": "ALL" },
     ]
 
     const nicknameIndexOptions: SelectOption[] = [
@@ -253,10 +265,10 @@ const CustomCardBuilder: React.FC = () => {
                 md:border-r border-r-gray-800
                 bg-background-secondary
                 overflow-y-auto
-                p-4 space-y-2
+                p-4 space-y-4
             ">
-                {/* Basics */}
-                <FormSection title='Basics' isOpenByDefault={true}>
+                {/* Player */}
+                <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
 
                     <FormInput
                         label="Name"
@@ -285,7 +297,7 @@ const CustomCardBuilder: React.FC = () => {
                 </FormSection>
 
                 {/* Set */}
-                <FormSection title='Set' isOpenByDefault={true}>
+                <FormSection title='Set' icon={<FaLayerGroup />} isOpenByDefault={true}>
 
                     <FormDropdown
                         label="Expansion"
@@ -310,8 +322,8 @@ const CustomCardBuilder: React.FC = () => {
                 </FormSection>
 
                 {/* Image */}
-                <FormSection title='Image' isOpenByDefault={true}>
-                    
+                <FormSection title='Image' icon={<FaImage />} isOpenByDefault={true}>
+
                     <FormDropdown
                         label="Player Image"
                         className='col-span-full'
@@ -338,9 +350,48 @@ const CustomCardBuilder: React.FC = () => {
 
                     {/* Extras */}
                     <h1 className="col-span-full text-md font-semibold text-secondary mt-2">Extras</h1>
+                    <FormDropdown
+                        label="Show Real Stats?"
+                        options={statsTypeOptions}
+                        selectedOption={form.stats_type || 'NONE'}
+                        onChange={(value) => setForm({ ...form, stats_type: value })}
+                    />
+                    <FormDropdown
+                        label="Show Nickname?"
+                        options={nicknameIndexOptions}
+                        selectedOption={form.nickname_index || 'NONE'}
+                        onChange={(value) => setForm({ ...form, nickname_index: value })}
+                    />
                     <FormEnabler label='Add Border' isEnabled={form.add_image_border} onChange={(isEnabled) => setForm({ ...form, add_image_border: !isEnabled })} />
                     <FormEnabler label='Dark Mode' isEnabled={form.is_dark_mode} onChange={(isEnabled) => setForm({ ...form, is_dark_mode: !isEnabled })} />
                     <FormEnabler label='Remove Team' isEnabled={form.remove_team_branding} onChange={(isEnabled) => setForm({ ...form, remove_team_branding: !isEnabled })} />
+
+
+                </FormSection>
+
+                {/* Chart */}
+                <FormSection title='Chart' icon={<FaTable />} isOpenByDefault={false}>
+
+                    <FormDropdown
+                        label="Chart Version"
+                        options={chartVersionOptions}
+                        selectedOption={form.chart_version || '1'}
+                        onChange={(value) => setForm({ ...form, chart_version: value })}
+                    />
+
+                    <FormDropdown
+                        label="Era"
+                        options={eraOptions}
+                        selectedOption={form.era || 'DYNAMIC'}
+                        onChange={(value) => setForm({ ...form, era: value })}
+                    />
+
+                    <FormEnabler
+                        label="Variable Speed 00-01"
+                        className="col-span-2"
+                        isEnabled={form.is_variable_speed_00_01 || false}
+                        onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
+                    />
 
                 </FormSection>
 

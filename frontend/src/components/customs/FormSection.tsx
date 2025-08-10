@@ -6,11 +6,12 @@ import { FaCaretDown, FaCaretUp } from 'react-icons/fa';
 type FormSectionProps = {
     title: string;
     children: React.ReactNode;
+    icon?: React.ReactNode; // Icon to display in the section header
     isOpenByDefault?: boolean;
 };
 
 /** FormSection component that can be expanded or collapsed */
-const FormSection: React.FC<FormSectionProps> = ({ title, children, isOpenByDefault=false }) => {
+const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false }) => {
     
     // State to manage the open/closed state of the section
     const [isOpen, setIsOpen] = useState(isOpenByDefault);
@@ -22,7 +23,7 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, isOpenByDefa
 
     return (
         // Main section container
-        <div className="w-full p-4 border-2 border-form-element rounded-lg overflow-hidden">
+        <div className="w-full p-4 border-2 border-form-element rounded-2xl overflow-hidden">
 
             {/* Section Header and Open/Close Button */}
             <button
@@ -31,7 +32,9 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, isOpenByDefa
                 onClick={toggleCollapse}
             >
                 <div className="flex justify-between items-center w-full text-secondary text-lg font-black">
-                    <span>{title}</span>
+                    <span className='flex items-center gap-2'>
+                        {icon} {title}
+                    </span>
                     <span>{isOpen ? <FaCaretUp /> : <FaCaretDown />}</span>
                 </div>
             </button>
