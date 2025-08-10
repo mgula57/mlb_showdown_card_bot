@@ -11,6 +11,11 @@ type AppLayoutProps = {
     children: ReactNode;
 };
 
+const TITLE_MAP: Record<string, string> = {
+  customs: "Custom Card Builder",
+  explore: "Explore",
+};
+
 /**
  * AppLayout component that wraps the main application content
  * with a sidebar and main content area.
@@ -23,6 +28,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     const location = useLocation();
     const locationName = location.pathname.split('/')[1] || 'home';
 
+    const headerTitle: string = TITLE_MAP[locationName] || "Home";
+
     return (
         <div className="bg-primary flex h-screen relative w-screen">
             {/* Sidebar */}
@@ -30,14 +37,16 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
             <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 ${contentPadding}`}>
                 {/* Header */}
-                <header className={
-                    `flex h-12 p-4 w-full items-center 
+                <header className={`
+                    sticky top-0 z-30
+                    flex h-12 p-4 w-full items-center 
                     space-x-4
-                    border-b-gray-600 shadow-sm
+                    border-b-gray-600 shadow-md
+                    bg-primary/95 backdrop-blur
                 `}>
                     {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48" />}
                     <h1 className="text-xl font-semibold text-secondary">
-                        {locationName.charAt(0).toUpperCase() + locationName.slice(1) || 'Home'}
+                        {headerTitle}
                     </h1>
                 </header>
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaCheckCircle, FaCircle, FaRegCircle } from 'react-icons/fa';
+import { FaCheckCircle, FaRegCircle } from 'react-icons/fa';
 
 /** Props for the FormEnabler component */
 type FormEnablerProps = {

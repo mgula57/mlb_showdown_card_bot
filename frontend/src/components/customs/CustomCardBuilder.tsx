@@ -102,7 +102,7 @@ const CustomCardBuilder: React.FC = () => {
 
     // Image Source Options
     const imageSourceOptions: SelectOption[] = [
-        { 'value': 'AUTO', 'label': 'Auto', 'symbol': '🤖' },
+        { 'value': 'AUTO', 'label': 'Auto', 'symbol': '⚙️' },
         { 'value': 'LINK', 'label': 'Link', 'symbol': '🔗' },
         { 'value': 'UPLOAD', 'label': 'Upload', 'symbol': '📤' },
     ]
@@ -257,143 +257,169 @@ const CustomCardBuilder: React.FC = () => {
         // Main layout container
         // In small screens, the form will take full width
         // In larger screens, it will be split into two sections
-        <div className="h-full flex flex-col md:flex-row overflow-hidden">
+        <div className="flex flex-col md:flex-row overflow-hidden h-[calc(100vh-3rem)]">
 
             {/* Form Inputs */}
             <section className="
                 w-full lg:w-2/3 md:max-w-128
                 md:border-r border-r-gray-800
                 bg-background-secondary
-                overflow-y-auto
-                p-4 space-y-4
+                flex flex-col 
+                h-full
             ">
-                {/* Player */}
-                <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
 
-                    <FormInput
-                        label="Name"
-                        className='col-span-full'
-                        value={form.name}
-                        onChange={(value) => setForm({ ...form, name: value || '' })}
-                        isClearable={true}
-                    />
+                {/* Scrollable area */}
+                <div className="flex-1 overflow-y-auto px-4 pt-4">
 
-                    <FormInput
-                        label="Year"
-                        value={form.year}
-                        onChange={(value) => setForm({ ...form, year: value || '' })}
-                        isClearable={true}
-                    />
+                    {/* Form Inputs */}
+                    <div className="space-y-4 pb-12">
+                        {/* Player */}
+                        <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
 
-                    <FormDropdown
-                        label="Period"
-                        options={periodOptions}
-                        selectedOption={form.period}
-                        onChange={(value) => setForm({ ...form, period: value })}
-                    />
+                            <FormInput
+                                label="Name"
+                                className='col-span-full'
+                                value={form.name}
+                                onChange={(value) => setForm({ ...form, name: value || '' })}
+                                isClearable={true}
+                            />
 
-                    {renderPeriodInputs()}
+                            <FormInput
+                                label="Year"
+                                value={form.year}
+                                onChange={(value) => setForm({ ...form, year: value || '' })}
+                                isClearable={true}
+                            />
 
-                </FormSection>
+                            <FormDropdown
+                                label="Period"
+                                options={periodOptions}
+                                selectedOption={form.period}
+                                onChange={(value) => setForm({ ...form, period: value })}
+                            />
 
-                {/* Set */}
-                <FormSection title='Set' icon={<FaLayerGroup />} isOpenByDefault={true}>
+                            {renderPeriodInputs()}
 
-                    <FormDropdown
-                        label="Expansion"
-                        options={expansionOptions}
-                        selectedOption={form.expansion}
-                        onChange={(value) => setForm({ ...form, expansion: value })}
-                    />
+                        </FormSection>
 
-                    <FormDropdown
-                        label="Edition"
-                        options={editionOptions}
-                        selectedOption={form.edition}
-                        onChange={(value) => setForm({ ...form, edition: value })}
-                    />
+                        {/* Set */}
+                        <FormSection title='Set' icon={<FaLayerGroup />} isOpenByDefault={true}>
 
-                    <FormInput
-                        label="Set Number"
-                        value={form.set_number || ''}
-                        onChange={(value) => setForm({ ...form, set_number: value || '' })}
-                        isClearable={true}
-                    />
-                </FormSection>
+                            <FormDropdown
+                                label="Expansion"
+                                options={expansionOptions}
+                                selectedOption={form.expansion}
+                                onChange={(value) => setForm({ ...form, expansion: value })}
+                            />
 
-                {/* Image */}
-                <FormSection title='Image' icon={<FaImage />} isOpenByDefault={true}>
+                            <FormDropdown
+                                label="Edition"
+                                options={editionOptions}
+                                selectedOption={form.edition}
+                                onChange={(value) => setForm({ ...form, edition: value })}
+                            />
 
-                    <FormDropdown
-                        label="Player Image"
-                        className='col-span-full'
-                        options={imageSourceOptions}
-                        selectedOption={form.image_source}
-                        onChange={(value) => setForm({ ...form, image_source: value })}
-                    />
+                            <FormInput
+                                label="Set Number"
+                                value={form.set_number || ''}
+                                onChange={(value) => setForm({ ...form, set_number: value || '' })}
+                                isClearable={true}
+                            />
+                        </FormSection>
 
-                    {renderImageSourceInputs()}
+                        {/* Image */}
+                        <FormSection title='Image' icon={<FaImage />} isOpenByDefault={true}>
 
-                    <FormDropdown
-                        label="Image Coloring"
-                        options={imageColoringOptions}
-                        selectedOption={form.image_coloring}
-                        onChange={(value) => setForm({ ...form, image_coloring: value })}
-                    />
+                            <FormDropdown
+                                label="Player Image"
+                                className='col-span-full'
+                                options={imageSourceOptions}
+                                selectedOption={form.image_source}
+                                onChange={(value) => setForm({ ...form, image_source: value })}
+                            />
 
-                    <FormDropdown
-                        label="Outer Glow"
-                        options={outerGlowOptions}
-                        selectedOption={form.image_outer_glow}
-                        onChange={(value) => setForm({ ...form, image_outer_glow: value })}
-                    />
+                            {renderImageSourceInputs()}
 
-                    {/* Extras */}
-                    <h1 className="col-span-full text-md font-semibold text-secondary mt-2">Extras</h1>
-                    <FormDropdown
-                        label="Show Real Stats?"
-                        options={statsTypeOptions}
-                        selectedOption={form.stats_type || 'NONE'}
-                        onChange={(value) => setForm({ ...form, stats_type: value })}
-                    />
-                    <FormDropdown
-                        label="Show Nickname?"
-                        options={nicknameIndexOptions}
-                        selectedOption={form.nickname_index || 'NONE'}
-                        onChange={(value) => setForm({ ...form, nickname_index: value })}
-                    />
-                    <FormEnabler label='Add Border' isEnabled={form.add_image_border} onChange={(isEnabled) => setForm({ ...form, add_image_border: !isEnabled })} />
-                    <FormEnabler label='Dark Mode' isEnabled={form.is_dark_mode} onChange={(isEnabled) => setForm({ ...form, is_dark_mode: !isEnabled })} />
-                    <FormEnabler label='Remove Team' isEnabled={form.remove_team_branding} onChange={(isEnabled) => setForm({ ...form, remove_team_branding: !isEnabled })} />
+                            <FormDropdown
+                                label="Image Coloring"
+                                options={imageColoringOptions}
+                                selectedOption={form.image_coloring}
+                                onChange={(value) => setForm({ ...form, image_coloring: value })}
+                            />
+
+                            <FormDropdown
+                                label="Outer Glow"
+                                options={outerGlowOptions}
+                                selectedOption={form.image_outer_glow}
+                                onChange={(value) => setForm({ ...form, image_outer_glow: value })}
+                            />
+
+                            {/* Extras */}
+                            <h1 className="col-span-full text-md font-semibold text-secondary mt-2">Extras</h1>
+                            <FormDropdown
+                                label="Show Real Stats?"
+                                options={statsTypeOptions}
+                                selectedOption={form.stats_type || 'NONE'}
+                                onChange={(value) => setForm({ ...form, stats_type: value })}
+                            />
+                            <FormDropdown
+                                label="Show Nickname?"
+                                options={nicknameIndexOptions}
+                                selectedOption={form.nickname_index || 'NONE'}
+                                onChange={(value) => setForm({ ...form, nickname_index: value })}
+                            />
+                            <FormEnabler label='Add Border' isEnabled={form.add_image_border} onChange={(isEnabled) => setForm({ ...form, add_image_border: !isEnabled })} />
+                            <FormEnabler label='Dark Mode' isEnabled={form.is_dark_mode} onChange={(isEnabled) => setForm({ ...form, is_dark_mode: !isEnabled })} />
+                            <FormEnabler label='Remove Team' isEnabled={form.remove_team_branding} onChange={(isEnabled) => setForm({ ...form, remove_team_branding: !isEnabled })} />
 
 
-                </FormSection>
+                        </FormSection>
 
-                {/* Chart */}
-                <FormSection title='Chart' icon={<FaTable />} isOpenByDefault={false}>
+                        {/* Chart */}
+                        <FormSection title='Chart' icon={<FaTable />} isOpenByDefault={false}>
 
-                    <FormDropdown
-                        label="Chart Version"
-                        options={chartVersionOptions}
-                        selectedOption={form.chart_version || '1'}
-                        onChange={(value) => setForm({ ...form, chart_version: value })}
-                    />
+                            <FormDropdown
+                                label="Chart Version"
+                                options={chartVersionOptions}
+                                selectedOption={form.chart_version || '1'}
+                                onChange={(value) => setForm({ ...form, chart_version: value })}
+                            />
 
-                    <FormDropdown
-                        label="Era"
-                        options={eraOptions}
-                        selectedOption={form.era || 'DYNAMIC'}
-                        onChange={(value) => setForm({ ...form, era: value })}
-                    />
+                            <FormDropdown
+                                label="Era"
+                                options={eraOptions}
+                                selectedOption={form.era || 'DYNAMIC'}
+                                onChange={(value) => setForm({ ...form, era: value })}
+                            />
 
-                    <FormEnabler
-                        label="Variable Speed 00-01"
-                        className="col-span-2"
-                        isEnabled={form.is_variable_speed_00_01 || false}
-                        onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
-                    />
+                            <FormEnabler
+                                label="Variable Speed 00-01"
+                                className="col-span-2"
+                                isEnabled={form.is_variable_speed_00_01 || false}
+                                onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
+                            />
 
-                </FormSection>
+                        </FormSection>
+                    </div>
+
+                    {/* Form Buttons */}
+                    {/* Make sticky at bottom */}
+                    <footer className="
+                        sticky bottom-0
+                        -mx-4 p-6
+                        bg-background-secondary/95 backdrop-blur
+                        border-t border-form-element
+                        shadow-md
+                    ">
+                        <button
+                            type="button"
+                            className="w-full rounded-lg p-2 text-white bg-blue-400"
+                        >
+                            Build Card
+                        </button>
+                    </footer>
+
+                </div>
 
             </section>
 
