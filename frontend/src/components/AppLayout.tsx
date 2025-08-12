@@ -2,6 +2,8 @@ import React, { type ReactNode, useState } from "react";
 import SideMenu from "./side_menu/SideMenu";
 import ShowdownBotLogo from "./shared/ShowdownBotLogo";
 import { useLocation } from "react-router-dom";
+import { useSiteSettings, showdownSets } from "./shared/SiteSettingsContext";
+import { CustomSelect } from "./shared/CustomSelect";
 
 // *********************************
 // App Layout
@@ -12,7 +14,7 @@ type AppLayoutProps = {
 };
 
 const TITLE_MAP: Record<string, string> = {
-  customs: "Custom Card Builder",
+  customs: "Custom Card",
   explore: "Explore",
 };
 
@@ -23,6 +25,7 @@ const TITLE_MAP: Record<string, string> = {
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     const [isSideMenuOpen, setIsSideMenuOpen] = useState(true);
+    const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
 
     const contentPadding = isSideMenuOpen ? 'pl-48' : 'pl-12';
     const location = useLocation();
@@ -40,18 +43,31 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 <header className={`
                     sticky top-0 z-30
                     flex h-12 p-4 w-full items-center 
-                    space-x-4
+                    justify-between
                     border-b-gray-600 shadow-md
                     bg-primary/95 backdrop-blur
                 `}>
-                    {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48" />}
-                    <h1 className="text-xl font-semibold text-secondary">
-                        {headerTitle}
-                    </h1>
+                    {/* Logo and Title */}
+                    <div className="flex items-center space-x-4">
+                        {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48" />}
+                        <h1 className="text-xl font-semibold text-secondary">
+                            {headerTitle}
+                        </h1>
+                    </div>
+
+                    {/* Showdown Set */}
+                    <CustomSelect
+                        value={userShowdownSet}
+                        onChange={setUserShowdownSet}
+                        options={showdownSets}
+                        suffix="Set"
+                        disableMinWidth={true}
+                    />
+                    
                 </header>
 
                 {/* Main content */}
-                <main className={`flex-1 py-2overflow-auto w-full relative`}>
+                <main className={`flex-1 py-1 overflow-auto w-full relative`}>
                     { children }
                 </main>
             </div>

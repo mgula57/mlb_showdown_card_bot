@@ -15,6 +15,8 @@ import editionCC from '../../assets/edition-cc.png';
 import editionPOST from '../../assets/edition-post.png';
 import editionSS from '../../assets/edition-ss.png';
 
+import blankPlayer2001Dark from '../../assets/blankplayer-2001-dark.png';
+
 // Icons
 import { FaTable, FaImage, FaLayerGroup, FaUser } from 'react-icons/fa';
 
@@ -252,12 +254,20 @@ const CustomCardBuilder: React.FC = () => {
         }
     }
 
+    const renderBlankPlayerImageName = () => {
+        return blankPlayer2001Dark;
+    }
+
     /** Render the main form layout */
     return (
         // Main layout container
         // In small screens, the form will take full width
         // In larger screens, it will be split into two sections
-        <div className="flex flex-col md:flex-row overflow-hidden h-[calc(100vh-3rem)]">
+        <div className="
+            flex flex-col md:flex-row 
+            md:overflow-hidden 
+            md:h-[calc(100vh-3rem)]
+        ">
 
             {/* Form Inputs */}
             <section className="
@@ -272,7 +282,7 @@ const CustomCardBuilder: React.FC = () => {
                 <div className="flex-1 overflow-y-auto px-4 pt-4">
 
                     {/* Form Inputs */}
-                    <div className="space-y-4 pb-12">
+                    <div className="space-y-4 md:pb-12">
                         {/* Player */}
                         <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
 
@@ -405,10 +415,10 @@ const CustomCardBuilder: React.FC = () => {
                     {/* Form Buttons */}
                     {/* Make sticky at bottom */}
                     <footer className="
-                        sticky bottom-0
+                        md:sticky md:bottom-0
                         -mx-4 p-6
                         bg-background-secondary/95 backdrop-blur
-                        border-t border-form-element
+                        md:border-t border-form-element
                         shadow-md
                     ">
                         <button
@@ -429,11 +439,19 @@ const CustomCardBuilder: React.FC = () => {
                 bg-background-secondary
                 overflow-y-auto
                 p-4 space-y-6
+                h-full
             ">
-                <h1 className="text-2xl font-semibold text-secondary">Preview</h1>
-                <p className="text-secondary">
+                <img 
+                    src={renderBlankPlayerImageName()} 
+                    alt="Blank Player" 
+                    className="
+                        block w-auto h-auto mx-auto 
+                        max-w-11/12 md:max-w-full lg:max-w-112 xl:max-w-128
+                        object-contain
+                        shadow-2xl
+                    " 
+                />
                 
-                </p>
             </section>
         </div>
     );

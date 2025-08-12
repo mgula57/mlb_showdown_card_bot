@@ -16,10 +16,13 @@ type CustomSelectProps = {
     value: string;
     onChange: (value: string) => void;
     options: SelectOption[];
+    className?: string; // Optional className for additional styling
+    suffix?: string; // Optional suffix to display after the selected value
+    disableMinWidth?: boolean; // Optional prop to disable min-width
 };
 
 /** Custom select component for selecting an option from a dropdown list. */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, disableMinWidth = false }) => {
 
     /** State to manage dropdown open/close */
     const [isOpen, setIsOpen] = useState(false);
@@ -113,7 +116,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options })
 
     return (
         // Container
-        <div>
+        <div className={`${className}`}>
             {/* Dropdown button */}
             <button
                 type="button"
@@ -131,6 +134,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options })
                     { renderSymbol(options.find(option => option.value === value)?.symbol) }
                     { renderIcon(options.find(option => option.value === value)?.icon) }
                     {options.find(option => option.value === value)?.label || null}
+                    {suffix && <span className='ml-1'>{suffix}</span>}
                 </div>
             </button>
 
@@ -142,7 +146,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options })
                         absolute z-10
                         ${openAbove ? '-translate-y-[calc(100%+3rem)]' : 'mt-1'}
                         transform
-                        min-w-2/3 md:min-w-48
+                        ${disableMinWidth ? '' : 'min-w-2/3 md:min-w-48'}
                         bg-secondary rounded-xl shadow-lg 
                         text-nowrap overflow-clip
                     `}
