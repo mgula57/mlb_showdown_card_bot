@@ -4,6 +4,10 @@ import FormSection from './FormSection';
 import FormDropdown from './FormDropdown';
 import FormEnabler from './FormEnabler';
 import type { SelectOption } from '../shared/CustomSelect';
+import { useSiteSettings } from '../shared/SiteSettingsContext';
+
+// API
+import { buildCustomCard } from '../../api/buildCustomCard';
 
 // Image Assets
 import expansionBS from '../../assets/expansion-bs.png';
@@ -64,12 +68,15 @@ interface CustomCardFormState {
 */
 const CustomCardBuilder: React.FC = () => {
 
+    const { userShowdownSet } = useSiteSettings();
+    const [ cardImageUrl, setCardImageUrl ] = useState<string | null>(null);
+
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>({
-        name: "", year: "", period: "REGULAR", start_date: "", end_date: "", split: "",
-        expansion: "BS", set_number: "", edition: "NONE", 
+        name: "", year: "", period: "REGULAR", start_date: null, end_date: null, split: null,
+        expansion: "BS", set_number: null, edition: "NONE", 
         image_source: "AUTO", image_parallel: "NONE", image_coloring: "PRIMARY", image_outer_glow: "1",
-        image_url: "", image_upload: null, 
+        image_url: null, image_upload: null, 
         add_image_border: false, is_dark_mode: false, remove_team_branding: false,
         stats_type: "NONE", nickname_index: "NONE", show_year_plus_one: false, show_year_text: false,
         chart_version: "1", era: "DYNAMIC", is_variable_speed_00_01: false
@@ -176,6 +183,37 @@ const CustomCardBuilder: React.FC = () => {
         { "label": "Glow 3x", "value": "3" },
     ]
 
+    const handleBuild = async () => {
+        try {
+            // TODO: Handle image uploads
+            console.log("Building card with form data:", form);
+
+            var { image_upload, image_source, ...payload } = form; // omit the File
+
+            const cardData = await buildCustomCard({
+                ...payload,
+
+                // Default parameters/settings
+                set: userShowdownSet,
+                is_running_on_website: true,
+                image_output_folder_path: "static/output/"
+            });
+
+            console.log("Card built successfully:", cardData);
+            
+            // Set the image URL for display
+            if (!cardData.card || !cardData.card.image) {
+                console.error("Card data does not contain image information");
+                return;
+            }
+            const imageUrl = `${cardData.card.image.output_folder_path}${cardData.card.image.output_file_name}`;
+            setCardImageUrl(imageUrl);
+
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     /** 
      * Render the period inputs based on the selected period 
      * This will show different inputs based on the period type selected.
@@ -187,13 +225,13 @@ const CustomCardBuilder: React.FC = () => {
                     <>
                         <FormInput
                             label="Start Date"
-                            value={form.start_date || '2025-01-01'}
+                            value={form.start_date || ''}
                             type="date"
-                            onChange={(value) => setForm({ ...form, start_date: value })}
+                            onChange={(value) => setForm({ ...form, start_date: value || null })}
                         />
                         <FormInput
                             label="End Date"
-                            value={form.end_date || '2025-12-31'}
+                            value={form.end_date || ''}
                             type="date"
                             onChange={(value) => setForm({ ...form, end_date: value })}
                         />
@@ -423,7 +461,8 @@ const CustomCardBuilder: React.FC = () => {
                     ">
                         <button
                             type="button"
-                            className="w-full rounded-lg p-2 text-white bg-blue-400"
+                            className="w-full rounded-lg p-2 text-white bg-blue-400 cursor-pointer hover:bg-blue-500"
+                            onClick={handleBuild}
                         >
                             Build Card
                         </button>
@@ -442,11 +481,12 @@ const CustomCardBuilder: React.FC = () => {
                 h-full
             ">
                 <img 
-                    src={renderBlankPlayerImageName()} 
+                    src={cardImageUrl == null ? renderBlankPlayerImageName() : cardImageUrl}
                     alt="Blank Player" 
                     className="
                         block w-auto h-auto mx-auto 
                         max-w-11/12 md:max-w-full lg:max-w-112 xl:max-w-128
+                        rounded-xl
                         object-contain
                         shadow-2xl
                     " 

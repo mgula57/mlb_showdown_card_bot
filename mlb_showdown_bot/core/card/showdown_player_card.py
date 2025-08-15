@@ -6202,7 +6202,8 @@ class ShowdownPlayerCard(BaseModel):
         
         
         if self.is_running_on_website:
-            flask_img_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output', self.image.output_file_name)
+            default_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output')
+            flask_img_path = os.path.join(self.image.output_folder_path, self.image.output_file_name)
             image.save(flask_img_path, dpi=(300, 300), quality=100)
         else:
             default_path = os.path.join(os.path.dirname(__file__), 'image_output')

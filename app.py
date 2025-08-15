@@ -1,5 +1,6 @@
 import os
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 from pprint import pprint
 from time import sleep
 
@@ -12,19 +13,26 @@ from mlb_showdown_bot.core.card.card_generation import generate_card
 
 app = Flask(__name__)
 
+# ALLOW FRONTEND ORIGIN (VITE DEFAULTS TO 5173)
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
+CORS(app, resources={r"/*": {"origins": FRONTEND_ORIGIN}})
+
 # ----------------------------------------------------------
 # FRONT END
 # ----------------------------------------------------------
 
-@app.route('/')
-def card_submission():
-    return render_template('index.html')
+@app.route('/build_custom_card', methods=["POST","GET"])
+def build_custom_card():
 
-@app.route('/card_creation')
-def card_creator():
+    # SUPPORT EITHER GET OR POST
+    kwargs: dict[str, str] = {}
+    kwargs.update(request.args.to_dict())
+    kwargs.update(request.form.to_dict())
 
-    # CONVERT ALL REQUEST ARGS TO DICT
-    kwargs = request.args.to_dict()
+    # SEE IF REQUEST HAS JSON DATA
+    json_data = request.get_json(silent=True) or {}
+    if isinstance(json_data, dict):
+        kwargs.update({k: v for k, v in json_data.items()})
 
     # DELAY SLIGHTLY IF IMG UPLOAD TO LET THE IMAGE FINISH UPLOADING
     if kwargs.get('img_name', None):
@@ -38,7 +46,7 @@ def card_creator():
     
     return jsonify(card_data)
 
-@app.route('/upload', methods=["POST","GET"])
+@app.route('/upload_card_image', methods=["POST","GET"])
 def upload():
     try:
         image = request.files.get('image_file')

@@ -1,0 +1,23 @@
+const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5000";
+
+type Primitive = string | number | boolean | null | undefined;
+
+/** Sends the entire form (minus File) as JSON to /build_custom_card */
+export async function buildCustomCard(payload: Record<string, Primitive>) {
+    
+    // Image is sent separately, so we remove it from the payload
+    const { image_upload, image_source, ...cleaned_data } = payload;
+
+    // Fetch the API endpoint
+    const res = await fetch(`${API_BASE}/build_custom_card`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cleaned_data),
+    });
+
+    // Handle errors
+    if (!res.ok) throw new Error(`Build failed: ${res.status}`);
+
+    // Return the JSON response
+    return res.json();
+}
