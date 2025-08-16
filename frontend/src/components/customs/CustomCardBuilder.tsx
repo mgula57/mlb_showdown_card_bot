@@ -7,7 +7,7 @@ import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 
 // API
-import { buildCustomCard } from '../../api/buildCustomCard';
+import { buildCustomCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 
 // Image Assets
 import expansionBS from '../../assets/expansion-bs.png';
@@ -68,8 +68,12 @@ interface CustomCardFormState {
 */
 const CustomCardBuilder: React.FC = () => {
 
+    // Card States
     const { userShowdownSet } = useSiteSettings();
-    const [ cardImageUrl, setCardImageUrl ] = useState<string | null>(null);
+    const [ showdownBotCardData, setShowdownBotCardData ] = useState<ShowdownBotCardAPIResponse | null>(null);
+
+    // Card Calcs
+    const cardImagePath: string | null = showdownBotCardData?.card?.image ? `${showdownBotCardData.card.image.output_folder_path}/${showdownBotCardData.card.image.output_file_name}` : null;
 
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>({
@@ -200,14 +204,9 @@ const CustomCardBuilder: React.FC = () => {
             });
 
             console.log("Card built successfully:", cardData);
-            
-            // Set the image URL for display
-            if (!cardData.card || !cardData.card.image) {
-                console.error("Card data does not contain image information");
-                return;
-            }
-            const imageUrl = `${cardData.card.image.output_folder_path}${cardData.card.image.output_file_name}`;
-            setCardImageUrl(imageUrl);
+
+            // Retrieve response, set state
+            setShowdownBotCardData(cardData);
 
         } catch (err) {
             console.error(err);
@@ -483,7 +482,7 @@ const CustomCardBuilder: React.FC = () => {
                 pb-24
             ">
                 <img 
-                    src={cardImageUrl == null ? renderBlankPlayerImageName() : cardImageUrl}
+                    src={cardImagePath == null ? renderBlankPlayerImageName() : cardImagePath}
                     alt="Blank Player" 
                     className="
                         block w-auto h-auto mx-auto 
