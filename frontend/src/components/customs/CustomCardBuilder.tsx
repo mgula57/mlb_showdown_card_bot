@@ -320,7 +320,7 @@ const CustomCardBuilder: React.FC = () => {
                 <div className="flex-1 overflow-y-auto px-4 pt-4">
 
                     {/* Form Inputs */}
-                    <div className="space-y-4 md:pb-12">
+                    <div className="space-y-4 pb-12">
                         {/* Player */}
                         <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
 
@@ -453,7 +453,8 @@ const CustomCardBuilder: React.FC = () => {
                     {/* Form Buttons */}
                     {/* Make sticky at bottom */}
                     <footer className="
-                        md:sticky md:bottom-0
+                        fixed bottom-0 left-0 right-0 z-20
+                        md:sticky md:bottom-0 md:left-auto md:right-auto md:z-auto
                         -mx-4 p-6
                         bg-background-secondary/95 backdrop-blur
                         md:border-t border-form-element
@@ -479,6 +480,7 @@ const CustomCardBuilder: React.FC = () => {
                 overflow-y-auto
                 p-4 space-y-6
                 h-full
+                pb-24
             ">
                 <img 
                     src={cardImageUrl == null ? renderBlankPlayerImageName() : cardImageUrl}
