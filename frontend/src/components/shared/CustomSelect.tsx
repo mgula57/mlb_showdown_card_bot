@@ -126,6 +126,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                     border-2 ${selectedBorderColor} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400
                     bg-primary text-primary text-nowrap text-left 
                     overflow-clip
+                    cursor-pointer
                 `}
                 onClick={handleToggle}
             >
@@ -149,6 +150,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                         ${disableMinWidth ? '' : 'min-w-2/3 md:min-w-48'}
                         bg-secondary rounded-xl shadow-lg 
                         text-nowrap overflow-clip
+                        
                     `}
                 >
                     {options.map((option) => (

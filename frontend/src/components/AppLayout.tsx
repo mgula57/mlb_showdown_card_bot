@@ -4,6 +4,7 @@ import ShowdownBotLogo from "./shared/ShowdownBotLogo";
 import { useLocation } from "react-router-dom";
 import { useSiteSettings, showdownSets } from "./shared/SiteSettingsContext";
 import { CustomSelect } from "./shared/CustomSelect";
+import { FiMenu } from "react-icons/fi";
 
 // *********************************
 // App Layout
@@ -25,9 +26,10 @@ const TITLE_MAP: Record<string, string> = {
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     const [isSideMenuOpen, setIsSideMenuOpen] = useState(true);
+    const [isSideMenuOpenMobile, setIsSideMenuOpenMobile] = useState(false);
     const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
 
-    const contentPadding = isSideMenuOpen ? 'pl-48' : 'pl-12';
+    const contentPadding = isSideMenuOpen ? 'md:pl-48' : 'md:pl-12';
     const location = useLocation();
     const locationName = location.pathname.split('/')[1] || 'home';
 
@@ -35,8 +37,21 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     return (
         <div className="bg-primary flex h-screen relative w-screen">
-            {/* Sidebar */}
-            <SideMenu isOpen={isSideMenuOpen} setIsOpen={setIsSideMenuOpen} />
+            {/* Desktop Sidebar */}
+            <SideMenu className="hidden md:block" isOpen={isSideMenuOpen} setIsOpen={setIsSideMenuOpen} />
+
+            {/* Mobile slide-over sidebar */}
+            {isSideMenuOpenMobile && (
+                <div className="fixed inset-0 z-40 md:hidden">
+                    <div
+                        className="absolute inset-0 bg-black/40"
+                        onClick={() => setIsSideMenuOpenMobile(false)}
+                        aria-hidden
+                    />
+                        <SideMenu isOpen={true} setIsOpen={setIsSideMenuOpenMobile} isMobile={true} />
+                </div>
+            )}
+
 
             <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 ${contentPadding}`}>
                 {/* Header */}
@@ -49,7 +64,24 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 `}>
                     {/* Logo and Title */}
                     <div className="flex items-center space-x-4">
-                        {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48" />}
+
+                        <button
+                            type="button"
+                            className="
+                                md:hidden inline-flex items-center justify-center p-2 
+                                rounded-md border border-form-element 
+                                text-secondary hover:bg-background-secondary
+                                cursor-pointer
+                            "
+                            aria-label="Open menu"
+                            onClick={() => setIsSideMenuOpenMobile(true)}
+                            >
+                            <FiMenu className="h-5 w-5" />
+                        </button>
+                        
+                        {/* Show logo on small always */}
+                        <ShowdownBotLogo className="max-w-48 md:hidden" />
+                        {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48 hidden md:block" />}
                         <h1 className="text-xl font-semibold text-secondary">
                             {headerTitle}
                         </h1>

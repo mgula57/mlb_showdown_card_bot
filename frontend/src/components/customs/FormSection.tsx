@@ -28,7 +28,7 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
             {/* Section Header and Open/Close Button */}
             <button
                 type='button'
-                className="flex justify-between items-center w-full"
+                className="flex justify-between items-center w-full cursor-pointer"
                 onClick={toggleCollapse}
             >
                 <div className="flex justify-between items-center w-full text-secondary text-lg font-black">

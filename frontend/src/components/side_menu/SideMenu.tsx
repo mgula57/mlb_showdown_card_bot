@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { FaChevronRight, FaChevronLeft } from "react-icons/fa";
+import { FaXmark } from "react-icons/fa6";
 import { SideMenuItem, sideMenuItems } from "./SideMenuItem";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
 import ShowdownBotLogo from "../shared/ShowdownBotLogo";
@@ -10,10 +11,12 @@ import ThemeToggleButton from "./ThemeToggleButton";
 type SideMenuProps = {
     isOpen: boolean;
     setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    className?: string;
+    isMobile?: boolean;
 };
     
 /** Dynamic side menu component that displays navigation links. */
-const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMobile }) => {
 
     // State to manage the selected item
     const [selectedMenuItem, setSelectedMenuItem] = useState<SideMenuItemType | null>(sideMenuItems[0]);
@@ -27,16 +30,17 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen }) => {
     // Set the selected menu item when clicked.
     const handleMenuItemClick = (item: SideMenuItemType) => {
         console.log(`Selected menu item: ${item.text}`);
-        setSelectedMenuItem(item);        
+        setSelectedMenuItem(item);
+        if (isMobile) setIsOpen(false); // Close menu on mobile after selection
     };
 
     return (
         // Container
-        <aside className='h-screen fixed left-0 top-0'>
+        <aside className={`h-screen fixed left-0 top-0 ${className}`}>
 
             {/* Navigation */}
             <nav className={`
-                h-screen ${isOpen ? 'w-48' : 'w-12'} space-y-4
+                h-screen ${isOpen ? 'w-64 md:w-48' : 'w-12'} space-y-4
                 bg-secondary border-r-divider shadow-sm
                 transition-all duration-300 ease-in-out
                 flex flex-col
@@ -53,7 +57,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen }) => {
 
                     {/* Open/Close Button */}
                     <button onClick={handleToggle} className="hover:text-secondary transition-colors duration-200">
-                        {isOpen ? <FaChevronLeft /> : <FaChevronRight />}
+                        {isOpen ? (isMobile ? <FaXmark className="h-8 w-8" /> : <FaChevronLeft />) : <FaChevronRight />}
                     </button>
                     
                 </div>
