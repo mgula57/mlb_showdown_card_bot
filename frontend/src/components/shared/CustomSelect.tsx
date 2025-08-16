@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 /* Represents a single option in the custom select dropdown */
 type SelectOption = {
@@ -18,15 +19,15 @@ type CustomSelectProps = {
     options: SelectOption[];
     className?: string; // Optional className for additional styling
     suffix?: string; // Optional suffix to display after the selected value
-    disableMinWidth?: boolean; // Optional prop to disable min-width
 };
 
 /** Custom select component for selecting an option from a dropdown list. */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, disableMinWidth = false }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null }) => {
 
     /** State to manage dropdown open/close */
     const [isOpen, setIsOpen] = useState(false);
     const [openAbove, setOpenAbove] = useState(false); // NEW
+    const [menuPos, setMenuPos] = useState<{ left: number; top: number; }>({ left: 0, top: 0 });
 
     // Refs to manage click outside detection
     const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -60,13 +61,14 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
 
     /** Measure the dropdown position and set direction based on available space */
     const measureAndSetDirection = () => {
-        if (!buttonRef.current || !dropdownRef.current) return;
+        if (!buttonRef.current) return;
         const btnRect = buttonRef.current.getBoundingClientRect();
-        const menuRect = dropdownRef.current.getBoundingClientRect();
         const spaceBelow = window.innerHeight - btnRect.bottom;
         const spaceAbove = btnRect.top;
-        // Flip if not enough below and more space above
-        setOpenAbove(spaceBelow < menuRect.height && spaceAbove > spaceBelow);
+        const menuH = dropdownRef.current?.getBoundingClientRect().height ?? 0;
+        const shouldOpenAbove = spaceBelow < menuH && spaceAbove > spaceBelow;
+        setOpenAbove(shouldOpenAbove);
+        setMenuPos({ left: btnRect.left, top: shouldOpenAbove ? btnRect.top : btnRect.bottom });
     };
 
     // Add event listener for clicks outside the dropdown when it is open
@@ -116,7 +118,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
 
     return (
         // Container
-        <div className={`${className}`}>
+        <div className={`relative ${className}`}>
             {/* Dropdown button */}
             <button
                 type="button"
@@ -140,31 +142,33 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
             </button>
 
             {/* Dropdown menu popup */}
-            {isOpen && (
-                <div 
-                    ref={dropdownRef}
-                    className={`
-                        absolute z-10
-                        ${openAbove ? '-translate-y-[calc(100%+3rem)]' : 'mt-1'}
-                        transform
-                        ${disableMinWidth ? '' : 'min-w-2/3 md:min-w-48'}
-                        bg-secondary rounded-xl shadow-lg 
-                        text-nowrap overflow-clip
-                        
-                    `}
-                >
-                    {options.map((option) => (
-                        <div
-                            key={option.value}
-                            className={`px-4 py-2 cursor-pointer hover:bg-teritiary flex ${option.textColor || 'text-inherit'}`}
-                            onClick={() => handleOptionClick(option.value)}
-                        >
-                            { renderImage(option.image) }
-                            { renderSymbol(option.symbol) }
-                            <span>{option.label}</span>
-                        </div>
-                    ))}
-                </div>
+            {isOpen && typeof document !== 'undefined' && (
+                createPortal(
+                    <div 
+                        ref={dropdownRef}
+                        className={`
+                            fixed z-[1000]
+                            left-0 transform
+                            ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
+                            bg-secondary rounded-xl shadow-lg
+                            text-nowrap overflow-auto max-h-[60vh]
+                        `}
+                        style={{ left: menuPos.left, top: menuPos.top }}
+                    >
+                        {options.map((option) => (
+                            <div
+                                key={option.value}
+                                className={`px-4 py-2 cursor-pointer hover:bg-teritiary flex ${option.textColor || 'text-inherit'}`}
+                                onClick={() => handleOptionClick(option.value)}
+                            >
+                                { renderImage(option.image) }
+                                { renderSymbol(option.symbol) }
+                                <span>{option.label}</span>
+                            </div>
+                        ))}
+                    </div>,
+                    document.body
+                )
             )}
         </div>
     );

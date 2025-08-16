@@ -100,7 +100,7 @@ const CustomCardBuilder: React.FC = () => {
     // Edition Options
     const editionOptions: SelectOption[] = [
         { 'value': 'NONE', 'label': 'None', 'symbol': '―' },
-        { 'value': 'CC', 'label': 'Cooperstown Collection', 'image': editionCC, 'borderColor': 'border-blue-900' },
+        { 'value': 'CC', 'label': 'Cooperstown Collection', 'image': editionCC, 'borderColor': 'border-amber-800' },
         { 'value': 'SS', 'label': 'Super Season', 'image': editionSS, 'borderColor': 'border-red-500' },
         { 'value': 'ASG', 'label': 'All-Star Game', 'symbol': '⭐', 'borderColor': 'border-yellow-400' },
         { 'value': 'RS', 'label': 'Rookie Season', 'image': editionRS, 'borderColor': 'border-red-800' },

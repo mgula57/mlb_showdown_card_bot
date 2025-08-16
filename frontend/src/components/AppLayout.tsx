@@ -93,7 +93,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         onChange={setUserShowdownSet}
                         options={showdownSets}
                         suffix="Set"
-                        disableMinWidth={true}
                     />
                     
                 </header>
