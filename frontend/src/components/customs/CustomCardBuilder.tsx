@@ -5,6 +5,7 @@ import FormDropdown from './FormDropdown';
 import FormEnabler from './FormEnabler';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { CustomSelect } from '../shared/CustomSelect';
 
 // API
 import { buildCustomCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
@@ -22,7 +23,11 @@ import editionSS from '../../assets/edition-ss.png';
 import blankPlayer2001Dark from '../../assets/blankplayer-2001-dark.png';
 
 // Icons
-import { FaTable, FaImage, FaLayerGroup, FaUser } from 'react-icons/fa';
+import { FaTable, FaImage, FaLayerGroup, FaUser, FaPoll } from 'react-icons/fa';
+
+// Tables
+import { TableRealVsProjected } from './TableRealVsProjectedBreakdown';
+import { TableChartsBreakdown } from './TableChartsBreakdown';
 
 /** State for the custom card form */
 interface CustomCardFormState {
@@ -71,6 +76,9 @@ const CustomCardBuilder: React.FC = () => {
     // Card States
     const { userShowdownSet } = useSiteSettings();
     const [ showdownBotCardData, setShowdownBotCardData ] = useState<ShowdownBotCardAPIResponse | null>(null);
+
+    // Breakdown State
+    const [ breakdownType, setBreakdownType] = useState<string>("Stats");
 
     // Card Calcs
     const cardImagePath: string | null = showdownBotCardData?.card?.image ? `${showdownBotCardData.card.image.output_folder_path}/${showdownBotCardData.card.image.output_file_name}` : null;
@@ -295,6 +303,25 @@ const CustomCardBuilder: React.FC = () => {
         return blankPlayer2001Dark;
     }
 
+    const renderBreakdownTable = () => {
+        switch (breakdownType) {
+            case 'Stats':
+                return (
+                    <TableRealVsProjected
+                        realVsProjectedData={showdownBotCardData?.card?.real_vs_projected_stats || []}
+                    />
+                );
+            case 'Charts':
+                return (
+                    <TableChartsBreakdown
+                        chartAccuracyData={showdownBotCardData?.card?.command_out_accuracy_breakdowns || {}}
+                    />
+                );
+        }
+    }
+
+    const breakdownFirstRowHeight = 'lg:h-[500px] xl:h-[600px]';
+
     /** Render the main form layout */
     return (
         // Main layout container
@@ -308,7 +335,7 @@ const CustomCardBuilder: React.FC = () => {
 
             {/* Form Inputs */}
             <section className="
-                w-full lg:w-2/3 md:max-w-128
+                w-full md:max-w-96 xl:max-w-108 2xl:max-w-128
                 md:border-r border-r-gray-800
                 bg-background-secondary
                 flex flex-col 
@@ -481,17 +508,53 @@ const CustomCardBuilder: React.FC = () => {
                 h-full
                 pb-24
             ">
-                <img 
-                    src={cardImagePath == null ? renderBlankPlayerImageName() : cardImagePath}
-                    alt="Blank Player" 
-                    className="
-                        block w-auto h-auto mx-auto 
-                        max-w-11/12 md:max-w-full lg:max-w-112 xl:max-w-128
-                        rounded-xl
-                        object-contain
-                        shadow-2xl
-                    " 
-                />
+                {/* Image and Breakdown Tables */}
+                <div 
+                    className={`
+                        flex flex-col lg:flex-row
+                        lg:items-start
+                        ${breakdownFirstRowHeight}
+                        gap-4
+                    `}
+                >
+                    <img
+                        src={cardImagePath == null ? renderBlankPlayerImageName() : cardImagePath}
+                        alt="Blank Player"
+                        className={`
+                            block w-auto h-auto mx-auto
+                            ${breakdownFirstRowHeight}
+                            rounded-xl
+                            object-contain
+                            shadow-2xl
+                            `}
+                    />
+
+                    <div 
+                        className={`
+                            flex flex-col
+                            w-full lg:w-64 xl:w-88
+                            bg-secondary
+                            p-4 rounded-xl
+                            space-y-4
+                            ${breakdownFirstRowHeight}
+                        `}
+                    >
+                        <CustomSelect
+                            value={breakdownType}
+                            options={[
+                                { label: 'Card vs Real Stats', value: 'Stats', icon: <FaPoll/> },
+                                { label: 'Chart', value: 'Charts', icon: <FaTable/> }
+                            ]}
+                            onChange={(value) => setBreakdownType(value)}
+                        />
+                        
+                        {/* Breakdown Table */}
+                        {renderBreakdownTable()}
+
+                    </div>
+
+                </div>
+
                 
             </section>
         </div>

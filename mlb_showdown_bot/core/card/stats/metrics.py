@@ -136,3 +136,6 @@ class Stat(Enum):
     SLG = 'slugging_perc'
     OPS = 'onbase_plus_slugging'
     COMMAND = 'command'
+
+    # USED FOR TOTALS
+    OVERALL = 'overall'

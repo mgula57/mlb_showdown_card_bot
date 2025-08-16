@@ -34,9 +34,37 @@ export type ShowdownBotCardAPIResponse = {
 export type ShowdownBotCard = {
     name: string;
     year: string | number;
-    image: ShowdownBotCardImage;
-}
 
+    // Image
+    image: ShowdownBotCardImage;
+
+    // Tables
+    real_vs_projected_stats: RealVsProjectedStat[];
+    command_out_accuracy_breakdowns: Record<string, Record<string, ChartAccuracyCategoryBreakdown>>;
+};
+
+export type RealVsProjectedStat = {
+    stat: string;
+    real: number;
+    projected: number;
+    diff: number;
+    diff_str: string;
+    precision: number;
+    is_real_estimated: boolean;
+    is_projected_correction: boolean;
+};
+
+/** Shows accuracy breakdown a category (ex: OVERALL, OPS, SLG, OBP) within a command out combination */
+export type ChartAccuracyCategoryBreakdown = {
+    stat: string;
+    accuracy: number;
+    actual: number;
+    comparison: number;
+    is_pitcher: boolean;
+    notes: string;
+};
+
+/** Stores Showdown Bot Card Image metadata */
 type ShowdownBotCardImage = {
     output_file_name: string;
     output_folder_path: string;

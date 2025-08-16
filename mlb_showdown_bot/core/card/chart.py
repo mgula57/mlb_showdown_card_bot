@@ -209,7 +209,8 @@ class ChartAccuracyBreakdown(BaseModel):
 
     def __init__(self, **data) -> None:
         super().__init__(**data)
-        self.calculate_accuracy_attributes()
+        if not data.get('disable_calcs', False):
+            self.calculate_accuracy_attributes()
 
     @property
     def summary_str(self) -> str:
@@ -1179,7 +1180,7 @@ class Chart(BaseModel):
 
         if self.does_set_ignore_outlier_adjustments:
             self.is_command_out_anomaly = self.is_chart_an_outlier
-            self.__add_notes_to_accuracy_breakdowns()
+            self.__finalize_accuracy_and_breakdowns()
             return
 
         # REDUCE ACCURACY WHEN OUTS ARE ABOVE SOFT OUTLIER MAX AND COMMAND ABOVE SOFT OUTLIER MAX
@@ -1212,7 +1213,7 @@ class Chart(BaseModel):
         self.is_command_out_anomaly = self.is_chart_an_outlier
 
         # ADD NOTES TO ACCURACY BREAKDOWNS
-        self.__add_notes_to_accuracy_breakdowns()
+        self.__finalize_accuracy_and_breakdowns()
 
     def __calculate_accuracy_breakdown(self, actuals_dict:dict, measurements_dict:dict, weights:dict[Stat, float]={}) -> None:
         """Compare two dictionaries of numbers to get overall difference
@@ -1239,7 +1240,7 @@ class Chart(BaseModel):
 
             # CREATE ACCURACY BREAKDOWN OBJECT
             self.accuracy_breakdown[stat] = ChartAccuracyBreakdown(
-                stat = stat,
+                stat=stat,
                 actual=actual,
                 comparison=comparison,
                 weight=weight,
@@ -1284,8 +1285,28 @@ class Chart(BaseModel):
         self.accuracy = overall_accuracy
         return
 
-    def __add_notes_to_accuracy_breakdowns(self) -> None:
+    def __finalize_accuracy_and_breakdowns(self) -> None:
         """Add chart notes to accuracy breakdowns"""
+
+        # USE OPS BREAKDOWN FOR ACTUAL AND COMPARISON FOR OVERALL
+        # JUST FOR VISUALIZATION PURPOSES ON FRONT END
+        overall_actual: float = 0
+        overall_comparison: float = 0
+        ops_breakdown = self.accuracy_breakdown.get(Stat.OPS, None)
+        if ops_breakdown:
+            overall_actual = ops_breakdown.actual
+            overall_comparison = round(ops_breakdown.comparison, 4)
+
+        # ADD OVERALL ACCURACY TO BREAKDOWNS
+        self.accuracy_breakdown[Stat.OVERALL] = ChartAccuracyBreakdown(
+            stat=Stat.OVERALL,
+            accuracy=self.accuracy,
+            actual=overall_actual,
+            comparison=overall_comparison,
+            weight=0.0,
+            is_pitcher=self.is_pitcher,
+            disable_calcs=True
+        )
             
         # ADD NOTES TO ACCURACY BREAKDOWNS
         new_breakdowns: dict[Stat, ChartAccuracyBreakdown] = {}

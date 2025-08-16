@@ -108,7 +108,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
     /** Helper functions to render any passed in icon */
     const renderIcon = (icon: React.ReactNode) => {
         if (icon) {
-            return <span className="bg-secondary">{icon}</span>;
+            return <span className="bg-secondary my-auto mr-2">{icon}</span>;
         }
         return null;
     };
@@ -163,6 +163,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                             >
                                 { renderImage(option.image) }
                                 { renderSymbol(option.symbol) }
+                                { renderIcon(option.icon) }
                                 <span>{option.label}</span>
                             </div>
                         ))}
