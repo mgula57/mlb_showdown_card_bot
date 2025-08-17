@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import FormInput from './FormInput';
 import FormSection from './FormSection';
 import FormDropdown from './FormDropdown';
@@ -23,11 +23,12 @@ import editionSS from '../../assets/edition-ss.png';
 import blankPlayer2001Dark from '../../assets/blankplayer-2001-dark.png';
 
 // Icons
-import { FaTable, FaImage, FaLayerGroup, FaUser, FaPoll } from 'react-icons/fa';
+import { FaTable, FaImage, FaLayerGroup, FaUser, FaPoll, FaCoins } from 'react-icons/fa';
 
 // Tables
 import { TableRealVsProjected } from './TableRealVsProjectedBreakdown';
 import { TableChartsBreakdown } from './TableChartsBreakdown';
+import { TablePointsBreakdown } from './TablePointsBreakdown';
 
 /** State for the custom card form */
 interface CustomCardFormState {
@@ -75,10 +76,10 @@ const CustomCardBuilder: React.FC = () => {
 
     // Card States
     const { userShowdownSet } = useSiteSettings();
-    const [ showdownBotCardData, setShowdownBotCardData ] = useState<ShowdownBotCardAPIResponse | null>(null);
+    const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
 
     // Breakdown State
-    const [ breakdownType, setBreakdownType] = useState<string>("Stats");
+    const [breakdownType, setBreakdownType] = useState<string>("Stats");
 
     // Card Calcs
     const cardImagePath: string | null = showdownBotCardData?.card?.image ? `${showdownBotCardData.card.image.output_folder_path}/${showdownBotCardData.card.image.output_file_name}` : null;
@@ -86,9 +87,9 @@ const CustomCardBuilder: React.FC = () => {
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>({
         name: "", year: "", period: "REGULAR", start_date: null, end_date: null, split: null,
-        expansion: "BS", set_number: null, edition: "NONE", 
+        expansion: "BS", set_number: null, edition: "NONE",
         image_source: "AUTO", image_parallel: "NONE", image_coloring: "PRIMARY", image_outer_glow: "1",
-        image_url: null, image_upload: null, 
+        image_url: null, image_upload: null,
         add_image_border: false, is_dark_mode: false, remove_team_branding: false,
         stats_type: "NONE", nickname_index: "NONE", show_year_plus_one: false, show_year_text: false,
         chart_version: "1", era: "DYNAMIC", is_variable_speed_00_01: false
@@ -194,6 +195,23 @@ const CustomCardBuilder: React.FC = () => {
         { "label": "Glow 2x", "value": "2" },
         { "label": "Glow 3x", "value": "3" },
     ]
+
+    // Handle Enter key press
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                // Don't trigger if user is typing in a textarea or input that should allow Enter
+                const target = event.target as HTMLElement;
+                if (target.tagName === 'TEXTAREA') return;
+
+                event.preventDefault();
+                handleBuild();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [form]); // Re-bind when form changes so handleBuild has latest state
 
     const handleBuild = async () => {
         try {
@@ -307,9 +325,35 @@ const CustomCardBuilder: React.FC = () => {
         switch (breakdownType) {
             case 'Stats':
                 return (
-                    <TableRealVsProjected
-                        realVsProjectedData={showdownBotCardData?.card?.real_vs_projected_stats || []}
-                    />
+                    <div className='space-y-2 overflow-y-auto'>
+                        <TableRealVsProjected
+                            realVsProjectedData={showdownBotCardData?.card?.real_vs_projected_stats || []}
+                        />
+
+                        {/* Footnote */}
+                        <div className='flex flex-col text-xs leading-tight space-y-2'>
+                            <i>* Indicates a Bot estimated value, real stat unavailable (ex: 1800's, Negro Leagues, PU/FB/GB)</i>
+                            <i>** Chart category was adjusted in post-processing to increase accuracy</i>
+                        </div>
+
+                    </div>
+                );
+            case 'Points':
+                return (
+                    <div className='space-y-2 overflow-y-auto'>
+
+                        <TablePointsBreakdown
+                            pointsBreakdownData={showdownBotCardData?.card?.points_breakdown || null}
+                            ip={showdownBotCardData?.card?.ip || null}
+                        />
+
+                        {/* Footnote */}
+                        <div className='text-xs leading-tight'>
+                            <i>* Slashlines and HR projections used for points are based on Steroid Era opponent.
+                                Stats may not match projections against player's era.</i>
+                        </div>
+
+                    </div>
                 );
             case 'Charts':
                 return (
@@ -488,10 +532,16 @@ const CustomCardBuilder: React.FC = () => {
                     ">
                         <button
                             type="button"
-                            className="w-full rounded-lg p-2 text-white bg-blue-400 cursor-pointer hover:bg-blue-500"
+                            className="
+                                w-full rounded-lg p-2
+                                text-white
+                                bg-blue-400 hover:bg-blue-500
+                                cursor-pointer
+                            "
                             onClick={handleBuild}
                         >
                             Build Card
+                            <span className="pl-1 text-xs opacity-75">(Enter)</span>
                         </button>
                     </footer>
 
@@ -509,7 +559,7 @@ const CustomCardBuilder: React.FC = () => {
                 pb-24
             ">
                 {/* Image and Breakdown Tables */}
-                <div 
+                <div
                     className={`
                         flex flex-col lg:flex-row
                         lg:items-start
@@ -529,10 +579,10 @@ const CustomCardBuilder: React.FC = () => {
                             `}
                     />
 
-                    <div 
+                    <div
                         className={`
                             flex flex-col
-                            w-full lg:w-64 xl:w-88
+                            w-full lg:max-w-72 xl:max-w-88
                             bg-secondary
                             p-4 rounded-xl
                             space-y-4
@@ -542,12 +592,13 @@ const CustomCardBuilder: React.FC = () => {
                         <CustomSelect
                             value={breakdownType}
                             options={[
-                                { label: 'Card vs Real Stats', value: 'Stats', icon: <FaPoll/> },
-                                { label: 'Chart', value: 'Charts', icon: <FaTable/> }
+                                { label: 'Card vs Real Stats', value: 'Stats', icon: <FaPoll /> },
+                                { label: 'Points', value: 'Points', icon: <FaCoins /> },
+                                { label: 'Chart', value: 'Charts', icon: <FaTable /> }
                             ]}
                             onChange={(value) => setBreakdownType(value)}
                         />
-                        
+
                         {/* Breakdown Table */}
                         {renderBreakdownTable()}
 
@@ -555,7 +606,7 @@ const CustomCardBuilder: React.FC = () => {
 
                 </div>
 
-                
+
             </section>
         </div>
     );

@@ -7,7 +7,15 @@ const h = createColumnHelper<RealVsProjectedStat>();
 
 /** Create a column helper that tells tanstack the format of the data*/
 const realVsProjectedStatColumns: ColumnDef<RealVsProjectedStat, any>[] = [
-    h.accessor("stat", { header: "Stat" }),
+    h.accessor("stat", { 
+        header: "Stat",
+        cell: info => {
+            const value = info.getValue<string>();
+            const isEstimated = info.row.original.is_real_estimated;
+            const isProjectedCorrection = info.row.original.is_projected_correction;
+            return `${value}${isEstimated ? "*" : ""}${isProjectedCorrection ? "**" : ""}`;
+        }
+    }),
     h.accessor("real", {
         header: "Real",
         cell: info => formatStatValue(info.getValue(), info.row.getValue<string>("stat"))
