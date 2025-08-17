@@ -5,7 +5,8 @@ import FormDropdown from './FormDropdown';
 import FormEnabler from './FormEnabler';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
-import { CustomSelect } from '../shared/CustomSelect';
+
+import { CardDetail } from '../cards/CardDetail';
 
 // API
 import { buildCustomCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
@@ -20,15 +21,8 @@ import editionCC from '../../assets/edition-cc.png';
 import editionPOST from '../../assets/edition-post.png';
 import editionSS from '../../assets/edition-ss.png';
 
-import blankPlayer2001Dark from '../../assets/blankplayer-2001-dark.png';
-
 // Icons
-import { FaTable, FaImage, FaLayerGroup, FaUser, FaPoll, FaCoins } from 'react-icons/fa';
-
-// Tables
-import { TableRealVsProjected } from './TableRealVsProjectedBreakdown';
-import { TableChartsBreakdown } from './TableChartsBreakdown';
-import { TablePointsBreakdown } from './TablePointsBreakdown';
+import { FaTable, FaImage, FaLayerGroup, FaUser } from 'react-icons/fa';
 
 /** State for the custom card form */
 interface CustomCardFormState {
@@ -77,12 +71,6 @@ const CustomCardBuilder: React.FC = () => {
     // Card States
     const { userShowdownSet } = useSiteSettings();
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
-
-    // Breakdown State
-    const [breakdownType, setBreakdownType] = useState<string>("Stats");
-
-    // Card Calcs
-    const cardImagePath: string | null = showdownBotCardData?.card?.image ? `${showdownBotCardData.card.image.output_folder_path}/${showdownBotCardData.card.image.output_file_name}` : null;
 
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>({
@@ -317,55 +305,6 @@ const CustomCardBuilder: React.FC = () => {
         }
     }
 
-    const renderBlankPlayerImageName = () => {
-        return blankPlayer2001Dark;
-    }
-
-    const renderBreakdownTable = () => {
-        switch (breakdownType) {
-            case 'Stats':
-                return (
-                    <div className='space-y-2 overflow-y-auto'>
-                        <TableRealVsProjected
-                            realVsProjectedData={showdownBotCardData?.card?.real_vs_projected_stats || []}
-                        />
-
-                        {/* Footnote */}
-                        <div className='flex flex-col text-xs leading-tight space-y-2'>
-                            <i>* Indicates a Bot estimated value, real stat unavailable (ex: 1800's, Negro Leagues, PU/FB/GB)</i>
-                            <i>** Chart category was adjusted in post-processing to increase accuracy</i>
-                        </div>
-
-                    </div>
-                );
-            case 'Points':
-                return (
-                    <div className='space-y-2 overflow-y-auto'>
-
-                        <TablePointsBreakdown
-                            pointsBreakdownData={showdownBotCardData?.card?.points_breakdown || null}
-                            ip={showdownBotCardData?.card?.ip || null}
-                        />
-
-                        {/* Footnote */}
-                        <div className='text-xs leading-tight'>
-                            <i>* Slashlines and HR projections used for points are based on Steroid Era opponent.
-                                Stats may not match projections against player's era.</i>
-                        </div>
-
-                    </div>
-                );
-            case 'Charts':
-                return (
-                    <TableChartsBreakdown
-                        chartAccuracyData={showdownBotCardData?.card?.command_out_accuracy_breakdowns || {}}
-                    />
-                );
-        }
-    }
-
-    const breakdownFirstRowHeight = 'lg:h-[500px] xl:h-[600px]';
-
     /** Render the main form layout */
     return (
         // Main layout container
@@ -550,62 +489,9 @@ const CustomCardBuilder: React.FC = () => {
             </section>
 
             {/* Preview Section */}
-            <section className="
-                w-full
-                bg-background-secondary
-                overflow-y-auto
-                p-4 space-y-6
-                h-full
-                pb-24
-            ">
-                {/* Image and Breakdown Tables */}
-                <div
-                    className={`
-                        flex flex-col lg:flex-row
-                        lg:items-start
-                        ${breakdownFirstRowHeight}
-                        gap-4
-                    `}
-                >
-                    <img
-                        src={cardImagePath == null ? renderBlankPlayerImageName() : cardImagePath}
-                        alt="Blank Player"
-                        className={`
-                            block w-auto h-auto mx-auto
-                            ${breakdownFirstRowHeight}
-                            rounded-xl
-                            object-contain
-                            shadow-2xl
-                            `}
-                    />
+            <section>
 
-                    <div
-                        className={`
-                            flex flex-col
-                            w-full lg:max-w-72 xl:max-w-88
-                            bg-secondary
-                            p-4 rounded-xl
-                            space-y-4
-                            ${breakdownFirstRowHeight}
-                        `}
-                    >
-                        <CustomSelect
-                            value={breakdownType}
-                            options={[
-                                { label: 'Card vs Real Stats', value: 'Stats', icon: <FaPoll /> },
-                                { label: 'Points', value: 'Points', icon: <FaCoins /> },
-                                { label: 'Chart', value: 'Charts', icon: <FaTable /> }
-                            ]}
-                            onChange={(value) => setBreakdownType(value)}
-                        />
-
-                        {/* Breakdown Table */}
-                        {renderBreakdownTable()}
-
-                    </div>
-
-                </div>
-
+                <CardDetail showdownBotCardData={showdownBotCardData} />
 
             </section>
         </div>
