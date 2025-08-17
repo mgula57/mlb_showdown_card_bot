@@ -1,4 +1,8 @@
-import React, { useEffect, useState } from 'react';
+// ----------------------------------
+// MARK: - Imports
+// ----------------------------------
+
+import { useEffect, useState } from 'react';
 import FormInput from './FormInput';
 import FormSection from './FormSection';
 import FormDropdown from './FormDropdown';
@@ -23,6 +27,10 @@ import editionSS from '../../assets/edition-ss.png';
 
 // Icons
 import { FaTable, FaImage, FaLayerGroup, FaUser } from 'react-icons/fa';
+
+// ----------------------------------
+// MARK: - Form Interface
+// ----------------------------------
 
 /** State for the custom card form */
 interface CustomCardFormState {
@@ -63,10 +71,18 @@ interface CustomCardFormState {
 
 }
 
+// ----------------------------------
+// MARK: - Custom Card Props
+// ----------------------------------
+
+type CustomCardBuilderProps = {
+    condenseFormInputs?: boolean | null;
+}
+
 /** 
  * Card Creation Page for users to create and customize their own cards. 
 */
-const CustomCardBuilder: React.FC = () => {
+function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
     // Card States
     const { userShowdownSet } = useSiteSettings();
@@ -317,13 +333,16 @@ const CustomCardBuilder: React.FC = () => {
         ">
 
             {/* Form Inputs */}
-            <section className="
-                w-full md:max-w-96 xl:max-w-108 2xl:max-w-128
+            <section className={`
+                ${condenseFormInputs ? 
+                      'w-full md:max-w-80 xl:max-w-92 2xl:max-w-112' 
+                    : 'w-full md:max-w-96 xl:max-w-108 2xl:max-w-128'
+                }
                 md:border-r border-r-gray-800
                 bg-background-secondary
                 flex flex-col 
                 h-full
-            ">
+            `}>
 
                 {/* Scrollable area */}
                 <div className="flex-1 overflow-y-auto px-4 pt-4">
@@ -494,6 +513,7 @@ const CustomCardBuilder: React.FC = () => {
                 <CardDetail showdownBotCardData={showdownBotCardData} />
 
             </section>
+            
         </div>
     );
 }

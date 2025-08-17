@@ -82,7 +82,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         {/* Show logo on small always */}
                         <ShowdownBotLogo className="max-w-48 md:hidden" />
                         {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48 hidden md:block" />}
-                        <h1 className="text-xl font-semibold text-secondary">
+                        <h1 className="hidden sm:block text-xl font-semibold text-secondary">
                             {headerTitle}
                         </h1>
                     </div>

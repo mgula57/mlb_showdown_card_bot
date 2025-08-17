@@ -1,4 +1,3 @@
-import React from "react";
 import { CustomSelect, type SelectOption } from "../shared/CustomSelect";
 
 /** Props for the form dropdown component */
@@ -14,7 +13,7 @@ type FormDropdownProps = {
  * FormDropdown component for selecting an option from a dropdown list.
  * Handles changes and updates the parent state.
  */
-const FormDropdown: React.FC<FormDropdownProps> = ({ label, options, selectedOption, onChange, className="" }) => {
+const FormDropdown = ({ label, options, selectedOption, onChange, className="" }: FormDropdownProps) => {
     return (
         <div className={className}>
             {/* Label */}
