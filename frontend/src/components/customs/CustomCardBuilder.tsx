@@ -79,6 +79,10 @@ type CustomCardBuilderProps = {
     condenseFormInputs?: boolean | null;
 }
 
+// ----------------------------------
+// MARK: - Custom Card Component
+// ----------------------------------
+
 /** 
  * Card Creation Page for users to create and customize their own cards. 
 */
@@ -98,6 +102,10 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         stats_type: "NONE", nickname_index: "NONE", show_year_plus_one: false, show_year_text: false,
         chart_version: "1", era: "DYNAMIC", is_variable_speed_00_01: false
     });
+
+    // ---------------------------------
+    // MARK: Select Option Arrays
+    // ---------------------------------
 
     // Expansion options
     const expansionOptions: SelectOption[] = [
@@ -200,6 +208,38 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         { "label": "Glow 3x", "value": "3" },
     ]
 
+    // ---------------------------------
+    // MARK: Build Processing
+    // ---------------------------------
+
+    const handleBuild = async () => {
+        try {
+            // TODO: Handle image uploads
+            console.log("Building card with form data:", form);
+
+            var { image_upload, image_source, ...payload } = form; // omit the File
+
+            const cardData = await buildCustomCard({
+                ...payload,
+
+                // Default parameters/settings
+                set: userShowdownSet,
+                is_running_on_website: true,
+                image_output_folder_path: "static/output/",
+                show_historical_points: true,
+                season_trend_date_aggregation: 'WEEK',
+            });
+
+            console.log("Card built successfully:", cardData);
+
+            // Retrieve response, set state
+            setShowdownBotCardData(cardData);
+
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     // Handle Enter key press
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -217,31 +257,10 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [form]); // Re-bind when form changes so handleBuild has latest state
 
-    const handleBuild = async () => {
-        try {
-            // TODO: Handle image uploads
-            console.log("Building card with form data:", form);
 
-            var { image_upload, image_source, ...payload } = form; // omit the File
-
-            const cardData = await buildCustomCard({
-                ...payload,
-
-                // Default parameters/settings
-                set: userShowdownSet,
-                is_running_on_website: true,
-                image_output_folder_path: "static/output/"
-            });
-
-            console.log("Card built successfully:", cardData);
-
-            // Retrieve response, set state
-            setShowdownBotCardData(cardData);
-
-        } catch (err) {
-            console.error(err);
-        }
-    };
+    // ---------------------------------
+    // MARK: Render SubComponents
+    // ---------------------------------
 
     /** 
      * Render the period inputs based on the selected period 
@@ -320,6 +339,10 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                 return null;
         }
     }
+
+    // ---------------------------------
+    // MARK: Main Layout
+    // ---------------------------------
 
     /** Render the main form layout */
     return (

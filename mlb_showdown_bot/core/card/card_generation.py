@@ -209,13 +209,13 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     """Generate all historical yearly cards for a player."""
 
     if actual_card.bref_id is None:
-        return []
+        return None
     
     # QUERY ARCHIVE FOR PLAYER
     db = PostgresDB(is_archive=True)
     yearly_archive_data = db.fetch_all_player_year_stats_from_archive(bref_id=actual_card.bref_id, type_override=actual_card.player_type_override)
     if len(yearly_archive_data) == 0:
-        return []
+        return None
     
     # REMOVE `image` PREFIXES FROM KEYS
     kwargs = clean_kwargs(kwargs)
@@ -278,7 +278,7 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     # CHECK FOR GAME LOGS
     game_logs = actual_card.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, [])
     if len(game_logs) == 0 or actual_card.stats_period.is_multi_year:
-        return {}
+        return None
     
     # GET IN SEASON TRENDS
     in_season_trends_data: dict[str: dict] = {}

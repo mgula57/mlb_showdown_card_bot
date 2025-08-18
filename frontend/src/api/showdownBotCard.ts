@@ -33,9 +33,18 @@ export async function buildCustomCard(payload: Record<string, Primitive>) : Prom
 // --------------------------------
 
 export type ShowdownBotCardAPIResponse = {
+
+    // Card
     card: ShowdownBotCard | null;
+
+    // Trends
+    historical_season_trends?: Record<string, TrendDatapoint> | {};
+    in_season_trends?: Record<string, TrendDatapoint> | {};
+
+    // Error
     error: string | null;
     error_for_user: string | null;
+
 };
 
 // --------------------------------
@@ -115,3 +124,36 @@ export type ChartAccuracyCategoryBreakdown = {
     is_pitcher: boolean;
     notes: string;
 };
+
+// --------------------------------
+// MARK: - TREND GRAPHS
+// --------------------------------
+
+export type TrendDatapoint = {
+
+    // Required
+    points: number;
+    color: string;
+
+    // Shared across types
+    year?: string | null;
+    team?: string | null;
+    hr?: string | null;
+    outs?: number | null;
+
+    // Type specific
+
+    // Pitching
+    control?: number | null;
+    ip?: number | null;
+
+    // Hitting
+    onbase?: number | null;
+    "shOPS+"?: number | null;
+    defense?: string | null;
+    speed?: string | null;
+
+    // Added later, not currently included in payload
+    // Would be the key of the dict, this is used when converting to array
+    x_axis?: string | null;
+}

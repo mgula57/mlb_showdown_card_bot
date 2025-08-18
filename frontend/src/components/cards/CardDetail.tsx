@@ -11,6 +11,9 @@ import { TableRealVsProjected } from './TableRealVsProjectedBreakdown';
 import { TableChartsBreakdown } from './TableChartsBreakdown';
 import { TablePointsBreakdown } from './TablePointsBreakdown';
 
+// Trends
+import ChartPlayerPointsTrend from './ChartPlayerPointsTrend';
+
 /** Type for CardDetail inputs */
 type CardDetailProps = {
     showdownBotCardData: ShowdownBotCardAPIResponse | null;
@@ -78,7 +81,6 @@ export function CardDetail({ showdownBotCardData }: CardDetailProps) {
         <div 
             className="
                 w-full
-                bg-background-secondary
                 overflow-y-auto
                 p-4 space-y-6
                 h-full
@@ -86,54 +88,75 @@ export function CardDetail({ showdownBotCardData }: CardDetailProps) {
             "
         >
             {/* Image and Breakdown Tables */}
+            <div
+                className={`
+                    flex flex-col lg:flex-row
+                    lg:items-start
+                    ${breakdownFirstRowHeight}
+                    gap-4
+                `}
+            >
+                {/* Card Image */}
+                <img
+                    src={cardImagePath == null ? renderBlankPlayerImageName() : cardImagePath}
+                    alt="Blank Player"
+                    className={`
+                        block w-auto h-auto mx-auto
+                        ${breakdownFirstRowHeight}
+                        rounded-xl
+                        object-contain
+                        shadow-2xl
+                        `}
+                />
+
+                {/* Card Tables */}
                 <div
                     className={`
-                        flex flex-col lg:flex-row
-                        lg:items-start
+                        flex flex-col
+                        w-full lg:max-w-128
+                        bg-secondary
+                        p-4 rounded-xl
+                        space-y-4
                         ${breakdownFirstRowHeight}
-                        gap-4
                     `}
                 >
-                    {/* Card Image */}
-                    <img
-                        src={cardImagePath == null ? renderBlankPlayerImageName() : cardImagePath}
-                        alt="Blank Player"
-                        className={`
-                            block w-auto h-auto mx-auto
-                            ${breakdownFirstRowHeight}
-                            rounded-xl
-                            object-contain
-                            shadow-2xl
-                            `}
+                    <CustomSelect
+                        value={breakdownType}
+                        options={[
+                            { label: 'Card vs Real Stats', value: 'Stats', icon: <FaPoll /> },
+                            { label: 'Points', value: 'Points', icon: <FaCoins /> },
+                            { label: 'Chart', value: 'Charts', icon: <FaTable /> }
+                        ]}
+                        onChange={(value) => setBreakdownType(value)}
                     />
 
-                    {/* Card Tables */}
-                    <div
-                        className={`
-                            flex flex-col
-                            w-full lg:max-w-128
-                            bg-secondary
-                            p-4 rounded-xl
-                            space-y-4
-                            ${breakdownFirstRowHeight}
-                        `}
-                    >
-                        <CustomSelect
-                            value={breakdownType}
-                            options={[
-                                { label: 'Card vs Real Stats', value: 'Stats', icon: <FaPoll /> },
-                                { label: 'Points', value: 'Points', icon: <FaCoins /> },
-                                { label: 'Chart', value: 'Charts', icon: <FaTable /> }
-                            ]}
-                            onChange={(value) => setBreakdownType(value)}
-                        />
-
-                        {/* Breakdown Table */}
-                        {renderBreakdownTable()}
-
-                    </div>
+                    {/* Breakdown Table */}
+                    {renderBreakdownTable()}
 
                 </div>
+
+            </div>
+
+            {/* Trend Graphs */}
+            <div 
+                className="
+                    w-full
+                    flex flex-col lg:flex-row
+                    space-x-4 space-y-4
+                "
+            >
+
+                <ChartPlayerPointsTrend 
+                    title="Career Trends" 
+                    trendData={showdownBotCardData?.historical_season_trends || null} 
+                />
+
+                <ChartPlayerPointsTrend 
+                    title={showdownBotCardData?.in_season_trends && showdownBotCardData?.card?.year ? `${showdownBotCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"} 
+                    trendData={showdownBotCardData?.in_season_trends || null} 
+                />
+
+            </div>
 
         </div>
     );
