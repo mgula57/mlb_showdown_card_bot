@@ -27,6 +27,15 @@ export function CardDetail({ showdownBotCardData }: CardDetailProps) {
 
     // Card Calcs
     const cardImagePath: string | null = showdownBotCardData?.card?.image ? `${showdownBotCardData.card.image.output_folder_path}/${showdownBotCardData.card.image.output_file_name}` : null;
+    const cardAttributes: Record<string, string | number | null> = showdownBotCardData?.card ? {
+        points: `${showdownBotCardData.card.points} PTS`,
+        year: showdownBotCardData.card.year,
+        era: showdownBotCardData.card.era,
+        expansion: showdownBotCardData.card.image.expansion == "BS" ? null : showdownBotCardData.card.image.expansion,
+        edition: showdownBotCardData.card.image.edition == "NONE" ? null : showdownBotCardData.card.image.edition,
+        chart_version: showdownBotCardData.card.chart_version == 1 ? null : showdownBotCardData.card.chart_version,
+        parallel: showdownBotCardData.card.image.parallel == "NONE" ? null : showdownBotCardData.card.image.parallel,
+    } : {};
 
     const renderBlankPlayerImageName = () => {
         return blankPlayer2001Dark;
@@ -82,11 +91,42 @@ export function CardDetail({ showdownBotCardData }: CardDetailProps) {
             className="
                 w-full
                 overflow-y-auto
-                p-4 space-y-6
+                p-4 space-y-4
                 h-full
                 pb-24
             "
         >
+
+            {/* Name and player attributes */}
+            <div className="
+                flex flex-wrap items-center
+                gap-1 mb-2
+            ">
+                <a 
+                    href={showdownBotCardData?.card?.bref_url || '#'} 
+                    className='text-3xl font-black opacity-85 pr-2'
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    {showdownBotCardData?.card?.name.toUpperCase() || ""}
+                </a>
+
+                {/* Iterate through attributes */}
+                {Object.entries(cardAttributes).map(([key, value]) => (
+                    <div 
+                        key={key} 
+                        className={`
+                            space-x-2 py-1 px-4 
+                            bg-secondary rounded-2xl
+                            text-sm font-semibold
+                            ${value === null ? 'hidden': ''}
+                        `}
+                    >
+                        <span>{value}</span>
+                    </div>
+                ))}
+            </div>
+
             {/* Image and Breakdown Tables */}
             <div
                 className={`

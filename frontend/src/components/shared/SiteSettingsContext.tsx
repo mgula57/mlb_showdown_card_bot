@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-export const showdownSets: Array<{ value: string; label: string }> = [
-    { value: "2000", label: "2000" },
+export const showdownSets: Array<{ value: string; label: string; image?: string | undefined; textColor?: string | undefined; }> = [
+    { value: "2000", label: "2000", textColor: "text-blue" },
     { value: "2001", label: "2001" },
     { value: "2002", label: "2002" },
     { value: "2003", label: "2003" },
     { value: "2004", label: "2004" },
     { value: "2005", label: "2005" },
-    { value: "CLASSIC", label: "Classic" },
-    { value: "EXPANDED", label: "Expanded" },
+    { value: "CLASSIC", label: "CLASSIC" },
+    { value: "EXPANDED", label: "EXPANDED" },
 ];
 
 

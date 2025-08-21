@@ -18,11 +18,13 @@ type CustomSelectProps = {
     onChange: (value: string) => void;
     options: SelectOption[];
     className?: string; // Optional className for additional styling
+    buttonClassName?: string; // Optional className for the button
+    dropdownClassName?: string; // Optional className for the dropdown menu
     suffix?: string; // Optional suffix to display after the selected value
 };
 
 /** Custom select component for selecting an option from a dropdown list. */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", dropdownClassName = "" }) => {
 
     /** State to manage dropdown open/close */
     const [isOpen, setIsOpen] = useState(false);
@@ -124,6 +126,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                 type="button"
                 ref={buttonRef}
                 className={`
+                    ${buttonClassName}
                     w-full px-3 py-2 
                     border-2 ${selectedBorderColor} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400
                     bg-primary text-primary text-nowrap text-left 
@@ -147,6 +150,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                     <div 
                         ref={dropdownRef}
                         className={`
+                            ${dropdownClassName}
                             fixed z-[1000]
                             left-0 transform
                             ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
@@ -158,7 +162,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                         {options.map((option) => (
                             <div
                                 key={option.value}
-                                className={`px-4 py-2 cursor-pointer hover:bg-teritiary flex ${option.textColor || 'text-inherit'}`}
+                                className={`${className} px-4 py-2 cursor-pointer hover:bg-teritiary flex ${option.textColor || 'text-inherit'}`}
                                 onClick={() => handleOptionClick(option.value)}
                             >
                                 { renderImage(option.image) }

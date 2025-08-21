@@ -54,9 +54,17 @@ export type ShowdownBotCardAPIResponse = {
 export type ShowdownBotCard = {
     name: string;
     year: string | number;
+    team: string;
 
-    // Attributes
+    // Bref Info
+    bref_id: string;
+    bref_url: string;
+
+    // Showdown Attributes
+    era: string;
+    points: number;
     ip: number | null;
+    chart_version: number;
 
     // Image
     image: ShowdownBotCardImage;
@@ -73,8 +81,14 @@ export type ShowdownBotCard = {
 
 /** Stores Showdown Bot Card Image metadata */
 type ShowdownBotCardImage = {
+    
+    expansion: string | null;
+    edition: string | null;
+    parallel: string | null;
+
     output_file_name: string;
     output_folder_path: string;
+    
 };
 
 // --------------------------------
