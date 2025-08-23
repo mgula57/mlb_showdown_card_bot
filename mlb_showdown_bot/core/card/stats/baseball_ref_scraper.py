@@ -86,7 +86,7 @@ class BaseballReferenceScraper(BaseModel):
         if self.is_name_a_bref_id:
             self.baseball_ref_id = self.name.split(' ')[0].lower()
         else:
-            self.baseball_ref_id = self._find_bref_id_match(name, year)
+            self.baseball_ref_id = self._find_bref_id_match(self.name, self.year)
 
 # ------------------------------------------------------------------------
 # PROPERTIES
@@ -174,7 +174,7 @@ class BaseballReferenceScraper(BaseModel):
           BrefId if found, otherwise None
         """
         # SEARCH DEFAULT CSV
-        default_bref_id = self.__check_for_default_bref_id(name=name, years=self.years)
+        default_bref_id = self.__check_for_default_bref_id(name=name, years=self.stats_period.year_list)
         if default_bref_id:
             return default_bref_id
         
@@ -244,7 +244,7 @@ class BaseballReferenceScraper(BaseModel):
           Bref Id if match is found.
         """
 
-        if str(self.year_input).strip() != str(datetime.now().year):
+        if str(self.year).strip() != str(datetime.now().year):
             return None
 
         # GET STORED PLAYER LIST DATA
@@ -254,45 +254,8 @@ class BaseballReferenceScraper(BaseModel):
         # | bellobr01 | brayan bello  |  2.3 |
         db = PostgresDB()
         player_id_list = db.fetch_current_season_player_data()
-        pd_player_ids = pd.DataFrame(player_id_list)
-
-        name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip().split('(')[0].strip())
-
-        # DEFINE SIMILARITY SCORE
-        pd_player_ids['similarity_score'] = pd_player_ids['name'].apply(lambda x: fuzz.ratio(name_cleaned, x))
-
-        # FILTER BY SIMILARITY SCORE
-        pd_player_ids_filtered = pd_player_ids.loc[pd_player_ids['similarity_score'] > 86].sort_values(by=['similarity_score', 'bwar'], ascending=[False, False])
-        results_count = len(pd_player_ids_filtered)
-
-        if results_count == 0:
+        if player_id_list is None:
             return None
-
-        # RETURN FIRST RESULT OF pd_player_ids_filtered
-        bref_id = pd_player_ids_filtered.head(1)['bref_id'].values[0]
-        return bref_id if len(bref_id) > 0 else None
-
-    def _check_for_current_season_bref_id(self, name:str) -> str:
-        """For current year, script creates a separate table with player IDs.
-        This is used to quickly access player name list without needing to scrape, reducing errors with rookies.
-
-        Args:
-          name: User inputted player name.
-
-        Returns:
-          Bref Id if match is found.
-        """
-
-        if str(self.year_input).strip() != str(datetime.now().year):
-            return None
-
-        # GET STORED PLAYER LIST DATA
-        # |  bref_id  |  player_name  | bwar |
-        # |-----------|---------------|------|
-        # | ottavad01 | adam ottavino |  0.1 |
-        # | bellobr01 | brayan bello  |  2.3 |
-        db = PostgresDB()
-        player_id_list = db.fetch_current_season_player_data()
         pd_player_ids = pd.DataFrame(player_id_list)
 
         name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip().split('(')[0].strip())
@@ -348,7 +311,7 @@ class BaseballReferenceScraper(BaseModel):
             # MOSTLY RESOLVES ISSUES WITH ROOKIES
             last_name = self.__last_name(name)
             first_name = name.split(' ')[0]
-            bref_id = f'{last_name[:5]}{first_name[:2]}01'
+            bref_id = f'{last_name[:5]}{first_name[:2]}01'.lower()
             return bref_id
         
         top_result_url = search_results[0]["href"]
@@ -428,7 +391,7 @@ class BaseballReferenceScraper(BaseModel):
         is_full_career = self.stats_period.is_full_career
         is_multi_year = self.stats_period.is_multi_year
         years_played = self.__years_played_list(homepage_soup=soup_for_homepage_stats)
-        years_played_as_ints = [int(y) for y in years_played]
+        years_played_as_ints = [int(y) for y in years_played] if len(years_played) > 0 else [datetime.now().year]
 
         # ACCOUNT FOR CAREER CARDS THAT DONT HAVE FULL STATS AVAILABLE
         # TREAT AS IF THE USER INPUTTED THE EXACT YEAR RANGE INSTEAD OF CAREER.
