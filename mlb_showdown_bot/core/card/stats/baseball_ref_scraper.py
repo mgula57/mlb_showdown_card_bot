@@ -86,13 +86,7 @@ class BaseballReferenceScraper(BaseModel):
         if self.is_name_a_bref_id:
             self.baseball_ref_id = self.name.split(' ')[0].lower()
         else:
-            # CHECK DEFAULT CSV
-            default_bref_id = self.__check_for_default_bref_id(name=self.name, years=self.stats_period.year_list)
-            if default_bref_id:
-                self.baseball_ref_id = default_bref_id
-            else:
-                # SEARCH BING
-                self.baseball_ref_id = self.search_bing_for_b_ref_id(self.name, self.year)
+            self.baseball_ref_id = self._find_bref_id_match(name, year)
 
 # ------------------------------------------------------------------------
 # PROPERTIES
@@ -169,6 +163,29 @@ class BaseballReferenceScraper(BaseModel):
 # ------------------------------------------------------------------------
 # SCRAPE WEBSITES
 
+    def _find_bref_id_match(self, name: str, year: int | str | list[int]) -> str:
+        """Find the Baseball Reference ID for a player by name and year.
+
+        Args:
+          name: Full name of Player
+          year: Year for Player stats
+
+        Returns:
+          BrefId if found, otherwise None
+        """
+        # SEARCH DEFAULT CSV
+        default_bref_id = self.__check_for_default_bref_id(name=name, years=self.years)
+        if default_bref_id:
+            return default_bref_id
+        
+        # SEARCH CURRENT SEASON
+        current_season_bref_id = self._check_for_current_season_bref_id(name=name)
+        if current_season_bref_id:
+            return current_season_bref_id
+
+        # SEARCH BING
+        return self._search_bing_for_b_ref_id(name, year)
+
     def __check_for_default_bref_id(self, name:str, years: list[str]) -> str:
         """Check for player name string in default csv with names and bref ids
 
@@ -216,7 +233,85 @@ class BaseballReferenceScraper(BaseModel):
             bref_id = player_ids_pd_filtered.head(1)['brefid'].values[0]
             return bref_id if len(bref_id) > 0 else None
 
-    def search_bing_for_b_ref_id(self, name:str, year:str) -> str:
+    def _check_for_current_season_bref_id(self, name:str) -> str:
+        """For current year, script creates a separate table with player IDs.
+        This is used to quickly access player name list without needing to scrape, reducing errors with rookies.
+
+        Args:
+          name: User inputted player name.
+
+        Returns:
+          Bref Id if match is found.
+        """
+
+        if str(self.year_input).strip() != str(datetime.now().year):
+            return None
+
+        # GET STORED PLAYER LIST DATA
+        # |  bref_id  |  player_name  | bwar |
+        # |-----------|---------------|------|
+        # | ottavad01 | adam ottavino |  0.1 |
+        # | bellobr01 | brayan bello  |  2.3 |
+        db = PostgresDB()
+        player_id_list = db.fetch_current_season_player_data()
+        pd_player_ids = pd.DataFrame(player_id_list)
+
+        name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip().split('(')[0].strip())
+
+        # DEFINE SIMILARITY SCORE
+        pd_player_ids['similarity_score'] = pd_player_ids['name'].apply(lambda x: fuzz.ratio(name_cleaned, x))
+
+        # FILTER BY SIMILARITY SCORE
+        pd_player_ids_filtered = pd_player_ids.loc[pd_player_ids['similarity_score'] > 86].sort_values(by=['similarity_score', 'bwar'], ascending=[False, False])
+        results_count = len(pd_player_ids_filtered)
+
+        if results_count == 0:
+            return None
+
+        # RETURN FIRST RESULT OF pd_player_ids_filtered
+        bref_id = pd_player_ids_filtered.head(1)['bref_id'].values[0]
+        return bref_id if len(bref_id) > 0 else None
+
+    def _check_for_current_season_bref_id(self, name:str) -> str:
+        """For current year, script creates a separate table with player IDs.
+        This is used to quickly access player name list without needing to scrape, reducing errors with rookies.
+
+        Args:
+          name: User inputted player name.
+
+        Returns:
+          Bref Id if match is found.
+        """
+
+        if str(self.year_input).strip() != str(datetime.now().year):
+            return None
+
+        # GET STORED PLAYER LIST DATA
+        # |  bref_id  |  player_name  | bwar |
+        # |-----------|---------------|------|
+        # | ottavad01 | adam ottavino |  0.1 |
+        # | bellobr01 | brayan bello  |  2.3 |
+        db = PostgresDB()
+        player_id_list = db.fetch_current_season_player_data()
+        pd_player_ids = pd.DataFrame(player_id_list)
+
+        name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip().split('(')[0].strip())
+
+        # DEFINE SIMILARITY SCORE
+        pd_player_ids['similarity_score'] = pd_player_ids['name'].apply(lambda x: fuzz.ratio(name_cleaned, x))
+
+        # FILTER BY SIMILARITY SCORE
+        pd_player_ids_filtered = pd_player_ids.loc[pd_player_ids['similarity_score'] > 86].sort_values(by=['similarity_score', 'bwar'], ascending=[False, False])
+        results_count = len(pd_player_ids_filtered)
+
+        if results_count == 0:
+            return None
+
+        # RETURN FIRST RESULT OF pd_player_ids_filtered
+        bref_id = pd_player_ids_filtered.head(1)['bref_id'].values[0]
+        return bref_id if len(bref_id) > 0 else None
+
+    def _search_bing_for_b_ref_id(self, name:str, year:str) -> str:
         """Convert name to a baseball reference Player ID.
 
         Goes by rank on bing search for search: 'baseball reference "name" "year"'.
@@ -1919,7 +2014,8 @@ class BaseballReferenceScraper(BaseModel):
         """
         table_prefix = 'batting' if type == 'Hitter' else 'pitching'
         standard_table = homepage_soup.find('div', attrs = {'id': re.compile(f'all_{table_prefix}_standard|all_players_standard_{table_prefix}')})
-        year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard\.|players_standard_{table_prefix}\.')})
+        standard_table_body = standard_table.find('tbody') if standard_table else None
+        year_soup_objects_list = standard_table_body.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard\.|players_standard_{table_prefix}\.')}) if standard_table_body else []
         stat_list = []
         for year_object in year_soup_objects_list:
             is_total = ' Yr' in year_object.get('id', '')

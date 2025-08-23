@@ -87,7 +87,7 @@ class PostgresDB:
 # ------------------------------------------------------------------------
 
 
-    def execute_query(self, query:sql.SQL, filter_values:tuple) -> list[dict]:
+    def execute_query(self, query:sql.SQL, filter_values:tuple=None) -> list[dict]:
         """Execute a query and transform data to list of dictionaries.
         Keys represent field names, values are the rows from the database.
         
@@ -378,8 +378,20 @@ class PostgresDB:
         if len(result_list) == 0: return None
 
         return PlayerArchive(**result_list[0])
-    
 
+    def fetch_current_season_player_data(self) -> list[dict]:
+        """Fetch current season player data from the database."""
+
+        if not self.connection:
+            return None
+
+        query = sql.SQL("""
+            SELECT *
+            FROM current_season_players
+        """)
+
+        result_list = self.execute_query(query=query)
+        return result_list
 
 # ------------------------------------------------------------------------
 # TABLES
