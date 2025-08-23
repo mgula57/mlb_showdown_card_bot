@@ -21,6 +21,9 @@ app = Flask(__name__)
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
 CORS(app, resources={r"/*": {"origins": FRONTEND_ORIGIN}})
 
+# CONFIGURATIONS
+app.json.sort_keys = False
+
 # ----------------------------------------------------------
 # FRONT END
 # ----------------------------------------------------------

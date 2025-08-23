@@ -27,6 +27,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
     - `card`: ShowdownPlayerCard object with all stats
     - `historical_season_trends`: List of historical yearly cards for the player, if `show_historical_points` is True
     - `in_season_trends`: Dictionary of in-season trends for the player, if `season_trend_date_aggregation` is provided
+    - `latest_game_box_score`: Box score data for the player's latest game, if available
     - `error`: Error message if an error occurs during card generation, otherwise None
 
     Args:
@@ -95,6 +96,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                                 is_disabled=kwargs.get('disable_realtime', False)
                             )
         player_mlb_api_stats.populate_all_player_data()
+        additional_logs["latest_game_box_score"] = player_mlb_api_stats.latest_game_boxscore
 
         # PROCESS CARD
         image_source = ImageSource(**kwargs)
@@ -190,6 +192,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     'error_for_user': error_for_user,
                     'historical_season_trends': None,
                     'in_season_trends': None,
+                    'latest_game_box_score': None,
                     'scraper_load_time': None,
                     'version': ''
                 }
@@ -201,6 +204,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
             'error_for_user': error_for_user,
             'historical_season_trends': None,
             'in_season_trends': None,
+            'latest_game_box_score': None,
         }
     
         return final_card_payload
