@@ -199,8 +199,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
             'card': card,  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
             'error': error_full,
             'error_for_user': error_for_user,
-            'historical_season_trends': [],
-            'in_season_trends': {},
+            'historical_season_trends': None,
+            'in_season_trends': None,
         }
     
         return final_card_payload
@@ -301,6 +301,10 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
         except Exception as e:
             print(e)
             continue
+
+    # RETURN NONE IF NO TRENDS FOUND
+    if len(in_season_trends_data) == 0:
+        return None
 
     # PRINT HISTORICAL POINTS
     if actual_card.print_to_cli and len(in_season_trends_data) > 0:

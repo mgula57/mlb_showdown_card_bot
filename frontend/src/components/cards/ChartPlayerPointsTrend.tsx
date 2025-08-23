@@ -110,7 +110,17 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
             {/* Graph */}
             <ResponsiveContainer width="100%" height={250}>
                 {/* Add your chart component here, using trendData as needed */}
-                <AreaChart data={trendArray}>
+                <AreaChart 
+                    data={trendArray}
+                    onClick={isPlaceholderData ? undefined : undefined} // Disable click
+                    onMouseEnter={isPlaceholderData ? undefined : undefined} // Disable mouse enter
+                    onMouseLeave={isPlaceholderData ? undefined : undefined} // Disable mouse leave
+                    style={{ 
+                        pointerEvents: isPlaceholderData ? 'none' : 'auto',
+                        opacity: isPlaceholderData ? 0.6 : 1,
+                        cursor: isPlaceholderData ? 'default' : 'pointer'
+                    }}
+                >
                     <CartesianGrid strokeDasharray="3 3" stroke='rgba(255, 255, 255, 0.2)'/>
                     
                     <XAxis 

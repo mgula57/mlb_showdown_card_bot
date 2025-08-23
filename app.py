@@ -3,6 +3,10 @@ from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from pprint import pprint
 from time import sleep
+from dotenv import load_dotenv
+
+# LOAD ENVIRONMENT VARIABLES
+load_dotenv()
 
 # INTERNAL
 from mlb_showdown_bot.core.card.card_generation import generate_card

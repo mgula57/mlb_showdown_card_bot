@@ -3,6 +3,7 @@ apiclient==1.0.4
 bs4==0.0.1
 chardet==3.0.4
 cloudscraper>=1.2.71
+dotenv>=0.9.9
 firebase-admin==6.0.1
 flask-sqlalchemy==3.0.3
 google==3.0.0
