@@ -91,6 +91,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     // Card States
     const { userShowdownSet } = useSiteSettings();
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
+    const [isProcessingCard, setIsProcessingCard] = useState(false);
 
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>({
@@ -213,7 +214,15 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     // ---------------------------------
 
     const handleBuild = async () => {
+
+        // Prevent multiple submissions
+        if (isProcessingCard) return; 
+
         try {
+
+            // Set Is Loading
+            setIsProcessingCard(true);
+
             // TODO: Handle image uploads
             console.log("Building card with form data:", form);
 
@@ -234,9 +243,11 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
             // Retrieve response, set state
             setShowdownBotCardData(cardData);
+            setIsProcessingCard(false);
 
         } catch (err) {
             console.error(err);
+            setIsProcessingCard(false);
         }
     };
 
@@ -533,7 +544,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
             {/* Preview Section */}
             <section>
 
-                <CardDetail showdownBotCardData={showdownBotCardData} />
+                <CardDetail showdownBotCardData={showdownBotCardData} isLoading={isProcessingCard} />
 
             </section>
             

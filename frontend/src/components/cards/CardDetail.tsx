@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CustomSelect } from '../shared/CustomSelect';
-import { FaTable, FaPoll, FaCoins } from 'react-icons/fa';
+import { FaTable, FaPoll, FaCoins, FaBaseballBall } from 'react-icons/fa';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 
 // Images
@@ -17,10 +17,11 @@ import ChartPlayerPointsTrend from './ChartPlayerPointsTrend';
 /** Type for CardDetail inputs */
 type CardDetailProps = {
     showdownBotCardData: ShowdownBotCardAPIResponse | null;
+    isLoading?: boolean;
 };
 
 /** Shows Showdown Bot Card Details. Used in Custom card form and modals throughout UI */
-export function CardDetail({ showdownBotCardData }: CardDetailProps) {
+export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) {
 
     // Breakdown State
     const [breakdownType, setBreakdownType] = useState<string>("Stats");
@@ -132,22 +133,57 @@ export function CardDetail({ showdownBotCardData }: CardDetailProps) {
                 className={`
                     flex flex-col lg:flex-row
                     lg:items-start
-                    ${breakdownFirstRowHeight}
                     gap-4
                 `}
             >
                 {/* Card Image */}
-                <img
-                    src={cardImagePath == null ? renderBlankPlayerImageName() : cardImagePath}
-                    alt="Blank Player"
-                    className={`
-                        block w-auto h-auto mx-auto
-                        ${breakdownFirstRowHeight}
-                        rounded-xl
-                        object-contain
-                        shadow-2xl
+                <div className={`
+                    relative w-full
+                    h-auto
+                `}>
+                    <img
+                        src={cardImagePath == null ? renderBlankPlayerImageName() : cardImagePath}
+                        alt="Blank Player"
+                        className={`
+                            block mx-auto
+                            ${breakdownFirstRowHeight}
+                            rounded-xl
+                            object-contain
+                            shadow-2xl
                         `}
-                />
+                    /> 
+
+                    {/* Loading Overlay */}
+                    {isLoading && (
+                        <div className="
+                            absolute inset-0 
+                            flex items-center justify-center 
+                            bg-black/20 
+                            rounded-xl
+                            backdrop-blur-sm
+                        ">
+                            <div className="
+                                flex flex-col items-center 
+                                bg-secondary/90 
+                                px-6 py-4 
+                            ">
+                                <FaBaseballBall 
+                                    className="
+                                        text-white text-3xl mb-2
+                                        animate-bounce
+                                    " 
+                                    style={{
+                                        animationDuration: '0.8s',
+                                        animationIterationCount: 'infinite'
+                                    }}
+                                />
+                                <p className="text-white text-sm font-semibold">
+                                    Generating Card...
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>            
 
                 {/* Card Tables */}
                 <div
