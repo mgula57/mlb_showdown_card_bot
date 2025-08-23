@@ -26,7 +26,8 @@ import editionPOST from '../../assets/edition-post.png';
 import editionSS from '../../assets/edition-ss.png';
 
 // Icons
-import { FaTable, FaImage, FaLayerGroup, FaUser } from 'react-icons/fa';
+import { FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall } from 'react-icons/fa';
+import { FaShuffle } from 'react-icons/fa6';
 
 // ----------------------------------
 // MARK: - Form Interface
@@ -213,10 +214,8 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     // MARK: Build Processing
     // ---------------------------------
 
-    const handleBuild = async () => {
-
-        // Prevent multiple submissions
-        if (isProcessingCard) return; 
+    const submitCard = async (card_payload: any) => {
+        // Implement your submit logic here
 
         try {
 
@@ -224,9 +223,9 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
             setIsProcessingCard(true);
 
             // TODO: Handle image uploads
-            console.log("Building card with form data:", form);
+            console.log("Building card with form data:", card_payload);
 
-            var { image_upload, image_source, ...payload } = form; // omit the File
+            var { image_upload, image_source, ...payload } = card_payload; // omit the File
 
             const cardData = await buildCustomCard({
                 ...payload,
@@ -251,6 +250,14 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         }
     };
 
+    const handleBuild = async () => {
+
+        // Prevent multiple submissions
+        if (isProcessingCard) return; 
+
+        submitCard(form);
+    };
+
     // Handle Enter key press
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -268,6 +275,20 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [form]); // Re-bind when form changes so handleBuild has latest state
 
+    // Handle shuffle
+    const handleShuffle = () => {
+
+        // Prevent multiple submissions
+        if (isProcessingCard) return; 
+
+        // Use form data but replace name with shuffle key
+        const shuffledForm = {
+            ...form,
+            name: '((RANDOM))'
+        };
+
+        submitCard(shuffledForm);
+    };
 
     // ---------------------------------
     // MARK: Render SubComponents
@@ -516,25 +537,48 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                     {/* Make sticky at bottom */}
                     <footer className="
                         fixed bottom-0 left-0 right-0 z-20
+                        flex flex-row gap-2
                         md:sticky md:bottom-0 md:left-auto md:right-auto md:z-auto
                         -mx-4 p-6
                         bg-background-secondary/95 backdrop-blur
                         md:border-t border-form-element
                         shadow-md
                     ">
+                        {/* Build Card */}
                         <button
                             type="button"
                             className="
-                                w-full rounded-lg p-2
+                                flex items-center justify-center
+                                w-full rounded-xl py-4
                                 text-white
-                                bg-blue-400 hover:bg-blue-500
+                                bg-blue-500 hover:bg-blue-400
                                 cursor-pointer
+                                font-black
                             "
                             onClick={handleBuild}
                         >
+                            <FaBaseballBall className="mr-1" />
                             Build Card
-                            <span className="pl-1 text-xs opacity-75">(Enter)</span>
                         </button>
+
+                        {/* Clear Button */}
+                        <button
+                            type="button"
+                            className="
+                                flex items-center justify-center
+                                w-1/3 lg:w-1/4 2xl:w-1/3
+                                rounded-xl py-4
+                                text-white
+                                bg-yellow-500 hover:bg-yellow-300
+                                cursor-pointer
+                                font-black
+                            "
+                            onClick={handleShuffle}
+                        >
+                            <FaShuffle className="mr-1" />
+                            <div className='inline lg:hidden 2xl:block'>Shuffle</div>
+                        </button>
+
                     </footer>
 
                 </div>
