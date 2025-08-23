@@ -8,6 +8,7 @@ import os
 parser = argparse.ArgumentParser(description="Search baseball reference for best auto images to add.")
 parser.add_argument('-t','--player_type', help='Player Type (Batting, Pitching)', type=str, required=False, default=None)
 parser.add_argument('-yt', '--year_threshold', help='Optional year threshold. Only includes images that are <= the threshold.', required=False, type=int, default=None)
+parser.add_argument('-rp', '--relievers_only', help='Only include pitchers with <5 games started', action='store_true', default=False)
 args = parser.parse_args()
 
 def _try_convert_to_float(value: str) -> float | str:
@@ -117,11 +118,14 @@ def fetch_bref_player_stats(player_type: str) -> list:
             continue
 
         data.append(player_data)
-        
+
+    # RELIEVERS
+    if args.relievers_only and player_type.lower() == 'pitching':
+        data = [d for d in data if d.get('p_gs', 0) < 5]
 
     # SORT BY BWAR DESC THAT DONT HAVE AN IMAGE
     war_stat = f'{player_type[:1].lower()}_war'
-    data.sort(key=lambda x: 0 if len(str(x.get(war_stat, ''))) == 0 else x.get(war_stat, 0), reverse=True)
+    data.sort(key=lambda x: 0 if len(str(x.get(war_stat, ''))) == 0 else x.get(war_stat, 0), reverse=True)    
 
     for d in data[:10]:
         print(f"{d.get('name_display', 'Unknown')} | Team: {d.get('team_name_abbr', 'n/a')} | bWAR: {d.get(war_stat, 'n/a')}")
