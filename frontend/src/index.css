@@ -14,20 +14,18 @@
     --divider: #e0e0e0;
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --primary: #ffffff;
-        --secondary: #dfdfdf;
+.dark {
+    --primary: #ffffff;
+    --secondary: #dfdfdf;
 
-        --showdown-blue: #4682e6;
-        --showdown-red: #d04e47;
+    --showdown-blue: #4682e6;
+    --showdown-red: #d04e47;
 
-        --background-primary: #2d2d32;
-        --background-secondary: #232526;
-        --background-teritiary: #3a3a3f;
+    --background-primary: #2d2d32;
+    --background-secondary: #232526;
+    --background-teritiary: #3a3a3f;
 
-        --divider: #444444;
-    }
+    --divider: #444444;
 }
 
 /* Custom Fonts */

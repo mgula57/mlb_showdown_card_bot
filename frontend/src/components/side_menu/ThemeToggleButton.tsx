@@ -1,6 +1,6 @@
 import React from "react"
 import { FaSun, FaMoon, FaDesktop } from "react-icons/fa";
-import { useTheme } from "../../hooks/useTheme";
+import { useTheme } from "../shared/SiteSettingsContext";
 
 /** Button to toggle between light, dark, and system themes */
 const ThemeToggleButton: React.FC = () => {

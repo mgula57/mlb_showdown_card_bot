@@ -393,7 +393,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                       'w-full md:max-w-80 xl:max-w-92 2xl:max-w-112' 
                     : 'w-full md:max-w-88 xl:max-w-108 2xl:max-w-128'
                 }
-                md:border-r border-r-gray-800
+                md:border-r border-form-element
                 bg-background-secondary
                 flex flex-col 
                 h-full
@@ -537,47 +537,53 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                     {/* Make sticky at bottom */}
                     <footer className="
                         fixed bottom-0 left-0 right-0 z-20
-                        flex flex-row gap-2
                         md:sticky md:bottom-0 md:left-auto md:right-auto md:z-auto
                         -mx-4 p-6
                         bg-background-secondary/95 backdrop-blur
                         md:border-t border-form-element
                         shadow-md
                     ">
-                        {/* Build Card */}
-                        <button
-                            type="button"
-                            className="
-                                flex items-center justify-center
-                                w-full rounded-xl py-4
-                                text-white
-                                bg-blue-500 hover:bg-blue-400
-                                cursor-pointer
-                                font-black
-                            "
-                            onClick={handleBuild}
-                        >
-                            <FaBaseballBall className="mr-1" />
-                            Build Card
-                        </button>
 
-                        {/* Clear Button */}
-                        <button
-                            type="button"
-                            className="
-                                flex items-center justify-center
-                                w-1/3 lg:w-1/4 2xl:w-1/3
-                                rounded-xl py-4
-                                text-white
-                                bg-yellow-500 hover:bg-yellow-300
-                                cursor-pointer
-                                font-black
-                            "
-                            onClick={handleShuffle}
-                        >
-                            <FaShuffle className="mr-1" />
-                            <div className='inline lg:hidden 2xl:block'>Shuffle</div>
-                        </button>
+                        <div className="flex flex-row gap-2">
+                            {/* Summarize Selections */}
+                        </div>
+
+                        <div className="flex flex-row gap-2">
+                            {/* Build Card */}
+                            <button
+                                type="button"
+                                className="
+                                    flex items-center justify-center
+                                    w-full rounded-xl py-4
+                                    text-white
+                                    bg-blue-500 hover:bg-blue-400
+                                    cursor-pointer
+                                    font-black
+                                "
+                                onClick={handleBuild}
+                            >
+                                <FaBaseballBall className="mr-1" />
+                                Build Card
+                            </button>
+
+                            {/* Shuffle Button */}
+                            <button
+                                type="button"
+                                className="
+                                    flex items-center justify-center
+                                    w-1/3 lg:w-1/4 2xl:w-1/3
+                                    rounded-xl py-4
+                                    text-white
+                                    bg-yellow-500 hover:bg-yellow-300
+                                    cursor-pointer
+                                    font-black
+                                "
+                                onClick={handleShuffle}
+                            >
+                                <FaShuffle className="mr-1" />
+                                <div className='inline lg:hidden 2xl:block'>Shuffle</div>
+                            </button>
+                        </div>
 
                     </footer>
 

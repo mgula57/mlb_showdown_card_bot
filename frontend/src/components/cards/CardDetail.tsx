@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useTheme } from "../shared/SiteSettingsContext";
 import { CustomSelect } from '../shared/CustomSelect';
 import { FaTable, FaPoll, FaCoins, FaBaseballBall } from 'react-icons/fa';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 
 // Images
 import blankPlayer2001Dark from '../../assets/blankplayer-2001-dark.png';
+import blankPlayer2001Light from '../../assets/blankplayer-2001-light.png';
 
 // Tables
 import { TableRealVsProjected } from './TableRealVsProjectedBreakdown';
@@ -26,6 +28,10 @@ type CardDetailProps = {
 /** Shows Showdown Bot Card Details. Used in Custom card form and modals throughout UI */
 export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) {
 
+    // Theme
+    const { isDark } = useTheme();
+    console.log('CardDetail isDark:', isDark);
+
     // Breakdown State
     const [breakdownType, setBreakdownType] = useState<string>("Stats");
 
@@ -43,10 +49,6 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
     const weeklyChangePoints = showdownBotCardData?.in_season_trends?.pts_change?.week || null;
     const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-green-500' : 'text-red-500') : '';
     const weeklyChangePointsSymbol = weeklyChangePoints ? (weeklyChangePoints > 0 ? '▲' : '▼') : '';
-
-    const renderBlankPlayerImageName = () => {
-        return blankPlayer2001Dark;
-    }
 
     const renderBreakdownTable = () => {
         switch (breakdownType) {
@@ -162,8 +164,9 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                     lg:flex-shrink-0
                 `}>
                     <img
-                        src={cardImagePath == null ? renderBlankPlayerImageName() : cardImagePath}
+                        src={cardImagePath == null ? (isDark ? blankPlayer2001Dark : blankPlayer2001Light) : cardImagePath}
                         alt="Blank Player"
+                        key={isDark ? 'dark' : 'light'}
                         className={`
                             block mx-auto
                             ${breakdownFirstRowHeight}
