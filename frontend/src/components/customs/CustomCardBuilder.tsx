@@ -391,7 +391,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
             <section className={`
                 ${condenseFormInputs ? 
                       'w-full md:max-w-80 xl:max-w-92 2xl:max-w-112' 
-                    : 'w-full md:max-w-96 xl:max-w-108 2xl:max-w-128'
+                    : 'w-full md:max-w-88 xl:max-w-108 2xl:max-w-128'
                 }
                 md:border-r border-r-gray-800
                 bg-background-secondary

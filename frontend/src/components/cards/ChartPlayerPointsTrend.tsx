@@ -12,7 +12,11 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
     // Convert trendData to array format
     const placeholderData = title === "Career Trends" ? generic_career_data : generic_in_season_data;
     const isPlaceholderData = !trendData || Object.keys(trendData).length === 0;
-    const trendArray = Object.entries(trendData || placeholderData).map(([key, value]) => ({ x_axis: key, ...value }) );
+    const trendArray = Object.entries(trendData || placeholderData)
+                            .map(([key, value]) => ({ 
+                                ...value,
+                                x_axis: title === "Career Trends" ? key : new Date(key).getTime(), // Use year or date as x_axis
+                            }))
 
     // Create unique id for each chart instance
     const gradientId = useMemo(() => `gradient-${Math.random().toString(36).substr(2, 9)}`, [title]);
@@ -125,11 +129,13 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                     
                     <XAxis 
                         dataKey="x_axis" 
+                        type={title === "Career Trends" ? "category" : "number"}
                         fontSize={12}
-                        tickFormatter={formatXAxisLabel}
                         angle={-45}
                         textAnchor="end"
                         height={60}
+                        domain={title === "Career Trends" ? undefined : ['dataMin', 'dataMax']}
+                        tickFormatter={formatXAxisLabel}
                     />
                     
                     <YAxis 

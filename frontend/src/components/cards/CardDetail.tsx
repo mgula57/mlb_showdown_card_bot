@@ -14,6 +14,9 @@ import { TablePointsBreakdown } from './TablePointsBreakdown';
 // Trends
 import ChartPlayerPointsTrend from './ChartPlayerPointsTrend';
 
+// Live Game
+import { GameBoxscore } from '../games/GameBoxscore';
+
 /** Type for CardDetail inputs */
 type CardDetailProps = {
     showdownBotCardData: ShowdownBotCardAPIResponse | null;
@@ -37,6 +40,9 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
         chart_version: showdownBotCardData.card.chart_version == 1 ? null : showdownBotCardData.card.chart_version,
         parallel: showdownBotCardData.card.image.parallel == "NONE" ? null : showdownBotCardData.card.image.parallel,
     } : {};
+    const weeklyChangePoints = showdownBotCardData?.in_season_trends?.pts_change?.week || null;
+    const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-green-500' : 'text-red-500') : '';
+    const weeklyChangePointsSymbol = weeklyChangePoints ? (weeklyChangePoints > 0 ? '▲' : '▼') : '';
 
     const renderBlankPlayerImageName = () => {
         return blankPlayer2001Dark;
@@ -117,6 +123,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                     <div 
                         key={key} 
                         className={`
+                            flex items-center
                             space-x-2 py-1 px-4 
                             bg-secondary rounded-2xl
                             text-sm font-semibold
@@ -124,9 +131,20 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                         `}
                     >
                         <span>{value}</span>
+                        
+                        {/* Change in Points Weekly */}
+                        { (weeklyChangePoints && key === "points") && (
+                            <div className={`text-xs ${weeklyChangePointsColor}`}>
+                                {weeklyChangePointsSymbol} {Math.abs(weeklyChangePoints)} THIS WEEK
+                            </div>
+                        )}
+
                     </div>
                 ))}
             </div>
+
+            {/* Game Boxscore */}
+            <GameBoxscore boxscore={showdownBotCardData?.latest_game_box_score || null} />
 
             {/* Image and Breakdown Tables */}
             <div
@@ -138,8 +156,10 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
             >
                 {/* Card Image */}
                 <div className={`
-                    relative w-full
+                    relative
                     h-auto
+                    w-full lg:w-96 xl:w-112 2xl:w-128
+                    lg:flex-shrink-0
                 `}>
                     <img
                         src={cardImagePath == null ? renderBlankPlayerImageName() : cardImagePath}
@@ -189,7 +209,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                 <div
                     className={`
                         flex flex-col
-                        w-full lg:max-w-128
+                        w-full lg:flex-1
                         bg-secondary
                         p-4 rounded-xl
                         space-y-4
@@ -229,7 +249,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
 
                 <ChartPlayerPointsTrend 
                     title={showdownBotCardData?.in_season_trends && showdownBotCardData?.card?.year ? `${showdownBotCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"} 
-                    trendData={showdownBotCardData?.in_season_trends || null} 
+                    trendData={showdownBotCardData?.in_season_trends?.cumulative_trends || null} 
                 />
 
             </div>

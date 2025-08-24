@@ -39,13 +39,56 @@ export type ShowdownBotCardAPIResponse = {
 
     // Trends
     historical_season_trends?: Record<string, TrendDatapoint> | {};
-    in_season_trends?: Record<string, TrendDatapoint> | {};
+    in_season_trends?: InSeasonTrends | null;
+
+    // LIVE GAME
+    latest_game_box_score?: GameBoxscore | null;
 
     // Error
     error: string | null;
     error_for_user: string | null;
 
 };
+
+// --------------------------------
+// MARK: - LIVE GAME
+// --------------------------------
+
+export type GameBoxscore = {
+
+    // Metadata
+    game_pk: number;
+
+    // Game State
+    has_game_ended: boolean;
+
+    // Game Date
+    date: string;
+    date_short: string;
+
+    // Inning
+    current_inning_visual: string;
+
+    // Teams
+    teams: {
+        home: GameBoxscoreTeam;
+        away: GameBoxscoreTeam;
+    }
+
+    // Player Summary (Optional)
+    game_player_summary?: {
+        name: string;
+        game_player_summary: string;
+    };
+    game_player_pts_change?: number | null;
+}
+
+export type GameBoxscoreTeam = {
+    id: number;
+    abbreviation: string;
+    color: string;
+    runs: number;
+}
 
 // --------------------------------
 // MARK: - CARD
@@ -142,6 +185,16 @@ export type ChartAccuracyCategoryBreakdown = {
 // --------------------------------
 // MARK: - TREND GRAPHS
 // --------------------------------
+
+export type InSeasonTrends = {
+    cumulative_trends: Record<string, TrendDatapoint>;
+    cumulative_trends_date_aggregation: string;
+    pts_change: {
+        day?: number;
+        week?: number;
+        month?: number;
+    }
+}
 
 export type TrendDatapoint = {
 

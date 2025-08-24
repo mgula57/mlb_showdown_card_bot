@@ -44,6 +44,8 @@ from .chart import ChartCategory, Stat, ChartAccuracyBreakdown
 from .images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
 from .points import Points, PointsMetric, PointsBreakdown
 
+from .trends.in_season_trends import TrendDatapoint
+
 from ..version import __version__
 
 
@@ -2691,7 +2693,7 @@ class ShowdownPlayerCard(BaseModel):
         
         return positions_string
 
-    def trend_line_data(self) -> dict[str: Any]:
+    def trend_line_data(self) -> TrendDatapoint:
         """Provides data needed to populate the trend line shown on the showdownbot.com webpage.
         Includes additional metadata that's shown in the tooltip.
 
@@ -2701,31 +2703,33 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           Dictionary with keys for each category and values for the trend line.
         """
+        start_date = self.stats_period.start_date.strftime('%Y-%m-%d') if self.stats_period.start_date else self.year
+        end_date = self.stats_period.end_date.strftime('%Y-%m-%d') if self.stats_period.end_date else self.year
 
-        final_data = {
-            'team': self.team.value,
-            'points': self.points,
-            self.command_type.lower(): self.chart.command,
-            'outs': self.chart.outs_full,
-            'year': self.year,
-            'color': self.radar_chart_color(),
-            'shOPS+': self.projected.get('onbase_plus_slugging_plus', 'N/A'),
-        }
+        trend_datapoint = TrendDatapoint(
+            start_date=start_date,
+            end_date=end_date,
+            team=self.team.value,
+            points=self.points,
+            command_type=self.command_type.lower(),
+            command=self.chart.command,
+            outs=self.chart.outs_full,
+            year=self.year,
+            color=self.radar_chart_color(),
+            shOPS_plus=self.projected.get('onbase_plus_slugging_plus', 'N/A'),
+            doubles=self.chart.ranges.get('2B', '-'),
+        )
+
         match self.player_sub_type:
             case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER:
-                final_data.update({
-                    'ip': self.ip,
-                    '2b': self.chart.ranges.get('2B', '-'),
-                    'so': self.chart.ranges.get('SO', '-'),
-                })
+                trend_datapoint.ip = self.ip
+                trend_datapoint.so = self.chart.ranges.get('SO', '-')
             case PlayerSubType.POSITION_PLAYER:
-                final_data.update({
-                    'hr': self.chart.ranges.get('HR', '-'),
-                    'speed': f"{self.speed.letter} ({self.speed.speed})",
-                    'defense': self.positions_and_defense_string,
-                })
-                            
-        return final_data
+                trend_datapoint.hr = self.chart.ranges.get('HR', '-')
+                trend_datapoint.speed = f"{self.speed.letter} ({self.speed.speed})"
+                trend_datapoint.defense = self.positions_and_defense_string
+
+        return trend_datapoint
 
     def radar_chart_labels_as_values(self) -> tuple[list[str], list[float]]:
         """Defines the labels and values used in the radar chart shown on the front end.

@@ -1,7 +1,7 @@
 from pprint import pprint
 from typing import Any
 from prettytable import PrettyTable
-from datetime import datetime
+from datetime import datetime, timedelta
 import traceback
 import json
 
@@ -10,6 +10,7 @@ from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
 from .stats.mlb_stats_api import MLBStatsAPI
+from .trends.in_season_trends import InSeasonTrends, TrendDatapoint
 from ..database.postgres_db import PostgresDB, PlayerArchive
 from .utils.shared_functions import convert_to_date
 
@@ -96,7 +97,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                                 is_disabled=kwargs.get('disable_realtime', False)
                             )
         player_mlb_api_stats.populate_all_player_data()
-        additional_logs["latest_game_box_score"] = player_mlb_api_stats.latest_game_boxscore
+        
 
         # PROCESS CARD
         image_source = ImageSource(**kwargs)
@@ -107,13 +108,26 @@ def generate_card(**kwargs) -> dict[str, Any]:
         show_historical_points = kwargs.get("show_historical_points", False)
         in_season_trend_aggregation = kwargs.get("season_trend_date_aggregation", None)
 
-        if show_historical_points:
-            historical_season_trends_data = generate_all_historical_yearly_cards_for_player(actual_card=card, **kwargs)
-            additional_logs["historical_season_trends"] = historical_season_trends_data
+        # if show_historical_points:
+        #     historical_season_trends_data = generate_all_historical_yearly_cards_for_player(actual_card=card, **kwargs)
+        #     additional_logs["historical_season_trends"] = historical_season_trends_data
 
         if in_season_trend_aggregation:
-            in_season_trends_data = generate_in_season_trends_for_player(actual_card=card, date_aggregation=in_season_trend_aggregation, **kwargs)
-            additional_logs["in_season_trends"] = in_season_trends_data
+            in_season_trends_data = generate_in_season_trends_for_player(
+                actual_card=card, 
+                date_aggregation=in_season_trend_aggregation, 
+                latest_game_boxscore=player_mlb_api_stats.latest_game_boxscore, 
+                **kwargs
+            )
+            if in_season_trends_data:
+                additional_logs["in_season_trends"] = in_season_trends_data.as_json() 
+                # NEED DAY OVER DAY POINTS IN GAME BOXSCORE FOR DISPLAY PURPOSES
+                game_pts_change = in_season_trends_data.pts_change.get('day', None)
+                if player_mlb_api_stats.latest_game_boxscore and game_pts_change:
+                    player_mlb_api_stats.latest_game_boxscore["game_player_pts_change"] = game_pts_change
+
+        # ADD LATEST GAME BOX SCORE
+        additional_logs["latest_game_box_score"] = player_mlb_api_stats.latest_game_boxscore
 
         # THERE WERE NO ERRORS IF WE GOT HERE
         additional_logs['error'] = None
@@ -199,7 +213,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
             )
 
         final_card_payload = {
-            'card': card,  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
+            'card': card.as_json(),  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
             'error': error_full,
             'error_for_user': error_for_user,
             'historical_season_trends': None,
@@ -270,12 +284,10 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     # GET ALL HISTORICAL CARDS
     return yearly_trends_data
 
-def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, **kwargs) -> dict[str: Any]:
-    """Generate in-season trends for a player. Done on a weekly basis, showing points per week."""
+def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, latest_game_boxscore:dict=None, **kwargs) -> InSeasonTrends:
+    """Generate in-season trends for a player. Done on a weekly or monthly basis, showing points per week."""
 
-    # REMOVE `image` PREFIXES FROM KEYS
-    kwargs = clean_kwargs(kwargs)
-    # ALSO REMOVE PRINT TO CLI
+    # REMOVE PRINT TO CLI
     kwargs.pop('print_to_cli', None)
     kwargs.pop('show_image', None)
     
@@ -283,13 +295,30 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     game_logs = actual_card.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, [])
     if len(game_logs) == 0 or actual_card.stats_period.is_multi_year:
         return None
-    
+
+    # DEFINE THE OBJECT
+    in_season_trends = InSeasonTrends(cumulative_trends_date_aggregation=date_aggregation.upper())
+
     # GET IN SEASON TRENDS
-    in_season_trends_data: dict[str: dict] = {}
     year = actual_card.stats_period.year_list[0]
     player_first_date = convert_to_date(game_log_date_str=game_logs[0].get('date', game_logs[0].get('date_game', None)), year=year)
     player_last_date = convert_to_date(game_log_date_str=game_logs[-1].get('date', game_logs[-1].get('date_game', None)), year=year)
+    
+    # DEFINE DATE RANGES
     date_ranges = StatsPeriodDateAggregation(date_aggregation.upper()).date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date)
+    date_str_from_boxscore = latest_game_boxscore.get('date', None) if latest_game_boxscore else None
+    is_day_over_day_comparison = False
+    if date_str_from_boxscore:
+        # IF LATEST GAME DATE = THE PLAYER LAST DATE:
+        # ADD A TREND POINT FOR THE LATEST GAME'S DATE -1
+        date_from_boxscore = convert_to_date(game_log_date_str=date_str_from_boxscore, year=year)
+        if date_from_boxscore == player_last_date:
+            yesterday = date_from_boxscore - timedelta(days=1)
+            # APPEND AT SECOND TO LAST POSITION
+            date_ranges.insert(-1, (player_first_date, yesterday))
+            is_day_over_day_comparison = True
+
+    in_season_trends_data: dict[str: TrendDatapoint] = {}
     for dr in date_ranges:
         start_date, end_date = dr
         end_date_str = end_date.strftime('%Y-%m-%d')
@@ -307,23 +336,47 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
             continue
 
     # RETURN NONE IF NO TRENDS FOUND
-    if len(in_season_trends_data) == 0:
+    trends_data_count = len(in_season_trends_data)
+    if trends_data_count == 0:
         return None
+    
+    # STORE INSIDE OBJECT
+    in_season_trends.cumulative_trends = in_season_trends_data
+
+    # ADD COMPARISONS
+    if trends_data_count > 1:
+
+        # CARDS USED FOR COMPARISON
+        current_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-1]]
+        last_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-2]]
+
+        # DAY
+        if is_day_over_day_comparison:
+            # GET THE LAST TWO DAYS
+            in_season_trends.pts_change['day'] = int(current_card.points - last_card.points)
+
+        # WEEK
+        last_weeks_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-3]] if is_day_over_day_comparison and trends_data_count > 2 else is_day_over_day_comparison
+        in_season_trends.pts_change['week'] = int(current_card.points - last_weeks_card.points)
 
     # PRINT HISTORICAL POINTS
-    if actual_card.print_to_cli and len(in_season_trends_data) > 0:
+    if actual_card.print_to_cli and len(in_season_trends.cumulative_trends) > 0:
         print(f"\n{year} TRENDS POINTS")
-        
-        if len(in_season_trends_data.items()) > 8:
-            # LIMIT TO LAST 8 WEEKS
-            in_season_trends_data = {k: in_season_trends_data[k] for k in list(in_season_trends_data.keys())[-8:]}
 
-        table = PrettyTable(field_names=list(in_season_trends_data.keys()))
-        table.add_row([f"{c.get('points', 0)}" for c in in_season_trends_data.values()])
+        if len(in_season_trends.cumulative_trends.items()) > 8:
+            # LIMIT TO LAST 8 WEEKS
+            in_season_trends.cumulative_trends = {k: in_season_trends.cumulative_trends[k] for k in list(in_season_trends.cumulative_trends.keys())[-8:]}
+
+        table = PrettyTable(field_names=list(in_season_trends.cumulative_trends.keys()))
+        table.add_row([f"{c.points}" for c in in_season_trends.cumulative_trends.values()])
 
         print(table)
 
-    return in_season_trends_data
+        pts_change = in_season_trends.pts_change.get('day', None)
+        if pts_change is not None:
+            print(f"Day over Day: {'+' if pts_change > 0 else ''}{int(pts_change)}")
+
+    return in_season_trends
 
 def generate_random_player_id_and_year(**kwargs) -> tuple[str, str]:
     """ Get Random Player Id and Year. Account for user inputs (if any).

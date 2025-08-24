@@ -276,19 +276,25 @@ class MLBStatsAPI(BaseModel):
             'game_pk': game_pk,
             'date': game_date,
             'date_short': game_date_short,
-            'home_team_abbreviation': team_data_home,
-            'away_team_abbreviation': team_data_away,
-            'home_team_id': team_id_home,
-            'away_team_id': team_id_away,
-            'home_team_runs': runs_home,
-            'away_team_runs': runs_away,
-            'home_team_color': team_data_home_color,
-            'away_team_color': team_data_away_color,
             'current_batter_name': batter_name,
             'current_batter_batting_order': batter_batting_order,
             'current_pitcher_name': pitcher_name,
             'has_game_ended': is_game_over,
             'current_inning_visual': current_inning_visual,
+            'teams': {
+                'home': {
+                    'abbreviation': team_data_home,
+                    'id': team_id_home,
+                    'runs': runs_home,
+                    'color': team_data_home_color
+                },
+                'away': {
+                    'abbreviation': team_data_away,
+                    'id': team_id_away,
+                    'runs': runs_away,
+                    'color': team_data_away_color
+                }
+            }
         })
         game_data.update(additional_details)
         
