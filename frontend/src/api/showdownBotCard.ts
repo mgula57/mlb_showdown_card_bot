@@ -38,7 +38,7 @@ export type ShowdownBotCardAPIResponse = {
     card: ShowdownBotCard | null;
 
     // Trends
-    historical_season_trends?: Record<string, TrendDatapoint> | {};
+    historical_season_trends?: CareerTrends | null;
     in_season_trends?: InSeasonTrends | null;
 
     // LIVE GAME
@@ -185,6 +185,10 @@ export type ChartAccuracyCategoryBreakdown = {
 // --------------------------------
 // MARK: - TREND GRAPHS
 // --------------------------------
+
+export type CareerTrends = {
+    yearly_trends: Record<string | number, TrendDatapoint>;
+}
 
 export type InSeasonTrends = {
     cumulative_trends: Record<string, TrendDatapoint>;

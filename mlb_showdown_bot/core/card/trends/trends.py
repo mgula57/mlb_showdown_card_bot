@@ -31,6 +31,7 @@ class TrendDatapoint(BaseModel):
 
 
 class InSeasonTrends(BaseModel):
+    """Stores in-season trend data for a player"""
 
     # TRENDS
     cumulative_trends_date_aggregation: str = 'WEEK'
@@ -38,6 +39,14 @@ class InSeasonTrends(BaseModel):
 
     # ATTRIBUTES
     pts_change: Optional[dict[str, int]] = {}
+
+    def as_json(self) -> dict:
+        return self.model_dump(mode="json", exclude_none=True)
+    
+class CareerTrends(BaseModel):
+    """Stores career trend data for a player"""
+
+    yearly_trends: dict[str | int, TrendDatapoint] = None
 
     def as_json(self) -> dict:
         return self.model_dump(mode="json", exclude_none=True)

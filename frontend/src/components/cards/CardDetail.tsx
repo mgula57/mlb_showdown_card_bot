@@ -244,7 +244,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
 
                 <ChartPlayerPointsTrend 
                     title="Career Trends" 
-                    trendData={showdownBotCardData?.historical_season_trends || null} 
+                    trendData={showdownBotCardData?.historical_season_trends?.yearly_trends || null} 
                 />
 
                 <ChartPlayerPointsTrend 

@@ -10,7 +10,7 @@ from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
 from .stats.mlb_stats_api import MLBStatsAPI
-from .trends.in_season_trends import InSeasonTrends, TrendDatapoint
+from .trends.trends import CareerTrends, InSeasonTrends, TrendDatapoint
 from ..database.postgres_db import PostgresDB, PlayerArchive
 from .utils.shared_functions import convert_to_date
 
@@ -108,9 +108,9 @@ def generate_card(**kwargs) -> dict[str, Any]:
         show_historical_points = kwargs.get("show_historical_points", False)
         in_season_trend_aggregation = kwargs.get("season_trend_date_aggregation", None)
 
-        # if show_historical_points:
-        #     historical_season_trends_data = generate_all_historical_yearly_cards_for_player(actual_card=card, **kwargs)
-        #     additional_logs["historical_season_trends"] = historical_season_trends_data
+        if show_historical_points:
+            historical_season_trends_data = generate_all_historical_yearly_cards_for_player(actual_card=card, **kwargs)
+            additional_logs["historical_season_trends"] = historical_season_trends_data.as_json() if historical_season_trends_data else None
 
         if in_season_trend_aggregation:
             in_season_trends_data = generate_in_season_trends_for_player(
@@ -223,7 +223,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
     
         return final_card_payload
 
-def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCard, **kwargs) -> list[dict]:
+def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCard, **kwargs) -> CareerTrends:
     """Generate all historical yearly cards for a player."""
 
     if actual_card.bref_id is None:
@@ -234,12 +234,9 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     yearly_archive_data = db.fetch_all_player_year_stats_from_archive(bref_id=actual_card.bref_id, type_override=actual_card.player_type_override)
     if len(yearly_archive_data) == 0:
         return None
-    
-    # REMOVE `image` PREFIXES FROM KEYS
-    kwargs = clean_kwargs(kwargs)
 
     # ITERATE THROUGH EACH YEAR
-    yearly_trends_data: dict[str: dict[str: Any]] = {}
+    yearly_trends_data: dict[str, TrendDatapoint] = {}
     kwargs.pop('name', None) # Remove name from kwargs to avoid confusion
     kwargs.pop('print_to_cli', None) # Remove print_to_cli from kwargs to avoid confusion
     kwargs.pop('show_image', None) # Remove show_image from kwargs to avoid confusion
@@ -268,6 +265,7 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
             print(e)
             continue # SKIP YEAR
     
+    # ADD CURRENT YEAR
     if len(yearly_trends_data) > 0 and actual_card.stats_period.year_int is not None:
         latest_historical_year = max(yearly_trends_data.keys())
         if actual_card.stats_period.year_int > latest_historical_year:
@@ -276,13 +274,13 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     if actual_card.print_to_cli and len(yearly_trends_data) > 0:
         # PRINT HISTORICAL POINTS
         print("\nHISTORICAL POINTS")
-        avg_points = int(round(sum([c.get('points', 0) for c in yearly_trends_data.values()]) / len(yearly_trends_data)))
+        avg_points = int(round(sum([c.points for c in yearly_trends_data.values()]) / len(yearly_trends_data)))
         table = PrettyTable(field_names=['AVG'] + list(yearly_trends_data.keys()))
-        table.add_row([str(avg_points)] + [f"{c.get('points', 0)}" for c in yearly_trends_data.values()])
+        table.add_row([str(avg_points)] + [f"{c.points}" for c in yearly_trends_data.values()])
         print(table)
     
     # GET ALL HISTORICAL CARDS
-    return yearly_trends_data
+    return CareerTrends(yearly_trends=yearly_trends_data)
 
 def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, latest_game_boxscore:dict=None, **kwargs) -> InSeasonTrends:
     """Generate in-season trends for a player. Done on a weekly or monthly basis, showing points per week."""
@@ -318,7 +316,7 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
             date_ranges.insert(-1, (player_first_date, yesterday))
             is_day_over_day_comparison = True
 
-    in_season_trends_data: dict[str: TrendDatapoint] = {}
+    in_season_trends_data: dict[str, TrendDatapoint] = {}
     for dr in date_ranges:
         start_date, end_date = dr
         end_date_str = end_date.strftime('%Y-%m-%d')

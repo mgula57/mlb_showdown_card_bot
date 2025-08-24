@@ -44,7 +44,7 @@ from .chart import ChartCategory, Stat, ChartAccuracyBreakdown
 from .images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expansion, ShowdownImage, StatHighlightsType, StatHighlightsCategory
 from .points import Points, PointsMetric, PointsBreakdown
 
-from .trends.in_season_trends import TrendDatapoint
+from .trends.trends import TrendDatapoint
 
 from ..version import __version__
 
