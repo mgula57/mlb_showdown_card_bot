@@ -123,6 +123,14 @@ class PlayerType(Enum):
     PITCHER = 'Pitcher'
     HITTER = 'Hitter'
 
+    @classmethod
+    def _missing_(cls, value):
+        if isinstance(value, str):
+            for member in cls:
+                if member.value.upper() == value.upper():
+                    return member
+        return None
+
     @property
     def is_pitcher(self) -> bool:
         return self == self.PITCHER

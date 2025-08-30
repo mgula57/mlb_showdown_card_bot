@@ -70,9 +70,12 @@ class ShowdownPlayerCard(BaseModel):
     nationality: Nationality | None = Nationality.NONE
     player_type: PlayerType | None = None
     player_sub_type: Optional[PlayerSubType] = None
-    player_type_override: Optional[PlayerType] = None
     nicknames: list[str] = []
-    
+
+    # OVERRIDES
+    player_type_override: Optional[PlayerType] = None
+    team_override: Optional[Team] = None
+
     # OPTIONALS
     version: str = __version__
     is_stats_estimate: bool = False
@@ -156,6 +159,10 @@ class ShowdownPlayerCard(BaseModel):
         if self.is_running_on_website:
             self.nicknames = self.extract_player_nicknames_list()
 
+        # CLEAN TEAM OVERRIDE
+        if self.team_override is None or self.team_override == Team.MLB:
+            self.team_override = None
+
         # HANDLE GAME LOGS IF APPLICABLE
         game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
         if self.realtime_game_logs:
@@ -168,7 +175,7 @@ class ShowdownPlayerCard(BaseModel):
                 # TO AVOID DUPLICATES
                 added_game_logs = [gl for gl in self.realtime_game_logs if convert_to_date(gl.get('date', '1970-01-01')) > latest_bref_date]
             game_logs += added_game_logs
-        self.stats_period.add_stats_from_logs(game_logs=game_logs, is_pitcher=self.is_pitcher)
+        self.stats_period.add_stats_from_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
         if self.stats_period.stats:
             full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
             # ADD FULL AMOUNT OF NGAMES PLAYED FOR REGULAR SEASON GAMES FOR HITTERS

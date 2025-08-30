@@ -158,6 +158,10 @@ class Team(str, Enum):
 
     @classmethod
     def _missing_(cls, value):
+        if isinstance(value, str):
+            for member in cls:
+                if member.value.upper() == value.upper():
+                    return member
         return cls.MLB
 
 # ------------------------------------------------------------------------

@@ -23,6 +23,7 @@ from typing import Optional
 
 # INTERNAL
 from ...shared.team import Team
+from ...shared.player_position import PlayerType
 from ...database.postgres_db import PostgresDB
 from .accolade import Accolade
 from .stats_period import StatsPeriod, StatsPeriodType
@@ -37,10 +38,8 @@ class BaseballReferenceScraper(BaseModel):
     baseball_ref_id: str = None
 
     # OVERRIDES
-    team_override: str = None
-    pitcher_override: str = None
-    hitter_override: str = None
-    player_type_override: str = None
+    team_override: Optional[Team] = None
+    player_type_override: Optional[PlayerType] = None
 
     # MORE OPTIONS
     ignore_cache: bool = False
@@ -64,22 +63,11 @@ class BaseballReferenceScraper(BaseModel):
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, **data) -> None:
+    def model_post_init(self, __context):
 
-        # INIT
-        super().__init__(**data)
-
-        # CHECK FOR TEAM OVERRIDE
-        if '(' in self.name:
-            for team_id in [team.value for team in Team]:
-                team_match = f'({team_id})' in self.name.upper()
-                if team_match and not self.stats_period.is_multi_year and not self.stats_period.is_full_career and self.stats_period.split is None:
-                    self.team_override = team_id
-
-        # CHECK FOR TYPE OVERRIDE
-        self.pitcher_override = '(PITCHER)' if ( '(PITCHER)' in self.name.upper() or '(PITCHING)' in self.name.upper() ) else None
-        self.hitter_override = '(HITTER)' if ( '(HITTER)' in self.name.upper() or '(HITTING)' in self.name.upper() ) and self.pitcher_override is None else None
-        self.player_type_override = None if (self.pitcher_override is None and self.hitter_override is None) else f"{self.hitter_override if self.hitter_override else ''}{self.pitcher_override if self.pitcher_override else ''}"
+        # VALIDATE TEAM OVERRIDE
+        if self.team_override is not None and self.team_override == Team.MLB:
+            self.team_override = None
 
         # CHECK FOR BASEBALL REFERENCE ID
         self.is_name_a_bref_id = any(char.isdigit() for char in self.name)
@@ -96,7 +84,21 @@ class BaseballReferenceScraper(BaseModel):
     def first_initial(self) -> str:
         """First initial of player name"""
         return self.baseball_ref_id[:1]
-    
+
+    @property
+    def is_pitcher_override(self) -> bool:
+        """Check if the player is a pitcher override"""
+        if self.player_type_override is None:
+            return False
+        return self.player_type_override == PlayerType.PITCHER
+
+    @property
+    def is_hitter_override(self) -> bool:
+        """Check if the player is a hitter override"""
+        if self.player_type_override is None:
+            return False
+        return self.player_type_override == PlayerType.HITTER
+
 # ------------------------------------------------------------------------
 # GET DATA
 # ------------------------------------------------------------------------
@@ -691,7 +693,7 @@ class BaseballReferenceScraper(BaseModel):
             if self.team_override:
                 team_name = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['team_ID', 'team_name_abbr'])
                 if team_name:
-                    if team_name != self.team_override: continue
+                    if team_name != self.team_override.value: continue
 
             position_name = self.__extract_text_for_element(object=position_data, tag='td', attr_key='data-stat', values=['pos', 'f_position'])
             
@@ -771,7 +773,7 @@ class BaseballReferenceScraper(BaseModel):
 
         # CHECK FOR DH
         # DH WILL NOT HAVE A RECORD IN THE FIELDING TABLE
-        if not self.pitcher_override:
+        if not self.is_pitcher_override:
             games_at_dh = self.__get_dh_appearances(soup_for_homepage_stats, years=[year])
             if games_at_dh:
                 positions_dict['DH'] = {
@@ -1090,8 +1092,8 @@ class BaseballReferenceScraper(BaseModel):
         games_as_hitter = sum([pos_data.get('g', 0) for pos, pos_data in positions_dict.items() if pos != 'P'])
 
         # CHECK FOR TYPE OVERRIDE
-        is_pitcher_override = self.pitcher_override and games_as_pitcher > 0
-        is_hitter_override = self.hitter_override
+        is_pitcher_override = self.is_pitcher_override and games_as_pitcher > 0
+        is_hitter_override = self.is_hitter_override
 
         # COMPARE GAMES PLAYED IN BOTH TYPES
         total_games = games_as_hitter + games_as_pitcher
@@ -1212,7 +1214,7 @@ class BaseballReferenceScraper(BaseModel):
                     for fielding_row in fielding_data_jsons:
                         team_abbr = fielding_row['fld_abbreviation']
                         is_year_match = int(fielding_row['year']) in years
-                        is_team_row = self.team_override == team_abbr if self.team_override else team_abbr != 'NA'
+                        is_team_row = self.team_override.value == team_abbr if self.team_override else team_abbr != 'NA'
                         if is_year_match and is_team_row:
                             position = fielding_row['pos_name_short']
                             ooa = fielding_row['outs_above_average']
@@ -2008,7 +2010,7 @@ class BaseballReferenceScraper(BaseModel):
         except:
             return False
 
-    def __find_partial_team_stats_row(self, soup_object:BeautifulSoup, team:str, year:int, return_soup_object:bool=False) -> BeautifulSoup:
+    def __find_partial_team_stats_row(self, soup_object:BeautifulSoup, team:Team, year:int, return_soup_object:bool=False) -> BeautifulSoup:
         """Iterates through each object to try to find specific team stats for a given year.
         
         Args:
@@ -2032,7 +2034,7 @@ class BaseballReferenceScraper(BaseModel):
         for season in partial_seasons:
             data = self.__parse_generic_bref_row(season)
             if 'team_ID' in data.keys() and 'year_ID' in data.keys():
-                if data['team_ID'] == team and str(data['year_ID']) == year:
+                if data['team_ID'] == team.value and str(data['year_ID']) == year:
                     return season if return_soup_object else data
 
         # NO MATCHES, RETURN NONE    
@@ -2126,8 +2128,8 @@ class BaseballReferenceScraper(BaseModel):
     def cache_filename(self) -> str:
         """Name of cache file for player data. """
         years_as_str = '-'.join([str(y) for y in self.stats_period.year_list])
-        override_type = f"{f'-{self.pitcher_override}' if self.pitcher_override else ''}{f'-{self.hitter_override}' if self.hitter_override else ''}"
-        override_team = f'-{self.team_override}' if self.team_override else ""
+        override_type = f"{f'-{self.player_type_override.value}' if self.player_type_override else ''}"
+        override_team = f'-{self.team_override.value}' if self.team_override else ""
         override_period = f"-{self.stats_period.id}"
         return f"{years_as_str}-{self.baseball_ref_id}{override_type}{override_team}{override_period}.json"
 

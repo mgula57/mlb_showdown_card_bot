@@ -14,6 +14,10 @@ def card(
         name: str = typer.Option(None, "--name", "-n", help="Player name"),
         year: str = typer.Option(None, "--year", "-y", help="The year of the player"),
 
+        # OVERRIDES
+        player_type_override: str = typer.Option(None, "--player_type_override", "-pto", help="Override the card type. Either `Pitcher` or `Hitter`"),
+        team_override: str = typer.Option(None, "--team_override", "-tmo", help="Only include stats from a specific team"),
+
         # SET
         set: str = typer.Option("2000", "--set", "-s", help="The showdown set meta to use (2000-2005)"),
         era: str = typer.Option("DYNAMIC", "--era", "-e", help="The baseball era to use."),

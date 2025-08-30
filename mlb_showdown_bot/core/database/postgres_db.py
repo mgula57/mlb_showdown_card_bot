@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from typing import Optional, Any
 
 # INTERNAL
-from ..card.showdown_player_card import ShowdownPlayerCard, Era, Edition, StatsPeriodType, __version__
+from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, StatsPeriodType, __version__
 from ..card.utils.shared_functions import convert_year_string_to_list
 
 class PlayerArchive(BaseModel):
@@ -116,14 +116,14 @@ class PostgresDB:
 
         return output
     
-    def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:str = None, type_override:str = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.REGULAR_SEASON) -> tuple[PlayerArchive, float]:
+    def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:Team = None, type_override:PlayerType = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.REGULAR_SEASON) -> tuple[PlayerArchive, float]:
         """Query the stats_archive table for a particular player's data from a single year
         
         Args:
           year: Year input by the user. Showdown archive does not support multi-year.
           bref_id: Unique ID for the player defined by bref.
           team_override: User override for filtering to a specific team. (ex: Max Scherzer (TEX))
-          type_override: User override for specifing player type (ex: Shoehi Ohtani (Pitcher))
+          type_override: User override for specifing player type (ex: Shohei Ohtani (Pitcher))
           split: Split name (if applicable)
 
         Returns:
@@ -146,7 +146,9 @@ class PostgresDB:
             return default_return_tuple
         
         if team_override:
-            team_override = f"({team_override})"
+            team_override = f"({team_override.value})"
+        if type_override:
+            type_override = f"({type_override.value})"
         id_components = [str(year), bref_id, team_override, type_override, historical_date]
         concat_str_list = [component for component in id_components if component is not None]
         player_stats_id: str = "-".join(concat_str_list).lower()
@@ -172,12 +174,12 @@ class PostgresDB:
         
         return (first_player_archive, load_time)
 
-    def fetch_all_player_year_stats_from_archive(self, bref_id:str, type_override:str = None) -> list[PlayerArchive]:
+    def fetch_all_player_year_stats_from_archive(self, bref_id:str, type_override:PlayerType = None) -> list[PlayerArchive]:
         """Query the stats_archive table for all player data for a given player
         
         Args:
             bref_id: Unique ID for the player defined by bref.
-            type_override: User override for specifing player type (ex: Shoehi Ohtani (Pitcher))
+            type_override: User override for specifing player type (ex: Shohei Ohtani (Pitcher))
 
         Returns:
             List of stats archive data where each element is a year.

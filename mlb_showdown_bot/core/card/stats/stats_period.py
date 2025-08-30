@@ -7,6 +7,7 @@ import calendar
 
 # INTERNAL
 from ..utils.shared_functions import aggregate_stats, convert_to_numeric, fill_empty_stat_categories, convert_to_date, convert_year_string_to_list
+from ...shared.team import Team
 
 class StatsPeriodType(str, Enum):
 
@@ -300,13 +301,14 @@ class StatsPeriod(BaseModel):
         self.end_date = None
         self.split = None
 
-    def add_stats_from_logs(self, game_logs:list[dict[str, Any]], is_pitcher:bool) -> None:
+    def add_stats_from_logs(self, game_logs:list[dict[str, Any]], is_pitcher:bool, team_override:Team = None) -> None:
         """
         Add stats from game logs to the stats dictionary
         
         Args:
             game_logs (list[dict[str, Any]]): List of game logs. Can be regular season or postseason
             is_pitcher (bool): If the player is a pitcher
+            team_override (Team, optional): Team override for filtering game logs
 
         Returns:
             None
@@ -351,7 +353,9 @@ class StatsPeriod(BaseModel):
                 # UPDATE 'date_game' WITH FORMATTED DATE
                 game_log_data['date_game'] = game_log_date.strftime("%b %-d")
             
-            # TODO: SKIP IF TEAM OVERRIDE IS PRESENT AND TEAM DOESN'T MATCH
+            # SKIP IF TEAM OVERRIDE IS PRESENT AND TEAM DOESN'T MATCH
+            if team_override and game_log_data.get('team_ID', None) != team_override.value:
+                continue
 
             # SKIP ROW IF IT FAILS THE DATE OR YEAR CHECKS
             if not date_check or not year_check:

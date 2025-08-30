@@ -409,7 +409,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
 
                             <PlayerSearchInput
-                                label="Player"
+                                label="Player Search"
                                 className='col-span-full'
                                 value={form.name ? `${form.name} ${form.year}` : ''}
                                 onChange={(selection) => setForm({ ...form, name: selection.name, year: selection.year })}
