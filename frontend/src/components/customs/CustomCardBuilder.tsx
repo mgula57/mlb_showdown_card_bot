@@ -7,6 +7,7 @@ import FormInput from './FormInput';
 import FormSection from './FormSection';
 import FormDropdown from './FormDropdown';
 import FormEnabler from './FormEnabler';
+import { PlayerSearchInput } from './PlayerSearchInput';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
 
@@ -407,23 +408,16 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         {/* Player */}
                         <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
 
-                            <FormInput
-                                label="Name"
+                            <PlayerSearchInput
+                                label="Player"
                                 className='col-span-full'
-                                value={form.name}
-                                onChange={(value) => setForm({ ...form, name: value || '' })}
-                                isClearable={true}
-                            />
-
-                            <FormInput
-                                label="Year"
-                                value={form.year}
-                                onChange={(value) => setForm({ ...form, year: value || '' })}
-                                isClearable={true}
+                                value={form.name ? `${form.name} ${form.year}` : ''}
+                                onChange={(selection) => setForm({ ...form, name: selection.name, year: selection.year })}
                             />
 
                             <FormDropdown
                                 label="Period"
+                                className='col-span-full'
                                 options={periodOptions}
                                 selectedOption={form.period}
                                 onChange={(value) => setForm({ ...form, period: value })}

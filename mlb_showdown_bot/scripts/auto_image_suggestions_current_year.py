@@ -105,12 +105,13 @@ def fetch_bref_player_stats(player_type: str) -> list:
                     player_data['bref_id'] = player_id
 
         # CHECK IF PLAYER IS IN IMAGE LIST
-        team_id = player_data.get('team_name_abbr', None)
-        if len(player_id or 'n/a') > 0 and team_id:
+        team_id = player_data.get('team_name_abbr', 'N/A')
+        if len(player_id or '') > 0 and team_id not in ['N/A']:
             images = [
                 image for image in image_list 
                 if player_id in image 
                     and (abs(int(image.split('-')[1]) - current_year) <= 1 if args.year_threshold is not None else True)
+                    and team_id in image
                 ]    
             if len(images) > 0:
                 continue  # Skip if player has an image

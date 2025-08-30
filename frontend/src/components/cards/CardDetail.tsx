@@ -30,7 +30,6 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
 
     // Theme
     const { isDark } = useTheme();
-    console.log('CardDetail isDark:', isDark);
 
     // Breakdown State
     const [breakdownType, setBreakdownType] = useState<string>("Stats");

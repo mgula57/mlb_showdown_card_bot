@@ -16,7 +16,7 @@ export function formatAsPct(value: unknown, digits = 1): string {
 /** Format a value given a stat category */
 export function formatStatValue(value: unknown, stat: string, digits = 3): string {
     if (value == null) return "";
-    switch ((stat ?? "").toUpperCase().replace("*", "")) {
+    switch ((stat ?? "").toUpperCase().replace("*", "").split("-")[0]) {
         case "BA":
         case "AVG":
         case "AVERAGE":
@@ -31,6 +31,14 @@ export function formatStatValue(value: unknown, stat: string, digits = 3): strin
             return String(Math.round(Number(value) || 0));
         case "OUT_DISTRIBUTION":
             return formatAsPct(value, 1);
+        case "BWAR":
+            return Number(value).toFixed(1);
+        case "DWAR":
+            return Number(value).toFixed(2);
+        case "DRS":
+        case "TZR":
+        case "OAA":
+            return Number(value).toFixed(0);
         default:
             return String(value);
     }
