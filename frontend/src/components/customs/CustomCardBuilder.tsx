@@ -413,7 +413,6 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                     {/* Form Inputs */}
 
                     
-
                     <div className="space-y-4 pb-8 md:pb-64">
 
                         {/* Search Box */}

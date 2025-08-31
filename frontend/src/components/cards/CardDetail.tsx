@@ -3,6 +3,7 @@ import { useTheme } from "../shared/SiteSettingsContext";
 import { CustomSelect } from '../shared/CustomSelect';
 import { FaTable, FaPoll, FaCoins, FaBaseballBall } from 'react-icons/fa';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
+import { enhanceColorVisibility } from '../../functions/colors';
 
 // Images
 import blankPlayer2001Dark from '../../assets/blankplayer-2001-dark.png';
@@ -62,8 +63,8 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
 
     const teamGlowColor = showdownBotCardData?.card?.image ? (
         ['NYM', 'SDP', 'NYY'].includes(showdownBotCardData?.card?.team || '') 
-            ? showdownBotCardData?.card?.image?.color_secondary 
-            : showdownBotCardData?.card?.image?.color_primary
+            ? enhanceColorVisibility(showdownBotCardData?.card?.image?.color_secondary) 
+            : enhanceColorVisibility(showdownBotCardData?.card?.image?.color_primary)
     ) : 'rgb(0, 0, 0)';
 
     // MARK: BREAKDOWN TABLES
@@ -196,7 +197,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                         `}
                         style={{
                             boxShadow: showdownBotCardData?.card?.image
-                                ? `0 0 10px ${addOpacityToRGB(teamGlowColor, 0.44)},
+                                ? `0 0 10px ${addOpacityToRGB(teamGlowColor, 0.66)},
                                    0 0 20px ${addOpacityToRGB(teamGlowColor, 0.52)},
                                    0 0 40px ${addOpacityToRGB(teamGlowColor, 0.66)},
                                    0 0 80px ${addOpacityToRGB(teamGlowColor, 0.66)}`

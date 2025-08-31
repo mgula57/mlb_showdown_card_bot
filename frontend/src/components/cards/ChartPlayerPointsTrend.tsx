@@ -1,25 +1,13 @@
 import { type TrendDatapoint } from '../../api/showdownBotCard';
 import { ResponsiveContainer, AreaChart, XAxis, YAxis, Tooltip, Area, CartesianGrid } from 'recharts';
 import { useMemo } from 'react';
+import { enhanceColorVisibility } from '../../functions/colors';
 
 type ChartPlayerPointsTrendProps = {
     title: string;
     trendData?: Record<string, TrendDatapoint> | null;
 };
 
-// Adjust color for theme
-const enhanceColorVisibility = (color: string) => {
-    const isDarkMode = document.documentElement.classList.contains('dark');
-    
-    // Simple brightness adjustment
-    if (isDarkMode) {
-        // Add some brightness and saturation for dark mode
-        return `color-mix(in srgb, ${color} 70%, white 30%)`;
-    } else {
-        // Slightly darken for light mode
-        return `color-mix(in srgb, ${color} 85%, black 15%)`;
-    }
-};
 
 const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProps) => {
 
