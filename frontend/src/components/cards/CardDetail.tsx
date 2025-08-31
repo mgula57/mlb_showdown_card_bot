@@ -62,7 +62,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
     };
 
     const teamGlowColor = showdownBotCardData?.card?.image ? (
-        ['NYM', 'SDP', 'NYY'].includes(showdownBotCardData?.card?.team || '') 
+        ( ['NYM', 'SDP', 'NYY'].includes(showdownBotCardData?.card?.team || '') && isDark )
             ? enhanceColorVisibility(showdownBotCardData?.card?.image?.color_secondary) 
             : enhanceColorVisibility(showdownBotCardData?.card?.image?.color_primary)
     ) : 'rgb(0, 0, 0)';
@@ -187,7 +187,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                     <img
                         src={cardImagePath == null ? (isDark ? blankPlayer2001Dark : blankPlayer2001Light) : cardImagePath}
                         alt="Blank Player"
-                        key={isDark ? 'dark' : 'light'}
+                        key={showdownBotCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
                         className={`
                             block 
                             md:mx-auto

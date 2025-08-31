@@ -314,7 +314,7 @@ export function PlayerSearchInput({
                                 onClick={() => handleSelect(option)}
                                 className={`
                                     px-3 py-3 cursor-pointer border-b border-form-element last:border-b-0
-                                    ${index === selectedIndex ? 'bg-blue-500 text-white' : 'text-primary hover:bg-gray-100 dark:hover:bg-gray-700'}
+                                    hover:bg-[var(--background-tertiary)]
                                     ${index === 0 ? 'rounded-t-lg' : ''}
                                     ${index === options.length - 1 ? 'rounded-b-lg' : ''}
                                 `}

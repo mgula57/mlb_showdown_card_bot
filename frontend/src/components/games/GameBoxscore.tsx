@@ -1,4 +1,5 @@
 import { type GameBoxscore, type GameBoxscoreTeam } from "../../api/showdownBotCard"
+import { enhanceColorVisibility } from "../../functions/colors";
 
 /** Props for the GameBoxscore component */
 type GameBoxscoreProps = {
@@ -17,7 +18,7 @@ export function GameBoxscore({ boxscore }: GameBoxscoreProps) {
             : null;
     const gamePlayerPtsChange = boxscore.game_player_pts_change;
     const gamePlayerPtsChangeSymbol = gamePlayerPtsChange ? (gamePlayerPtsChange >= 0 ? "▲" : "▼") : null;
-    const gamePlayerPtsChangeColor = gamePlayerPtsChange ? (gamePlayerPtsChange >= 0 ? "text-green-500" : "text-red-500") : null;
+    const gamePlayerPtsChangeColor = gamePlayerPtsChange ? (gamePlayerPtsChange >= 0 ? enhanceColorVisibility("text-green-600") : enhanceColorVisibility("text-red-500")) : null;
 
     // Team Summary
     const teamSummary = (team: GameBoxscoreTeam) => {
