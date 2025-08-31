@@ -3,13 +3,14 @@
 :root {
     --primary: #000000;
     --secondary: #292929;
+    --tertiary: #3c3c3c;
 
     --showdown-blue: #1a3b5f;
     --showdown-red: #9a362f;
     
-    --background-primary: #f0f4f8;
+    --background-primary: #f3f7fa;
     --background-secondary: #ffffff;
-    --background-teritiary: #e8ebed;
+    --background-tertiary: #e8ebed;
 
     --divider: #e0e0e0;
 
@@ -20,18 +21,19 @@
 .dark {
     --primary: #ffffff;
     --secondary: #dfdfdf;
+    --tertiary: #cfcfcf;
 
     --showdown-blue: #4682e6;
     --showdown-red: #d04e47;
 
     --background-primary: #2d2d32;
     --background-secondary: #232526;
-    --background-teritiary: #3a3a3f;
+    --background-tertiary: #3a3a3f;
 
     --divider: #444444;
 
     --table-header: #444444;
-    --table-banding: #232323;
+    --table-banding: #1c1c1c;
 }
 
 /* Custom Fonts */

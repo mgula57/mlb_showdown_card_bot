@@ -131,7 +131,10 @@ type ShowdownBotCardImage = {
 
     output_file_name: string;
     output_folder_path: string;
-    
+
+    is_multi_colored: boolean;
+    color_primary: string;
+    color_secondary: string;
 };
 
 // --------------------------------

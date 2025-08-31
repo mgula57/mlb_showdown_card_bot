@@ -193,6 +193,10 @@ class ShowdownPlayerCard(BaseModel):
             if stats_period_team:
                 self.team = Team(stats_period_team)
 
+        # UPDATE IMAGE COLORS
+        self.image.color_primary = self._team_color_rgb_str()
+        self.image.color_secondary = self._team_color_rgb_str(is_secondary_color=True)
+
         # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
         self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self._positions_and_defense(stats_dict=self.stats_for_card)
         self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
@@ -2948,7 +2952,6 @@ class ShowdownPlayerCard(BaseModel):
         # CROP TO 63mmx88mm or bordered
         final_size = self.set.card_size_bordered_final if self.image.is_bordered else self.set.card_size_final
         card_image = self._center_and_crop(card_image,final_size)
-        card_image = self._round_corners(card_image, 60)
 
         # MAKE IMAGE BLACK AND WHITE IF PARALLEL IS SELECTED
         if self.image.parallel == ImageParallel.BLACK_AND_WHITE:
@@ -5577,6 +5580,19 @@ class ShowdownPlayerCard(BaseModel):
         
         # GRAB FROM CURRENT TEAM COLORS
         return team.color(year=self.median_year, is_secondary=is_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
+
+    def _team_color_rgb_str(self, is_secondary_color:bool=False, ignore_team_overrides:bool=False) -> str:
+        """RGB color string for player team
+
+        Args:
+          is_secondary_color: Optionally use secondary color instead of primary.
+          ignore_team_overrides: Boolean to optionally skip overrides.
+
+        Returns:
+            String with RGB team colors
+        """
+        red, green, blue, _ = self._team_color_rgbs(is_secondary_color=is_secondary_color, ignore_team_overrides=ignore_team_overrides)
+        return f"rgb({red}, {green}, {blue})"
 
     def _use_dark_text(self, is_secondary:bool, ignore_team_overrides:bool=False) -> bool:
         """Determines if text should be dark or light based on team color.

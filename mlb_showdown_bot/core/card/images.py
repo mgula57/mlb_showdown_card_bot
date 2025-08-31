@@ -509,14 +509,20 @@ class ShowdownImage(BaseModel):
     add_one_to_set_year: bool = False
     show_year_text: bool = False
     is_bordered: bool = False
-    is_dark_mode: bool = False
+    
     hide_team_logo: bool = False
-    use_secondary_color: bool = False
+    
     error: Optional[str] = None
     nickname_index: Optional[int] = None
-    is_multi_colored: bool = False
     stat_highlights_type: StatHighlightsType = StatHighlightsType.NONE
     glow_multiplier: float = 1.0
+
+    # COLORS
+    is_dark_mode: bool = False
+    use_secondary_color: bool = False
+    is_multi_colored: bool = False
+    color_primary: str = "#000000"
+    color_secondary: str = "#ffffff"
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:

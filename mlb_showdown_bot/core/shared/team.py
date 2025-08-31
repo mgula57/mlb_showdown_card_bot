@@ -797,7 +797,7 @@ class Team(str, Enum):
     @property
     def use_secondary_color_for_graphs(self) -> bool:
         return self in [
-            Team.NYM,
+            Team.NYM, Team.SDP
         ]
 
 # ------------------------------------------------------------------------

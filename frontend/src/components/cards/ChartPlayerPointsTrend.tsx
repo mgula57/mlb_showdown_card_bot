@@ -7,6 +7,20 @@ type ChartPlayerPointsTrendProps = {
     trendData?: Record<string, TrendDatapoint> | null;
 };
 
+// Adjust color for theme
+const enhanceColorVisibility = (color: string) => {
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    
+    // Simple brightness adjustment
+    if (isDarkMode) {
+        // Add some brightness and saturation for dark mode
+        return `color-mix(in srgb, ${color} 70%, white 30%)`;
+    } else {
+        // Slightly darken for light mode
+        return `color-mix(in srgb, ${color} 85%, black 15%)`;
+    }
+};
+
 const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProps) => {
 
     // Convert trendData to array format
@@ -15,6 +29,7 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
     const trendArray = Object.entries(trendData || placeholderData)
                             .map(([key, value]) => ({ 
                                 ...value,
+                                color: enhanceColorVisibility(value.color),
                                 x_axis: title === "Career Trends" ? key : new Date(key).getTime(), // Use year or date as x_axis
                             }))
 
@@ -93,13 +108,15 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
         }
     };
 
+    // MARK: MAIN CONTENT
     return (
         <div 
             className="
                 flex flex-col
                 w-full p-4 
                 font-bold text-sm
-                rounded-xl bg-secondary shadow-lg
+                rounded-xl bg-secondary
+                border-2 border-form-element
                 space-y-2
                 relative
             "

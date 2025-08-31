@@ -414,7 +414,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
                     
 
-                    <div className="space-y-4 pb-64">
+                    <div className="space-y-4 pb-8 md:pb-64">
 
                         {/* Search Box */}
                         <PlayerSearchInput
@@ -578,7 +578,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                                     flex items-center justify-center
                                     w-full rounded-xl py-4
                                     text-white
-                                    bg-blue-500
+                                    bg-[var(--showdown-blue)]
                                     ${!form.name.trim() || !form.year.trim() 
                                         ? 'cursor-not-allowed opacity-25' 
                                         : 'hover:bg-blue-400 cursor-pointer'

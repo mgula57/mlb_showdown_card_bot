@@ -24,7 +24,7 @@ export function GameBoxscore({ boxscore }: GameBoxscoreProps) {
         return (
             <div 
                 className={`
-                    flex flex-row gap-2 items-center px-2 py-1
+                    flex flex-row gap-2 items-center px-2 py-1 text-white
                 `}
                 style={{
                     backgroundColor: team.color
@@ -42,6 +42,7 @@ export function GameBoxscore({ boxscore }: GameBoxscoreProps) {
                 flex flex-row 
                 max-w-max
                 rounded-xl items-center bg-secondary overflow-clip
+                shadow-lg hover:shadow-xl
             "
             href={gameLink}
             target="_blank"

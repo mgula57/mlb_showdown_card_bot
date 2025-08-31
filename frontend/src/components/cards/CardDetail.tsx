@@ -49,6 +49,24 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
     const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-green-500' : 'text-red-500') : '';
     const weeklyChangePointsSymbol = weeklyChangePoints ? (weeklyChangePoints > 0 ? '▲' : '▼') : '';
 
+    // Changing opacity of color
+    const addOpacityToRGB = (rgbColor: string, opacity: number) => {
+        // Extract numbers from rgb(r, g, b) format
+        const match = rgbColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        if (match) {
+            const [, r, g, b] = match;
+            return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+        }
+        return rgbColor; // fallback if parsing fails
+    };
+
+    const teamGlowColor = showdownBotCardData?.card?.image ? (
+        ['NYM', 'SDP', 'NYY'].includes(showdownBotCardData?.card?.team || '') 
+            ? showdownBotCardData?.card?.image?.color_secondary 
+            : showdownBotCardData?.card?.image?.color_primary
+    ) : 'rgb(0, 0, 0)';
+
+    // MARK: BREAKDOWN TABLES
     const renderBreakdownTable = () => {
         switch (breakdownType) {
             case 'Stats':
@@ -94,6 +112,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
 
     const breakdownFirstRowHeight = 'lg:h-[500px] xl:h-[600px]';
 
+    // MARK: MAIN CONTENT
     return (
         <div 
             className="
@@ -152,7 +171,8 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                 className={`
                     flex flex-col lg:flex-row
                     lg:items-start
-                    gap-4
+                    gap-6
+                    pt-2
                 `}
             >
                 {/* Card Image */}
@@ -160,6 +180,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                     relative
                     h-auto
                     w-full lg:w-96 xl:w-112 2xl:w-128
+                    px-8 md:px-0
                     lg:flex-shrink-0
                 `}>
                     <img
@@ -167,23 +188,33 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                         alt="Blank Player"
                         key={isDark ? 'dark' : 'light'}
                         className={`
-                            block mx-auto
+                            block 
+                            md:mx-auto
                             ${breakdownFirstRowHeight}
-                            rounded-xl
+                            rounded-2xl overflow-hidden
                             object-contain
-                            shadow-2xl
                         `}
+                        style={{
+                            boxShadow: showdownBotCardData?.card?.image
+                                ? `0 0 10px ${addOpacityToRGB(teamGlowColor, 0.44)},
+                                   0 0 20px ${addOpacityToRGB(teamGlowColor, 0.52)},
+                                   0 0 40px ${addOpacityToRGB(teamGlowColor, 0.66)},
+                                   0 0 80px ${addOpacityToRGB(teamGlowColor, 0.66)}`
+                                : `0 0 10px color-mix(in srgb, var(--tertiary) 33%, transparent),
+                                   0 0 20px color-mix(in srgb, var(--tertiary) 44%, transparent),
+                                   0 0 30px color-mix(in srgb, var(--tertiary) 34%, transparent)`
+                       }}
                     /> 
 
                     {/* Loading Overlay */}
                     {isLoading && (
-                        <div className="
+                        <div className={`
                             absolute inset-0 
                             flex items-center justify-center 
-                            bg-black/20 
-                            rounded-xl
-                            backdrop-blur-sm
-                        ">
+                            rounded-2xl
+                            backdrop-blur-xs
+                            object-contain
+                        `}>
                             <div className="
                                 flex flex-col items-center 
                                 bg-secondary/90 
@@ -215,6 +246,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                         bg-secondary
                         p-4 rounded-xl
                         space-y-4
+                        border-2 border-form-element
                         ${breakdownFirstRowHeight}
                     `}
                 >
@@ -241,6 +273,7 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                     w-full
                     flex flex-col lg:flex-row
                     space-x-4 space-y-4
+                    
                 "
             >
 
