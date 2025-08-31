@@ -81,6 +81,9 @@ def generate_card(**kwargs) -> dict[str, Any]:
         baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)
         stats = baseball_reference_stats.fetch_player_stats()
 
+        # UPDATE STATS PERIOD BASED ON BREF STATS
+        stats_period = baseball_reference_stats.stats_period
+
         # -----------------------------------
         # HIT MLB API FOR REALTIME STATS
         # ONLY APPLIES WHEN
@@ -354,7 +357,7 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
             in_season_trends.pts_change['day'] = int(current_card.points - last_card.points)
 
         # WEEK
-        last_weeks_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-3]] if is_day_over_day_comparison and trends_data_count > 2 else is_day_over_day_comparison
+        last_weeks_card = in_season_trends.cumulative_trends[list(in_season_trends.cumulative_trends.keys())[-3]] if is_day_over_day_comparison and trends_data_count > 2 else last_card
         in_season_trends.pts_change['week'] = int(current_card.points - last_weeks_card.points)
 
     # PRINT HISTORICAL POINTS
@@ -394,7 +397,7 @@ def generate_random_player_id_and_year(**kwargs) -> tuple[str, str]:
 
     # IF NO CONNECTION, USE FILE
     if not postgres_db.connection:
-        return None
+        return (None, None)
     
     # QUERY DATABASE FOR RANDOM PLAYER
     random_player:PlayerArchive = postgres_db.fetch_random_player_stats_from_archive(

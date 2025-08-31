@@ -33,7 +33,6 @@ const PLACEHOLDER_EXAMPLES = [
     "Try: 1998-2002",
     "Try: Barry Bonds",
     "Try: Tarik Skubal",
-    "Try: Car",
     "Try: Shohei Hitting"
 ];
 
@@ -223,10 +222,7 @@ export function PlayerSearchInput({
         setQuery('');
         setOptions([]);
         setIsOpen(false);
-        onChange({
-            name: '',
-            year: ''
-        });
+        
         inputRef.current?.focus();
     };
 

@@ -11,13 +11,14 @@ type FormInputProps = {
     isClearable?: boolean;
     placeholder?: string;
     onChangeFile?: (file: File | null) => void;
+    isTitleCase?: boolean;
 };
 
 /** 
  * FormInput component for text input fields with a label.
  * Handles changes and updates the parent state.
  */
-const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className = "", type="text", isClearable=false, placeholder, onChangeFile }) => {
+const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className = "", type="text", isClearable=false, placeholder, onChangeFile, isTitleCase }) => {
 
     const isFileInput = type === "file";
 
@@ -68,10 +69,11 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                                 rounded-xl border-form-element
                                 focus:outline-none
                             `}
+                            style={isTitleCase ? { textTransform: 'capitalize' } : undefined}
                         />
 
                         {/* Optional Clear button */}
-                        {isClearable && (
+                        {isClearable && value.length > 0 && (
                             <button
                                 type="button"
                                 onClick={() => onChange && onChange("")}

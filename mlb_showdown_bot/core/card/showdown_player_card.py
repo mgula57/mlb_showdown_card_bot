@@ -129,7 +129,7 @@ class ShowdownPlayerCard(BaseModel):
 # ------------------------------------------------------------------------
 
     def model_post_init(self, __context):
-
+        """Post init to build the card if not already populated."""
         # IF CARD IS NOT ALREADY POPULATED BY DATA INPUT, BUILD THE CARD
         # TO DISABLE THIS AND BUILD VIA THE `build_card()` FUNCTION, SET `build_on_init` TO FALSE
         if not self.is_populated and self.build_on_init:

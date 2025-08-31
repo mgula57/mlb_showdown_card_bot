@@ -94,6 +94,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     const { userShowdownSet } = useSiteSettings();
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isProcessingCard, setIsProcessingCard] = useState(false);
+    const [query, setQuery] = useState("");
 
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>({
@@ -256,6 +257,12 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         // Prevent multiple submissions
         if (isProcessingCard) return; 
 
+        // Validate form data
+        if (!form.name.trim() || !form.year.trim()) {
+            console.error("Invalid form data");
+            return;
+        }
+
         submitCard(form);
     };
 
@@ -404,20 +411,40 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                 <div className="flex-1 overflow-y-auto px-4 pt-4">
 
                     {/* Form Inputs */}
-                    <div className="space-y-4 pb-12">
+
+                    
+
+                    <div className="space-y-4 pb-64">
+
+                        {/* Search Box */}
+                        <PlayerSearchInput
+                            label=""
+                            className='col-span-full pb-2'
+                            value={query}
+                            onChange={(selection) => setForm({ ...form, name: selection.name, year: selection.year })}
+                        />
+                                                
                         {/* Player */}
                         <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
 
-                            <PlayerSearchInput
-                                label="Player Search"
+                            <FormInput
+                                label="Name"
                                 className='col-span-full'
-                                value={form.name ? `${form.name} ${form.year}` : ''}
-                                onChange={(selection) => setForm({ ...form, name: selection.name, year: selection.year })}
+                                value={form.name}
+                                onChange={(value) => setForm({ ...form, name: value || '' })}
+                                isClearable={true}
+                                isTitleCase={true}
+                            />
+
+                            <FormInput
+                                label="Year"
+                                value={form.year}
+                                onChange={(value) => setForm({ ...form, year: value || '' })}
+                                isClearable={true}
                             />
 
                             <FormDropdown
                                 label="Period"
-                                className='col-span-full'
                                 options={periodOptions}
                                 selectedOption={form.period}
                                 onChange={(value) => setForm({ ...form, period: value })}
@@ -428,7 +455,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         </FormSection>
 
                         {/* Set */}
-                        <FormSection title='Set' icon={<FaLayerGroup />} isOpenByDefault={true}>
+                        <FormSection title='Set' icon={<FaLayerGroup />} isOpenByDefault={false}>
 
                             <FormDropdown
                                 label="Expansion"
@@ -453,7 +480,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         </FormSection>
 
                         {/* Image */}
-                        <FormSection title='Image' icon={<FaImage />} isOpenByDefault={true}>
+                        <FormSection title='Image' icon={<FaImage />} isOpenByDefault={false}>
 
                             <FormDropdown
                                 label="Player Image"
@@ -495,7 +522,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                             />
                             <FormEnabler label='Add Border' isEnabled={form.add_image_border} onChange={(isEnabled) => setForm({ ...form, add_image_border: !isEnabled })} />
                             <FormEnabler label='Dark Mode' isEnabled={form.is_dark_mode} onChange={(isEnabled) => setForm({ ...form, is_dark_mode: !isEnabled })} />
-                            <FormEnabler label='Remove Team' isEnabled={form.remove_team_branding} onChange={(isEnabled) => setForm({ ...form, remove_team_branding: !isEnabled })} />
+                            <FormEnabler label='Remove Team' className='col-span-full' isEnabled={form.remove_team_branding} onChange={(isEnabled) => setForm({ ...form, remove_team_branding: !isEnabled })} />
 
 
                         </FormSection>
@@ -546,14 +573,18 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                             {/* Build Card */}
                             <button
                                 type="button"
-                                className="
+                                title={!form.name.trim() || !form.year.trim() ? "Please enter player name and year" : ""}
+                                className={`
                                     flex items-center justify-center
                                     w-full rounded-xl py-4
                                     text-white
-                                    bg-blue-500 hover:bg-blue-400
-                                    cursor-pointer
+                                    bg-blue-500
+                                    ${!form.name.trim() || !form.year.trim() 
+                                        ? 'cursor-not-allowed opacity-25' 
+                                        : 'hover:bg-blue-400 cursor-pointer'
+                                    }
                                     font-black
-                                "
+                                `}
                                 onClick={handleBuild}
                             >
                                 <FaBaseballBall className="mr-1" />

@@ -394,6 +394,9 @@ class BaseballReferenceScraper(BaseModel):
         is_multi_year = self.stats_period.is_multi_year
         years_played = self.__years_played_list(homepage_soup=soup_for_homepage_stats)
         years_played_as_ints = [int(y) for y in years_played] if len(years_played) > 0 else [datetime.now().year]
+        if len(years_for_loop) == 0 and is_full_career:
+            years_for_loop = years_played_as_ints
+            self.stats_period.year_list = years_for_loop
 
         # ACCOUNT FOR CAREER CARDS THAT DONT HAVE FULL STATS AVAILABLE
         # TREAT AS IF THE USER INPUTTED THE EXACT YEAR RANGE INSTEAD OF CAREER.
@@ -420,6 +423,7 @@ class BaseballReferenceScraper(BaseModel):
         master_stats_dict = {}
         is_data_from_statcast = False
         has_ran_oaa = False
+        stats_dict: dict[str, any] = {}
         for year in years_for_loop:
             stats_dict = {'bref_id': self.baseball_ref_id, 'bref_url': url_for_homepage_stats}
             

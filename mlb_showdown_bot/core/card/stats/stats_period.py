@@ -156,10 +156,17 @@ class StatsPeriod(BaseModel):
         except:
             year = None
         today = date.today()
-        if type == StatsPeriodType.REGULAR_SEASON and today.month < 10 and year == today.year:
+        if type == StatsPeriodType.REGULAR_SEASON and year is not None and today.month < 10 and year == today.year:
             data['type'] = StatsPeriodType.DATE_RANGE.value
             data['start_date'] = f'{year}-03-01'
             data['end_date'] = f'{year}-10-15'
+
+        # FLAG MULTI-YEAR
+        if len(data.get('year_list', [])) > 0 or len(str(data.get('year', ''))) > 4:
+            data['is_multi_year'] = True
+        if str(data.get('year', '')).upper() == 'CAREER':
+            data['is_full_career'] = True
+            data['is_multi_year'] = True
 
         super().__init__(**data)
 
