@@ -12,6 +12,8 @@
     --background-teritiary: #e8ebed;
 
     --divider: #e0e0e0;
+
+    --table-header: #dbdbdb;
 }
 
 .dark {
@@ -26,6 +28,8 @@
     --background-teritiary: #3a3a3f;
 
     --divider: #444444;
+
+    --table-header: #444444;
 }
 
 /* Custom Fonts */
@@ -83,6 +87,10 @@
             2px 0 0 #000000,
             0 -2px 0 #000000,
             0 2px 0 #000000;
+    }
+
+    .bg-table-header {
+        background-color: var(--table-header);
     }
 
 }

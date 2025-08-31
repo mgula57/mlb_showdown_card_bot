@@ -33,7 +33,7 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
     return (
         <div className={`overflow-auto rounded-lg border border-gray-700 ${className}`}>
             <table className="min-w-full text-sm">
-                <thead className="bg-gray-800">
+                <thead className="bg-table-header">
                     {table.getHeaderGroups().map(hg => (
                         <tr key={hg.id}>
                             {hg.headers.map(h => (
