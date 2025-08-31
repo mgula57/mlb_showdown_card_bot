@@ -41,12 +41,32 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         const isVisible = active && payload && payload.length;
+        const card = payload[0]?.payload as TrendDatapoint;
         return (
-            <div className="bg-primary p-2" style={{ visibility: isVisible ? 'visible' : 'hidden' }}>
+            <div className="bg-primary p-2 rounded-lg" style={{ visibility: isVisible ? 'visible' : 'hidden' }}>
             {isVisible && (
-                <>
-                    <p className="label">{`${formatXAxisLabel(label)} : ${payload[0].value} PTS`}</p>
-                </>
+                <div className="flex flex-col text-xs">
+
+                    {/* POINTS */}
+                    <p className="font-black border-b border-gray-600">{`${formatXAxisLabel(label)} ${card.team}: ${card.points} PTS`}</p>
+
+                    {/* COMMAND/OUTS */}
+                    <p className="label pt-1">{`${card.command} ${card.command_type?.toUpperCase() === 'ONBASE' ? 'OB' : 'CO'} | ${card.outs} OUTS`}</p>
+
+                    {/* PITCHING */}
+                    {card.so && <p className="label">{`${card.so} SO`}</p>}
+                    {card.ip && <p className="label">{`${card.ip} IP`}</p>}
+                    
+                    {/* HITTING */}
+                    {card.hr && <p className="label">{`${card.hr} HR`}</p>}
+                    {card.defense && <p className="label">{`${card.defense}`}</p>}
+                    {card.speed && <p className="label">{`${card.speed} SPD`}</p>}
+                    {card["2b"] && <p className="label">{`${card["2b"]} 2B`}</p>}
+
+                    {/* SHOPS+ */}
+                    {card.shOPS_plus && <p className="label">{`${card.shOPS_plus} shOPS+`}</p>}
+
+                </div>
             )}
             </div>
         );
@@ -92,21 +112,19 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                 <div className="
                     absolute inset-0 
                     flex items-center justify-center 
-                    bg-black/20 
                     rounded-xl
                     pointer-events-none
                     z-10
                 ">
                     <div className="
-                        bg-gray-800/90 
-                        text-white 
+                        bg-table-header
                         px-4 py-2 
                         rounded-lg 
                         text-center
                         border border-gray-600
                     ">
                         <p className="text-sm font-semibold">No Data Available</p>
-                        <p className="text-xs text-gray-300">Showing sample data</p>
+                        <p className="text-xs opacity-50">Showing sample data</p>
                     </div>
                 </div>
             )}
@@ -121,11 +139,11 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                     onMouseLeave={isPlaceholderData ? undefined : undefined} // Disable mouse leave
                     style={{ 
                         pointerEvents: isPlaceholderData ? 'none' : 'auto',
-                        opacity: isPlaceholderData ? 0.6 : 1,
+                        opacity: isPlaceholderData ? 0.75 : 1,
                         cursor: isPlaceholderData ? 'default' : 'pointer'
                     }}
                 >
-                    <CartesianGrid strokeDasharray="3 3" stroke='rgba(255, 255, 255, 0.2)'/>
+                    <CartesianGrid strokeDasharray="3 3" stroke='var(--table-header)'/>
                     
                     <XAxis 
                         dataKey="x_axis" 
@@ -188,7 +206,7 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                                 />
                             );
                         }}
-                        activeDot={{ r: 6, stroke: 'white', strokeWidth: 2 }}
+                        activeDot={{ r: 6, stroke: 'var(--primary)', strokeWidth: 2 }}
                     />
 
                 </AreaChart>
@@ -202,7 +220,7 @@ export default ChartPlayerPointsTrend;
 
 // MARK: - Placeholder Data
 
-let light_gray_color = 'rgba(250, 200, 200, 0.3)';
+let light_gray_color = 'var(--table-header)';
 
 let generic_career_data: Record<string, TrendDatapoint> = {
     '2013': {'color': light_gray_color, 'points': 120, },

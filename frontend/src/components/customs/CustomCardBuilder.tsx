@@ -94,7 +94,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     const { userShowdownSet } = useSiteSettings();
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isProcessingCard, setIsProcessingCard] = useState(false);
-    const [query, setQuery] = useState("");
+    const [query, _] = useState("");
 
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>({

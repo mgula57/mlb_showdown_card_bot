@@ -63,7 +63,7 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
                         </tr>
                     ) : (
                         table.getRowModel().rows.map(r => (
-                            <tr key={r.id} className="odd:bg-gray-900">
+                            <tr key={r.id} className="odd:bg-[var(--table-banding)]">
                                 {r.getVisibleCells().map(c => (
                                     <td key={c.id} className="px-3 py-2">
                                         {flexRender(c.column.columnDef.cell, c.getContext())}

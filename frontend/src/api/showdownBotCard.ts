@@ -210,17 +210,19 @@ export type TrendDatapoint = {
     year?: string | null;
     team?: string | null;
     hr?: string | null;
+    command?: number | null;
+    command_type?: string | null;
     outs?: number | null;
 
     // Type specific
 
     // Pitching
-    control?: number | null;
     ip?: number | null;
+    so?: number | null;
+    "2b"?: number | null;
 
     // Hitting
-    onbase?: number | null;
-    "shOPS+"?: number | null;
+    shOPS_plus?: number | null;
     defense?: string | null;
     speed?: string | null;
 

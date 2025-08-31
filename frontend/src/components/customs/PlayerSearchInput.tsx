@@ -234,64 +234,66 @@ export function PlayerSearchInput({
             <label className="block text-sm font-medium text-secondary mb-1">
                 {label}
             </label>
-            
-            <div className="relative">
-                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                    <FaSearch className="w-4 h-4" />
-                </div>
-                
-                <input
-                    ref={inputRef}
-                    type="text"
-                    style={{ textTransform: 'capitalize' }}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onFocus={() => {
-                        setIsFocused(true);
-                        if (options.length > 0) setIsOpen(true);
-                    }}
-                    onBlur={() => {
-                        setIsFocused(false);
-                    }}
-                    placeholder={currentPlaceholder}
-                    autoComplete="off"
-                    spellCheck="false"
-                    className={`
-                        w-full pl-10 pr-10 py-2 
-                        bg-background-primary
-                        border border-form-element
-                        rounded-lg
-                        text-primary
-                        focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                        placeholder-gray-500
-                        transition-opacity duration-300 ease-in-out
-                        ${isFocused || query ? 'opacity-100' : 'animate-pulse // Optional: adds subtle pulse effect'}
-                    `}
-                />
-                
-                {/* Loading indicator */}
-                {isLoading && (
-                    <div className="absolute right-8 top-1/2 transform -translate-y-1/2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
-                    </div>
-                )}
 
-                {/* Clear button */}
-                {query && !isLoading && (
-                    <button
-                        type="button"
-                        onClick={handleClear}
-                        className="
-                            absolute right-3 top-1/2 transform -translate-y-1/2
-                            text-gray-400 hover:text-gray-600
-                            w-4 h-4 flex items-center justify-center
-                            text-lg
-                        "
-                    >
-                        ×
-                    </button>
-                )}
+            <div className="relative bg-gradient-to-r from-blue-500 to-red-500 p-[2px] rounded-lg">
+
+                <div className="bg-primary rounded-[calc(0.5rem-2px)] relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary">
+                        <FaSearch className="w-4 h-4" />
+                    </div>
+                    
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        style={{ textTransform: 'capitalize' }}
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onFocus={() => {
+                            setIsFocused(true);
+                            if (options.length > 0) setIsOpen(true);
+                        }}
+                        onBlur={() => {
+                            setIsFocused(false);
+                        }}
+                        placeholder={currentPlaceholder}
+                        autoComplete="off"
+                        spellCheck="false"
+                        className={`
+                            w-full pl-10 pr-10 py-2
+                            text-primary
+                            focus:outline-none
+                            placeholder-gray-500
+                            transition-opacity duration-300 ease-in-out
+                            font-bold
+                            ${isFocused || query ? 'opacity-100' : 'animate-pulse // Optional: adds subtle pulse effect'}
+                        `}
+                    />
+                    
+                    {/* Loading indicator */}
+                    {isLoading && (
+                        <div className="absolute right-8 top-1/2 transform -translate-y-1/2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                        </div>
+                    )}
+
+                    {/* Clear button */}
+                    {query && !isLoading && (
+                        <button
+                            type="button"
+                            onClick={handleClear}
+                            className="
+                                absolute right-3 top-1/2 transform -translate-y-1/2
+                                text-secondary hover:text-gray-600
+                                w-4 h-4 flex items-center justify-center
+                                text-lg
+                            "
+                        >
+                            ×
+                        </button>
+                    )}
+            
+                </div>
             </div>
 
             {isOpen && options.length > 0 && typeof document !== 'undefined' && (

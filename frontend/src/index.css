@@ -14,6 +14,7 @@
     --divider: #e0e0e0;
 
     --table-header: #dbdbdb;
+    --table-banding: #eeecec;
 }
 
 .dark {
@@ -30,6 +31,7 @@
     --divider: #444444;
 
     --table-header: #444444;
+    --table-banding: #232323;
 }
 
 /* Custom Fonts */

@@ -23,7 +23,7 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
 
     return (
         // Main section container
-        <div className="w-full p-4 border-2 border-form-element rounded-2xl overflow-hidden">
+        <div className="w-full p-4 border-2 border-form-element rounded-2xl overflow-hidden bg-secondary">
 
             {/* Section Header and Open/Close Button */}
             <button

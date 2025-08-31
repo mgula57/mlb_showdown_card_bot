@@ -129,7 +129,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                     ${buttonClassName}
                     w-full px-3 py-2 
                     border-2 ${selectedBorderColor} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400
-                    bg-primary text-primary text-nowrap text-left 
+                    bg-secondary text-primary text-nowrap text-left 
                     overflow-clip
                     cursor-pointer
                 `}
@@ -154,7 +154,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                             fixed z-[1000]
                             left-0 transform
                             ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
-                            bg-secondary rounded-xl shadow-lg
+                            bg-primary rounded-xl shadow-lg
                             text-nowrap overflow-auto max-h-[60vh]
                         `}
                         style={{ left: menuPos.left, top: menuPos.top }}
@@ -162,7 +162,11 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                         {options.map((option) => (
                             <div
                                 key={option.value}
-                                className={`${className} px-4 py-2 cursor-pointer hover:bg-teritiary flex ${option.textColor || 'text-inherit'}`}
+                                className={`
+                                    ${className} px-4 py-2 
+                                    cursor-pointer hover:bg-[var(--background-secondary)]
+                                    flex ${option.textColor || 'text-inherit'}
+                                `}
                                 onClick={() => handleOptionClick(option.value)}
                             >
                                 { renderImage(option.image) }
