@@ -68,11 +68,23 @@ export type GameBoxscore = {
 
     // Inning
     current_inning_visual: string;
+    isTopInning: boolean;
+    currentInningOrdinal: string;
+    outs: number;
+    balls: number;
+    strikes: number;
 
     // Teams
     teams: {
         home: GameBoxscoreTeam;
         away: GameBoxscoreTeam;
+    }
+
+    // Offense/Defense
+    offense: {
+        first?: Record<string, any> | null;
+        second?: Record<string, any> | null;
+        third?: Record<string, any> | null;
     }
 
     // Player Summary (Optional)
@@ -88,6 +100,7 @@ export type GameBoxscoreTeam = {
     abbreviation: string;
     color: string;
     runs: number;
+    player?: string;
 }
 
 // --------------------------------

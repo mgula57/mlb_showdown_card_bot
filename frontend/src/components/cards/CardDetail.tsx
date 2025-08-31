@@ -40,7 +40,6 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
     const cardAttributes: Record<string, string | number | null> = showdownBotCardData?.card ? {
         points: `${showdownBotCardData.card.points} PTS`,
         year: showdownBotCardData.card.year,
-        era: showdownBotCardData.card.era,
         expansion: showdownBotCardData.card.image.expansion == "BS" ? null : showdownBotCardData.card.image.expansion,
         edition: showdownBotCardData.card.image.edition == "NONE" ? null : showdownBotCardData.card.image.edition,
         chart_version: showdownBotCardData.card.chart_version == 1 ? null : showdownBotCardData.card.chart_version,
@@ -194,6 +193,8 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                             ${breakdownFirstRowHeight}
                             rounded-2xl overflow-hidden
                             object-contain
+                            transition-all duration-300 ease-in-out
+                            ${isLoading ? 'blur-xs' : ''}
                         `}
                         style={{
                             boxShadow: showdownBotCardData?.card?.image
@@ -212,9 +213,6 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
                         <div className={`
                             absolute inset-0 
                             flex items-center justify-center 
-                            rounded-2xl
-                            backdrop-blur-xs
-                            object-contain
                         `}>
                             <div className="
                                 flex flex-col items-center 

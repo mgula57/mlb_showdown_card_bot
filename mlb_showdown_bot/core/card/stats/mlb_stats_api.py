@@ -236,8 +236,8 @@ class MLBStatsAPI(BaseModel):
         #  - CURRENT PITCHER NAME
         #  - RUNS HOME TEAM
         #  - RUNS AWAY TEAM
-        pitcher_name = game_data.get('defense', {}).get('pitcher', {}).get('fullName', None)
-        batter_name = game_data.get('offense', {}).get('batter', {}).get('fullName', None)
+        pitcher_name: str = game_data.get('defense', {}).get('pitcher', {}).get('fullName', None)
+        batter_name: str = game_data.get('offense', {}).get('batter', {}).get('fullName', None)
         batter_batting_order = game_data.get('offense', {}).get('battingOrder', None)
         runs_home = game_data.get('teams', {}).get('home', {}).get('runs', None)
         runs_away = game_data.get('teams', {}).get('away', {}).get('runs', None)
@@ -272,6 +272,10 @@ class MLBStatsAPI(BaseModel):
             game_date_short = game_date_short[1:]
             game_date_short = game_date_short.replace('/0', '/')
 
+        # CURRENT PITCHER/HITTERS ASSIGNED TO TEAM
+        home_player_name = f"P: {pitcher_name.split(' ', 1)[-1]}" if is_top_inning else f"H: {batter_name.split(' ', 1)[-1]}"
+        away_player_name = f"P: {pitcher_name.split(' ', 1)[-1]}" if not is_top_inning else f"H: {batter_name.split(' ', 1)[-1]}"
+
         game_data.update({
             'game_pk': game_pk,
             'date': game_date,
@@ -286,13 +290,15 @@ class MLBStatsAPI(BaseModel):
                     'abbreviation': team_data_home,
                     'id': team_id_home,
                     'runs': runs_home,
-                    'color': team_data_home_color
+                    'color': team_data_home_color,
+                    'player': home_player_name
                 },
                 'away': {
                     'abbreviation': team_data_away,
                     'id': team_id_away,
                     'runs': runs_away,
-                    'color': team_data_away_color
+                    'color': team_data_away_color,
+                    'player': away_player_name,
                 }
             }
         })
