@@ -113,6 +113,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         stats_type: "NONE", nickname_index: "NONE", show_year_plus_one: false, show_year_text: false,
         chart_version: "1", era: "DYNAMIC", is_variable_speed_00_01: false
     });
+    const disableBuildButton = (!form.name.trim() || form.year.trim().length < 4 || (form.stats_period_type === "SPLIT" && !form.split))
 
     // ---------------------------------
     // MARK: Select Option Arrays
@@ -335,7 +336,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         if (isProcessingCard) return; 
 
         // Validate form data
-        if (!form.name.trim() || form.year.trim().length < 4) {
+        if (disableBuildButton) {
             console.error("Invalid form data");
             return;
         }
@@ -406,7 +407,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
             case 'SPLIT':
                 return (
                     <FormInput
-                        label="Split"
+                        label="Split*"
                         value={form.split || ''}
                         onChange={(value) => setForm({ ...form, split: value })}
                         isClearable={true}
@@ -521,7 +522,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
 
                             <FormInput
-                                label="Name"
+                                label="Name*"
                                 className='col-span-full'
                                 value={form.name}
                                 onChange={(value) => setForm({ ...form, name: value || '' })}
@@ -530,7 +531,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                             />
 
                             <FormInput
-                                label="Year"
+                                label="Year*"
                                 value={form.year}
                                 onChange={(value) => setForm({ ...form, year: value || '' })}
                                 isClearable={true}
@@ -666,13 +667,13 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                             {/* Build Card */}
                             <button
                                 type="button"
-                                title={!form.name.trim() || form.year.trim().length < 4 ? "Please enter player name and year" : ""}
+                                title={disableBuildButton ? "Please enter player name and year" : ""}
                                 className={`
                                     flex items-center justify-center
                                     w-full rounded-xl py-4
                                     text-white
                                     bg-[var(--showdown-blue)]
-                                    ${!form.name.trim() || form.year.trim().length < 4
+                                    ${disableBuildButton
                                         ? 'cursor-not-allowed opacity-25'
                                         : 'hover:bg-[var(--showdown-blue)]/50 cursor-pointer'
                                     }

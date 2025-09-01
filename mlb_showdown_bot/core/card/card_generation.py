@@ -105,8 +105,15 @@ def generate_card(**kwargs) -> dict[str, Any]:
         # PROCESS CARD
         image_source = ImageSource(**kwargs)
         image = ShowdownImage(image_source=image_source, **kwargs)
-        card = ShowdownPlayerCard(stats_period=stats_period, stats=stats, realtime_game_logs=player_mlb_api_stats.game_logs, image=image, **kwargs)
-        
+        card = ShowdownPlayerCard(
+            stats_period=stats_period, 
+            stats=stats, 
+            realtime_game_logs=player_mlb_api_stats.game_logs, 
+            image=image,
+            warnings=baseball_reference_stats.warnings,
+            **kwargs
+        )
+
         # EXTRA OPTIONS
         show_historical_points = kwargs.get("show_historical_points", False)
         in_season_trend_aggregation = kwargs.get("season_trend_date_aggregation", None)
