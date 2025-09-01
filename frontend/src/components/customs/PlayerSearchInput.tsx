@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { FaSearch } from 'react-icons/fa';
+import { FaXmark } from 'react-icons/fa6';
 import { createPortal } from 'react-dom';
 
 interface PlayerSearchOption {
@@ -260,7 +261,7 @@ export function PlayerSearchInput({
                         autoComplete="off"
                         spellCheck="false"
                         className={`
-                            w-full pl-10 pr-10 py-2
+                            w-full pl-10 pr-6 py-2
                             text-primary
                             focus:outline-none
                             placeholder-gray-500
@@ -283,13 +284,13 @@ export function PlayerSearchInput({
                             type="button"
                             onClick={handleClear}
                             className="
-                                absolute right-3 top-1/2 transform -translate-y-1/2
+                                absolute right-1 top-1/2 transform -translate-y-1/2
                                 text-secondary hover:text-gray-600
                                 w-4 h-4 flex items-center justify-center
                                 text-lg
                             "
                         >
-                            ×
+                            <FaXmark />
                         </button>
                     )}
             
