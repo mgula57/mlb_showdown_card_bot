@@ -147,28 +147,17 @@ class StatsPeriod(BaseModel):
     # FILLED IN SHOWDOWN BOT CLASS
     stats: Optional[dict[str, Any]] = None
 
-    def __init__(self, **data) -> None:
+    def model_post_init(self, __context):
 
-        # CHANGE TO DATE RANGE IF MID-SEASON
-        type = StatsPeriodType(data.get('type', StatsPeriodType.REGULAR_SEASON.value))
-        try:
-            year = int(data.get('year', None))
-        except:
-            year = None
-        today = date.today()
-        if type == StatsPeriodType.REGULAR_SEASON and year is not None and today.month < 10 and year == today.year:
-            data['type'] = StatsPeriodType.DATE_RANGE.value
-            data['start_date'] = f'{year}-03-01'
-            data['end_date'] = f'{year}-10-15'
+        # ADJUSTMENTS
+        self._check_and_apply_current_season_adjustment()
 
         # FLAG MULTI-YEAR
-        if len(data.get('year_list', [])) > 0 or len(str(data.get('year', ''))) > 4:
-            data['is_multi_year'] = True
-        if str(data.get('year', '')).upper() == 'CAREER':
-            data['is_full_career'] = True
-            data['is_multi_year'] = True
-
-        super().__init__(**data)
+        if self.year.upper() == 'CAREER':
+            self.is_full_career = True
+            self.is_multi_year = True
+        elif self.year_list and len(self.year_list) > 1:
+            self.is_multi_year = True
 
         # VALIDATE ATTRIBUTES
         if not self.type.enable_date_range:
@@ -298,15 +287,56 @@ class StatsPeriod(BaseModel):
         current_year = date.today().year
         return self.year_int == current_year if self.year_int else False
 
+    @property
+    def is_during_current_season(self) -> bool:
+        """
+        Returns True if the stats period is during the current season.
+        """
+
+        try: year = int(self.year)
+        except: year = None
+        if year is None: return False
+
+        today = date.today()
+        if (today.month < 10 and year == today.year):
+            return True
+        
+        return False
+
     # ---------------------------------
     # METHODS
     # ---------------------------------
+
+    def _check_and_apply_current_season_adjustment(self) -> None:
+        """
+        If the card is during the current season, we want to change it to a date range.
+        This is so that the card shows the date range on the image.
+        """
+
+        # CHECK IF SINGLE YEAR
+        try: year = int(self.year)
+        except: year = None
+        if year is None: return
+
+        # CHECK TYPE
+        if self.type != StatsPeriodType.REGULAR_SEASON:
+            return
+        
+        # CHECK IF BEFORE OCT 1 OF THIS YEAR
+        if not self.is_during_current_season:
+            return
+
+        self.type = StatsPeriodType.DATE_RANGE
+        self.start_date = date(year=year, month=3, day=1)
+        self.end_date = date(year=year, month=10, day=15)
 
     def reset(self) -> None:
         self.type = StatsPeriodType.REGULAR_SEASON
         self.start_date = None
         self.end_date = None
         self.split = None
+
+        self._check_and_apply_current_season_adjustment()
 
     def add_stats_from_logs(self, game_logs:list[dict[str, Any]], is_pitcher:bool, team_override:Team = None) -> None:
         """

@@ -573,11 +573,11 @@ class BaseballReferenceScraper(BaseModel):
         stats_dict['accolades'] = self.__accolades_dict(soup_for_homepage_stats=soup_for_homepage_stats, years_included=years_for_loop)
 
         # ADD ALL GAME LOGS BY DEFAULT
-        periods = [StatsPeriodType.DATE_RANGE] if self.is_running_on_website else [StatsPeriodType.DATE_RANGE, StatsPeriodType.POSTSEASON]
+        periods = [StatsPeriodType.DATE_RANGE, StatsPeriodType.POSTSEASON]
         for stats_period in periods:
             if len(periods) > 1: sleep(1.0) # SLEEP TO AVOID 429 ERRORS
             stats_dict[stats_period.stats_dict_key] = self.game_log_list(type=type, years=years_for_loop, stats_period_type=stats_period, reduce_size=True)
-            
+
         # FIX EMPTY STRING DATA
         empty_str_fields_for_test = ['batting_avg', 'onbase_perc', 'slugging_perc', 'onbase_plus_slugging']
         for field in empty_str_fields_for_test:

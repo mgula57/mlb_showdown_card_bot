@@ -127,6 +127,18 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
             "
         >
 
+            {/* Warnings */}
+            {showdownBotCardData?.card?.warnings && showdownBotCardData.card.warnings.length > 0 && (
+                <div className="bg-[var(--warning)]/5 border-2 border-[var(--warning)] text-[var(--warning)] p-2 rounded-md">
+                    <h4 className="font-semibold">Warnings</h4>
+                    <ul className="list-disc list-inside">
+                        {showdownBotCardData.card.warnings.map((warning, index) => (
+                            <li key={index}>{warning}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
             {/* Name and player attributes */}
             <div className="
                 flex flex-wrap items-center

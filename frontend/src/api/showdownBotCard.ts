@@ -129,6 +129,9 @@ export type ShowdownBotCard = {
     real_vs_projected_stats: RealVsProjectedStat[];
     command_out_accuracy_breakdowns: Record<string, Record<string, ChartAccuracyCategoryBreakdown>>;
     points_breakdown: PointsBreakdown
+
+    // Warnings
+    warnings: string[];
 };
 
 // --------------------------------

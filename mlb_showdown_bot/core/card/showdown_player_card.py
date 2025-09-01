@@ -165,6 +165,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # HANDLE GAME LOGS IF APPLICABLE
         game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
+
         if self.realtime_game_logs:
             added_game_logs = self.realtime_game_logs
             # FILTER FILTER REALTIME GAME LOGS TO NOT HAVE DUPLICATES
@@ -175,7 +176,20 @@ class ShowdownPlayerCard(BaseModel):
                 # TO AVOID DUPLICATES
                 added_game_logs = [gl for gl in self.realtime_game_logs if convert_to_date(gl.get('date', '1970-01-01')) > latest_bref_date]
             game_logs += added_game_logs
+        
+        # ADD LOGS AS STATS IN PERIOD
         self.stats_period.add_stats_from_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
+
+        # WHEN EMPTY, CHECK FOR WARNINGS
+        if not self.stats_period.stats and self.stats_period.type.uses_game_logs:
+            # RAISE A WARNING THAT THE STATS PERIOD TYPE IS NOT COMPATIBLE WITH GAME LOGS
+            self.warnings.append(self.stats_period.empty_message)
+            self.stats_period.reset()
+
+            # TRY AGAIN
+            game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
+            self.stats_period.add_stats_from_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
+
         if self.stats_period.stats:
             full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}
             # ADD FULL AMOUNT OF NGAMES PLAYED FOR REGULAR SEASON GAMES FOR HITTERS
@@ -191,7 +205,7 @@ class ShowdownPlayerCard(BaseModel):
             self.stats_period.stats = full_stats_copy
             stats_period_team = self.stats_period.stats.get('team_ID', None)
             if stats_period_team:
-                self.team = Team(stats_period_team)
+                self.team = Team(stats_period_team)            
 
         # UPDATE IMAGE COLORS
         self.image.color_primary = self._team_color_rgb_str()

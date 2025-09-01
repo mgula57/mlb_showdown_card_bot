@@ -335,7 +335,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         if (isProcessingCard) return; 
 
         // Validate form data
-        if (!form.name.trim() || !form.year.trim()) {
+        if (!form.name.trim() || form.year.trim().length < 4) {
             console.error("Invalid form data");
             return;
         }
@@ -666,14 +666,14 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                             {/* Build Card */}
                             <button
                                 type="button"
-                                title={!form.name.trim() || !form.year.trim() ? "Please enter player name and year" : ""}
+                                title={!form.name.trim() || form.year.trim().length < 4 ? "Please enter player name and year" : ""}
                                 className={`
                                     flex items-center justify-center
                                     w-full rounded-xl py-4
                                     text-white
                                     bg-[var(--showdown-blue)]
-                                    ${!form.name.trim() || !form.year.trim() 
-                                        ? 'cursor-not-allowed opacity-25' 
+                                    ${!form.name.trim() || form.year.trim().length < 4
+                                        ? 'cursor-not-allowed opacity-25'
                                         : 'hover:bg-[var(--showdown-blue)]/50 cursor-pointer'
                                     }
                                     font-black
