@@ -353,6 +353,24 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         submitCard(shuffledForm);
     };
 
+    // Handle Enter key press
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                // Don't trigger if user is typing in a textarea or input that should allow Enter
+                const target = event.target as HTMLElement;
+                if (target.tagName === 'TEXTAREA') return;
+
+                event.preventDefault();
+                handleBuild();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [form]); // Re-bind when form changes so handleBuild has latest state
+
+
     // ---------------------------------
     // MARK: Render SubComponents
     // ---------------------------------
