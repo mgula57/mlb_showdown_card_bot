@@ -220,11 +220,12 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         { "label": "Glow 3x", "value": "3" },
     ]
 
+    // MARK: Live Updates
+
     // Check if there's a live game
     const hasLiveGame = showdownBotCardData?.latest_game_box_score && 
                         !showdownBotCardData.latest_game_box_score.has_game_ended;
 
-    // MARK: Live Updates
     useEffect(() => {
 
         // Temp Disable Live updates
@@ -375,6 +376,48 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [form]); // Re-bind when form changes so handleBuild has latest state
+
+    // Dynamic date management
+    useEffect(() => {
+        
+        if (form.year && form.stats_period_type === 'DATES') {
+            const year = parseInt(form.year);
+
+            
+            if (!isNaN(year)) {
+                // MLB season dates
+                const startDate = `${year}-03-01`;
+
+                // Calculate end date based on conditions
+                const today = new Date();
+                const currentYear = today.getFullYear();
+                const seasonEndDate = new Date(year, 9, 5); // October 5th of the season year
+                const seasonStartDate = new Date(year, 2, 1); // March 1st of the season year
+                
+                let endDate: string;
+                if (year === currentYear && today >= seasonStartDate && today <= seasonEndDate) {
+                    // Use today's date if we're in the current season and between start and end dates
+                    endDate = today.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+                } else {
+                    // Use default season end date
+                    endDate = `${year}-10-05`;
+                }
+                
+                setForm(prevForm => ({
+                    ...prevForm,
+                    start_date: startDate,
+                    end_date: endDate
+                }));
+            }
+        } else if (form.stats_period_type !== 'DATES') {
+            // Clear dates when not using date range
+            setForm(prevForm => ({
+                ...prevForm,
+                start_date: null,
+                end_date: null
+            }));
+        }
+    }, [form.year, form.stats_period_type]);
 
 
     // ---------------------------------
