@@ -76,6 +76,10 @@ class BaseballReferenceScraper(BaseModel):
         else:
             self.baseball_ref_id = self._find_bref_id_match(self.name, self.year)
 
+        if self.baseball_ref_id is None:
+            self.error = f'Cannot Find BRef Page for {self.name} in {self.year}'
+            raise AttributeError(self.error)
+
 # ------------------------------------------------------------------------
 # PROPERTIES
 # ------------------------------------------------------------------------
@@ -305,16 +309,7 @@ class BaseballReferenceScraper(BaseModel):
 
         # NO BASEBALL REFERENCE RESULTS FOR THAT NAME AND YEAR
         if search_results == []:
-            self.error = f'Cannot Find BRef Page for {name} in {year}'
-            if not self.stats_period.is_this_year:
-                raise AttributeError(self.error)
-            
-            # IF IT'S THE CURRENT YEAR, SEE IF THE STATS WOULD WORK WITH A A GUESS OF THE ID
-            # MOSTLY RESOLVES ISSUES WITH ROOKIES
-            last_name = self.__last_name(name)
-            first_name = name.split(' ')[0]
-            bref_id = f'{last_name[:5]}{first_name[:2]}01'.lower()
-            return bref_id
+            return None
         
         top_result_url = search_results[0]["href"]
         player_b_ref_id = top_result_url.split('.shtml')[0].split('/')[-1]

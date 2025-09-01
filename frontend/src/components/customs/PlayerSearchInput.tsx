@@ -284,7 +284,7 @@ export function PlayerSearchInput({
                             type="button"
                             onClick={handleClear}
                             className="
-                                absolute right-1 top-1/2 transform -translate-y-1/2
+                                absolute right-2 top-1/2 transform -translate-y-1/2
                                 text-secondary hover:text-gray-600
                                 w-4 h-4 flex items-center justify-center
                                 text-lg

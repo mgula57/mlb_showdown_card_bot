@@ -175,7 +175,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
         # FINAL BOOLS
         is_user_year_before_player_career_start = input_year_int < first_year if input_year_int else False
-        is_error_cannot_find_bref_page = "cannot find bref page" in error_full.lower() or ''
+        is_error_cannot_find_bref_page = "cannot find bref page" in (error_full.lower() or '')
         is_error_too_many_requests_to_bref = "429 - TOO MANY REQUESTS TO " in error_full.upper() and "baseball-ref" in error_full.lower()
 
         # ERROR SENT TO USER
@@ -216,7 +216,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
             )
 
         final_card_payload = {
-            'card': card.as_json(),  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
+            'card': card.as_json() if card else None,  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
             'error': error_full,
             'error_for_user': error_for_user,
             'historical_season_trends': None,

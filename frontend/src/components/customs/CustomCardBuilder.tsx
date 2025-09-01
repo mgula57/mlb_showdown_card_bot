@@ -27,8 +27,8 @@ import editionPOST from '../../assets/edition-post.png';
 import editionSS from '../../assets/edition-ss.png';
 
 // Icons
-import { FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall } from 'react-icons/fa';
-import { FaShuffle } from 'react-icons/fa6';
+import { FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle } from 'react-icons/fa';
+import { FaShuffle, FaXmark } from 'react-icons/fa6';
 
 // ----------------------------------
 // MARK: - Form Interface
@@ -39,7 +39,7 @@ interface CustomCardFormState {
     // Name and Year
     name: string; // ex: "Mike Trout"
     year: string; // ex: "2023"
-    period: string; // e.g. "REGULAR"
+    stats_period_type: string; // e.g. "REGULAR"
     start_date?: string | null; // e.g. "2023-05-01"
     end_date?: string | null; // e.g. "2023-10-01"
     split?: string | null; // e.g. "First Half"
@@ -94,6 +94,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     const { userShowdownSet } = useSiteSettings();
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isProcessingCard, setIsProcessingCard] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [query, _] = useState("");
 
     // Live update states
@@ -104,7 +105,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>({
-        name: "", year: "", period: "REGULAR", start_date: null, end_date: null, split: null,
+        name: "", year: "", stats_period_type: "REGULAR", start_date: null, end_date: null, split: null,
         expansion: "BS", set_number: null, edition: "NONE",
         image_source: "AUTO", image_parallel: "NONE", image_coloring: "PRIMARY", image_outer_glow: "1",
         image_url: null, image_upload: null,
@@ -124,8 +125,8 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         { label: "Pennant Run", value: "PR", image: expansionPR },
     ]
 
-    // Period Options
-    const periodOptions: SelectOption[] = [
+    // Stats Period Options
+    const statsPeriodOptions: SelectOption[] = [
         { 'value': 'REGULAR', 'label': 'Regular Season', 'symbol': '⚾' },
         { 'value': 'POST', 'label': 'Postseason', 'symbol': '🏆' },
         { 'value': 'DATES', 'label': 'Date Range', 'symbol': '📅' },
@@ -315,11 +316,15 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
             // Retrieve response, set state
             setShowdownBotCardData(cardData);
+
+            setErrorMessage(cardData.error_for_user);
+
             lastFormRef.current = card_payload; // Store form data for live updates
             setIsProcessingCard(false);
 
         } catch (err) {
             console.error(err);
+            setErrorMessage(String(err));
             setIsProcessingCard(false);
         }
     };
@@ -379,8 +384,8 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
      * Render the period inputs based on the selected period 
      * This will show different inputs based on the period type selected.
      */
-    const renderPeriodInputs = () => {
-        switch (form.period) {
+    const renderStatsPeriodInputs = () => {
+        switch (form.stats_period_type) {
             case 'DATES':
                 return (
                     <>
@@ -493,7 +498,25 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                             value={query}
                             onChange={(selection) => setForm({ ...form, name: selection.name, year: selection.year })}
                         />
-                                                
+
+                        {/* Display Error (If Applicable) */}
+                        {errorMessage && (
+                            <div className='w-full border-3 bg-red-500/10 text-red-500 border-red-500 rounded-xl p-2'>
+                                <div className='flex flex-row justify-between items-center mb-1 text-xl'>
+                                    <div className='font-black flex flex-row gap-2 items-center'> 
+                                        <FaExclamationCircle /> 
+                                        Error
+                                    </div>
+                                    <button className='text-red-500 underline' onClick={() => setErrorMessage('')}>
+                                        <FaXmark />
+                                    </button>
+                                </div>
+                                <div className="text-md font-bold">
+                                    {errorMessage}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Player */}
                         <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
 
@@ -515,12 +538,12 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
                             <FormDropdown
                                 label="Period"
-                                options={periodOptions}
-                                selectedOption={form.period}
-                                onChange={(value) => setForm({ ...form, period: value })}
+                                options={statsPeriodOptions}
+                                selectedOption={form.stats_period_type}
+                                onChange={(value) => setForm({ ...form, stats_period_type: value })}
                             />
 
-                            {renderPeriodInputs()}
+                            {renderStatsPeriodInputs()}
 
                         </FormSection>
 
