@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { FaChevronRight, FaChevronLeft } from "react-icons/fa";
 import { FaXmark } from "react-icons/fa6";
 import { SideMenuItem, sideMenuItems } from "./SideMenuItem";
@@ -19,7 +19,14 @@ type SideMenuProps = {
 const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMobile }) => {
 
     // State to manage the selected item
-    const [selectedMenuItem, setSelectedMenuItem] = useState<SideMenuItemType | null>(sideMenuItems[0]);
+    const location = useLocation();
+
+    // Find the currently selected menu item based on the current path
+    const selectedMenuItem = sideMenuItems.find(item => 
+        location.pathname === item.path || 
+        (item.path !== '/' && location.pathname.startsWith(item.path))
+    ) || sideMenuItems.find(item => item.path === '/'); // Fallback to home
+
 
     // Toggle side menu open/close state
     // Linked to parent component state
@@ -30,7 +37,6 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
     // Set the selected menu item when clicked.
     const handleMenuItemClick = (item: SideMenuItemType) => {
         console.log(`Selected menu item: ${item.text}`);
-        setSelectedMenuItem(item);
         if (isMobile) setIsOpen(false); // Close menu on mobile after selection
     };
 

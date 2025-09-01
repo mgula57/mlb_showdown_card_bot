@@ -7,7 +7,7 @@ import { FaChartBar, FaHome, FaAddressCard } from "react-icons/fa";
 type SideMenuItemProps = {
     item: SideMenuItemType;
     isSideMenuOpen: boolean;
-    selectedItem: SideMenuItemType | null;
+    selectedItem: SideMenuItemType | undefined;
     onClick: (item: SideMenuItemType) => void;
 }
 
