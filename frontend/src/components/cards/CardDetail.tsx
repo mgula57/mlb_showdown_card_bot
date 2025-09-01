@@ -168,7 +168,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                         <span>{value}</span>
                         
                         {/* Change in Points Weekly */}
-                        { (weeklyChangePoints && key === "points") && (
+                        { (weeklyChangePoints && key === "points" && String(new Date().getFullYear()) === String(showdownBotCardData?.card?.year || "n/a")) && (
                             <div className={`text-xs ${weeklyChangePointsColor}`}>
                                 {weeklyChangePointsSymbol} {Math.abs(weeklyChangePoints)} THIS WEEK
                             </div>
