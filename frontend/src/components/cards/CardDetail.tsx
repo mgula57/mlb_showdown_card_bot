@@ -24,10 +24,13 @@ import { GameBoxscore } from '../games/GameBoxscore';
 type CardDetailProps = {
     showdownBotCardData: ShowdownBotCardAPIResponse | null;
     isLoading?: boolean;
+    isLoadingGameBoxscore?: boolean;
 };
 
 /** Shows Showdown Bot Card Details. Used in Custom card form and modals throughout UI */
-export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) {
+export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxscore }: CardDetailProps) {
+
+    // MARK: STATES
 
     // Theme
     const { isDark } = useTheme();
@@ -164,7 +167,10 @@ export function CardDetail({ showdownBotCardData, isLoading }: CardDetailProps) 
             </div>
 
             {/* Game Boxscore */}
-            <GameBoxscore boxscore={showdownBotCardData?.latest_game_box_score || null} />
+            <GameBoxscore 
+                boxscore={showdownBotCardData?.latest_game_box_score || null} 
+                isLoading={isLoadingGameBoxscore} 
+            />
 
             {/* Image and Breakdown Tables */}
             <div

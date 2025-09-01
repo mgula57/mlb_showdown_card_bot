@@ -15,8 +15,9 @@ type AppLayoutProps = {
 };
 
 const TITLE_MAP: Record<string, string> = {
-  customs: "Custom Card",
-  explore: "Explore",
+    home: "Home",
+    customs: "Custom Card",
+    explore: "Explore",
 };
 
 /**

@@ -1,12 +1,14 @@
 import { type GameBoxscore, type GameBoxscoreTeam } from "../../api/showdownBotCard"
 import { enhanceColorVisibility } from "../../functions/colors";
+import { FaBaseballBall } from "react-icons/fa";
 
 /** Props for the GameBoxscore component */
 type GameBoxscoreProps = {
     boxscore: GameBoxscore | null;
+    isLoading?: boolean;
 }
 
-export function GameBoxscore({ boxscore }: GameBoxscoreProps) {
+export function GameBoxscore({ boxscore, isLoading }: GameBoxscoreProps) {
 
     // Early return if no boxscore data is available
     if (!boxscore) return null;
@@ -153,7 +155,16 @@ export function GameBoxscore({ boxscore }: GameBoxscoreProps) {
                 
             </div>
 
-            
+            {/* Loading spinner */}
+            {isLoading && (
+                <FaBaseballBall 
+                    className="text-sm animate-bounce" 
+                    style={{
+                        animationDuration: '0.8s',
+                        animationIterationCount: 'infinite'
+                    }}
+                />
+            )}
         </a>
     );
 }

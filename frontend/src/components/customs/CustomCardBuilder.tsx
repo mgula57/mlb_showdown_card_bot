@@ -2,7 +2,7 @@
 // MARK: - Imports
 // ----------------------------------
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import FormInput from './FormInput';
 import FormSection from './FormSection';
 import FormDropdown from './FormDropdown';
@@ -95,6 +95,12 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isProcessingCard, setIsProcessingCard] = useState(false);
     const [query, _] = useState("");
+
+    // Live update states
+    const [isLiveUpdating, setIsLiveUpdating] = useState(false);
+    const [isLoadingGameBoxscore, setIsLoadingGameBoxscore] = useState(false);
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const lastFormRef = useRef<CustomCardFormState | null>(null);
 
     // Define the form state
     const [form, setForm] = useState<CustomCardFormState>({
@@ -212,6 +218,71 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         { "label": "Glow 3x", "value": "3" },
     ]
 
+    // Check if there's a live game
+    const hasLiveGame = showdownBotCardData?.latest_game_box_score && 
+                        !showdownBotCardData.latest_game_box_score.has_game_ended;
+
+    // MARK: Live Updates
+    useEffect(() => {
+
+        // Temp Disable Live updates
+        return;
+
+        if (hasLiveGame && showdownBotCardData && lastFormRef.current) {
+            // Start live updates
+            setIsLiveUpdating(true);
+            
+            intervalRef.current = setInterval(async () => {
+                try {
+                    console.log('Updating live game data...');
+                    setIsLoadingGameBoxscore(true);
+
+                    const { image_upload, image_source, ...payload } = lastFormRef.current!;
+                    
+                    const updatedCardData = await buildCustomCard({
+                        ...payload,
+                        set: userShowdownSet,
+                        is_running_on_website: true,
+                        image_output_folder_path: "static/output/",
+                        show_historical_points: true,
+                        season_trend_date_aggregation: 'WEEK',
+                    });
+                    
+                    setShowdownBotCardData(updatedCardData);
+                    
+                    // Stop updating if game has ended
+                    if (updatedCardData.latest_game_box_score?.has_game_ended) {
+                        setIsLiveUpdating(false);
+                        if (intervalRef.current) {
+                            clearInterval(intervalRef.current);
+                            intervalRef.current = null;
+                        }
+                    }
+                    setIsLoadingGameBoxscore(false);
+                } catch (error) {
+                    console.error('Error updating live game:', error);
+                    // Continue trying updates even on error
+                    setIsLoadingGameBoxscore(false);
+                }
+            }, 20000); // 20 seconds
+        } else {
+            // Stop live updates
+            setIsLiveUpdating(false);
+            if (intervalRef.current) {
+                // clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        }
+        
+        // Cleanup on unmount
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        };
+    }, [hasLiveGame, showdownBotCardData, userShowdownSet]);
+
     // ---------------------------------
     // MARK: Build Processing
     // ---------------------------------
@@ -244,6 +315,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
             // Retrieve response, set state
             setShowdownBotCardData(cardData);
+            lastFormRef.current = card_payload; // Store form data for live updates
             setIsProcessingCard(false);
 
         } catch (err) {
@@ -265,23 +337,6 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
         submitCard(form);
     };
-
-    // Handle Enter key press
-    useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                // Don't trigger if user is typing in a textarea or input that should allow Enter
-                const target = event.target as HTMLElement;
-                if (target.tagName === 'TEXTAREA') return;
-
-                event.preventDefault();
-                handleBuild();
-            }
-        };
-
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [form]); // Re-bind when form changes so handleBuild has latest state
 
     // Handle shuffle
     const handleShuffle = () => {
@@ -411,8 +466,6 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                 <div className="flex-1 overflow-y-auto px-4 pt-4">
 
                     {/* Form Inputs */}
-
-                    
                     <div className="space-y-4 pb-8 md:pb-64">
 
                         {/* Search Box */}
@@ -580,7 +633,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                                     bg-[var(--showdown-blue)]
                                     ${!form.name.trim() || !form.year.trim() 
                                         ? 'cursor-not-allowed opacity-25' 
-                                        : 'hover:bg-blue-400 cursor-pointer'
+                                        : 'hover:bg-[var(--showdown-blue)]/50 cursor-pointer'
                                     }
                                     font-black
                                 `}
@@ -617,9 +670,11 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
             {/* Preview Section */}
             <section>
-
-                <CardDetail showdownBotCardData={showdownBotCardData} isLoading={isProcessingCard} />
-
+                <CardDetail 
+                    showdownBotCardData={showdownBotCardData} 
+                    isLoading={isProcessingCard} 
+                    isLoadingGameBoxscore={isLoadingGameBoxscore}
+                />
             </section>
             
         </div>
