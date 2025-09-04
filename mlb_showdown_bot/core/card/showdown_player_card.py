@@ -4094,6 +4094,22 @@ class ShowdownPlayerCard(BaseModel):
         """ 
 
         expansion_image = Image.open(self._template_img_path(f'{self.set.template_year}-{self.image.expansion.value}'))
+
+        # FOR 04/05, ADD YEAR TO TRADING DEADLINE IMAGE
+        if self.set.is_04_05 and self.image.expansion in [Expansion.TD]:
+            font = ImageFont.truetype(self._font_path('HelveticaNeueLtStd107ExtraBlack', extension='otf'), size=20)
+            year_abbr = str(self.median_year)[2:]
+            year_image_canvas = self._text_image(
+                text=year_abbr,
+                size=expansion_image.size,
+                font=font,
+                alignment="center"
+            )
+
+            expansion_image.paste("#B02722", (0, 22), year_image_canvas)
+
+            expansion_image.show()
+
         return expansion_image
 
     def _super_season_image(self) -> tuple[Image.Image, tuple[int,int]]:

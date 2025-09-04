@@ -73,6 +73,35 @@ interface CustomCardFormState {
 
 }
 
+/** Default values for the custom card form */
+const FORM_DEFAULTS: CustomCardFormState = {
+    name: "", 
+    year: "", 
+    stats_period_type: "REGULAR", 
+    start_date: null, 
+    end_date: null, 
+    split: null,
+    expansion: "BS", 
+    set_number: null, 
+    edition: "NONE",
+    image_source: "AUTO", 
+    image_parallel: "NONE", 
+    image_coloring: "PRIMARY", 
+    image_outer_glow: "1",
+    image_url: null, 
+    image_upload: null,
+    add_image_border: false, 
+    is_dark_mode: false, 
+    remove_team_branding: false,
+    stats_type: "NONE", 
+    nickname_index: "NONE", 
+    show_year_plus_one: false, 
+    show_year_text: false,
+    chart_version: "1", 
+    era: "DYNAMIC", 
+    is_variable_speed_00_01: false
+};
+
 // ----------------------------------
 // MARK: - Custom Card Props
 // ----------------------------------
@@ -104,34 +133,31 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     const lastFormRef = useRef<CustomCardFormState | null>(null);
 
     // Define the form state
-    const [form, setForm] = useState<CustomCardFormState>({
-        name: "", year: "", stats_period_type: "REGULAR", start_date: null, end_date: null, split: null,
-        expansion: "BS", set_number: null, edition: "NONE",
-        image_source: "AUTO", image_parallel: "NONE", image_coloring: "PRIMARY", image_outer_glow: "1",
-        image_url: null, image_upload: null,
-        add_image_border: false, is_dark_mode: false, remove_team_branding: false,
-        stats_type: "NONE", nickname_index: "NONE", show_year_plus_one: false, show_year_text: false,
-        chart_version: "1", era: "DYNAMIC", is_variable_speed_00_01: false
-    });
-    const disableBuildButton = (!form.name.trim() || form.year.trim().length < 4 || (form.stats_period_type === "SPLIT" && !form.split))
+    const [form, setForm] = useState<CustomCardFormState>(FORM_DEFAULTS);
+    const disableBuildButton = (
+        !form.name.trim() 
+        || form.year.trim().length < 4 
+        || (form.stats_period_type === "SPLIT" && !form.split)
+        || isProcessingCard
+    )
 
     // ---------------------------------
-    // MARK: Select Option Arrays
+    // MARK: Form Options
     // ---------------------------------
 
     // Expansion options
     const expansionOptions: SelectOption[] = [
         { label: "Base Set", value: "BS", image: expansionBS },
-        { label: "Trading Deadline", value: "TD", image: expansionTD },
-        { label: "Pennant Run", value: "PR", image: expansionPR },
+        { label: "Trading Deadline", value: "TD", image: expansionTD, 'borderColor': 'border-red-600' },
+        { label: "Pennant Run", value: "PR", image: expansionPR, 'borderColor': 'border-blue-900' },
     ]
 
     // Stats Period Options
     const statsPeriodOptions: SelectOption[] = [
         { 'value': 'REGULAR', 'label': 'Regular Season', 'symbol': '⚾' },
-        { 'value': 'POST', 'label': 'Postseason', 'symbol': '🏆' },
-        { 'value': 'DATES', 'label': 'Date Range', 'symbol': '📅' },
-        { 'value': 'SPLIT', 'label': 'Split', 'symbol': '🔀' },
+        { 'value': 'POST', 'label': 'Postseason', 'symbol': '🏆', 'borderColor': 'border-yellow-500'},
+        { 'value': 'DATES', 'label': 'Date Range', 'symbol': '📅', 'borderColor': 'border-red-600' },
+        { 'value': 'SPLIT', 'label': 'Split', 'symbol': '🔀', 'borderColor': 'border-blue-700' },
     ]
 
     // Edition Options
@@ -209,9 +235,9 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
     const nicknameIndexOptions: SelectOption[] = [
         { "label": "None", "value": "NONE" },
-        { "label": "Nickname 1", "value": "NICK1" },
-        { "label": "Nickname 2", "value": "NICK2" },
-        { "label": "Nickname 3", "value": "NICK3" },
+        { "label": "Nickname 1", "value": "NICKNAME 1" },
+        { "label": "Nickname 2", "value": "NICKNAME 2" },
+        { "label": "Nickname 3", "value": "NICKNAME 3" },
     ]
 
     const outerGlowOptions: SelectOption[] = [
@@ -219,6 +245,134 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         { "label": "Glow 2x", "value": "2" },
         { "label": "Glow 3x", "value": "3" },
     ]
+
+    // ----------------------------------
+    // MARK: - Summary Helper Function
+    // ----------------------------------
+
+    const getSectionSummary = (sectionName: string) => {
+        const summaries: SelectOption[] = [];
+
+        switch (sectionName.toLowerCase()) {
+            case 'player':
+                if (form.name) summaries.push({ label: 'Name', value: form.name });
+                if (form.year) summaries.push({ label: 'Year', value: form.year });
+                if (form.stats_period_type !== FORM_DEFAULTS.stats_period_type) {
+                    const periodOption = statsPeriodOptions.find(opt => opt.value === form.stats_period_type);
+                    summaries.push(periodOption || { label: 'Period', value: form.stats_period_type });
+                }
+                if (form.start_date) summaries.push({ label: 'Start', value: form.start_date });
+                if (form.end_date) summaries.push({ label: 'End', value: form.end_date });
+                if (form.split) summaries.push({ label: 'Split', value: form.split });
+                break;
+                
+            case 'set':
+                if (form.expansion !== FORM_DEFAULTS.expansion) {
+                    const expansionOption = expansionOptions.find(opt => opt.value === form.expansion);
+                    summaries.push(expansionOption || { label: 'Expansion', value: form.expansion });
+                }
+                if (form.edition !== FORM_DEFAULTS.edition) {
+                    const editionOption = editionOptions.find(opt => opt.value === form.edition);
+                    summaries.push(editionOption || { label: 'Edition', value: form.edition });
+                }
+                if (form.set_number) summaries.push({ label: 'Set Number', value: form.set_number });
+                break;
+                
+            case 'image':
+                if (form.image_source !== FORM_DEFAULTS.image_source) {
+                    const sourceOption = imageSourceOptions.find(opt => opt.value === form.image_source);
+                    summaries.push(sourceOption || { label: 'Source', value: form.image_source });
+                }
+                if (form.image_source === FORM_DEFAULTS.image_source && form.image_parallel !== FORM_DEFAULTS.image_parallel) {
+                    const parallelOption = imageParallelOptions.find(opt => opt.value === form.image_parallel);
+                    summaries.push(parallelOption || { label: 'Parallel', value: form.image_parallel });
+                }
+                if (form.image_coloring !== FORM_DEFAULTS.image_coloring) {
+                    const coloringOption = imageColoringOptions.find(opt => opt.value === form.image_coloring);
+                    summaries.push({ ...(coloringOption || { value: form.image_coloring }), label: 'Coloring' });
+                }
+                if (form.image_outer_glow !== FORM_DEFAULTS.image_outer_glow) {
+                    const glowOption = outerGlowOptions.find(opt => opt.value === form.image_outer_glow);
+                    summaries.push(glowOption || { label: 'Glow', value: form.image_outer_glow });
+                }
+                if (form.stats_type && form.stats_type !== FORM_DEFAULTS.stats_type) {
+                    const statsOption = statsTypeOptions.find(opt => opt.value === form.stats_type);
+                    summaries.push({ ...(statsOption || { value: form.stats_type }), label: 'Real Stats' });
+                }
+                if (form.nickname_index && form.nickname_index !== FORM_DEFAULTS.nickname_index) {
+                    const nicknameOption = nicknameIndexOptions.find(opt => opt.value === form.nickname_index);
+                    summaries.push({ ...(nicknameOption || { value: form.nickname_index }), label: 'Nickname' });
+                }
+                if (form.add_image_border !== FORM_DEFAULTS.add_image_border) summaries.push({ value: 'ADD BORDER', borderColor: 'border-green-500' });
+                if (form.is_dark_mode !== FORM_DEFAULTS.is_dark_mode) summaries.push({ value: 'DARK MODE', borderColor: 'border-green-500' });
+                if (form.remove_team_branding !== FORM_DEFAULTS.remove_team_branding) summaries.push({ value: 'REMOVE TEAM BRANDING', borderColor: 'border-green-500' });
+                break;
+                
+            case 'chart':
+                if (form.chart_version !== FORM_DEFAULTS.chart_version) {
+                    const chartOption = chartVersionOptions.find(opt => opt.value === form.chart_version);
+                    summaries.push({ ...(chartOption || { value: form.chart_version || "1" }), label: 'Chart Version' });
+                }
+                if (form.era !== FORM_DEFAULTS.era) {
+                    const eraOption = eraOptions.find(opt => opt.value === form.era);
+                    summaries.push({ ...(eraOption || { value: form.era || "DYNAMIC" }), label: 'Era' });
+
+                }
+                if (form.is_variable_speed_00_01 !== FORM_DEFAULTS.is_variable_speed_00_01) summaries.push({ value: 'VARIABLE SPEED', borderColor: 'border-green-500' });
+                break;
+        }
+        
+        return summaries;
+    };
+
+    const sectionWhenClosed = (sectionName: string) => {
+
+        const summaryItems = getSectionSummary(sectionName);
+
+        if (summaryItems.length === 0) {
+            return undefined;
+        }
+        return (
+            <div className="text-sm font-bold flex flex-wrap items-center gap-x-2 gap-y-1 text-[var(--tertiary)]">
+                {summaryItems.map(item => (
+                    <div key={item.label} className={`flex rounded-lg px-1 border-2 ${item.borderColor || 'border-[var(--tertiary)]/65'}`}>
+                        <span className="font-semibold">{item.icon}</span>
+                        {(() => {
+                            const label = item.label?.toLowerCase()
+                            var prefix = "";
+                            var suffix = "";
+                            var value = item.value || "";
+                            if (label === "name") {
+                                return <span style={{ textTransform: 'capitalize' }}>{item.value}</span>;
+                            }
+                            if (item.image) {
+                                return <img src={item.image} alt={item.label} className="w-5 h-5" />;
+                            }
+                            if (item.icon) {
+                                return <span className="w-5 h-5" >{item.icon}</span>;
+                            }
+                            if (item.symbol) {
+                                return <span className="w-5 h-5" >{item.symbol}</span>;
+                            }
+                            switch (label) {
+                                case "set number": prefix = "#"; break;
+                                case "coloring": suffix = " COLOR"; break;
+                                case "glow 1x": 
+                                case "glow 2x":
+                                case "glow 3x":
+                                    suffix = "X";
+                                    prefix = "GLOW ";
+                                    break;
+                                case "chart version": prefix = "CHART "; break;
+                                case "real stats": suffix = " STATS"; break;
+                            }
+                            return <span className={`${item.borderColor || 'text-[var(--tertiary)]'}`}>{prefix}{value}{suffix}</span>;
+                        })()}
+                    </div>
+                ))}
+            </div>
+        );
+    };
 
     // MARK: Live Updates
 
@@ -313,13 +467,19 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                 show_historical_points: true,
                 season_trend_date_aggregation: 'WEEK',
             });
-
-            console.log("Card built successfully:", cardData);
+            
+            // Handle Errors
+            setErrorMessage(cardData.error_for_user);
+            if (cardData.error_for_user) {
+                console.log("Card build error:", cardData);
+                setIsProcessingCard(false);
+                return;
+            }
 
             // Retrieve response, set state
             setShowdownBotCardData(cardData);
-
-            setErrorMessage(cardData.error_for_user);
+            
+            console.log("Card built successfully:", cardData);
 
             lastFormRef.current = card_payload; // Store form data for live updates
             setIsProcessingCard(false);
@@ -382,7 +542,6 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         
         if (form.year && form.stats_period_type === 'DATES') {
             const year = parseInt(form.year);
-
             
             if (!isNaN(year)) {
                 // MLB season dates
@@ -562,7 +721,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         )}
 
                         {/* Player */}
-                        <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true}>
+                        <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true} childrenWhenClosed={sectionWhenClosed('Player')}>
 
                             <FormInput
                                 label="Name*"
@@ -592,7 +751,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         </FormSection>
 
                         {/* Set */}
-                        <FormSection title='Set' icon={<FaLayerGroup />} isOpenByDefault={false}>
+                        <FormSection title='Set' icon={<FaLayerGroup />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Set')}>
 
                             <FormDropdown
                                 label="Expansion"
@@ -617,7 +776,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         </FormSection>
 
                         {/* Image */}
-                        <FormSection title='Image' icon={<FaImage />} isOpenByDefault={false}>
+                        <FormSection title='Image' icon={<FaImage />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Image')}>
 
                             <FormDropdown
                                 label="Player Image"
@@ -634,6 +793,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                                 options={imageColoringOptions}
                                 selectedOption={form.image_coloring}
                                 onChange={(value) => setForm({ ...form, image_coloring: value })}
+                                className='text-nowrap'
                             />
 
                             <FormDropdown
@@ -665,7 +825,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         </FormSection>
 
                         {/* Chart */}
-                        <FormSection title='Chart' icon={<FaTable />} isOpenByDefault={false}>
+                        <FormSection title='Chart' icon={<FaTable />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Chart')}>
 
                             <FormDropdown
                                 label="Chart Version"

@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 
 /* Represents a single option in the custom select dropdown */
 type SelectOption = {
-    label: string;
     value: string;
+    label?: string;
     image?: string;
     symbol?: string;
     icon?: React.ReactNode;

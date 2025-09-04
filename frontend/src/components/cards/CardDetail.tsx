@@ -198,7 +198,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     relative
                     h-auto
                     w-full lg:w-96 xl:w-112 2xl:w-128
-                    px-8 md:px-0
+                    px-8 md:px-4 lg:px-0
                     lg:flex-shrink-0
                 `}>
                     <img

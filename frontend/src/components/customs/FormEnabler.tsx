@@ -21,7 +21,9 @@ const FormEnabler: React.FC<FormEnablerProps> = ({ label, isEnabled, onChange, c
             className={`
                 flex items-center gap-2
                 rounded-lg p-2 
-                font-semibold text-nowrap 
+                font-semibold
+                cursor-pointer
+                text-base md:text-sm xl:text-base
                 ${isEnabled ? 'text-green-500' : 'text-gray-400 border-gray-200'}
                 ${isEnabled ? 'border-green-500 border-1' : 'border border-form-element'}
                 ${className}
