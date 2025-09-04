@@ -28,7 +28,7 @@ import editionSS from '../../assets/edition-ss.png';
 
 // Icons
 import { FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle } from 'react-icons/fa';
-import { FaShuffle, FaXmark } from 'react-icons/fa6';
+import { FaShuffle, FaXmark, FaRotateLeft } from 'react-icons/fa6';
 
 // ----------------------------------
 // MARK: - Form Interface
@@ -103,6 +103,38 @@ const FORM_DEFAULTS: CustomCardFormState = {
 };
 
 // ----------------------------------
+// MARK: - Local Storage
+// ----------------------------------
+
+const STORAGE_KEY = 'customCardFormSettings';
+
+/** Save form settings to localStorage */
+const saveFormSettings = (formData: CustomCardFormState) => {
+    try {
+        // Don't save certain fields that shouldn't persist
+        const { image_upload, ...settingsToSave } = formData;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settingsToSave));
+    } catch (error) {
+        console.warn('Failed to save form settings:', error);
+    }
+};
+
+/** Load form settings from localStorage */
+const loadFormSettings = (): CustomCardFormState => {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            const parsedSettings = JSON.parse(saved);
+            // Merge with defaults to ensure all required fields exist
+            return { ...FORM_DEFAULTS, ...parsedSettings };
+        }
+    } catch (error) {
+        console.warn('Failed to load form settings:', error);
+    }
+    return FORM_DEFAULTS;
+};
+
+// ----------------------------------
 // MARK: - Custom Card Props
 // ----------------------------------
 
@@ -133,7 +165,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     const lastFormRef = useRef<CustomCardFormState | null>(null);
 
     // Define the form state
-    const [form, setForm] = useState<CustomCardFormState>(FORM_DEFAULTS);
+    const [form, setForm] = useState<CustomCardFormState>(loadFormSettings());
     const disableBuildButton = (
         !form.name.trim() 
         || form.year.trim().length < 4 
@@ -520,6 +552,13 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         submitCard(shuffledForm);
     };
 
+    // Handle reset
+    const handleReset = () => {
+
+        // Reset form to initial state
+        setForm(FORM_DEFAULTS);
+    };
+
     // Handle Enter key press
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -578,6 +617,15 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         }
     }, [form.year, form.stats_period_type]);
 
+
+    // Save settings whenever form changes (debounced)
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            saveFormSettings(form);
+        }, 1000); // Save 1 second after user stops typing
+
+        return () => clearTimeout(timeoutId);
+    }, [form]);
 
     // ---------------------------------
     // MARK: Render SubComponents
@@ -867,11 +915,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         shadow-md
                     ">
 
-                        <div className="flex flex-row gap-2">
-                            {/* Summarize Selections */}
-                        </div>
-
-                        <div className="flex flex-row gap-2">
+                        <div className="flex flex-col gap-2">
                             {/* Build Card */}
                             <button
                                 type="button"
@@ -893,23 +937,47 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                                 Build Card
                             </button>
 
-                            {/* Shuffle Button */}
-                            <button
-                                type="button"
-                                className="
-                                    flex items-center justify-center
-                                    w-1/3 lg:w-1/4 2xl:w-1/3
-                                    rounded-xl py-4
-                                    text-white
-                                    bg-yellow-500 hover:bg-yellow-300
-                                    cursor-pointer
-                                    font-black
-                                "
-                                onClick={handleShuffle}
-                            >
-                                <FaShuffle className="mr-1" />
-                                <div className='inline lg:hidden 2xl:block'>Shuffle</div>
-                            </button>
+                            
+
+                            <div className="flex flex-row gap-2 h-10 font-black text-sm">
+                                
+                                {/* Shuffle Button */}
+                                <button
+                                    type="button"
+                                    className="
+                                        flex items-center justify-center
+                                        w-1/2
+                                        rounded-xl
+                                        bg-yellow-500 hover:bg-yellow-300
+                                        cursor-pointer
+                                    "
+                                    onClick={handleShuffle}
+                                >
+                                    <FaShuffle className="mr-1" />
+                                    <div className='inline lg:hidden 2xl:block'>Shuffle</div>
+                                </button>
+
+                                {/* Reset Button */}
+                                <button
+                                    type="button"
+                                    className="
+                                        flex items-center justify-center
+                                        w-1/2
+                                        rounded-xl
+                                        text-white
+                                        bg-[var(--tertiary)]/50 hover:bg-[var(--tertiary)]
+                                        cursor-pointer
+                                    "
+                                    onClick={handleReset}
+                                >
+                                    <FaRotateLeft className="mr-1" />
+                                    <div className='inline lg:hidden 2xl:block'>Reset</div>
+                                </button>
+                            </div>
+
+                            
+
+
                         </div>
 
                     </footer>
