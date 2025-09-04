@@ -41,7 +41,7 @@ class PlayerSubType(Enum):
                     StatHighlightsCategory.G if self == self.RELIEF_PITCHER else StatHighlightsCategory.GS,
                 ]
                 match type:
-                    case StatHighlightsType.OLD_SCHOOL: categories += [
+                    case StatHighlightsType.CLASSIC: categories += [
                         StatHighlightsCategory.W if self == self.STARTING_PITCHER else StatHighlightsCategory.SV,
                         StatHighlightsCategory.ERA,
                         StatHighlightsCategory.WHIP,
@@ -67,7 +67,7 @@ class PlayerSubType(Enum):
                 return categories
             case self.POSITION_PLAYER:
                 match type:
-                    case StatHighlightsType.OLD_SCHOOL: return [
+                    case StatHighlightsType.CLASSIC: return [
                         StatHighlightsCategory.G,
                         StatHighlightsCategory.SLASHLINE,
                         StatHighlightsCategory.HR,

@@ -51,7 +51,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                 data['source'] = 'WOTC'
                 data['build_on_init'] = False
                 data['is_wotc'] = True
-                data['set_year_plus_one'] = True
+                data['add_one_to_set_year'] = True
 
                 # TYPE
                 player_type = PlayerType(data['player_type'])

@@ -6,7 +6,7 @@ from typing import Optional
 from .stats.stat_highlights import StatHighlightsType, StatHighlightsCategory
 
 # ---------------------------------------
-# EDITION
+# MARK: EDITION
 # ---------------------------------------
 
 class Edition(str, Enum):
@@ -63,7 +63,7 @@ class Edition(str, Enum):
         return self in [Edition.COOPERSTOWN_COLLECTION, Edition.ALL_STAR_GAME, Edition.SUPER_SEASON, Edition.ROOKIE_SEASON, Edition.POSTSEASON]
 
 # ---------------------------------------
-# EXPANSION
+# MARK: EXPANSION
 # ---------------------------------------
 
 class Expansion(str, Enum):
@@ -82,7 +82,7 @@ class Expansion(str, Enum):
         return self.value not in ['BS', 'PM']
 
 # ---------------------------------------
-# PLAYER IMAGE COMPONENT
+# MARK: PLAYER IMAGE COMPONENT
 # ---------------------------------------
 
 class PlayerImageComponent(str, Enum):
@@ -258,7 +258,7 @@ class PlayerImageComponent(str, Enum):
 
 
 # ---------------------------------------
-# SPECIAL EDITION
+# MARK: SPECIAL EDITION
 # ---------------------------------------
 
 class SpecialEdition(str, Enum):
@@ -323,7 +323,7 @@ class SpecialEdition(str, Enum):
         return {}
 
 # ---------------------------------------
-# IMAGE PARALLELS
+# MARK: IMAGE PARALLELS
 # ---------------------------------------
 
 
@@ -417,7 +417,7 @@ class ImageParallel(str, Enum):
         return self.name.replace('_', ' ').upper()
 
 # ---------------------------------------
-# TEMPLATE IMAGE COMPONENT
+# MARK: TEMPLATE IMAGE COMPONENT
 # ---------------------------------------
 
 class TemplateImageComponent(Enum):
@@ -448,7 +448,7 @@ class TemplateImageComponent(Enum):
     STAT_HIGHLIGHTS = "stat_highlights"
 
 # ---------------------------------------
-# IMAGE SOURCE
+# MARK: IMAGE SOURCE
 # ---------------------------------------
 
 class ImageSourceType(str, Enum):
@@ -492,7 +492,19 @@ class ImageSource(BaseModel):
     @property
     def is_automated(self) -> bool:
         return self.type.is_automated
+    
+# ---------------------------------------
+# MARK: IMAGE COLORING
+# ---------------------------------------
 
+class ImageColoring(str, Enum):
+    PRIMARY = "PRIMARY"
+    SECONDARY = "SECONDARY"
+    MULTI = "MULTI"
+
+# ---------------------------------------
+# MARK: SHOWDOWN IMAGE
+# ---------------------------------------
 
 class ShowdownImage(BaseModel):
 
@@ -514,15 +526,17 @@ class ShowdownImage(BaseModel):
     
     error: Optional[str] = None
     nickname_index: Optional[int] = None
-    stat_highlights_type: StatHighlightsType = StatHighlightsType.NONE
     glow_multiplier: float = 1.0
 
     # COLORS
     is_dark_mode: bool = False
-    use_secondary_color: bool = False
-    is_multi_colored: bool = False
     color_primary: str = "#000000"
     color_secondary: str = "#ffffff"
+    coloring: ImageColoring = ImageColoring.PRIMARY
+
+    # STATS
+    stat_highlights_type: StatHighlightsType = StatHighlightsType.NONE
+    stat_highlights_list: list[str] = []
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:
@@ -567,3 +581,15 @@ class ShowdownImage(BaseModel):
             return as_int
         except:
             return None
+
+
+    # BACKWARDS COMPATIBILITY
+    @property
+    def use_secondary_color(self) -> bool:
+        """Check if the image is secondary-colored."""
+        return self.coloring == ImageColoring.SECONDARY
+
+    @property
+    def is_multi_colored(self) -> bool:
+        """Check if the image is multi-colored."""
+        return self.coloring == ImageColoring.MULTI

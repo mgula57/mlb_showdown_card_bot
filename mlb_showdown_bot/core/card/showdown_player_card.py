@@ -243,8 +243,9 @@ class ShowdownPlayerCard(BaseModel):
                                         speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
         self.points: int = self.points_breakdown.total_points
 
-        # TABLES DISPLAYED ON FRONTEND
+        # STATS DISPLAYED ON FRONTEND
         self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
+        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card)
 
         if show_image or self.image.output_folder_path:
             self.card_image(show=show_image)
@@ -1965,7 +1966,7 @@ class ShowdownPlayerCard(BaseModel):
         
         return stats_for_real_pa
 
-    def stat_highlights_list(self, stats:dict[str: any]) -> list[str]:
+    def _generate_stat_highlights_list(self, stats:dict[str: any]) -> list[str]:
         """Get the most relevant stats for a player. Ranks automatically based on relevance.
 
         Games Played and Slashline are prioritized.
@@ -4108,8 +4109,6 @@ class ShowdownPlayerCard(BaseModel):
 
             expansion_image.paste("#B02722", (0, 22), year_image_canvas)
 
-            expansion_image.show()
-
         return expansion_image
 
     def _super_season_image(self) -> tuple[Image.Image, tuple[int,int]]:
@@ -4773,7 +4772,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # CALCULATE HOW MANY STATS CAN FIT
         full_text: str = ''
-        for stat in self.stat_highlights_list(stats=self.stats_for_card):
+        for stat in self.image.stat_highlights_list:
             text_width_next, _ = self._font_getsize(font=font, text=f'{full_text}  {stat}')
             if text_width_next > (x_size_w_padding * 4): break
             full_text = f'{full_text}  {stat}'

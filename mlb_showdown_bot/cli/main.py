@@ -34,11 +34,10 @@ def card(
         parallel: str = typer.Option("NONE", "--parallel", "-pl", help="Optionally add image parallel design like Rainbow Foil, Black & White, Sparkle, etc."),
         add_border: bool = typer.Option(False, "--add_border", "-bor", help="Optionally add border to player image"),
         dark_mode: bool = typer.Option(False, "--dark_mode", "-dark", help="Optionally toggle dark mode (2022+ sets only)"),
-        set_year_plus_one: bool = typer.Option(False, "--set_year_plus_one", "-sypls", help="Optionally add one to the set year on 04/05 set."),
+        add_one_to_set_year: bool = typer.Option(False, "--add_one_to_set_year", "-sy", help="Optionally add one to the set year on 04/05 set."),
         hide_team_logo: bool = typer.Option(False, "--hide_team_logo", "-htl", help="Optionally remove all team logos and branding."),
-        secondary_color: bool = typer.Option(False, "--secondary_color", "-sc", help="Used secondary team color."),
-        is_multi_colored: bool = typer.Option(False, "--is_multi_colored", "-mc", help="Use multiple colors for chart image (CLASSIC, EXPANDED only)"),
-        stat_highlights_type: str = typer.Option("NONE", "--stat_highlights_type", "-sh", help="Type of stat highlights to use. (OLD_SCHOOL, MODERN, ALL)"),
+        coloring: str = typer.Option("PRIMARY", "--coloring", "-col", help="Optionally add coloring to the card."),
+        stat_highlights_type: str = typer.Option("NONE", "--stat_highlights_type", "-sh", help="Type of stat highlights to use. (CLASSIC, MODERN, ALL)"),
         glow_multiplier: float = typer.Option(1.0, "--glow_multiplier", "-gm", help="Glow/Shadow multiplier for card image"),
         
         # STATS PERIOD

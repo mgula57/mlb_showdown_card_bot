@@ -48,12 +48,14 @@ interface CustomCardFormState {
     expansion: string; // e.g. "BS"
     set_number?: string | null; // e.g. "001"
     edition: string; // e.g. "Cooperstown"
+    add_one_to_set_year: boolean; // Whether to show the year + 1 in the set section
+    show_year_text: boolean; // Whether to show the year text as a label on the card
 
     // Image
     image_source: string; // e.g. "Auto"
     image_parallel: string; // e.g. "Rainbow Foil"
     image_coloring: string; // e.g. "Primary"
-    image_outer_glow: string; // e.g. "Glow 1x"
+    image_glow_multiplier: string; // e.g. "Glow 1x"
     image_url?: string | null; // e.g. "https://example.com/image.png"
     image_upload?: File | null; // For file uploads
 
@@ -61,10 +63,8 @@ interface CustomCardFormState {
     add_image_border: boolean; // Whether to add a border to the image
     is_dark_mode: boolean; // Whether the card is in dark mode
     remove_team_branding: boolean; // Whether to remove team branding from the image
-    stats_type?: string; // e.g. "ALL", "OLD", "MODERN"
+    stat_highlights_type?: string; // e.g. "ALL", "OLD", "MODERN"
     nickname_index?: string; // e.g. "NICKNAME 1",
-    show_year_plus_one?: boolean; // Whether to show the year + 1 in the set section
-    show_year_text?: boolean; // Whether to show the year text as a label on the card
 
     // Chart
     chart_version?: string; // e.g. "1"
@@ -87,15 +87,15 @@ const FORM_DEFAULTS: CustomCardFormState = {
     image_source: "AUTO", 
     image_parallel: "NONE", 
     image_coloring: "PRIMARY", 
-    image_outer_glow: "1",
+    image_glow_multiplier: "1",
     image_url: null, 
     image_upload: null,
     add_image_border: false, 
     is_dark_mode: false, 
     remove_team_branding: false,
-    stats_type: "NONE", 
+    stat_highlights_type: "NONE", 
     nickname_index: "NONE", 
-    show_year_plus_one: false, 
+    add_one_to_set_year: false, 
     show_year_text: false,
     chart_version: "1", 
     era: "DYNAMIC", 
@@ -226,18 +226,18 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
         { "value": "PITCH CLOCK ERA", "label": "Pitch Clock (2023+)" },
     ]
 
-    const statsTypeOptions: SelectOption[] = [
+    const statHighlightsTypeOptions: SelectOption[] = [
         { "label": "None", "value": "NONE" },
-        { "label": "Old School", "value": "OLD" },
+        { "label": "Classic", "value": "CLASSIC" },
         { "label": "Modern", "value": "MODERN" },
-        { "label": "Both", "value": "ALL" },
+        { "label": "All", "value": "ALL" },
     ]
 
     const nicknameIndexOptions: SelectOption[] = [
         { "label": "None", "value": "NONE" },
-        { "label": "Nickname 1", "value": "NICKNAME 1" },
-        { "label": "Nickname 2", "value": "NICKNAME 2" },
-        { "label": "Nickname 3", "value": "NICKNAME 3" },
+        { "label": "Nickname 1", "value": "1" },
+        { "label": "Nickname 2", "value": "2" },
+        { "label": "Nickname 3", "value": "3" },
     ]
 
     const outerGlowOptions: SelectOption[] = [
@@ -276,6 +276,10 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                     summaries.push(editionOption || { label: 'Edition', value: form.edition });
                 }
                 if (form.set_number) summaries.push({ label: 'Set Number', value: form.set_number });
+
+                if (form.add_one_to_set_year) summaries.push({ value: "Set Year +1", borderColor: 'border-green-500' });
+                if (form.show_year_text) summaries.push({ value: "Show Year Text", borderColor: 'border-green-500' });
+
                 break;
                 
             case 'image':
@@ -291,13 +295,13 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                     const coloringOption = imageColoringOptions.find(opt => opt.value === form.image_coloring);
                     summaries.push({ ...(coloringOption || { value: form.image_coloring }), label: 'Coloring' });
                 }
-                if (form.image_outer_glow !== FORM_DEFAULTS.image_outer_glow) {
-                    const glowOption = outerGlowOptions.find(opt => opt.value === form.image_outer_glow);
-                    summaries.push(glowOption || { label: 'Glow', value: form.image_outer_glow });
+                if (form.image_glow_multiplier !== FORM_DEFAULTS.image_glow_multiplier) {
+                    const glowOption = outerGlowOptions.find(opt => opt.value === form.image_glow_multiplier);
+                    summaries.push({ ...(glowOption || { value: form.image_glow_multiplier }), label: 'Glow' });
                 }
-                if (form.stats_type && form.stats_type !== FORM_DEFAULTS.stats_type) {
-                    const statsOption = statsTypeOptions.find(opt => opt.value === form.stats_type);
-                    summaries.push({ ...(statsOption || { value: form.stats_type }), label: 'Real Stats' });
+                if (form.stat_highlights_type && form.stat_highlights_type !== FORM_DEFAULTS.stat_highlights_type) {
+                    const statsOption = statHighlightsTypeOptions.find(opt => opt.value === form.stat_highlights_type);
+                    summaries.push({ ...(statsOption || { value: form.stat_highlights_type }), label: 'Real Stats' });
                 }
                 if (form.nickname_index && form.nickname_index !== FORM_DEFAULTS.nickname_index) {
                     const nicknameOption = nicknameIndexOptions.find(opt => opt.value === form.nickname_index);
@@ -357,14 +361,10 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                             switch (label) {
                                 case "set number": prefix = "#"; break;
                                 case "coloring": suffix = " COLOR"; break;
-                                case "glow 1x": 
-                                case "glow 2x":
-                                case "glow 3x":
-                                    suffix = "X";
-                                    prefix = "GLOW ";
-                                    break;
+                                case "glow": suffix = "X"; prefix = "GLOW "; break;
+                                case "nickname": prefix = "NICKNAME "; break;
                                 case "chart version": prefix = "CHART "; break;
-                                case "real stats": suffix = " STATS"; break;
+                                case "real stats": prefix = "SHOW "; suffix = " STATS"; break;
                             }
                             return <span className={`${item.borderColor || 'text-[var(--tertiary)]'}`}>{prefix}{value}{suffix}</span>;
                         })()}
@@ -769,10 +769,15 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
                             <FormInput
                                 label="Set Number"
+                                className='col-span-full'
                                 value={form.set_number || ''}
                                 onChange={(value) => setForm({ ...form, set_number: value || '' })}
                                 isClearable={true}
                             />
+
+                            <FormEnabler label='Show Year as Text' isEnabled={form.show_year_text} onChange={(isEnabled) => setForm({ ...form, show_year_text: !isEnabled })} />
+                            <FormEnabler label='Add 1 to Set Year' isEnabled={form.add_one_to_set_year} onChange={(isEnabled) => setForm({ ...form, add_one_to_set_year: !isEnabled })} />
+
                         </FormSection>
 
                         {/* Image */}
@@ -799,17 +804,17 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                             <FormDropdown
                                 label="Outer Glow"
                                 options={outerGlowOptions}
-                                selectedOption={form.image_outer_glow}
-                                onChange={(value) => setForm({ ...form, image_outer_glow: value })}
+                                selectedOption={form.image_glow_multiplier}
+                                onChange={(value) => setForm({ ...form, image_glow_multiplier: value })}
                             />
 
                             {/* Extras */}
                             <h1 className="col-span-full text-md font-semibold text-secondary mt-2">Extras</h1>
                             <FormDropdown
                                 label="Show Real Stats?"
-                                options={statsTypeOptions}
-                                selectedOption={form.stats_type || 'NONE'}
-                                onChange={(value) => setForm({ ...form, stats_type: value })}
+                                options={statHighlightsTypeOptions}
+                                selectedOption={form.stat_highlights_type || 'NONE'}
+                                onChange={(value) => setForm({ ...form, stat_highlights_type: value })}
                             />
                             <FormDropdown
                                 label="Show Nickname?"

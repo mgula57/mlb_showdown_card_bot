@@ -2,7 +2,7 @@ from enum import Enum
 
 class StatHighlightsType(Enum):
     NONE = 'NONE'
-    OLD_SCHOOL = 'OLD_SCHOOL'
+    CLASSIC = 'CLASSIC'
     MODERN = 'MODERN'
     ALL = 'ALL'
 
