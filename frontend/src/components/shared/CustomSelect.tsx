@@ -19,12 +19,13 @@ type CustomSelectProps = {
     options: SelectOption[];
     className?: string; // Optional className for additional styling
     buttonClassName?: string; // Optional className for the button
+    imageClassName?: string; // Optional className for the image
     dropdownClassName?: string; // Optional className for the dropdown menu
     suffix?: string; // Optional suffix to display after the selected value
 };
 
 /** Custom select component for selecting an option from a dropdown list. */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", dropdownClassName = "" }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", dropdownClassName = "" }) => {
 
     /** State to manage dropdown open/close */
     const [isOpen, setIsOpen] = useState(false);
@@ -94,7 +95,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
     /** Helper functions to render any passed in image */
     const renderImage = (image: string | undefined) => {
         if (image) {
-            return <img src={image} alt="flag" className="mr-2 w-5 h-5 object-contain object-center" />;
+            return <img src={image} alt="flag" className={imageClassName ? imageClassName : `mr-2 w-5 h-5 object-contain object-center`} />;
         }
         return null;
     };
@@ -125,8 +126,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
             <button
                 type="button"
                 ref={buttonRef}
-                className={`
-                    ${buttonClassName}
+                className={buttonClassName ? buttonClassName : `
                     w-full px-3 py-2 
                     border-2 ${selectedBorderColor} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400
                     bg-secondary text-primary text-nowrap text-left 

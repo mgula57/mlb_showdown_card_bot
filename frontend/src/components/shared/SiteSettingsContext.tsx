@@ -1,14 +1,24 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+import showdown2000 from "../../assets/set-2000.png";
+import showdown2001 from "../../assets/set-2001.png";
+import showdown2002 from "../../assets/set-2002.png";
+import showdown2003 from "../../assets/set-2003.png";
+import showdown2004 from "../../assets/set-2004.png";
+import showdown2005 from "../../assets/set-2005.png";
+import showdownClassic from "../../assets/set-classic.png";
+import showdownExpanded from "../../assets/set-expanded.png";
+
+
 export const showdownSets: Array<{ value: string; label: string; image?: string | undefined; textColor?: string | undefined; }> = [
-    { value: "2000", label: "2000", textColor: "text-blue" },
-    { value: "2001", label: "2001" },
-    { value: "2002", label: "2002" },
-    { value: "2003", label: "2003" },
-    { value: "2004", label: "2004" },
-    { value: "2005", label: "2005" },
-    { value: "CLASSIC", label: "CLASSIC" },
-    { value: "EXPANDED", label: "EXPANDED" },
+    { value: "2000", label: "", textColor: "text-blue", image: showdown2000 },
+    { value: "2001", label: "", image: showdown2001 },
+    { value: "2002", label: "", image: showdown2002 },
+    { value: "2003", label: "", image: showdown2003 },
+    { value: "2004", label: "", image: showdown2004 },
+    { value: "2005", label: "", image: showdown2005 },
+    { value: "CLASSIC", label: "", image: showdownClassic },
+    { value: "EXPANDED", label: "", image: showdownExpanded },
 ];
 
 type Theme = 'light' | 'dark' | 'system';
