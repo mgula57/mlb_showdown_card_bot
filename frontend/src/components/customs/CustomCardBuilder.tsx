@@ -135,21 +135,13 @@ const loadFormSettings = (): CustomCardFormState => {
 };
 
 // ----------------------------------
-// MARK: - Custom Card Props
-// ----------------------------------
-
-type CustomCardBuilderProps = {
-    condenseFormInputs?: boolean | null;
-}
-
-// ----------------------------------
 // MARK: - Custom Card Component
 // ----------------------------------
 
 /** 
  * Card Creation Page for users to create and customize their own cards. 
 */
-function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
+function CustomCardBuilder() {
 
     // Card States
     const { userShowdownSet } = useSiteSettings();
