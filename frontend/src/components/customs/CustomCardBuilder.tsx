@@ -27,7 +27,7 @@ import editionPOST from '../../assets/edition-post.png';
 import editionSS from '../../assets/edition-ss.png';
 
 // Icons
-import { FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle } from 'react-icons/fa';
+import { FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle, FaChevronCircleRight, FaChevronCircleLeft } from 'react-icons/fa';
 import { FaShuffle, FaXmark, FaRotateLeft } from 'react-icons/fa6';
 
 // ----------------------------------
@@ -157,6 +157,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     const [isProcessingCard, setIsProcessingCard] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [query, _] = useState("");
+    const [isFormCollapsed, setIsFormCollapsed] = useState(true);
 
     // Live update states
     const [isLiveUpdating, setIsLiveUpdating] = useState(false);
@@ -729,8 +730,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
 
                 {/* Form Inputs */}
                 <section className={`
-                    w-full @2xl:w-84
-                    @2xl:flex-shrink-0
+                    ${isFormCollapsed ? 'w-auto' : 'w-full @2xl:w-84 @2xl:flex-shrink-0'}
                     border-b-2 @2xl:border-r border-form-element
                     bg-background-secondary
                     flex flex-col 
@@ -738,251 +738,274 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                 `}>
 
                     {/* Scrollable area */}
-                    <div className="flex-1 overflow-y-auto px-4 pt-4">
+                    <div className={`flex-1 overflow-y-auto pt-4 ${isFormCollapsed ? 'px-1' : 'px-4'}`}>
 
                         {/* Form Inputs */}
-                        <div className="space-y-4 pb-6 @2xl:pb-64">
+                        <div className="space-y-4 pb-6 @2xl:pb-64 justify-center">
 
-                            {/* Search Box */}
-                            <PlayerSearchInput
-                                label=""
-                                className='col-span-full pb-2'
-                                value={query}
-                                onChange={(selection) => setForm({ ...form, name: selection.name, year: selection.year })}
-                            />
+                            {/* Search Box and Collapse Button */}
+                            <div className='flex col-span-full pb-2 gap-2'>
+                                <PlayerSearchInput
+                                    label=""
+                                    value={query}
+                                    className={`${isFormCollapsed ? 'hidden' : 'block w-full'}`}
+                                    onChange={(selection) => setForm({ ...form, name: selection.name, year: selection.year })}
+                                />
 
-                            {/* Display Error (If Applicable) */}
-                            {errorMessage && (
-                                <div className='w-full border-3 bg-red-500/10 text-red-500 border-red-500 rounded-xl p-2'>
-                                    <div className='flex flex-row justify-between items-center mb-1 text-xl'>
-                                        <div className='font-black flex flex-row gap-2 items-center'> 
-                                            <FaExclamationCircle /> 
-                                            Error
+                                <button
+                                    className={`text-xl p-2 rounded-lg hover:bg-[var(--background-tertiary)] transition-colors ${isFormCollapsed ? 'flex flex-col items-center gap-3' : ''}`}
+                                    onClick={() => setIsFormCollapsed(!isFormCollapsed)}
+                                >
+                                    {isFormCollapsed ? <FaChevronCircleRight /> : <FaChevronCircleLeft />}
+                                    {isFormCollapsed && (
+                                        <span 
+                                            className='text-nowrap'
+                                            style={{ 
+                                                writingMode: 'vertical-lr',
+                                                textOrientation: 'sideways',
+                                            }}>{isFormCollapsed ? 'Card Settings' : ''}
+                                        </span>
+                                    )}
+                                    
+                                </button>
+                            </div>
+
+                            {!isFormCollapsed && (
+                                <>
+                                    {/* Display Error (If Applicable) */}
+                                    {errorMessage && (
+                                        <div className='w-full border-3 bg-red-500/10 text-red-500 border-red-500 rounded-xl p-2'>
+                                            <div className='flex flex-row justify-between items-center mb-1 text-xl'>
+                                                <div className='font-black flex flex-row gap-2 items-center'> 
+                                                    <FaExclamationCircle /> 
+                                                    Error
+                                                </div>
+                                                <button className='text-red-500 underline' onClick={() => setErrorMessage('')}>
+                                                    <FaXmark />
+                                                </button>
+                                            </div>
+                                            <div className="text-md font-bold">
+                                                {errorMessage}
+                                            </div>
                                         </div>
-                                        <button className='text-red-500 underline' onClick={() => setErrorMessage('')}>
-                                            <FaXmark />
-                                        </button>
-                                    </div>
-                                    <div className="text-md font-bold">
-                                        {errorMessage}
-                                    </div>
-                                </div>
+                                    )}
+
+                                    {/* Player */}
+                                    <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true} childrenWhenClosed={sectionWhenClosed('Player')}>
+
+                                        <FormInput
+                                            label="Name*"
+                                            className='col-span-full'
+                                            value={form.name}
+                                            onChange={(value) => setForm({ ...form, name: value || '' })}
+                                            isClearable={true}
+                                            isTitleCase={true}
+                                        />
+
+                                        <FormInput
+                                            label="Year*"
+                                            value={form.year}
+                                            onChange={(value) => setForm({ ...form, year: value || '' })}
+                                            isClearable={true}
+                                        />
+
+                                        <FormDropdown
+                                            label="Period"
+                                            options={statsPeriodOptions}
+                                            selectedOption={form.stats_period_type}
+                                            onChange={(value) => setForm({ ...form, stats_period_type: value })}
+                                        />
+
+                                        {renderStatsPeriodInputs()}
+
+                                    </FormSection>
+
+                                    {/* Set */}
+                                    <FormSection title='Set' icon={<FaLayerGroup />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Set')}>
+
+                                        <FormDropdown
+                                            label="Expansion"
+                                            options={expansionOptions}
+                                            selectedOption={form.expansion}
+                                            onChange={(value) => setForm({ ...form, expansion: value })}
+                                        />
+
+                                        <FormDropdown
+                                            label="Edition"
+                                            options={editionOptions}
+                                            selectedOption={form.edition}
+                                            onChange={(value) => setForm({ ...form, edition: value })}
+                                        />
+
+                                        <FormInput
+                                            label="Set Number"
+                                            className='col-span-full'
+                                            value={form.set_number || ''}
+                                            onChange={(value) => setForm({ ...form, set_number: value || '' })}
+                                            isClearable={true}
+                                        />
+
+                                        <FormEnabler label='Show Year as Text' isEnabled={form.show_year_text} onChange={(isEnabled) => setForm({ ...form, show_year_text: !isEnabled })} />
+                                        <FormEnabler label='Add 1 to Set Year' isEnabled={form.add_one_to_set_year} onChange={(isEnabled) => setForm({ ...form, add_one_to_set_year: !isEnabled })} />
+
+                                    </FormSection>
+
+                                    {/* Image */}
+                                    <FormSection title='Image' icon={<FaImage />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Image')}>
+
+                                        <FormDropdown
+                                            label="Player Image"
+                                            className='col-span-full'
+                                            options={imageSourceOptions}
+                                            selectedOption={form.image_source}
+                                            onChange={(value) => setForm({ ...form, image_source: value })}
+                                        />
+
+                                        {renderImageSourceInputs()}
+
+                                        <FormDropdown
+                                            label="Image Coloring"
+                                            options={imageColoringOptions}
+                                            selectedOption={form.image_coloring}
+                                            onChange={(value) => setForm({ ...form, image_coloring: value })}
+                                            className='text-nowrap'
+                                        />
+
+                                        <FormDropdown
+                                            label="Outer Glow"
+                                            options={outerGlowOptions}
+                                            selectedOption={form.image_glow_multiplier}
+                                            onChange={(value) => setForm({ ...form, image_glow_multiplier: value })}
+                                        />
+
+                                        {/* Extras */}
+                                        <h1 className="col-span-full text-md font-semibold text-secondary mt-2">Extras</h1>
+                                        <FormDropdown
+                                            label="Show Real Stats?"
+                                            options={statHighlightsTypeOptions}
+                                            selectedOption={form.stat_highlights_type || 'NONE'}
+                                            onChange={(value) => setForm({ ...form, stat_highlights_type: value })}
+                                        />
+                                        <FormDropdown
+                                            label="Show Nickname?"
+                                            options={nicknameIndexOptions}
+                                            selectedOption={form.nickname_index || 'NONE'}
+                                            onChange={(value) => setForm({ ...form, nickname_index: value })}
+                                        />
+                                        <FormEnabler label='Add Border' isEnabled={form.add_image_border} onChange={(isEnabled) => setForm({ ...form, add_image_border: !isEnabled })} />
+                                        <FormEnabler label='Dark Mode' isEnabled={form.is_dark_mode} onChange={(isEnabled) => setForm({ ...form, is_dark_mode: !isEnabled })} />
+                                        <FormEnabler label='Remove Team' className='col-span-full' isEnabled={form.remove_team_branding} onChange={(isEnabled) => setForm({ ...form, remove_team_branding: !isEnabled })} />
+
+
+                                    </FormSection>
+
+                                    {/* Chart */}
+                                    <FormSection title='Chart' icon={<FaTable />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Chart')}>
+
+                                        <FormDropdown
+                                            label="Chart Version"
+                                            options={chartVersionOptions}
+                                            selectedOption={form.chart_version || '1'}
+                                            onChange={(value) => setForm({ ...form, chart_version: value })}
+                                        />
+
+                                        <FormDropdown
+                                            label="Era"
+                                            options={eraOptions}
+                                            selectedOption={form.era || 'DYNAMIC'}
+                                            onChange={(value) => setForm({ ...form, era: value })}
+                                        />
+
+                                        <FormEnabler
+                                            label="Variable Speed 00-01"
+                                            className="col-span-2"
+                                            isEnabled={form.is_variable_speed_00_01 || false}
+                                            onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
+                                        />
+
+                                    </FormSection>
+                                </>
                             )}
-
-                            {/* Player */}
-                            <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true} childrenWhenClosed={sectionWhenClosed('Player')}>
-
-                                <FormInput
-                                    label="Name*"
-                                    className='col-span-full'
-                                    value={form.name}
-                                    onChange={(value) => setForm({ ...form, name: value || '' })}
-                                    isClearable={true}
-                                    isTitleCase={true}
-                                />
-
-                                <FormInput
-                                    label="Year*"
-                                    value={form.year}
-                                    onChange={(value) => setForm({ ...form, year: value || '' })}
-                                    isClearable={true}
-                                />
-
-                                <FormDropdown
-                                    label="Period"
-                                    options={statsPeriodOptions}
-                                    selectedOption={form.stats_period_type}
-                                    onChange={(value) => setForm({ ...form, stats_period_type: value })}
-                                />
-
-                                {renderStatsPeriodInputs()}
-
-                            </FormSection>
-
-                            {/* Set */}
-                            <FormSection title='Set' icon={<FaLayerGroup />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Set')}>
-
-                                <FormDropdown
-                                    label="Expansion"
-                                    options={expansionOptions}
-                                    selectedOption={form.expansion}
-                                    onChange={(value) => setForm({ ...form, expansion: value })}
-                                />
-
-                                <FormDropdown
-                                    label="Edition"
-                                    options={editionOptions}
-                                    selectedOption={form.edition}
-                                    onChange={(value) => setForm({ ...form, edition: value })}
-                                />
-
-                                <FormInput
-                                    label="Set Number"
-                                    className='col-span-full'
-                                    value={form.set_number || ''}
-                                    onChange={(value) => setForm({ ...form, set_number: value || '' })}
-                                    isClearable={true}
-                                />
-
-                                <FormEnabler label='Show Year as Text' isEnabled={form.show_year_text} onChange={(isEnabled) => setForm({ ...form, show_year_text: !isEnabled })} />
-                                <FormEnabler label='Add 1 to Set Year' isEnabled={form.add_one_to_set_year} onChange={(isEnabled) => setForm({ ...form, add_one_to_set_year: !isEnabled })} />
-
-                            </FormSection>
-
-                            {/* Image */}
-                            <FormSection title='Image' icon={<FaImage />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Image')}>
-
-                                <FormDropdown
-                                    label="Player Image"
-                                    className='col-span-full'
-                                    options={imageSourceOptions}
-                                    selectedOption={form.image_source}
-                                    onChange={(value) => setForm({ ...form, image_source: value })}
-                                />
-
-                                {renderImageSourceInputs()}
-
-                                <FormDropdown
-                                    label="Image Coloring"
-                                    options={imageColoringOptions}
-                                    selectedOption={form.image_coloring}
-                                    onChange={(value) => setForm({ ...form, image_coloring: value })}
-                                    className='text-nowrap'
-                                />
-
-                                <FormDropdown
-                                    label="Outer Glow"
-                                    options={outerGlowOptions}
-                                    selectedOption={form.image_glow_multiplier}
-                                    onChange={(value) => setForm({ ...form, image_glow_multiplier: value })}
-                                />
-
-                                {/* Extras */}
-                                <h1 className="col-span-full text-md font-semibold text-secondary mt-2">Extras</h1>
-                                <FormDropdown
-                                    label="Show Real Stats?"
-                                    options={statHighlightsTypeOptions}
-                                    selectedOption={form.stat_highlights_type || 'NONE'}
-                                    onChange={(value) => setForm({ ...form, stat_highlights_type: value })}
-                                />
-                                <FormDropdown
-                                    label="Show Nickname?"
-                                    options={nicknameIndexOptions}
-                                    selectedOption={form.nickname_index || 'NONE'}
-                                    onChange={(value) => setForm({ ...form, nickname_index: value })}
-                                />
-                                <FormEnabler label='Add Border' isEnabled={form.add_image_border} onChange={(isEnabled) => setForm({ ...form, add_image_border: !isEnabled })} />
-                                <FormEnabler label='Dark Mode' isEnabled={form.is_dark_mode} onChange={(isEnabled) => setForm({ ...form, is_dark_mode: !isEnabled })} />
-                                <FormEnabler label='Remove Team' className='col-span-full' isEnabled={form.remove_team_branding} onChange={(isEnabled) => setForm({ ...form, remove_team_branding: !isEnabled })} />
-
-
-                            </FormSection>
-
-                            {/* Chart */}
-                            <FormSection title='Chart' icon={<FaTable />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Chart')}>
-
-                                <FormDropdown
-                                    label="Chart Version"
-                                    options={chartVersionOptions}
-                                    selectedOption={form.chart_version || '1'}
-                                    onChange={(value) => setForm({ ...form, chart_version: value })}
-                                />
-
-                                <FormDropdown
-                                    label="Era"
-                                    options={eraOptions}
-                                    selectedOption={form.era || 'DYNAMIC'}
-                                    onChange={(value) => setForm({ ...form, era: value })}
-                                />
-
-                                <FormEnabler
-                                    label="Variable Speed 00-01"
-                                    className="col-span-2"
-                                    isEnabled={form.is_variable_speed_00_01 || false}
-                                    onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}
-                                />
-
-                            </FormSection>
+                            
                         </div>
 
                         {/* Form Buttons */}
                         {/* Make sticky at bottom */}
-                        <footer className="
-                            fixed bottom-0 left-0 right-0 z-20
-                            -mx-4 px-12 py-4 @xl:p-6
-                            @2xl:sticky @2xl:bottom-0 @2xl:left-auto @2xl:right-auto @2xl:z-auto
-                            bg-background-secondary/95 backdrop-blur
-                            border-t border-form-element
-                            shadow-md
-                        ">
+                        {!isFormCollapsed && (
+                            <footer className="
+                                fixed bottom-0 left-0 right-0 z-20
+                                -mx-4 px-12 py-4 @xl:p-6
+                                @2xl:sticky @2xl:bottom-0 @2xl:left-auto @2xl:right-auto @2xl:z-auto
+                                bg-background-secondary/95 backdrop-blur
+                                border-t border-form-element
+                                shadow-md
+                            ">
 
-                            <div className="flex flex-col gap-2">
-                                {/* Build Card */}
-                                <button
-                                    type="button"
-                                    title={disableBuildButton ? "Please enter player name and year" : ""}
-                                    className={`
-                                        flex items-center justify-center
-                                        w-full rounded-xl py-4
-                                        text-white
-                                        bg-[var(--showdown-blue)]
-                                        ${disableBuildButton
-                                            ? 'cursor-not-allowed opacity-25'
-                                            : 'hover:bg-[var(--showdown-blue)]/50 cursor-pointer'
-                                        }
-                                        font-black
-                                    `}
-                                    onClick={handleBuild}
-                                >
-                                    <FaBaseballBall className="mr-1" />
-                                    Build Card
-                                </button>
-
-                                
-
-                                <div className="flex flex-row gap-2 h-10 font-black text-sm">
-                                    
-                                    {/* Shuffle Button */}
+                                <div className="flex flex-col gap-2">
+                                    {/* Build Card */}
                                     <button
                                         type="button"
-                                        className="
+                                        title={disableBuildButton ? "Please enter player name and year" : ""}
+                                        className={`
                                             flex items-center justify-center
-                                            w-1/2
-                                            rounded-xl
-                                            bg-yellow-500 hover:bg-yellow-300
-                                            cursor-pointer
-                                        "
-                                        onClick={handleShuffle}
-                                    >
-                                        <FaShuffle className="mr-1" />
-                                        <div className='inline'>Shuffle</div>
-                                    </button>
-
-                                    {/* Reset Button */}
-                                    <button
-                                        type="button"
-                                        className="
-                                            flex items-center justify-center
-                                            w-1/2
-                                            rounded-xl
+                                            w-full rounded-xl py-4
                                             text-white
-                                            bg-[var(--tertiary)]/50 hover:bg-[var(--tertiary)]
-                                            cursor-pointer
-                                        "
-                                        onClick={handleReset}
+                                            bg-[var(--showdown-blue)]
+                                            ${disableBuildButton
+                                                ? 'cursor-not-allowed opacity-25'
+                                                : 'hover:bg-[var(--showdown-blue)]/50 cursor-pointer'
+                                            }
+                                            font-black
+                                        `}
+                                        onClick={handleBuild}
                                     >
-                                        <FaRotateLeft className="mr-1" />
-                                        <div className='inline'>Reset</div>
+                                        <FaBaseballBall className="mr-1" />
+                                        Build Card
                                     </button>
+
+                                    
+
+                                    <div className="flex flex-row gap-2 h-10 font-black text-sm">
+                                        
+                                        {/* Shuffle Button */}
+                                        <button
+                                            type="button"
+                                            className="
+                                                flex items-center justify-center
+                                                w-1/2
+                                                rounded-xl
+                                                bg-yellow-500 hover:bg-yellow-300
+                                                cursor-pointer
+                                            "
+                                            onClick={handleShuffle}
+                                        >
+                                            <FaShuffle className="mr-1" />
+                                            <div className='inline'>Shuffle</div>
+                                        </button>
+
+                                        {/* Reset Button */}
+                                        <button
+                                            type="button"
+                                            className="
+                                                flex items-center justify-center
+                                                w-1/2
+                                                rounded-xl
+                                                text-white
+                                                bg-[var(--tertiary)]/50 hover:bg-[var(--tertiary)]
+                                                cursor-pointer
+                                            "
+                                            onClick={handleReset}
+                                        >
+                                            <FaRotateLeft className="mr-1" />
+                                            <div className='inline'>Reset</div>
+                                        </button>
+                                    </div>
+
                                 </div>
 
-                                
-
-
-                            </div>
-
-                        </footer>
-
+                            </footer>
+                        )}
+                        
                     </div>
 
                 </section>
