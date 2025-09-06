@@ -152,12 +152,13 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
         }
     };
 
-    const breakdownFirstRowHeight = 'lg:h-[500px] xl:h-[600px]';
+    const breakdownFirstRowHeight = '@xl:max-h-[500px] @xl:overflow-hidden @3xl:max-h-[600px] @6xl:max-h-[700px]';
 
     // MARK: MAIN CONTENT
     return (
         <div 
             className="
+                @container
                 w-full
                 overflow-y-auto
                 p-4 space-y-4
@@ -226,9 +227,8 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
             {/* Image and Breakdown Tables */}
             <div
                 className={`
-                    flex flex-col lg:flex-row
-                    lg:items-start
-                    gap-6
+                    grid grid-cols-1 @xl:grid-cols-[11fr_9fr]
+                    gap-4
                     pt-2
                 `}
             >
@@ -236,9 +236,8 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                 <div className={`
                     relative
                     h-auto
-                    w-full lg:w-96 xl:w-112 2xl:w-128
-                    px-8 md:px-4 lg:px-0
-                    lg:flex-shrink-0
+                    w-full
+                    px-6 @md:px-4 @xl:px-0
                 `}>
                     <img
                         src={cardImagePath == null ? getBlankPlayerImageName() : cardImagePath}
@@ -246,7 +245,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                         key={showdownBotCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
                         className={`
                             block 
-                            md:mx-auto
+                            @2xl:mx-auto
                             ${breakdownFirstRowHeight}
                             rounded-2xl overflow-hidden
                             object-contain
@@ -298,7 +297,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                 <div
                     className={`
                         flex flex-col
-                        w-full lg:flex-1
+                        w-full
                         bg-secondary
                         p-4 rounded-xl
                         space-y-4
@@ -327,9 +326,8 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
             <div 
                 className="
                     w-full
-                    flex flex-col lg:flex-row
-                    space-x-4 space-y-4
-                    
+                    grid grid-cols-1 @xl:grid-cols-2
+                    gap-4
                 "
             >
 

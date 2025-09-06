@@ -31,7 +31,7 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
     });
 
     return (
-        <div className={`overflow-auto rounded-lg border-2 border-[var(--background-tertiary)] ${className}`}>
+        <div className={`overflow-scroll rounded-lg border-2 border-[var(--background-tertiary)] ${className}`}>
             <table className="min-w-full text-sm">
                 <thead className="bg-table-header">
                     {table.getHeaderGroups().map(hg => (
