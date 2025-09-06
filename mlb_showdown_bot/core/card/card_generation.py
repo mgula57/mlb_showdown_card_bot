@@ -60,14 +60,16 @@ def generate_card(**kwargs) -> dict[str, Any]:
     else:
         card_log_db = None
 
-    # ADD RANDOM PLAYER ID AND YEAR IF NEEDED
-    if kwargs.get('randomize', False):
-        # GET RANDOM PLAYER ID AND YEAR
-        random_player_id, random_year = generate_random_player_id_and_year(**kwargs)
-        kwargs['name'] = random_player_id
-        kwargs['year'] = random_year
-
     try:
+
+        # ADD RANDOM PLAYER ID AND YEAR IF NEEDED
+        if kwargs.get('randomize', False):
+            # GET RANDOM PLAYER ID AND YEAR
+            random_player = generate_random_player(**kwargs)
+            if random_player is None:
+                raise Exception("Random Player Generation Failed")
+            kwargs['name'] = random_player.bref_id
+            kwargs['year'] = str(random_player.year)
 
         # REMOVE IMAGE PREFIXES FROM KEYS
         kwargs = clean_kwargs(kwargs)
@@ -386,7 +388,7 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
 
     return in_season_trends
 
-def generate_random_player_id_and_year(**kwargs) -> tuple[str, str]:
+def generate_random_player(**kwargs) -> PlayerArchive:
     """ Get Random Player Id and Year. Account for user inputs (if any).
     
     Args:
@@ -418,4 +420,4 @@ def generate_random_player_id_and_year(**kwargs) -> tuple[str, str]:
 
     # RETURN RANDOM PLAYER IF MATCH WAS FOUND
     if random_player:
-        return (random_player.bref_id, str(random_player.year))
+        return random_player

@@ -27,7 +27,10 @@ import editionPOST from '../../assets/edition-post.png';
 import editionSS from '../../assets/edition-ss.png';
 
 // Icons
-import { FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle, FaChevronCircleRight, FaChevronCircleLeft } from 'react-icons/fa';
+import { 
+    FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle, 
+    FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown
+} from 'react-icons/fa';
 import { FaShuffle, FaXmark, FaRotateLeft } from 'react-icons/fa6';
 
 // ----------------------------------
@@ -733,7 +736,7 @@ function CustomCardBuilder() {
                     <div className={`flex-1 overflow-y-auto pt-4 ${isFormCollapsed ? 'px-1' : 'px-4'}`}>
 
                         {/* Form Inputs */}
-                        <div className="space-y-4 pb-6 @2xl:pb-64 justify-center">
+                        <div className={`space-y-4 ${isFormCollapsed ? 'pb-2' : 'pb-6'} @2xl:pb-64 justify-center`}>
 
                             {/* Search Box and Collapse Button */}
                             <div className='flex col-span-full pb-2 gap-2'>
@@ -745,18 +748,40 @@ function CustomCardBuilder() {
                                 />
 
                                 <button
-                                    className={`text-xl p-2 rounded-lg hover:bg-[var(--background-tertiary)] transition-colors ${isFormCollapsed ? 'flex flex-col items-center gap-3' : ''}`}
+                                    className={`
+                                        text-xl p-2 rounded-lg hover:bg-[var(--background-tertiary)] transition-colors 
+                                        ${isFormCollapsed ? 'flex flex-row-reverse @2xl:flex-col items-center gap-2 @2xl:gap-3 px-4 w-full justify-center ' : ''}
+                                    `}
                                     onClick={() => setIsFormCollapsed(!isFormCollapsed)}
                                 >
-                                    {isFormCollapsed ? <FaChevronCircleRight /> : <FaChevronCircleLeft />}
+                                    {isFormCollapsed ? (
+                                        <>
+                                            <FaChevronCircleDown className="@2xl:hidden" />
+                                            <FaChevronCircleRight className="hidden @2xl:block" />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FaChevronCircleUp className="@2xl:hidden" />
+                                            <FaChevronCircleLeft className="hidden @2xl:block" />
+                                        </>
+                                    )}
                                     {isFormCollapsed && (
-                                        <span 
-                                            className='text-nowrap'
-                                            style={{ 
-                                                writingMode: 'vertical-lr',
-                                                textOrientation: 'sideways',
-                                            }}>{isFormCollapsed ? 'Card Settings' : ''}
-                                        </span>
+                                        <>
+                                            {/* Normal horizontal text for small screens */}
+                                            <span className="text-nowrap text-md font-semibold text-[var(--tertiary)] @2xl:hidden">
+                                                Card Settings
+                                            </span>
+                                            {/* Vertical text for large screens */}
+                                            <span 
+                                                className='text-nowrap text-md font-semibold text-[var(--tertiary)] hidden @2xl:block'
+                                                style={{ 
+                                                    writingMode: 'vertical-lr',
+                                                    textOrientation: 'sideways',
+                                                }}
+                                            >
+                                                Card Settings
+                                            </span>
+                                        </>
                                     )}
                                     
                                 </button>
@@ -923,80 +948,79 @@ function CustomCardBuilder() {
 
                         {/* Form Buttons */}
                         {/* Make sticky at bottom */}
-                        {!isFormCollapsed && (
-                            <footer className="
-                                fixed bottom-0 left-0 right-0 z-20
-                                -mx-4 px-12 py-4 @xl:p-6
-                                @2xl:sticky @2xl:bottom-0 @2xl:left-auto @2xl:right-auto @2xl:z-auto
-                                bg-background-secondary/95 backdrop-blur
-                                border-t border-form-element
-                                shadow-md
-                            ">
+                        <footer className={`
+                            fixed bottom-0 left-0 right-0 z-20
+                            -mx-4 px-12 py-4 @xl:p-6
+                            @2xl:sticky @2xl:bottom-0 @2xl:left-auto @2xl:right-auto @2xl:z-auto
+                            bg-background-secondary/95 backdrop-blur
+                            border-t border-form-element
+                            shadow-md
+                            ${isFormCollapsed ? '@2xl:hidden' : ''}
+                        `}>
 
-                                <div className="flex flex-col gap-2">
-                                    {/* Build Card */}
+                            <div className="flex flex-col gap-2">
+                                {/* Build Card */}
+                                <button
+                                    type="button"
+                                    title={disableBuildButton ? "Please enter player name and year" : ""}
+                                    className={`
+                                        flex items-center justify-center
+                                        w-full rounded-xl py-4
+                                        text-white
+                                        bg-[var(--showdown-blue)]
+                                        ${disableBuildButton
+                                            ? 'cursor-not-allowed opacity-25'
+                                            : 'hover:bg-[var(--showdown-blue)]/50 cursor-pointer'
+                                        }
+                                        font-black
+                                    `}
+                                    onClick={handleBuild}
+                                >
+                                    <FaBaseballBall className="mr-1" />
+                                    Build Card
+                                </button>
+
+                                
+
+                                <div className="flex flex-row gap-2 h-10 font-black text-sm">
+                                    
+                                    {/* Shuffle Button */}
                                     <button
                                         type="button"
-                                        title={disableBuildButton ? "Please enter player name and year" : ""}
-                                        className={`
+                                        className="
                                             flex items-center justify-center
-                                            w-full rounded-xl py-4
-                                            text-white
-                                            bg-[var(--showdown-blue)]
-                                            ${disableBuildButton
-                                                ? 'cursor-not-allowed opacity-25'
-                                                : 'hover:bg-[var(--showdown-blue)]/50 cursor-pointer'
-                                            }
-                                            font-black
-                                        `}
-                                        onClick={handleBuild}
+                                            w-1/2
+                                            rounded-xl
+                                            bg-yellow-500 hover:bg-yellow-300
+                                            cursor-pointer
+                                        "
+                                        onClick={handleShuffle}
                                     >
-                                        <FaBaseballBall className="mr-1" />
-                                        Build Card
+                                        <FaShuffle className="mr-1" />
+                                        <div className='inline'>Shuffle</div>
                                     </button>
 
-                                    
-
-                                    <div className="flex flex-row gap-2 h-10 font-black text-sm">
-                                        
-                                        {/* Shuffle Button */}
-                                        <button
-                                            type="button"
-                                            className="
-                                                flex items-center justify-center
-                                                w-1/2
-                                                rounded-xl
-                                                bg-yellow-500 hover:bg-yellow-300
-                                                cursor-pointer
-                                            "
-                                            onClick={handleShuffle}
-                                        >
-                                            <FaShuffle className="mr-1" />
-                                            <div className='inline'>Shuffle</div>
-                                        </button>
-
-                                        {/* Reset Button */}
-                                        <button
-                                            type="button"
-                                            className="
-                                                flex items-center justify-center
-                                                w-1/2
-                                                rounded-xl
-                                                text-white
-                                                bg-[var(--tertiary)]/50 hover:bg-[var(--tertiary)]
-                                                cursor-pointer
-                                            "
-                                            onClick={handleReset}
-                                        >
-                                            <FaRotateLeft className="mr-1" />
-                                            <div className='inline'>Reset</div>
-                                        </button>
-                                    </div>
-
+                                    {/* Reset Button */}
+                                    <button
+                                        type="button"
+                                        className="
+                                            flex items-center justify-center
+                                            w-1/2
+                                            rounded-xl
+                                            text-white
+                                            bg-[var(--tertiary)]/50 hover:bg-[var(--tertiary)]
+                                            cursor-pointer
+                                        "
+                                        onClick={handleReset}
+                                    >
+                                        <FaRotateLeft className="mr-1" />
+                                        <div className='inline'>Reset</div>
+                                    </button>
                                 </div>
 
-                            </footer>
-                        )}
+                            </div>
+
+                        </footer>
                         
                     </div>
 
