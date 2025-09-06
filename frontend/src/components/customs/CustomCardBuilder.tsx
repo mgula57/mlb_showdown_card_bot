@@ -152,7 +152,7 @@ function CustomCardBuilder() {
     const [isProcessingCard, setIsProcessingCard] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [query, _] = useState("");
-    const [isFormCollapsed, setIsFormCollapsed] = useState(true);
+    const [isFormCollapsed, setIsFormCollapsed] = useState(false);
 
     // Live update states
     const [isLiveUpdating, setIsLiveUpdating] = useState(false);
@@ -275,8 +275,44 @@ function CustomCardBuilder() {
     ]
 
     // ----------------------------------
-    // MARK: - Summary Helper Function
+    // MARK: - Sections
     // ----------------------------------
+
+    // Manage open/closed states of form sections, persisted in localStorage
+    const [sectionStates, setSectionStates] = useState<Record<string, boolean>>(() => {
+        try {
+            const saved = localStorage.getItem('customCardSectionStates');
+            if (saved) {
+                return JSON.parse(saved);
+            }
+        } catch (error) {
+            console.warn('Failed to load section states:', error);
+        }
+        // Default states - only Player section open by default
+        return {
+            'Player': true,
+            'Set': false,
+            'Image': false,
+            'Chart': false
+        };
+    });
+
+    // Save section states to localStorage when they change
+    useEffect(() => {
+        try {
+            localStorage.setItem('customCardSectionStates', JSON.stringify(sectionStates));
+        } catch (error) {
+            console.warn('Failed to save section states:', error);
+        }
+    }, [sectionStates]);
+
+    // Helper function to toggle section state
+    const toggleSection = (sectionName: string) => {
+        setSectionStates(prev => ({
+            ...prev,
+            [sectionName]: !prev[sectionName]
+        }));
+    };
 
     const getSectionSummary = (sectionName: string) => {
         const summaries: SelectOption[] = [];
@@ -808,7 +844,13 @@ function CustomCardBuilder() {
                                     )}
 
                                     {/* Player */}
-                                    <FormSection title='Player' icon={<FaUser />} isOpenByDefault={true} childrenWhenClosed={sectionWhenClosed('Player')}>
+                                    <FormSection 
+                                        title='Player' 
+                                        icon={<FaUser />} 
+                                        isOpenByDefault={sectionStates['Player']}
+                                        onToggle={() => toggleSection('Player')}
+                                        childrenWhenClosed={sectionWhenClosed('Player')}
+                                    >
 
                                         <FormInput
                                             label="Name*"
@@ -838,7 +880,13 @@ function CustomCardBuilder() {
                                     </FormSection>
 
                                     {/* Set */}
-                                    <FormSection title='Set' icon={<FaLayerGroup />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Set')}>
+                                    <FormSection 
+                                        title='Set' 
+                                        icon={<FaLayerGroup />} 
+                                        isOpenByDefault={sectionStates['Set']}
+                                        onToggle={() => toggleSection('Set')}
+                                        childrenWhenClosed={sectionWhenClosed('Set')}
+                                    >
 
                                         <FormDropdown
                                             label="Expansion"
@@ -868,7 +916,13 @@ function CustomCardBuilder() {
                                     </FormSection>
 
                                     {/* Image */}
-                                    <FormSection title='Image' icon={<FaImage />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Image')}>
+                                    <FormSection 
+                                        title='Image' 
+                                        icon={<FaImage />} 
+                                        isOpenByDefault={sectionStates['Image']}
+                                        onToggle={() => toggleSection('Image')}
+                                        childrenWhenClosed={sectionWhenClosed('Image')}
+                                    >
 
                                         <FormDropdown
                                             label="Player Image"
@@ -917,7 +971,13 @@ function CustomCardBuilder() {
                                     </FormSection>
 
                                     {/* Chart */}
-                                    <FormSection title='Chart' icon={<FaTable />} isOpenByDefault={false} childrenWhenClosed={sectionWhenClosed('Chart')}>
+                                    <FormSection 
+                                        title='Chart' 
+                                        icon={<FaTable />} 
+                                        isOpenByDefault={sectionStates['Chart']}
+                                        onToggle={() => toggleSection('Chart')}
+                                        childrenWhenClosed={sectionWhenClosed('Chart')}
+                                    >
 
                                         <FormDropdown
                                             label="Chart Version"

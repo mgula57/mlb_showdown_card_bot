@@ -8,11 +8,12 @@ type FormSectionProps = {
     children: React.ReactNode;
     icon?: React.ReactNode; // Icon to display in the section header
     isOpenByDefault?: boolean;
+    onToggle?: () => void; // Callback when section is toggled
     childrenWhenClosed?: React.ReactNode; // Content to show when section is closed
 };
 
 /** FormSection component that can be expanded or collapsed */
-const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false, childrenWhenClosed=undefined }) => {
+const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpenByDefault=false, childrenWhenClosed=undefined, onToggle }) => {
 
     // State to manage the open/closed state of the section
     const [isOpen, setIsOpen] = useState(isOpenByDefault);
@@ -20,6 +21,9 @@ const FormSection: React.FC<FormSectionProps> = ({ title, children, icon, isOpen
     /** Toggle the open/closed state of the section */
     const toggleCollapse = () => {
         setIsOpen(!isOpen);
+        if (onToggle) {
+            onToggle();
+        }
     };
 
     return (
