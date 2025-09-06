@@ -106,7 +106,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
         # PROCESS CARD
         image_source = ImageSource(**kwargs)
-        image = ShowdownImage(image_source=image_source, **kwargs)
+        image = ShowdownImage(source=image_source, **kwargs)
         card = ShowdownPlayerCard(
             stats_period=stats_period, 
             stats=stats, 

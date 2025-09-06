@@ -481,8 +481,8 @@ class ImageSource(BaseModel):
     url: Optional[str] = None
     path: Optional[str] = None
 
-    def __init__(self, **data) -> None:
-        super().__init__(**data)
+    def model_post_init(self, __context):
+        """Post init to update the source type if empty"""
         if self.type == ImageSourceType.EMPTY:
             if self.path:
                 self.type = ImageSourceType.UPLOAD
