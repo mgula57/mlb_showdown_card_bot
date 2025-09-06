@@ -7,15 +7,11 @@ export default defineConfig({
     plugins: [react(), tailwindcss()],
     server: {
         proxy: {
-            '/build_custom_card': {
+            '/api': {
                 target: 'http://127.0.0.1:5000',
                 changeOrigin: true,
             },
             '/static': {
-                target: 'http://127.0.0.1:5000',
-                changeOrigin: true,
-            },
-            '/players/search': {
                 target: 'http://127.0.0.1:5000',
                 changeOrigin: true,
             },

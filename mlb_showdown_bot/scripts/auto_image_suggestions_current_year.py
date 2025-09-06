@@ -9,6 +9,7 @@ parser = argparse.ArgumentParser(description="Search baseball reference for best
 parser.add_argument('-t','--player_type', help='Player Type (Batting, Pitching)', type=str, required=False, default=None)
 parser.add_argument('-yt', '--year_threshold', help='Optional year threshold. Only includes images that are <= the threshold.', required=False, type=int, default=None)
 parser.add_argument('-rp', '--relievers_only', help='Only include pitchers with <5 games started', action='store_true', default=False)
+parser.add_argument('-sort', '--sort_by', help='Sort results by a specific attribute (e.g., war, games)', type=str, required=False, default=None)
 args = parser.parse_args()
 
 def _try_convert_to_float(value: str) -> float | str:
@@ -106,12 +107,11 @@ def fetch_bref_player_stats(player_type: str) -> list:
 
         # CHECK IF PLAYER IS IN IMAGE LIST
         team_id = player_data.get('team_name_abbr', 'N/A')
-        if len(player_id or '') > 0 and team_id not in ['N/A']:
+        if len(player_id or '') > 0 and team_id not in ['N/A', '2TM']:
             images = [
                 image for image in image_list 
                 if player_id in image 
                     and (abs(int(image.split('-')[1]) - current_year) <= 1 if args.year_threshold is not None else True)
-                    and team_id in image
                 ]    
             if len(images) > 0:
                 continue  # Skip if player has an image
@@ -125,11 +125,11 @@ def fetch_bref_player_stats(player_type: str) -> list:
         data = [d for d in data if d.get('p_gs', 0) < 5]
 
     # SORT BY BWAR DESC THAT DONT HAVE AN IMAGE
-    war_stat = f'{player_type[:1].lower()}_war'
-    data.sort(key=lambda x: 0 if len(str(x.get(war_stat, ''))) == 0 else x.get(war_stat, 0), reverse=True)    
+    sort_key = f'{player_type[:1].lower()}_{args.sort_by if args.sort_by else "war"}'
+    data.sort(key=lambda x: 0 if len(str(x.get(sort_key, ''))) == 0 else x.get(sort_key, 0), reverse=True)
 
-    for d in data[:10]:
-        print(f"{d.get('name_display', 'Unknown')} | Team: {d.get('team_name_abbr', 'n/a')} | bWAR: {d.get(war_stat, 'n/a')}")
+    for d in data[:15]:
+        print(f"{d.get('name_display', 'Unknown')} | Team: {d.get('team_name_abbr', 'n/a')} | {sort_key.upper()}: {d.get(sort_key, 'n/a')}")
     return data
 
 fetch_bref_player_stats(args.player_type)

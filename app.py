@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime
 from pprint import pprint
@@ -17,20 +17,21 @@ from mlb_showdown_bot.core.shared.team import Team
 # APP
 # ----------------------------------------------------------
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='frontend/dist', static_url_path='/static')
 
 # ALLOW FRONTEND ORIGIN (VITE DEFAULTS TO 5173)
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
-CORS(app, resources={r"/*": {"origins": FRONTEND_ORIGIN}})
+if os.environ.get('FLASK_ENV') != 'production':
+    FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
+    CORS(app, resources={r"/*": {"origins": FRONTEND_ORIGIN}})
 
 # CONFIGURATIONS
 app.json.sort_keys = False
 
 # ----------------------------------------------------------
-# FRONT END
+# API
 # ----------------------------------------------------------
 
-@app.route('/build_custom_card', methods=["POST","GET"])
+@app.route('/api/build_custom_card', methods=["POST","GET"])
 def build_custom_card():
 
     # SUPPORT EITHER GET OR POST
@@ -55,7 +56,22 @@ def build_custom_card():
     
     return jsonify(card_data)
 
-@app.route('/upload_card_image', methods=["POST","GET"])
+@app.route('/static/output/<path:filename>')
+def serve_output_files(filename):
+    """Serve generated card images"""
+    
+    # Check if file exists in static/output directory
+    file_path = os.path.join('static', 'output', filename)
+    if os.path.exists(file_path):
+        return send_from_directory(os.path.join('static', 'output'), filename)
+    
+    # Fallback to output directory
+    if os.path.exists(os.path.join('output', filename)):
+        return send_from_directory('output', filename)
+    
+    return "File not found", 404
+
+@app.route('/api/upload_card_image', methods=["POST","GET"])
 def upload():
     try:
         image = request.files.get('image_file')
@@ -142,7 +158,7 @@ def get_career_records(cursor, name: str) -> list[dict]:
     return displays
 
 
-@app.route('/players/search', methods=['GET'])
+@app.route('/api/players/search', methods=['GET'])
 def search_players():
 
     # USER QUERY
@@ -490,6 +506,34 @@ def search_players():
         print("Full traceback:")
         traceback.print_exc()
         return jsonify([]), 500
+    
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react(path):
+    """Serve the react app within Flask"""
+    
+    # Check if we're in development and dist folder doesn't exist
+    if not os.path.exists(app.static_folder):
+        return f"""
+        <h1>Frontend not built</h1>
+        <p>Static folder looking for: {app.static_folder}</p>
+        """
+    
+    # Handle API routes
+    if path.startswith('api/'):
+        return "API endpoint not found", 404
+    
+    # Handle static assets
+    if path and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    
+    # Serve index.html for all other routes
+    try:
+        return send_from_directory(app.static_folder, 'index.html')
+    except FileNotFoundError:
+        return "index.html not found in dist folder."
 
 if __name__ == '__main__':
-    app.run(debug=None)
+    port = int(os.environ.get('PORT', 5000))
+    debug_mode = os.environ.get('FLASK_ENV') != 'production'    
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)

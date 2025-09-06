@@ -131,7 +131,7 @@ export function PlayerSearchInput({
         debounceRef.current = setTimeout(async () => {
             setIsLoading(true);
             try {
-                const response = await fetch('/players/search?q=' + encodeURIComponent(query));
+                const response = await fetch('/api/players/search?q=' + encodeURIComponent(query));
                 console.log(response);
                 const results = await response.json();
                 

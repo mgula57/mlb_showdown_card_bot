@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5000/api";
 
 
 // --------------------------------
@@ -8,7 +8,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5000";
 // Generic type for api
 type Primitive = string | number | boolean | null | undefined;
 
-/** Sends the entire form (minus File) as JSON to /build_custom_card */
+/** Sends the entire form (minus File) as JSON to /api/build_custom_card */
 export async function buildCustomCard(payload: Record<string, Primitive>) : Promise<ShowdownBotCardAPIResponse> {
     
     // Image is sent separately, so we remove it from the payload

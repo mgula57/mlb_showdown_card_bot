@@ -415,6 +415,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
     useEffect(() => {
 
         // Temp Disable Live updates
+        console.log(isLiveUpdating);
         return;
 
         if (hasLiveGame && showdownBotCardData && lastFormRef.current) {
@@ -432,7 +433,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                         ...payload,
                         set: userShowdownSet,
                         is_running_on_website: true,
-                        image_output_folder_path: "static/output/",
+                        image_output_folder_path: "static/output",
                         show_historical_points: true,
                         season_trend_date_aggregation: 'WEEK',
                     });
@@ -495,7 +496,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                 // Default parameters/settings
                 set: userShowdownSet,
                 is_running_on_website: true,
-                image_output_folder_path: "static/output/",
+                image_output_folder_path: "static/output",
                 show_historical_points: true,
                 season_trend_date_aggregation: 'WEEK',
             });
