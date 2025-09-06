@@ -909,10 +909,10 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
                     {/* Make sticky at bottom */}
                     <footer className="
                         fixed bottom-0 left-0 right-0 z-20
+                        -mx-4 px-12 py-4 md:p-6
                         md:sticky md:bottom-0 md:left-auto md:right-auto md:z-auto
-                        -mx-4 p-6
                         bg-background-secondary/95 backdrop-blur
-                        md:border-t border-form-element
+                        border-t border-form-element
                         shadow-md
                     ">
 
@@ -988,7 +988,7 @@ function CustomCardBuilder({ condenseFormInputs }: CustomCardBuilderProps) {
             </section>
 
             {/* Preview Section */}
-            <section>
+            <section className='pb-64 md:pb-0'>
                 <CardDetail 
                     showdownBotCardData={showdownBotCardData} 
                     isLoading={isProcessingCard} 

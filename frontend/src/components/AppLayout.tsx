@@ -90,9 +90,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
                     {/* Showdown Set */}
                     <CustomSelect
-                        className="font-showdown-set-italic w-28 text-xl justify-center "
-                        buttonClassName="flex justify-center cursor-pointer"
-                        imageClassName="object-contain object-center h-9"
+                        className="font-showdown-set-italic w-20 text-xl"
+                        buttonClassName="flex justify-center cursor-pointer select-none"
+                        imageClassName="object-contain object-center"
                         value={userShowdownSet}
                         onChange={setUserShowdownSet}
                         options={showdownSets}

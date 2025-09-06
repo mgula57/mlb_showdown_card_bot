@@ -163,7 +163,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                             <div
                                 key={option.value}
                                 className={`
-                                    ${className} px-4 py-2 
+                                    ${className} px-2 py-2 
                                     cursor-pointer hover:bg-[var(--background-secondary)]
                                     flex ${option.textColor || 'text-inherit'}
                                 `}
