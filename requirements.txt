@@ -5,6 +5,7 @@ chardet==3.0.4
 cloudscraper>=1.2.71
 dotenv>=0.9.9
 firebase-admin==6.0.1
+Flask-Cors==4.0.0
 flask-sqlalchemy==3.0.3
 google==3.0.0
 google-api-python-client==2.62.0
