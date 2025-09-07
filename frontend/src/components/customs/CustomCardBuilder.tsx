@@ -169,6 +169,19 @@ function CustomCardBuilder() {
         || isProcessingCard
     )
 
+    const [imageUploadPreview, setImageUploadPreview] = useState<string | null>(null);
+    const getImagePreview = (): string | null => {
+        switch (form.image_source) {
+            case "UPLOAD":
+                return imageUploadPreview;
+            case "LINK":
+                return form.image_url || null;
+            default:
+                return null;
+        }
+    };
+
+
     // ---------------------------------
     // MARK: Form Options
     // ---------------------------------
@@ -520,10 +533,25 @@ function CustomCardBuilder() {
             // TODO: Handle image uploads
             console.log("Building card with form data:", card_payload);
 
-            var { image_upload, image_source, ...payload } = card_payload; // omit the File
+            // Prepare payload based on image source
+            let finalPayload = { ...card_payload };
+            
+            // Handle image source logic
+            if (card_payload.image_source === 'UPLOAD' && card_payload.image_upload) {
+                // Keep the file for upload
+                finalPayload.image_upload = card_payload.image_upload;
+            } else if (card_payload.image_source === 'LINK' && card_payload.image_url) {
+                // Remove file, keep URL
+                delete finalPayload.image_upload;
+                finalPayload.image_url = card_payload.image_url;
+            } else {
+                // Auto or no image - remove both file and URL
+                delete finalPayload.image_upload;
+                delete finalPayload.image_url;
+            }
 
             const cardData = await buildCustomCard({
-                ...payload,
+                ...finalPayload,
 
                 // Default parameters/settings
                 set: userShowdownSet,
@@ -608,6 +636,27 @@ function CustomCardBuilder() {
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [form]); // Re-bind when form changes so handleBuild has latest state
+
+    // ---------------------------------
+    // MARK: Image Uploads
+    // ---------------------------------
+    // File input handler
+    const handleFileChange = (file: File | null) => {
+        
+        // Create preview
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setImageUploadPreview(e.target?.result as string);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            setImageUploadPreview(null);
+        }
+        
+        // Update form
+        setForm({ ...form, image_upload: file });
+    };
 
     // Dynamic date management
     useEffect(() => {
@@ -695,46 +744,6 @@ function CustomCardBuilder() {
                         onChange={(value) => setForm({ ...form, split: value })}
                         isClearable={true}
                         className='col-span-full'
-                    />
-                );
-            default:
-                return null;
-        }
-    }
-
-    const renderImageSourceInputs = () => {
-        switch (form.image_source) {
-            case 'AUTO':
-                return (
-                    <FormDropdown
-                        label="Image Parallel"
-                        className='col-span-full'
-                        options={imageParallelOptions}
-                        selectedOption={form.image_parallel}
-                        onChange={(value) => setForm({ ...form, image_parallel: value })}
-                    />
-                );
-            case 'LINK':
-                return (
-                    <FormInput
-                        label="Image URL"
-                        className='col-span-full'
-                        value={form.image_url || ''}
-                        onChange={(value) => setForm({ ...form, image_url: value || null })}
-                        isClearable={true}
-                        placeholder="https://example.com/image.png"
-                    />
-                );
-            case 'UPLOAD':
-                return (
-                    <FormInput
-                        label="Upload Image"
-                        className='col-span-full'
-                        value={form.image_upload?.name || ''}
-                        isClearable={true}
-                        placeholder="Select an image file"
-                        type="file"
-                        onChangeFile={(file) => setForm({ ...form, image_upload: file })}
                     />
                 );
             default:
@@ -837,7 +846,7 @@ function CustomCardBuilder() {
                                                     <FaXmark />
                                                 </button>
                                             </div>
-                                            <div className="text-md font-bold">
+                                            <div className="text-md font-bold overflow-scroll">
                                                 {errorMessage}
                                             </div>
                                         </div>
@@ -932,7 +941,55 @@ function CustomCardBuilder() {
                                             onChange={(value) => setForm({ ...form, image_source: value })}
                                         />
 
-                                        {renderImageSourceInputs()}
+                                        {/* Source Specific Options */}
+                                        <FormDropdown
+                                            label="Image Parallel"
+                                            className={`col-span-full ${form.image_source === 'AUTO' ? '' : 'hidden'}`}
+                                            options={imageParallelOptions}
+                                            selectedOption={form.image_parallel}
+                                            onChange={(value) => setForm({ ...form, image_parallel: value })}
+                                        />
+                                        <FormInput
+                                            label="Image URL"
+                                            className={`col-span-full ${form.image_source === 'LINK' ? '' : 'hidden'}`}
+                                            value={form.image_url || ''}
+                                            onChange={(value) => setForm({ ...form, image_url: value || null })}
+                                            isClearable={true}
+                                            placeholder="https://example.com/image.png"
+                                        />
+                                        <FormInput
+                                            label="Upload Image"
+                                            className={`col-span-full ${form.image_source === 'UPLOAD' ? '' : 'hidden'}`}
+                                            value={form.image_upload?.name || ''}
+                                            isClearable={true}
+                                            placeholder="Select an image file"
+                                            type="file"
+                                            onChangeFile={handleFileChange}
+                                        />
+
+                                        {/* Image Preview (Link) */}
+                                        {getImagePreview() && (
+                                            <div className="col-span-full grid grid-cols-[12fr_8fr] gap-2 items-center">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-[var(--tertiary)] mb-1">
+                                                        Preview
+                                                    </label>
+                                                    <img
+                                                        src={getImagePreview() || ''}
+                                                        alt="Invalid Image"
+                                                        className="max-w-full h-38 object-contain rounded-lg border-2 border-form-element"
+                                                    />
+                                                </div>
+
+                                                <button type="button" className="flex flex-col items-center space-x-2 cursor-pointer hover:opacity-50">
+                                                    <FaXmark
+                                                        className="text-3xl text-red-500 hover:text-red-300 transition-colors"
+                                                        onClick={() => handleFileChange(null)}
+                                                    />
+                                                    <span>Remove Image</span>
+                                                </button>
+                                            </div>
+                                        )}
 
                                         <FormDropdown
                                             label="Image Coloring"

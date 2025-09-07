@@ -276,6 +276,12 @@ class ShowdownPlayerCard(BaseModel):
 
         return values
 
+    @field_validator('year', mode='before')
+    def parse_year(cls, year:str | int, info:ValidationInfo) -> str:
+        if isinstance(year, int):
+            return str(year)
+        return year
+
     @field_validator('era', mode='before')
     def handle_dynamic_era(cls, era:str, info:ValidationInfo) -> Era:
         if era.upper() != 'DYNAMIC':

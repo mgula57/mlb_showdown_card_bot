@@ -56,6 +56,7 @@ showdown-bot-app/
 
 # FRONTEND
 frontend/node_modules/
+temp_uploads/
 
 # CREDS
 firebase_creds.json

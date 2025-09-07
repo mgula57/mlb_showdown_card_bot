@@ -5,7 +5,7 @@ import cloudscraper
 import re
 import os
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, ValidationInfo
 import json
 import string
 import math
@@ -79,6 +79,17 @@ class BaseballReferenceScraper(BaseModel):
         if self.baseball_ref_id is None:
             self.error = f'Cannot Find BRef Page for {self.name} in {self.year}'
             raise AttributeError(self.error)
+
+
+# ------------------------------------------------------------------------
+# VALIDATORS
+# ------------------------------------------------------------------------
+
+    @field_validator('year', mode='before')
+    def parse_year(cls, year:str | int, info:ValidationInfo) -> str:
+        if isinstance(year, int):
+            return str(year)
+        return year
 
 # ------------------------------------------------------------------------
 # PROPERTIES

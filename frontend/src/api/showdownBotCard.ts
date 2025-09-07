@@ -6,26 +6,56 @@ const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 // --------------------------------
 
 // Generic type for api
-type Primitive = string | number | boolean | null | undefined;
+type Primitive = string | number | boolean | File | null | undefined;
 
 /** Sends the entire form (minus File) as JSON to /api/build_custom_card */
 export async function buildCustomCard(payload: Record<string, Primitive>) : Promise<ShowdownBotCardAPIResponse> {
     
-    // Image is sent separately, so we remove it from the payload
-    const { image_upload, image_source, ...cleaned_data } = payload;
+    // Check if we have a file upload
+    const hasFileUpload = payload.image_upload instanceof File;
+    
+    if (hasFileUpload) {
+        // Use FormData for file uploads
+        const formData = new FormData();
+        
+        Object.keys(payload).forEach(key => {
+            const value = payload[key];
+            if (value !== null && value !== undefined) {
+                if (value instanceof File) {
+                    formData.append(key, value);
+                } else {
+                    formData.append(key, String(value));
+                }
+            }
+        });
+        
+        const res = await fetch(`${API_BASE}/build_custom_card`, {
+            method: "POST",
+            // Don't set Content-Type header - let browser handle it for FormData
+            body: formData,
+        });
+        
+        if (!res.ok) throw new Error(`Build failed: ${res.status}`);
+        return res.json();
+        
+    } else {
+        // Use existing JSON approach (no file upload)
+        const { image_upload, image_source, ...cleaned_data } = payload;
+        
+        const res = await fetch(`${API_BASE}/build_custom_card`, {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(cleaned_data),
+        });
 
-    // Fetch the API endpoint
-    const res = await fetch(`${API_BASE}/build_custom_card`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cleaned_data),
-    });
+        // Handle errors
+        if (!res.ok) throw new Error(`Build failed: ${res.status}`);
 
-    // Handle errors
-    if (!res.ok) throw new Error(`Build failed: ${res.status}`);
-
-    // Convert to ShowdownBotCardAPIResponse
-    return res.json();
+        // Convert to ShowdownBotCardAPIResponse
+        return res.json();
+    }
 }
 
 // --------------------------------
