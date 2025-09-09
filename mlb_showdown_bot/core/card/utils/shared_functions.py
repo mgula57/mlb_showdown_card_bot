@@ -237,6 +237,7 @@ def convert_year_string_to_list(year_input:str, all_years_played:list[str] = [])
       - '2000' -> [2000]
       - '2000-2004' -> [2000,2001,2002,2003,2004]
     """
+    year_input = str(year_input).strip()
     if year_input.upper() == 'CAREER':
         return [int(year) for year in all_years_played]
     elif '-' in year_input:

@@ -1104,13 +1104,16 @@ function CustomCardBuilder() {
                                     {/* Shuffle Button */}
                                     <button
                                         type="button"
-                                        className="
+                                        className={`
                                             flex items-center justify-center
                                             w-1/2
                                             rounded-xl
-                                            bg-yellow-500 hover:bg-yellow-300
-                                            cursor-pointer
-                                        "
+                                            bg-yellow-500
+                                            ${disableBuildButton
+                                                ? 'cursor-not-allowed opacity-25'
+                                                : 'hover:bg-yellow-500/50 cursor-pointer'
+                                            }
+                                        `}
                                         onClick={handleShuffle}
                                     >
                                         <FaShuffle className="mr-1" />
