@@ -22,7 +22,7 @@ def build_custom_card():
             payload[key] = value
         
         # Handle file upload
-        uploaded_file = None
+        uploaded_file_data = None
         if 'image_upload' in request.files:
             file = request.files['image_upload']
             if file and file.filename != '':
@@ -35,7 +35,7 @@ def build_custom_card():
     else:
         # Handle regular JSON case (existing functionality)
         payload = request.get_json()
-        uploaded_file = None
+        uploaded_file_data = None
 
     kwargs.update(request.args.to_dict())
     kwargs.update(request.form.to_dict())
@@ -56,10 +56,10 @@ def build_custom_card():
         
     except Exception as e:
         # Clean up uploaded file on error
-        if uploaded_file:
-            cleanup_uploaded_file(uploaded_file)
+        if uploaded_file_data:
+            cleanup_uploaded_file(uploaded_file_data)
         raise
     finally:
         # Clean up uploaded file after processing
-        if uploaded_file:
-            cleanup_uploaded_file(uploaded_file)
+        if uploaded_file_data:
+            cleanup_uploaded_file(uploaded_file_data)

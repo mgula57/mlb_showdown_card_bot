@@ -1,7 +1,8 @@
 import os
 import psycopg2
 import traceback
-from psycopg2.extras import RealDictCursor
+from unidecode import unidecode
+from psycopg2.extras import RealDictCursor, execute_values
 from psycopg2 import extensions, extras
 from psycopg2.extensions import AsIs
 from psycopg2 import sql
@@ -566,3 +567,70 @@ class PostgresDB:
             '''
         cursor.execute(insert_statement, (AsIs(','.join(columns)), tuple(values)))
         
+    def upload_to_card_data(self, showdown_cards: list[ShowdownPlayerCard], batch_size: int = 1000) -> None:
+        """Upload showdown cards to PostgreSQL database
+        
+        Args:
+            showdown_cards: List of ShowdownPlayerCard objects to upload.
+            batch_size: Number of cards to upload in each batch.
+        
+        Returns:
+            None
+        """
+        
+        print("UPLOADING TO DATABASE...")
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return
+        
+        cursor = self.connection.cursor()
+        
+        try:
+            
+            # Process cards in batches
+            total_cards = len(showdown_cards)
+            for i in range(0, total_cards, batch_size):
+                batch = showdown_cards[i:i + batch_size]
+                batch_num = (i // batch_size) + 1
+                total_batches = (total_cards + batch_size - 1) // batch_size
+                
+                print(f"Uploading batch {batch_num}/{total_batches} ({len(batch)} cards)...")
+                
+                # Prepare batch data
+                batch_data = []
+                for showdown in batch:
+                    card_data = showdown.as_json()
+                    
+                    # Clean up the data for JSON storage
+                    id_fields = [field for field in [showdown.year, showdown.bref_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
+                    card_data['player_id'] = "-".join(id_fields).lower()
+                    card_data['name'] = unidecode(card_data['name'])
+
+                    batch_data.append((card_data['player_id'], showdown.set.value, card_data))
+
+                # Insert batch
+                insert_query = """
+                    INSERT INTO card_data (player_id, showdown_set, card_data) 
+                    VALUES %s
+                """
+                
+                
+                execute_values(
+                    cursor, 
+                    insert_query, 
+                    batch_data,
+                    template=None,
+                    page_size=batch_size
+                )
+                
+                self.connection.commit()
+                print(f"  ✓ Uploaded {len(batch)} cards")
+            
+            print(f"✓ Successfully uploaded {total_cards} showdown cards to database")
+            
+        except Exception as e:
+            print(f"ERROR uploading to database: {e}")
+            self.connection.rollback()
+            raise
+        finally:
+            cursor.close()
