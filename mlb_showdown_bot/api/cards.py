@@ -26,10 +26,8 @@ def build_custom_card():
         if 'image_upload' in request.files:
             file = request.files['image_upload']
             if file and file.filename != '':
-                uploaded_file = process_uploaded_file(file)
-                payload['image_upload'] = uploaded_file
-
-        print(uploaded_file.get('filename') if uploaded_file else "No file uploaded")
+                uploaded_file_data = process_uploaded_file(file)
+                payload['image_path'] = uploaded_file_data.get('path', None)
         
         # Convert string values to appropriate types
         payload = convert_form_data_types(payload)
@@ -38,10 +36,6 @@ def build_custom_card():
         # Handle regular JSON case (existing functionality)
         payload = request.get_json()
         uploaded_file = None
-    
-    # Add the uploaded file info to payload if present
-    if uploaded_file:
-        payload['image_upload'] = uploaded_file
 
     kwargs.update(request.args.to_dict())
     kwargs.update(request.form.to_dict())

@@ -4833,9 +4833,8 @@ class ShowdownPlayerCard(BaseModel):
         player_img_user_upload_transparency_pct = 0.0
         # ---- LOCAL/UPLOADED IMAGE -----
         if self.image.source.path:
-            image_path = os.path.join(os.path.dirname(__file__), 'image_uploads', self.image.source.path)
             try:
-                player_img_uploaded_raw = Image.open(image_path).convert('RGBA')
+                player_img_uploaded_raw = Image.open(self.image.source.path).convert('RGBA')
                 player_img_user_uploaded, paste_coords = self._user_uploaded_player_image_crop(player_img_uploaded_raw)
                 images_to_paste.append((player_img_user_uploaded, paste_coords))
                 player_img_user_upload_transparency_pct = self._img_transparency_pct(player_img_user_uploaded)
