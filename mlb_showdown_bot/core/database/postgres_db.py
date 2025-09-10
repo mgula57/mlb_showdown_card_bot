@@ -396,6 +396,36 @@ class PostgresDB:
         result_list = self.execute_query(query=query)
         return result_list
 
+    def fetch_card_data(self, filters: dict = {}) -> list[dict]:
+        """Fetch all card data from the database."""
+
+        if not self.connection:
+            return None
+
+        query = sql.SQL("""
+            SELECT *
+            FROM explore_data
+            WHERE TRUE
+        """)
+
+        # Apply filters if any
+        if filters:
+            filter_clauses = []
+            for key, value in filters.items():
+                filter_clauses.append(sql.SQL("{key} = {value}").format(
+                    key=sql.Identifier(key),
+                    value=sql.Placeholder()
+                ))
+            query += sql.SQL(" AND ").join(filter_clauses)
+
+        query += sql.SQL("""
+            ORDER BY points DESC
+            LIMIT 50
+        """)
+
+        result_list = self.execute_query(query=query)
+        return result_list
+
 # ------------------------------------------------------------------------
 # TABLES
 # ------------------------------------------------------------------------

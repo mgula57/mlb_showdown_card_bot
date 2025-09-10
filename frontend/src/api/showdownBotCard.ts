@@ -147,6 +147,7 @@ export type ShowdownBotCard = {
     bref_url: string;
 
     // Showdown Attributes
+    set: string;
     era: string;
     points: number;
     ip: number | null;
@@ -154,6 +155,9 @@ export type ShowdownBotCard = {
 
     // Image
     image: ShowdownBotCardImage;
+
+    // Chart
+    chart: ShowdownBotCardChart;
 
     // Tables
     real_vs_projected_stats: RealVsProjectedStat[];
@@ -181,6 +185,16 @@ type ShowdownBotCardImage = {
     is_multi_colored: boolean;
     color_primary: string;
     color_secondary: string;
+};
+
+// --------------------------------
+// MARK: - IMAGE
+// --------------------------------
+
+/** Stores Showdown Bot Card Image metadata */
+type ShowdownBotCardChart = {
+    
+    ranges: Record<string, string>;
 };
 
 // --------------------------------

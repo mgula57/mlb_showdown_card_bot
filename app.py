@@ -24,9 +24,11 @@ if Config.FLASK_ENV != 'production':
 # Register blueprints
 from mlb_showdown_bot.api.cards import cards_bp
 from mlb_showdown_bot.api.search import search_bp
+from mlb_showdown_bot.api.card_db import cards_bp as card_db_bp
 
 app.register_blueprint(cards_bp, url_prefix='/api')
 app.register_blueprint(search_bp, url_prefix='/api')
+app.register_blueprint(card_db_bp, url_prefix='/api')
 
 @app.route('/static/output/<path:filename>')
 def serve_output_files(filename):

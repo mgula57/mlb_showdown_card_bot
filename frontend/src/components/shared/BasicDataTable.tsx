@@ -14,10 +14,11 @@ export type BasicDataTableProps<TData> = {
     className?: string;
     initialSorting?: SortingState;
     emptyState?: React.ReactNode;
+    onRowClick?: (row: TData) => void; // Add this prop
 };
 
-export function BasicDataTable<TData>({ data, columns, className = "", initialSorting = [], emptyState = <div className="p-6 text-center text-sm opacity-70">No rows</div> }: BasicDataTableProps<TData>) {
-    
+export function BasicDataTable<TData>({ data, columns, className = "", initialSorting = [], emptyState = <div className="p-6 text-center text-sm opacity-70">No rows</div>, onRowClick }: BasicDataTableProps<TData>) {
+
     // State for sorting
     const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
 
@@ -63,7 +64,14 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
                         </tr>
                     ) : (
                         table.getRowModel().rows.map(r => (
-                            <tr key={r.id} className="odd:bg-[var(--table-banding)]">
+                            <tr 
+                                key={r.id} 
+                                className={`
+                                    odd:bg-[var(--table-banding)]
+                                    ${onRowClick ? 'cursor-pointer' : ''}
+                                `}
+                                onClick={() => onRowClick?.(r.original)}
+                            >
                                 {r.getVisibleCells().map(c => (
                                     <td key={c.id} className="px-3 py-2">
                                         {flexRender(c.column.columnDef.cell, c.getContext())}
