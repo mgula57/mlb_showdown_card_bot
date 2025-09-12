@@ -46,18 +46,16 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
                 className={`
                     bg-[var(--background-primary)] 
                     rounded-lg 
-                    shadow-xl 
+                    shadow-2xl 
                     w-full 
                     ${sizeClasses[size]}
                     max-h-[90vh] 
                     overflow-y-auto
-                    border 
-                    border-[var(--border-primary)]
                 `}
             >
                 {/* Header */}
                 {title && (
-                    <div className="flex items-center justify-between p-6 border-b border-[var(--border-secondary)]">
+                    <div className="flex items-center justify-between p-3 border-b border-[var(--border-secondary)]">
                         <h2 className="text-xl font-semibold text-[var(--text-primary)]">
                             {title}
                         </h2>
@@ -71,7 +69,7 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
                 )}
 
                 {/* Content */}
-                <div className="p-6">
+                <div className="p-0">
                     {children}
                 </div>
             </div>

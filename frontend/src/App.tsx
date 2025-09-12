@@ -4,7 +4,7 @@ import AppLayout from "./components/AppLayout";
 import CustomCardBuilder from "./components/customs/CustomCardBuilder";
 import { SiteSettingsProvider } from "./components/shared/SiteSettingsContext";
 import HomePage from "./components/home/HomePage";
-import ShowdownCardTable from "./components/explore/ShowdownCardTable";
+import ShowdownCardTable from "./components/cards/ShowdownCardTable";
 
 /** Handles defining content within each route */
 const AppContent = () => {

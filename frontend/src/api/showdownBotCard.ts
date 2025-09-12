@@ -179,8 +179,8 @@ type ShowdownBotCardImage = {
     edition: string | null;
     parallel: string | null;
 
-    output_file_name: string;
-    output_folder_path: string;
+    output_file_name?: string | null;
+    output_folder_path?: string | null;
 
     is_multi_colored: boolean;
     color_primary: string;
@@ -192,8 +192,15 @@ type ShowdownBotCardImage = {
 // --------------------------------
 
 /** Stores Showdown Bot Card Image metadata */
-type ShowdownBotCardChart = {
-    
+export type ShowdownBotCardChart = {
+
+    // Basic Info
+    command: number;
+    outs_full: number;
+
+    // Type
+    is_pitcher: boolean;
+
     ranges: Record<string, string>;
 };
 

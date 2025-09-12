@@ -55,7 +55,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
     const [breakdownType, setBreakdownType] = useState<string>("Stats");
 
     // Card Calcs
-    const cardImagePath: string | null = showdownBotCardData?.card?.image ? `${showdownBotCardData.card.image.output_folder_path}/${showdownBotCardData.card.image.output_file_name}` : null;
+    const cardImagePath: string | null = showdownBotCardData?.card?.image && showdownBotCardData.card.image.output_folder_path && showdownBotCardData.card.image.output_file_name ? `${showdownBotCardData.card.image.output_folder_path}/${showdownBotCardData.card.image.output_file_name}` : null;
     const cardAttributes: Record<string, string | number | null> = showdownBotCardData?.card ? {
         points: `${showdownBotCardData.card.points} PTS`,
         year: showdownBotCardData.card.year,
