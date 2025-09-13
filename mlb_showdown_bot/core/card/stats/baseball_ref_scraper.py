@@ -1788,6 +1788,7 @@ class BaseballReferenceScraper(BaseModel):
             'award_summary': ','.join,
             'bWAR': 'sum',
             'onbase_plus_slugging_plus': wa_games,
+            'IP/GS': 'mean',
         }
         columns_to_remove = list(set(column_aggs.keys()) - set(yearPd.columns))
         if max(years) < 2015:
@@ -1847,7 +1848,8 @@ class BaseballReferenceScraper(BaseModel):
         for stats in yearly_stats_dict.values():
 
             # DWAR
-            dWar_list.append(float(stats['dWAR']))
+            dWAR_raw = stats.get('dWAR', 0)
+            dWar_list.append(float(dWAR_raw) if dWAR_raw is not None and str(dWAR_raw) != '' else 0.0)
 
             # POSITIONS AND DEFENSE
             positions_dict = stats.get('positions', {})
