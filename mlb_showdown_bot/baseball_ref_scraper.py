@@ -1721,6 +1721,7 @@ class BaseballReferenceScraper:
             'award_summary': ','.join,
             'bWAR': 'sum',
             'onbase_plus_slugging_plus': wa_games,
+            'IP/GS': 'mean',
         }
         columns_to_remove = list(set(column_aggs.keys()) - set(yearPd.columns))
         if max(years) < 2015:
