@@ -197,11 +197,15 @@ export type ShowdownBotCardChart = {
     // Basic Info
     command: number;
     outs_full: number;
+    outs: number;
 
     // Type
     is_pitcher: boolean;
 
     ranges: Record<string, string>;
+    values: Record<string, number>;
+
+    opponent?: ShowdownBotCardChart;
 };
 
 // --------------------------------

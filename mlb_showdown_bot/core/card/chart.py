@@ -351,13 +351,6 @@ class Chart(BaseModel):
     @property
     def command_outs_concat(self) -> str:
         return f'{self.command}-{(self.outs / self.sub_21_per_slot_worth):.0f}'
-
-    @property
-    def values_as_list(self) -> list[list[str, str]]:
-        """Convert chart values and command/outs to list of lists"""
-        values_list = [ [self.command_name, str(self.command)], ['Outs', str(round(self.outs,2))] ]
-        values_list += [[category.value, str(round(value,2))] for category, value in self.values.items()]
-        return values_list
     
     @property
     def results_as_list(self) -> list[ChartCategory]:

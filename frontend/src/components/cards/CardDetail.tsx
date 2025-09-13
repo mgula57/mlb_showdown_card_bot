@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import { CustomSelect } from '../shared/CustomSelect';
-import { FaTable, FaPoll, FaCoins, FaBaseballBall } from 'react-icons/fa';
+import { FaTable, FaPoll, FaCoins, FaBaseballBall, FaUser } from 'react-icons/fa';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
 
@@ -27,6 +27,7 @@ import blankPlayerExpandedLight from '../../assets/blankplayer-expanded-light.pn
 import { TableRealVsProjected } from './TableRealVsProjectedBreakdown';
 import { TableChartsBreakdown } from './TableChartsBreakdown';
 import { TablePointsBreakdown } from './TablePointsBreakdown';
+import { TableOpponentBreakdown } from './TableOpponentBreakdown';
 
 // Trends
 import ChartPlayerPointsTrend from './ChartPlayerPointsTrend';
@@ -124,6 +125,12 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                 return (
                     <TableChartsBreakdown
                         chartAccuracyData={showdownBotCardData?.card?.command_out_accuracy_breakdowns || {}}
+                    />
+                );
+            case 'Opponent':
+                return (
+                    <TableOpponentBreakdown
+                        chart={showdownBotCardData?.card?.chart?.opponent}
                     />
                 );
         }
@@ -310,7 +317,8 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                         options={[
                             { label: 'Card vs Real Stats', value: 'Stats', icon: <FaPoll /> },
                             { label: 'Points', value: 'Points', icon: <FaCoins /> },
-                            { label: 'Chart', value: 'Charts', icon: <FaTable /> }
+                            { label: 'Chart', value: 'Charts', icon: <FaTable /> },
+                            { label: 'Opponent', value: 'Opponent', icon: <FaUser /> }
                         ]}
                         onChange={(value) => setBreakdownType(value)}
                     />
