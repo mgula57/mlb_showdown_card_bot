@@ -4,6 +4,9 @@ const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 // Generic type for api
 type Primitive = string | number | boolean | File | null | undefined;
 
+
+// MARK: - API Calls
+
 /** Sends the entire form (minus File) as JSON to /api/build_custom_card */
 export async function fetchCardData(payload: Record<string, Primitive>) : Promise<CardDatabaseRecord[]> {
     
@@ -22,6 +25,8 @@ export async function fetchCardData(payload: Record<string, Primitive>) : Promis
     return res.json();
     
 }
+
+// MARK: - Types
 
 export type CardDatabaseRecord = {
 

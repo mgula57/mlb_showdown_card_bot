@@ -58,6 +58,26 @@ export async function buildCustomCard(payload: Record<string, Primitive>) : Prom
     }
 }
 
+
+/** With already produced card data, generate a new or updated image */
+export async function generateCardImage(card: ShowdownBotCardAPIResponse) : Promise<ShowdownBotCardAPIResponse> {
+    
+    const res = await fetch(`${API_BASE}/build_image_for_card`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(card),
+    });
+
+    // Handle errors
+    if (!res.ok) throw new Error(`Build failed: ${res.status}`);
+
+    // Convert to ShowdownBotCard
+    return res.json();
+
+}
+
 // --------------------------------
 // MARK: - API RESPONSE
 // --------------------------------

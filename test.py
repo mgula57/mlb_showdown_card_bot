@@ -63,7 +63,7 @@ if __name__ == "__main__":
                     print_to_cli=False,
                     **player_inputs
                 )
-                showdown.card_image()
+                showdown.generate_card_image()
                 if showdown.image.error:
                     result = 'FAILED'
                     failures += 1

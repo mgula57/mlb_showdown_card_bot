@@ -1,7 +1,9 @@
+import pprint
 from flask import Blueprint, request, jsonify
 from .utils.file_upload import process_uploaded_file, cleanup_uploaded_file
 from .utils.data_conversion import convert_form_data_types
 from ..core.card.card_generation import generate_card
+from ..core.card.showdown_player_card import ShowdownPlayerCard
 
 cards_bp = Blueprint('cards', __name__)
 
@@ -63,3 +65,31 @@ def build_custom_card():
         # Clean up uploaded file after processing
         if uploaded_file_data:
             cleanup_uploaded_file(uploaded_file_data)
+
+@cards_bp.route('/build_image_for_card', methods=["POST", "GET"])
+def build_image_for_card():
+    """Generate image for existing card data"""
+    try:
+        payload = request.get_json()
+        if not payload or 'card' not in payload:
+            return jsonify({'error': 'No card data provided'}), 400
+
+        card_json = payload['card']
+        card = ShowdownPlayerCard(**card_json)
+
+        card.image.output_folder_path = "static/output"
+
+        # PRODUCE IMAGE AND UPDATE DATASET
+        card.generate_card_image()
+        payload['card'] = card.as_json()
+
+        return jsonify(payload)
+
+    except Exception as e:
+        print(f"Error in build_image_for_card: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': str(e),
+            'error_for_user': 'Failed to generate card image'
+        }), 500

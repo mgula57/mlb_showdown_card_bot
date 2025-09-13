@@ -248,7 +248,7 @@ class ShowdownPlayerCard(BaseModel):
         self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card)
 
         if show_image or self.image.output_folder_path:
-            self.card_image(show=show_image)
+            self.generate_card_image(show=show_image)
         
         if print_to_cli:
             self.print_player()
@@ -2749,7 +2749,7 @@ class ShowdownPlayerCard(BaseModel):
 # CARD IMAGE COMPONENTS
 # ------------------------------------------------------------------------
 
-    def card_image(self, show:bool=False, img_name_suffix:str='') -> None:
+    def generate_card_image(self, show:bool=False, img_name_suffix:str='') -> None:
         """Generates a 1500/2100 (larger if bordered) card image mocking what a real MLB Showdown card
         would look like for the player output. Final image is dumped to mlb_showdown_bot/output folder.
 

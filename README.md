@@ -105,7 +105,7 @@ showdown = ShowdownPlayerCard(
 )
 
 # CREATE SHOWDOWN CARD IMAGE
-showdown.card_image(show=True)
+showdown.generate_card_image(show=True)
 ```
 
 ----

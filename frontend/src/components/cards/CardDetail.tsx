@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import { CustomSelect } from '../shared/CustomSelect';
 import { FaTable, FaPoll, FaCoins, FaBaseballBall, FaUser } from 'react-icons/fa';
@@ -29,6 +29,9 @@ import { TableChartsBreakdown } from './TableChartsBreakdown';
 import { TablePointsBreakdown } from './TablePointsBreakdown';
 import { TableOpponentBreakdown } from './TableOpponentBreakdown';
 
+// API
+import { generateCardImage } from '../../api/showdownBotCard';
+
 // Trends
 import ChartPlayerPointsTrend from './ChartPlayerPointsTrend';
 
@@ -47,27 +50,83 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
 
     // MARK: STATES
 
+    // Card
+    const [internalCardData, setInternalCardData] = useState<ShowdownBotCardAPIResponse | null>(showdownBotCardData);
+    // Use internal state instead of prop throughout component
+    const activeCardData = internalCardData || showdownBotCardData;
+
     // Theme
     const { isDark } = useTheme();
 
     const { userShowdownSet } = useSiteSettings();
 
+    // Update internal state when prop changes
+    useEffect(() => {
+        setInternalCardData(showdownBotCardData);
+    }, [showdownBotCardData]);
+
     // Breakdown State
     const [breakdownType, setBreakdownType] = useState<string>("Stats");
 
+    // Image Generation State
+    const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
+
+    // Mark if isLoading or isGeneratingImage
+    const isLoadingOverall = isLoading || isGeneratingImage;
+
+    // --------------------------------
+    // MARK: - EFFECTS
+    // --------------------------------
+
+    // Flag if image is undefined but data is populated
+    const isDataWithoutImage = !activeCardData?.card?.image.output_file_name && activeCardData?.card;
+
     // Card Calcs
-    const cardImagePath: string | null = showdownBotCardData?.card?.image && showdownBotCardData.card.image.output_folder_path && showdownBotCardData.card.image.output_file_name ? `${showdownBotCardData.card.image.output_folder_path}/${showdownBotCardData.card.image.output_file_name}` : null;
-    const cardAttributes: Record<string, string | number | null> = showdownBotCardData?.card ? {
-        points: `${showdownBotCardData.card.points} PTS`,
-        year: showdownBotCardData.card.year,
-        expansion: showdownBotCardData.card.image.expansion == "BS" ? null : showdownBotCardData.card.image.expansion,
-        edition: showdownBotCardData.card.image.edition == "NONE" ? null : showdownBotCardData.card.image.edition,
-        chart_version: showdownBotCardData.card.chart_version == 1 ? null : showdownBotCardData.card.chart_version,
-        parallel: showdownBotCardData.card.image.parallel == "NONE" ? null : showdownBotCardData.card.image.parallel,
+    const cardImagePath: string | null = activeCardData?.card?.image && activeCardData.card.image.output_folder_path && activeCardData.card.image.output_file_name ? `${activeCardData.card.image.output_folder_path}/${activeCardData.card.image.output_file_name}` : null;
+    const cardAttributes: Record<string, string | number | null> = activeCardData?.card ? {
+        points: `${activeCardData.card.points} PTS`,
+        year: activeCardData.card.year,
+        expansion: activeCardData.card.image.expansion == "BS" ? null : activeCardData.card.image.expansion,
+        edition: activeCardData.card.image.edition == "NONE" ? null : activeCardData.card.image.edition,
+        chart_version: activeCardData.card.chart_version == 1 ? null : activeCardData.card.chart_version,
+        parallel: activeCardData.card.image.parallel == "NONE" ? null : activeCardData.card.image.parallel,
     } : {};
-    const weeklyChangePoints = showdownBotCardData?.in_season_trends?.pts_change?.week || null;
+    const weeklyChangePoints = activeCardData?.in_season_trends?.pts_change?.week || null;
     const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-green-500' : 'text-red-500') : '';
     const weeklyChangePointsSymbol = weeklyChangePoints ? (weeklyChangePoints > 0 ? '▲' : '▼') : '';
+
+    // Remove the useEffect and move logic to a separate function
+    const handleGenerateImage = useCallback(() => {
+        if (!activeCardData?.card || isGeneratingImage) return;
+        
+        console.log("Starting image generation...");
+        setIsGeneratingImage(true);
+        
+        generateCardImage(activeCardData)
+            .then((data) => {
+                console.log("Received card data with image:", data);
+                if (data) {
+                    setInternalCardData(data as ShowdownBotCardAPIResponse);
+                }
+            })
+            .catch((error) => {
+                console.error("Error generating card image:", error);
+            })
+            .finally(() => {
+                setIsGeneratingImage(false);
+            });
+    }, [activeCardData, isGeneratingImage]);
+
+    // Use useEffect only to trigger the function once
+    useEffect(() => {
+        if (isDataWithoutImage && !isGeneratingImage) {
+            const timer = setTimeout(() => {
+                handleGenerateImage();
+            }, 100); // Small delay to prevent rapid calls
+            
+            return () => clearTimeout(timer);
+        }
+    }, [isDataWithoutImage, handleGenerateImage, isGeneratingImage]);
 
     // Changing opacity of color
     const addOpacityToRGB = (rgbColor: string, opacity: number) => {
@@ -80,10 +139,10 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
         return rgbColor; // fallback if parsing fails
     };
 
-    const teamGlowColor = showdownBotCardData?.card?.image ? (
-        ( ['NYM', 'SDP', 'NYY'].includes(showdownBotCardData?.card?.team || '') && isDark )
-            ? enhanceColorVisibility(showdownBotCardData?.card?.image?.color_secondary) 
-            : enhanceColorVisibility(showdownBotCardData?.card?.image?.color_primary)
+    const teamGlowColor = activeCardData?.card?.image ? (
+        ( ['NYM', 'SDP', 'NYY'].includes(activeCardData?.card?.team || '') && isDark )
+            ? enhanceColorVisibility(activeCardData?.card?.image?.color_secondary) 
+            : enhanceColorVisibility(activeCardData?.card?.image?.color_primary)
     ) : 'rgb(0, 0, 0)';
 
     // MARK: BREAKDOWN TABLES
@@ -93,7 +152,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                 return (
                     <div className='space-y-2 overflow-y-auto'>
                         <TableRealVsProjected
-                            realVsProjectedData={showdownBotCardData?.card?.real_vs_projected_stats || []}
+                            realVsProjectedData={activeCardData?.card?.real_vs_projected_stats || []}
                         />
 
                         {/* Footnote */}
@@ -109,8 +168,8 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     <div className='space-y-2 overflow-y-auto'>
 
                         <TablePointsBreakdown
-                            pointsBreakdownData={showdownBotCardData?.card?.points_breakdown || null}
-                            ip={showdownBotCardData?.card?.ip || null}
+                            pointsBreakdownData={activeCardData?.card?.points_breakdown || null}
+                            ip={activeCardData?.card?.ip || null}
                         />
 
                         {/* Footnote */}
@@ -124,13 +183,13 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
             case 'Charts':
                 return (
                     <TableChartsBreakdown
-                        chartAccuracyData={showdownBotCardData?.card?.command_out_accuracy_breakdowns || {}}
+                        chartAccuracyData={activeCardData?.card?.command_out_accuracy_breakdowns || {}}
                     />
                 );
             case 'Opponent':
                 return (
                     <TableOpponentBreakdown
-                        chart={showdownBotCardData?.card?.chart?.opponent}
+                        chart={activeCardData?.card?.chart?.opponent}
                     />
                 );
         }
@@ -175,11 +234,11 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
         >
 
             {/* Warnings */}
-            {showdownBotCardData?.card?.warnings && showdownBotCardData.card.warnings.length > 0 && (
+            {activeCardData?.card?.warnings && activeCardData.card.warnings.length > 0 && (
                 <div className="bg-[var(--warning)]/5 border-2 border-[var(--warning)] text-[var(--warning)] p-2 rounded-md">
                     <h4 className="font-semibold">Warnings</h4>
                     <ul className="list-disc list-inside">
-                        {showdownBotCardData.card.warnings.map((warning, index) => (
+                        {activeCardData.card.warnings.map((warning, index) => (
                             <li key={index}>{warning}</li>
                         ))}
                     </ul>
@@ -192,12 +251,12 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                 gap-1 mb-2
             ">
                 <a 
-                    href={showdownBotCardData?.card?.bref_url || '#'} 
+                    href={activeCardData?.card?.bref_url || '#'} 
                     className='text-3xl font-black opacity-85 pr-2'
                     target="_blank"
                     rel="noopener noreferrer"
                 >
-                    {showdownBotCardData?.card?.name.toUpperCase() || ""}
+                    {activeCardData?.card?.name.toUpperCase() || ""}
                 </a>
 
                 {/* Iterate through attributes */}
@@ -215,7 +274,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                         <span>{value}</span>
                         
                         {/* Change in Points Weekly */}
-                        { (weeklyChangePoints && key === "points" && String(new Date().getFullYear()) === String(showdownBotCardData?.card?.year || "n/a")) && (
+                        { (weeklyChangePoints && key === "points" && String(new Date().getFullYear()) === String(activeCardData?.card?.year || "n/a")) && (
                             <div className={`text-xs ${weeklyChangePointsColor}`}>
                                 {weeklyChangePointsSymbol} {Math.abs(weeklyChangePoints)} THIS WEEK
                             </div>
@@ -227,7 +286,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
 
             {/* Game Boxscore */}
             <GameBoxscore 
-                boxscore={showdownBotCardData?.latest_game_box_score || null} 
+                boxscore={activeCardData?.latest_game_box_score || null} 
                 isLoading={isLoadingGameBoxscore} 
             />
 
@@ -249,7 +308,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     <img
                         src={cardImagePath == null ? getBlankPlayerImageName() : cardImagePath}
                         alt="Blank Player"
-                        key={showdownBotCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
+                        key={activeCardData?.card?.image.output_file_name || (isDark ? 'blank-dark' : 'blank-light')}
                         className={`
                             block 
                             @2xl:mx-auto
@@ -257,10 +316,10 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                             rounded-2xl overflow-hidden
                             object-contain
                             transition-all duration-300 ease-in-out
-                            ${isLoading ? 'blur-xs' : ''}
+                            ${isLoadingOverall ? 'blur-xs' : ''}
                         `}
                         style={{
-                            boxShadow: showdownBotCardData?.card?.image
+                            boxShadow: activeCardData?.card?.image
                                 ? `0 0 10px ${addOpacityToRGB(teamGlowColor, 0.66)},
                                    0 0 20px ${addOpacityToRGB(teamGlowColor, 0.52)},
                                    0 0 40px ${addOpacityToRGB(teamGlowColor, 0.66)},
@@ -272,7 +331,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     /> 
 
                     {/* Loading Overlay */}
-                    {isLoading && (
+                    {isLoadingOverall && (
                         <div className={`
                             absolute inset-0 
                             flex items-center justify-center 
@@ -293,7 +352,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                                     }}
                                 />
                                 <p className="text-white text-sm font-semibold">
-                                    Generating Card...
+                                    Generating {isGeneratingImage ? 'Image...' : 'Card...'}
                                 </p>
                             </div>
                         </div>
@@ -341,12 +400,12 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
 
                 <ChartPlayerPointsTrend 
                     title="Career Trends" 
-                    trendData={showdownBotCardData?.historical_season_trends?.yearly_trends || null} 
+                    trendData={activeCardData?.historical_season_trends?.yearly_trends || null} 
                 />
 
                 <ChartPlayerPointsTrend 
-                    title={showdownBotCardData?.in_season_trends && showdownBotCardData?.card?.year ? `${showdownBotCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"} 
-                    trendData={showdownBotCardData?.in_season_trends?.cumulative_trends || null} 
+                    title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"} 
+                    trendData={activeCardData?.in_season_trends?.cumulative_trends || null} 
                 />
 
             </div>
