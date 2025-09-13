@@ -1781,7 +1781,7 @@ class BaseballReferenceScraper:
 
             # DWAR
             dWAR_raw = stats.get('dWAR', 0)
-            dWar_list.append(float(dWAR_raw) if dWAR_raw is not None and dWAR_raw != '' else 0.0)
+            dWar_list.append(float(dWAR_raw) if dWAR_raw is not None and str(dWAR_raw) != '' else 0.0)
 
             # POSITIONS AND DEFENSE
             positions_dict = stats.get('positions', {})
