@@ -17,7 +17,7 @@ const AppContent = () => {
                 <HomePage />
             </div>
             <div className={location.pathname === '/customs' ? 'block' : 'hidden'}>
-                <CustomCardBuilder />
+                <CustomCardBuilder isHidden={location.pathname !== '/customs'} />
             </div>
             <div className={location.pathname === '/explore' ? 'block' : 'hidden'}>
                 <ShowdownCardTable />

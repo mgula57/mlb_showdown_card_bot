@@ -4,10 +4,11 @@ import { FaXmark } from "react-icons/fa6";
 /** Props for the form input component */
 type FormInputProps = {
     label: string;
-    value: string;
+    value: string | number;
     onChange?: (value: string | null) => void;
     className?: string;
     type?: string;
+    inputMode?: "text" | "search" | "email" | "tel" | "url" | "none" | "numeric" | "decimal" | undefined;
     isClearable?: boolean;
     placeholder?: string;
     onChangeFile?: (file: File | null) => void;
@@ -18,7 +19,7 @@ type FormInputProps = {
  * FormInput component for text input fields with a label.
  * Handles changes and updates the parent state.
  */
-const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className = "", type="text", isClearable=false, placeholder, onChangeFile, isTitleCase }) => {
+const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase }) => {
 
     const isFileInput = type === "file";
 
@@ -34,7 +35,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
             <label className="text-sm font-medium text-secondary">{label}</label>
 
             {/* Input Container */}
-            <div className="flex items-stretch focus:outline-none border border-form-element rounded-xl mt-1">
+            <div className="flex items-stretch focus:outline-none border-2 border-form-element rounded-xl mt-1">
 
                 {/* File input for file type */}
                 {isFileInput ? (
@@ -60,6 +61,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
 
                         <input
                             type={type}
+                            inputMode={inputMode}
                             value={value}
                             placeholder={placeholder}
                             autoComplete="off"
@@ -73,7 +75,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                         />
 
                         {/* Optional Clear button */}
-                        {isClearable && value.length > 0 && (
+                        {isClearable && String(value).length > 0 && (
                             <button
                                 type="button"
                                 onClick={() => onChange && onChange("")}

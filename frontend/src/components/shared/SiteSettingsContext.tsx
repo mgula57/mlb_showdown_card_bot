@@ -13,13 +13,18 @@ import showdownExpanded from "../../assets/set-expanded.png";
 export const showdownSets: Array<{ value: string; label: string; image?: string | undefined; textColor?: string | undefined; }> = [
     { value: "2000", label: "", textColor: "text-blue", image: showdown2000 },
     { value: "2001", label: "", image: showdown2001 },
+    { value: "CLASSIC", label: "", image: showdownClassic },
     { value: "2002", label: "", image: showdown2002 },
     { value: "2003", label: "", image: showdown2003 },
     { value: "2004", label: "", image: showdown2004 },
     { value: "2005", label: "", image: showdown2005 },
-    { value: "CLASSIC", label: "", image: showdownClassic },
     { value: "EXPANDED", label: "", image: showdownExpanded },
 ];
+
+export const imageForSet = (set: string): string | undefined => {
+    const found = showdownSets.find(s => s.value === set);
+    return found?.image;
+}
 
 type Theme = 'light' | 'dark' | 'system';
 

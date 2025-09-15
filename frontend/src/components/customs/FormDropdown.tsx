@@ -1,4 +1,5 @@
-import { CustomSelect, type SelectOption } from "../shared/CustomSelect";
+import { type SelectOption } from "../shared/CustomSelect";
+import CustomSelect from "../shared/CustomSelect";
 
 /** Props for the form dropdown component */
 type FormDropdownProps = {

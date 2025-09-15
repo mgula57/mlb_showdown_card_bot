@@ -14,7 +14,7 @@ load_dotenv()
 
 sys.path.append('..')
 from mlb_showdown_bot.core.database.postgres_db import PostgresDB, PlayerArchive
-from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, StatsPeriod, StatsPeriodType
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, StatsPeriod, StatsPeriodType, ShowdownImage, StatHighlightsType
 from mlb_showdown_bot.core.shared.player_position import PlayerType
 
 parser = argparse.ArgumentParser(description="Export Showdown Bot Data to a CSV file.")
@@ -63,6 +63,7 @@ def convert_to_showdown_cards(player_data: list[PlayerArchive], sets: list[str])
             set = set
 
             stats_period = StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=year)
+            image = ShowdownImage(stat_highlights_type=StatHighlightsType.ALL)
 
             if player.bref_id in ['howelha01', 'dunnja01','sudhowi01','mercewi01'] and type_override_raw == '(pitcher)':
                 continue
@@ -72,10 +73,16 @@ def convert_to_showdown_cards(player_data: list[PlayerArchive], sets: list[str])
                 continue
 
             print(f"  {index}/{total_players}: {name: <30}", end="\r")
-            showdown = ShowdownPlayerCard(
-                name=name, year=year, stats=stats, stats_period=stats_period,
-                set=set, player_type_override=type_override, print_to_cli=False
-            )
+            try:
+                showdown = ShowdownPlayerCard(
+                    name=name, year=year, stats=stats, stats_period=stats_period,
+                    set=set, player_type_override=type_override, print_to_cli=False,
+                    image=image
+                )
+            except Exception as e:
+                print(f"\nERROR CREATING SHOWDOWN CARD FOR {name} ({year}) - {e}")
+                continue
+            
             showdown_cards.append(showdown)
             
     return showdown_cards

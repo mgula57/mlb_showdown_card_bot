@@ -11,10 +11,9 @@ def fetch_card_data():
         db = PostgresDB()
 
         # Get query parameters
+        payload = request.get_json() or {}
 
-        card_data = db.fetch_card_data()
-
-        print(f"Fetched {len(card_data)} cards from the database.")
+        card_data = db.fetch_card_data(filters = payload)
 
         db.close_connection()
 

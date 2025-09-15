@@ -1,21 +1,17 @@
 import { type ShowdownBotCard } from '../showdownBotCard';
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
-// Generic type for api
-type Primitive = string | number | boolean | File | null | undefined;
-
-
 // MARK: - API Calls
 
 /** Sends the entire form (minus File) as JSON to /api/build_custom_card */
-export async function fetchCardData(payload: Record<string, Primitive>) : Promise<CardDatabaseRecord[]> {
-    
+export async function fetchCardData(payload: Record<string, any>) : Promise<CardDatabaseRecord[]> {
+
     const res = await fetch(`${API_BASE}/cards/data`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify(payload),
     });
 
     // Handle errors
@@ -43,7 +39,7 @@ export type CardDatabaseRecord = {
     g: number;
     gs?: number | null;
     pa?: number | null;
-    ip?: number | null;
+    real_ip?: number | null;
     lg_id?: string | null;
     team_id: string;
     team_id_list?: string[] | null;
@@ -61,6 +57,11 @@ export type CardDatabaseRecord = {
     nationality: string;
     team: string;
     positions_and_defense_string: string;
+    ip?: number | null;
+    speed?: number | null;
+    speed_letter?: string | null;
+    speed_full?: string | null;
+    speed_or_ip?: number | null;
 
     // Error Message
     error?: string | null;

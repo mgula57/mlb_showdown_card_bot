@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { FaXmark } from 'react-icons/fa6';
 
 type ModalProps = {
     children: React.ReactNode;
@@ -36,9 +37,18 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
         xl: 'max-w-6xl'
     };
 
+    const closeButton = () => (
+        <button
+            onClick={onClose}
+            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-2xl cursor-pointer"
+        >
+            <FaXmark />
+        </button>
+    );
+
     return (
         <div 
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 cursor-pointer"
             onClick={handleBackdropClick}
         >
             <div 
@@ -51,20 +61,21 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
                     ${sizeClasses[size]}
                     max-h-[90vh] 
                     overflow-y-auto
+                    cursor-default
+                    relative
                 `}
             >
                 {/* Header */}
-                {title && (
+                {title ? (
                     <div className="flex items-center justify-between p-3 border-b border-[var(--border-secondary)]">
                         <h2 className="text-xl font-semibold text-[var(--text-primary)]">
                             {title}
                         </h2>
-                        <button
-                            onClick={onClose}
-                            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-2xl"
-                        >
-                            ×
-                        </button>
+                        {closeButton()}
+                    </div>
+                ) : (
+                    <div className="absolute right-3 top-3">
+                        {closeButton()}
                     </div>
                 )}
 
@@ -72,6 +83,7 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
                 <div className="p-0">
                     {children}
                 </div>
+
             </div>
         </div>
     );

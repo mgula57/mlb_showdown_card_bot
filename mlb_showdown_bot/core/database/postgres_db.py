@@ -397,7 +397,7 @@ class PostgresDB:
         return result_list
 
     def fetch_card_data(self, filters: dict = {}) -> list[dict]:
-        """Fetch all card data from the database."""
+        """Fetch all card data from the database with support for lists and min/max filtering."""
 
         if not self.connection:
             return None
@@ -408,22 +408,75 @@ class PostgresDB:
             WHERE TRUE
         """)
 
+        filter_values = []
+
         # Apply filters if any
-        if filters:
+        if filters and len(filters) > 0:
             filter_clauses = []
+            
             for key, value in filters.items():
-                filter_clauses.append(sql.SQL("{key} = {value}").format(
-                    key=sql.Identifier(key),
-                    value=sql.Placeholder()
-                ))
-            query += sql.SQL(" AND ").join(filter_clauses)
+                if value is None:
+                    continue
+                    
+                # Handle min/max filtering
+                if key.startswith('min_'):
+                    field_name = key[4:]  # Remove 'min_' prefix
+                    filter_clauses.append(sql.SQL("coalesce({field} >= %s, true)").format(
+                        field=sql.Identifier(field_name)
+                    ))
+                    filter_values.append(value)
+                    
+                elif key.startswith('max_'):
+                    field_name = key[4:]  # Remove 'max_' prefix
+                    filter_clauses.append(sql.SQL("{field} <= %s").format(
+                        field=sql.Identifier(field_name)
+                    ))
+                    filter_values.append(value)
+
+                elif key == 'search':
+                    # Handle search text filtering (ILIKE %value%)
+                    filter_clauses.append(sql.SQL("{field} ILIKE %s").format(
+                        field=sql.Identifier("name")
+                    ))
+                    filter_values.append(f"%{value}%")
+                    
+                # Handle list filtering (IN clause)
+                elif isinstance(value, list) and len(value) > 0:
+                    # For JSONB array fields, use @> operator to check if array contains any of the values
+                    if key in ['positions', 'secondary_positions', 'primary_positions']:
+                        # Check if any of the provided positions are in the player's positions
+                        position_checks = []
+                        for pos in value:
+                            position_checks.append(sql.SQL("positions_and_defense ? %s"))
+                            filter_values.append(pos)
+                        filter_clauses.append(sql.SQL("({})").format(
+                            sql.SQL(" OR ").join(position_checks)
+                        ))
+                    else:
+                        # Regular IN clause for non-array fields
+                        placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
+                        filter_clauses.append(sql.SQL("{field} IN ({placeholders})").format(
+                            field=sql.Identifier(key),
+                            placeholders=placeholders
+                        ))
+                        filter_values.extend(value)
+                        
+                # Handle regular equality filtering
+                else:
+                    filter_clauses.append(sql.SQL("{field} = %s").format(
+                        field=sql.Identifier(key)
+                    ))
+                    filter_values.append(value)
+
+            if filter_clauses:
+                query += sql.SQL(" AND ") + sql.SQL(" AND ").join(filter_clauses)
 
         query += sql.SQL("""
             ORDER BY points DESC
             LIMIT 50
         """)
 
-        result_list = self.execute_query(query=query)
+        result_list = self.execute_query(query=query, filter_values=tuple(filter_values))
         return result_list
 
 # ------------------------------------------------------------------------
@@ -643,8 +696,7 @@ class PostgresDB:
                     INSERT INTO card_data (player_id, showdown_set, card_data) 
                     VALUES %s
                 """
-                
-                
+
                 execute_values(
                     cursor, 
                     insert_query, 

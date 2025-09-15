@@ -1,10 +1,12 @@
 import { type ShowdownBotCard } from "../../../api/showdownBotCard";
+import { getContrastColor } from "../../shared/Color";
 
 type CardChartProps = {
     card: ShowdownBotCard
+    cellClassName?: string
 };
 
-export default function CardChart({ card }: CardChartProps) {
+export default function CardChart({ card, cellClassName }: CardChartProps) {
 
     const chartData = card?.chart.ranges || {};
     const showdownSet = card?.set || '2000';
@@ -27,13 +29,13 @@ export default function CardChart({ card }: CardChartProps) {
     // Color mapping for different result types
     const getColorClass = (key: string, _: number) => {
         const lowerKey = key.toLowerCase();
-        const primaryColor = card.image.color_primary || 'rgb(0, 0, 0)';
+        const color = (['NYM', 'SDP'].includes(card.team) ? card.image.color_secondary : card.image.color_primary) || 'rgb(0, 0, 0)';
         
         // Hitting results (typically yellow/gold)
         if (lowerKey.includes('so') || lowerKey.includes('gb') || lowerKey.includes('fb') || lowerKey.includes('pu')) {
-            return { 
-                backgroundColor: primaryColor, 
-                color: 'white',
+            return {
+                backgroundColor: color,
+                color: getContrastColor(color),
                 className: '' // No Tailwind bg class
             };
         }                
@@ -54,7 +56,8 @@ export default function CardChart({ card }: CardChartProps) {
                     <div
                         key={key}
                         className={`
-                            px-2 py-1 text-center min-w-12 text-primary
+                            ${cellClassName || 'min-w-8 sm:min-w-11'}
+                            px-1 py-1 text-center text-primary
                             ${colorInfo.className}
                             border-r border-form-element last:border-r-0
                         `}
@@ -63,8 +66,8 @@ export default function CardChart({ card }: CardChartProps) {
                             color: colorInfo.color || ''
                         } : {}}
                     >
-                        <div className="text-xs font-bold">{key}</div>
-                        <div className="text-xs text-nowrap">{String(value)}</div>
+                        <div className="text-[11px] sm:text-xs font-black">{key}</div>
+                        <div className="text-[10px] sm:text-[11px] font-bold text-nowrap">{String(value)}</div>
                     </div>
                 );
             })}

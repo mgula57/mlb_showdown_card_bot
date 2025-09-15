@@ -141,10 +141,15 @@ const loadFormSettings = (): CustomCardFormState => {
 // MARK: - Custom Card Component
 // ----------------------------------
 
+type CustomCardBuilderProps = {
+    // Mark as hidden, disables actions
+    isHidden?: boolean;
+}
+
 /** 
  * Card Creation Page for users to create and customize their own cards. 
 */
-function CustomCardBuilder() {
+function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     // Card States
     const { userShowdownSet } = useSiteSettings();
@@ -622,7 +627,13 @@ function CustomCardBuilder() {
 
     // Handle Enter key press
     useEffect(() => {
+        // Don't set up the listener if component is hidden
+        if (isHidden) return;
+
         const handleKeyDown = (event: KeyboardEvent) => {
+            // Dont run if the tab is not active
+            if (document.hidden || isHidden) return;
+
             if (event.key === 'Enter' && !event.shiftKey) {
                 // Don't trigger if user is typing in a textarea or input that should allow Enter
                 const target = event.target as HTMLElement;
@@ -635,7 +646,7 @@ function CustomCardBuilder() {
 
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [form]); // Re-bind when form changes so handleBuild has latest state
+    }, [form, isHidden]); // Re-bind when form changes so handleBuild has latest state
 
     // ---------------------------------
     // MARK: Image Uploads

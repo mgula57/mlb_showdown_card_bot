@@ -1,9 +1,9 @@
-import React, { type ReactNode, useState } from "react";
+import React, { type ReactNode, useState, useEffect } from "react";
 import SideMenu from "./side_menu/SideMenu";
 import ShowdownBotLogo from "./shared/ShowdownBotLogo";
 import { useLocation } from "react-router-dom";
 import { useSiteSettings, showdownSets } from "./shared/SiteSettingsContext";
-import { CustomSelect } from "./shared/CustomSelect";
+import CustomSelect from "./shared/CustomSelect";
 import { FiMenu } from "react-icons/fi";
 
 // *********************************
@@ -20,14 +20,32 @@ const TITLE_MAP: Record<string, string> = {
     explore: "Explore",
 };
 
+// Local storage key for side menu state
+const SIDE_MENU_STORAGE_KEY = 'showdown-bot-side-menu-open';
+const SIDE_MENU_STORAGE_KEY_MOBILE = 'showdown-bot-side-menu-open-mobile';
+
 /**
  * AppLayout component that wraps the main application content
  * with a sidebar and main content area.
  */
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
-    const [isSideMenuOpen, setIsSideMenuOpen] = useState(true);
-    const [isSideMenuOpenMobile, setIsSideMenuOpenMobile] = useState(false);
+    const [isSideMenuOpen, setIsSideMenuOpen] = useState(() => {
+        try {
+            const stored = localStorage.getItem(SIDE_MENU_STORAGE_KEY);
+            return stored !== null ? JSON.parse(stored) : true;
+        } catch {
+            return true; // Fallback to true if localStorage fails
+        }
+    });
+    const [isSideMenuOpenMobile, setIsSideMenuOpenMobile] = useState(() => {
+        try {
+            const stored = localStorage.getItem(SIDE_MENU_STORAGE_KEY_MOBILE);
+            return stored !== null ? JSON.parse(stored) : false;
+        } catch {
+            return false; // Fallback to false if localStorage fails
+        }
+    });
     const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
 
     const contentPadding = isSideMenuOpen ? 'md:pl-48' : 'md:pl-12';
@@ -35,6 +53,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     const locationName = location.pathname.split('/')[1] || 'home';
 
     const headerTitle: string = TITLE_MAP[locationName] || "Home";
+
+    // Save side menu state to localStorage whenever it changes
+    useEffect(() => {
+        try {
+            localStorage.setItem(SIDE_MENU_STORAGE_KEY, JSON.stringify(isSideMenuOpen));
+        } catch (error) {
+            console.warn('Failed to save side menu state to localStorage:', error);
+        }
+    }, [isSideMenuOpen]);
 
     return (
         <div className="bg-primary flex h-screen relative w-screen">

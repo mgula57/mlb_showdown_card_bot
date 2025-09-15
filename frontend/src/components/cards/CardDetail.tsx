@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
-import { CustomSelect } from '../shared/CustomSelect';
+import CustomSelect from '../shared/CustomSelect';
 import { FaTable, FaPoll, FaCoins, FaBaseballBall, FaUser } from 'react-icons/fa';
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
@@ -303,7 +303,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     relative
                     h-auto
                     w-full
-                    px-6 @md:px-4 @xl:px-0
+                    px-0 @md:px-3 @xl:px-0
                 `}>
                     <img
                         src={cardImagePath == null ? getBlankPlayerImageName() : cardImagePath}
@@ -397,7 +397,6 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     gap-4
                 "
             >
-
                 <ChartPlayerPointsTrend 
                     title="Career Trends" 
                     trendData={activeCardData?.historical_season_trends?.yearly_trends || null} 

@@ -185,4 +185,4 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
 };
 
 export type { SelectOption };
-export { CustomSelect };
+export default CustomSelect;

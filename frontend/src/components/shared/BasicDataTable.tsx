@@ -8,6 +8,12 @@ import {
     type SortingState,
 } from "@tanstack/react-table";
 
+declare module "@tanstack/react-table" {
+    interface ColumnMeta<TData, TValue> {
+        className?: string;
+    }
+}
+
 export type BasicDataTableProps<TData> = {
     data: TData[];
     columns: ColumnDef<TData, any>[];
@@ -32,15 +38,15 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
     });
 
     return (
-        <div className={`overflow-scroll rounded-lg border-2 border-[var(--background-tertiary)] ${className}`}>
-            <table className="min-w-full text-sm">
+        <div className={`overflow-scroll rounded-lg border-2 border-[var(--background-tertiary)] ${className} text-sm`}>
+            <table className="min-w-full">
                 <thead className="bg-table-header">
                     {table.getHeaderGroups().map(hg => (
                         <tr key={hg.id}>
                             {hg.headers.map(h => (
                                 <th
                                     key={h.id}
-                                    className="px-3 py-2 text-left font-semibold select-none cursor-pointer"
+                                    className={`px-3 py-2 text-left font-semibold select-none cursor-pointer ${h.column.columnDef.meta?.className || ''}`}
                                     onClick={h.column.getToggleSortingHandler()}
                                 >
                                     <div className="flex items-center gap-2">
@@ -73,7 +79,7 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
                                 onClick={() => onRowClick?.(r.original)}
                             >
                                 {r.getVisibleCells().map(c => (
-                                    <td key={c.id} className="px-3 py-2">
+                                    <td key={c.id} className={`px-3 py-2 ${c.column.columnDef.meta?.className || ''}`}>
                                         {flexRender(c.column.columnDef.cell, c.getContext())}
                                     </td>
                                 ))}

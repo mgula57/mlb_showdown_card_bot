@@ -172,6 +172,8 @@ export type ShowdownBotCard = {
     points: number;
     ip: number | null;
     chart_version: number;
+    speed: Speed;
+    icons: string[];
 
     // Image
     image: ShowdownBotCardImage;
@@ -205,13 +207,15 @@ type ShowdownBotCardImage = {
     is_multi_colored: boolean;
     color_primary: string;
     color_secondary: string;
+
+    stat_highlights_list: string[];
 };
 
 // --------------------------------
-// MARK: - IMAGE
+// MARK: - CHART
 // --------------------------------
 
-/** Stores Showdown Bot Card Image metadata */
+/** Stores Showdown Bot Card Chart metadata */
 export type ShowdownBotCardChart = {
 
     // Basic Info
@@ -227,6 +231,14 @@ export type ShowdownBotCardChart = {
 
     opponent?: ShowdownBotCardChart;
 };
+
+// --------------------------------
+// MARK: - SPEED/IP
+// --------------------------------
+export type Speed = {
+    speed: number;
+    letter: string;
+}
 
 // --------------------------------
 // MARK: - POINTS
