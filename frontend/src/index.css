@@ -101,6 +101,17 @@
         background-color: var(--table-header);
     }
 
+    /* Hide scrollbar for webkit browsers (Chrome, Safari, etc.) */
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Hide scrollbar for Firefox */
+    .scrollbar-hide {
+        -ms-overflow-style: none;  /* Internet Explorer 10+ */
+        scrollbar-width: none;  /* Firefox */
+    }
+
 }
 
 /* Set default text color for entire app */

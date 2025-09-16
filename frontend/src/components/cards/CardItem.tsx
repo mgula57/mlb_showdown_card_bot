@@ -17,6 +17,17 @@ export const CardItem = ({ card, onClick }: CardItemProps) => {
     const secondaryColor = (['NYM', 'SDP'].includes(card?.team || 'N/A') ? card?.image.color_primary : card?.image.color_secondary) || 'rgb(0, 0, 0)';
     const colorStylingSecondary = { backgroundColor: secondaryColor, color: getContrastColor(secondaryColor) }
 
+    // Metadata Array
+    const metadataArray: (string | undefined)[] = card?.player_type === 'Hitter' ? [
+        `SPD ${card?.speed.speed}`,
+        `BATS ${card?.hand}`,
+        card?.positions_and_defense_string,
+    ] : [
+        card?.positions_and_defense_string,
+        `${card?.hand}HP`,
+        `IP ${card?.ip}`
+    ]
+
     return (
         <div
             className="
@@ -31,7 +42,7 @@ export const CardItem = ({ card, onClick }: CardItemProps) => {
                 {/* Command */}
                 <CardCommand card={card} className="w-9 h-9" />
 
-                <div className="flex flex-col overflow-x-scroll">
+                <div className="flex flex-col overflow-x-scroll scrollbar-hide">
                     {/* Name, Icons, Team */}
                     <div className="flex flex-row gap-1 items-center">
                         <div className="font-black">{card?.name.toUpperCase()}</div>
@@ -43,8 +54,11 @@ export const CardItem = ({ card, onClick }: CardItemProps) => {
                         ))}
                     </div>
                     {/* Metadata */}
-                    <div className="flex flex-row gap-1 text-[11px] text-secondary tracking-tight">
+                    <div className="flex flex-row gap-1.5 text-[11px] text-secondary tracking-tight">
                         <div className="px-1 rounded-md font-semibold" style={colorStylingSecondary}>{`${card?.points} PTS`}</div>
+                        {metadataArray.map((meta, index) => (
+                            <div key={index}>{meta}</div>
+                        ))}
                     </div>
                 </div>
                 
@@ -55,7 +69,7 @@ export const CardItem = ({ card, onClick }: CardItemProps) => {
             {card && <CardChart card={card} cellClassName="min-w-8" />}
 
             {/* Stat Highlights */}
-            <div className="flex flex-row text-[9px] gap-1.5 text-nowrap overflow-x-clip text-secondary">
+            <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
                 {card?.image.stat_highlights_list.map((stat, index) => (
                     <div key={index} className="">
                         {stat}

@@ -174,6 +174,11 @@ export type ShowdownBotCard = {
     chart_version: number;
     speed: Speed;
     icons: string[];
+    hand: string;
+
+    // Positions and Defense
+    player_type: string;
+    positions_and_defense_string: string;
 
     // Image
     image: ShowdownBotCardImage;

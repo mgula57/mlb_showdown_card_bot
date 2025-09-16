@@ -128,7 +128,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 </header>
 
                 {/* Main content */}
-                <main className={`flex-1 py-1 overflow-auto w-full relative`}>
+                <main className={`flex-1 overflow-auto w-full relative`}>
                     { children }
                 </main>
             </div>

@@ -284,10 +284,11 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
     }
 
     return (
-        <div className={`p-2 sm:p-6 flex flex-col gap-4 ${className}`}>
+        <div className={`flex flex-col ${className}`}>
 
             {/* Search Bar and Filters */}
-            <div className="flex flex-col gap-2 w-full">
+            <div className="sticky top-0 z-10 flex flex-col gap-2 w-full 
+                            bg-background-secondary/95 backdrop-blur p-3">
                 <div className="flex items-center space-x-2 px-2 text-lg">
                     <FaCompass className="text-primary" />
                     <span className="font-bold text-2xl text-nowrap">Explore Cards</span>
@@ -333,23 +334,27 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
 
             </div>
 
-            {cardDisplayType === CardDisplayFormat.GRID && (
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
-                    {/* Iterate through showdownCards and display each card */}
-                    {showdownCards?.map((cardRecord) => (
-                        <CardItem key={cardRecord.id} card={cardRecord.card_data} onClick={() => handleRowClick(cardRecord)} />
-                    ))}
-                </div>
-            )}
+            <div className="relative">
+                {cardDisplayType === CardDisplayFormat.GRID && (
+                    <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
+                        {/* Iterate through showdownCards and display each card */}
+                        {showdownCards?.map((cardRecord) => (
+                            <CardItem key={cardRecord.id} card={cardRecord.card_data} onClick={() => handleRowClick(cardRecord)} />
+                        ))}
+                    </div>
+                )}
 
-            {cardDisplayType === CardDisplayFormat.TABLE && (
-                <BasicDataTable 
-                    data={showdownCards || []}
-                    columns={showdownCardColumns}
-                    className="text-xs md:text-sm"
-                    onRowClick={handleRowClick}
-                />
-            )}
+                {cardDisplayType === CardDisplayFormat.TABLE && (
+                    <BasicDataTable 
+                        data={showdownCards || []}
+                        columns={showdownCardColumns}
+                        className="text-xs md:text-sm"
+                        onRowClick={handleRowClick}
+                    />
+                )}
+            </div>
+
+            
 
             {/* Player Detail Modal */}
             {showPlayerDetailModal && selectedCard && (
