@@ -386,7 +386,7 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                             {/* Filters options */}
 
                             <MultiSelect
-                                label="Organizations"
+                                label="Parent League"
                                 options={[
                                     { value: 'MLB', label: 'MLB' },
                                     { value: 'NGL', label: 'Negro Leagues' },

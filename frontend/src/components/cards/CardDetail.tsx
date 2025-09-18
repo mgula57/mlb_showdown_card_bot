@@ -23,6 +23,8 @@ import blankPlayerClassicLight from '../../assets/blankplayer-classic-light.png'
 import blankPlayerExpandedDark from '../../assets/blankplayer-expanded-dark.png';
 import blankPlayerExpandedLight from '../../assets/blankplayer-expanded-light.png';
 
+import { imageForSet } from "../shared/SiteSettingsContext";
+
 // Tables
 import { TableRealVsProjected } from './TableRealVsProjectedBreakdown';
 import { TableChartsBreakdown } from './TableChartsBreakdown';
@@ -258,6 +260,15 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                 >
                     {activeCardData?.card?.name.toUpperCase() || ""}
                 </a>
+
+                {/* Card Set */}
+                {imageForSet(activeCardData?.card?.set || '') && (
+                    <img 
+                        src={imageForSet(activeCardData?.card?.set || '') || ''}
+                        alt={activeCardData?.card?.set || ''}
+                        className="inline object-contain align-middle h-7"
+                    />
+                )}
 
                 {/* Iterate through attributes */}
                 {Object.entries(cardAttributes).map(([key, value]) => (
