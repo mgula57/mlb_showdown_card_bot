@@ -76,6 +76,27 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
     // Mark if isLoading or isGeneratingImage
     const isLoadingOverall = isLoading || isGeneratingImage;
 
+    // Game
+    const showGameBoxscore = (): boolean => {
+        if (!activeCardData?.latest_game_box_score) return false;
+        
+        try {
+            // Parse the date string without timezone conversion
+            const dateStr = activeCardData.latest_game_box_score.date;
+            const [year, month, day] = dateStr.split('-').map(Number);
+            
+            // Create date object in local timezone (no conversion)
+            const gameDate = new Date(year, month - 1, day, 12); // month is 0-indexed
+            const now = new Date();
+            const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000)); // 24 hours ago
+
+            return gameDate >= oneDayAgo;
+        } catch (error) {
+            console.error('Invalid date format:', activeCardData.latest_game_box_score.date);
+            return false;
+        }
+    };
+
     // --------------------------------
     // MARK: - EFFECTS
     // --------------------------------
@@ -296,10 +317,13 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
             </div>
 
             {/* Game Boxscore */}
-            <GameBoxscore 
-                boxscore={activeCardData?.latest_game_box_score || null} 
-                isLoading={isLoadingGameBoxscore} 
-            />
+            {showGameBoxscore() &&  (
+                <GameBoxscore 
+                    boxscore={activeCardData?.latest_game_box_score || null} 
+                    isLoading={isLoadingGameBoxscore} 
+                />
+            )}
+            
 
             {/* Image and Breakdown Tables */}
             <div
