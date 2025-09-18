@@ -107,7 +107,7 @@ class PostgresDB:
         db_cursor = self.connection.cursor(cursor_factory=RealDictCursor)
 
         # PRINT QUERY AND FILTER VALUES FOR DEBUGGING
-        # print(db_cursor.mogrify(query, filter_values).decode())
+        print(db_cursor.mogrify(query, filter_values).decode())
 
         try:
             db_cursor.execute(query, filter_values)
@@ -445,13 +445,8 @@ class PostgresDB:
                     # For JSONB array fields, use @> operator to check if array contains any of the values
                     if key in ['positions', 'secondary_positions', 'primary_positions']:
                         # Check if any of the provided positions are in the player's positions
-                        position_checks = []
-                        for pos in value:
-                            position_checks.append(sql.SQL("positions_and_defense ? %s"))
-                            filter_values.append(pos)
-                        filter_clauses.append(sql.SQL("({})").format(
-                            sql.SQL(" OR ").join(position_checks)
-                        ))
+                        filter_clauses.append(sql.SQL("positions_list && %s"))
+                        filter_values.append(value)
                     else:
                         # Regular IN clause for non-array fields
                         placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
