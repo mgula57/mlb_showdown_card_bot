@@ -3,7 +3,6 @@ import { BrowserRouter, useLocation } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import CustomCardBuilder from "./components/customs/CustomCardBuilder";
 import { SiteSettingsProvider } from "./components/shared/SiteSettingsContext";
-import HomePage from "./components/home/HomePage";
 import ShowdownCardTable from "./components/cards/ShowdownCardTable";
 
 /** Handles defining content within each route */
@@ -13,10 +12,7 @@ const AppContent = () => {
     return (
         <AppLayout>
             {/* All components are always mounted */}
-            <div className={location.pathname === '/' ? 'block' : 'hidden'}>
-                <HomePage />
-            </div>
-            <div className={location.pathname === '/customs' ? 'block' : 'hidden'}>
+            <div className={['/customs', '/'].includes(location.pathname) ? 'block' : 'hidden'}>
                 <CustomCardBuilder isHidden={location.pathname !== '/customs'} />
             </div>
             <div className={location.pathname === '/explore' ? 'block' : 'hidden'}>

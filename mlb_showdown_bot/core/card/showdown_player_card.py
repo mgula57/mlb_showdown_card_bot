@@ -101,6 +101,7 @@ class ShowdownPlayerCard(BaseModel):
     # PROCESSED BY CLASS
     image: ShowdownImage = ShowdownImage()
     chart: Chart = None
+    positions_list: list[Position] = []
     positions_and_defense: dict[Position, int] = {}
     positions_and_defense_for_visuals: dict[str, int] = {}
     positions_and_defense_string: str = ''
@@ -213,6 +214,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # POSITIONS_AND_DEFENSE, HAND, IP, SPEED, SPEED_LETTER
         self.positions_and_defense, self.positions_and_real_life_ratings, self.positions_and_games_played = self._positions_and_defense(stats_dict=self.stats_for_card)
+        self.positions_list = list(self.positions_and_defense.keys())
         self.positions_and_defense_for_visuals: dict[str, int] = self.calc_positions_and_defense_for_visuals()
         self.positions_and_defense_string: str = self.positions_and_defense_as_string(is_horizontal=True)
         self.player_sub_type = self.calculate_player_sub_type()

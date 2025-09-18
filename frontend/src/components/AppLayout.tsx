@@ -50,9 +50,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     const contentPadding = isSideMenuOpen ? 'md:pl-48' : 'md:pl-12';
     const location = useLocation();
-    const locationName = location.pathname.split('/')[1] || 'home';
+    const locationName = location.pathname.split('/')[1] || 'customs';
 
-    const headerTitle: string = TITLE_MAP[locationName] || "Home";
+    const headerTitle: string = TITLE_MAP[locationName] || "customs";
 
     // Save side menu state to localStorage whenever it changes
     useEffect(() => {

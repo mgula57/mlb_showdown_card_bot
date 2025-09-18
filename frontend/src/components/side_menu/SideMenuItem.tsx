@@ -1,7 +1,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
-import { FaHome, FaAddressCard, FaCompass } from "react-icons/fa";
+import { FaAddressCard, FaCompass } from "react-icons/fa";
 
 /** Props for the side menu item component */
 type SideMenuItemProps = {
@@ -17,6 +17,9 @@ type SideMenuItemProps = {
  */
 export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen, selectedItem, onClick }) => {
 
+    const selectedPath = selectedItem?.path || '/';
+    const isSelected = selectedPath === item.path || (selectedPath === '/' && item.path === '/customs');
+
     return (
         <NavLink 
             to={item.path} 
@@ -25,7 +28,7 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
                 flex items-center h-4 py-6 rounded-md
                 hover:bg-[var(--background-tertiary)] cursor-pointer
                 ${isSideMenuOpen ? 'justify-start pl-4' : 'justify-center'}
-                ${selectedItem?.path === item.path ? 'bg-tertiary' : ''}
+                ${isSelected ? 'bg-tertiary' : ''}
             `}>
                 { item.icon && <item.icon/>}
                 <h2 className={`${isSideMenuOpen ? 'block' : 'hidden'} pl-2 text-lg font-semibold text-primary`}>{item.text}</h2>
@@ -35,11 +38,6 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
 
 /** Side menu items for navigation */
 export const sideMenuItems: SideMenuItemType[] = [
-    {
-        text: "Home",
-        icon: FaHome,
-        path: "/"
-    },
     {
         text: "Customs",
         icon: FaAddressCard,

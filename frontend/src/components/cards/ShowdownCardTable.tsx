@@ -310,9 +310,8 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                     <button 
                         onClick={handleOpenFilters}
                         className="
-                            px-3 py-2 
-                            rounded-lg bg-[var(--background-secondary)] border border-form-element 
-                            text-sm font-semibold 
+                            px-3 h-11
+                            rounded-xl bg-[var(--background-secondary)] border-2 border-form-element 
                             flex items-center space-x-2
                             hover:bg-[var(--background-secondary-hover)]
                         ">
@@ -327,7 +326,7 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                             { value: CardDisplayFormat.GRID, label: "Grid", icon: <FaGripHorizontal /> },
                             { value: CardDisplayFormat.TABLE, label: "Table", icon: <FaTable /> },
                         ]}
-                        className="w-32"
+                        className="w-24"
                     />
 
                 </div>
@@ -348,7 +347,7 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                     <BasicDataTable 
                         data={showdownCards || []}
                         columns={showdownCardColumns}
-                        className="text-xs md:text-sm"
+                        className="text-xs md:text-sm mx-3 mb-3"
                         onRowClick={handleRowClick}
                     />
                 )}
