@@ -116,7 +116,6 @@ def archive(
 
     try:
         year_list = convert_year_string_to_list(years)
-        player_stats_archive = PlayerStatsArchive(years=year_list, is_snapshot=False)
 
         # RUN DAILY MID-SEASON UPDATE
         if daily_mid_season_update and year_list == [datetime.now().year]:
@@ -125,10 +124,12 @@ def archive(
             
         # UPDATE PLAYER LIST
         if run_player_list:
+            player_stats_archive = PlayerStatsArchive(years=year_list, is_snapshot=False)
             player_stats_archive.generate_player_list(delay_between_years=0.5, publish_to_postgres=publish_to_postgres)
             print(f"Total players found: {len(player_stats_archive.player_list)}")
 
         if run_player_stats:
+            player_stats_archive = PlayerStatsArchive(years=year_list, is_snapshot=False)
             player_stats_archive.scrape_stats_for_player_list(
                 publish_to_postgres=publish_to_postgres, 
                 exclude_records_with_stats=exclude_records_with_stats,

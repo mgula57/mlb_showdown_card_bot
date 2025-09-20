@@ -1,8 +1,6 @@
 import urllib
 import cloudscraper
-import os
-import pandas as pd
-from pathlib import Path
+import traceback
 from bs4 import BeautifulSoup
 from pprint import pprint
 from time import sleep
@@ -254,25 +252,35 @@ class PlayerStatsArchive:
                     )
                 ]
 
+        # SORT BY bWAR DESC
+        self.player_list.sort(key=lambda x: (x.war or 0, x.g or 0), reverse=True) # WILL PRIORITIZE PLAYERS WITH MOST WINS ABOVE REPLACEMENT
+
         # SCRAPE STATS AND INSERT/UPDATE DB RECORDS
         total_players = min(len(self.player_list), limit) if limit else len(self.player_list)
         for index, player in enumerate(self.player_list, start=1):
 
-            # SETUP TIME ESTIMATE
-            est_time_remaining_seconds = (total_players - index) * (delay + 2.0) # 2.0 IS FOR SLEEP MECHANISMS WITHIN BREF CLASS
-            est_time_remaining_mins = round(est_time_remaining_seconds / 60.0, 2)
-            est_time_remaining_hours = round(est_time_remaining_mins / 60.0, 2)
-            time_unit = "HOURS" if est_time_remaining_mins > 120 else "MINS"
-            time_value = est_time_remaining_hours if time_unit == 'HOURS' else est_time_remaining_mins
+            try:
 
-            print(f"  {index}/{total_players}: {player.name: <20} ({time_value} {time_unit} LEFT)")
-            player.scrape_stats_data()
-            if publish_to_postgres:
-                db.upsert_stats_archive_row(cursor=db_cursor, data=player.as_dict(convert_stats_to_json=True), conflict_strategy="update_stats_only")
-            if limit:
-                if index >= limit:
-                    break
-            sleep(delay)
+                # SETUP TIME ESTIMATE
+                est_time_remaining_seconds = (total_players - index) * (delay + 2.0) # 2.0 IS FOR SLEEP MECHANISMS WITHIN BREF CLASS
+                est_time_remaining_mins = round(est_time_remaining_seconds / 60.0, 2)
+                est_time_remaining_hours = round(est_time_remaining_mins / 60.0, 2)
+                time_unit = "HOURS" if est_time_remaining_mins > 120 else "MINS"
+                time_value = est_time_remaining_hours if time_unit == 'HOURS' else est_time_remaining_mins
+
+                print(f"  {index}/{total_players}: {player.name: <20} ({time_value} {time_unit} LEFT)")
+                player.scrape_stats_data()
+                if publish_to_postgres:
+                    db.upsert_stats_archive_row(cursor=db_cursor, data=player.as_dict(convert_stats_to_json=True), conflict_strategy="update_stats_only")
+                if limit:
+                    if index >= limit:
+                        break
+                
+                sleep(delay)
+
+            except Exception as e:
+                print(f"ERROR PROCESSING PLAYER {player.name} {player.year} - {e}")
+                sleep(delay)
 
         if publish_to_postgres:
             # CLOSE CONNECTION
