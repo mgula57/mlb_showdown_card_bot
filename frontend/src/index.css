@@ -18,6 +18,7 @@
     --table-banding: #eeecec;
 
     --warning: #F3CE32;
+    --success: #4BB543;
 }
 
 .dark {
@@ -38,6 +39,7 @@
     --table-banding: #1c1c1c;
 
     --warning: #e9de3f;
+    --success: #4dc545;
 }
 
 /* Custom Fonts */
@@ -129,6 +131,37 @@
 
 .slide-in-animation {
   animation: slideInFade 0.5s ease-out;
+}
+
+/* Slide in/out */
+@keyframes slideInFromRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutToRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.slide-in {
+    animation: slideInFromRight 0.3s ease-out forwards;
+}
+
+.slide-out {
+    animation: slideOutToRight 0.3s ease-in forwards;
 }
 
 /* Set default text color for entire app */

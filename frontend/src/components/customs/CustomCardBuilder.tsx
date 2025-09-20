@@ -29,9 +29,10 @@ import editionSS from '../../assets/edition-ss.png';
 // Icons
 import { 
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle, 
-    FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown
+    FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
+    FaCheckCircle
 } from 'react-icons/fa';
-import { FaShuffle, FaXmark, FaRotateLeft } from 'react-icons/fa6';
+import { FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck } from 'react-icons/fa6';
 
 // ----------------------------------
 // MARK: - Form Interface
@@ -105,6 +106,14 @@ const FORM_DEFAULTS: CustomCardFormState = {
     is_variable_speed_00_01: false
 };
 
+type loadingStatusContent = {
+    message: string;
+    subMessage?: string;
+    icon?: React.ReactNode;
+    backgroundColor?: string;
+    removeAfterSeconds?: number;
+}
+
 // ----------------------------------
 // MARK: - Local Storage
 // ----------------------------------
@@ -158,6 +167,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [query, _] = useState("");
     const [isFormCollapsed, setIsFormCollapsed] = useState(false);
+    const previewSectionRef = useRef<HTMLDivElement>(null);
+
+    // Loading Status
+    const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
+    const [isLoadingStatusVisible, setIsLoadingStatusVisible] = useState(false);
+    const [isLoadingStatusExiting, setIsLoadingStatusExiting] = useState(false);
 
     // Animation
     const animationTw = 'transition-all duration-200 ease-in-out';
@@ -574,6 +589,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             if (cardData.error_for_user) {
                 console.log("Card build error:", cardData);
                 setIsProcessingCard(false);
+                setLoadingStatus({
+                    message: "Error",
+                    subMessage: cardData.error_for_user,
+                    icon: <FaExclamationCircle className="text-sm"/>,
+                    backgroundColor: "rgb(255, 155, 155)", // Red
+                    removeAfterSeconds: 5,
+                });
                 return;
             }
 
@@ -581,8 +603,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             setShowdownBotCardData(cardData);
             
             console.log("Card built successfully:", cardData);
+            const priorSubMessage = loadingStatus?.subMessage || "";
 
             lastFormRef.current = card_payload; // Store form data for live updates
+            setLoadingStatus({
+                message: "Done!",
+                subMessage: priorSubMessage, // Keep previous subMessage
+                icon: <FaCircleCheck className="text-sm"/>,
+                backgroundColor: "var(--success)", // Green
+                removeAfterSeconds: 3,
+            });
             setIsProcessingCard(false);
 
         } catch (err) {
@@ -603,6 +633,25 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             return;
         }
 
+        const firstInitial = `${form.name.trim() ? form.name.trim()[0] : ""}.`;
+        const lastName = form.name.trim().split(" ").slice(1).join(" ") || "";
+        const subMessage = `${firstInitial} ${lastName} | ${form.year}`;
+        setLoadingStatus({
+            message: "Building...",
+            subMessage: subMessage,
+            icon: <FaBaseballBall
+                        className="text-sm animate-bounce"
+                        style={{
+                            animationDuration: '0.6s',
+                            animationIterationCount: 'infinite'
+                        }}
+                    />,
+            backgroundColor: "rgb(255, 193, 7)", // Amber
+        });
+
+        // Scroll to preview on mobile after a short delay to allow loading status to appear
+        setTimeout(scrollToPreviewOnMobile, 200);
+
         submitCard(form);
     };
 
@@ -611,6 +660,39 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         // Prevent multiple submissions
         if (isProcessingCard) return; 
+
+        // Define language shown to user 
+        var elements: string[] = [];
+        if (form.year.length > 0) {
+            elements.push(`${form.year}`);
+        }
+        if (elements.length < 1 && form.stats_period_type === 'ERA') {
+            const eraTitled = form.era?.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+            elements.push(`${eraTitled}`);
+        }
+        if (form.edition == "CC") {
+            elements.push("HOF");
+        } else if (form.edition == "SS") {
+            elements.push("AS or 5+ bWAR");
+        } else if (form.edition == "RS") {
+            elements.push("Rookie");
+        } else if (form.edition == "ASG") {
+            elements.push("All-Star");
+        }
+        const subMessage = elements.join(", ");
+
+        setLoadingStatus({
+            message: "Shuffling...",
+            subMessage: subMessage,
+            icon: <FaShuffle
+                        className="text-sm animate-bounce"
+                        style={{
+                            animationDuration: '0.6s',
+                            animationIterationCount: 'infinite'
+                        }}
+                    />,
+            backgroundColor: "rgb(255, 193, 7)", // Amber
+        });
 
         // Use form data but replace name with shuffle key
         const shuffledForm = {
@@ -650,6 +732,55 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [form, isHidden]); // Re-bind when form changes so handleBuild has latest state
+
+    // Handle loading status removal after a delay
+    useEffect(() => {
+        if (loadingStatus?.removeAfterSeconds) {
+            const timer = setTimeout(() => {
+
+                setIsLoadingStatusExiting(true);
+
+                // After exit animation completes, remove the status
+                const exitTimer = setTimeout(() => {
+                    setLoadingStatus(null);
+                    setIsLoadingStatusVisible(false);
+                    setIsLoadingStatusExiting(false);
+                }, 300); // Match animation duration
+                
+                return () => clearTimeout(exitTimer);
+
+            }, loadingStatus.removeAfterSeconds * 1000); // Convert seconds to milliseconds
+
+            // Cleanup timer if component unmounts or loadingStatus changes
+            return () => clearTimeout(timer);
+        }
+    }, [loadingStatus]);
+
+    // Show the loading status when it appears
+    useEffect(() => {
+        if (loadingStatus) {
+            setIsLoadingStatusVisible(true);
+            setIsLoadingStatusExiting(false);
+        }
+    }, [loadingStatus]);
+
+    // Add this helper function
+    const scrollToPreviewOnMobile = () => {
+        // Only scroll on mobile/tablet screens
+        if (window.innerWidth >= 1024) return; // @2xl breakpoint
+    
+        // First try to find the preview section by ID (add an ID to it)
+        const previewElement = document.getElementById('preview-section');
+        if (previewElement) {
+            previewElement.scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
+        
+        // Fallback to ref method
+        if (previewSectionRef.current) {
+            previewSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
 
     // ---------------------------------
     // MARK: Image Uploads
@@ -781,6 +912,33 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 @2xl:overflow-hidden 
                 @2xl:h-[calc(100vh-3rem)]
             ">
+                {/* Loading Indicator */}
+                {loadingStatus && (
+                    <div
+                        className={`
+                            absolute top-5 right-5 z-50 rounded-xl px-4 py-3 text-sm
+                            text-black shadow-xl
+                            max-w-56
+                            ${isLoadingStatusExiting 
+                                ? 'slide-out' 
+                                : 'slide-in'
+                            }
+                        `}
+                        style={{
+                            backgroundColor: loadingStatus?.backgroundColor ? loadingStatus.backgroundColor : 'rgb(255, 193, 7)', // Default Amber
+                        }}
+                    >
+                        <button className="flex flex-col gap-1">
+                            <div className='flex items-center gap-1'>
+                                {loadingStatus?.icon}
+                                <b className='inline font-bold'>{loadingStatus?.message}</b>
+                            </div>
+
+                            <span className='text-xs' style={{ textTransform: 'capitalize' }}>{loadingStatus?.subMessage}</span>
+                        </button>
+                    </div>
+                )}
+                
 
                 {/* Form Inputs */}
                 <section className={`
@@ -796,10 +954,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     <div className={`flex-1 overflow-y-auto pt-4 ${animationTw} ${isFormCollapsed ? 'px-1' : 'px-4'}`}>
 
                         {/* Search and Form Inputs */}
-                        <div className={`space-y-4 ${animationTw} ${isFormCollapsed ? 'pb-2' : 'pb-6'} @2xl:pb-64 justify-center`}>
+                        <div className={`flex-col flex gap-4 ${animationTw} ${isFormCollapsed ? 'pb-2' : 'pb-6'} @2xl:pb-64 justify-center`}>
 
                             {/* Search Box and Collapse Button */}
-                            <div className='flex col-span-full pb-2 gap-2 mb-0'>
+                            <div className='flex col-span-full gap-2 mb-0'>
                                 <PlayerSearchInput
                                     label=""
                                     value={query}
@@ -1133,7 +1291,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             w-1/2
                                             rounded-xl
                                             bg-yellow-500
-                                            ${disableBuildButton
+                                            ${isProcessingCard
                                                 ? 'cursor-not-allowed opacity-25'
                                                 : 'hover:bg-yellow-500/50 cursor-pointer'
                                             }
@@ -1171,10 +1329,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 </section>
 
                 {/* Preview Section */}
-                <section className="
-                    w-full @2xl:flex-grow
-                    pb-64 @2xl:pb-0
-                ">
+                <section 
+                    ref={previewSectionRef}
+                    className="
+                        w-full @2xl:flex-grow
+                        pb-64 @2xl:pb-0
+                    "
+                >
                     <CardDetail 
                         showdownBotCardData={showdownBotCardData} 
                         isLoading={isProcessingCard} 
