@@ -799,7 +799,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         <div className={`space-y-4 ${animationTw} ${isFormCollapsed ? 'pb-2' : 'pb-6'} @2xl:pb-64 justify-center`}>
 
                             {/* Search Box and Collapse Button */}
-                            <div className='flex col-span-full pb-2 gap-2'>
+                            <div className='flex col-span-full pb-2 gap-2 mb-0'>
                                 <PlayerSearchInput
                                     label=""
                                     value={query}
