@@ -20,12 +20,13 @@ type CustomSelectProps = {
     className?: string; // Optional className for additional styling
     buttonClassName?: string; // Optional className for the button
     imageClassName?: string; // Optional className for the image
+    labelClassName?: string; // Optional className for the text
     dropdownClassName?: string; // Optional className for the dropdown menu
     suffix?: string; // Optional suffix to display after the selected value
 };
 
 /** Custom select component for selecting an option from a dropdown list. */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", dropdownClassName = "" }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "" }) => {
 
     /** State to manage dropdown open/close */
     const [isOpen, setIsOpen] = useState(false);
@@ -139,7 +140,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                     { renderImage(options.find(option => option.value === value)?.image) }
                     { renderSymbol(options.find(option => option.value === value)?.symbol) }
                     { renderIcon(options.find(option => option.value === value)?.icon) }
-                    {options.find(option => option.value === value)?.label || null}
+                    <span className={labelClassName}> {options.find(option => option.value === value)?.label || null} </span>
                     {suffix && <span className='ml-1'>{suffix}</span>}
                 </div>
             </button>

@@ -83,7 +83,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
                 </ul>
 
                 {/* Footer: Theme Toggle Button */}
-                <div className="p-2">
+                <div className="p-2 pb-10 sm:pb-auto">
                     <ThemeToggleButton />
                 </div>
 

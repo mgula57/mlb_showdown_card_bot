@@ -8,7 +8,7 @@ import { Modal } from "../shared/Modal";
 import CardChart from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { imageForSet, useSiteSettings } from "../shared/SiteSettingsContext";
-import { FaCompass, FaFilter, FaGripHorizontal, FaTable } from "react-icons/fa";
+import { FaCompass, FaFilter, FaGripHorizontal, FaTable, FaBaseballBall } from "react-icons/fa";
 
 // Filter components
 import FormInput from "../customs/FormInput";
@@ -312,11 +312,11 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                         className="
                             px-3 h-11
                             rounded-xl bg-[var(--background-secondary)] border-2 border-form-element 
-                            flex items-center space-x-2
+                            flex items-center gap-2
                             hover:bg-[var(--background-secondary-hover)]
                         ">
                             <FaFilter className="text-primary" />
-                            <span>Filter</span>
+                            <span className="hidden sm:inline">Filter</span>
                     </button>
 
                     <CustomSelect
@@ -353,7 +353,26 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                 )}
             </div>
 
-            
+            {/* Add Loading Indicator in the middle of the screen */}
+            {isLoading && (
+                <div className="
+                    absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+                    bg-[var(--background-secondary)]/50 backdrop-blur 
+                    p-4 rounded-2xl
+                    flex items-center space-x-2
+                ">
+                    <FaBaseballBall 
+                        className="
+                            text-3xl
+                            animate-bounce
+                        " 
+                        style={{
+                            animationDuration: '0.7s',
+                            animationIterationCount: 'infinite'
+                        }}
+                    />
+                </div>
+            )}
 
             {/* Player Detail Modal */}
             {showPlayerDetailModal && selectedCard && (
@@ -367,7 +386,7 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
             {/* Filters Modal */}
             {showFiltersModal && (
                 <Modal onClose={handleFilterApply}>
-                    <div className="p-4 min-h-72">
+                    <div className="p-4 min-h-48 max-h-[70vh] overflow-y-auto">
                         <div className="flex gap-3 mb-4 items-center border-b-2 border-form-element pb-2">
                             <h2 className="text-xl font-bold">Filter Options</h2>
                             <button 

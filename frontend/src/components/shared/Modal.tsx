@@ -59,7 +59,7 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
                     shadow-2xl 
                     w-full 
                     ${sizeClasses[size]}
-                    max-h-[90vh] 
+                    max-h-[85vh] 
                     overflow-y-auto
                     cursor-default
                     relative
