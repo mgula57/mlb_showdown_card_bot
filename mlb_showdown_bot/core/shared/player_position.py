@@ -167,6 +167,15 @@ class PlayerType(Enum):
     def sub_types(self) -> list[PlayerSubType]:
         return [PlayerSubType.POSITION_PLAYER] if self.is_hitter else [PlayerSubType.STARTING_PITCHER, PlayerSubType.RELIEF_PITCHER]
 
+    # ---------------------------------------
+    # BREF
+    # ---------------------------------------
+    
+    @property
+    def bref_standard_page_name(self) -> str:
+        """Name used in the baseball reference page for standard stats"""
+        return "batting" if self.name == "HITTER" else "pitching"
+
 
 class Position(MultiValueEnum):
 

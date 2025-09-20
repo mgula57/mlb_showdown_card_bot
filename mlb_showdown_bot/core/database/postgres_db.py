@@ -621,28 +621,71 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def upsert_stats_archive_row(self, cursor, data:dict, skip_upsert:bool = False) -> None:
+    def upsert_stats_archive_row(self, cursor, data:dict, conflict_strategy:str = "do_nothing") -> None:
         """Upsert record into stats archive. 
         Insert record if it does not exist, otherwise update the row's `stats` and `modified_date` values
 
         Args:
           cursor: psycopg Cursor object.
           data: data to store.
+          conflict_strategy: "do_nothing", "update_all_columns", "update_stats_only"
         
+        Returns:
+          None
         """
         columns = data.keys()
         values = data.values()
-        if skip_upsert:
-            insert_statement = '''
-                INSERT INTO STATS_ARCHIVE (%s) VALUES %s
-                ON CONFLICT (id) DO NOTHING
-            '''
-        else:
-            insert_statement = '''
-                INSERT INTO STATS_ARCHIVE (%s) VALUES %s
-                ON CONFLICT (id) DO UPDATE SET
-                (modified_date, stats) = (NOW(), EXCLUDED.stats)
-            '''
+        match conflict_strategy:
+            case "do_nothing":
+                insert_statement = '''
+                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    ON CONFLICT (id) DO NOTHING
+                '''
+            case "update_all_columns":
+                insert_statement = '''
+                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    ON CONFLICT (id) DO UPDATE SET
+                    (
+                        year, historical_date, name, 
+                        player_type, player_type_override, is_two_way, 
+                        primary_positions, secondary_positions, 
+                        g, gs, pa, ip, lg_id, team_id, team_id_list, team_games_played_dict, team_override, 
+                        modified_date, stats, stats_modified_date
+                    ) =
+                    (
+                        EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, 
+                        EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way, 
+                        EXCLUDED.primary_positions, EXCLUDED.secondary_positions, 
+                        EXCLUDED.g, EXCLUDED.gs, EXCLUDED.pa, EXCLUDED.ip, EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override, 
+                        NOW(), EXCLUDED.stats, NOW()
+                    )
+                '''
+            case "update_all_exclude_stats":
+                insert_statement = '''
+                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    ON CONFLICT (id) DO UPDATE SET
+                    (
+                        year, historical_date, name, 
+                        player_type, player_type_override, is_two_way, 
+                        primary_positions, secondary_positions, 
+                        g, gs, pa, ip, lg_id, team_id, team_id_list, team_games_played_dict, team_override, 
+                        modified_date
+                    ) =
+                    (
+                        EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, 
+                        EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way, 
+                        EXCLUDED.primary_positions, EXCLUDED.secondary_positions, 
+                        EXCLUDED.g, EXCLUDED.gs, EXCLUDED.pa, EXCLUDED.ip, EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override, 
+                        NOW()
+                    )
+                '''
+            case "update_stats_only":
+                insert_statement = '''
+                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    ON CONFLICT (id) DO UPDATE SET
+                    (stats_modified_date, stats) = (NOW(), EXCLUDED.stats)
+                '''
+
         cursor.execute(insert_statement, (AsIs(','.join(columns)), tuple(values)))
         
     def upload_to_card_data(self, showdown_cards: list[ShowdownPlayerCard], batch_size: int = 1000) -> None:

@@ -111,8 +111,8 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
         year: activeCardData.card.year,
         expansion: activeCardData.card.image.expansion == "BS" ? null : activeCardData.card.image.expansion,
         edition: activeCardData.card.image.edition == "NONE" ? null : activeCardData.card.image.edition,
-        chart_version: activeCardData.card.chart_version == 1 ? null : activeCardData.card.chart_version,
-        parallel: activeCardData.card.image.parallel == "NONE" ? null : activeCardData.card.image.parallel,
+        chart_version: activeCardData.card.chart_version == 1 ? null : `CHART ${activeCardData.card.chart_version}`,
+        parallel: activeCardData.card.image.parallel == "NONE" ? null : `PARALLEL: ${activeCardData.card.image.parallel}`,
     } : {};
     const weeklyChangePoints = activeCardData?.in_season_trends?.pts_change?.week || null;
     const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-green-500' : 'text-red-500') : '';

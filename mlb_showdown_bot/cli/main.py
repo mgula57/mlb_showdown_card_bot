@@ -2,6 +2,9 @@ import typer, click
 from typing import Optional
 from pydantic import BaseModel
 from pprint import pprint
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # INTERNAL
 from ..core.card.card_generation import *
@@ -87,8 +90,26 @@ def card(
     return payload
 
 @app.command()
-def sim(year: int = typer.Option(..., "--year", "-y", help="Year of the simulation")):
-    print(f"Sim command: year={year}")
+def archive(
+    years: str = typer.Option(None, "--years", "-y", help="Which year(s) to archive."),
+    publish_to_postgres: bool = typer.Option(False, "--publish_to_postgres", "-pg", help="Publish archived data to Postgres"),
+    run_player_list: bool = typer.Option(False, "--run_player_list", "-list", help="Scrape player list from baseball reference"),
+):
+    """Archive player stats to Postgres"""
+    from ..core.archive.player_stats_archive import PlayerStatsArchive
+    from ..core.card.utils.shared_functions import convert_year_string_to_list
+
+    try:
+        year_list = convert_year_string_to_list(years)
+        player_stats_archive = PlayerStatsArchive(years=year_list, is_snapshot=False)
+
+        if run_player_list:
+            player_stats_archive.generate_player_list(delay_between_years=0.5, publish_to_postgres=publish_to_postgres)
+            print(f"Total players found: {len(player_stats_archive.player_list)}")
+
+    except Exception as e:
+        print(f"Error archiving player stats: {e}")
+
 
 if __name__ == "__main__":
     app()
