@@ -1,1 +1,15 @@
-static/interface/*
+
+*.md
+*.txt
+docs/
+test/
+tests/
+spec/
+frontend/node_modules/.cache/
+frontend/dist/stats.html
+frontend/src/**/*.test.tsx
+frontend/src/**/*.spec.tsx
+.git/
+.github/
+.vscode/
+*.log
