@@ -1,6 +1,5 @@
 
 *.md
-*.txt
 docs/
 test/
 tests/
