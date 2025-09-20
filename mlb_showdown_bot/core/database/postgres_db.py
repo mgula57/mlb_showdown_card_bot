@@ -37,6 +37,7 @@ class PlayerArchive(BaseModel):
     created_date: datetime
     modified_date: datetime
     stats: dict
+    stats_modified_date: Optional[datetime] = None
 
     @property
     def player_subtype(self) -> str:
@@ -106,12 +107,11 @@ class PostgresDB:
         
         db_cursor = self.connection.cursor(cursor_factory=RealDictCursor)
 
-        # PRINT QUERY AND FILTER VALUES FOR DEBUGGING
-        print(db_cursor.mogrify(query, filter_values).decode())
-
+        # PRINT QUERY AND FILTER VALUES FOR DEBUGGING        
         try:
             db_cursor.execute(query, filter_values)
         except:
+            print(db_cursor.mogrify(query, filter_values).decode())
             return []
         output = [dict(row) for row in db_cursor.fetchall()]
 
@@ -224,11 +224,11 @@ class PostgresDB:
         conditions = [sql.SQL(' IS ' if col == "historical_date" and historical_date is None else f" {where_clause_values_equals_str} ").join([sql.Identifier(col), sql.Placeholder()]) for col in column_names_to_filter]
 
         if modified_start_date:
-            conditions.append(sql.SQL(' >= ').join([sql.Identifier("modified_date"), sql.Placeholder()]))
+            conditions.append(sql.SQL(' >= ').join([sql.Identifier("stats_modified_date"), sql.Placeholder()]))
             values_to_filter.append(modified_start_date)
 
         if modified_end_date:
-            conditions.append(sql.SQL(' <= ').join([sql.Identifier("modified_date"), sql.Placeholder()]))
+            conditions.append(sql.SQL(' <= ').join([sql.Identifier("stats_modified_date"), sql.Placeholder()]))
             values_to_filter.append(modified_end_date)
             
         where_clause = sql.SQL(' AND ').join(conditions)
@@ -628,7 +628,7 @@ class PostgresDB:
         Args:
           cursor: psycopg Cursor object.
           data: data to store.
-          conflict_strategy: "do_nothing", "update_all_columns", "update_stats_only"
+          conflict_strategy: "do_nothing", "update_all_columns", "update_all_exclude_stats", "update_stats_only"
         
         Returns:
           None

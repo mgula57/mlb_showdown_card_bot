@@ -1,9 +1,10 @@
 import json
 import os, fnmatch, operator
 from enum import Enum
+from datetime import datetime
 
 from ..card.stats.baseball_ref_scraper import BaseballReferenceScraper
-from ..card.showdown_player_card import ShowdownPlayerCard, PlayerType
+from ..card.showdown_player_card import ShowdownPlayerCard, PlayerType, StatsPeriod, StatsPeriodType
 
 class PlayerSubType(Enum):
 
@@ -65,6 +66,11 @@ class PlayerStats:
         self.primary_positions = self.__convert_position_summary_to_list(position_summary=pos_summary_str)
         self.secondary_positions = self.__convert_position_summary_to_list(position_summary=pos_summary_str, is_secondary_positions=True)
 
+        # MODIFIED DATES
+        self.created_date: datetime = None
+        self.modified_date: datetime = None
+        self.stats_modified_date: datetime = None
+
 # ------------------------------------------------------------------------
 # GET FULL STATS FROM BREF/SAVANT
 # ------------------------------------------------------------------------
@@ -79,8 +85,10 @@ class PlayerStats:
         Returns:
           None
         """
-        scraper = BaseballReferenceScraper(name=self.bref_id_and_overrides, year=str(self.year), ignore_cache=True)
-        self.stats = scraper.player_statline()
+
+        stats_period = StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=str(self.year))
+        baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, name=self.bref_id_and_overrides, year=str(self.year), ignore_cache=True, ignore_archive=True)
+        self.stats = baseball_reference_stats.fetch_player_stats()
 
 # ------------------------------------------------------------------------
 # PROPERTIES

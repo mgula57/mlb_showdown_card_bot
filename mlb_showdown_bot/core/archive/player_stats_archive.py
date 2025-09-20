@@ -6,7 +6,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from pprint import pprint
 from time import sleep
-from datetime import date
+from datetime import date, datetime
 
 from ..database.postgres_db import PostgresDB, PlayerArchive
 from .player_stats import PlayerStats, PlayerType
@@ -138,6 +138,7 @@ class PlayerStatsArchive:
                             data=player_stats.as_dict(convert_stats_to_json=True), 
                             conflict_strategy="update_all_exclude_stats"
                         )
+                        player_stats.modified_date = datetime.now()
 
                 if len(updated_player_stats_list) == 0:
                     print(f"WARNING: NO PLAYERS ELIGIBLE FOR {year} {type.value}")
@@ -257,7 +258,7 @@ class PlayerStatsArchive:
             print(f"  {index}/{total_players}: {player.name: <20} ({time_value} {time_unit} LEFT)", end="\r")
             player.scrape_stats_data()
             if publish_to_postgres:
-                db.upsert_stats_archive_row(cursor=db_cursor, data=player.as_dict(convert_stats_to_json=True))
+                db.upsert_stats_archive_row(cursor=db_cursor, data=player.as_dict(convert_stats_to_json=True), conflict_strategy="update_stats_only")
             if limit:
                 if index >= limit:
                     break

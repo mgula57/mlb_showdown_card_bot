@@ -252,6 +252,7 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     kwargs.pop('name', None) # Remove name from kwargs to avoid confusion
     kwargs.pop('print_to_cli', None) # Remove print_to_cli from kwargs to avoid confusion
     kwargs.pop('show_image', None) # Remove show_image from kwargs to avoid confusion
+    kwargs.pop('chart_version', None) # Remove year from kwargs to avoid confusion
     
     for year_archive in yearly_archive_data:
 
@@ -268,6 +269,7 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
                 player_type_override=year_archive.player_type_override,
                 print_to_cli=False,
                 show_image=False,
+                chart_version=1,
                 **filtered_kwargs
             )
             if yearly_card.player_type != actual_card.player_type:
@@ -300,6 +302,7 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     # REMOVE PRINT TO CLI
     kwargs.pop('print_to_cli', None)
     kwargs.pop('show_image', None)
+    kwargs.pop('chart_version', None)
     
     # CHECK FOR GAME LOGS
     game_logs = actual_card.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, [])
@@ -338,6 +341,7 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
             weekly_card = ShowdownPlayerCard(
                 stats_period=StatsPeriod(type=StatsPeriodType.DATE_RANGE, year=str(year), start_date=start_date, end_date=end_date),
                 stats=actual_card.stats,
+                chart_version=1,
                 **kwargs,
             )
             in_season_trends_data[end_date_str] = weekly_card.trend_line_data()
