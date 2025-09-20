@@ -1,3 +1,31 @@
+/* iOS Safe Area Background Fix */
+html {
+  background-color: #f3f7fa; /* Light mode */
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+body {
+  background-color: #f3f7fa; /* Light mode */
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+#root {
+  background-color: #f3f7fa; /* Light mode */
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  html, body, #root {
+    background-color: #2d2d32;
+  }
+}
+
 @import "tailwindcss";
 
 :root {
@@ -129,26 +157,4 @@
 
 .slide-in-animation {
   animation: slideInFade 0.5s ease-out;
-}
-
-/* Mobile */
-
-/* Set default text color for entire app */
-body {
-    color: var(--primary);
-    background-color: var(--background-primary);
-}
-
-html, body, #root {
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
-    background-color: var(--background-primary);
-}
-
-/* Handle iOS safe areas */
-@supports (padding: max(0px)) {
-    body {
-        padding-top: max(0px, env(safe-area-inset-top));
-        padding-bottom: max(0px, env(safe-area-inset-bottom));
-    }
 }
