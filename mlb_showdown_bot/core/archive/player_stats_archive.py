@@ -152,7 +152,7 @@ class PlayerStatsArchive:
                 sleep(delay_between_years)
         
         self.player_list: list[PlayerStats] = final_player_data_list
-        self.player_list.sort(key=lambda x: (x.g), reverse=True) # WILL PRIORITIZE PLAYERS WITH MOST GAMES PLAYED
+        self.player_list.sort(key=lambda x: (x.war or 0, x.g or 0), reverse=True) # WILL PRIORITIZE PLAYERS WITH MOST WINS ABOVE REPLACEMENT
 
         if publish_to_postgres:
             # CLOSE CONNECTION
@@ -178,13 +178,14 @@ class PlayerStatsArchive:
 
             # IN BATTERS PAGE ALL STATS ARE PREFIXED WITH 'b_', FOR PITCHERS IT'S 'p_'
             prefix = 'b_' if player_type == PlayerType.HITTER else 'p_'
-            stat_category = stat_category.replace(prefix,'') if stat_category.startswith(prefix) and stat_category != 'b_war' else stat_category
+            stat_category = stat_category.replace(prefix,'') if stat_category.startswith(prefix) else stat_category
             match stat_category:
                 case 'games': stat_category = 'g'
                 case 'team_name_abbr': stat_category = 'team_ID'
                 case 'comp_name_abbr': stat_category = 'lg_ID'
                 case 'doubles': stat_category = '2b'
                 case 'triples': stat_category = '3b'
+                case 'p_war' | 'b_war': stat_category = 'war'
 
             # PARSE BREF ID AND NAME 
             if stat_category in ['player', 'name_display']:
@@ -243,6 +244,15 @@ class PlayerStatsArchive:
             # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
             if self.is_player_list_empty:
                 self.fill_player_stats_from_archive(db=db, exclude_records_with_stats=exclude_records_with_stats, modified_start_date=modified_start_date, modified_end_date=modified_end_date)
+            else:
+                self.player_list = [
+                    player for player in self.player_list 
+                    if not (
+                        (exclude_records_with_stats and player.stats and len(player.stats) > 0)
+                        or (modified_start_date and player.modified_date and player.modified_date < datetime.fromisoformat(modified_start_date))
+                        or (modified_end_date and player.modified_date and player.modified_date > datetime.fromisoformat(modified_end_date))
+                    )
+                ]
 
         # SCRAPE STATS AND INSERT/UPDATE DB RECORDS
         total_players = min(len(self.player_list), limit) if limit else len(self.player_list)
@@ -255,7 +265,7 @@ class PlayerStatsArchive:
             time_unit = "HOURS" if est_time_remaining_mins > 120 else "MINS"
             time_value = est_time_remaining_hours if time_unit == 'HOURS' else est_time_remaining_mins
 
-            print(f"  {index}/{total_players}: {player.name: <20} ({time_value} {time_unit} LEFT)", end="\r")
+            print(f"  {index}/{total_players}: {player.name: <20} ({time_value} {time_unit} LEFT)")
             player.scrape_stats_data()
             if publish_to_postgres:
                 db.upsert_stats_archive_row(cursor=db_cursor, data=player.as_dict(convert_stats_to_json=True), conflict_strategy="update_stats_only")

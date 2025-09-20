@@ -1,5 +1,6 @@
 import json
 import os, fnmatch, operator
+from typing import Optional
 from enum import Enum
 from datetime import datetime
 
@@ -38,6 +39,7 @@ class PlayerStats:
         self.gs: int = 0
         self.pa: int = None
         self.ip: int = None
+        self.war: Optional[float] = None
 
         # PLAYER TYPE
         self.player_type: PlayerType = type

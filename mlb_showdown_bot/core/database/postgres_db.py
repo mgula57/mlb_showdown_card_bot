@@ -29,6 +29,7 @@ class PlayerArchive(BaseModel):
     gs: int
     pa: Optional[int]
     ip: Optional[float]
+    war: Optional[float] = None
     lg_id: str
     team_id: str
     team_id_list: list[str]
@@ -508,7 +509,9 @@ class PostgresDB:
                 team_override VARCHAR(8),
                 created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
                 modified_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
-                stats JSONB
+                stats JSONB,
+                stats_modified_date timestamp without time zone DEFAULT now(),
+                war double precision
             );'''
         db_cursor = self.connection.cursor()
         try:
@@ -649,14 +652,16 @@ class PostgresDB:
                         year, historical_date, name, 
                         player_type, player_type_override, is_two_way, 
                         primary_positions, secondary_positions, 
-                        g, gs, pa, ip, lg_id, team_id, team_id_list, team_games_played_dict, team_override, 
+                        g, gs, pa, ip, war,
+                        lg_id, team_id, team_id_list, team_games_played_dict, team_override, 
                         modified_date, stats, stats_modified_date
                     ) =
                     (
                         EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, 
                         EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way, 
                         EXCLUDED.primary_positions, EXCLUDED.secondary_positions, 
-                        EXCLUDED.g, EXCLUDED.gs, EXCLUDED.pa, EXCLUDED.ip, EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override, 
+                        EXCLUDED.g, EXCLUDED.gs, EXCLUDED.pa, EXCLUDED.ip, EXCLUDED.war,
+                        EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override, 
                         NOW(), EXCLUDED.stats, NOW()
                     )
                 '''
@@ -668,14 +673,16 @@ class PostgresDB:
                         year, historical_date, name, 
                         player_type, player_type_override, is_two_way, 
                         primary_positions, secondary_positions, 
-                        g, gs, pa, ip, lg_id, team_id, team_id_list, team_games_played_dict, team_override, 
+                        g, gs, pa, ip, war,
+                        lg_id, team_id, team_id_list, team_games_played_dict, team_override, 
                         modified_date
                     ) =
                     (
                         EXCLUDED.year, EXCLUDED.historical_date, EXCLUDED.name, 
                         EXCLUDED.player_type, EXCLUDED.player_type_override, EXCLUDED.is_two_way, 
                         EXCLUDED.primary_positions, EXCLUDED.secondary_positions, 
-                        EXCLUDED.g, EXCLUDED.gs, EXCLUDED.pa, EXCLUDED.ip, EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override, 
+                        EXCLUDED.g, EXCLUDED.gs, EXCLUDED.pa, EXCLUDED.ip, EXCLUDED.war,
+                        EXCLUDED.lg_id, EXCLUDED.team_id, EXCLUDED.team_id_list, EXCLUDED.team_games_played_dict, EXCLUDED.team_override, 
                         NOW()
                     )
                 '''
