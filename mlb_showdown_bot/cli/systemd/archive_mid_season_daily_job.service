@@ -8,16 +8,10 @@ Type=oneshot
 User=ec2-user
 Group=ec2-user
 
-# --- PATHS ---
-Environment=REPO_DIR=/home/ec2-user/mlb_showdown_card_bot
-Environment=VENV_PY=/home/ec2-user/venv311/bin/python
-Environment=SCRIPT_PATH=%E{REPO_DIR}/mlb_showdown_bot/cli/main.py
-# ------------------------
-
-WorkingDirectory=%E{REPO_DIR}
+WorkingDirectory=/home/ec2-user/mlb_showdown_card_bot
 
 # Prevent overlapping hourly runs (non-blocking lock)
-ExecStart=/usr/bin/flock -n /tmp/archive_mid_season_daily_job.lock %E{VENV_PY} -u -m mlb_showdown_bot.cli.main archive -y 2025 -dmsu -pg -list -stats
+ExecStart=/usr/bin/flock -n /tmp/archive_mid_season_daily_job.lock /home/ec2-user/venv311/bin/python -u -m mlb_showdown_bot.cli.main archive -y 2025 -dmsu -pg -list -stats
 
 # Append logs to a file in addition to journald
 StandardOutput=journal
