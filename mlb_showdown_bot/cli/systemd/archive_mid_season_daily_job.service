@@ -20,8 +20,8 @@ WorkingDirectory=%E{REPO_DIR}
 ExecStart=/usr/bin/flock -n /tmp/archive_mid_season_daily_job.lock %E{VENV_PY} -u -m mlb_showdown_bot.cli.main archive -y 2025 -dmsu -pg -list -stats
 
 # Append logs to a file in addition to journald
-StandardOutput=append:%E{REPO_DIR}/archive_mid_season_daily_job.log
-StandardError=append:%E{REPO_DIR}/archive_mid_season_daily_job.log
+StandardOutput=journal
+StandardError=journal
 
 # Make stdout unbuffered for timely logs
 Environment=PYTHONUNBUFFERED=1
