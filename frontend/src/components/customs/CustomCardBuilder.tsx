@@ -550,6 +550,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
         try {
 
+            // Capture the current subMessage before any state changes
+            const currentSubMessage = loadingStatus?.subMessage || "";
+
             // Set Is Loading
             setIsProcessingCard(true);
 
@@ -603,16 +606,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             setShowdownBotCardData(cardData);
             
             console.log("Card built successfully:", cardData);
-            const priorSubMessage = loadingStatus?.subMessage || "";
+            console.log(currentSubMessage);
 
             lastFormRef.current = card_payload; // Store form data for live updates
-            setLoadingStatus({
+            setLoadingStatus(prevStatus => ({
+                ...prevStatus, // Keep all existing values
                 message: "Done!",
-                subMessage: priorSubMessage, // Keep previous subMessage
                 icon: <FaCircleCheck className="text-sm"/>,
-                backgroundColor: "var(--success)", // Green
-                removeAfterSeconds: 3,
-            });
+                backgroundColor: "var(--success)",
+                removeAfterSeconds: 2,
+            }));
             setIsProcessingCard(false);
 
         } catch (err) {
@@ -633,9 +636,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             return;
         }
 
-        const firstInitial = `${form.name.trim() ? form.name.trim()[0] : ""}.`;
-        const lastName = form.name.trim().split(" ").slice(1).join(" ") || "";
-        const subMessage = `${firstInitial} ${lastName} | ${form.year}`;
+        const subMessage = `${form.name} | ${form.year}`;
         setLoadingStatus({
             message: "Building...",
             subMessage: subMessage,
@@ -928,13 +929,14 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             backgroundColor: loadingStatus?.backgroundColor ? loadingStatus.backgroundColor : 'rgb(255, 193, 7)', // Default Amber
                         }}
                     >
-                        <button className="flex flex-col gap-1">
+                        <button className="flex flex-col gap-1 items-center">
                             <div className='flex items-center gap-1'>
                                 {loadingStatus?.icon}
                                 <b className='inline font-bold'>{loadingStatus?.message}</b>
                             </div>
-
-                            <span className='text-xs' style={{ textTransform: 'capitalize' }}>{loadingStatus?.subMessage}</span>
+                            {loadingStatus?.subMessage && (
+                                <span className='text-xs' style={{ textTransform: 'capitalize' }}>{loadingStatus?.subMessage}</span>
+                            )}
                         </button>
                     </div>
                 )}
