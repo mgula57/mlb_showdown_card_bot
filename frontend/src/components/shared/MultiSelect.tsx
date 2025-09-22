@@ -8,10 +8,11 @@ interface MultiSelectProps {
     selections?: string[];
     onChange: (values: string[]) => void;
     placeholder?: string;
+    className?: string;
 }
 
 // Multi-Select Dropdown Component
-const MultiSelect = ({ label, options, selections, onChange, placeholder = "Select..." }: MultiSelectProps) => {
+const MultiSelect = ({ label, options, selections, onChange, placeholder = "Select...", className }: MultiSelectProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const selectedValues = selections || [];
@@ -47,7 +48,7 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
     };
 
     return (
-        <div className="space-y-2" ref={dropdownRef}>
+        <div className={`space-y-2 ${className}`} ref={dropdownRef}>
             <label className="block text-sm font-medium text-[var(--text-primary)]">{label}</label>
             
             {/* Dropdown Button */}

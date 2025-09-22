@@ -411,6 +411,10 @@ class PostgresDB:
 
         filter_values = []
 
+        # Pop out sorting filters
+        sort_by = str(filters.pop('sortBy', 'points')).upper()
+        sort_direction = str(filters.pop('sortDirection', 'desc')).upper()
+
         # Apply filters if any
         if filters and len(filters) > 0:
             filter_clauses = []
@@ -467,10 +471,16 @@ class PostgresDB:
             if filter_clauses:
                 query += sql.SQL(" AND ") + sql.SQL(" AND ").join(filter_clauses)
 
-        query += sql.SQL("""
-            ORDER BY points DESC
-            LIMIT 50
-        """)
+        # Add sorting
+        if sort_by not in ['POINTS', 'NAME', 'WAR', 'PA', 'IP']:
+            sort_by = 'POINTS'
+
+        if sort_direction not in ['ASC', 'DESC']:
+            sort_direction = 'DESC'
+
+        query += sql.SQL(f" ORDER BY {sort_by} {sort_direction} ")
+
+        query += sql.SQL(" LIMIT 50")
 
         result_list = self.execute_query(query=query, filter_values=tuple(filter_values))
         return result_list

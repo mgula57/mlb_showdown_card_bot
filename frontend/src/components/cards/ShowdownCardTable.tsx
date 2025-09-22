@@ -14,7 +14,10 @@ import { FaCompass, FaFilter, FaGripHorizontal, FaTable, FaBaseballBall } from "
 import FormInput from "../customs/FormInput";
 import MultiSelect from "../shared/MultiSelect";
 import CustomSelect from "../shared/CustomSelect";
+import FormDropdown from "../customs/FormDropdown";
+import FormSection from "../customs/FormSection";
 import { CardItem } from "./CardItem";
+import { FaArrowUp, FaArrowDown } from "react-icons/fa";
 
 // --------------------------------------------
 // MARK: - Table column defs
@@ -151,6 +154,10 @@ type CardDisplayFormat = typeof CardDisplayFormat[keyof typeof CardDisplayFormat
 /** State for the custom card form */
 interface FilterSelections {
 
+    // Sorting
+    sortBy?: string; // e.g., "Points"
+    sortDirection?: string; // "asc" or "desc"
+
     // Real Stats
     min_pa?: number;
     max_pa?: number;
@@ -180,6 +187,8 @@ interface FilterSelections {
 const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     min_pa: 250,
     min_real_ip: 35,
+    sortBy: "Points",
+    sortDirection: "desc",
 };
 
 // --------------------------------------------
@@ -383,10 +392,11 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                 </Modal>
             )}
 
-            {/* Filters Modal */}
+
+            {/* MARK: Filters Modal */}
             {showFiltersModal && (
                 <Modal onClose={handleFilterApply}>
-                    <div className="p-4 min-h-48 max-h-[70vh] overflow-y-auto">
+                    <div className="p-4 min-h-48 max-h-[70vh] md:min-h-128 md:max-h-[90vh]">
                         <div className="flex gap-3 mb-4 items-center border-b-2 border-form-element pb-2">
                             <h2 className="text-xl font-bold">Filter Options</h2>
                             <button 
@@ -398,353 +408,395 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                                     hover:bg-[var(--secondary)]
                                     cursor-pointer
                                 ">
-                                    Reset 
+                                    Reset
                             </button>
-                        </div>
-                        <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-4">
-                            {/* Filters options */}
-
-                            <MultiSelect
-                                label="Parent League"
-                                options={[
-                                    { value: 'MLB', label: 'MLB' },
-                                    { value: 'NGL', label: 'Negro Leagues' },
-                                    { value: 'NON-MLB', label: 'Misc' },
-                                ]}
-                                selections={filtersForEditing.organization}
-                                onChange={(values) => setFiltersForEditing({...filtersForEditing, organization: values})}
-                            />
-
-                            <MultiSelect
-                                label="Leagues"
-                                options={[
-                                    { value: 'AL', label: 'AL' },
-                                    { value: 'NL', label: 'NL' },
-                                    { value: 'ANL', label: 'ANL' },
-                                    { value: 'ECL', label: 'ECL' },
-                                    { value: 'EWL', label: 'EWL' },
-                                    { value: 'FL', label: 'FL' },
-                                    { value: 'NAL', label: 'NAL' },
-                                    { value: 'NN2', label: 'NN2' },
-                                    { value: 'NNL', label: 'NNL' },
-                                    { value: 'NSL', label: 'NSL' },
-                                    { value: 'PL', label: 'PL' },
-                                    { value: 'UA', label: 'UA' },
-                                ]}
-                                selections={filtersForEditing.league}
-                                onChange={(values) => setFiltersForEditing({...filtersForEditing, league: values})}
-                            />
-
-                            <MultiSelect
-                                label="Teams"
-                                options={[
-                                    { value: 'AB2', label: 'AB2' },
-                                    { value: 'AB3', label: 'AB3' },
-                                    { value: 'ABC', label: 'ABC' },
-                                    { value: 'AC', label: 'AC' },
-                                    { value: 'AG', label: 'AG' },
-                                    { value: 'ALT', label: 'ALT' },
-                                    { value: 'ANA', label: 'ANA' },
-                                    { value: 'ARI', label: 'ARI' },
-                                    { value: 'ATL', label: 'ATL' },
-                                    { value: 'BAL', label: 'BAL' },
-                                    { value: 'BBB', label: 'BBB' },
-                                    { value: 'BBS', label: 'BBS' },
-                                    { value: 'BCA', label: 'BCA' },
-                                    { value: 'BE', label: 'BE' },
-                                    { value: 'BEG', label: 'BEG' },
-                                    { value: 'BLA', label: 'BLA' },
-                                    { value: 'BLN', label: 'BLN' },
-                                    { value: 'BLU', label: 'BLU' },
-                                    { value: 'BOS', label: 'BOS' },
-                                    { value: 'BRG', label: 'BRG' },
-                                    { value: 'BRO', label: 'BRO' },
-                                    { value: 'BSN', label: 'BSN' },
-                                    { value: 'BTT', label: 'BTT' },
-                                    { value: 'BUF', label: 'BUF' },
-                                    { value: 'BWW', label: 'BWW' },
-                                    { value: 'CAG', label: 'CAG' },
-                                    { value: 'CAL', label: 'CAL' },
-                                    { value: 'CBB', label: 'CBB' },
-                                    { value: 'CBE', label: 'CBE' },
-                                    { value: 'CBN', label: 'CBN' },
-                                    { value: 'CBR', label: 'CBR' },
-                                    { value: 'CC', label: 'CC' },
-                                    { value: 'CCB', label: 'CCB' },
-                                    { value: 'CCU', label: 'CCU' },
-                                    { value: 'CEG', label: 'CEG' },
-                                    { value: 'CEL', label: 'CEL' },
-                                    { value: 'CG', label: 'CG' },
-                                    { value: 'CHC', label: 'CHC' },
-                                    { value: 'CHI', label: 'CHI' },
-                                    { value: 'CHT', label: 'CHT' },
-                                    { value: 'CHW', label: 'CHW' },
-                                    { value: 'CIN', label: 'CIN' },
-                                    { value: 'CKK', label: 'CKK' },
-                                    { value: 'CLE', label: 'CLE' },
-                                    { value: 'CLS', label: 'CLS' },
-                                    { value: 'CLV', label: 'CLV' },
-                                    { value: 'COB', label: 'COB' },
-                                    { value: 'COG', label: 'COG' },
-                                    { value: 'COL', label: 'COL' },
-                                    { value: 'COR', label: 'COR' },
-                                    { value: 'CPI', label: 'CPI' },
-                                    { value: 'CRS', label: 'CRS' },
-                                    { value: 'CS', label: 'CS' },
-                                    { value: 'CSE', label: 'CSE' },
-                                    { value: 'CSW', label: 'CSW' },
-                                    { value: 'CT', label: 'CT' },
-                                    { value: 'CTG', label: 'CTG' },
-                                    { value: 'CTS', label: 'CTS' },
-                                    { value: 'CUP', label: 'CUP' },
-                                    { value: 'DET', label: 'DET' },
-                                    { value: 'DM', label: 'DM' },
-                                    { value: 'DS', label: 'DS' },
-                                    { value: 'DTN', label: 'DTN' },
-                                    { value: 'DTS', label: 'DTS' },
-                                    { value: 'DW', label: 'DW' },
-                                    { value: 'FLA', label: 'FLA' },
-                                    { value: 'HAR', label: 'HAR' },
-                                    { value: 'HBG', label: 'HBG' },
-                                    { value: 'HG', label: 'HG' },
-                                    { value: 'HIL', label: 'HIL' },
-                                    { value: 'HOU', label: 'HOU' },
-                                    { value: 'IA', label: 'IA' },
-                                    { value: 'IAB', label: 'IAB' },
-                                    { value: 'IC', label: 'IC' },
-                                    { value: 'ID', label: 'ID' },
-                                    { value: 'IND', label: 'IND' },
-                                    { value: 'JRC', label: 'JRC' },
-                                    { value: 'KCA', label: 'KCA' },
-                                    { value: 'KCC', label: 'KCC' },
-                                    { value: 'KCM', label: 'KCM' },
-                                    { value: 'KCN', label: 'KCN' },
-                                    { value: 'KCP', label: 'KCP' },
-                                    { value: 'KCR', label: 'KCR' },
-                                    { value: 'LAA', label: 'LAA' },
-                                    { value: 'LAD', label: 'LAD' },
-                                    { value: 'LOU', label: 'LOU' },
-                                    { value: 'LOW', label: 'LOW' },
-                                    { value: 'LRG', label: 'LRG' },
-                                    { value: 'LVB', label: 'LVB' },
-                                    { value: 'MB', label: 'MB' },
-                                    { value: 'MGS', label: 'MGS' },
-                                    { value: 'MIA', label: 'MIA' },
-                                    { value: 'MIL', label: 'MIL' },
-                                    { value: 'MIN', label: 'MIN' },
-                                    { value: 'MLA', label: 'MLA' },
-                                    { value: 'MLN', label: 'MLN' },
-                                    { value: 'MON', label: 'MON' },
-                                    { value: 'MRM', label: 'MRM' },
-                                    { value: 'MRS', label: 'MRS' },
-                                    { value: 'NBY', label: 'NBY' },
-                                    { value: 'ND', label: 'ND' },
-                                    { value: 'NE', label: 'NE' },
-                                    { value: 'NEG', label: 'NEG' },
-                                    { value: 'NEW', label: 'NEW' },
-                                    { value: 'NLG', label: 'NLG' },
-                                    { value: 'NS', label: 'NS' },
-                                    { value: 'NYC', label: 'NYC' },
-                                    { value: 'NYG', label: 'NYG' },
-                                    { value: 'NYI', label: 'NYI' },
-                                    { value: 'NYM', label: 'NYM' },
-                                    { value: 'NYP', label: 'NYP' },
-                                    { value: 'NYY', label: 'NYY' },
-                                    { value: 'OAK', label: 'OAK' },
-                                    { value: 'PBB', label: 'PBB' },
-                                    { value: 'PBG', label: 'PBG' },
-                                    { value: 'PBS', label: 'PBS' },
-                                    { value: 'PC', label: 'PC' },
-                                    { value: 'PHA', label: 'PHA' },
-                                    { value: 'PHI', label: 'PHI' },
-                                    { value: 'PHK', label: 'PHK' },
-                                    { value: 'PHQ', label: 'PHQ' },
-                                    { value: 'PIT', label: 'PIT' },
-                                    { value: 'PK', label: 'PK' },
-                                    { value: 'PRO', label: 'PRO' },
-                                    { value: 'PS', label: 'PS' },
-                                    { value: 'PTG', label: 'PTG' },
-                                    { value: 'RIC', label: 'RIC' },
-                                    { value: 'ROC', label: 'ROC' },
-                                    { value: 'SDP', label: 'SDP' },
-                                    { value: 'SEA', label: 'SEA' },
-                                    { value: 'SEN', label: 'SEN' },
-                                    { value: 'SEP', label: 'SEP' },
-                                    { value: 'SFG', label: 'SFG' },
-                                    { value: 'SL2', label: 'SL2' },
-                                    { value: 'SL3', label: 'SL3' },
-                                    { value: 'SLB', label: 'SLB' },
-                                    { value: 'SLG', label: 'SLG' },
-                                    { value: 'SLM', label: 'SLM' },
-                                    { value: 'SLS', label: 'SLS' },
-                                    { value: 'SNS', label: 'SNS' },
-                                    { value: 'STL', label: 'STL' },
-                                    { value: 'STP', label: 'STP' },
-                                    { value: 'SYR', label: 'SYR' },
-                                    { value: 'TBD', label: 'TBD' },
-                                    { value: 'TBR', label: 'TBR' },
-                                    { value: 'TC', label: 'TC' },
-                                    { value: 'TC2', label: 'TC2' },
-                                    { value: 'TEX', label: 'TEX' },
-                                    { value: 'TOL', label: 'TOL' },
-                                    { value: 'TOR', label: 'TOR' },
-                                    { value: 'TT', label: 'TT' },
-                                    { value: 'WAP', label: 'WAP' },
-                                    { value: 'WAS', label: 'WAS' },
-                                    { value: 'WEG', label: 'WEG' },
-                                    { value: 'WHS', label: 'WHS' },
-                                    { value: 'WIL', label: 'WIL' },
-                                    { value: 'WMP', label: 'WMP' },
-                                    { value: 'WP', label: 'WP' },
-                                    { value: 'WSA', label: 'WSA' },
-                                    { value: 'WSH', label: 'WSH' },
-                                    { value: 'WSN', label: 'WSN' },
-                                ]}
-                                selections={filtersForEditing.team}
-                                onChange={(values) => {
-                                    setFiltersForEditing({...filtersForEditing, team: values});
-                                }}
-                            />
-
-                            <MultiSelect
-                                label="Player Type"
-                                options={[
-                                    { value: 'HITTER', label: 'Hitter' },
-                                    { value: 'PITCHER', label: 'Pitcher' },
-                                ]}
-                                selections={filtersForEditing.player_type}
-                                onChange={(values) => setFiltersForEditing({...filtersForEditing, player_type: values})}
-                            />
-
-                            <MultiSelect
-                                label="Positions"
-                                options={[
-                                    { value: 'C', label: 'CA' },
-                                    { value: '1B', label: '1B' },
-                                    { value: '2B', label: '2B' },
-                                    { value: '3B', label: '3B' },
-                                    { value: 'SS', label: 'SS' },
-                                    { value: 'LF/RF', label: 'LF/RF' },
-                                    { value: 'CF', label: 'CF' },
-                                    { value: 'DH', label: 'DH' },
-                                    { value: 'SP', label: 'SP' },
-                                    { value: 'RP', label: 'RP' },
-                                    { value: 'CL', label: 'CL' },
-                                ]}
-                                selections={filtersForEditing.positions || []}
-                                onChange={(values) => setFiltersForEditing({...filtersForEditing, positions: values})}
-                            />
-
-                            <MultiSelect
-                                label="Hand"
-                                options={[
-                                    { value: 'L', label: 'Left' },
-                                    { value: 'R', label: 'Right' },
-                                    { value: 'S', label: 'Switch' },
-                                ]}
-                                selections={filtersForEditing.hand || []}
-                                onChange={(values) => setFiltersForEditing({...filtersForEditing, hand: values})}
-                            />
-
-                            {/* Real PA */}
-                            <div className="flex gap-2">
-                                <FormInput
-                                    type="number"
-                                    inputMode="numeric"
-                                    label="Min PA"
-                                    placeholder="None"
-                                    value={filtersForEditing.min_pa?.toString() || ''}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, min_pa: Number(value) || undefined})}
-                                />
-                                <FormInput
-                                    type="number"
-                                    inputMode="numeric"
-                                    label="Max PA"
-                                    placeholder="None"
-                                    value={filtersForEditing.max_pa?.toString() || ''}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, max_pa: Number(value) || undefined})}
-                                />
-                            </div>
-
-                            {/* Real IP */}
-                            <div className="flex gap-2">
-                                <FormInput
-                                    type="number"
-                                    inputMode="numeric"
-                                    label="Min Real IP"
-                                    placeholder="None"
-                                    value={filtersForEditing.min_real_ip?.toString() || ''}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, min_real_ip: Number(value) || undefined})}
-                                />
-                                <FormInput
-                                    type="number"
-                                    inputMode="numeric"
-                                    label="Max Real IP"
-                                    placeholder="None"
-                                    value={filtersForEditing.max_real_ip?.toString() || ''}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, max_real_ip: Number(value) || undefined})}
-                                />
-                            </div>
-
-                            <div className="flex gap-2">
-                                <FormInput
-                                    type="number"
-                                    inputMode="numeric"
-                                    label="Min Ctrl/OB"
-                                    placeholder="None"
-                                    value={filtersForEditing.min_command?.toString() || ''}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, min_command: Number(value) || undefined})}
-                                />
-                                <FormInput
-                                    type="number"
-                                    inputMode="numeric"
-                                    label="Max Ctrl/OB"
-                                    placeholder="None"
-                                    value={filtersForEditing.max_command?.toString() || ''}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, max_command: Number(value) || undefined})}
-                                />
-                            </div>
-
-                            <div className="flex gap-2">
-                                <FormInput
-                                    type="number"
-                                    inputMode="numeric"
-                                    label="Min PTS"
-                                    placeholder="None"
-                                    value={filtersForEditing.min_points?.toString() || ''}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, min_points: Number(value) || undefined})}
-                                />
-                                <FormInput
-                                    type="number"
-                                    inputMode="numeric"
-                                    label="Max PTS"
-                                    placeholder="None"
-                                    value={filtersForEditing.max_points?.toString() || ''}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, max_points: Number(value) || undefined})}
-                                />
-                            </div>
-
-                            <div className="flex gap-2">
-                                <FormInput
-                                    type="number"
-                                    inputMode="numeric"
-                                    label="Min Speed"
-                                    placeholder="None"
-                                    value={filtersForEditing.min_speed?.toString() || ''}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, min_speed: Number(value) || undefined})}
-                                />
-                                <FormInput
-                                    type="number"
-                                    inputMode="numeric"
-                                    label="Max Speed"
-                                    placeholder="None"
-                                    value={filtersForEditing.max_speed?.toString() || ''}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, max_speed: Number(value) || undefined})}
-                                />
-                            </div>
-                            
 
                         </div>
+
+                        <div className="flex flex-col gap-4 pb-12">
+
+                            {/* Sorting */}
+                            <FormSection title="Sorting" isOpenByDefault={true}>
+                                
+                                <FormDropdown
+                                    label="Sort Category"
+                                    options={[
+                                        { value: 'Points', label: 'Points' },
+                                    ]}
+                                    selectedOption={filtersForEditing.sortBy || 'Points'}
+                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, sortBy: value})}
+                                />
+
+                                <FormDropdown
+                                    label="Sort Direction"
+                                    options={[
+                                        { value: 'asc', label: 'Ascending', icon: <FaArrowUp /> },
+                                        { value: 'desc', label: 'Descending', icon: <FaArrowDown /> },
+                                    ]}
+                                    selectedOption={filtersForEditing.sortDirection || 'asc'}
+                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, sortDirection: value})}
+                                />
+
+                            </FormSection>
+        
+
+                            <FormSection title="Leagues and Teams" isOpenByDefault={true}>
+                                {/* Filters options */}
+
+                                <MultiSelect
+                                    label="Parent League"
+                                    options={[
+                                        { value: 'MLB', label: 'MLB' },
+                                        { value: 'NGL', label: 'Negro Leagues' },
+                                        { value: 'NON-MLB', label: 'Misc' },
+                                    ]}
+                                    selections={filtersForEditing.organization}
+                                    onChange={(values) => setFiltersForEditing({...filtersForEditing, organization: values})}
+                                />
+
+                                <MultiSelect
+                                    label="Leagues"
+                                    options={[
+                                        { value: 'AL', label: 'AL' },
+                                        { value: 'NL', label: 'NL' },
+                                        { value: 'ANL', label: 'ANL' },
+                                        { value: 'ECL', label: 'ECL' },
+                                        { value: 'EWL', label: 'EWL' },
+                                        { value: 'FL', label: 'FL' },
+                                        { value: 'NAL', label: 'NAL' },
+                                        { value: 'NN2', label: 'NN2' },
+                                        { value: 'NNL', label: 'NNL' },
+                                        { value: 'NSL', label: 'NSL' },
+                                        { value: 'PL', label: 'PL' },
+                                        { value: 'UA', label: 'UA' },
+                                    ]}
+                                    selections={filtersForEditing.league}
+                                    onChange={(values) => setFiltersForEditing({...filtersForEditing, league: values})}
+                                />
+
+                                <MultiSelect
+                                    label="Teams"
+                                    options={[
+                                        { value: 'AB2', label: 'AB2' },
+                                        { value: 'AB3', label: 'AB3' },
+                                        { value: 'ABC', label: 'ABC' },
+                                        { value: 'AC', label: 'AC' },
+                                        { value: 'AG', label: 'AG' },
+                                        { value: 'ALT', label: 'ALT' },
+                                        { value: 'ANA', label: 'ANA' },
+                                        { value: 'ARI', label: 'ARI' },
+                                        { value: 'ATL', label: 'ATL' },
+                                        { value: 'BAL', label: 'BAL' },
+                                        { value: 'BBB', label: 'BBB' },
+                                        { value: 'BBS', label: 'BBS' },
+                                        { value: 'BCA', label: 'BCA' },
+                                        { value: 'BE', label: 'BE' },
+                                        { value: 'BEG', label: 'BEG' },
+                                        { value: 'BLA', label: 'BLA' },
+                                        { value: 'BLN', label: 'BLN' },
+                                        { value: 'BLU', label: 'BLU' },
+                                        { value: 'BOS', label: 'BOS' },
+                                        { value: 'BRG', label: 'BRG' },
+                                        { value: 'BRO', label: 'BRO' },
+                                        { value: 'BSN', label: 'BSN' },
+                                        { value: 'BTT', label: 'BTT' },
+                                        { value: 'BUF', label: 'BUF' },
+                                        { value: 'BWW', label: 'BWW' },
+                                        { value: 'CAG', label: 'CAG' },
+                                        { value: 'CAL', label: 'CAL' },
+                                        { value: 'CBB', label: 'CBB' },
+                                        { value: 'CBE', label: 'CBE' },
+                                        { value: 'CBN', label: 'CBN' },
+                                        { value: 'CBR', label: 'CBR' },
+                                        { value: 'CC', label: 'CC' },
+                                        { value: 'CCB', label: 'CCB' },
+                                        { value: 'CCU', label: 'CCU' },
+                                        { value: 'CEG', label: 'CEG' },
+                                        { value: 'CEL', label: 'CEL' },
+                                        { value: 'CG', label: 'CG' },
+                                        { value: 'CHC', label: 'CHC' },
+                                        { value: 'CHI', label: 'CHI' },
+                                        { value: 'CHT', label: 'CHT' },
+                                        { value: 'CHW', label: 'CHW' },
+                                        { value: 'CIN', label: 'CIN' },
+                                        { value: 'CKK', label: 'CKK' },
+                                        { value: 'CLE', label: 'CLE' },
+                                        { value: 'CLS', label: 'CLS' },
+                                        { value: 'CLV', label: 'CLV' },
+                                        { value: 'COB', label: 'COB' },
+                                        { value: 'COG', label: 'COG' },
+                                        { value: 'COL', label: 'COL' },
+                                        { value: 'COR', label: 'COR' },
+                                        { value: 'CPI', label: 'CPI' },
+                                        { value: 'CRS', label: 'CRS' },
+                                        { value: 'CS', label: 'CS' },
+                                        { value: 'CSE', label: 'CSE' },
+                                        { value: 'CSW', label: 'CSW' },
+                                        { value: 'CT', label: 'CT' },
+                                        { value: 'CTG', label: 'CTG' },
+                                        { value: 'CTS', label: 'CTS' },
+                                        { value: 'CUP', label: 'CUP' },
+                                        { value: 'DET', label: 'DET' },
+                                        { value: 'DM', label: 'DM' },
+                                        { value: 'DS', label: 'DS' },
+                                        { value: 'DTN', label: 'DTN' },
+                                        { value: 'DTS', label: 'DTS' },
+                                        { value: 'DW', label: 'DW' },
+                                        { value: 'FLA', label: 'FLA' },
+                                        { value: 'HAR', label: 'HAR' },
+                                        { value: 'HBG', label: 'HBG' },
+                                        { value: 'HG', label: 'HG' },
+                                        { value: 'HIL', label: 'HIL' },
+                                        { value: 'HOU', label: 'HOU' },
+                                        { value: 'IA', label: 'IA' },
+                                        { value: 'IAB', label: 'IAB' },
+                                        { value: 'IC', label: 'IC' },
+                                        { value: 'ID', label: 'ID' },
+                                        { value: 'IND', label: 'IND' },
+                                        { value: 'JRC', label: 'JRC' },
+                                        { value: 'KCA', label: 'KCA' },
+                                        { value: 'KCC', label: 'KCC' },
+                                        { value: 'KCM', label: 'KCM' },
+                                        { value: 'KCN', label: 'KCN' },
+                                        { value: 'KCP', label: 'KCP' },
+                                        { value: 'KCR', label: 'KCR' },
+                                        { value: 'LAA', label: 'LAA' },
+                                        { value: 'LAD', label: 'LAD' },
+                                        { value: 'LOU', label: 'LOU' },
+                                        { value: 'LOW', label: 'LOW' },
+                                        { value: 'LRG', label: 'LRG' },
+                                        { value: 'LVB', label: 'LVB' },
+                                        { value: 'MB', label: 'MB' },
+                                        { value: 'MGS', label: 'MGS' },
+                                        { value: 'MIA', label: 'MIA' },
+                                        { value: 'MIL', label: 'MIL' },
+                                        { value: 'MIN', label: 'MIN' },
+                                        { value: 'MLA', label: 'MLA' },
+                                        { value: 'MLN', label: 'MLN' },
+                                        { value: 'MON', label: 'MON' },
+                                        { value: 'MRM', label: 'MRM' },
+                                        { value: 'MRS', label: 'MRS' },
+                                        { value: 'NBY', label: 'NBY' },
+                                        { value: 'ND', label: 'ND' },
+                                        { value: 'NE', label: 'NE' },
+                                        { value: 'NEG', label: 'NEG' },
+                                        { value: 'NEW', label: 'NEW' },
+                                        { value: 'NLG', label: 'NLG' },
+                                        { value: 'NS', label: 'NS' },
+                                        { value: 'NYC', label: 'NYC' },
+                                        { value: 'NYG', label: 'NYG' },
+                                        { value: 'NYI', label: 'NYI' },
+                                        { value: 'NYM', label: 'NYM' },
+                                        { value: 'NYP', label: 'NYP' },
+                                        { value: 'NYY', label: 'NYY' },
+                                        { value: 'OAK', label: 'OAK' },
+                                        { value: 'PBB', label: 'PBB' },
+                                        { value: 'PBG', label: 'PBG' },
+                                        { value: 'PBS', label: 'PBS' },
+                                        { value: 'PC', label: 'PC' },
+                                        { value: 'PHA', label: 'PHA' },
+                                        { value: 'PHI', label: 'PHI' },
+                                        { value: 'PHK', label: 'PHK' },
+                                        { value: 'PHQ', label: 'PHQ' },
+                                        { value: 'PIT', label: 'PIT' },
+                                        { value: 'PK', label: 'PK' },
+                                        { value: 'PRO', label: 'PRO' },
+                                        { value: 'PS', label: 'PS' },
+                                        { value: 'PTG', label: 'PTG' },
+                                        { value: 'RIC', label: 'RIC' },
+                                        { value: 'ROC', label: 'ROC' },
+                                        { value: 'SDP', label: 'SDP' },
+                                        { value: 'SEA', label: 'SEA' },
+                                        { value: 'SEN', label: 'SEN' },
+                                        { value: 'SEP', label: 'SEP' },
+                                        { value: 'SFG', label: 'SFG' },
+                                        { value: 'SL2', label: 'SL2' },
+                                        { value: 'SL3', label: 'SL3' },
+                                        { value: 'SLB', label: 'SLB' },
+                                        { value: 'SLG', label: 'SLG' },
+                                        { value: 'SLM', label: 'SLM' },
+                                        { value: 'SLS', label: 'SLS' },
+                                        { value: 'SNS', label: 'SNS' },
+                                        { value: 'STL', label: 'STL' },
+                                        { value: 'STP', label: 'STP' },
+                                        { value: 'SYR', label: 'SYR' },
+                                        { value: 'TBD', label: 'TBD' },
+                                        { value: 'TBR', label: 'TBR' },
+                                        { value: 'TC', label: 'TC' },
+                                        { value: 'TC2', label: 'TC2' },
+                                        { value: 'TEX', label: 'TEX' },
+                                        { value: 'TOL', label: 'TOL' },
+                                        { value: 'TOR', label: 'TOR' },
+                                        { value: 'TT', label: 'TT' },
+                                        { value: 'WAP', label: 'WAP' },
+                                        { value: 'WAS', label: 'WAS' },
+                                        { value: 'WEG', label: 'WEG' },
+                                        { value: 'WHS', label: 'WHS' },
+                                        { value: 'WIL', label: 'WIL' },
+                                        { value: 'WMP', label: 'WMP' },
+                                        { value: 'WP', label: 'WP' },
+                                        { value: 'WSA', label: 'WSA' },
+                                        { value: 'WSH', label: 'WSH' },
+                                        { value: 'WSN', label: 'WSN' },
+                                    ]}
+                                    selections={filtersForEditing.team}
+                                    onChange={(values) => {
+                                        setFiltersForEditing({...filtersForEditing, team: values});
+                                    }}
+                                />
+
+                            </FormSection>
+
+
+                            <FormSection title="Positions and Hand" isOpenByDefault={true}>
+                                <MultiSelect
+                                    label="Player Type"
+                                    options={[
+                                        { value: 'HITTER', label: 'Hitter' },
+                                        { value: 'PITCHER', label: 'Pitcher' },
+                                    ]}
+                                    selections={filtersForEditing.player_type}
+                                    onChange={(values) => setFiltersForEditing({...filtersForEditing, player_type: values})}
+                                />
+
+                                <MultiSelect
+                                    label="Positions"
+                                    options={[
+                                        { value: 'C', label: 'CA' },
+                                        { value: '1B', label: '1B' },
+                                        { value: '2B', label: '2B' },
+                                        { value: '3B', label: '3B' },
+                                        { value: 'SS', label: 'SS' },
+                                        { value: 'LF/RF', label: 'LF/RF' },
+                                        { value: 'CF', label: 'CF' },
+                                        { value: 'DH', label: 'DH' },
+                                        { value: 'SP', label: 'SP' },
+                                        { value: 'RP', label: 'RP' },
+                                        { value: 'CL', label: 'CL' },
+                                    ]}
+                                    selections={filtersForEditing.positions || []}
+                                    onChange={(values) => setFiltersForEditing({...filtersForEditing, positions: values})}
+                                />
+
+                                <MultiSelect
+                                    label="Hand"
+                                    options={[
+                                        { value: 'L', label: 'Left' },
+                                        { value: 'R', label: 'Right' },
+                                        { value: 'S', label: 'Switch' },
+                                    ]}
+                                    selections={filtersForEditing.hand || []}
+                                    onChange={(values) => setFiltersForEditing({...filtersForEditing, hand: values})}
+                                />
+                            </FormSection>
+
+                            <FormSection title="Real Stats" isOpenByDefault={true}>
+                                
+                                {/* Real PA */}
+                                <div className="flex gap-2">
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Min PA"
+                                        placeholder="None"
+                                        value={filtersForEditing.min_pa?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, min_pa: Number(value) || undefined})}
+                                    />
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Max PA"
+                                        placeholder="None"
+                                        value={filtersForEditing.max_pa?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, max_pa: Number(value) || undefined})}
+                                    />
+                                </div>
+
+                                {/* Real IP */}
+                                <div className="flex gap-2">
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Min Real IP"
+                                        placeholder="None"
+                                        value={filtersForEditing.min_real_ip?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, min_real_ip: Number(value) || undefined})}
+                                    />
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Max Real IP"
+                                        placeholder="None"
+                                        value={filtersForEditing.max_real_ip?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, max_real_ip: Number(value) || undefined})}
+                                    />
+                                </div>
+                            </FormSection>
+
+                            <FormSection title="Showdown Attributes" isOpenByDefault={true}>
+                                <div className="flex gap-2">
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Min Ctrl/OB"
+                                        placeholder="None"
+                                        value={filtersForEditing.min_command?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, min_command: Number(value) || undefined})}
+                                    />
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Max Ctrl/OB"
+                                        placeholder="None"
+                                        value={filtersForEditing.max_command?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, max_command: Number(value) || undefined})}
+                                    />
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Min PTS"
+                                        placeholder="None"
+                                        value={filtersForEditing.min_points?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, min_points: Number(value) || undefined})}
+                                    />
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Max PTS"
+                                        placeholder="None"
+                                        value={filtersForEditing.max_points?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, max_points: Number(value) || undefined})}
+                                    />
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Min Speed"
+                                        placeholder="None"
+                                        value={filtersForEditing.min_speed?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, min_speed: Number(value) || undefined})}
+                                    />
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Max Speed"
+                                        placeholder="None"
+                                        value={filtersForEditing.max_speed?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, max_speed: Number(value) || undefined})}
+                                    />
+                                </div>
+                                
+
+                            </FormSection>
+
+                        </div>
+
+                        
                     </div>
                 </Modal>
             )}
