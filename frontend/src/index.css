@@ -118,6 +118,11 @@
 
 /* Animation */
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes slideInFade {
   from {
     opacity: 0;
@@ -154,6 +159,10 @@
         transform: translateX(100%);
         opacity: 0;
     }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
 }
 
 .slide-in {

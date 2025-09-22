@@ -350,7 +350,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                             ${breakdownFirstRowHeight}
                             rounded-2xl overflow-hidden
                             object-contain
-                            slide-in-animation
+                            fade-in
                             ${isLoadingOverall ? 'blur-xs' : ''}
                         `}
                         style={{

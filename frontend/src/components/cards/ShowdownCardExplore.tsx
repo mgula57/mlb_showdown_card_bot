@@ -90,11 +90,15 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(DEFAULT_FILTER_SELECTIONS);
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
 
-    // Refetch the cards if filters or set are changed
+    // Replace your current useEffect with this debounced version
     useEffect(() => {
-        if (userShowdownSet) {
+        if (!userShowdownSet || isLoading) return;
+        
+        const timeoutId = setTimeout(() => {
             getCardsData();
-        }
+        }, 100); // Small delay to prevent rapid successive calls
+        
+        return () => clearTimeout(timeoutId);
     }, [userShowdownSet, filters, debouncedSearchText]);
 
     // Debounce search text only
@@ -224,11 +228,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 </div>
 
                 {/* Show selected filters with X to remove */}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-row gap-2 overflow-x-scroll scrollbar-hide">
                     {Object.entries(filtersWithoutSorting).map(([key, value]) => (
                         value === undefined || value === null || (Array.isArray(value) && value.length === 0) ? null :
                         <div key={key} className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1">
-                            <span className="text-sm">{filterDisplayText(key, value)}</span>
+                            <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
                             <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1">
                                 <FaTimes />
                             </button>
