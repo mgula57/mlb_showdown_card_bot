@@ -482,7 +482,7 @@ class PostgresDB:
         if sort_direction not in ['ASC', 'DESC']:
             sort_direction = 'DESC'
 
-        query += sql.SQL(f" ORDER BY {sort_by} {sort_direction} ")
+        query += sql.SQL(f" ORDER BY {sort_by} {sort_direction}, bref_id ")
 
         query += sql.SQL(f" LIMIT {limit} OFFSET {(page - 1) * limit} ")
 
