@@ -100,6 +100,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
         
         setPage(1);
         setHasMore(true);
+        setShowdownCards(null); // Clear existing cards immediately
 
         if (!userShowdownSet || isLoading) return;
         
@@ -210,7 +211,6 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
         // Check if difference between filters and filtersForEditing
         const filtersChanged = JSON.stringify(filters) !== JSON.stringify(filtersForEditing);
         if (filtersChanged) {
-            // Just update the filters - useEffect will handle the API call
             setFilters(filtersForEditing);
         }
         setShowFiltersModal(false);
@@ -320,7 +320,6 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                             ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
                         >
                             <CardItem 
-                                
                                 card={cardRecord.card_data} 
                                 onClick={() => handleRowClick(cardRecord)} 
                             />
