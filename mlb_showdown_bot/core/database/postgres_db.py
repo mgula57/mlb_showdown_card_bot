@@ -412,8 +412,8 @@ class PostgresDB:
         filter_values = []
 
         # Pop out sorting filters
-        sort_by = str(filters.pop('sortBy', 'points')).upper()
-        sort_direction = str(filters.pop('sortDirection', 'desc')).upper()
+        sort_by = str(filters.pop('sort_by', 'points')).upper()
+        sort_direction = str(filters.pop('sort_direction', 'desc')).upper()
 
         # Apply filters if any
         if filters and len(filters) > 0:

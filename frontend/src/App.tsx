@@ -3,7 +3,7 @@ import { BrowserRouter, useLocation } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import CustomCardBuilder from "./components/customs/CustomCardBuilder";
 import { SiteSettingsProvider } from "./components/shared/SiteSettingsContext";
-import ShowdownCardTable from "./components/cards/ShowdownCardTable";
+import ShowdownCardExplore from "./components/cards/ShowdownCardExplore";
 
 /** Handles defining content within each route */
 const AppContent = () => {
@@ -16,7 +16,7 @@ const AppContent = () => {
                 <CustomCardBuilder isHidden={location.pathname !== '/customs'} />
             </div>
             <div className={location.pathname === '/explore' ? 'block' : 'hidden'}>
-                <ShowdownCardTable />
+                <ShowdownCardExplore />
             </div>
         </AppLayout>
     );

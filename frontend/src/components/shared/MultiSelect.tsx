@@ -144,7 +144,7 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
                                     <div className={`
                                         flex items-center justify-center w-4 h-4 mr-3 border rounded
                                         ${isSelected 
-                                            ? 'bg-primary border-primary text-white' 
+                                            ? 'bg-primary border-primary'
                                             : 'border-[var(--border-primary)]'
                                         }
                                     `}>

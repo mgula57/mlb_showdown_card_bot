@@ -1,151 +1,23 @@
 import { useState, useEffect } from "react";
-import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
-import { BasicDataTable } from "../shared/BasicDataTable";
 import { type CardDatabaseRecord, fetchCardData } from "../../api/card_db/cardDatabase";
 import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { Modal } from "../shared/Modal";
-import CardChart from "./card_elements/CardChart";
-import CardCommand from "./card_elements/CardCommand";
-import { imageForSet, useSiteSettings } from "../shared/SiteSettingsContext";
-import { FaCompass, FaFilter, FaGripHorizontal, FaTable, FaBaseballBall } from "react-icons/fa";
+import { useSiteSettings } from "../shared/SiteSettingsContext";
+import { FaCompass, FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes } from "react-icons/fa";
+import { snakeToTitleCase } from "../../functions/text";
 
 // Filter components
 import FormInput from "../customs/FormInput";
 import MultiSelect from "../shared/MultiSelect";
-import CustomSelect from "../shared/CustomSelect";
 import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
 import { CardItem } from "./CardItem";
-import { FaArrowUp, FaArrowDown } from "react-icons/fa";
 
-// --------------------------------------------
-// MARK: - Table column defs
-// --------------------------------------------
-
-const h = createColumnHelper<CardDatabaseRecord>();
-
-/** Create a column helper that tells tanstack the format of the data*/
-const showdownCardColumns: ColumnDef<CardDatabaseRecord, any>[] = [
-    h.accessor("name", {
-        header: "Name/Year",
-        cell: ({ row }) => {
-            const name = row.original.name.toUpperCase();
-            const year = row.original.year;
-            const team = row.original.team;
-            return (
-                <div className="flex flex-col max-w-28 sm:max-w-40">
-                    <div className="font-extrabold text-nowrap sm:text-nowrap overflow-x-hidden">
-                        {name}
-                    </div>
-                    <div className="italic text-[11px]">
-                        {year} {team}
-                    </div>
-                </div>
-                
-            );
-        }
-    }),
-    h.accessor("showdown_set", {
-        header: "Set",
-        cell: ({ getValue }) => {
-            const set = getValue();
-            const setImage = imageForSet(set);
-            return (
-                <div className="font-bold w-12">
-                    {setImage && <img src={setImage} alt={set} className="inline object-contain align-middle" />}
-                    {/* Fallback to showing the set string if no image is found */}
-                    {!setImage && set}
-                </div>
-            );
-        },
-        meta: {
-            className: "hidden sm:table-cell",
-        }
-    }),
-    h.accessor("team", {
-        header: "Team",
-        meta: {
-            className: "hidden",
-        }
-    }),
-    h.accessor("points", {
-        header: "PTS",
-        meta: {
-            className: "hidden sm:table-cell",
-        }
-    }),
-    h.accessor("positions_and_defense_string", {
-        header: "Defense",
-        cell: ({ getValue }) => {
-            // Clean up the value by removing spaces before +/-
-            // Prevents awkward line breaks in table
-            const value = (getValue() as string).replaceAll(' +', '+').replaceAll(' -', '-');
-            return (
-                <div className="max-w-18"> {value} </div>
-            );
-        },
-        meta: {
-            className: "hidden sm:table-cell",
-        }
-    }),
-    h.accessor("speed_or_ip", {
-        header: "SPD/IP",
-        cell: ({ row }) => {
-            if (!row.original.card_data) {
-                return '—';
-            }
-            const value = row.original.player_type === "HITTER" 
-                            ? `${row.original.card_data.speed.letter}(${row.original.card_data.speed.speed})` 
-                            : `IP ${row.original.card_data.ip}`;
-            return (
-                <div >
-                    {value}
-                </div>
-            );
-        },
-        meta: {
-            className: "hidden sm:table-cell",
-        }
-    }),
-
-    h.accessor("command", {
-        header: "Ctrl/OB",
-        cell: ({ row }) => {
-            if (!row.original.card_data) {
-                return '—';
-            }
-            return (
-                <CardCommand card={row.original.card_data} className="w-8 h-8 sm:w-10 sm:h-10" />
-            );
-        },
-        meta: {
-            className: "max-w-15",
-        }
-    }),
-    h.accessor("card_data.chart", {
-        header: "Chart",
-        cell: ({ row }) => {
-
-            if (!row.original.card_data) {
-                return '—';
-            }
-            return <CardChart card={row.original.card_data} />
-        },
-    }),
-];
-
-type ShowdownCardTableProps = {
+type ShowdownCardExploreProps = {
     showdownCards?: CardDatabaseRecord[] | null;
     className?: string;
 };
-
-const CardDisplayFormat = {
-    TABLE: "table",
-    GRID: "grid",
-} as const;
-
-type CardDisplayFormat = typeof CardDisplayFormat[keyof typeof CardDisplayFormat];
 
 // --------------------------------------------
 // MARK: - Filters
@@ -155,8 +27,8 @@ type CardDisplayFormat = typeof CardDisplayFormat[keyof typeof CardDisplayFormat
 interface FilterSelections {
 
     // Sorting
-    sortBy?: string; // e.g., "Points"
-    sortDirection?: string; // "asc" or "desc"
+    sort_by?: string; // e.g., "Points"
+    sort_direction?: string; // "asc" or "desc"
 
     // Real Stats
     min_pa?: number;
@@ -187,23 +59,20 @@ interface FilterSelections {
 const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     min_pa: 250,
     min_real_ip: 35,
-    sortBy: "Points",
-    sortDirection: "desc",
+    sort_by: "Points",
+    sort_direction: "desc",
 };
 
 // --------------------------------------------
 // MARK: - Component
 // --------------------------------------------
 
-export default function ShowdownCardTable({ className }: ShowdownCardTableProps) {
+export default function ShowdownCardExplore({ className }: ShowdownCardExploreProps) {
 
     // State for showdown cards
     const [showdownCards, setShowdownCards] = useState<CardDatabaseRecord[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedCard, setSelectedCard] = useState<CardDatabaseRecord | null>(null);
-
-    // Display
-    const [cardDisplayType, setCardDisplayType] = useState<CardDisplayFormat>(CardDisplayFormat.GRID);
 
     // Modals
     const [showFiltersModal, setShowFiltersModal] = useState(false);
@@ -219,6 +88,7 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
     // Filters
     const [filters, setFilters] = useState<FilterSelections>(DEFAULT_FILTER_SELECTIONS);
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(DEFAULT_FILTER_SELECTIONS);
+    const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
 
     // Refetch the cards if filters or set are changed
     useEffect(() => {
@@ -229,13 +99,13 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
 
     // Debounce search text only
     useEffect(() => {
-        if (searchText.length === 0) {
+        if (searchText.length < 2) {
             setDebouncedSearchText('');
             return;
         }
         const timeoutId = setTimeout(() => {
             setDebouncedSearchText(searchText);
-        }, 300); // Shorter delay for search
+        }, 1000); // Delay 1 second
 
         return () => clearTimeout(timeoutId);
     }, [searchText]);
@@ -292,6 +162,30 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
         setFiltersForEditing(DEFAULT_FILTER_SELECTIONS);
     }
 
+    const filterDisplayText = (key: string, value: any) => {
+        if (key.startsWith('min_')) {``
+            var shortKey = key.replace('min_', '');
+            if (shortKey.length == 2) {
+                shortKey = shortKey.toUpperCase();
+            } else {
+                shortKey = snakeToTitleCase(shortKey);
+            }
+
+            if (shortKey === 'Real Ip') {
+                shortKey = 'Real IP';
+            }
+
+            if (shortKey === 'Command') {
+                shortKey = 'Control/Onbase';
+            }
+
+            return `${shortKey} >= ${value}`;
+        }
+
+        return `${snakeToTitleCase(key)}: ${value}`;
+    }
+
+    // MARK: Render
     return (
         <div className={`flex flex-col ${className}`}>
 
@@ -327,39 +221,31 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                             <FaFilter className="text-primary" />
                             <span className="hidden sm:inline">Filter</span>
                     </button>
+                </div>
 
-                    <CustomSelect
-                        value={cardDisplayType}
-                        onChange={(value) => setCardDisplayType(value as CardDisplayFormat)}
-                        options={[
-                            { value: CardDisplayFormat.GRID, label: "Grid", icon: <FaGripHorizontal /> },
-                            { value: CardDisplayFormat.TABLE, label: "Table", icon: <FaTable /> },
-                        ]}
-                        className="w-24"
-                    />
-
+                {/* Show selected filters with X to remove */}
+                <div className="flex flex-wrap gap-2">
+                    {Object.entries(filtersWithoutSorting).map(([key, value]) => (
+                        value === undefined || value === null || (Array.isArray(value) && value.length === 0) ? null :
+                        <div key={key} className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1">
+                            <span className="text-sm">{filterDisplayText(key, value)}</span>
+                            <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1">
+                                <FaTimes />
+                            </button>
+                        </div>
+                    ))}
                 </div>
 
             </div>
 
             <div className="relative">
-                {cardDisplayType === CardDisplayFormat.GRID && (
-                    <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
-                        {/* Iterate through showdownCards and display each card */}
-                        {showdownCards?.map((cardRecord) => (
-                            <CardItem key={cardRecord.id} card={cardRecord.card_data} onClick={() => handleRowClick(cardRecord)} />
-                        ))}
-                    </div>
-                )}
+                <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
+                    {/* Iterate through showdownCards and display each card */}
+                    {showdownCards?.map((cardRecord) => (
+                        <CardItem key={cardRecord.id} card={cardRecord.card_data} onClick={() => handleRowClick(cardRecord)} />
+                    ))}
+                </div>
 
-                {cardDisplayType === CardDisplayFormat.TABLE && (
-                    <BasicDataTable 
-                        data={showdownCards || []}
-                        columns={showdownCardColumns}
-                        className="text-xs md:text-sm mx-3 mb-3"
-                        onRowClick={handleRowClick}
-                    />
-                )}
             </div>
 
             {/* Add Loading Indicator in the middle of the screen */}
@@ -423,8 +309,8 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                                     options={[
                                         { value: 'Points', label: 'Points' },
                                     ]}
-                                    selectedOption={filtersForEditing.sortBy || 'Points'}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, sortBy: value})}
+                                    selectedOption={filtersForEditing.sort_by || 'Points'}
+                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, sort_by: value})}
                                 />
 
                                 <FormDropdown
@@ -433,8 +319,8 @@ export default function ShowdownCardTable({ className }: ShowdownCardTableProps)
                                         { value: 'asc', label: 'Ascending', icon: <FaArrowUp /> },
                                         { value: 'desc', label: 'Descending', icon: <FaArrowDown /> },
                                     ]}
-                                    selectedOption={filtersForEditing.sortDirection || 'asc'}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, sortDirection: value})}
+                                    selectedOption={filtersForEditing.sort_direction || 'asc'}
+                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, sort_direction: value})}
                                 />
 
                             </FormSection>
