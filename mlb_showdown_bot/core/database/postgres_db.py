@@ -35,8 +35,8 @@ class PlayerArchive(BaseModel):
     team_id_list: list[str]
     team_games_played_dict: dict
     team_override: Optional[str]
-    created_date: datetime
-    modified_date: datetime
+    created_date: Optional[datetime] = None
+    modified_date: Optional[datetime] = None
     stats: dict
     stats_modified_date: Optional[datetime] = None
 
