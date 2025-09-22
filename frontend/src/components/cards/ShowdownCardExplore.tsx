@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { type CardDatabaseRecord, fetchCardData } from "../../api/card_db/cardDatabase";
 import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
@@ -74,6 +74,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [isLoading, setIsLoading] = useState(false);
     const [selectedCard, setSelectedCard] = useState<CardDatabaseRecord | null>(null);
 
+    // Pagination state
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+
     // Modals
     const [showFiltersModal, setShowFiltersModal] = useState(false);
     const [showPlayerDetailModal, setShowPlayerDetailModal] = useState(false);
@@ -90,8 +95,12 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(DEFAULT_FILTER_SELECTIONS);
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
 
-    // Replace your current useEffect with this debounced version
+    // Reload cards when set or filters change
     useEffect(() => {
+        
+        setPage(1);
+        setHasMore(true);
+
         if (!userShowdownSet || isLoading) return;
         
         const timeoutId = setTimeout(() => {
@@ -114,24 +123,69 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
         return () => clearTimeout(timeoutId);
     }, [searchText]);
 
-    const getCardsData = async () => {
-        setIsLoading(true);
+    // Create ref for intersection observer
+    const observer = useRef<IntersectionObserver>(null);
+    const lastCardElementRef = useCallback((node: HTMLDivElement) => {
+        if (isLoading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+                loadMoreCards();
+            }
+        });
+        if (node) observer.current.observe(node);
+    }, [isLoading, hasMore, isLoadingMore]);
+
+    const getCardsData = async (pageNum: number = 1, append: boolean = false) => {
+        
+        // Loading indicators
+        if (pageNum === 1) {
+            setIsLoading(true);
+        } else {
+            setIsLoadingMore(true);
+        }
+
         try {
+
+            const pageLimit = 50;
             const searchFilters = debouncedSearchText ? { search: debouncedSearchText } : {};
-            const combinedFilters = { ...filters, ...searchFilters, showdown_set: userShowdownSet };
+            const combinedFilters = { 
+                ...filters, 
+                ...searchFilters, 
+                showdown_set: userShowdownSet,
+                page: pageNum,
+                limit: pageLimit // Cards per page
+            };
+
             // Remove filters with empty arrays or undefined values
             const cleanedFilters = Object.fromEntries(
                 Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && v.length !== 0)
             );
             const data = await fetchCardData(cleanedFilters);
-            if (data.length > 0) {
-                console.log(data[0]);
+            
+            if (append && showdownCards) {
+                setShowdownCards([...showdownCards, ...data]);
+            } else {
+                setShowdownCards(data);
             }
-            setShowdownCards(data);
+            
+            // Check if there is more data not loaded yet
+            setHasMore(data.length === pageLimit); // If less than limit, no more data
+
         } catch (error) {
             console.error("Error fetching showdown cards:", error);
         } finally {
             setIsLoading(false);
+            setIsLoadingMore(false);
+        }
+    };
+
+    // Load more cards function
+    const loadMoreCards = async () => {
+        if (!isLoadingMore && hasMore) {
+            const nextPage = page + 1;
+            setPage(nextPage);
+            await getCardsData(nextPage, true); // append = true
         }
     };
 
@@ -187,6 +241,21 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
         }
 
         return `${snakeToTitleCase(key)}: ${value}`;
+    }
+
+    const renderLoadingIndicator = () => {
+        return (
+            <FaBaseballBall 
+                className="
+                    text-3xl
+                    animate-bounce
+                " 
+                style={{
+                    animationDuration: '0.7s',
+                    animationIterationCount: 'infinite'
+                }}
+            />
+        );
     }
 
     // MARK: Render
@@ -245,10 +314,34 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             <div className="relative">
                 <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
                     {/* Iterate through showdownCards and display each card */}
-                    {showdownCards?.map((cardRecord) => (
-                        <CardItem key={cardRecord.id} card={cardRecord.card_data} onClick={() => handleRowClick(cardRecord)} />
+                    {showdownCards?.map((cardRecord, index) => (
+                        <div 
+                            key={cardRecord.id} 
+                            ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
+                        >
+                            <CardItem 
+                                
+                                card={cardRecord.card_data} 
+                                onClick={() => handleRowClick(cardRecord)} 
+                            />
+                        </div>
+                        
                     ))}
                 </div>
+
+                {/* Loading more indicator at bottom */}
+                {isLoadingMore && (
+                    <div className="flex justify-center py-4">
+                        {renderLoadingIndicator()}
+                    </div>
+                )}
+
+                {/* No more results indicator */}
+                {!hasMore && showdownCards && showdownCards.length > 0 && (
+                    <div className="flex justify-center py-4 text-secondary">
+                        <span className="text-sm">No more cards to load</span>
+                    </div>
+                )}
 
             </div>
 
@@ -256,20 +349,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             {isLoading && (
                 <div className="
                     absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-                    bg-[var(--background-secondary)]/50 backdrop-blur 
+                    bg-[var(--primary)]/10 backdrop-blur 
                     p-4 rounded-2xl
                     flex items-center space-x-2
-                ">
-                    <FaBaseballBall 
-                        className="
-                            text-3xl
-                            animate-bounce
-                        " 
-                        style={{
-                            animationDuration: '0.7s',
-                            animationIterationCount: 'infinite'
-                        }}
-                    />
+                "> 
+                    {renderLoadingIndicator()}
                 </div>
             )}
 
@@ -334,7 +418,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                 {/* Filters options */}
 
                                 <MultiSelect
-                                    label="Parent League"
+                                    label="Organizations"
                                     options={[
                                         { value: 'MLB', label: 'MLB' },
                                         { value: 'NGL', label: 'Negro Leagues' },

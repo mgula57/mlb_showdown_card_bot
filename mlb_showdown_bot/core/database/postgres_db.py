@@ -415,6 +415,10 @@ class PostgresDB:
         sort_by = str(filters.pop('sort_by', 'points')).upper()
         sort_direction = str(filters.pop('sort_direction', 'desc')).upper()
 
+        # Pop out pagination and limit
+        page = int(filters.pop('page', 1))
+        limit = int(filters.pop('limit', 50))
+
         # Apply filters if any
         if filters and len(filters) > 0:
             filter_clauses = []
@@ -480,7 +484,7 @@ class PostgresDB:
 
         query += sql.SQL(f" ORDER BY {sort_by} {sort_direction} ")
 
-        query += sql.SQL(" LIMIT 50")
+        query += sql.SQL(f" LIMIT {limit} OFFSET {(page - 1) * limit} ")
 
         result_list = self.execute_query(query=query, filter_values=tuple(filter_values))
         return result_list
