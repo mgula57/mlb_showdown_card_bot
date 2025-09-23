@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from pprint import pprint
 from time import sleep
 from datetime import date, datetime
+from requests import exceptions as req_exc
 
 from ..database.postgres_db import PostgresDB, PlayerArchive
 from .player_stats import PlayerStats, PlayerType
@@ -337,12 +338,26 @@ class PlayerStatsArchive:
         """
 
         scraper = cloudscraper.create_scraper()
-        html = scraper.get(url)
+        
+        # TIMEOUTS
+        CONNECT_TO = 8
+        READ_TO = 22
+
+        try:
+            html = scraper.get(url, timeout=(CONNECT_TO, READ_TO))
+            html.raise_for_status()
+        except req_exc.Timeout:
+            # Bubble up a clear timeout error
+            raise TimeoutError(f"Request timed out (> {CONNECT_TO + READ_TO}s): {url}")
+        except req_exc.RequestException as e:
+            # Other network errors
+            raise RuntimeError(f"HTTP error for {url}: {e}") from e
+        
 
         if html.status_code == 502:
-          raise urllib.URLError('502 Bad Gateway')
+            raise urllib.URLError('502 Bad Gateway')
         if html.status_code == 429:
-          print("429 - TOO MANY REQUESTS")
+            print("429 - TOO MANY REQUESTS")
 
         return html.text
     
