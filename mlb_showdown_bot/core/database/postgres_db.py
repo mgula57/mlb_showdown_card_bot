@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from typing import Optional, Any
 
 # INTERNAL
-from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, StatsPeriodType, __version__
+from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Position, StatsPeriodType, __version__
 from ..card.utils.shared_functions import convert_year_string_to_list
 
 class PlayerArchive(BaseModel):
@@ -111,6 +111,7 @@ class PostgresDB:
         # PRINT QUERY AND FILTER VALUES FOR DEBUGGING        
         try:
             db_cursor.execute(query, filter_values)
+            # print(db_cursor.mogrify(query, filter_values).decode())
         except:
             print(db_cursor.mogrify(query, filter_values).decode())
             return []
@@ -402,92 +403,132 @@ class PostgresDB:
 
         if not self.connection:
             return None
+        
+        try:
 
-        query = sql.SQL("""
-            SELECT *
-            FROM explore_data
-            WHERE TRUE
-        """)
+            query = sql.SQL("""
+                SELECT *
+                FROM explore_data
+                WHERE TRUE
+            """)
 
-        filter_values = []
+            filter_values = []
 
-        # Pop out sorting filters
-        sort_by = str(filters.pop('sort_by', 'points')).upper()
-        sort_direction = str(filters.pop('sort_direction', 'desc')).upper()
+            # Pop out sorting filters
+            sort_by = str(filters.pop('sort_by', 'points')).lower()
+            sort_direction = str(filters.pop('sort_direction', 'desc')).lower()
 
-        # Pop out pagination and limit
-        page = int(filters.pop('page', 1))
-        limit = int(filters.pop('limit', 50))
+            # Pop out pagination and limit
+            page = int(filters.pop('page', 1))
+            limit = int(filters.pop('limit', 50))
 
-        # Apply filters if any
-        if filters and len(filters) > 0:
-            filter_clauses = []
-            
-            for key, value in filters.items():
-                if value is None:
-                    continue
-                    
-                # Handle min/max filtering
-                if key.startswith('min_'):
-                    field_name = key[4:]  # Remove 'min_' prefix
-                    filter_clauses.append(sql.SQL("coalesce({field} >= %s, true)").format(
-                        field=sql.Identifier(field_name)
-                    ))
-                    filter_values.append(value)
-                    
-                elif key.startswith('max_'):
-                    field_name = key[4:]  # Remove 'max_' prefix
-                    filter_clauses.append(sql.SQL("{field} <= %s").format(
-                        field=sql.Identifier(field_name)
-                    ))
-                    filter_values.append(value)
-
-                elif key == 'search':
-                    # Handle search text filtering (ILIKE %value%)
-                    filter_clauses.append(sql.SQL("{field} ILIKE %s").format(
-                        field=sql.Identifier("name")
-                    ))
-                    filter_values.append(f"%{value}%")
-                    
-                # Handle list filtering (IN clause)
-                elif isinstance(value, list) and len(value) > 0:
-                    # For JSONB array fields, use @> operator to check if array contains any of the values
-                    if key in ['positions', 'secondary_positions', 'primary_positions']:
-                        # Check if any of the provided positions are in the player's positions
-                        filter_clauses.append(sql.SQL("positions_list && %s"))
-                        filter_values.append(value)
-                    else:
-                        # Regular IN clause for non-array fields
-                        placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
-                        filter_clauses.append(sql.SQL("{field} IN ({placeholders})").format(
-                            field=sql.Identifier(key),
-                            placeholders=placeholders
-                        ))
-                        filter_values.extend(value)
+            # Apply filters if any
+            if filters and len(filters) > 0:
+                filter_clauses = []
+                
+                for key, value in filters.items():
+                    if value is None:
+                        continue
                         
-                # Handle regular equality filtering
+                    # Handle min/max filtering
+                    if key.startswith('min_'):
+                        field_name = key[4:]  # Remove 'min_' prefix
+                        filter_clauses.append(sql.SQL("coalesce({field} >= %s, true)").format(
+                            field=sql.Identifier(field_name)
+                        ))
+                        filter_values.append(value)
+                        
+                    elif key.startswith('max_'):
+                        field_name = key[4:]  # Remove 'max_' prefix
+                        filter_clauses.append(sql.SQL("{field} <= %s").format(
+                            field=sql.Identifier(field_name)
+                        ))
+                        filter_values.append(value)
+
+                    elif key == 'search':
+                        # Handle search text filtering (ILIKE %value%)
+                        filter_clauses.append(sql.SQL("{field} ILIKE %s").format(
+                            field=sql.Identifier("name")
+                        ))
+                        filter_values.append(f"%{value}%")
+                        
+                    # Handle list filtering (IN clause)
+                    elif isinstance(value, list) and len(value) > 0:
+                        # For JSONB array fields, use @> operator to check if array contains any of the values
+                        if key in ['positions', 'secondary_positions', 'primary_positions']:
+                            # Check if any of the provided positions are in the player's positions
+                            filter_clauses.append(sql.SQL("positions_list && %s"))
+                            filter_values.append(value)
+                        else:
+                            # Regular IN clause for non-array fields
+                            placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
+                            filter_clauses.append(sql.SQL("{field} IN ({placeholders})").format(
+                                field=sql.Identifier(key),
+                                placeholders=placeholders
+                            ))
+                            filter_values.extend(value)
+                            
+                    # Handle regular equality filtering
+                    else:
+                        filter_clauses.append(sql.SQL("{field} = %s").format(
+                            field=sql.Identifier(key)
+                        ))
+                        filter_values.append(value)
+
+                if filter_clauses:
+                    query += sql.SQL(" AND ") + sql.SQL(" AND ").join(filter_clauses)
+
+            # ADD SORTING
+            if sort_direction not in ['asc', 'desc']:
+                sort_direction = 'desc'
+
+            # CHECK FOR JSONB USE CASES
+            is_defensive_sort = 'positions_and_defense' in sort_by
+            if is_defensive_sort:
+                sort_by = sort_by.replace('positions_and_defense_', '').upper()
+                # For 1B, 2B, 3B, SS we need to check both the position and the 'IF' key
+                # For CF, LF/RF we need to check both the position and the 'OF' key
+                check_if_key = sort_by in ['1B', '2B', '3B', 'SS']
+                check_of_key = sort_by in ['CF', 'LF/RF']
+                if check_if_key or check_of_key:
+                    additional_key = 'IF' if check_if_key else 'OF'
+                    final_sort = sql.SQL("""CASE 
+                                                WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric 
+                                                WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric 
+                                                ELSE null 
+                                            END {direction} NULLS LAST""").format(
+                        direction=sql.SQL(sort_direction)
+                    )
+                    filter_values += [sort_by, sort_by, additional_key, additional_key]
                 else:
-                    filter_clauses.append(sql.SQL("{field} = %s").format(
-                        field=sql.Identifier(key)
-                    ))
-                    filter_values.append(value)
+                    final_sort = sql.SQL("""CASE WHEN positions_and_defense ? %s THEN (positions_and_defense->>%s)::numeric ELSE null END {direction} NULLS LAST""").format(
+                        direction=sql.SQL(sort_direction)
+                    )
+                    filter_values += [sort_by, sort_by]
 
-            if filter_clauses:
-                query += sql.SQL(" AND ") + sql.SQL(" AND ").join(filter_clauses)
+            else:
+                final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
+                    field=sql.Identifier(sort_by),
+                    direction=sql.SQL(sort_direction)
+                )
 
-        # Add sorting
-        if sort_by not in ['POINTS', 'NAME', 'WAR', 'PA', 'IP']:
-            sort_by = 'POINTS'
+            query += sql.SQL(" ORDER BY {}, bref_id").format(final_sort)
 
-        if sort_direction not in ['ASC', 'DESC']:
-            sort_direction = 'DESC'
+            # ADD LIMIT AND PAGINATION
+            if not isinstance(page, int) or page < 1:
+                page = 1
+            if not isinstance(limit, int) or limit < 1 or limit > 1000:
+                limit = 50
 
-        query += sql.SQL(f" ORDER BY {sort_by} {sort_direction}, bref_id ")
+            query += sql.SQL(" LIMIT %s OFFSET %s")
+            filter_values.extend([limit, (page - 1) * limit])
 
-        query += sql.SQL(f" LIMIT {limit} OFFSET {(page - 1) * limit} ")
-
-        result_list = self.execute_query(query=query, filter_values=tuple(filter_values))
-        return result_list
+            result_list = self.execute_query(query=query, filter_values=tuple(filter_values))
+            return result_list
+        except Exception as e:
+            print("Error fetching card data:", e)
+            traceback.print_exc()
+            return []
 
 # ------------------------------------------------------------------------
 # TABLES

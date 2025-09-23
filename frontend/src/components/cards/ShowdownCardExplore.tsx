@@ -4,7 +4,10 @@ import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { Modal } from "../shared/Modal";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
-import { FaCompass, FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes } from "react-icons/fa";
+import { 
+    FaCompass, FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes,
+    FaDollarSign, FaMitten, 
+ } from "react-icons/fa";
 import { snakeToTitleCase } from "../../functions/text";
 
 // Filter components
@@ -13,6 +16,7 @@ import MultiSelect from "../shared/MultiSelect";
 import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
 import { CardItem } from "./CardItem";
+import { FaPersonRunning } from "react-icons/fa6";
 
 type ShowdownCardExploreProps = {
     showdownCards?: CardDatabaseRecord[] | null;
@@ -59,7 +63,7 @@ interface FilterSelections {
 const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     min_pa: 250,
     min_real_ip: 35,
-    sort_by: "Points",
+    sort_by: "points",
     sort_direction: "desc",
 };
 
@@ -337,7 +341,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
                 {/* No more results indicator */}
                 {!hasMore && showdownCards && showdownCards.length > 0 && (
-                    <div className="flex justify-center py-4 text-secondary">
+                    <div className="flex justify-center p-6 text-secondary">
                         <span className="text-sm">No more cards to load</span>
                     </div>
                 )}
@@ -394,9 +398,23 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                 <FormDropdown
                                     label="Sort Category"
                                     options={[
-                                        { value: 'Points', label: 'Points' },
+                                        { value: 'points', label: 'Points', icon: <FaDollarSign /> },
+                                        { value: 'speed', label: 'Speed', icon: <FaPersonRunning /> },
+                                        { value: 'command', label: 'Control/Onbase' },
+                                        { value: 'outs', label: 'Outs' },
+
+                                        { value: ['2000', '2001'].includes(userShowdownSet) ? 'positions_and_defense_c' : 'positions_and_defense_ca', label: 'Defense (CA)', icon: <FaMitten /> },
+                                        { value: 'positions_and_defense_1b', label: 'Defense (1B)', icon: <FaMitten /> },
+                                        { value: 'positions_and_defense_2b', label: 'Defense (2B)', icon: <FaMitten /> },
+                                        { value: 'positions_and_defense_3b', label: 'Defense (3B)', icon: <FaMitten /> },
+                                        { value: 'positions_and_defense_ss', label: 'Defense (SS)', icon: <FaMitten /> },
+                                        { value: 'positions_and_defense_if', label: 'Defense (IF)', icon: <FaMitten /> },
+                                        { value: 'positions_and_defense_lf/rf', label: 'Defense (LF/RF)', icon: <FaMitten /> },
+                                        { value: 'positions_and_defense_cf', label: 'Defense (CF)', icon: <FaMitten /> },
+                                        { value: 'positions_and_defense_of', label: 'Defense (OF)', icon: <FaMitten /> },
+
                                     ]}
-                                    selectedOption={filtersForEditing.sort_by || 'Points'}
+                                    selectedOption={filtersForEditing.sort_by || 'points'}
                                     onChange={(value) => setFiltersForEditing({...filtersForEditing, sort_by: value})}
                                 />
 
