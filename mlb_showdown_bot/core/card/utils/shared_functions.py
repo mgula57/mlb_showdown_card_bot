@@ -173,13 +173,13 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
             stats_data[key] = 0
 
     if 'ER' in current_categories and 'IP' in current_categories and 'earned_run_avg' not in current_categories and is_pitcher:
-        stats_data['earned_run_avg'] = round(9 * stats_data['ER'] / stats_data['IP'], 3)
+        stats_data['earned_run_avg'] = round(9 * stats_data.get('ER', 0) / stats_data.get('IP', 1), 3)
 
     if '2B' not in current_categories:
         if is_pitcher:
             maxDoubles = 0.25
             eraPercentile = percentile(minValue=1.0, maxValue=5.0, value=stats_data.get('earned_run_avg', 0))
-            stats_data['2B'] = int(stats_data['H'] * eraPercentile * maxDoubles)
+            stats_data['2B'] = int(stats_data.get('H', 0) * eraPercentile * maxDoubles)
         else:
             stats_data['2B'] = 0
 
@@ -187,7 +187,7 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
         if is_pitcher:
             maxTriples = 0.025
             eraPercentile = percentile(minValue=1.0, maxValue=5.0, value=stats_data.get('earned_run_avg', 0))
-            stats_data['3B'] = int(stats_data['H'] * eraPercentile * maxTriples)
+            stats_data['3B'] = int(stats_data.get('H', 0) * eraPercentile * maxTriples)
         else:
             stats_data['3B'] = 0
     

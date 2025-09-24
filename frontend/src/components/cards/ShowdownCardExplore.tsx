@@ -4,10 +4,10 @@ import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { Modal } from "../shared/Modal";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
-import { 
-    FaCompass, FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes,
-    FaDollarSign, FaMitten, 
- } from "react-icons/fa";
+import {
+    FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes,
+    FaDollarSign, FaMitten,
+} from "react-icons/fa";
 import { snakeToTitleCase } from "../../functions/text";
 
 // Filter components
@@ -68,6 +68,58 @@ const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     sort_direction: "desc",
 };
 
+const SORT_OPTIONS: SelectOption[] = [
+    { value: 'points', label: 'Points', icon: <FaDollarSign /> },
+    { value: 'speed', label: 'Speed', icon: <FaPersonRunning /> },
+    { value: 'command', label: 'Control/Onbase' },
+    { value: 'outs', label: 'Outs' },
+
+    { value: 'positions_and_defense_c', label: 'Defense (CA)', icon: <FaMitten /> },
+    { value: 'positions_and_defense_1b', label: 'Defense (1B)', icon: <FaMitten /> },
+    { value: 'positions_and_defense_2b', label: 'Defense (2B)', icon: <FaMitten /> },
+    { value: 'positions_and_defense_3b', label: 'Defense (3B)', icon: <FaMitten /> },
+    { value: 'positions_and_defense_ss', label: 'Defense (SS)', icon: <FaMitten /> },
+    { value: 'positions_and_defense_if', label: 'Defense (IF)', icon: <FaMitten /> },
+    { value: 'positions_and_defense_lf/rf', label: 'Defense (LF/RF)', icon: <FaMitten /> },
+    { value: 'positions_and_defense_cf', label: 'Defense (CF)', icon: <FaMitten /> },
+    { value: 'positions_and_defense_of', label: 'Defense (OF)', icon: <FaMitten /> },
+];
+
+// Filter Storage
+const FILTERS_STORAGE_KEY = 'exploreFilters:v1';
+
+const stripEmpty = (obj: any) =>
+    Object.fromEntries(
+        Object.entries(obj || {}).filter(
+            ([_, v]) => !(v === undefined || v === null || (Array.isArray(v) && v.length === 0))
+        )
+    );
+
+const loadSavedFilters = (): FilterSelections | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = localStorage.getItem(FILTERS_STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return { ...DEFAULT_FILTER_SELECTIONS, ...parsed } as FilterSelections;
+    } catch {
+        return null;
+    }
+};
+
+const saveFilters = (filters: FilterSelections) => {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(stripEmpty(filters)));
+    } catch {
+        // ignore storage errors
+    }
+};
+
+// Helper used for lazy init so we don't set state in an effect
+const getInitialFilters = (): FilterSelections =>
+  loadSavedFilters() ?? DEFAULT_FILTER_SELECTIONS;
+
 // --------------------------------------------
 // MARK: - Component
 // --------------------------------------------
@@ -96,42 +148,31 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [debouncedSearchText, setDebouncedSearchText] = useState('');
 
     // Filters
-    const [filters, setFilters] = useState<FilterSelections>(DEFAULT_FILTER_SELECTIONS);
-    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(DEFAULT_FILTER_SELECTIONS);
+    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters);
+    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters);
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
 
     // Defined within component to access userShowdownSet
-    const SORT_OPTIONS: SelectOption[] = [
-        { value: 'points', label: 'Points', icon: <FaDollarSign /> },
-        { value: 'speed', label: 'Speed', icon: <FaPersonRunning /> },
-        { value: 'command', label: 'Control/Onbase' },
-        { value: 'outs', label: 'Outs' },
-
-        { value: ['2000', '2001'].includes(userShowdownSet) ? 'positions_and_defense_c' : 'positions_and_defense_ca', label: 'Defense (CA)', icon: <FaMitten /> },
-        { value: 'positions_and_defense_1b', label: 'Defense (1B)', icon: <FaMitten /> },
-        { value: 'positions_and_defense_2b', label: 'Defense (2B)', icon: <FaMitten /> },
-        { value: 'positions_and_defense_3b', label: 'Defense (3B)', icon: <FaMitten /> },
-        { value: 'positions_and_defense_ss', label: 'Defense (SS)', icon: <FaMitten /> },
-        { value: 'positions_and_defense_if', label: 'Defense (IF)', icon: <FaMitten /> },
-        { value: 'positions_and_defense_lf/rf', label: 'Defense (LF/RF)', icon: <FaMitten /> },
-        { value: 'positions_and_defense_cf', label: 'Defense (CF)', icon: <FaMitten /> },
-        { value: 'positions_and_defense_of', label: 'Defense (OF)', icon: <FaMitten /> },
-    ];
     const selectedSortOption = SORT_OPTIONS.find(option => option.value === filters.sort_by) || null;
+
+    // Save filters whenever they change (kept separate so it doesn't run on search or set changes)
+    useEffect(() => {
+        saveFilters(filters);
+    }, [filters]);
 
     // Reload cards when set or filters change
     useEffect(() => {
-        
+
         setPage(1);
         setHasMore(true);
         setShowdownCards(null); // Clear existing cards immediately
 
         if (!userShowdownSet || isLoading) return;
-        
+
         const timeoutId = setTimeout(() => {
             getCardsData();
         }, 100); // Small delay to prevent rapid successive calls
-        
+
         return () => clearTimeout(timeoutId);
     }, [userShowdownSet, filters, debouncedSearchText]);
 
@@ -162,7 +203,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     }, [isLoading, hasMore, isLoadingMore]);
 
     const getCardsData = async (pageNum: number = 1, append: boolean = false) => {
-        
+
         // Loading indicators
         if (pageNum === 1) {
             setIsLoading(true);
@@ -174,9 +215,9 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
             const pageLimit = 50;
             const searchFilters = debouncedSearchText ? { search: debouncedSearchText } : {};
-            const combinedFilters = { 
-                ...filters, 
-                ...searchFilters, 
+            const combinedFilters = {
+                ...filters,
+                ...searchFilters,
                 showdown_set: userShowdownSet,
                 page: pageNum,
                 limit: pageLimit // Cards per page
@@ -187,13 +228,13 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && v.length !== 0)
             );
             const data = await fetchCardData(cleanedFilters);
-            
+
             if (append && showdownCards) {
                 setShowdownCards([...showdownCards, ...data]);
             } else {
                 setShowdownCards(data);
             }
-            
+
             // Check if there is more data not loaded yet
             setHasMore(data.length === pageLimit); // If less than limit, no more data
 
@@ -245,7 +286,8 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     }
 
     const filterDisplayText = (key: string, value: any) => {
-        if (key.startsWith('min_')) {``
+        if (key.startsWith('min_')) {
+            ``
             var shortKey = key.replace('min_', '');
             if (shortKey.length == 2) {
                 shortKey = shortKey.toUpperCase();
@@ -269,11 +311,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
     const renderLoadingIndicator = () => {
         return (
-            <FaBaseballBall 
+            <FaBaseballBall
                 className="
                     text-3xl
                     animate-bounce
-                " 
+                "
                 style={{
                     animationDuration: '0.7s',
                     animationIterationCount: 'infinite'
@@ -289,10 +331,6 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             {/* Search Bar and Filters */}
             <div className="sticky top-0 z-10 flex flex-col gap-2 w-full 
                             bg-background-secondary/95 backdrop-blur p-3">
-                <div className="flex items-center space-x-2 px-2 text-lg">
-                    <FaCompass className="text-primary" />
-                    <span className="font-bold text-2xl text-nowrap">Explore Cards</span>
-                </div>
 
                 <div className="flex items-center space-x-2">
                     {/* Search Input */}
@@ -307,7 +345,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                     />
 
                     {/* Filters */}
-                    <button 
+                    <button
                         onClick={handleOpenFilters}
                         className="
                             px-3 h-11
@@ -315,8 +353,8 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                             flex items-center gap-2
                             hover:bg-[var(--background-secondary-hover)]
                         ">
-                            <FaFilter className="text-primary" />
-                            <span className="hidden sm:inline">Filter</span>
+                        <FaFilter className="text-primary" />
+                        <span className="hidden sm:inline">Filter</span>
                     </button>
                 </div>
 
@@ -324,12 +362,12 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 <div className="flex flex-row gap-2 overflow-x-scroll scrollbar-hide">
                     {/* Sorting Summary */}
                     {selectedSortOption && (
-                        <button 
+                        <button
                             className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1 text-sm max-w-84 overflow-x-clip text-nowrap"
                             onClick={() => setFilters((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
                         >
                             <div className="flex flex-row gap-1 items-center">
-                                Sort: 
+                                Sort:
                                 {selectedSortOption.icon && <span className="text-primary">{selectedSortOption.icon}</span>}
                                 <span>
                                     {selectedSortOption.label || "N/A"} {filters.sort_direction === 'asc' ? '↑' : '↓'}
@@ -341,12 +379,12 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                     {/* Selected Filters */}
                     {Object.entries(filtersWithoutSorting).map(([key, value]) => (
                         value === undefined || value === null || (Array.isArray(value) && value.length === 0) ? null :
-                        <div key={key} className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1">
-                            <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
-                            <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1">
-                                <FaTimes />
-                            </button>
-                        </div>
+                            <div key={key} className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1">
+                                <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
+                                <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1">
+                                    <FaTimes />
+                                </button>
+                            </div>
                     ))}
                 </div>
 
@@ -356,16 +394,16 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
                     {/* Iterate through showdownCards and display each card */}
                     {showdownCards?.map((cardRecord, index) => (
-                        <div 
-                            key={cardRecord.id} 
+                        <div
+                            key={cardRecord.id}
                             ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
                         >
-                            <CardItem 
-                                card={cardRecord.card_data} 
-                                onClick={() => handleRowClick(cardRecord)} 
+                            <CardItem
+                                card={cardRecord.card_data}
+                                onClick={() => handleRowClick(cardRecord)}
                             />
                         </div>
-                        
+
                     ))}
                 </div>
 
@@ -377,7 +415,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 )}
 
                 {/* No more results indicator */}
-                {!hasMore && showdownCards && showdownCards.length > 0 && (
+                {!hasMore && showdownCards && showdownCards.length > 50 && (
                     <div className="flex justify-center p-6 text-secondary">
                         <span className="text-sm">No more cards to load</span>
                     </div>
@@ -392,7 +430,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                     bg-[var(--primary)]/10 backdrop-blur 
                     p-4 rounded-2xl
                     flex items-center space-x-2
-                "> 
+                ">
                     {renderLoadingIndicator()}
                 </div>
             )}
@@ -400,8 +438,8 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             {/* Player Detail Modal */}
             {showPlayerDetailModal && selectedCard && (
                 <Modal onClose={handleCloseModal}>
-                    <CardDetail 
-                        showdownBotCardData={{card: selectedCard.card_data} as ShowdownBotCardAPIResponse} 
+                    <CardDetail
+                        showdownBotCardData={{ card: selectedCard.card_data } as ShowdownBotCardAPIResponse}
                     />
                 </Modal>
             )}
@@ -413,8 +451,8 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                     <div className="p-4 min-h-48 max-h-[70vh] md:min-h-128 md:max-h-[90vh]">
                         <div className="flex gap-3 mb-4 items-center border-b-2 border-form-element pb-2">
                             <h2 className="text-xl font-bold">Filter Options</h2>
-                            <button 
-                                onClick={resetFilters} 
+                            <button
+                                onClick={resetFilters}
                                 className="
                                     px-3 py-1 
                                     text-[var(--background-primary)] text-xs 
@@ -422,7 +460,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                     hover:bg-[var(--secondary)]
                                     cursor-pointer
                                 ">
-                                    Reset
+                                Reset
                             </button>
 
                         </div>
@@ -431,12 +469,12 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
                             {/* Sorting */}
                             <FormSection title="Sorting" isOpenByDefault={true}>
-                                
+
                                 <FormDropdown
                                     label="Sort Category"
                                     options={SORT_OPTIONS}
                                     selectedOption={filtersForEditing.sort_by || 'points'}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, sort_by: value})}
+                                    onChange={(value) => setFiltersForEditing({ ...filtersForEditing, sort_by: value })}
                                 />
 
                                 <FormDropdown
@@ -446,11 +484,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         { value: 'desc', label: 'Descending', icon: <FaArrowDown /> },
                                     ]}
                                     selectedOption={filtersForEditing.sort_direction || 'asc'}
-                                    onChange={(value) => setFiltersForEditing({...filtersForEditing, sort_direction: value})}
+                                    onChange={(value) => setFiltersForEditing({ ...filtersForEditing, sort_direction: value })}
                                 />
 
                             </FormSection>
-        
+
 
                             <FormSection title="Leagues and Teams" isOpenByDefault={true}>
                                 {/* Filters options */}
@@ -463,7 +501,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         { value: 'NON-MLB', label: 'Misc' },
                                     ]}
                                     selections={filtersForEditing.organization}
-                                    onChange={(values) => setFiltersForEditing({...filtersForEditing, organization: values})}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, organization: values })}
                                 />
 
                                 <MultiSelect
@@ -483,7 +521,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         { value: 'UA', label: 'UA' },
                                     ]}
                                     selections={filtersForEditing.league}
-                                    onChange={(values) => setFiltersForEditing({...filtersForEditing, league: values})}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, league: values })}
                                 />
 
                                 <MultiSelect
@@ -653,7 +691,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                     ]}
                                     selections={filtersForEditing.team}
                                     onChange={(values) => {
-                                        setFiltersForEditing({...filtersForEditing, team: values});
+                                        setFiltersForEditing({ ...filtersForEditing, team: values });
                                     }}
                                 />
 
@@ -668,7 +706,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         { value: 'PITCHER', label: 'Pitcher' },
                                     ]}
                                     selections={filtersForEditing.player_type}
-                                    onChange={(values) => setFiltersForEditing({...filtersForEditing, player_type: values})}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, player_type: values })}
                                 />
 
                                 <MultiSelect
@@ -687,7 +725,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         { value: 'CL', label: 'CL' },
                                     ]}
                                     selections={filtersForEditing.positions || []}
-                                    onChange={(values) => setFiltersForEditing({...filtersForEditing, positions: values})}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, positions: values })}
                                 />
 
                                 <MultiSelect
@@ -698,12 +736,12 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         { value: 'S', label: 'Switch' },
                                     ]}
                                     selections={filtersForEditing.hand || []}
-                                    onChange={(values) => setFiltersForEditing({...filtersForEditing, hand: values})}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, hand: values })}
                                 />
                             </FormSection>
 
                             <FormSection title="Real Stats" isOpenByDefault={true}>
-                                
+
                                 {/* Real PA */}
                                 <div className="flex gap-2">
                                     <FormInput
@@ -712,7 +750,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         label="Min PA"
                                         placeholder="None"
                                         value={filtersForEditing.min_pa?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, min_pa: Number(value) || undefined})}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_pa: Number(value) || undefined })}
                                     />
                                     <FormInput
                                         type="number"
@@ -720,7 +758,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         label="Max PA"
                                         placeholder="None"
                                         value={filtersForEditing.max_pa?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, max_pa: Number(value) || undefined})}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_pa: Number(value) || undefined })}
                                     />
                                 </div>
 
@@ -732,7 +770,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         label="Min Real IP"
                                         placeholder="None"
                                         value={filtersForEditing.min_real_ip?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, min_real_ip: Number(value) || undefined})}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_real_ip: Number(value) || undefined })}
                                     />
                                     <FormInput
                                         type="number"
@@ -740,7 +778,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         label="Max Real IP"
                                         placeholder="None"
                                         value={filtersForEditing.max_real_ip?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, max_real_ip: Number(value) || undefined})}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_real_ip: Number(value) || undefined })}
                                     />
                                 </div>
                             </FormSection>
@@ -753,7 +791,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         label="Min Ctrl/OB"
                                         placeholder="None"
                                         value={filtersForEditing.min_command?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, min_command: Number(value) || undefined})}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_command: Number(value) || undefined })}
                                     />
                                     <FormInput
                                         type="number"
@@ -761,7 +799,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         label="Max Ctrl/OB"
                                         placeholder="None"
                                         value={filtersForEditing.max_command?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, max_command: Number(value) || undefined})}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_command: Number(value) || undefined })}
                                     />
                                 </div>
 
@@ -772,7 +810,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         label="Min PTS"
                                         placeholder="None"
                                         value={filtersForEditing.min_points?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, min_points: Number(value) || undefined})}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_points: Number(value) || undefined })}
                                     />
                                     <FormInput
                                         type="number"
@@ -780,7 +818,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         label="Max PTS"
                                         placeholder="None"
                                         value={filtersForEditing.max_points?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, max_points: Number(value) || undefined})}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_points: Number(value) || undefined })}
                                     />
                                 </div>
 
@@ -791,7 +829,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         label="Min Speed"
                                         placeholder="None"
                                         value={filtersForEditing.min_speed?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, min_speed: Number(value) || undefined})}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_speed: Number(value) || undefined })}
                                     />
                                     <FormInput
                                         type="number"
@@ -799,16 +837,16 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         label="Max Speed"
                                         placeholder="None"
                                         value={filtersForEditing.max_speed?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({...filtersForEditing, max_speed: Number(value) || undefined})}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_speed: Number(value) || undefined })}
                                     />
                                 </div>
-                                
+
 
                             </FormSection>
 
                         </div>
 
-                        
+
                     </div>
                 </Modal>
             )}

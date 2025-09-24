@@ -12,9 +12,7 @@ def fetch_card_data():
 
         # Get query parameters
         payload = request.get_json() or {}
-
         card_data = db.fetch_card_data(filters = payload)
-
         db.close_connection()
 
         return jsonify(card_data)
