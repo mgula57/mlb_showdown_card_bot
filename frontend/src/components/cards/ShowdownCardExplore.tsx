@@ -15,6 +15,7 @@ import FormInput from "../customs/FormInput";
 import MultiSelect from "../shared/MultiSelect";
 import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
+import type { SelectOption } from '../shared/CustomSelect';
 import { CardItem } from "./CardItem";
 import { FaPersonRunning } from "react-icons/fa6";
 
@@ -98,6 +99,25 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [filters, setFilters] = useState<FilterSelections>(DEFAULT_FILTER_SELECTIONS);
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(DEFAULT_FILTER_SELECTIONS);
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
+
+    // Defined within component to access userShowdownSet
+    const SORT_OPTIONS: SelectOption[] = [
+        { value: 'points', label: 'Points', icon: <FaDollarSign /> },
+        { value: 'speed', label: 'Speed', icon: <FaPersonRunning /> },
+        { value: 'command', label: 'Control/Onbase' },
+        { value: 'outs', label: 'Outs' },
+
+        { value: ['2000', '2001'].includes(userShowdownSet) ? 'positions_and_defense_c' : 'positions_and_defense_ca', label: 'Defense (CA)', icon: <FaMitten /> },
+        { value: 'positions_and_defense_1b', label: 'Defense (1B)', icon: <FaMitten /> },
+        { value: 'positions_and_defense_2b', label: 'Defense (2B)', icon: <FaMitten /> },
+        { value: 'positions_and_defense_3b', label: 'Defense (3B)', icon: <FaMitten /> },
+        { value: 'positions_and_defense_ss', label: 'Defense (SS)', icon: <FaMitten /> },
+        { value: 'positions_and_defense_if', label: 'Defense (IF)', icon: <FaMitten /> },
+        { value: 'positions_and_defense_lf/rf', label: 'Defense (LF/RF)', icon: <FaMitten /> },
+        { value: 'positions_and_defense_cf', label: 'Defense (CF)', icon: <FaMitten /> },
+        { value: 'positions_and_defense_of', label: 'Defense (OF)', icon: <FaMitten /> },
+    ];
+    const selectedSortOption = SORT_OPTIONS.find(option => option.value === filters.sort_by) || null;
 
     // Reload cards when set or filters change
     useEffect(() => {
@@ -280,7 +300,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                         label=""
                         type="text"
                         value={searchText || ''}
-                        placeholder="Search..."
+                        placeholder="Search for a Player..."
                         onChange={(value) => setSearchText(value || '')}
                         className="w-full sm:w-1/3"
                         isClearable={true}
@@ -302,6 +322,23 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
                 {/* Show selected filters with X to remove */}
                 <div className="flex flex-row gap-2 overflow-x-scroll scrollbar-hide">
+                    {/* Sorting Summary */}
+                    {selectedSortOption && (
+                        <button 
+                            className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1 text-sm max-w-84 overflow-x-clip text-nowrap"
+                            onClick={() => setFilters((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
+                        >
+                            <div className="flex flex-row gap-1 items-center">
+                                Sort: 
+                                {selectedSortOption.icon && <span className="text-primary">{selectedSortOption.icon}</span>}
+                                <span>
+                                    {selectedSortOption.label || "N/A"} {filters.sort_direction === 'asc' ? '↑' : '↓'}
+                                </span>
+                            </div>
+                        </button>
+                    )}
+
+                    {/* Selected Filters */}
                     {Object.entries(filtersWithoutSorting).map(([key, value]) => (
                         value === undefined || value === null || (Array.isArray(value) && value.length === 0) ? null :
                         <div key={key} className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1">
@@ -397,23 +434,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                 
                                 <FormDropdown
                                     label="Sort Category"
-                                    options={[
-                                        { value: 'points', label: 'Points', icon: <FaDollarSign /> },
-                                        { value: 'speed', label: 'Speed', icon: <FaPersonRunning /> },
-                                        { value: 'command', label: 'Control/Onbase' },
-                                        { value: 'outs', label: 'Outs' },
-
-                                        { value: ['2000', '2001'].includes(userShowdownSet) ? 'positions_and_defense_c' : 'positions_and_defense_ca', label: 'Defense (CA)', icon: <FaMitten /> },
-                                        { value: 'positions_and_defense_1b', label: 'Defense (1B)', icon: <FaMitten /> },
-                                        { value: 'positions_and_defense_2b', label: 'Defense (2B)', icon: <FaMitten /> },
-                                        { value: 'positions_and_defense_3b', label: 'Defense (3B)', icon: <FaMitten /> },
-                                        { value: 'positions_and_defense_ss', label: 'Defense (SS)', icon: <FaMitten /> },
-                                        { value: 'positions_and_defense_if', label: 'Defense (IF)', icon: <FaMitten /> },
-                                        { value: 'positions_and_defense_lf/rf', label: 'Defense (LF/RF)', icon: <FaMitten /> },
-                                        { value: 'positions_and_defense_cf', label: 'Defense (CF)', icon: <FaMitten /> },
-                                        { value: 'positions_and_defense_of', label: 'Defense (OF)', icon: <FaMitten /> },
-
-                                    ]}
+                                    options={SORT_OPTIONS}
                                     selectedOption={filtersForEditing.sort_by || 'points'}
                                     onChange={(value) => setFiltersForEditing({...filtersForEditing, sort_by: value})}
                                 />

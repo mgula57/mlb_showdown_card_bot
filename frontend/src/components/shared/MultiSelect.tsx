@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { FaChevronDown, FaCheck, FaTimes } from 'react-icons/fa';
 
 // Props for MultiSelect
@@ -13,21 +14,14 @@ interface MultiSelectProps {
 
 // Multi-Select Dropdown Component
 const MultiSelect = ({ label, options, selections, onChange, placeholder = "Select...", className }: MultiSelectProps) => {
+    
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+
+    const [openAbove, setOpenAbove] = useState(false);
+    const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
     const selectedValues = selections || [];
-
-    // Close dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
 
     const toggleOption = (value: string) => {
         const newValues = selectedValues.includes(value)
@@ -47,6 +41,62 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
         onChange([]);
     };
 
+    // Recompute fixed position (and whether to open above)
+    const updatePosition = () => {
+        if (!triggerRef.current) return;
+        const rect = triggerRef.current.getBoundingClientRect();
+        const dropdownH = dropdownRef.current?.getBoundingClientRect()?.height ?? 240;
+
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        const shouldOpenAbove = spaceBelow < dropdownH && spaceAbove > spaceBelow;
+
+        setOpenAbove(shouldOpenAbove);
+
+        const left = Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8));
+        const top = shouldOpenAbove ? rect.top : rect.bottom;
+
+        const maxHeight = shouldOpenAbove
+            ? Math.max(120, rect.top - 8)
+            : Math.max(120, window.innerHeight - rect.bottom - 8);
+
+        setDropdownStyle({
+            position: 'fixed',
+            top,
+            left,
+            width: rect.width,
+            zIndex: 50,
+            maxHeight,
+        });
+    };
+
+    // Position on open + keep updated on resize/scroll (capture to catch inner scrollers)
+    useEffect(() => {
+        if (!isOpen) return;
+        updatePosition();
+        const handle = () => updatePosition();
+        window.addEventListener('resize', handle);
+        window.addEventListener('orientationchange', handle);
+        window.addEventListener('scroll', handle, true);
+        return () => {
+            window.removeEventListener('resize', handle);
+            window.removeEventListener('orientationchange', handle);
+            window.removeEventListener('scroll', handle, true);
+        };
+    }, [isOpen, options.length]);
+
+    // Close when clicking outside (account for portal)
+    useEffect(() => {
+        const onDocClick = (e: MouseEvent) => {
+            const target = e.target as Node;
+            const inWrapper = dropdownRef.current?.contains(target);
+            const indropdown = dropdownRef.current?.contains(target);
+            if (!inWrapper && !indropdown) setIsOpen(false);
+        };
+        document.addEventListener('mousedown', onDocClick);
+        return () => document.removeEventListener('mousedown', onDocClick);
+    }, []);
+
     return (
         <div className={`space-y-2 ${className}`} ref={dropdownRef}>
             <label className="block text-sm font-medium text-[var(--text-primary)]">{label}</label>
@@ -55,6 +105,7 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
             <div className="relative">
                 <button
                     type="button"
+                    ref={triggerRef}
                     onClick={() => setIsOpen(!isOpen)}
                     className={`
                         w-full flex items-center justify-between px-3 py-2 min-h-[2.5rem]
@@ -104,13 +155,14 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
                     </div>
                 </button>
 
-                {/* Dropdown Menu */}
-                {isOpen && (
-                    <div className="fixed z-50 min-w-64 mt-1 
-                                    bg-[var(--background-primary)] 
-                                    border border-[var(--border-primary)] 
-                                    rounded-lg shadow-lg 
-                                    max-h-72 overflow-y-auto">
+                {/* Dropdown dropdown */}
+                {isOpen && createPortal(
+                    <div
+                        ref={dropdownRef}
+                        style={dropdownStyle}
+                        className={`bg-[var(--background-primary)] border border-[var(--border-primary)] rounded-lg shadow-lg overflow-y-auto
+                                    transform ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}`}
+                    >
                         {/* Header with select all / clear all */}
                         <div className="px-3 py-2 border-b border-[var(--border-secondary)] bg-[var(--background-secondary)]">
                             <div className="flex justify-between text-xs">
@@ -161,7 +213,8 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
                                 No options available
                             </div>
                         )}
-                    </div>
+                    </div>,
+                    document.body
                 )}
             </div>
         </div>
