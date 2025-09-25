@@ -497,7 +497,8 @@ class BaseballReferenceScraper(BaseModel):
             is_hof = self.is_hof(soup_for_homepage_stats=soup_for_homepage_stats)
 
             # WAR
-            stats_dict.update({'bWAR': self.__bWar(soup_for_homepage_stats, year, type)})
+            if 'bWAR' not in stats_dict.keys():
+                stats_dict.update({'bWAR': self.__bWar(soup_for_homepage_stats, year, type)})
 
             name = self.player_name(soup_for_homepage_stats)
             stats_dict['type'] = type
@@ -853,17 +854,17 @@ class BaseballReferenceScraper(BaseModel):
         is_full_career = year == 'CAREER'
         is_pitcher = type == 'Pitcher'
         type_string = 'pitching' if is_pitcher else 'batting'
-        war_type_suffix = '_pitch' if is_pitcher else ''
+        war_type_prefix = type_string[0].lower()  # p or b
         try:
             if is_full_career:
-                summarized_header = self.__get_career_totals_row(div_id=f"div_{type_string}_value",soup_object=soup_for_homepage_stats)
+                summarized_header = self.__get_career_totals_row(div_id=f"all_players_value_{type_string}", soup_object=soup_for_homepage_stats)
                 # TOTAL WAR
-                war_object = summarized_header.find('td',attrs={'data-stat':f"WAR{war_type_suffix}"})
+                war_object = summarized_header.find('td',attrs={'data-stat':f"{war_type_prefix}_war"})
                 war_rating = float(war_object.get_text()) if war_object != None else 0
             else:
-                player_value = soup_for_homepage_stats.find('tr', attrs = {'id': f"{type_string}_value.{year}"})
+                player_value = soup_for_homepage_stats.find('tr', attrs = {'id': f"players_value_{type_string}.{year}"})
                 # TOTAL WAR
-                war_object = player_value.find('td',attrs={'class':'right','data-stat':f"WAR{war_type_suffix}"})
+                war_object = player_value.find('td',attrs={'class':'right','data-stat':f"{war_type_prefix}_war"})
                 war_rating = war_object.get_text() if war_object != None else 0
             return float(war_rating)
         except:
