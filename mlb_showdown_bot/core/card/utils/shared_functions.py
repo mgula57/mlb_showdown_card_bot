@@ -34,11 +34,12 @@ def total_innings_pitched(ip_list: list[float]) -> float:
     
     return math.floor(total_real_decimal) + new_total_decimal_part
 
-def aggregate_stats(category:list, stats:list, aggregation_method: str) -> Any:
+def aggregate_stats(category:str, stats:list, aggregation_method: str) -> Any:
     """
     Aggregate from a list of stats
     
     Args:
+        category (str): Stat category (e.g. 'IP', 'PA', etc)
         stats (list): List of stats
         mode (str): Mode to aggregate by (e.g. 'sum', 'mean')
 
@@ -49,8 +50,8 @@ def aggregate_stats(category:list, stats:list, aggregation_method: str) -> Any:
     if len(stats) == 0:
         return None
     
-    first_value_type = type(stats[0])
-    if first_value_type == str:
+    pct_of_list_strings = len([s for s in stats if type(s) == str]) / len(stats)
+    if pct_of_list_strings > 0.5:
         match aggregation_method:
             case 'mode': return mode(stats)
             case 'last': return stats[-1]
