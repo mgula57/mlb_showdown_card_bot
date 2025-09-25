@@ -6,8 +6,9 @@ import { Modal } from "../shared/Modal";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes,
-    FaDollarSign, FaMitten,
+    FaDollarSign, FaMitten
 } from "react-icons/fa";
+import { FaArrowRotateRight } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
 
 // Filter components
@@ -51,6 +52,8 @@ interface FilterSelections {
     min_speed?: number;
     max_speed?: number;
 
+    min_year?: number;
+    max_year?: number;
     organization?: string[]; // e.g., ["MLB", "NGL"]
     league?: string[]; // e.g., ["MLB", "NEGRO LEAGUES"]
     team?: string[]; // e.g., ["Yankees", "Red Sox"]
@@ -66,6 +69,8 @@ const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     min_real_ip: 35,
     sort_by: "points",
     sort_direction: "desc",
+    min_year: 2024,
+    max_year: 2025,
 };
 
 const SORT_OPTIONS: SelectOption[] = [
@@ -151,6 +156,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [filters, setFilters] = useState<FilterSelections>(getInitialFilters);
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters);
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
+    const hasCustomFiltersApplied = JSON.stringify(stripEmpty(filtersWithoutSorting)) !== JSON.stringify(stripEmpty(DEFAULT_FILTER_SELECTIONS));
 
     // Defined within component to access userShowdownSet
     const selectedSortOption = SORT_OPTIONS.find(option => option.value === filters.sort_by) || null;
@@ -281,14 +287,20 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
         setShowFiltersModal(false);
     }
 
-    const resetFilters = () => {
-        setFiltersForEditing(DEFAULT_FILTER_SELECTIONS);
+    const resetFilters = (targets: String[]) => {
+        if (targets.includes('filters')) {
+            setFilters(DEFAULT_FILTER_SELECTIONS);
+        }
+        if (targets.includes('editing')) {
+            setFiltersForEditing(DEFAULT_FILTER_SELECTIONS);
+        }
     }
 
     const filterDisplayText = (key: string, value: any) => {
-        if (key.startsWith('min_')) {
-            ``
-            var shortKey = key.replace('min_', '');
+        if (key.startsWith('min_') || key.startsWith('max_')) {
+            
+            const comparisonOperator = key.startsWith('min_') ? '>=' : '<=';
+            var shortKey = key.replace('min_', '').replace('max_', '');
             if (shortKey.length == 2) {
                 shortKey = shortKey.toUpperCase();
             } else {
@@ -303,7 +315,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 shortKey = 'Control/Onbase';
             }
 
-            return `${shortKey} >= ${value}`;
+            return `${shortKey} ${comparisonOperator} ${value}`;
         }
 
         return `${snakeToTitleCase(key)}: ${value}`;
@@ -322,7 +334,16 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 }}
             />
         );
-    }
+    };
+
+    const renderResetButton = (targets: String[]) => {
+        return (
+            <button onClick={() => resetFilters(targets)} className="text-white flex items-center bg-[var(--showdown-gray)] rounded-full px-2 gap-1 py-1 cursor-pointer">
+                <FaArrowRotateRight />
+                <span className="text-sm">Reset</span>
+            </button>
+        );
+    };
 
     // MARK: Render
     return (
@@ -359,33 +380,47 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 </div>
 
                 {/* Show selected filters with X to remove */}
-                <div className="flex flex-row gap-2 overflow-x-scroll scrollbar-hide">
-                    {/* Sorting Summary */}
-                    {selectedSortOption && (
-                        <button
-                            className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1 text-sm max-w-84 overflow-x-clip text-nowrap"
-                            onClick={() => setFilters((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
-                        >
-                            <div className="flex flex-row gap-1 items-center">
-                                Sort:
-                                {selectedSortOption.icon && <span className="text-primary">{selectedSortOption.icon}</span>}
-                                <span>
-                                    {selectedSortOption.label || "N/A"} {filters.sort_direction === 'asc' ? '↑' : '↓'}
-                                </span>
-                            </div>
-                        </button>
-                    )}
+                <div className="relative flex flex-row">
 
-                    {/* Selected Filters */}
-                    {Object.entries(filtersWithoutSorting).map(([key, value]) => (
-                        value === undefined || value === null || (Array.isArray(value) && value.length === 0) ? null :
-                            <div key={key} className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1">
-                                <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
-                                <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1">
-                                    <FaTimes />
-                                </button>
-                            </div>
-                    ))}
+                    <div className="flex flex-1 gap-2 overflow-x-scroll scrollbar-hide">
+                        {/* Sorting Summary */}
+                        {selectedSortOption && (
+                            <button
+                                className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                onClick={() => setFilters((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
+                            >
+                                <div className="flex flex-row gap-1 items-center">
+                                    Sort:
+                                    {selectedSortOption.icon && <span className="text-primary">{selectedSortOption.icon}</span>}
+                                    <span>
+                                        {selectedSortOption.label || "N/A"} {filters.sort_direction === 'asc' ? '↑' : '↓'}
+                                    </span>
+                                </div>
+                            </button>
+                        )}
+
+                        {/* Selected Filters */}
+                        {/* The last element should add lots of padding */}
+                        {Object.entries(filtersWithoutSorting).map(([key, value]) => (
+                            value === undefined || value === null || (Array.isArray(value) && value.length === 0) ? null :
+                                <div key={key} className={`flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1`}>
+                                    <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
+                                    <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
+                                        <FaTimes />
+                                    </button>
+                                </div>
+                        ))}
+
+                        {/* Add Blank element with width of 32 */}
+                        <div className="flex-shrink-0 w-32"></div>
+                    </div>
+
+                    {/* Reset Button */}
+                    {hasCustomFiltersApplied && (
+                        <div className="absolute right-0">
+                            {renderResetButton(['filters', 'editing'])}
+                        </div>
+                    )}
                 </div>
 
             </div>
@@ -451,18 +486,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                     <div className="p-4 min-h-48 max-h-[70vh] md:min-h-128 md:max-h-[90vh]">
                         <div className="flex gap-3 mb-4 items-center border-b-2 border-form-element pb-2">
                             <h2 className="text-xl font-bold">Filter Options</h2>
-                            <button
-                                onClick={resetFilters}
-                                className="
-                                    px-3 py-1 
-                                    text-[var(--background-primary)] text-xs 
-                                    rounded-lg bg-[var(--tertiary)]
-                                    hover:bg-[var(--secondary)]
-                                    cursor-pointer
-                                ">
-                                Reset
-                            </button>
-
+                            {renderResetButton(['editing'])}
                         </div>
 
                         <div className="flex flex-col gap-4 pb-12">
@@ -490,8 +514,27 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                             </FormSection>
 
 
-                            <FormSection title="Leagues and Teams" isOpenByDefault={true}>
+                            <FormSection title="Seasons and Teams" isOpenByDefault={true}>
                                 {/* Filters options */}
+
+                                <div className="flex gap-2">
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="Start Year"
+                                        placeholder="None"
+                                        value={filtersForEditing.min_year?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_year: Number(value) || undefined })}
+                                    />
+                                    <FormInput
+                                        type="number"
+                                        inputMode="numeric"
+                                        label="End Year"
+                                        placeholder="None"
+                                        value={filtersForEditing.max_year?.toString() || ''}
+                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_year: Number(value) || undefined })}
+                                    />
+                                </div>
 
                                 <MultiSelect
                                     label="Organizations"

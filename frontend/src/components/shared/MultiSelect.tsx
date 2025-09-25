@@ -16,8 +16,9 @@ interface MultiSelectProps {
 const MultiSelect = ({ label, options, selections, onChange, placeholder = "Select...", className }: MultiSelectProps) => {
     
     const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-    const triggerRef = useRef<HTMLButtonElement>(null);
+    const wrapperRef = useRef<HTMLDivElement>(null);    // outer component
+    const triggerRef = useRef<HTMLButtonElement>(null); // button that triggers menu
+    const menuRef = useRef<HTMLDivElement>(null);       // portal menu
 
     const [openAbove, setOpenAbove] = useState(false);
     const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
@@ -45,11 +46,11 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
     const updatePosition = () => {
         if (!triggerRef.current) return;
         const rect = triggerRef.current.getBoundingClientRect();
-        const dropdownH = dropdownRef.current?.getBoundingClientRect()?.height ?? 240;
+        const menuH = menuRef.current?.getBoundingClientRect()?.height ?? 240;
 
         const spaceBelow = window.innerHeight - rect.bottom;
         const spaceAbove = rect.top;
-        const shouldOpenAbove = spaceBelow < dropdownH && spaceAbove > spaceBelow;
+        const shouldOpenAbove = spaceBelow < menuH && spaceAbove > spaceBelow;
 
         setOpenAbove(shouldOpenAbove);
 
@@ -89,16 +90,16 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
     useEffect(() => {
         const onDocClick = (e: MouseEvent) => {
             const target = e.target as Node;
-            const inWrapper = dropdownRef.current?.contains(target);
-            const indropdown = dropdownRef.current?.contains(target);
-            if (!inWrapper && !indropdown) setIsOpen(false);
+            if (!wrapperRef.current?.contains(target) && !menuRef.current?.contains(target)) {
+                setIsOpen(false);
+            }
         };
         document.addEventListener('mousedown', onDocClick);
         return () => document.removeEventListener('mousedown', onDocClick);
     }, []);
 
     return (
-        <div className={`space-y-2 ${className}`} ref={dropdownRef}>
+        <div className={`space-y-2 ${className}`} ref={wrapperRef}>
             <label className="block text-sm font-medium text-[var(--text-primary)]">{label}</label>
             
             {/* Dropdown Button */}
@@ -106,7 +107,7 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
                 <button
                     type="button"
                     ref={triggerRef}
-                    onClick={() => setIsOpen(!isOpen)}
+                    onClick={() => setIsOpen(o => !o)}  // re-click closes
                     className={`
                         w-full flex items-center justify-between px-3 py-2 min-h-[2.5rem]
                         border-2 border-form-element rounded-lg 
@@ -158,7 +159,7 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
                 {/* Dropdown dropdown */}
                 {isOpen && createPortal(
                     <div
-                        ref={dropdownRef}
+                        ref={menuRef}
                         style={dropdownStyle}
                         className={`bg-[var(--background-primary)] border border-[var(--border-primary)] rounded-lg shadow-lg overflow-y-auto
                                     transform ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}`}

@@ -7,6 +7,7 @@
 
     --showdown-blue: #1a3b5f;
     --showdown-red: #9a362f;
+    --showdown-gray: #6e6e73;
     
     --background-primary: #f3f7fa;
     --background-secondary: #ffffff;
@@ -19,6 +20,7 @@
 
     --warning: #F3CE32;
     --success: #4BB543;
+
 }
 
 .dark {
@@ -28,6 +30,7 @@
 
     --showdown-blue: #4682e6;
     --showdown-red: #d04e47;
+    --showdown-gray: #a0a0a5;
 
     --background-primary: #2d2d32;
     --background-secondary: #232526;
