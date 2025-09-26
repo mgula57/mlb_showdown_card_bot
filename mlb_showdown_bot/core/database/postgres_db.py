@@ -462,7 +462,7 @@ class PostgresDB:
                         else:
                             # Regular IN clause for non-array fields
                             placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
-                            filter_clauses.append(sql.SQL("{field} IN ({placeholders})").format(
+                            filter_clauses.append(sql.SQL("{field}::text IN ({placeholders})").format(
                                 field=sql.Identifier(key),
                                 placeholders=placeholders
                             ))

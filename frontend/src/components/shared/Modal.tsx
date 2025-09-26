@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { FaXmark } from 'react-icons/fa6';
 
+let bodyScrollLockCount = 0;
+
 type ModalProps = {
     children: React.ReactNode;
     onClose: () => void;
@@ -10,6 +12,7 @@ type ModalProps = {
 
 export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
+    const scrollYRef = useRef(0);
 
     // Close on escape key
     useEffect(() => {
@@ -29,6 +32,36 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
             onClose();
         }
     };
+
+    // Prevent body scroll while modal is open
+    useEffect(() => {
+        bodyScrollLockCount += 1;
+        if (bodyScrollLockCount === 1) {
+            const body = document.body;
+            const docEl = document.documentElement;
+            const scrollbarWidth = Math.max(0, window.innerWidth - docEl.clientWidth);
+
+            scrollYRef.current = window.scrollY;
+            body.style.position = 'fixed';
+            body.style.top = `-${scrollYRef.current}px`;
+            body.style.width = '100%';
+            if (scrollbarWidth) body.style.paddingRight = `${scrollbarWidth}px`;
+        }
+
+        return () => {
+            bodyScrollLockCount -= 1;
+            if (bodyScrollLockCount === 0) {
+                const body = document.body;
+                const top = body.style.top;
+                body.style.position = '';
+                body.style.top = '';
+                body.style.width = '';
+                body.style.paddingRight = '';
+                const y = parseInt(top || '0', 10) || 0;
+                window.scrollTo(0, -y);
+            }
+        };
+    }, []);
 
     const sizeClasses = {
         sm: 'max-w-md',

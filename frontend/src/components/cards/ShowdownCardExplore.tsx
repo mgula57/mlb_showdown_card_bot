@@ -65,6 +65,8 @@ interface FilterSelections {
     player_type?: string[]; // e.g., ["Hitter", "Pitcher"]
     positions?: string[]; // e.g., ["C", "1B"]
     hand?: string[]; // e.g., ["R", "L", "S"]
+
+    is_chart_outlier?: string[];
 }
 
 const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
@@ -106,11 +108,14 @@ const REAL_RANGE_FILTERS: RangeDef[] = [
     { label: "HR",       minKey: "min_hr",      maxKey: "max_hr",      step: 1 },
 ];
 
-const SHOWDOWN_RANGE_FILTERS: RangeDef[] = [
-    { label: "Ctrl/OB",  minKey: "min_command", maxKey: "max_command", step: 1 },
+const SHOWDOWN_METADATA_RANGE_FILTERS: RangeDef[] = [
     { label: "PTS",      minKey: "min_points",  maxKey: "max_points",  step: 1 },
-    { label: "Outs",     minKey: "min_outs",    maxKey: "max_outs",    step: 1 },
     { label: "Speed",    minKey: "min_speed",   maxKey: "max_speed",   step: 1 },
+];
+
+const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
+    { label: "Ctrl/OB",  minKey: "min_command", maxKey: "max_command", step: 1 },
+    { label: "Outs",     minKey: "min_outs",    maxKey: "max_outs",    step: 1 },
 ];
 
 // Filter Storage
@@ -824,7 +829,27 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                             </FormSection>
 
                             <FormSection title="Showdown Attributes" isOpenByDefault={true}>
-                                {SHOWDOWN_RANGE_FILTERS.map(def => (
+                                {SHOWDOWN_METADATA_RANGE_FILTERS.map(def => (
+                                    <RangeFilter
+                                        key={def.minKey as string}
+                                        label={def.label}
+                                        {...bindRange(def.minKey, def.maxKey)}
+                                    />
+                                ))}
+                            </FormSection>
+
+                            <FormSection title="Showdown Chart" isOpenByDefault={true}>
+                                <MultiSelect
+                                    label="Chart Outlier?"
+                                    options={[
+                                        { value: 'true', label: 'Yes' },
+                                        { value: 'false', label: 'No' },
+                                    ]}
+                                    selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
+                                />
+                
+                                {SHOWDOWN_CHART_RANGE_FILTERS.map(def => (
                                     <RangeFilter
                                         key={def.minKey as string}
                                         label={def.label}

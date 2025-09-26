@@ -52,8 +52,8 @@ def build_custom_card():
 
     try:
         # Normal card generation
-        card_data = generate_card(randomize=is_random, **payload)
-        
+        card_data = generate_card(randomize=is_random, store_in_logs=True, **payload)
+
         return jsonify(card_data)
         
     except Exception as e:
