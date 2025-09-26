@@ -19,6 +19,7 @@ import FormSection from "../customs/FormSection";
 import type { SelectOption } from '../shared/CustomSelect';
 import { CardItem } from "./CardItem";
 import { FaPersonRunning } from "react-icons/fa6";
+import RangeFilter from "../customs/RangeFilter";
 
 type ShowdownCardExploreProps = {
     showdownCards?: CardDatabaseRecord[] | null;
@@ -41,6 +42,8 @@ interface FilterSelections {
     max_pa?: number;
     min_real_ip?: number;
     max_real_ip?: number;
+    min_hr?: number;
+    max_hr?: number;
 
     // Showdown Min/Max
     min_points?: number;
@@ -88,6 +91,26 @@ const SORT_OPTIONS: SelectOption[] = [
     { value: 'positions_and_defense_lf/rf', label: 'Defense (LF/RF)', icon: <FaMitten /> },
     { value: 'positions_and_defense_cf', label: 'Defense (CF)', icon: <FaMitten /> },
     { value: 'positions_and_defense_of', label: 'Defense (OF)', icon: <FaMitten /> },
+];
+
+type RangeDef = {
+    label: string;
+    minKey: keyof FilterSelections;
+    maxKey: keyof FilterSelections;
+    step?: number;
+};
+
+const REAL_RANGE_FILTERS: RangeDef[] = [
+    { label: "PA",       minKey: "min_pa",      maxKey: "max_pa",      step: 1 },
+    { label: "IP",       minKey: "min_real_ip", maxKey: "max_real_ip", step: 1 },
+    { label: "HR",       minKey: "min_hr",      maxKey: "max_hr",      step: 1 },
+];
+
+const SHOWDOWN_RANGE_FILTERS: RangeDef[] = [
+    { label: "Ctrl/OB",  minKey: "min_command", maxKey: "max_command", step: 1 },
+    { label: "PTS",      minKey: "min_points",  maxKey: "max_points",  step: 1 },
+    { label: "Outs",     minKey: "min_outs",    maxKey: "max_outs",    step: 1 },
+    { label: "Speed",    minKey: "min_speed",   maxKey: "max_speed",   step: 1 },
 ];
 
 // Filter Storage
@@ -157,6 +180,12 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters);
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
     const hasCustomFiltersApplied = JSON.stringify(stripEmpty(filtersWithoutSorting)) !== JSON.stringify(stripEmpty(DEFAULT_FILTER_SELECTIONS));
+    const bindRange = (minKey: keyof FilterSelections, maxKey: keyof FilterSelections) => ({
+        minValue: filtersForEditing[minKey] as number | undefined,
+        maxValue: filtersForEditing[maxKey] as number | undefined,
+        onMinChange: (n?: number) => setFiltersForEditing(prev => ({ ...prev, [minKey]: n })),
+        onMaxChange: (n?: number) => setFiltersForEditing(prev => ({ ...prev, [maxKey]: n })),
+    });
 
     // Defined within component to access userShowdownSet
     const selectedSortOption = SORT_OPTIONS.find(option => option.value === filters.sort_by) || null;
@@ -380,7 +409,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 </div>
 
                 {/* Show selected filters with X to remove */}
-                <div className="relative flex flex-row">
+                <div className="relative flex flex-row gap-2">
 
                     <div className="flex flex-1 gap-2 overflow-x-scroll scrollbar-hide">
                         {/* Sorting Summary */}
@@ -412,12 +441,12 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                         ))}
 
                         {/* Add Blank element with width of 32 */}
-                        <div className="flex-shrink-0 w-32"></div>
+                        <div className="flex-shrink-0 w-16"></div>
                     </div>
 
                     {/* Reset Button */}
                     {hasCustomFiltersApplied && (
-                        <div className="absolute right-0">
+                        <div>
                             {renderResetButton(['filters', 'editing'])}
                         </div>
                     )}
@@ -785,106 +814,23 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
                             <FormSection title="Real Stats" isOpenByDefault={true}>
 
-                                {/* Real PA */}
-                                <div className="flex gap-2">
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Min PA"
-                                        placeholder="None"
-                                        value={filtersForEditing.min_pa?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_pa: Number(value) || undefined })}
+                                {REAL_RANGE_FILTERS.map(def => (
+                                    <RangeFilter
+                                        key={def.minKey as string}
+                                        label={def.label}
+                                        {...bindRange(def.minKey, def.maxKey)}
                                     />
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Max PA"
-                                        placeholder="None"
-                                        value={filtersForEditing.max_pa?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_pa: Number(value) || undefined })}
-                                    />
-                                </div>
-
-                                {/* Real IP */}
-                                <div className="flex gap-2">
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Min Real IP"
-                                        placeholder="None"
-                                        value={filtersForEditing.min_real_ip?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_real_ip: Number(value) || undefined })}
-                                    />
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Max Real IP"
-                                        placeholder="None"
-                                        value={filtersForEditing.max_real_ip?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_real_ip: Number(value) || undefined })}
-                                    />
-                                </div>
+                                ))}
                             </FormSection>
 
                             <FormSection title="Showdown Attributes" isOpenByDefault={true}>
-                                <div className="flex gap-2">
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Min Ctrl/OB"
-                                        placeholder="None"
-                                        value={filtersForEditing.min_command?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_command: Number(value) || undefined })}
+                                {SHOWDOWN_RANGE_FILTERS.map(def => (
+                                    <RangeFilter
+                                        key={def.minKey as string}
+                                        label={def.label}
+                                        {...bindRange(def.minKey, def.maxKey)}
                                     />
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Max Ctrl/OB"
-                                        placeholder="None"
-                                        value={filtersForEditing.max_command?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_command: Number(value) || undefined })}
-                                    />
-                                </div>
-
-                                <div className="flex gap-2">
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Min PTS"
-                                        placeholder="None"
-                                        value={filtersForEditing.min_points?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_points: Number(value) || undefined })}
-                                    />
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Max PTS"
-                                        placeholder="None"
-                                        value={filtersForEditing.max_points?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_points: Number(value) || undefined })}
-                                    />
-                                </div>
-
-                                <div className="flex gap-2">
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Min Speed"
-                                        placeholder="None"
-                                        value={filtersForEditing.min_speed?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_speed: Number(value) || undefined })}
-                                    />
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Max Speed"
-                                        placeholder="None"
-                                        value={filtersForEditing.max_speed?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_speed: Number(value) || undefined })}
-                                    />
-                                </div>
-
-
+                                ))}
                             </FormSection>
 
                         </div>
