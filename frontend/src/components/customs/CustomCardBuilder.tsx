@@ -30,7 +30,6 @@ import editionSS from '../../assets/edition-ss.png';
 import { 
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle, 
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
-    FaCheckCircle
 } from 'react-icons/fa';
 import { FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck } from 'react-icons/fa6';
 
@@ -171,7 +170,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     // Loading Status
     const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
-    const [isLoadingStatusVisible, setIsLoadingStatusVisible] = useState(false);
+    const [, setIsLoadingStatusVisible] = useState(false);
     const [isLoadingStatusExiting, setIsLoadingStatusExiting] = useState(false);
 
     // Animation
@@ -770,7 +769,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // Only scroll on mobile/tablet screens
         if (window.innerWidth >= 1024) return; // @2xl breakpoint
     
-        // First try to find the preview section by ID (add an ID to it)
+        // First try to find the preview section by ID
         const previewElement = document.getElementById('preview-section');
         if (previewElement) {
             previewElement.scrollIntoView({ behavior: 'smooth' });
@@ -911,13 +910,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             <div className="
                 @container flex flex-col @2xl:flex-row 
                 @2xl:overflow-hidden 
-                @2xl:h-[calc(100vh-3rem)]
+                @2xl:h-[calc(100dvh-3rem)]
             ">
                 {/* Loading Indicator */}
                 {loadingStatus && (
                     <div
                         className={`
-                            absolute top-5 right-5 z-50 rounded-xl px-4 py-3 text-sm
+                            fixed top-15 right-5 z-50 rounded-xl px-4 py-3 text-sm
                             text-black shadow-xl
                             max-w-56
                             ${isLoadingStatusExiting 
@@ -953,10 +952,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 `}>
 
                     {/* Scrollable area */}
-                    <div className={`flex-1 overflow-y-auto pt-4 ${animationTw} ${isFormCollapsed ? 'px-1' : 'px-4'}`}>
+                    <div className={`flex-1 pt-4 ${animationTw} ${isFormCollapsed ? 'px-1' : 'px-4'}
+                        overflow-visible @2xl:overflow-y-auto 
+                    `}>
 
                         {/* Search and Form Inputs */}
-                        <div className={`flex-col flex gap-4 ${animationTw} ${isFormCollapsed ? 'pb-2' : 'pb-6'} @2xl:pb-64 justify-center`}>
+                        <div className={`flex-col flex gap-4 ${animationTw} ${isFormCollapsed ? 'pb-2' : 'pb-6'} @2xl:pb-96 justify-center`}>
 
                             {/* Search Box and Collapse Button */}
                             <div className='flex col-span-full gap-2 mb-0'>
@@ -1317,7 +1318,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         "
                                         onClick={handleReset}
                                     >
-                                        <FaRotateLeft className="sm:mr-1 w-10 sm:w-10" />
+                                        <FaRotateLeft className="sm:mr-1 w-10 sm:w-auto" />
                                         <div className='hidden sm:inline'>Reset</div>
                                     </button>
                                 </div>
@@ -1332,10 +1333,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                 {/* Preview Section */}
                 <section 
+                    id="preview-section"
                     ref={previewSectionRef}
                     className="
                         w-full @2xl:flex-grow
                         pb-64 @2xl:pb-0
+                        scroll-mt-12
+                        @2xl:scroll-mt-0
                     "
                 >
                     <CardDetail 

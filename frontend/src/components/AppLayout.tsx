@@ -64,7 +64,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     }, [isSideMenuOpen]);
 
     return (
-        <div className="bg-primary flex h-screen relative w-screen">
+        <div className="bg-primary flex relative">
             {/* Desktop Sidebar */}
             <SideMenu className="hidden md:block" isOpen={isSideMenuOpen} setIsOpen={setIsSideMenuOpen} />
 

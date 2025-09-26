@@ -21,6 +21,8 @@
     --warning: #F3CE32;
     --success: #4BB543;
 
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+
 }
 
 .dark {
@@ -176,8 +178,29 @@
     animation: slideOutToRight 0.3s ease-in forwards;
 }
 
-/* Set default text color for entire app */
 body {
     color: var(--primary);
     background-color: var(--background-primary);
+    min-height: 100dvh;                 /* dynamic viewport */
+    min-height: -webkit-fill-available; /* iOS fallback */
+}
+
+/* Make root element stretch so body can scroll */
+html, body, #root {
+  height: auto;
+  min-height: 100dvh;
+}
+
+/* Safe-area helpers */
+.pb-safe { padding-bottom: var(--safe-bottom); }
+.mb-safe { margin-bottom: var(--safe-bottom); }
+.fixed-bottom-safe { bottom: var(--safe-bottom); }
+
+/* dvh utility (for Tailwind gap) */
+.min-h-dvh { min-height: 100dvh; }
+
+/* Full device height utility (covers under iOS toolbars) */
+.h-lvh { height: 100lvh; }
+@supports not (height: 100lvh) {
+    .h-lvh { height: 100vh; }
 }

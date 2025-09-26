@@ -48,14 +48,14 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
 
     return (
         <div 
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 cursor-pointer"
+            className="fixed left-0 top-0 w-screen h-lvh bg-black/50 flex items-center justify-center z-50 p-4 cursor-pointer"
             onClick={handleBackdropClick}
         >
             <div 
                 ref={modalRef}
                 className={`
                     bg-[var(--background-primary)] 
-                    rounded-lg 
+                    rounded-2xl
                     shadow-2xl 
                     w-full 
                     ${sizeClasses[size]}

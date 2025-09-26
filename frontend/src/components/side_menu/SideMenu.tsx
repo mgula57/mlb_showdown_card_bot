@@ -42,11 +42,11 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
 
     return (
         // Container
-        <aside className={`h-screen fixed left-0 top-0 ${className}`}>
+        <aside className={`min-h-dvh fixed left-0 top-0 ${className}`}>
 
             {/* Navigation */}
             <nav className={`
-                h-screen ${isOpen ? 'w-64 md:w-48' : 'w-12'} space-y-4
+                min-h-dvh ${isOpen ? 'w-64 md:w-48' : 'w-12'} space-y-4
                 bg-secondary border-r-divider shadow-sm
                 transition-all duration-300 ease-in-out
                 flex flex-col

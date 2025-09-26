@@ -107,6 +107,7 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                 border-2 border-form-element
                 space-y-2
                 relative
+                select-none
             "
         >
             {/* Title */}

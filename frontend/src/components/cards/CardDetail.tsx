@@ -249,7 +249,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
             className="
                 @container
                 w-full
-                overflow-y-auto
+                overflow-visible @2xl:overflow-y-auto
                 p-4 space-y-4
                 h-full
                 pb-24

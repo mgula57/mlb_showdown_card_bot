@@ -461,7 +461,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             {/* Add Loading Indicator in the middle of the screen */}
             {isLoading && (
                 <div className="
-                    absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+                    fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
                     bg-[var(--primary)]/10 backdrop-blur 
                     p-4 rounded-2xl
                     flex items-center space-x-2
@@ -483,7 +483,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             {/* MARK: Filters Modal */}
             {showFiltersModal && (
                 <Modal onClose={handleFilterApply}>
-                    <div className="p-4 min-h-48 max-h-[70vh] md:min-h-128 md:max-h-[90vh]">
+                    <div className="p-4 min-h-48 max-h-[80vh] md:min-h-128 md:max-h-[90vh]">
                         <div className="flex gap-3 mb-4 items-center border-b-2 border-form-element pb-2">
                             <h2 className="text-xl font-bold">Filter Options</h2>
                             {renderResetButton(['editing'])}

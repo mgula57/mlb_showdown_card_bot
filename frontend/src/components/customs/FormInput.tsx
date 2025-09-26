@@ -55,6 +55,8 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                             file:bg-tertiary file:text-secondary
                             file:cursor-pointer
                         "
+                        autoComplete="off"
+                        spellCheck="false"
                     />
                 ) : (
                     <>
