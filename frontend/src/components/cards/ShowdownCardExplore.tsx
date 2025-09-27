@@ -507,6 +507,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 <Modal onClose={handleCloseModal}>
                     <CardDetail
                         showdownBotCardData={{ card: selectedCard.card_data } as ShowdownBotCardAPIResponse}
+                        hideTrendGraphs={true}
                     />
                 </Modal>
             )}

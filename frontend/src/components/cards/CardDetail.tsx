@@ -43,12 +43,13 @@ import { GameBoxscore } from '../games/GameBoxscore';
 /** Type for CardDetail inputs */
 type CardDetailProps = {
     showdownBotCardData: ShowdownBotCardAPIResponse | null;
+    hideTrendGraphs?: boolean;
     isLoading?: boolean;
     isLoadingGameBoxscore?: boolean;
 };
 
 /** Shows Showdown Bot Card Details. Used in Custom card form and modals throughout UI */
-export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxscore }: CardDetailProps) {
+export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false }: CardDetailProps) {
 
     // MARK: STATES
 
@@ -425,24 +426,26 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
             </div>
 
             {/* Trend Graphs */}
-            <div 
-                className="
-                    w-full
-                    grid grid-cols-1 @xl:grid-cols-2
-                    gap-4
-                "
-            >
-                <ChartPlayerPointsTrend 
-                    title="Career Trends" 
-                    trendData={activeCardData?.historical_season_trends?.yearly_trends || null} 
-                />
+            {!hideTrendGraphs && (
+                <div 
+                    className="
+                        w-full
+                        grid grid-cols-1 @xl:grid-cols-2
+                        gap-4
+                    "
+                >
+                    <ChartPlayerPointsTrend 
+                        title="Career Trends" 
+                        trendData={activeCardData?.historical_season_trends?.yearly_trends || null} 
+                    />
 
-                <ChartPlayerPointsTrend 
-                    title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"} 
-                    trendData={activeCardData?.in_season_trends?.cumulative_trends || null} 
-                />
+                    <ChartPlayerPointsTrend 
+                        title={activeCardData?.in_season_trends && activeCardData?.card?.year ? `${activeCardData?.card?.year} Card Evolution` : "Year Card Evolution (Available 2020+)"} 
+                        trendData={activeCardData?.in_season_trends?.cumulative_trends || null} 
+                    />
 
-            </div>
+                </div>
+            )}
 
         </div>
     );
