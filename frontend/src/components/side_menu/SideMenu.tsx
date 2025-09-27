@@ -14,6 +14,9 @@ type SideMenuProps = {
     className?: string;
     isMobile?: boolean;
 };
+
+// module-level lock so multiple overlays won't fight
+let bodyScrollLockCount = 0;
     
 /** Dynamic side menu component that displays navigation links. */
 const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMobile }) => {
@@ -40,6 +43,58 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
         if (isMobile) setIsOpen(false); // Close menu on mobile after selection
     };
 
+    // Preserve scroll position while side menu is open
+    const scrollYRef = React.useRef(0);
+    const didAcquireLockRef = React.useRef(false);
+
+    React.useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const acquireLock = () => {
+            if (didAcquireLockRef.current) return;
+            bodyScrollLockCount += 1;
+            if (bodyScrollLockCount === 1) {
+                const body = document.body;
+                const docEl = document.documentElement;
+                const scrollbarWidth = Math.max(0, window.innerWidth - docEl.clientWidth);
+
+                scrollYRef.current = window.scrollY;
+                body.style.position = 'fixed';
+                body.style.top = `-${scrollYRef.current}px`;
+                body.style.width = '100%';
+                if (scrollbarWidth) body.style.paddingRight = `${scrollbarWidth}px`;
+            }
+            didAcquireLockRef.current = true;
+        };
+
+        const releaseLock = () => {
+            if (!didAcquireLockRef.current) return;
+            didAcquireLockRef.current = false;
+            if (bodyScrollLockCount > 0) bodyScrollLockCount -= 1;
+            if (bodyScrollLockCount === 0) {
+                const body = document.body;
+                body.style.position = '';
+                body.style.top = '';
+                body.style.width = '';
+                body.style.paddingRight = '';
+                const y = scrollYRef.current || 0;
+                window.scrollTo(0, y);
+            }
+        };
+
+        // Only lock when the menu behaves as an overlay.
+        // If isMobile === false then the menu is a slide (not overlay) and we should not lock.
+        const shouldLock = isOpen && (isMobile !== false);
+
+        if (shouldLock) acquireLock();
+        else releaseLock();
+
+        return () => {
+            // Ensure we release any lock held by this effect on cleanup.
+            releaseLock();
+        };
+    }, [isOpen, isMobile]);
+
     return (
         // Container
         <aside className={`min-h-dvh fixed left-0 top-0 ${className}`}>
@@ -62,7 +117,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
                     }
 
                     {/* Open/Close Button */}
-                    <button onClick={handleToggle} className="hover:text-secondary transition-colors duration-200">
+                    <button onClick={handleToggle} className="hover:text-secondary transition-colors duration-200 cursor-pointer">
                         {isOpen ? (isMobile ? <FaXmark className="h-8 w-8" /> : <FaChevronLeft />) : <FaChevronRight />}
                     </button>
                     
