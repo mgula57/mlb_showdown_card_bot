@@ -69,8 +69,8 @@ class PlayerStats:
         self.secondary_positions = self.__convert_position_summary_to_list(position_summary=pos_summary_str, is_secondary_positions=True)
 
         # MODIFIED DATES
-        self.created_date: datetime = None
-        self.modified_date: datetime = None
+        self.created_date: datetime = datetime.now()
+        self.modified_date: datetime = datetime.now()
         self.stats_modified_date: datetime = None
 
 # ------------------------------------------------------------------------
