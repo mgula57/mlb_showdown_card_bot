@@ -63,6 +63,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         }
     }, [isSideMenuOpen]);
 
+    // Detect iOS Safari to avoid sticky/viewport jitter when the URL bar collapses
+    const isIOSSafari =
+        typeof window !== 'undefined' &&
+        /iP(hone|od|ad)/.test(navigator.userAgent) &&
+        /Safari/.test(navigator.userAgent) &&
+        !/CriOS|FxiOS/.test(navigator.userAgent);
+
     return (
         <div className="bg-primary flex relative">
             {/* Desktop Sidebar */}
@@ -83,13 +90,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
             <div className={`flex flex-col h-full w-full transition-[padding-left] duration-300 ${contentPadding}`}>
                 {/* Header */}
-                <header className={`
-                    sticky top-0 z-30
-                    flex h-12 p-4 w-full items-center 
-                    justify-between
-                    border-b-gray-600 shadow-md
-                    bg-primary/95 backdrop-blur
-                `}>
+                <header
+                    className={`
+                        ${isIOSSafari ? 'fixed left-0 right-0 top-0' : 'sticky top-0'}
+                        z-30 flex h-12 p-4 w-full items-center justify-between
+                        border-b-gray-600 shadow-md bg-primary/95 backdrop-blur
+                    `}
+                    // ensure header respects the notch / status bar on iOS
+                    style={isIOSSafari ? { paddingTop: 'env(safe-area-inset-top)', boxSizing: 'border-box' } : undefined}
+                >
                     {/* Logo and Title */}
                     <div className="flex items-center space-x-4">
 
@@ -126,6 +135,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     />
                     
                 </header>
+
+                {/* spacer to preserve flow when header is fixed on iOS */}
+                {isIOSSafari && <div style={{ height: '3rem' /* match h-12 */ }} aria-hidden />}
 
                 {/* Main content */}
                 <main className={`flex-1 overflow-auto w-full relative`}>
