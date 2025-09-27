@@ -40,7 +40,7 @@ export const CardItem = ({ card, onClick }: CardItemProps) => {
             {/* Command, Name, and Metadata */}
             <div className="flex flex-row gap-2 items-center text-nowrap">
                 {/* Command */}
-                <CardCommand card={card} className="w-9 h-9" />
+                <CardCommand card={card} className="w-9 h-9 shrink-0" />
 
                 <div className="flex flex-col overflow-x-scroll scrollbar-hide">
                     {/* Name, Icons, Team */}
@@ -50,7 +50,17 @@ export const CardItem = ({ card, onClick }: CardItemProps) => {
                             {card?.year} {card?.team.toUpperCase()}
                         </div>
                         {card?.icons.map((icon, index) => (
-                            <div key={index} className="text-[9px] flex w-4 h-4 items-center font-bold justify-center rounded-full tracking-tight" style={colorStylingSecondary} >{icon}</div>
+                            <div 
+                                key={index} 
+                                className="
+                                    text-[9px] flex w-4 h-4 
+                                    items-center font-bold justify-center 
+                                    rounded-full tracking-tight shrink-0
+                                " 
+                                style={colorStylingSecondary} 
+                            >
+                                {icon}
+                            </div>
                         ))}
                     </div>
                     {/* Metadata */}
