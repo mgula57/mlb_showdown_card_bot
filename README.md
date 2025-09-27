@@ -67,6 +67,8 @@
 
 * (Optional) [pyenv](https://github.com/pyenv/pyenv) or [virtualenv](https://virtualenv.pypa.io/en/latest/)
 
+* (For the web app UI) [Node.js 18+](https://nodejs.org/) and npm 9+
+
 ### Installation
 
 MLB Showdown Bot is available on PyPi
@@ -78,34 +80,21 @@ pip install mlb-showdown-bot
 MLB Showdown Bot can be run directly from the CLI
 
 ```sh
-showdownbot --name "Mike Piazza" --year 1997 --context 2001
+showdown_bot card -n "Mike Piazza" -y 1997 -s 2001
 ```
 
 Example Python use:
 
 ```python
-from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard
-from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
+from mlb_showdown_bot.core.card.card_generation import generate_card
 
-name = 'Mike Piazza'
-year = '1997'
-set = '2001'
-
-# GET PLAYER DATA
-scraper = BaseballReferenceScraper(name=name,year=year)
-statline = scraper.player_statline()
-
-# CREATE SHOWDOWN CARD 
-showdown = ShowdownPlayerCard(
-    name=name,
-    year=year,
-    stats=statline,
-    set=set,
-    print_to_cli=True
+card = generate_card(
+    name='Mike Piazza',
+    year='1997',
+    set='2001',
+    print_to_cli=True,   # show ASCII card in terminal
+    show_image=True      # open generated image when ready
 )
-
-# CREATE SHOWDOWN CARD IMAGE
-showdown.generate_card_image(show=True)
 ```
 
 ----
@@ -940,11 +929,29 @@ After installing and handling any package errors, you can run Showdown Bot from 
 
 Command Line
 ```
-python mlb_showdown_bot --name "Mike Piazza" --year 1997 --set 2001
+showdown_bot card -n "Mike Piazza" -y 1997 -s 2001
 ```
 
 Flask App (opened via Browser)
+
+Option A: Development (Vite + Flask with CORS)
 ```
+# Terminal 1 (Frontend)
+cd frontend
+npm install
+npm run dev
+
+# Terminal 2 (Backend)
+export FRONTEND_ORIGIN=http://localhost:5173
+python app.py
+```
+
+Option B: Single server (Flask serves built frontend)
+```
+cd frontend
+npm install
+npm run build
+cd ..
 python app.py
 ```
 
