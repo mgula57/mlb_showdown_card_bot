@@ -2092,16 +2092,20 @@ class ShowdownPlayerCard(BaseModel):
         """
         if len(str(value)) == 0 or value is None:
             return '0'
-        match category:
-            case 'batting_avg' | 'onbase_perc' | 'slugging_perc' | 'onbase_plus_slugging':
-                return f"{value:.3f}".replace('0.', '.')
-            case 'earned_run_avg' | 'whip' | 'fip':
-                return f"{value:.2f}"
-            case 'onbase_plus_slugging_plus':
-                return f"{value:.0f}"
-            case 'dWAR' | 'bWAR' | 'strikeouts_per_nine':
-                return f"{float(value):.1f}"
-            case _: return str(round(value)) if value is not None else 0
+
+        try:
+            match category:
+                case 'batting_avg' | 'onbase_perc' | 'slugging_perc' | 'onbase_plus_slugging':
+                    return f"{value:.3f}".replace('0.', '.')
+                case 'earned_run_avg' | 'whip' | 'fip':
+                    return f"{value:.2f}"
+                case 'onbase_plus_slugging_plus':
+                    return f"{value:.0f}"
+                case 'dWAR' | 'bWAR' | 'strikeouts_per_nine':
+                    return f"{float(value):.1f}"
+                case _: return str(round(value)) if value is not None else 0
+        except:
+            return str(value)
 
 # ------------------------------------------------------------------------
 # PLAYER VALUE METHODS
@@ -2459,9 +2463,12 @@ class ShowdownPlayerCard(BaseModel):
         projections_showdown = all_numeric_value_lists[0]
         real_life = all_numeric_value_lists[1]
         for index, key in enumerate(stat_categories_dict.values()):
-            diff_value = projections_showdown[index] - real_life[index]
-            diff_value_str = self._stat_formatted(category=key, value=diff_value)
-            cleaned_diffs.append(diff_value_str)
+            try:
+                diff_value = projections_showdown[index] - real_life[index]
+                diff_value_str = self._stat_formatted(category=key, value=diff_value)
+                cleaned_diffs.append(diff_value_str)
+            except Exception as e:
+                cleaned_diffs.append('-')
 
         statline_tbl.add_row(cleaned_diffs)
 
