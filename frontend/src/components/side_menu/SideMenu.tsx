@@ -83,8 +83,8 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
         };
 
         // Only lock when the menu behaves as an overlay.
-        // If isMobile === false then the menu is a slide (not overlay) and we should not lock.
-        const shouldLock = isOpen && (isMobile !== false);
+        // Require an explicit boolean true for mobile overlay mode
+        const shouldLock = isOpen && (isMobile === true);
 
         if (shouldLock) acquireLock();
         else releaseLock();
