@@ -4,11 +4,11 @@ import math
 from time import sleep
 import os
 from pathlib import Path
-from mlb_showdown_bot.baseball_ref_scraper import BaseballReferenceScraper
-from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard, Set, ChartCategory
-from mlb_showdown_bot.classes.team import Team
-from mlb_showdown_bot.classes.icon import Icon
-from mlb_showdown_bot.postgres_db import PlayerArchive
+from mlb_showdown_bot.core.card.stats.baseball_ref_scraper import BaseballReferenceScraper
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, Set, ChartCategory
+from mlb_showdown_bot.core.shared.team import Team
+from mlb_showdown_bot.core.shared.icon import Icon
+from mlb_showdown_bot.core.database.postgres_db import PlayerArchive
 
 class ShowdownSetAccuracy:
 

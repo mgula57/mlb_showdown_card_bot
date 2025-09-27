@@ -7,9 +7,9 @@ from mlb_showdown_bot_pip.version import __version__ as current_version
 from pathlib import Path
 import os, sys
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
-from mlb_showdown_bot.showdown_player_card import Set, ShowdownPlayerCard as ShowdownPlayerCardNew
-from mlb_showdown_bot.postgres_db import PostgresDB, PlayerArchive
-from mlb_showdown_bot.version import __version__ as old_version
+from mlb_showdown_bot.core.card.showdown_player_card import Set, ShowdownPlayerCard as ShowdownPlayerCardNew
+from mlb_showdown_bot.core.database.postgres_db import PostgresDB, PlayerArchive
+from mlb_showdown_bot.core.version import __version__ as old_version
 
 if old_version == current_version:
     raise Exception(f"Versions are the same | {old_version} | {current_version}")

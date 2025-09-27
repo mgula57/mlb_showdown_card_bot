@@ -2,7 +2,7 @@ import os, sys
 from pathlib import Path
 from prettytable import PrettyTable
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
-from showdown_player_card import Era, Chart, PlayerType, PlayerSubType, Set
+from mlb_showdown_bot.core.card.showdown_player_card import Era, Chart, PlayerType, PlayerSubType, Set
 
 import argparse
 parser = argparse.ArgumentParser(description="Analyze weights for era adjustments")

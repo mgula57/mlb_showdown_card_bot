@@ -1,6 +1,6 @@
 import argparse
 from tests.tests import analyze_baseline_weights
-from mlb_showdown_bot.showdown_player_card import Set, PlayerType
+from mlb_showdown_bot.core.card.showdown_player_card import Set, PlayerType
 
 parser = argparse.ArgumentParser(description="Test accuracy of Showdown Bot set compared to original WOC set")
 parser.add_argument('-s','--set', help='The showdown set meta to use (2000-2005)', default='2000')

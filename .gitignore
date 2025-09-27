@@ -51,10 +51,12 @@ mlb_showdown_bot/output/
 mlb_showdown_bot/cache_data/
 mlb_showdown_sim/
 showdown-bot-app/
-frontend/
+**/cache_data/
+**/image_output/
 
 # FRONTEND
 frontend/node_modules/
+temp_uploads/
 
 # CREDS
 firebase_creds.json

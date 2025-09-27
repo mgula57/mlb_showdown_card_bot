@@ -2,8 +2,8 @@ import argparse
 import os, sys
 from pathlib import Path
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
-from mlb_showdown_bot.classes.sets import Set, Era, PlayerType
-from mlb_showdown_bot.classes.chart import ChartCategory
+from mlb_showdown_bot.core.card.sets import Set, Era, PlayerType
+from mlb_showdown_bot.core.card.chart import ChartCategory
 
 # PARSE ARGS
 parser = argparse.ArgumentParser(description="Test set constants")

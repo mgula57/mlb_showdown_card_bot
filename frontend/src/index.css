@@ -1,0 +1,206 @@
+@import "tailwindcss";
+
+:root {
+    --primary: #000000;
+    --secondary: #292929;
+    --tertiary: #3c3c3c;
+
+    --showdown-blue: #1a3b5f;
+    --showdown-red: #9a362f;
+    --showdown-gray: #6e6e73;
+    
+    --background-primary: #f3f7fa;
+    --background-secondary: #ffffff;
+    --background-tertiary: #e8ebed;
+
+    --divider: #e0e0e0;
+
+    --table-header: #dbdbdb;
+    --table-banding: #eeecec;
+
+    --warning: #F3CE32;
+    --success: #4BB543;
+
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+}
+
+.dark {
+    --primary: #ffffff;
+    --secondary: #dfdfdf;
+    --tertiary: #cfcfcf;
+
+    --showdown-blue: #4682e6;
+    --showdown-red: #d04e47;
+    --showdown-gray: #a0a0a5;
+
+    --background-primary: #2d2d32;
+    --background-secondary: #232526;
+    --background-tertiary: #3a3a3f;
+
+    --divider: #444444;
+
+    --table-header: #444444;
+    --table-banding: #1c1c1c;
+
+    --warning: #e9de3f;
+    --success: #4dc545;
+}
+
+/* Custom Fonts */
+@font-face {
+    font-family: 'ShowdownSetItalic';
+    src: url('./assets/fonts/HelveticaNeueCondensedHeavyOblique.otf') format('truetype');
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+}
+
+@layer utilities {
+    .bg-primary {
+        background-color: var(--background-primary);
+    }
+
+    .bg-secondary {
+        background-color: var(--background-secondary);
+    }
+
+    .bg-tertiary {
+        background-color: var(--background-tertiary);
+    }
+
+    .text-primary {
+        color: var(--primary);
+    }
+
+    .text-secondary {
+        color: var(--secondary);
+    }
+
+    .border-form-element {
+        border-color: var(--divider);
+    }
+
+    .font-showdown-set-italic {
+        font-family: 'ShowdownSetItalic', serif;
+        font-style: italic;
+    }
+
+    .text-outline-double {
+        text-shadow: 
+            /* Inner outline */
+            -1px -1px 0 #ababab,
+            1px -1px 0 #ababab,
+            -1px 1px 0 #ababab,
+            1px 1px 0 #ababab,
+            /* Outer outline */
+            -2px -2px 0 #000000,
+            2px -2px 0 #000000,
+            -2px 2px 0 #000000,
+            2px 2px 0 #000000,
+            -2px 0 0 #000000,
+            2px 0 0 #000000,
+            0 -2px 0 #000000,
+            0 2px 0 #000000;
+    }
+
+    .bg-table-header {
+        background-color: var(--table-header);
+    }
+
+    /* Hide scrollbar for webkit browsers (Chrome, Safari, etc.) */
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Hide scrollbar for Firefox */
+    .scrollbar-hide {
+        -ms-overflow-style: none;  /* Internet Explorer 10+ */
+        scrollbar-width: none;  /* Firefox */
+    }
+
+}
+
+/* Animation */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInFade {
+  from {
+    opacity: 0;
+    transform: translateX(-300px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.slide-in-animation {
+  animation: slideInFade 0.5s ease-out;
+}
+
+/* Slide in/out */
+@keyframes slideInFromRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutToRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+.slide-in {
+    animation: slideInFromRight 0.3s ease-out forwards;
+}
+
+.slide-out {
+    animation: slideOutToRight 0.3s ease-in forwards;
+}
+
+body {
+    color: var(--primary);
+    background-color: var(--background-primary);
+    min-height: 100dvh;                 /* dynamic viewport */
+    min-height: -webkit-fill-available; /* iOS fallback */
+}
+
+/* Make root element stretch so body can scroll */
+html, body, #root {
+  height: auto;
+  min-height: 100dvh;
+}
+
+/* Safe-area helpers */
+.pb-safe { padding-bottom: var(--safe-bottom); }
+.mb-safe { margin-bottom: var(--safe-bottom); }
+.fixed-bottom-safe { bottom: var(--safe-bottom); }
+
+/* dvh utility (for Tailwind gap) */
+.min-h-dvh { min-height: 100dvh; }
+
+/* Full device height utility (covers under iOS toolbars) */
+.h-lvh { height: 100lvh; }
+@supports not (height: 100lvh) {
+    .h-lvh { height: 100vh; }
+}

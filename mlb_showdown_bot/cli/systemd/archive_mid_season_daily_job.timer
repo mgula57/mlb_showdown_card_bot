@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Showdown Bot Archive script daily 7–11 AM (America/New_York)
+
+[Timer]
+# Fires at the top of the hour: 07:00, 08:00, 09:00, 10:00, 11:00 local (NY) time
+OnCalendar=07..11:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
