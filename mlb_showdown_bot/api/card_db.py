@@ -8,7 +8,7 @@ cards_bp = Blueprint('card_data', __name__)
 def fetch_card_data():
     """Fetch card data from the database"""
     try:
-        db = PostgresDB()
+        db = PostgresDB(is_archive=True)
 
         # Get query parameters
         payload = request.get_json() or {}

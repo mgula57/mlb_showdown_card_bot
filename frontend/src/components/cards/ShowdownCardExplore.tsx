@@ -74,8 +74,6 @@ const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     min_real_ip: 35,
     sort_by: "points",
     sort_direction: "desc",
-    min_year: 2024,
-    max_year: 2025,
 };
 
 const SORT_OPTIONS: SelectOption[] = [
@@ -797,9 +795,9 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         { value: 'LF/RF', label: 'LF/RF' },
                                         { value: 'CF', label: 'CF' },
                                         { value: 'DH', label: 'DH' },
-                                        { value: 'SP', label: 'SP' },
-                                        { value: 'RP', label: 'RP' },
-                                        { value: 'CL', label: 'CL' },
+                                        { value: 'STARTER', label: 'SP' },
+                                        { value: 'RELIEVER', label: 'RP' },
+                                        { value: 'CLOSER', label: 'CL' },
                                     ]}
                                     selections={filtersForEditing.positions || []}
                                     onChange={(values) => setFiltersForEditing({ ...filtersForEditing, positions: values })}

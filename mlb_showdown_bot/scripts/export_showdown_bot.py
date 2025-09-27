@@ -87,39 +87,10 @@ def convert_to_showdown_cards(player_data: list[PlayerArchive], sets: list[str])
             
     return showdown_cards
 
-def convert_showdown_cards_to_dataframe(showdown_cards: list[ShowdownPlayerCard]) -> pd.DataFrame:
-    print("CONVERTING TO DATAFRAME....")
-
-    showdown_data = []
-    for showdown in showdown_cards:
-        showdown_dict = showdown.as_json()
-
-        showdown_dict['id'] = showdown.id
-
-        # REPLACE SPECIAL CHARACTERS IN NAME
-        showdown_dict['name'] = unidecode(showdown_dict['name'])
-
-        # ADD POSITIONS AND DEFENSE
-        for index, (position, defense) in enumerate(showdown.positions_and_defense_for_visuals.items(), 1):
-            showdown_dict[f'Position {index}'] = position
-            showdown_dict[f'Defense {index}'] = defense
-
-        showdown_data.append(showdown_dict)
-
-    # CONVERT SHOWDOWN DATA TO DATAFRAME, FLATTEN NESTED JSON
-    df = json_normalize(showdown_data)
-    
-    # REMOVE CERTAIN COLUMNS
-    patterns = ['stats.positions.', 'command_out_accuracies.', 'stats.accolades.', 'year_list',]
-    existing_columns = df.columns.tolist()
-    new_columns = [c for c in existing_columns if not any(pattern in c for pattern in patterns)]
-
-    return df[new_columns]
-
 def upload_to_database(showdown_cards: list[ShowdownPlayerCard]):
     print("UPLOADING TO DATABASE...")
 
-    db = PostgresDB()
+    db = PostgresDB(is_archive=True)
 
     if db.connection is None:
         print("ERROR: NO CONNECTION TO DB")
