@@ -97,7 +97,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         border-b-gray-600 shadow-md bg-primary/95 backdrop-blur
                     `}
                     // ensure header respects the notch / status bar on iOS
-                    style={isIOSSafari ? { paddingTop: 'env(safe-area-inset-top)', boxSizing: 'border-box' } : undefined}
+                    style={isIOSSafari ? { boxSizing: 'border-box' } : undefined}
                 >
                     {/* Logo and Title */}
                     <div className="flex items-center space-x-4">
