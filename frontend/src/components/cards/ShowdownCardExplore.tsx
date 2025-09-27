@@ -236,6 +236,8 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
                 loadMoreCards();
             }
+        }, {
+            root: null
         });
         if (node) observer.current.observe(node);
     }, [isLoading, hasMore, isLoadingMore]);
@@ -379,11 +381,15 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
     // MARK: Render
     return (
-        <div className={`
-            flex flex-col ${className}
-            h-[calc(100vh-theme(spacing.12))]                       /* fallback */
-            supports-[height:100dvh]:h-[calc(100dvh-theme(spacing.12))]  /* prefer dvh */
-        `}>
+        <div
+            className={`
+                flex flex-col ${className}
+                md:h-[calc(100vh-theme(spacing.12))]                            /* fallback */
+                md:supports-[height:100dvh]:h-[calc(100dvh-theme(spacing.12))]  /* prefer dvh */
+                md:overflow-y-auto                                              /* scroller on desktop */
+                md:min-h-0                                                         /* allow child to size for overflow */
+            `}
+        >
 
             {/* Search Bar and Filters */}
             <div className="sticky top-0 z-10 flex flex-col gap-2 w-full 
