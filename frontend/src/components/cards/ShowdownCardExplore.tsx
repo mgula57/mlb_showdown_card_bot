@@ -379,7 +379,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
     // MARK: Render
     return (
-        <div className={`flex flex-col ${className}`}>
+        <div className={`
+            flex flex-col ${className}
+            h-[calc(100vh-theme(spacing.12))]                       /* fallback */
+            supports-[height:100dvh]:h-[calc(100dvh-theme(spacing.12))]  /* prefer dvh */
+        `}>
 
             {/* Search Bar and Filters */}
             <div className="sticky top-0 z-10 flex flex-col gap-2 w-full 
