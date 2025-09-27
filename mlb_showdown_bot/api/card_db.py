@@ -19,3 +19,17 @@ def fetch_card_data():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@cards_bp.route('/teams/data', methods=["GET"])
+def fetch_team_data():
+    """Fetch team data from the database"""
+    try:
+        db = PostgresDB(is_archive=True)
+
+        team_data = db.fetch_team_data()
+        db.close_connection()
+
+        return jsonify(team_data)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

@@ -1,7 +1,7 @@
 import { type ShowdownBotCard } from '../showdownBotCard';
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
-// MARK: - API Calls
+// MARK: - Card Data
 
 /** Sends the entire form (minus File) as JSON to /api/build_custom_card */
 export async function fetchCardData(payload: Record<string, any>) : Promise<CardDatabaseRecord[]> {
@@ -21,8 +21,6 @@ export async function fetchCardData(payload: Record<string, any>) : Promise<Card
     return res.json();
     
 }
-
-// MARK: - Types
 
 export type CardDatabaseRecord = {
 
@@ -66,4 +64,84 @@ export type CardDatabaseRecord = {
     // Error Message
     error?: string | null;
 
+};
+
+// MARK: - Team Hierarchy
+
+export interface TeamHierarchyRecord {
+    organization: string;
+    league: string;
+    team: string;
+    min_year: number;
+    max_year: number;
+    cards: number;
+}
+
+const HIERARCHY_CACHE_KEY = 'teamHierarchy:v1';
+const HIERARCHY_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+interface CachedHierarchyData {
+    data: TeamHierarchyRecord[];
+    timestamp: number;
+}
+
+const loadCachedHierarchyData = (): TeamHierarchyRecord[] | null => {
+    if (typeof window === 'undefined') return null;
+    
+    try {
+        const cached = localStorage.getItem(HIERARCHY_CACHE_KEY);
+        if (!cached) return null;
+        
+        const { data, timestamp }: CachedHierarchyData = JSON.parse(cached);
+        if (Date.now() - timestamp > HIERARCHY_CACHE_DURATION) {
+            localStorage.removeItem(HIERARCHY_CACHE_KEY);
+            return null;
+        }
+        
+        return data;
+    } catch {
+        localStorage.removeItem(HIERARCHY_CACHE_KEY);
+        return null;
+    }
+};
+
+const saveCachedHierarchyData = (data: TeamHierarchyRecord[]): void => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+        const cachedData: CachedHierarchyData = {
+            data,
+            timestamp: Date.now()
+        };
+        localStorage.setItem(HIERARCHY_CACHE_KEY, JSON.stringify(cachedData));
+    } catch {
+        // Ignore storage errors
+    }
+};
+
+export const fetchTeamHierarchy = async (): Promise<TeamHierarchyRecord[]> => {
+    // Try cache first
+    const cachedData = loadCachedHierarchyData();
+    if (cachedData) {
+        console.log('Loaded team hierarchy from cache');
+        return cachedData;
+    }
+
+    // Fetch from API if not cached
+    try {
+        const response = await fetch(`${API_BASE}/teams/data`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data: TeamHierarchyRecord[] = await response.json();
+        
+        // Cache the data
+        saveCachedHierarchyData(data);
+        
+        return data;
+    } catch (error) {
+        console.error('Error fetching team hierarchy:', error);
+        return [];
+    }
 };

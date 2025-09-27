@@ -21,6 +21,9 @@ import { CardItem } from "./CardItem";
 import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
 
+import { TeamHierarchy } from "./TeamHierarchy";
+import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
+
 type ShowdownCardExploreProps = {
     showdownCards?: CardDatabaseRecord[] | null;
     className?: string;
@@ -57,10 +60,11 @@ interface FilterSelections {
 
     min_year?: number;
     max_year?: number;
+
     organization?: string[]; // e.g., ["MLB", "NGL"]
     league?: string[]; // e.g., ["MLB", "NEGRO LEAGUES"]
     team?: string[]; // e.g., ["Yankees", "Red Sox"]
-    years?: number[]; // e.g., [2020, 2021]
+    is_multi_team?: boolean;
 
     player_type?: string[]; // e.g., ["Hitter", "Pitcher"]
     positions?: string[]; // e.g., ["C", "1B"]
@@ -74,6 +78,7 @@ const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     min_real_ip: 35,
     sort_by: "points",
     sort_direction: "desc",
+    organization: ['MLB'],
 };
 
 const SORT_OPTIONS: SelectOption[] = [
@@ -190,6 +195,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
         onMaxChange: (n?: number) => setFiltersForEditing(prev => ({ ...prev, [maxKey]: n })),
     });
 
+    // Team hierarchy data - loaded once (daily) and cached
+    const [teamHierarchyData, setTeamHierarchyData] = useState<TeamHierarchyRecord[]>([]);
+    const [isHierarchyDataLoaded, setIsHierarchyDataLoaded] = useState(false);
+    const [isLoadingHierarchyData, setIsLoadingHierarchyData] = useState(false);
+
     // Defined within component to access userShowdownSet
     const selectedSortOption = SORT_OPTIONS.find(option => option.value === filters.sort_by) || null;
 
@@ -197,6 +207,26 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     useEffect(() => {
         saveFilters(filters);
     }, [filters]);
+
+    // Load hierarchy data once on component mount
+    useEffect(() => {
+        const loadHierarchyData = async () => {
+            if (isHierarchyDataLoaded || isLoadingHierarchyData) return;
+            
+            setIsLoadingHierarchyData(true);
+            try {
+                const data = await fetchTeamHierarchy(); // This will use cache if available
+                setTeamHierarchyData(data);
+                setIsHierarchyDataLoaded(true);
+            } catch (error) {
+                console.error('Failed to load team hierarchy data:', error);
+            } finally {
+                setIsLoadingHierarchyData(false);
+            }
+        };
+
+        loadHierarchyData();
+    }, []); // Empty dependency array - only run once
 
     // Reload cards when set or filters change
     useEffect(() => {
@@ -560,7 +590,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                             <FormSection title="Seasons and Teams" isOpenByDefault={true}>
                                 {/* Filters options */}
 
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 col-span-full">
                                     <FormInput
                                         type="number"
                                         inputMode="numeric"
@@ -579,206 +609,14 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                     />
                                 </div>
 
-                                <MultiSelect
-                                    label="Organizations"
-                                    options={[
-                                        { value: 'MLB', label: 'MLB' },
-                                        { value: 'NGL', label: 'Negro Leagues' },
-                                        { value: 'NON-MLB', label: 'Misc' },
-                                    ]}
-                                    selections={filtersForEditing.organization}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, organization: values })}
-                                />
-
-                                <MultiSelect
-                                    label="Leagues"
-                                    options={[
-                                        { value: 'AL', label: 'AL' },
-                                        { value: 'NL', label: 'NL' },
-                                        { value: 'ANL', label: 'ANL' },
-                                        { value: 'ECL', label: 'ECL' },
-                                        { value: 'EWL', label: 'EWL' },
-                                        { value: 'FL', label: 'FL' },
-                                        { value: 'NAL', label: 'NAL' },
-                                        { value: 'NN2', label: 'NN2' },
-                                        { value: 'NNL', label: 'NNL' },
-                                        { value: 'NSL', label: 'NSL' },
-                                        { value: 'PL', label: 'PL' },
-                                        { value: 'UA', label: 'UA' },
-                                    ]}
-                                    selections={filtersForEditing.league}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, league: values })}
-                                />
-
-                                <MultiSelect
-                                    label="Teams"
-                                    options={[
-                                        { value: 'AB2', label: 'AB2' },
-                                        { value: 'AB3', label: 'AB3' },
-                                        { value: 'ABC', label: 'ABC' },
-                                        { value: 'AC', label: 'AC' },
-                                        { value: 'AG', label: 'AG' },
-                                        { value: 'ALT', label: 'ALT' },
-                                        { value: 'ANA', label: 'ANA' },
-                                        { value: 'ARI', label: 'ARI' },
-                                        { value: 'ATL', label: 'ATL' },
-                                        { value: 'BAL', label: 'BAL' },
-                                        { value: 'BBB', label: 'BBB' },
-                                        { value: 'BBS', label: 'BBS' },
-                                        { value: 'BCA', label: 'BCA' },
-                                        { value: 'BE', label: 'BE' },
-                                        { value: 'BEG', label: 'BEG' },
-                                        { value: 'BLA', label: 'BLA' },
-                                        { value: 'BLN', label: 'BLN' },
-                                        { value: 'BLU', label: 'BLU' },
-                                        { value: 'BOS', label: 'BOS' },
-                                        { value: 'BRG', label: 'BRG' },
-                                        { value: 'BRO', label: 'BRO' },
-                                        { value: 'BSN', label: 'BSN' },
-                                        { value: 'BTT', label: 'BTT' },
-                                        { value: 'BUF', label: 'BUF' },
-                                        { value: 'BWW', label: 'BWW' },
-                                        { value: 'CAG', label: 'CAG' },
-                                        { value: 'CAL', label: 'CAL' },
-                                        { value: 'CBB', label: 'CBB' },
-                                        { value: 'CBE', label: 'CBE' },
-                                        { value: 'CBN', label: 'CBN' },
-                                        { value: 'CBR', label: 'CBR' },
-                                        { value: 'CC', label: 'CC' },
-                                        { value: 'CCB', label: 'CCB' },
-                                        { value: 'CCU', label: 'CCU' },
-                                        { value: 'CEG', label: 'CEG' },
-                                        { value: 'CEL', label: 'CEL' },
-                                        { value: 'CG', label: 'CG' },
-                                        { value: 'CHC', label: 'CHC' },
-                                        { value: 'CHI', label: 'CHI' },
-                                        { value: 'CHT', label: 'CHT' },
-                                        { value: 'CHW', label: 'CHW' },
-                                        { value: 'CIN', label: 'CIN' },
-                                        { value: 'CKK', label: 'CKK' },
-                                        { value: 'CLE', label: 'CLE' },
-                                        { value: 'CLS', label: 'CLS' },
-                                        { value: 'CLV', label: 'CLV' },
-                                        { value: 'COB', label: 'COB' },
-                                        { value: 'COG', label: 'COG' },
-                                        { value: 'COL', label: 'COL' },
-                                        { value: 'COR', label: 'COR' },
-                                        { value: 'CPI', label: 'CPI' },
-                                        { value: 'CRS', label: 'CRS' },
-                                        { value: 'CS', label: 'CS' },
-                                        { value: 'CSE', label: 'CSE' },
-                                        { value: 'CSW', label: 'CSW' },
-                                        { value: 'CT', label: 'CT' },
-                                        { value: 'CTG', label: 'CTG' },
-                                        { value: 'CTS', label: 'CTS' },
-                                        { value: 'CUP', label: 'CUP' },
-                                        { value: 'DET', label: 'DET' },
-                                        { value: 'DM', label: 'DM' },
-                                        { value: 'DS', label: 'DS' },
-                                        { value: 'DTN', label: 'DTN' },
-                                        { value: 'DTS', label: 'DTS' },
-                                        { value: 'DW', label: 'DW' },
-                                        { value: 'FLA', label: 'FLA' },
-                                        { value: 'HAR', label: 'HAR' },
-                                        { value: 'HBG', label: 'HBG' },
-                                        { value: 'HG', label: 'HG' },
-                                        { value: 'HIL', label: 'HIL' },
-                                        { value: 'HOU', label: 'HOU' },
-                                        { value: 'IA', label: 'IA' },
-                                        { value: 'IAB', label: 'IAB' },
-                                        { value: 'IC', label: 'IC' },
-                                        { value: 'ID', label: 'ID' },
-                                        { value: 'IND', label: 'IND' },
-                                        { value: 'JRC', label: 'JRC' },
-                                        { value: 'KCA', label: 'KCA' },
-                                        { value: 'KCC', label: 'KCC' },
-                                        { value: 'KCM', label: 'KCM' },
-                                        { value: 'KCN', label: 'KCN' },
-                                        { value: 'KCP', label: 'KCP' },
-                                        { value: 'KCR', label: 'KCR' },
-                                        { value: 'LAA', label: 'LAA' },
-                                        { value: 'LAD', label: 'LAD' },
-                                        { value: 'LOU', label: 'LOU' },
-                                        { value: 'LOW', label: 'LOW' },
-                                        { value: 'LRG', label: 'LRG' },
-                                        { value: 'LVB', label: 'LVB' },
-                                        { value: 'MB', label: 'MB' },
-                                        { value: 'MGS', label: 'MGS' },
-                                        { value: 'MIA', label: 'MIA' },
-                                        { value: 'MIL', label: 'MIL' },
-                                        { value: 'MIN', label: 'MIN' },
-                                        { value: 'MLA', label: 'MLA' },
-                                        { value: 'MLN', label: 'MLN' },
-                                        { value: 'MON', label: 'MON' },
-                                        { value: 'MRM', label: 'MRM' },
-                                        { value: 'MRS', label: 'MRS' },
-                                        { value: 'NBY', label: 'NBY' },
-                                        { value: 'ND', label: 'ND' },
-                                        { value: 'NE', label: 'NE' },
-                                        { value: 'NEG', label: 'NEG' },
-                                        { value: 'NEW', label: 'NEW' },
-                                        { value: 'NLG', label: 'NLG' },
-                                        { value: 'NS', label: 'NS' },
-                                        { value: 'NYC', label: 'NYC' },
-                                        { value: 'NYG', label: 'NYG' },
-                                        { value: 'NYI', label: 'NYI' },
-                                        { value: 'NYM', label: 'NYM' },
-                                        { value: 'NYP', label: 'NYP' },
-                                        { value: 'NYY', label: 'NYY' },
-                                        { value: 'OAK', label: 'OAK' },
-                                        { value: 'PBB', label: 'PBB' },
-                                        { value: 'PBG', label: 'PBG' },
-                                        { value: 'PBS', label: 'PBS' },
-                                        { value: 'PC', label: 'PC' },
-                                        { value: 'PHA', label: 'PHA' },
-                                        { value: 'PHI', label: 'PHI' },
-                                        { value: 'PHK', label: 'PHK' },
-                                        { value: 'PHQ', label: 'PHQ' },
-                                        { value: 'PIT', label: 'PIT' },
-                                        { value: 'PK', label: 'PK' },
-                                        { value: 'PRO', label: 'PRO' },
-                                        { value: 'PS', label: 'PS' },
-                                        { value: 'PTG', label: 'PTG' },
-                                        { value: 'RIC', label: 'RIC' },
-                                        { value: 'ROC', label: 'ROC' },
-                                        { value: 'SDP', label: 'SDP' },
-                                        { value: 'SEA', label: 'SEA' },
-                                        { value: 'SEN', label: 'SEN' },
-                                        { value: 'SEP', label: 'SEP' },
-                                        { value: 'SFG', label: 'SFG' },
-                                        { value: 'SL2', label: 'SL2' },
-                                        { value: 'SL3', label: 'SL3' },
-                                        { value: 'SLB', label: 'SLB' },
-                                        { value: 'SLG', label: 'SLG' },
-                                        { value: 'SLM', label: 'SLM' },
-                                        { value: 'SLS', label: 'SLS' },
-                                        { value: 'SNS', label: 'SNS' },
-                                        { value: 'STL', label: 'STL' },
-                                        { value: 'STP', label: 'STP' },
-                                        { value: 'SYR', label: 'SYR' },
-                                        { value: 'TBD', label: 'TBD' },
-                                        { value: 'TBR', label: 'TBR' },
-                                        { value: 'TC', label: 'TC' },
-                                        { value: 'TC2', label: 'TC2' },
-                                        { value: 'TEX', label: 'TEX' },
-                                        { value: 'TOL', label: 'TOL' },
-                                        { value: 'TOR', label: 'TOR' },
-                                        { value: 'TT', label: 'TT' },
-                                        { value: 'WAP', label: 'WAP' },
-                                        { value: 'WAS', label: 'WAS' },
-                                        { value: 'WEG', label: 'WEG' },
-                                        { value: 'WHS', label: 'WHS' },
-                                        { value: 'WIL', label: 'WIL' },
-                                        { value: 'WMP', label: 'WMP' },
-                                        { value: 'WP', label: 'WP' },
-                                        { value: 'WSA', label: 'WSA' },
-                                        { value: 'WSH', label: 'WSH' },
-                                        { value: 'WSN', label: 'WSN' },
-                                    ]}
-                                    selections={filtersForEditing.team}
-                                    onChange={(values) => {
-                                        setFiltersForEditing({ ...filtersForEditing, team: values });
-                                    }}
+                                <TeamHierarchy
+                                    hierarchyData={teamHierarchyData}
+                                    selectedOrganizations={filtersForEditing.organization}
+                                    selectedLeagues={filtersForEditing.league}
+                                    selectedTeams={filtersForEditing.team}
+                                    onOrganizationChange={(values) => setFiltersForEditing({ ...filtersForEditing, organization: values })}
+                                    onLeagueChange={(values) => setFiltersForEditing({ ...filtersForEditing, league: values })}
+                                    onTeamChange={(values) => setFiltersForEditing({ ...filtersForEditing, team: values })}
                                 />
 
                             </FormSection>

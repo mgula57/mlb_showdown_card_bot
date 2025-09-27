@@ -398,6 +398,10 @@ class PostgresDB:
         result_list = self.execute_query(query=query)
         return result_list
 
+# ------------------------------------------------------------------------
+# EXPLORE
+# ------------------------------------------------------------------------
+
     def fetch_card_data(self, filters: dict = {}) -> list[dict]:
         """Fetch all card data from the database with support for lists and min/max filtering."""
 
@@ -529,6 +533,28 @@ class PostgresDB:
             print("Error fetching card data:", e)
             traceback.print_exc()
             return []
+
+    def fetch_team_data(self) -> list[dict]:
+        """Fetch team data hierarchyfrom the database"""
+
+        if not self.connection:
+            return None
+        
+        query = sql.SQL("""
+            SELECT  
+                organization,
+                league,
+                team,
+                min_year,
+                max_year,
+                cards
+            FROM team_hierarchy
+            ORDER BY team
+        """)
+        
+        data = self.execute_query(query)
+        return data
+
 
 # ------------------------------------------------------------------------
 # TABLES
