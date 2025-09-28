@@ -82,6 +82,7 @@ const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     min_real_ip: 40,
     sort_by: "points",
     sort_direction: "desc",
+    organization: ["MLB"],
 };
 
 const SORT_OPTIONS: SelectOption[] = [

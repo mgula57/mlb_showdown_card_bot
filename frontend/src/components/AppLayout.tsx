@@ -6,6 +6,7 @@ import { useSiteSettings, showdownSets } from "./shared/SiteSettingsContext";
 import CustomSelect from "./shared/CustomSelect";
 import { FiMenu } from "react-icons/fi";
 import { sideMenuItems } from "./side_menu/SideMenuItem";
+import { WhatsNewModal, hasSeenWhatsNew, markWhatsNewAsSeen } from "./side_menu/WhatsNewModal";
 
 // *********************************
 // App Layout
@@ -41,6 +42,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             return false; // Fallback to false if localStorage fails
         }
     });
+
+    const [showWhatsNewModal, setShowWhatsNewModal] = useState(false);
     const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
 
     const contentPadding = isSideMenuOpen ? 'md:pl-48' : 'md:pl-12';
@@ -57,6 +60,23 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             console.warn('Failed to save side menu state to localStorage:', error);
         }
     }, [isSideMenuOpen]);
+
+    // Check if user should see What's New modal
+    useEffect(() => {
+        // Small delay to let the app settle before showing modal
+        const timer = setTimeout(() => {
+            if (!hasSeenWhatsNew()) {
+                setShowWhatsNewModal(true);
+            }
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    const handleWhatsNewClose = () => {
+        setShowWhatsNewModal(false);
+        markWhatsNewAsSeen();
+    };
 
     // Detect iOS Safari to avoid sticky/viewport jitter when the URL bar collapses
     const isIOSSafari =
@@ -140,6 +160,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     { children }
                 </main>
             </div>
+
+            {/* What's New Modal */}
+            <WhatsNewModal 
+                isOpen={showWhatsNewModal} 
+                onClose={handleWhatsNewClose} 
+            />
             
         </div>
     );
