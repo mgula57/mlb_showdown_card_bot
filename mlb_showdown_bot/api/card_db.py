@@ -9,6 +9,8 @@ def fetch_card_data():
     """Fetch card data from the database"""
     try:
         db = PostgresDB(is_archive=True)
+        if not db.connection:
+            print("Database connection not established.")
 
         # Get query parameters
         payload = request.get_json() or {}

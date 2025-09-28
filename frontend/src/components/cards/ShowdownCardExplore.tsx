@@ -10,6 +10,7 @@ import {
 } from "react-icons/fa";
 import { FaArrowRotateRight } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
+import { FaO, FaI } from "react-icons/fa6";
 
 // Filter components
 import FormInput from "../customs/FormInput";
@@ -45,18 +46,21 @@ interface FilterSelections {
     max_pa?: number;
     min_real_ip?: number;
     max_real_ip?: number;
-    min_hr?: number;
-    max_hr?: number;
 
     // Showdown Min/Max
     min_points?: number;
     max_points?: number;
+    min_speed?: number;
+    max_speed?: number;
+    min_ip?: number;
+    max_ip?: number;
+
+    icons?: string[]; 
+
     min_command?: number;
     max_command?: number;
     min_outs?: number;
     max_outs?: number;
-    min_speed?: number;
-    max_speed?: number;
 
     min_year?: number;
     max_year?: number;
@@ -64,7 +68,7 @@ interface FilterSelections {
     organization?: string[]; // e.g., ["MLB", "NGL"]
     league?: string[]; // e.g., ["MLB", "NEGRO LEAGUES"]
     team?: string[]; // e.g., ["Yankees", "Red Sox"]
-    is_multi_team?: boolean;
+    is_multi_team?: string[];
 
     player_type?: string[]; // e.g., ["Hitter", "Pitcher"]
     positions?: string[]; // e.g., ["C", "1B"]
@@ -75,17 +79,17 @@ interface FilterSelections {
 
 const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     min_pa: 250,
-    min_real_ip: 35,
+    min_real_ip: 40,
     sort_by: "points",
     sort_direction: "desc",
-    organization: ['MLB'],
 };
 
 const SORT_OPTIONS: SelectOption[] = [
     { value: 'points', label: 'Points', icon: <FaDollarSign /> },
     { value: 'speed', label: 'Speed', icon: <FaPersonRunning /> },
-    { value: 'command', label: 'Control/Onbase' },
-    { value: 'outs', label: 'Outs' },
+    { value: 'ip', label: 'IP', icon: <FaI /> },
+    { value: 'command', label: 'Control/Onbase', icon: <FaBaseballBall /> },
+    { value: 'outs', label: 'Outs', icon: <FaO /> },
 
     { value: 'positions_and_defense_c', label: 'Defense (CA)', icon: <FaMitten /> },
     { value: 'positions_and_defense_1b', label: 'Defense (1B)', icon: <FaMitten /> },
@@ -105,15 +109,19 @@ type RangeDef = {
     step?: number;
 };
 
+const SEASON_RANGE_FILTERS: RangeDef[] = [
+    { label: "Year",     minKey: "min_year",    maxKey: "max_year",    step: 1 },
+];
+
 const REAL_RANGE_FILTERS: RangeDef[] = [
     { label: "PA",       minKey: "min_pa",      maxKey: "max_pa",      step: 1 },
     { label: "IP",       minKey: "min_real_ip", maxKey: "max_real_ip", step: 1 },
-    { label: "HR",       minKey: "min_hr",      maxKey: "max_hr",      step: 1 },
 ];
 
 const SHOWDOWN_METADATA_RANGE_FILTERS: RangeDef[] = [
     { label: "PTS",      minKey: "min_points",  maxKey: "max_points",  step: 1 },
     { label: "Speed",    minKey: "min_speed",   maxKey: "max_speed",   step: 1 },
+    { label: "IP",       minKey: "min_ip",      maxKey: "max_ip",      step: 1 },
 ];
 
 const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
@@ -590,24 +598,13 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                             <FormSection title="Seasons and Teams" isOpenByDefault={true}>
                                 {/* Filters options */}
 
-                                <div className="flex gap-2 col-span-full">
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="Start Year"
-                                        placeholder="None"
-                                        value={filtersForEditing.min_year?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, min_year: Number(value) || undefined })}
+                                {SEASON_RANGE_FILTERS.map(def => (
+                                    <RangeFilter
+                                        key={def.minKey as string}
+                                        label={def.label}
+                                        {...bindRange(def.minKey, def.maxKey)}
                                     />
-                                    <FormInput
-                                        type="number"
-                                        inputMode="numeric"
-                                        label="End Year"
-                                        placeholder="None"
-                                        value={filtersForEditing.max_year?.toString() || ''}
-                                        onChange={(value) => setFiltersForEditing({ ...filtersForEditing, max_year: Number(value) || undefined })}
-                                    />
-                                </div>
+                                ))}
 
                                 <TeamHierarchy
                                     hierarchyData={teamHierarchyData}
@@ -617,6 +614,16 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                     onOrganizationChange={(values) => setFiltersForEditing({ ...filtersForEditing, organization: values })}
                                     onLeagueChange={(values) => setFiltersForEditing({ ...filtersForEditing, league: values })}
                                     onTeamChange={(values) => setFiltersForEditing({ ...filtersForEditing, team: values })}
+                                />
+
+                                <MultiSelect
+                                    label="Multi-Team Season?"
+                                    options={[
+                                        { value: 'true', label: 'Yes' },
+                                        { value: 'false', label: 'No' },
+                                    ]}
+                                    selections={filtersForEditing.is_multi_team}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_multi_team: values })}
                                 />
 
                             </FormSection>
@@ -683,6 +690,25 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         {...bindRange(def.minKey, def.maxKey)}
                                     />
                                 ))}
+
+                                <MultiSelect
+                                    label="Icons"
+                                    options={[
+                                            { value: 'V', label: 'V' },
+                                            { value: 'S', label: 'S' },
+                                            { value: 'G', label: 'G' },
+                                            { value: 'HR', label: 'HR' },
+                                            { value: 'SB', label: 'SB' },
+                                            { value: 'CY', label: 'CY' },
+                                            { value: '20', label: '20' },
+                                            { value: 'K', label: 'K' },
+                                            { value: 'RP', label: 'RP' },
+                                            { value: 'R', label: 'R' },
+                                            { value: 'RY', label: 'RY' }
+                                    ]}
+                                    selections={filtersForEditing.icons || []}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, icons: values })}
+                                />
                             </FormSection>
 
                             <FormSection title="Showdown Chart" isOpenByDefault={true}>

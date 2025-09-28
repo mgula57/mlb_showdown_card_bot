@@ -455,13 +455,36 @@ class PostgresDB:
                             field=sql.Identifier("name")
                         ))
                         filter_values.append(f"%{value}%")
-                        
+
+                    elif key == 'is_multi_team':
+                        # Handle multi-team filtering based on cardinality of team_id_list
+                        if isinstance(value, list) and len(value) > 0:
+                            multi_team_conditions = []
+                            
+                            for multi_team_value in value:
+                                if multi_team_value.lower() == 'true':
+                                    # Players with multiple teams (cardinality > 1)
+                                    multi_team_conditions.append(sql.SQL("cardinality(team_id_list) > 1"))
+                                elif multi_team_value.lower() == 'false':
+                                    # Players with single team (cardinality = 1 or NULL/empty array)
+                                    multi_team_conditions.append(sql.SQL("(cardinality(team_id_list) <= 1 OR team_id_list IS NULL)"))
+                            
+                            if multi_team_conditions:
+                                # Use OR to combine conditions (show records matching any of the selected values)
+                                filter_clauses.append(sql.SQL("({})").format(
+                                    sql.SQL(" OR ").join(multi_team_conditions)
+                                ))
+                            
                     # Handle list filtering (IN clause)
                     elif isinstance(value, list) and len(value) > 0:
                         # For JSONB array fields, use @> operator to check if array contains any of the values
                         if key in ['positions', 'secondary_positions', 'primary_positions']:
                             # Check if any of the provided positions are in the player's positions
                             filter_clauses.append(sql.SQL("positions_list && %s"))
+                            filter_values.append(value)
+                        elif key in ['icons']:
+                            # Check if any of the provided icons are in the player's icons
+                            filter_clauses.append(sql.SQL("icons_list && %s"))
                             filter_values.append(value)
                         else:
                             # Regular IN clause for non-array fields
@@ -516,7 +539,7 @@ class PostgresDB:
                     direction=sql.SQL(sort_direction)
                 )
 
-            query += sql.SQL(" ORDER BY {}, bref_id").format(final_sort)
+            query += sql.SQL(" ORDER BY {}, points DESC, bref_id").format(final_sort)
 
             # ADD LIMIT AND PAGINATION
             if not isinstance(page, int) or page < 1:
