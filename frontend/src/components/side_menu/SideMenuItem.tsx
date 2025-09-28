@@ -39,7 +39,7 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
 /** Side menu items for navigation */
 export const sideMenuItems: SideMenuItemType[] = [
     {
-        text: "Customs",
+        text: "Custom",
         icon: FaAddressCard,
         path: "/customs"
     },

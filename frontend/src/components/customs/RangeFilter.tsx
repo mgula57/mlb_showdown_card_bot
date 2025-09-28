@@ -32,7 +32,7 @@ export default function RangeFilter({
         <div className="flex flex-col gap-1 border-1 p-2 rounded-xl border-form-element">
             <div className="flex items-center justify-between">
                 
-                <label className="text-md font-medium text-secondary">{label}</label>
+                <label className="text-sm font-medium text-secondary">{label}</label>
                 {(minValue !== undefined || maxValue !== undefined) && (
                     <button
                         type="button"

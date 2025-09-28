@@ -26,7 +26,8 @@ parser.add_argument('-s','--sets', help='Showdown Set(s) to use', required=False
 args = parser.parse_args()
 
 def year_list() -> list[int]:
-    year_list = list(range(1900, 2026))
+    current_year = datetime.now().year
+    year_list = list(range(1884, current_year + 1))
 
     # FILTER OUT YEARS BETWEEN YEAR START AND YEAR END ARGS
     if args.year_start is not None:

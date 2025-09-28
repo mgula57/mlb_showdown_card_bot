@@ -5,6 +5,7 @@ import { useLocation } from "react-router-dom";
 import { useSiteSettings, showdownSets } from "./shared/SiteSettingsContext";
 import CustomSelect from "./shared/CustomSelect";
 import { FiMenu } from "react-icons/fi";
+import { sideMenuItems } from "./side_menu/SideMenuItem";
 
 // *********************************
 // App Layout
@@ -12,12 +13,6 @@ import { FiMenu } from "react-icons/fi";
 
 type AppLayoutProps = {
     children: ReactNode;
-};
-
-const TITLE_MAP: Record<string, string> = {
-    home: "Home",
-    customs: "Custom Card",
-    explore: "Explore",
 };
 
 // Local storage key for side menu state
@@ -52,7 +47,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     const location = useLocation();
     const locationName = location.pathname.split('/')[1] || 'customs';
 
-    const headerTitle: string = TITLE_MAP[locationName] || "customs";
+    const selectedMenuItem = sideMenuItems.find(item => item.path.includes(locationName));
 
     // Save side menu state to localStorage whenever it changes
     useEffect(() => {
@@ -119,8 +114,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         {/* Show logo on small always */}
                         <ShowdownBotLogo className="max-w-48 md:hidden" />
                         {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48 hidden md:block" />}
-                        <h1 className="hidden sm:block text-xl font-semibold text-secondary">
-                            {headerTitle}
+                        <h1 className="hidden sm:flex sm:flex-row text-xl font-semibold text-secondary items-center">
+                            {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-5 h-5 mr-2" />}
+                            {selectedMenuItem?.text || 'Custom'}
                         </h1>
                     </div>
 
