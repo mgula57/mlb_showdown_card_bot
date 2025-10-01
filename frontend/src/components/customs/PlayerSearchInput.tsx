@@ -212,9 +212,11 @@ export function PlayerSearchInput({
         setIsOpen(false);
         setSelectedIndex(-1);
 
+        const typeOverride = option.player_type_override ? ` ${option.player_type_override.toUpperCase()}` : '';
+
         // Call onChange with the selected option
         onChange({
-            name: option.name,
+            name: `${option.name}${typeOverride}`,
             year: option.year.toString()
         });
         
@@ -336,7 +338,7 @@ export function PlayerSearchInput({
                                     </div>
                                     {/* Contextual info */}
                                     <div className="text-xs text-gray-500">
-                                        {option.player_type_override && <div>{option.player_type_override.toUpperCase()}</div>}
+                                        {option.player_type_override && <div className='font-bold'>{option.player_type_override.toUpperCase()}</div>}
                                         {option.award_summary && <div>Awards: {option.award_summary}</div>}
                                         {option.bwar !== undefined && <div>bWAR: {option.bwar.toFixed(1)}</div>}
                                     </div>

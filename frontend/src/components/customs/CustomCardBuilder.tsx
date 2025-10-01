@@ -1081,6 +1081,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             onToggle={() => toggleSection('Set')}
                                             childrenWhenClosed={sectionWhenClosed('Set')}
                                         >
+                                            <div className="col-span-full font-semibold text-xs text-[var(--tertiary)] italic">
+                                                Want to change the Showdown Set? Look in the top right corner.
+                                            </div>
 
                                             <FormDropdown
                                                 label="Expansion"
