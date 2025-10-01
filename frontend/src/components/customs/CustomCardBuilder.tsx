@@ -325,7 +325,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         }
         // Default states - only Player section open by default
         return {
-            'Player': true,
+            'Player': false,
             'Set': false,
             'Image': false,
             'Chart': false
