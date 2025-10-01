@@ -179,7 +179,7 @@ class ShowdownPlayerCard(BaseModel):
             game_logs += added_game_logs
         
         # ADD LOGS AS STATS IN PERIOD
-        self.stats_period.add_stats_from_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
+        self.stats_period.add_stats_from_game_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
 
         # WHEN EMPTY, CHECK FOR WARNINGS
         if not self.stats_period.stats and self.stats_period.type.uses_game_logs:
@@ -189,7 +189,7 @@ class ShowdownPlayerCard(BaseModel):
 
             # TRY AGAIN
             game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
-            self.stats_period.add_stats_from_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
+            self.stats_period.add_stats_from_game_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
 
         if self.stats_period.stats:
             full_season_stats_used_for_stats_period = {k: v for k, v in self.stats.items() if k in ['IF/FB', 'GO/AO',]}

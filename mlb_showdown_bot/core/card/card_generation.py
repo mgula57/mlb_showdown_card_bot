@@ -85,6 +85,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
         # UPDATE STATS PERIOD BASED ON BREF STATS
         stats_period = baseball_reference_stats.stats_period
+        kwargs['player_type_override'] = baseball_reference_stats.player_type_override
+        kwargs['team_override'] = baseball_reference_stats.team_override
 
         # -----------------------------------
         # HIT MLB API FOR REALTIME STATS

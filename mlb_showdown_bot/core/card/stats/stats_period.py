@@ -338,7 +338,7 @@ class StatsPeriod(BaseModel):
 
         self._check_and_apply_current_season_adjustment()
 
-    def add_stats_from_logs(self, game_logs:list[dict[str, Any]], is_pitcher:bool, team_override:Team = None) -> None:
+    def add_stats_from_game_logs(self, game_logs:list[dict[str, Any]], is_pitcher:bool, team_override:Team = None) -> None:
         """
         Add stats from game logs to the stats dictionary
         
@@ -391,7 +391,7 @@ class StatsPeriod(BaseModel):
                 game_log_data['date_game'] = game_log_date.strftime("%b %-d")
             
             # SKIP IF TEAM OVERRIDE IS PRESENT AND TEAM DOESN'T MATCH
-            if team_override and game_log_data.get('team_ID', None) != team_override.value:
+            if team_override and game_log_data.get('team_ID', 'n/a') != team_override.value:
                 continue
 
             # SKIP ROW IF IT FAILS THE DATE OR YEAR CHECKS
