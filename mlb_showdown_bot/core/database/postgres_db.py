@@ -478,22 +478,31 @@ class PostgresDB:
                     # Handle list filtering (IN clause)
                     elif isinstance(value, list) and len(value) > 0:
                         # For JSONB array fields, use @> operator to check if array contains any of the values
-                        if key in ['positions', 'secondary_positions', 'primary_positions']:
-                            # Check if any of the provided positions are in the player's positions
-                            filter_clauses.append(sql.SQL("positions_list && %s"))
-                            filter_values.append(value)
-                        elif key in ['icons']:
-                            # Check if any of the provided icons are in the player's icons
-                            filter_clauses.append(sql.SQL("icons_list && %s"))
-                            filter_values.append(value)
-                        else:
-                            # Regular IN clause for non-array fields
-                            placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
-                            filter_clauses.append(sql.SQL("{field}::text IN ({placeholders})").format(
-                                field=sql.Identifier(key),
-                                placeholders=placeholders
-                            ))
-                            filter_values.extend(value)
+                        match key:
+                            case 'positions':
+                                # Check if any of the provided positions are in the player's positions
+                                filter_clauses.append(sql.SQL("positions_list && %s"))
+                                filter_values.append(value)
+                            case 'icons':
+                                # Check if any of the provided icons are in the player's icons
+                                filter_clauses.append(sql.SQL("icons_list && %s"))
+                                filter_values.append(value)
+                            case 'include_small_sample_size':
+                                # Only filter if array is ["false"]
+                                if value == ["false"]:
+                                    filter_clauses.append(sql.SQL("(case" \
+                                        " when positions_list && ARRAY['STARTER'] then real_ip >= 75" \
+                                        " when positions_list && ARRAY['RELIEVER', 'CLOSER'] then real_ip >= 30" \
+                                        " else pa >= 250" \
+                                    "end)"))
+                            case _:
+                                # Regular IN clause for non-array fields
+                                placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
+                                filter_clauses.append(sql.SQL("{field}::text IN ({placeholders})").format(
+                                    field=sql.Identifier(key),
+                                    placeholders=placeholders
+                                ))
+                                filter_values.extend(value)
                             
                     # Handle regular equality filtering
                     else:

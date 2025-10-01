@@ -5,6 +5,7 @@ import { FaChevronDown, FaCheck, FaTimes } from 'react-icons/fa';
 // Props for MultiSelect
 interface MultiSelectProps {
     label: string;
+    labelDescription?: string;
     options: { value: string; label: string }[];
     selections?: string[];
     onChange: (values: string[]) => void;
@@ -13,8 +14,8 @@ interface MultiSelectProps {
 }
 
 // Multi-Select Dropdown Component
-const MultiSelect = ({ label, options, selections, onChange, placeholder = "Select...", className }: MultiSelectProps) => {
-    
+const MultiSelect = ({ label, labelDescription, options, selections, onChange, placeholder = "Select...", className }: MultiSelectProps) => {
+
     const [isOpen, setIsOpen] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);    // outer component
     const triggerRef = useRef<HTMLButtonElement>(null); // button that triggers menu
@@ -100,7 +101,10 @@ const MultiSelect = ({ label, options, selections, onChange, placeholder = "Sele
 
     return (
         <div className={`space-y-2 ${className}`} ref={wrapperRef}>
-            <label className="block text-sm font-medium text-[var(--text-primary)]">{label}</label>
+            <div>
+                <label className="block text-sm font-medium text-[var(--text-primary)]">{label}</label>
+                {labelDescription && <p className="text-[9px] text-[var(--text-secondary)]">{labelDescription}</p>}
+            </div>
             
             {/* Dropdown Button */}
             <div className="relative">

@@ -46,6 +46,7 @@ interface FilterSelections {
     max_pa?: number;
     min_real_ip?: number;
     max_real_ip?: number;
+    include_small_sample_size?: string[]; // e.g., ["true", "false"]
 
     // Showdown Min/Max
     min_points?: number;
@@ -78,8 +79,7 @@ interface FilterSelections {
 }
 
 const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
-    min_pa: 250,
-    min_real_ip: 40,
+    include_small_sample_size: ["false"],
     sort_by: "points",
     sort_direction: "desc",
     organization: ["MLB"],
@@ -131,7 +131,7 @@ const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
 ];
 
 // Filter Storage
-const FILTERS_STORAGE_KEY = 'exploreFilters:v1';
+const FILTERS_STORAGE_KEY = 'exploreFilters:v1.01';
 
 const stripEmpty = (obj: any) =>
     Object.fromEntries(
@@ -389,6 +389,12 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             }
 
             return `${shortKey} ${comparisonOperator} ${value}`;
+        }
+
+        if (key === 'include_small_sample_size') {
+            const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
+            const finalValue = finalValues.join(',');
+            return `Small Sample Sizes?: ${finalValue}`;
         }
 
         return `${snakeToTitleCase(key)}: ${value}`;
@@ -681,6 +687,17 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         {...bindRange(def.minKey, def.maxKey)}
                                     />
                                 ))}
+
+                                <MultiSelect
+                                    label="Include Small Sample Sizes?"
+                                    labelDescription="Defined as PA&lt;250 for Hitters, IP&lt;75 for Starters, IP&lt;35 for Relievers"
+                                    options={[
+                                        { value: 'true', label: 'Yes' },
+                                        { value: 'false', label: 'No' },
+                                    ]}
+                                    selections={filtersForEditing.include_small_sample_size || []}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, include_small_sample_size: values })}
+                                />
                             </FormSection>
 
                             <FormSection title="Showdown Attributes" isOpenByDefault={true}>
