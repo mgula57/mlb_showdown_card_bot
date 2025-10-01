@@ -264,6 +264,7 @@ def search_players():
                 SELECT 
                     name,
                     bref_id,
+                    player_type_override,
                     bool_or(is_hof) as is_hof,
                     string_agg(DISTINCT team, ',' ORDER BY team) as team,
                     string_agg(DISTINCT award_summary, ',' ORDER BY award_summary) as award_summary,
@@ -272,15 +273,16 @@ def search_players():
                     MAX(year) as last_year
                 FROM player_year_list
                 WHERE name = LOWER(%s)
-                GROUP BY name, bref_id
+                GROUP BY name, bref_id, player_type_override
+                ORDER BY SUM(COALESCE(bwar, 0)) DESC
             """, (query,))
             
-            exact_match = exact_match_cursor.fetchone()
+            exact_matches = exact_match_cursor.fetchall() or []
             exact_match_cursor.close()
             
             displays = []
-            if exact_match:
-                name, bref_id, is_hof, team, award_summary, career_bwar, first_year, last_year = exact_match
+            for exact_match in exact_matches:
+                name, bref_id, player_type_override, is_hof, team, award_summary, career_bwar, first_year, last_year = exact_match
                 award_summary = summarize_awards(award_summary)
                 displays.append({
                     'type': 'career',
@@ -292,6 +294,7 @@ def search_players():
                     'award_summary': award_summary,
                     'bwar': round(career_bwar, 1),
                     'team': team,
+                    'player_type_override': player_type_override,
                 })
             
             # Then add individual year results
@@ -299,6 +302,7 @@ def search_players():
                 SELECT 
                     name,
                     year,
+                    player_type_override,
                     bref_id,
                     team,
                     is_hof,
@@ -330,7 +334,7 @@ def search_players():
             ))
             
             results = cursor.fetchall()
-            for name, year, bref_id, team, is_hof, award_summary, bwar, match_rank in results:
+            for name, year, player_type_override, bref_id, team, is_hof, award_summary, bwar, match_rank in results:
                 displays.append({
                     'type': 'single_year',
                     'name': name,
@@ -340,6 +344,7 @@ def search_players():
                     'award_summary': award_summary,
                     'bwar': bwar,
                     'team': team,
+                    'player_type_override': player_type_override,
                 })
 
         # CLOSE THE CONNECTION
