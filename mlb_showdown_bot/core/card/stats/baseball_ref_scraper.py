@@ -68,6 +68,12 @@ class BaseballReferenceScraper(BaseModel):
         # VALIDATE TEAM OVERRIDE
         if self.team_override is not None and self.team_override == Team.MLB:
             self.team_override = None
+        
+        if self.player_type_override is None:
+            if '(PITCHER)' in self.name.upper() or '(PITCHING)' in self.name.upper():
+                self.player_type_override = PlayerType.PITCHER
+            elif '(HITTER)' in self.name.upper() or '(HITTING)' in self.name.upper():
+                self.player_type_override = PlayerType.HITTER
 
         # CHECK FOR BASEBALL REFERENCE ID
         self.is_name_a_bref_id = any(char.isdigit() for char in self.name)
