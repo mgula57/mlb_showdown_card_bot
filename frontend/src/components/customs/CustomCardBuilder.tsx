@@ -63,9 +63,9 @@ interface CustomCardFormState {
     image_upload?: File | null; // For file uploads
 
     // Image Extras
-    add_image_border: boolean; // Whether to add a border to the image
+    is_bordered: boolean; // Whether to add a border to the image
     is_dark_mode: boolean; // Whether the card is in dark mode
-    remove_team_branding: boolean; // Whether to remove team branding from the image
+    hide_team_logo: boolean; // Whether to remove team branding from the image
     stat_highlights_type?: string; // e.g. "ALL", "OLD", "MODERN"
     nickname_index?: string; // e.g. "NICKNAME 1",
 
@@ -93,9 +93,9 @@ const FORM_DEFAULTS: CustomCardFormState = {
     image_glow_multiplier: "1",
     image_url: null, 
     image_upload: null,
-    add_image_border: false, 
+    is_bordered: false, 
     is_dark_mode: false, 
-    remove_team_branding: false,
+    hide_team_logo: false,
     stat_highlights_type: "NONE", 
     nickname_index: "NONE", 
     add_one_to_set_year: false, 
@@ -406,9 +406,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     const nicknameOption = nicknameIndexOptions.find(opt => opt.value === form.nickname_index);
                     summaries.push({ ...(nicknameOption || { value: form.nickname_index }), label: 'Nickname' });
                 }
-                if (form.add_image_border !== FORM_DEFAULTS.add_image_border) summaries.push({ value: 'ADD BORDER', borderColor: 'border-green-500' });
+                if (form.is_bordered !== FORM_DEFAULTS.is_bordered) summaries.push({ value: 'ADD BORDER', borderColor: 'border-green-500' });
                 if (form.is_dark_mode !== FORM_DEFAULTS.is_dark_mode) summaries.push({ value: 'DARK MODE', borderColor: 'border-green-500' });
-                if (form.remove_team_branding !== FORM_DEFAULTS.remove_team_branding) summaries.push({ value: 'REMOVE TEAM BRANDING', borderColor: 'border-green-500' });
+                if (form.hide_team_logo !== FORM_DEFAULTS.hide_team_logo) summaries.push({ value: 'REMOVE TEAM BRANDING', borderColor: 'border-green-500' });
                 break;
                 
             case 'chart':
@@ -1208,9 +1208,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 selectedOption={form.nickname_index || 'NONE'}
                                                 onChange={(value) => setForm({ ...form, nickname_index: value })}
                                             />
-                                            <FormEnabler label='Add Border' isEnabled={form.add_image_border} onChange={(isEnabled) => setForm({ ...form, add_image_border: !isEnabled })} />
+                                            <FormEnabler label='Add Border' isEnabled={form.is_bordered} onChange={(isEnabled) => setForm({ ...form, is_bordered: !isEnabled })} />
                                             <FormEnabler label='Dark Mode' isEnabled={form.is_dark_mode} onChange={(isEnabled) => setForm({ ...form, is_dark_mode: !isEnabled })} />
-                                            <FormEnabler label='Remove Team' className='col-span-full' isEnabled={form.remove_team_branding} onChange={(isEnabled) => setForm({ ...form, remove_team_branding: !isEnabled })} />
+                                            <FormEnabler label='Remove Team' className='col-span-full' isEnabled={form.hide_team_logo} onChange={(isEnabled) => setForm({ ...form, hide_team_logo: !isEnabled })} />
 
 
                                         </FormSection>
@@ -1239,7 +1239,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             />
 
                                             <FormEnabler
-                                                label="Variable Speed 00-01"
+                                                label="Variable Speed (00-01 Sets)"
                                                 className="col-span-2"
                                                 isEnabled={form.is_variable_speed_00_01 || false}
                                                 onChange={(isEnabled) => setForm({ ...form, is_variable_speed_00_01: !isEnabled })}

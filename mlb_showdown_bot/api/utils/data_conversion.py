@@ -3,7 +3,7 @@ def convert_form_data_types(form_data: dict) -> dict:
     """Convert form data strings back to appropriate types"""
     
     # Define expected types for each field
-    BOOLEAN_FIELDS = {'is_dark_mode', 'add_image_border', 'remove_team_branding', 
+    BOOLEAN_FIELDS = {'is_dark_mode', 'is_bordered', 'hide_team_logo', 
                      'add_one_to_set_year', 'show_year_text', 'is_variable_speed_00_01'}
     INTEGER_FIELDS = {'year', 'chart_version', 'image_glow_multiplier'}
     
