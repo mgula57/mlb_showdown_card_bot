@@ -5,24 +5,6 @@ import { FaTable, FaPoll, FaCoins, FaBaseballBall, FaUser } from 'react-icons/fa
 import { type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 import { enhanceColorVisibility } from '../../functions/colors';
 
-// Images
-import blankPlayer2000Dark from '../../assets/blankplayer-2000-dark.png';
-import blankPlayer2000Light from '../../assets/blankplayer-2000-light.png';
-import blankPlayer2001Dark from '../../assets/blankplayer-2001-dark.png';
-import blankPlayer2001Light from '../../assets/blankplayer-2001-light.png';
-import blankPlayer2002Dark from '../../assets/blankplayer-2002-dark.png';
-import blankPlayer2002Light from '../../assets/blankplayer-2002-light.png';
-import blankPlayer2003Dark from '../../assets/blankplayer-2003-dark.png';
-import blankPlayer2003Light from '../../assets/blankplayer-2003-light.png';
-import blankPlayer2004Dark from '../../assets/blankplayer-2004-dark.png';
-import blankPlayer2004Light from '../../assets/blankplayer-2004-light.png';
-import blankPlayer2005Dark from '../../assets/blankplayer-2005-dark.png';
-import blankPlayer2005Light from '../../assets/blankplayer-2005-light.png';
-import blankPlayerClassicDark from '../../assets/blankplayer-classic-dark.png';
-import blankPlayerClassicLight from '../../assets/blankplayer-classic-light.png';
-import blankPlayerExpandedDark from '../../assets/blankplayer-expanded-dark.png';
-import blankPlayerExpandedLight from '../../assets/blankplayer-expanded-light.png';
-
 import { imageForSet } from "../shared/SiteSettingsContext";
 
 // Tables
@@ -220,26 +202,9 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
     }
 
     const getBlankPlayerImageName = (): string => {
-        switch (userShowdownSet) {
-            case '2000':
-                return isDark ? blankPlayer2000Dark : blankPlayer2000Light;
-            case '2001':
-                return isDark ? blankPlayer2001Dark : blankPlayer2001Light;
-            case '2002':
-                return isDark ? blankPlayer2002Dark : blankPlayer2002Light;
-            case '2003':
-                return isDark ? blankPlayer2003Dark : blankPlayer2003Light;
-            case '2004':
-                return isDark ? blankPlayer2004Dark : blankPlayer2004Light;
-            case '2005':
-                return isDark ? blankPlayer2005Dark : blankPlayer2005Light;
-            case 'CLASSIC':
-                return isDark ? blankPlayerClassicDark : blankPlayerClassicLight;
-            case 'EXPANDED':
-                return isDark ? blankPlayerExpandedDark : blankPlayerExpandedLight;
-            default:
-                return isDark ? blankPlayer2001Dark : blankPlayer2001Light; // fallback
-        }
+        const setName = userShowdownSet.toLowerCase() || '2000';
+        const appearance = isDark ? 'dark' : 'light';
+        return `/images/blank_players/blankplayer-${setName}-${appearance}.png`;
     };
 
     const breakdownFirstRowHeight = '@xl:max-h-[500px] @xl:overflow-hidden @3xl:max-h-[600px] @6xl:max-h-[700px]';

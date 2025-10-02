@@ -1,24 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-import showdown2000 from "../../assets/set-2000.png";
-import showdown2001 from "../../assets/set-2001.png";
-import showdown2002 from "../../assets/set-2002.png";
-import showdown2003 from "../../assets/set-2003.png";
-import showdown2004 from "../../assets/set-2004.png";
-import showdown2005 from "../../assets/set-2005.png";
-import showdownClassic from "../../assets/set-classic.png";
-import showdownExpanded from "../../assets/set-expanded.png";
-
-
 export const showdownSets: Array<{ value: string; label: string; image?: string | undefined; textColor?: string | undefined; }> = [
-    { value: "2000", label: "", textColor: "text-blue", image: showdown2000 },
-    { value: "2001", label: "", image: showdown2001 },
-    { value: "CLASSIC", label: "", image: showdownClassic },
-    { value: "2002", label: "", image: showdown2002 },
-    { value: "2003", label: "", image: showdown2003 },
-    { value: "2004", label: "", image: showdown2004 },
-    { value: "2005", label: "", image: showdown2005 },
-    { value: "EXPANDED", label: "", image: showdownExpanded },
+    { value: "2000", label: "", textColor: "text-blue", image: "/images/sets/set-2000.png" },
+    { value: "2001", label: "", image: "/images/sets/set-2001.png" },
+    { value: "CLASSIC", label: "", image: "/images/sets/set-classic.png" },
+    { value: "2002", label: "", image: "/images/sets/set-2002.png" },
+    { value: "2003", label: "", image: "/images/sets/set-2003.png" },
+    { value: "2004", label: "", image: "/images/sets/set-2004.png" },
+    { value: "2005", label: "", image: "/images/sets/set-2005.png" },
+    { value: "EXPANDED", label: "", image: "/images/sets/set-expanded.png" },
 ];
 
 export const imageForSet = (set: string): string | undefined => {

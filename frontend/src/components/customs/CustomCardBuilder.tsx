@@ -16,16 +16,6 @@ import { CardDetail } from '../cards/CardDetail';
 // API
 import { buildCustomCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
 
-// Image Assets
-import expansionBS from '../../assets/expansion-bs.png';
-import expansionTD from '../../assets/expansion-td.png';
-import expansionPR from '../../assets/expansion-pr.png';
-
-import editionRS from '../../assets/edition-rs.png';
-import editionCC from '../../assets/edition-cc.png';
-import editionPOST from '../../assets/edition-post.png';
-import editionSS from '../../assets/edition-ss.png';
-
 // Icons
 import { 
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle, 
@@ -204,6 +194,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 return null;
         }
     };
+    const publicImagePath = (imageName:string): string => {
+        return `/images/card/${imageName}.png`;
+    };
+
 
 
     // ---------------------------------
@@ -212,9 +206,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     // Expansion options
     const expansionOptions: SelectOption[] = [
-        { label: "Base Set", value: "BS", image: expansionBS },
-        { label: "Trading Deadline", value: "TD", image: expansionTD, 'borderColor': 'border-red-600' },
-        { label: "Pennant Run", value: "PR", image: expansionPR, 'borderColor': 'border-blue-900' },
+        { label: "Base Set", value: "BS", image: publicImagePath('expansion-bs') },
+        { label: "Trading Deadline", value: "TD", image: publicImagePath('expansion-td'), 'borderColor': 'border-red-600' },
+        { label: "Pennant Run", value: "PR", image: publicImagePath('expansion-pr'), 'borderColor': 'border-blue-900' },
     ]
 
     // Stats Period Options
@@ -228,13 +222,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     // Edition Options
     const editionOptions: SelectOption[] = [
         { 'value': 'NONE', 'label': 'None', 'symbol': '―' },
-        { 'value': 'CC', 'label': 'Cooperstown Collection', 'image': editionCC, 'borderColor': 'border-amber-800' },
-        { 'value': 'SS', 'label': 'Super Season', 'image': editionSS, 'borderColor': 'border-red-500' },
+        { 'value': 'CC', 'label': 'Cooperstown Collection', 'image': publicImagePath('edition-cc'), 'borderColor': 'border-amber-800' },
+        { 'value': 'SS', 'label': 'Super Season', 'image': publicImagePath('edition-ss'), 'borderColor': 'border-red-500' },
         { 'value': 'ASG', 'label': 'All-Star Game', 'symbol': '⭐', 'borderColor': 'border-yellow-400' },
-        { 'value': 'RS', 'label': 'Rookie Season', 'image': editionRS, 'borderColor': 'border-red-800' },
+        { 'value': 'RS', 'label': 'Rookie Season', 'image': publicImagePath('edition-rs'), 'borderColor': 'border-red-800' },
         { 'value': 'HOL', 'label': 'Holiday', 'symbol': '🎄', 'borderColor': 'border-green-600' },
         { 'value': 'NAT', 'label': 'Nationality', 'symbol': '🌍', 'borderColor': 'border-blue-500' },
-        { 'value': 'POST', 'label': 'Postseason', 'image': editionPOST, 'borderColor': 'border-blue-800' },
+        { 'value': 'POST', 'label': 'Postseason', 'image': publicImagePath('edition-post'), 'borderColor': 'border-blue-800' },
     ]
 
     // Image Source Options

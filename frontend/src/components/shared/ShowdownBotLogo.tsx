@@ -1,5 +1,3 @@
-import showdownLogoLight from "../../assets/logo-light.png";
-import showdownLogoDark from "../../assets/logo-dark.png";
 import React from "react";
 import { useTheme } from "./SiteSettingsContext";
 
@@ -16,12 +14,12 @@ const ShowdownBotLogo: React.FC<ShowdownBotLogoProps> = ({ className = "" }) => 
     return (
         <div className={`relative ${className}`}>
             <img 
-                src={showdownLogoLight} 
+                src={"/images/logos/logo-light.png"} 
                 alt="Showdown logo" 
                 className={`object-contain  ${isDark ? 'hidden' : 'block'}`}
             />
             <img 
-                src={showdownLogoDark} 
+                src={"/images/logos/logo-dark.png"} 
                 alt="Showdown logo" 
                 className={`object-contain  ${isDark ? 'block' : 'hidden'}`}
             />

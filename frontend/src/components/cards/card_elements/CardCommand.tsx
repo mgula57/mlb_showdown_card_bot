@@ -1,12 +1,6 @@
 import { type ShowdownBotCard } from "../../../api/showdownBotCard";
 import { useTheme } from "../../shared/SiteSettingsContext";
 
-// Import different command background images
-import controlLight from '../../../assets/control-light.png';
-import controlDark from '../../../assets/control-dark.png';
-import commandLight from '../../../assets/onbase-light.png';
-import commandDark from '../../../assets/onbase-dark.png';
-
 /** Type for the card command element props */
 type CardCommandProps = {
     card?: ShowdownBotCard | null;
@@ -19,11 +13,9 @@ export default function CardCommand({ card, className = "w-10 h-10" }: CardComma
     const color = (['NYM', 'SDP'].includes(card?.team || 'N/A') ? card?.image.color_secondary : card?.image.color_primary) || 'rgb(0, 0, 0)';
 
     const getSrcImage = () => {
-        if (card?.chart.is_pitcher) {
-            return isDark ? controlDark : controlLight;
-        } else {
-            return isDark ? commandDark : commandLight;
-        }
+        const appearance = isDark ? 'dark' : 'light';
+        const commandName = card?.chart.is_pitcher ? 'control' : 'onbase';
+        return `/images/card/${commandName}-${appearance}.png`;
     }
 
     return (
