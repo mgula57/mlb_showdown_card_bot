@@ -41,6 +41,7 @@ import { FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck } from 'react-icons/fa6
 interface CustomCardFormState {
     // Name and Year
     name: string; // ex: "Mike Trout"
+    player_id?: string | null; // ex: "troutmi01"
     year: string; // ex: "2023"
     stats_period_type: string; // e.g. "REGULAR"
     start_date?: string | null; // e.g. "2023-05-01"
@@ -79,6 +80,7 @@ interface CustomCardFormState {
 /** Default values for the custom card form */
 const FORM_DEFAULTS: CustomCardFormState = {
     name: "", 
+    player_id: null,
     year: "", 
     stats_period_type: "REGULAR", 
     start_date: null, 
@@ -190,6 +192,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         || (form.stats_period_type === "SPLIT" && !form.split)
         || isProcessingCard
     )
+    // Used to track name changes
+    const [previousName, setPreviousName] = useState(form.name);
 
     const [imageUploadPreview, setImageUploadPreview] = useState<string | null>(null);
     const getImagePreview = (): string | null => {
@@ -697,7 +701,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         // Use form data but replace name with shuffle key
         const shuffledForm = {
             ...form,
-            name: '((RANDOM))'
+            name: '((RANDOM))',
+            player_id: null, // Reset player_id when shuffled
         };
 
         submitCard(shuffledForm);
@@ -753,8 +758,20 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
             // Cleanup timer if component unmounts or loadingStatus changes
             return () => clearTimeout(timer);
-        }
+        }   
     }, [loadingStatus]);
+
+    // Create a helper function to handle name changes
+    // Resets the player_id if the name is changed manually
+    const handleNameChange = (newName: string | null) => {
+        setForm(prevForm => {
+            return {
+                ...prevForm,
+                name: newName || "",
+                player_id: null // Reset player_id when name changes
+            };
+        });
+    };
 
     // Show the loading status when it appears
     useEffect(() => {
@@ -965,7 +982,12 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     label=""
                                     value={query}
                                     className={`${isFormCollapsed ? 'hidden' : 'block w-full'} ${animationTw}`}
-                                    onChange={(selection) => setForm({ ...form, name: selection.name, year: selection.year })}
+                                    onChange={(selection) => setForm({ 
+                                        ...form, 
+                                        name: selection.name, 
+                                        year: selection.year,
+                                        player_id: selection.bref_id
+                                    })}
                                 />
 
                                 <button
@@ -1050,7 +1072,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                                 label="Name*"
                                                 className='col-span-full'
                                                 value={form.name}
-                                                onChange={(value) => setForm({ ...form, name: value || '' })}
+                                                onChange={handleNameChange}
                                                 isClearable={true}
                                                 isTitleCase={true}
                                             />

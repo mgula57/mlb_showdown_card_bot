@@ -71,6 +71,10 @@ def generate_card(**kwargs) -> dict[str, Any]:
             kwargs['name'] = random_player.bref_id
             kwargs['year'] = str(random_player.year)
 
+        # REPLACE NAME WITH PLAYER ID IF PROVIDED
+        if kwargs.get('player_id', None):
+            kwargs['name'] = kwargs['player_id']
+
         # REMOVE IMAGE PREFIXES FROM KEYS
         kwargs = clean_kwargs(kwargs)
         

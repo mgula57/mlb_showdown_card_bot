@@ -21,6 +21,7 @@ interface PlayerSearchInputProps {
     onChange: (selection: {
         name: string;
         year: string;
+        bref_id: string;
     }) => void;
     className?: string;
 }
@@ -217,7 +218,8 @@ export function PlayerSearchInput({
         // Call onChange with the selected option
         onChange({
             name: `${option.name}${typeOverride}`,
-            year: option.year.toString()
+            year: option.year.toString(),
+            bref_id: option.bref_id.toString()
         });
         
     };
