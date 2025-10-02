@@ -514,7 +514,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             </div>
 
             <div className="relative">
-                <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
+                <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
                     {/* Iterate through showdownCards and display each card */}
                     {showdownCards?.map((cardRecord, index) => (
                         <div
