@@ -192,8 +192,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         || (form.stats_period_type === "SPLIT" && !form.split)
         || isProcessingCard
     )
-    // Used to track name changes
-    const [previousName, setPreviousName] = useState(form.name);
 
     const [imageUploadPreview, setImageUploadPreview] = useState<string | null>(null);
     const getImagePreview = (): string | null => {
