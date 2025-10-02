@@ -450,7 +450,6 @@ class BaseballReferenceScraper(BaseModel):
             # RETURNED AS DICT WITH POSITIONS AND dWAR
             # EX: {'positions': {'C': {'g': 100}, '1B': {'g': 50}}, 'dWAR': 2.0}
             positional_fielding = self.positions_and_defense(soup_for_homepage_stats=soup_for_homepage_stats,year=year,overall_positions_and_games=positions_and_games)
-
             # HANDLE SCENARIO WHERE NO FIELDING DATA EXISTS BECAUSE PLAYER IS DH
             positions_dict = positional_fielding.get('positions', {})
             is_positionless = False
@@ -619,7 +618,7 @@ class BaseballReferenceScraper(BaseModel):
         
         return stats_dict
     
-    def __positions_table_records(self, soup_for_homepage_stats:BeautifulSoup, year:str) -> dict[str, dict]:
+    def __positions_table_records(self, soup_for_homepage_stats:BeautifulSoup, year:str) -> list[BeautifulSoup]:
         """Parse standard positions and fielding metrics into a dictionary.
 
         Args:
@@ -631,8 +630,12 @@ class BaseballReferenceScraper(BaseModel):
         """
 
         is_full_career = year == 'CAREER'
+        fielding_table = soup_for_homepage_stats.find('div', attrs = {'id': re.compile('div_standard_fielding|div_players_standard_fielding')})
+
+        if fielding_table is None:
+            return []
+
         if is_full_career:
-            fielding_table = soup_for_homepage_stats.find('div', attrs = {'id': re.compile('div_standard_fielding|div_players_standard_fielding')})
             fielding_table_footer = fielding_table.find('tfoot')
             all_footer_rows = fielding_table_footer.find_all('tr')
             
@@ -651,8 +654,12 @@ class BaseballReferenceScraper(BaseModel):
             
             return all_footer_rows
         else:
-            return soup_for_homepage_stats.find_all('tr', attrs = {'id': re.compile(f'{year}:standard_fielding|players_standard_fielding\.{year}')})
-        
+            # ONLY TAKE FROM BODY OF TABLE
+            fielding_table_footer = fielding_table.find('tbody')
+            if fielding_table_footer is None:
+                return []
+            return fielding_table_footer.find_all('tr', attrs = {'id': re.compile(f'{year}:standard_fielding|players_standard_fielding\.{year}')})
+
     def positions_and_games_played(self, soup_for_homepage_stats:BeautifulSoup, years:list[str]) -> list[str]:
         """Parse standard positions and fielding metrics into a dictionary.
 

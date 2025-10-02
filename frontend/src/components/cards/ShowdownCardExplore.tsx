@@ -6,7 +6,7 @@ import { Modal } from "../shared/Modal";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes,
-    FaDollarSign, FaMitten
+    FaDollarSign, FaMitten, FaCalendarAlt
 } from "react-icons/fa";
 import { FaArrowRotateRight } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
@@ -87,6 +87,7 @@ const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
 
 const SORT_OPTIONS: SelectOption[] = [
     { value: 'points', label: 'Points', icon: <FaDollarSign /> },
+    { value: 'year', label: 'Year', icon: <FaCalendarAlt /> },
     { value: 'speed', label: 'Speed', icon: <FaPersonRunning /> },
     { value: 'ip', label: 'IP', icon: <FaI /> },
     { value: 'command', label: 'Control/Onbase', icon: <FaBaseballBall /> },

@@ -1096,7 +1096,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             childrenWhenClosed={sectionWhenClosed('Set')}
                                         >
                                             <div className="col-span-full font-semibold text-xs text-[var(--tertiary)] italic">
-                                                Want to change the Showdown Set? Look in the top right corner.
+                                                Want to change the Showdown Set? Look in the top right corner of the browser.
                                             </div>
 
                                             <FormDropdown

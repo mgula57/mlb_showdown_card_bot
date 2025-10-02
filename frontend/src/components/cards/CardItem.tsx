@@ -2,6 +2,7 @@ import type { ShowdownBotCard } from "../../api/showdownBotCard";
 import CardChart from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
+import { useTheme } from "../shared/SiteSettingsContext";
 
 
 type CardItemProps = {
@@ -12,6 +13,7 @@ type CardItemProps = {
 export const CardItem = ({ card, onClick }: CardItemProps) => {
 
     // Color
+    const { isDark } = useTheme();
     const primaryColor = (['NYM', 'SDP'].includes(card?.team || 'N/A') ? card?.image.color_secondary : card?.image.color_primary) || 'rgb(0, 0, 0)';
     const colorStylingPrimary = { backgroundColor: primaryColor, color: getContrastColor(primaryColor) }
     const secondaryColor = (['NYM', 'SDP'].includes(card?.team || 'N/A') ? card?.image.color_primary : card?.image.color_secondary) || 'rgb(0, 0, 0)';
@@ -30,11 +32,13 @@ export const CardItem = ({ card, onClick }: CardItemProps) => {
 
     return (
         <div
-            className="
-            flex flex-col p-2 gap-1
-            bg-secondary
-            rounded-xl
-            shadow-xl hover:shadow-2xl cursor-pointer"
+            className={`
+                flex flex-col p-2 gap-1
+                bg-secondary
+                rounded-xl
+                border-3 border-transparent cursor-pointer
+                ${isDark ? "border-white/10 hover:border-white/50" : "shadow-xl hover:shadow-2xl hover:border-black/10"}
+            `}
             onClick={onClick}
         >
             {/* Command, Name, and Metadata */}
