@@ -5,11 +5,15 @@ from bs4 import BeautifulSoup
 from pprint import pprint
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+
 parser = argparse.ArgumentParser(description="Search baseball reference for best auto images to add.")
 parser.add_argument('-t','--player_type', help='Player Type (Batting, Pitching)', type=str, required=False, default=None)
 parser.add_argument('-yt', '--year_threshold', help='Optional year threshold. Only includes images that are <= the threshold.', required=False, type=int, default=None)
 parser.add_argument('-rp', '--relievers_only', help='Only include pitchers with <5 games started', action='store_true', default=False)
 parser.add_argument('-sort', '--sort_by', help='Sort results by a specific attribute (e.g., war, games)', type=str, required=False, default=None)
+parser.add_argument('-tm', '--team', help='Optional team filter (e.g., NYY, LAD)', type=str, required=False, default=None)
 args = parser.parse_args()
 
 def _try_convert_to_float(value: str) -> float | str:
@@ -123,6 +127,10 @@ def fetch_bref_player_stats(player_type: str) -> list:
     # RELIEVERS
     if args.relievers_only and player_type.lower() == 'pitching':
         data = [d for d in data if d.get('p_gs', 0) < 5]
+    
+    # TEAM FILTER
+    if args.team:
+        data = [d for d in data if d.get('team_name_abbr', '').upper() == args.team.upper()]
 
     # SORT BY BWAR DESC THAT DONT HAVE AN IMAGE
     sort_key = f'{player_type[:1].lower()}_{args.sort_by if args.sort_by else "war"}'
