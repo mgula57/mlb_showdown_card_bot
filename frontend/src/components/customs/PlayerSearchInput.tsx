@@ -36,7 +36,8 @@ const PLACEHOLDER_EXAMPLES = [
     "Try: 1998-2002",
     "Try: Barry Bonds",
     "Try: Tarik Skubal",
-    "Try: Shohei Hitting"
+    "Try: Shohei Hitting",
+    "Try: Rodriguez NYY",
 ];
 
 export function PlayerSearchInput({

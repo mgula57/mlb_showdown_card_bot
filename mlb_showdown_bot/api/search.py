@@ -34,6 +34,20 @@ def search_players():
         is_year_range = '-' in query and len(query.split('-')) == 2
         is_name_and_year = (query_lower.split(' ')[-1].isdigit() or query_lower.split(' ')[-1] == 'career') \
                              and len(query_lower.split(' ')) > 1
+        
+        # Check for name + team pattern (e.g., "Judge NYY", "Trout LAA")
+        is_name_and_team = False
+        player_name = None
+        team_code = None
+
+        if ' ' in query and len(query.split()) >= 2:
+            parts = query.split()
+            potential_team = parts[-1].upper()  # Last word as potential team
+            # Check if last word is a valid team code
+            if potential_team in [team.value for team in Team]:
+                is_name_and_team = True
+                player_name = ' '.join(parts[:-1])  # Everything except last word
+                team_code = potential_team
 
         # -------------------
         # TEAM SEARCH
@@ -254,6 +268,58 @@ def search_players():
                         'bwar': bwar,
                         'team': team,
                     })
+        
+        # -------------------
+        # NAME + TEAM SEARCH (EX: "Judge NYY", "Trout LAA")
+        # -------------------
+        elif is_name_and_team:
+            cursor.execute("""
+                SELECT 
+                    name,
+                    year,
+                    bref_id,
+                    team,
+                    is_hof,
+                    award_summary,
+                    bwar,
+                    CASE 
+                        WHEN LOWER(name) = LOWER(%s) THEN 1                    -- Exact match
+                        WHEN LOWER(name) LIKE LOWER(%s) THEN 2                 -- Starts with
+                        WHEN LOWER(name) LIKE LOWER(%s) THEN 3                 -- Contains
+                        ELSE 4
+                    END as match_rank
+                FROM player_year_list
+                WHERE LOWER(name) LIKE LOWER(%s) 
+                    AND team = %s
+                ORDER BY 
+                    LOWER(name) = LOWER(%s) DESC,  -- Exact name match first
+                    COALESCE(bwar, 0) DESC,        -- Then by performance
+                    match_rank,                    -- Then by name match quality
+                    year DESC,                     -- Then by recent years
+                    name
+                LIMIT 25
+            """, (
+                player_name,        # Exact match check
+                f'{player_name}%',  # Starts with check
+                f'%{player_name}%', # Contains check
+                f'%{player_name}%', # Main WHERE contains
+                team_code,          # Team filter
+                player_name         # Exact match check for ordering
+            ))
+            
+            results = cursor.fetchall()
+            displays = []
+            for name, year, bref_id, team, is_hof, award_summary, bwar, match_rank in results:
+                displays.append({
+                    'type': 'single_year',
+                    'name': name,
+                    'year': year,
+                    'bref_id': bref_id,
+                    'is_hof': is_hof,
+                    'award_summary': award_summary,
+                    'bwar': bwar,
+                    'team': team,
+                })
         
         # -------------------
         # REGULAR NAME SEARCH
