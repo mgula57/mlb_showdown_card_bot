@@ -548,7 +548,7 @@ class PostgresDB:
                     direction=sql.SQL(sort_direction)
                 )
 
-            query += sql.SQL(" ORDER BY {}, points DESC, bref_id").format(final_sort)
+            query += sql.SQL(" ORDER BY {}, points DESC, bref_id, year").format(final_sort)
 
             # ADD LIMIT AND PAGINATION
             if not isinstance(page, int) or page < 1:
