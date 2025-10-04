@@ -653,6 +653,20 @@ class PostgresDB:
         if not self.connection:
             print("No database connection available for logging.")
             return 
+        
+        # Helper function to convert enum values to strings
+        def convert_enum_values(obj):
+            """Recursively convert enum values to their string representation"""
+            if hasattr(obj, 'value'):  # It's an enum
+                return obj.value
+            elif isinstance(obj, dict):
+                return {k: convert_enum_values(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_enum_values(item) for item in obj]
+            else:
+                return obj
+            
+        user_inputs_converted = convert_enum_values(user_inputs)
             
         # BUILD CARD SUBMISSION OBJECT
         columns_not_on_card_object = [
@@ -718,7 +732,7 @@ class PostgresDB:
                 card_submission[key] = value
 
         # ADD USER INPUTS AND VERSION
-        card_submission['user_inputs'] = user_inputs
+        card_submission['user_inputs'] = user_inputs_converted
         card_submission['version'] = __version__
 
         # INSERT INTO THE DATABASE

@@ -67,6 +67,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                             value={value}
                             placeholder={placeholder}
                             autoComplete="off"
+                            spellCheck="false"
                             onChange={(e) => onChange && onChange(e.target.value)}
                             className={`
                                 w-full py-2 pl-2 ${ isClearable ? 'pr-0' : 'pr-2' }

@@ -22,6 +22,7 @@ interface PlayerSearchInputProps {
         name: string;
         year: string;
         bref_id: string;
+        player_type_override?: string;
     }) => void;
     className?: string;
 }
@@ -220,7 +221,8 @@ export function PlayerSearchInput({
         onChange({
             name: `${option.name}${typeOverride}`,
             year: option.year.toString(),
-            bref_id: option.bref_id.toString()
+            bref_id: option.bref_id.toString(),
+            player_type_override: option.player_type_override ? option.player_type_override.toUpperCase().replace("(", "").replace(")", "") : undefined,
         });
         
     };

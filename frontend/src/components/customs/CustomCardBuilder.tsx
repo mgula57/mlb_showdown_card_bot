@@ -32,6 +32,7 @@ interface CustomCardFormState {
     // Name and Year
     name: string; // ex: "Mike Trout"
     player_id?: string | null; // ex: "troutmi01"
+    player_type_override?: string; // ex: "Hitter" or "Pitcher"
     year: string; // ex: "2023"
     stats_period_type: string; // e.g. "REGULAR"
     start_date?: string | null; // e.g. "2023-05-01"
@@ -71,6 +72,7 @@ interface CustomCardFormState {
 const FORM_DEFAULTS: CustomCardFormState = {
     name: "", 
     player_id: null,
+    player_type_override: undefined,
     year: "", 
     stats_period_type: "REGULAR", 
     start_date: null, 
@@ -695,6 +697,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             ...form,
             name: '((RANDOM))',
             player_id: null, // Reset player_id when shuffled
+            player_type_override: undefined, // Reset player_type_override when shuffled
         };
 
         submitCard(shuffledForm);
@@ -760,7 +763,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             return {
                 ...prevForm,
                 name: newName || "",
-                player_id: null // Reset player_id when name changes
+                player_id: null, // Reset player_id when name changes
+                player_type_override: undefined // Reset player_type_override when name changes
             };
         });
     };
@@ -978,7 +982,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         ...form, 
                                         name: selection.name, 
                                         year: selection.year,
-                                        player_id: selection.bref_id
+                                        player_id: selection.bref_id,
+                                        player_type_override: selection.player_type_override,
                                     })}
                                 />
 

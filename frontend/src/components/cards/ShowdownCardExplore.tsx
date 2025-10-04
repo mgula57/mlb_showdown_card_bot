@@ -338,6 +338,12 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
     // Handle row selection
     const handleRowClick = (card: CardDatabaseRecord) => {
+        if (card.id === selectedCard?.id) {
+            // If clicking the same card, close the side menu (if applicable)
+            handleCloseModal();
+            setSelectedCard(null);
+            return;
+        }
         setSelectedCard(card);
         
         // Check screen size and show appropriate UI
@@ -465,6 +471,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                             onChange={(value) => setSearchText(value || '')}
                             className="w-full sm:w-1/3"
                             isClearable={true}
+                            isTitleCase={true}
                         />
 
                         {/* Filters */}
@@ -562,6 +569,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                 <CardItem
                                     card={cardRecord.card_data}
                                     onClick={() => handleRowClick(cardRecord)}
+                                    isSelected={selectedCard?.id === cardRecord.id}
                                 />
                             </div>
 

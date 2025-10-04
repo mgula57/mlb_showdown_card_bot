@@ -8,9 +8,11 @@ import { useTheme } from "../shared/SiteSettingsContext";
 type CardItemProps = {
     card?: ShowdownBotCard | null;
     onClick: () => void;
+    className?: string;
+    isSelected?: boolean;
 };
 
-export const CardItem = ({ card, onClick }: CardItemProps) => {
+export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps) => {
 
     // Color
     const { isDark } = useTheme();
@@ -18,6 +20,9 @@ export const CardItem = ({ card, onClick }: CardItemProps) => {
     const colorStylingPrimary = { backgroundColor: primaryColor, color: getContrastColor(primaryColor) }
     const secondaryColor = (['NYM', 'SDP'].includes(card?.team || 'N/A') ? card?.image.color_primary : card?.image.color_secondary) || 'rgb(0, 0, 0)';
     const colorStylingSecondary = { backgroundColor: secondaryColor, color: getContrastColor(secondaryColor) }
+    const borderSettings = isSelected 
+                              ? (isDark ? 'border-3' : 'border-3 shadow-xl hover:shadow-2xl') 
+                              : (isDark ? 'border-white/10 hover:border-white/50' : 'shadow-xl hover:shadow-2xl border-transparent hover:border-black/10');
 
     // Metadata Array
     const metadataArray: (string | undefined)[] = card?.player_type === 'Hitter' ? [
@@ -33,11 +38,12 @@ export const CardItem = ({ card, onClick }: CardItemProps) => {
     return (
         <div
             className={`
+                ${className}
                 flex flex-col p-2 gap-1
                 bg-secondary
                 rounded-xl
-                border-3 border-transparent cursor-pointer
-                ${isDark ? "border-white/10 hover:border-white/50" : "shadow-xl hover:shadow-2xl hover:border-black/10"}
+                border-3 cursor-pointer
+                ${borderSettings}
             `}
             onClick={onClick}
         >
