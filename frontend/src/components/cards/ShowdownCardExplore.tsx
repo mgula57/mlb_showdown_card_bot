@@ -6,7 +6,7 @@ import { Modal } from "../shared/Modal";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes,
-    FaDollarSign, FaMitten, FaCalendarAlt
+    FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft
 } from "react-icons/fa";
 import { FaArrowRotateRight } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
@@ -185,6 +185,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     // Modals
     const [showFiltersModal, setShowFiltersModal] = useState(false);
     const [showPlayerDetailModal, setShowPlayerDetailModal] = useState(false);
+    const [showPlayerDetailSidebar, setShowPlayerDetailSidebar] = useState(false);
 
     // State for Set
     const { userShowdownSet } = useSiteSettings();
@@ -218,7 +219,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
         saveFilters(filters);
     }, [filters]);
 
-    // Load hierarchy data once on component mount
+    // On initial load
     useEffect(() => {
         const loadHierarchyData = async () => {
             if (isHierarchyDataLoaded || isLoadingHierarchyData) return;
@@ -338,11 +339,22 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     // Handle row selection
     const handleRowClick = (card: CardDatabaseRecord) => {
         setSelectedCard(card);
-        setShowPlayerDetailModal(true);
+        
+        // Check screen size and show appropriate UI
+        const isLargeScreen = window.innerWidth >= 1000; // 2xl breakpoint
+        
+        if (isLargeScreen) {
+            setShowPlayerDetailSidebar(true);
+            setShowPlayerDetailModal(false);
+        } else {
+            setShowPlayerDetailModal(true);
+            setShowPlayerDetailSidebar(false);
+        }
     };
 
     const handleCloseModal = () => {
         setShowPlayerDetailModal(false);
+        setShowPlayerDetailSidebar(false);
         setSelectedCard(null);
     };
 
@@ -433,7 +445,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 md:h-[calc(100vh-theme(spacing.12))]                            /* fallback */
                 md:supports-[height:100dvh]:h-[calc(100dvh-theme(spacing.12))]  /* prefer dvh */
                 md:overflow-y-auto                                              /* scroller on desktop */
-                md:min-h-0                                                         /* allow child to size for overflow */
+                md:min-h-0                                                      /* allow child to size for overflow */
             `}
         >
 
@@ -442,29 +454,46 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                             bg-background-secondary/95 backdrop-blur p-3">
 
                 <div className="flex items-center space-x-2">
-                    {/* Search Input */}
-                    <FormInput
-                        label=""
-                        type="text"
-                        value={searchText || ''}
-                        placeholder="Search for a Player..."
-                        onChange={(value) => setSearchText(value || '')}
-                        className="w-full sm:w-1/3"
-                        isClearable={true}
-                    />
 
-                    {/* Filters */}
+                    <div className="flex flex-1 items-center gap-2">
+                        {/* Search Input */}
+                        <FormInput
+                            label=""
+                            type="text"
+                            value={searchText || ''}
+                            placeholder="Search for a Player..."
+                            onChange={(value) => setSearchText(value || '')}
+                            className="w-full sm:w-1/3"
+                            isClearable={true}
+                        />
+
+                        {/* Filters */}
+                        <button
+                            onClick={handleOpenFilters}
+                            className="
+                                px-3 h-11
+                                rounded-xl bg-[var(--background-secondary)] border-2 border-form-element 
+                                flex items-center gap-2
+                                hover:bg-[var(--background-secondary-hover)]
+                            ">
+                            <FaFilter className="text-primary" />
+                            <span className="hidden sm:inline">Filter</span>
+                        </button>
+                    </div>
+                    
+
+                    {/* If lg screen, show open button for side menu */}
                     <button
-                        onClick={handleOpenFilters}
-                        className="
-                            px-3 h-11
-                            rounded-xl bg-[var(--background-secondary)] border-2 border-form-element 
-                            flex items-center gap-2
+                        onClick={() => setShowPlayerDetailSidebar(true)}
+                        className={`
+                            items-center gap-2
                             hover:bg-[var(--background-secondary-hover)]
-                        ">
-                        <FaFilter className="text-primary" />
-                        <span className="hidden sm:inline">Filter</span>
+                            hidden lg:flex
+                        `}>
+                        <FaChevronCircleLeft className="text-[var(--tertiary)] w-7 h-7" />
+                        <span className="text-[var(--tertiary)] text-lg font-bold">Card Detail</span>
                     </button>
+
                 </div>
 
                 {/* Show selected filters with X to remove */}
@@ -505,7 +534,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
                     {/* Reset Button */}
                     {hasCustomFiltersApplied && (
-                        <div>
+                        <div className={`transition-all duration-300 ease-in-out ${showPlayerDetailSidebar ? 'lg:mr-96' : ''}`}>
                             {renderResetButton(['filters', 'editing'])}
                         </div>
                     )}
@@ -513,36 +542,82 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
             </div>
 
-            <div className="relative">
-                <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
-                    {/* Iterate through showdownCards and display each card */}
-                    {showdownCards?.map((cardRecord, index) => (
-                        <div
-                            key={cardRecord.id}
-                            ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
-                        >
-                            <CardItem
-                                card={cardRecord.card_data}
-                                onClick={() => handleRowClick(cardRecord)}
-                            />
-                        </div>
+            {/* Flex between main content and side menu */}
+            <div className="flex flex-1">
 
-                    ))}
+                {/* Main Content Area */}
+                <div className={`
+                        relative flex-1 min-w-0
+                        ${showPlayerDetailSidebar ? 'lg:mr-96' : ''}
+                        transition-all duration-300 ease-in-out
+                        md:overflow-y-auto
+                    `}>
+                    <div className="py-2 px-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3 md:gap-4">
+                        {/* Iterate through showdownCards and display each card */}
+                        {showdownCards?.map((cardRecord, index) => (
+                            <div
+                                key={cardRecord.id}
+                                ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
+                            >
+                                <CardItem
+                                    card={cardRecord.card_data}
+                                    onClick={() => handleRowClick(cardRecord)}
+                                />
+                            </div>
+
+                        ))}
+                    </div>
+
+                    {/* Loading more indicator at bottom */}
+                    {isLoadingMore && (
+                        <div className="flex justify-center py-4">
+                            {renderLoadingIndicator()}
+                        </div>
+                    )}
+
+                    {/* No more results indicator */}
+                    {!hasMore && showdownCards && showdownCards.length > 50 && (
+                        <div className="flex justify-center p-6 text-secondary">
+                            <span className="text-sm">No more cards to load</span>
+                        </div>
+                    )}
+
                 </div>
 
-                {/* Loading more indicator at bottom */}
-                {isLoadingMore && (
-                    <div className="flex justify-center py-4">
-                        {renderLoadingIndicator()}
-                    </div>
-                )}
+                
+                {/* Right Sidebar with Slide Animation */}
+                <div className={`
+                    fixed right-0 top-12 bottom-0 w-96 z-30
+                    bg-primary border-l-2 border-t-2 border-form-element 
+                    transform transition-transform duration-300 ease-in-out
+                    ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
+                    hidden lg:block
+                    shadow-xl
+                `}>
 
-                {/* No more results indicator */}
-                {!hasMore && showdownCards && showdownCards.length > 50 && (
-                    <div className="flex justify-center p-6 text-secondary">
-                        <span className="text-sm">No more cards to load</span>
+                    {/* Sidebar Content */}
+                    <div className="h-full flex flex-col">
+
+                        {/* Stick header with close button */}
+                        <div className="py-8 h-12 flex items-center space-x-2 p-2 border-b border-form-element">
+                            <button 
+                                onClick={() => setShowPlayerDetailSidebar(false)}>
+                                <FaChevronCircleRight className="text-[var(--tertiary)] w-7 h-7" />
+                            </button>
+                            <h2 className="text-[var(--tertiary)] text-lg font-bold">Card Detail</h2>
+                        </div>
+                        
+
+                        {/* Scrollable Content */}
+                        <div className="flex-1 overflow-y-auto min-h-0">
+                            <CardDetail
+                                showdownBotCardData={{ card: selectedCard?.card_data } as ShowdownBotCardAPIResponse}
+                                hideTrendGraphs={true}
+                            />
+                        </div>
                     </div>
-                )}
+                </div>
+                
 
             </div>
 
@@ -567,7 +642,6 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                     />
                 </Modal>
             )}
-
 
             {/* MARK: Filters Modal */}
             {showFiltersModal && (
