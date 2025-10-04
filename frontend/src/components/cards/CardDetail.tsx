@@ -47,6 +47,20 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
 
     // Update internal state when prop changes
     useEffect(() => {
+        // Skip if no new data
+        if (!showdownBotCardData) {
+            return;
+        }
+
+        // Skip if same card (by bref_id + year + set)
+        if (
+            internalCardData?.card?.bref_id === showdownBotCardData?.card?.bref_id &&
+            internalCardData?.card?.year === showdownBotCardData?.card?.year &&
+            internalCardData?.card?.set === showdownBotCardData?.card?.set
+        ) {
+            return;
+        }
+
         setInternalCardData(showdownBotCardData);
     }, [showdownBotCardData]);
 
