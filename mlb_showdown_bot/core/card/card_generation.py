@@ -77,6 +77,10 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
         # REMOVE IMAGE PREFIXES FROM KEYS
         kwargs = clean_kwargs(kwargs)
+
+        # RAISE ERROR IF YEAR IS NOT PROVIDED BY USER OR SHUFFLE
+        if kwargs.get('year', None) is None:
+            raise Exception("Year is a required input.")
         
         # PREPARE STATS
         stats_period_type = kwargs.get('stats_period_type', 'REGULAR')

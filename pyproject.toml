@@ -7,25 +7,27 @@ name = "mlb-showdown-bot"
 version = "4.0"
 description = "Create custom MLB Showdown cards"
 readme = "README.md"
-requires-python = ">=3.7"
-license = {text = "Unlicense"}
+requires-python = ">=3.10"
+license = "Unlicense"
 authors = [
     { name = "Matthew Gula", email = "mlbshowdownbot@gmail.com" }
 ]
 classifiers = [
-    "License :: OSI Approved :: The Unlicense (Unlicense)",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8"
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12"
 ]
 dependencies = [
     "aenum>=3.1.15",
     "apiclient>=1.0.4",
+    "beautifulsoup4>=4.9.0",
     "chardet>=3.0.4",
     "cloudscraper>=1.2.71",
     "firebase-admin>=6.0.1",
     "Flask-Cors>=4.0.0",
     "google-api-python-client>=2.62.0",
     "gunicorn>=23.0.0",
+    "lxml>=4.6.0",
     "numpy>=1.19.4",
     "oauth2client>=4.1.3",
     "openpyxl>=3.0.10",
