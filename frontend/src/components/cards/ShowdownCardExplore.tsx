@@ -621,6 +621,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                             <CardDetail
                                 showdownBotCardData={{ card: selectedCard?.card_data } as ShowdownBotCardAPIResponse}
                                 hideTrendGraphs={true}
+                                context='explore'
                             />
                         </div>
                     </div>
@@ -647,6 +648,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                     <CardDetail
                         showdownBotCardData={{ card: selectedCard.card_data } as ShowdownBotCardAPIResponse}
                         hideTrendGraphs={true}
+                        context='explore'
                     />
                 </Modal>
             )}

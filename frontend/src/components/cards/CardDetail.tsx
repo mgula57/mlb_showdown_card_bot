@@ -28,10 +28,11 @@ type CardDetailProps = {
     hideTrendGraphs?: boolean;
     isLoading?: boolean;
     isLoadingGameBoxscore?: boolean;
+    context?: 'custom' | 'explore';
 };
 
 /** Shows Showdown Bot Card Details. Used in Custom card form and modals throughout UI */
-export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false }: CardDetailProps) {
+export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false, context='custom' }: CardDetailProps) {
 
     // MARK: STATES
 
@@ -54,6 +55,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
 
         // Skip if same card (by bref_id + year + set)
         if (
+            context === 'explore' &&
             internalCardData?.card?.bref_id === showdownBotCardData?.card?.bref_id &&
             internalCardData?.card?.year === showdownBotCardData?.card?.year &&
             internalCardData?.card?.set === showdownBotCardData?.card?.set

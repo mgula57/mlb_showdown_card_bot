@@ -2376,7 +2376,7 @@ class ShowdownPlayerCard(BaseModel):
         print(f"{self.name_for_visuals} ({self.year}) - {self.stats_period.string}")
         print("----------------------------------------")
         print(f"Team: {self.team.value}")
-        print(f"Set: {self.set.value} {self.image.expansion} (v{self.version})")
+        print(f"Set: {self.set.value} {self.image.expansion.value} (v{self.version})")
         print(f"Era: {self.era.value.title()}")
         print(f"Data Source: {self.stats_period.source}")
         if not self.image.source.type.is_empty:
@@ -2673,7 +2673,7 @@ class ShowdownPlayerCard(BaseModel):
                 trend_datapoint.so = self.chart.ranges.get('SO', '-')
             case PlayerSubType.POSITION_PLAYER:
                 trend_datapoint.hr = self.chart.ranges.get('HR', '-')
-                trend_datapoint.speed = f"{self.speed.letter} ({self.speed.speed})"
+                trend_datapoint.speed = f"{self.speed.letter.value} ({self.speed.speed})"
                 trend_datapoint.defense = self.positions_and_defense_string
 
         return trend_datapoint
@@ -3705,7 +3705,7 @@ class ShowdownPlayerCard(BaseModel):
                     font_size_speed = 40 if is_variable_spd_2000 else 54
                     font_speed = ImageFont.truetype(helvetica_neue_lt_path, size=font_size_speed)
                     font_hand = ImageFont.truetype(helvetica_neue_lt_path, size=54)
-                    speed_text = self._text_image(text=f'SPEED {self.speed.letter}', size=(900, 300), font=font_speed)
+                    speed_text = self._text_image(text=f'SPEED {self.speed.letter.value}', size=(900, 300), font=font_speed)
                     hand_text = self._text_image(text=self.hand.value, size=(300, 300), font=font_hand)
                     metadata_image.paste(color, (969 if self.set == Set._2000 else 915, 345 if is_variable_spd_2000 else 342), speed_text)
                     metadata_image.paste(color, (1212,342), hand_text)
