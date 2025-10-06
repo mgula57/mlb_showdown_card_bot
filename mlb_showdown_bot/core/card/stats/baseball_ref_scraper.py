@@ -159,6 +159,17 @@ class BaseballReferenceScraper(BaseModel):
         if not self.ignore_archive:
             archive_stats = self.fetch_player_stats_from_archive()
             if archive_stats:
+
+                try:
+                    # HIT POSTSEASON LIVE FOR 2025
+                    card_year = self.stats_period.year_int
+                    if card_year is not None and card_year == 2025 and self.stats_period.type == StatsPeriodType.POSTSEASON:
+                        # SCRAPE BREF INSTEAD
+                        bref_stats = self.scrape_baseball_reference()
+                        return bref_stats
+                except Exception as e:
+                    print(f"Error checking for postseason live data: {e}")
+
                 end_time = datetime.now()
                 self.load_time = round((end_time - start_time).total_seconds(),2)
                 return archive_stats
