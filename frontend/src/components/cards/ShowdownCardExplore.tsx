@@ -239,6 +239,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
         loadHierarchyData();
     }, []); // Empty dependency array - only run once
 
+    // Clear selected card when user changes showdown set
+    useEffect(() => {
+        setSelectedCard(null);
+    }, [userShowdownSet]);
+
     // Reload cards when set or filters change
     useEffect(() => {
 

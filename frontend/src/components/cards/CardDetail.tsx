@@ -117,9 +117,9 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
     const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-green-500' : 'text-red-500') : '';
     const weeklyChangePointsSymbol = weeklyChangePoints ? (weeklyChangePoints > 0 ? '▲' : '▼') : '';
 
-    // Remove the useEffect and move logic to a separate function
+    // Handle Image Generation
     const handleGenerateImage = useCallback(() => {
-        if (!activeCardData?.card || isGeneratingImage) return;
+        if (!activeCardData?.card || isGeneratingImage || context !== 'explore') return;
         
         console.log("Starting image generation...");
         setIsGeneratingImage(true);

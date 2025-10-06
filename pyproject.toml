@@ -16,7 +16,6 @@ classifiers = [
     "Programming Language :: Python :: 3.10"
 ]
 dependencies = [
-    "aenum>=3.1.15",
     "apiclient>=1.0.4",
     "beautifulsoup4>=4.9.0",
     "chardet>=3.0.4",

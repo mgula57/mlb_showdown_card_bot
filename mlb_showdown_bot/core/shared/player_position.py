@@ -1,5 +1,4 @@
 from enum import Enum
-from aenum import MultiValueEnum
 
 # INTERNAL
 from ..card.stats.stat_highlights import StatHighlightsCategory, StatHighlightsType
@@ -177,9 +176,9 @@ class PlayerType(Enum):
         return "batting" if self.name == "HITTER" else "pitching"
 
 
-class Position(MultiValueEnum):
+class Position(Enum):
 
-    CA = 'C', 'CA'
+    CA = 'C'
     _1B = '1B'
     _2B = '2B'
     _3B = '3B'
@@ -187,7 +186,7 @@ class Position(MultiValueEnum):
     CF = 'CF'
     OF = 'OF'
     IF = 'IF'
-    LFRF = 'LF/RF', 'LFRF'
+    LFRF = 'LF/RF'
     DH = "DH"
 
     SP = "STARTER"
@@ -196,6 +195,29 @@ class Position(MultiValueEnum):
 
     LF = "LF"
     RF = "RF"
+
+    @classmethod
+    def _missing_(cls, value):
+        """Handle alternative values for multi-value enums"""
+        
+        if value in ['CA', 'C']: # HANDLE CA ALTERNATIVES
+            return cls.CA
+
+        if value in ['LF/RF', 'LFRF']: # HANDLE LF/RF ALTERNATIVES
+            return cls.LFRF
+        
+        return None
+    
+    @property
+    def all_values(self) -> list[str]:
+        """Return all possible string values for this enum member"""
+        match self:
+            case Position.CA:
+                return ['C', 'CA']
+            case Position.LFRF:
+                return ['LF/RF', 'LFRF']
+            case _:
+                return [self.value]
 
     def value_visual(self, ca_position_name:str) -> str:
         match self.name:
