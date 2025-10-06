@@ -9,7 +9,7 @@ from pprint import pprint
 from statistics import mean
 import pandas as pd
 sys.path.append(os.path.join(Path(os.path.join(os.path.dirname(__file__))).parent))
-from wotc_player_cards import WotcPlayerCardSet, WotcPlayerCard, WotcDataSource, Set, PlayerType, PlayerSubType, ShowdownPlayerCard, ChartCategory, Era, Position
+from mlb_showdown_bot.core.wotc.wotc_player_cards import WotcPlayerCardSet, WotcPlayerCard, WotcDataSource, Set, PlayerType, PlayerSubType, ShowdownPlayerCard, ChartCategory, Era, Position
 import argparse
 parser = argparse.ArgumentParser(description="Convert Original WOTC MLB Showdown Card Data to Showdown Bot Cards.")
 parser.add_argument('-s','--sets', type=str, help='Sets to test (ex: 2000, 2001, 2005)', default='2000,2001,2002,2003,2004,2005')

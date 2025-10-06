@@ -1,19 +1,21 @@
 import argparse
 import os
-import cloudscraper
+import dotenv
 import pandas as pd
-from bs4 import BeautifulSoup
 from pprint import pprint
 from pathlib import Path
 from datetime import datetime
 from pandas import json_normalize
 from unidecode import unidecode
 import sys
+from dotenv import load_dotenv
+
+load_dotenv()
 
 sys.path.append('..')
-from postgres_db import PostgresDB
-from showdown_player_card import ShowdownPlayerCard
-from classes.player_position import PlayerType
+from mlb_showdown_bot.core.database.postgres_db import PostgresDB, PlayerArchive
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, StatsPeriod, StatsPeriodType, ShowdownImage, StatHighlightsType
+from mlb_showdown_bot.core.shared.player_position import PlayerType
 
 parser = argparse.ArgumentParser(description="Export Showdown Bot Data to a CSV file.")
 parser.add_argument('-hof','--hof', action='store_true', help='Only Hall of Fame Players', required=False)
@@ -24,7 +26,8 @@ parser.add_argument('-s','--sets', help='Showdown Set(s) to use', required=False
 args = parser.parse_args()
 
 def year_list() -> list[int]:
-    year_list = list(range(1900, 2024))
+    current_year = datetime.now().year
+    year_list = list(range(1884, current_year + 1))
 
     # FILTER OUT YEARS BETWEEN YEAR START AND YEAR END ARGS
     if args.year_start is not None:
@@ -34,7 +37,7 @@ def year_list() -> list[int]:
     
     return year_list
 
-def fetch_player_data(year_list: list[int]) -> list[dict]:
+def fetch_player_data(year_list: list[int]) -> list[PlayerArchive]:
     print("FETCHING DATA...")
 
     db = PostgresDB(is_archive=True)
@@ -46,21 +49,24 @@ def fetch_player_data(year_list: list[int]) -> list[dict]:
 
     return player_data
 
-def convert_to_showdown_cards(player_data: list[dict], sets: list[str]) -> list[ShowdownPlayerCard]:
+def convert_to_showdown_cards(player_data: list[PlayerArchive], sets: list[str]) -> list[ShowdownPlayerCard]:
     print("CONVERTING TO SHOWDOWN CARDS...")
     showdown_cards = []
     for set in sets:
         print(f'\nSET: {set}')
         total_players = len(player_data)
         for index, player in enumerate(player_data, 1):
-            type_override_raw = player.get('player_type_override', 'n/a')
+            type_override_raw = player.player_type_override
             type_override = PlayerType.PITCHER if type_override_raw else None
-            name = player['name']
-            year = str(player['year'])
-            stats = player['stats']
+            name = player.name
+            year = str(player.year)
+            stats = player.stats
             set = set
 
-            if player.get('bref_id', 'n/a') in ['howelha01', 'dunnja01','sudhowi01','mercewi01'] and type_override_raw == '(pitcher)':
+            stats_period = StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=year)
+            image = ShowdownImage(stat_highlights_type=StatHighlightsType.ALL)
+
+            if player.bref_id in ['howelha01', 'dunnja01','sudhowi01','mercewi01'] and type_override_raw == '(pitcher)':
                 continue
             
             # SKIP PLAYERS WITH 0 PA
@@ -68,39 +74,30 @@ def convert_to_showdown_cards(player_data: list[dict], sets: list[str]) -> list[
                 continue
 
             print(f"  {index}/{total_players}: {name: <30}", end="\r")
-            showdown = ShowdownPlayerCard(name=name, year=year, stats=stats, set=set, player_type_override= type_override, print_to_cli=False)
+            try:
+                showdown = ShowdownPlayerCard(
+                    name=name, year=year, stats=stats, stats_period=stats_period,
+                    set=set, player_type_override=type_override, print_to_cli=False,
+                    image=image
+                )
+            except Exception as e:
+                print(f"\nERROR CREATING SHOWDOWN CARD FOR {name} ({year}) - {e}")
+                continue
+            
             showdown_cards.append(showdown)
             
     return showdown_cards
 
-def convert_showdown_cards_to_dataframe(showdown_cards: list[ShowdownPlayerCard]) -> pd.DataFrame:
-    print("CONVERTING TO DATAFRAME....")
+def upload_to_database(showdown_cards: list[ShowdownPlayerCard]):
+    print("UPLOADING TO DATABASE...")
 
-    showdown_data = []
-    for showdown in showdown_cards:
-        showdown_dict = showdown.as_json()
+    db = PostgresDB(is_archive=True)
 
-        showdown_dict['id'] = showdown.id
+    if db.connection is None:
+        print("ERROR: NO CONNECTION TO DB")
+        return
 
-        # REPLACE SPECIAL CHARACTERS IN NAME
-        showdown_dict['name'] = unidecode(showdown_dict['name'])
-
-        # ADD POSITIONS AND DEFENSE
-        for index, (position, defense) in enumerate(showdown.positions_and_defense_for_visuals.items(), 1):
-            showdown_dict[f'Position {index}'] = position
-            showdown_dict[f'Defense {index}'] = defense
-
-        showdown_data.append(showdown_dict)
-
-    # CONVERT SHOWDOWN DATA TO DATAFRAME, FLATTEN NESTED JSON
-    df = json_normalize(showdown_data)
-    
-    # REMOVE CERTAIN COLUMNS
-    patterns = ['stats.positions.', 'command_out_accuracies.', 'stats.accolades.', 'year_list',]
-    existing_columns = df.columns.tolist()
-    new_columns = [c for c in existing_columns if not any(pattern in c for pattern in patterns)]
-
-    return df[new_columns]
+    db.upload_to_card_data(showdown_cards=showdown_cards, batch_size=1000)
 
 
 # FETCH DATA
@@ -111,11 +108,4 @@ player_data = fetch_player_data(year_list=years)
 sets_list = args.sets.split(',')
 showdown_cards = convert_to_showdown_cards(player_data, sets_list)
 
-# CONVERT TO DATAFRAME
-df_showdown_cards = convert_showdown_cards_to_dataframe(showdown_cards)
-
-# EXPORT
-years_str = " to ".join([str(max(years)), str(min(years))])
-sets_str = "-".join(sets_list) if len(sets_list) < 8 else 'ALL'
-output_path = os.path.join(Path(os.path.dirname(__file__)), 'output', f'{sets_str}-{years_str}-{str(datetime.now())}.csv')
-df_showdown_cards.to_csv(output_path, index=False)
+upload_to_database(showdown_cards)

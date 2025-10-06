@@ -7,8 +7,8 @@ import operator
 import os
 from pathlib import Path
 from .showdown_set_accuracy import ShowdownSetAccuracy
-from mlb_showdown_bot.showdown_player_card import ShowdownPlayerCard, Set, PlayerType, Era, Chart
-from mlb_showdown_bot.postgres_db import PostgresDB
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, Set, PlayerType, Era, Chart
+from mlb_showdown_bot.core.database.postgres_db import PostgresDB
 import json 
 
 def analyze_baseline_weights(set: Set, type: PlayerType,is_testing_current_baseline=False,ignore_volatile_categories=False, is_pts_only=False, position_filters=[], use_wotc_command_outs=False, command_out_combos=[]):
