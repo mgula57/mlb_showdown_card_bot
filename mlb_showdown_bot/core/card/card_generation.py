@@ -6,7 +6,7 @@ import traceback
 import json
 
 # INTERNAL
-from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType
+from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
 from .stats.mlb_stats_api import MLBStatsAPI
@@ -138,7 +138,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
             in_season_trends_data = generate_in_season_trends_for_player(
                 actual_card=card, 
                 date_aggregation=in_season_trend_aggregation, 
-                latest_game_boxscore=player_mlb_api_stats.latest_game_boxscore, 
+                latest_game_boxscore=player_mlb_api_stats.latest_game_boxscore,
                 **kwargs
             )
             if in_season_trends_data:
@@ -306,7 +306,7 @@ def generate_all_historical_yearly_cards_for_player(actual_card:ShowdownPlayerCa
     # GET ALL HISTORICAL CARDS
     return CareerTrends(yearly_trends=yearly_trends_data)
 
-def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, latest_game_boxscore:dict=None, **kwargs) -> InSeasonTrends:
+def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_aggregation:str, team_override:Team | str = None, latest_game_boxscore:dict=None, **kwargs) -> InSeasonTrends:
     """Generate in-season trends for a player. Done on a weekly or monthly basis, showing points per week."""
 
     # REMOVE PRINT TO CLI
@@ -318,6 +318,11 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     game_logs = actual_card.stats.get(StatsPeriodType.DATE_RANGE.stats_dict_key, [])
     if len(game_logs) == 0 or actual_card.stats_period.is_multi_year:
         return None
+    
+    # FILTER TO SINGLE TEAM IF OVERRIDE IS PROVIDED
+    if team_override:
+        team_filter_value = team_override.value if isinstance(team_override, Team) else team_override
+        game_logs = [gl for gl in game_logs if gl.get('team_ID', 'n/a') == team_filter_value]
 
     # DEFINE THE OBJECT
     in_season_trends = InSeasonTrends(cumulative_trends_date_aggregation=date_aggregation.upper())
