@@ -2078,7 +2078,7 @@ class BaseballReferenceScraper(BaseModel):
         for season in partial_seasons:
             data = self.__parse_generic_bref_row(season)
             if 'team_ID' in data.keys() and 'year_ID' in data.keys():
-                if data['team_ID'] == team.value and str(data['year_ID']) == year:
+                if data['team_ID'] == team.value and str(data['year_ID']) == str(year):
                     return season if return_soup_object else data
 
         # NO MATCHES, RETURN NONE    
