@@ -1,27 +1,19 @@
+/**
+ * @fileoverview API client for MLB Showdown card database operations
+ * Handles fetching card data
+ */
+
 import { type ShowdownBotCard } from '../showdownBotCard';
+
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
-// MARK: - Card Data
+// =============================================================================
+// MARK: - TYPES & INTERFACES
+// =============================================================================
 
-/** Sends the entire form (minus File) as JSON to /api/build_custom_card */
-export async function fetchCardData(payload: Record<string, any>) : Promise<CardDatabaseRecord[]> {
-
-    const res = await fetch(`${API_BASE}/cards/data`, {
-        method: "POST",
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-    });
-
-    // Handle errors
-    if (!res.ok) throw new Error(`Build failed: ${res.status}`);
-
-    // Convert to CardDatabaseRecords
-    return res.json();
-    
-}
-
+/**
+ * Represents a card record from the database with both stats and card data
+ */
 export type CardDatabaseRecord = {
 
     // From Stats Archive
@@ -66,8 +58,10 @@ export type CardDatabaseRecord = {
 
 };
 
-// MARK: - Team Hierarchy
-
+/**
+ * Team hierarchy data structure for organizational filtering.
+ * Comes from materialized view in database, helps show only relevant values depending on prior selections.
+ */
 export interface TeamHierarchyRecord {
     organization: string;
     league: string;
@@ -77,14 +71,66 @@ export interface TeamHierarchyRecord {
     cards: number;
 }
 
+// =============================================================================
+// MARK: - CARD DATA API
+// =============================================================================
+
+/**
+ * Fetches card database records based on filter criteria
+ * 
+ * @param payload - Filter parameters (year, team, player name, etc.)
+ * @returns Promise resolving to array of card records
+ * @throws Error if API request fails
+ * 
+ * @example
+ * ```typescript
+ * const cards = await fetchCardData({
+ *   name: 'Aaron Judge',
+ *   year: 2023,
+ *   team: 'NYY',
+ *   showdown_set: '2005'
+ * });
+ * ```
+ */
+export async function fetchCardData(payload: Record<string, any>) : Promise<CardDatabaseRecord[]> {
+
+    const res = await fetch(`${API_BASE}/cards/data`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    });
+
+    // Handle errors
+    if (!res.ok) throw new Error(`Build failed: ${res.status}`);
+
+    // Convert to CardDatabaseRecords
+    return res.json();
+}
+
+// =============================================================================
+// MARK: - TEAM HIERARCHY API WITH CACHING
+// =============================================================================
+
+// Cache configuration
 const HIERARCHY_CACHE_KEY = 'teamHierarchy:v1';
 const HIERARCHY_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
+/**
+ * Cached hierarchy data structure
+ * @private
+ */
 interface CachedHierarchyData {
     data: TeamHierarchyRecord[];
     timestamp: number;
 }
 
+/**
+ * Loads team hierarchy from localStorage cache if valid
+ * @private
+ * @returns Cached data or null if not found/expired
+ */
 const loadCachedHierarchyData = (): TeamHierarchyRecord[] | null => {
     if (typeof window === 'undefined') return null;
     
@@ -105,6 +151,11 @@ const loadCachedHierarchyData = (): TeamHierarchyRecord[] | null => {
     }
 };
 
+/**
+ * Saves team hierarchy data to localStorage cache
+ * @private
+ * @param data - Hierarchy data to cache
+ */
 const saveCachedHierarchyData = (data: TeamHierarchyRecord[]): void => {
     if (typeof window === 'undefined') return;
     
@@ -119,6 +170,20 @@ const saveCachedHierarchyData = (data: TeamHierarchyRecord[]): void => {
     }
 };
 
+/**
+ * Fetches team hierarchy data with automatic caching
+ * 
+ * Uses localStorage to cache results for 24 hours to reduce API calls.
+ * Falls back to empty array on error to prevent UI breakage.
+ * 
+ * @returns Promise resolving to array of team hierarchy records
+ * 
+ * @example
+ * ```typescript
+ * const teams = await fetchTeamHierarchy();
+ * const organizations = [...new Set(teams.map(t => t.organization))];
+ * ```
+ */
 export const fetchTeamHierarchy = async (): Promise<TeamHierarchyRecord[]> => {
     // Try cache first
     const cachedData = loadCachedHierarchyData();
