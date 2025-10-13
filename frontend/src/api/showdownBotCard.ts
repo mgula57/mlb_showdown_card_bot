@@ -6,7 +6,7 @@
  * - Complete type definitions for card data, charts, statistics, and metadata
  * - Support for file uploads and live game integration
  * 
- * @author MLB Showdown Bot Team
+ * @author Matt Gula
  * @version 4.0
  */
 
@@ -627,7 +627,7 @@ export type TrendDatapoint = {
     /** Strikeouts */
     so?: number | null;
     
-    /** Doubles allowed */
+    /** Doubles */
     "2b"?: number | null;
 
     // Hitter-specific metrics
