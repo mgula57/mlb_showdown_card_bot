@@ -1,5 +1,4 @@
 import typer
-import click
 from typing import Optional
 
 # Import business logic
