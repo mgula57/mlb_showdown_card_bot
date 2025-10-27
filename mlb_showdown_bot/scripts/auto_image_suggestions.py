@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from prettytable import PrettyTable
 from typing import Optional
+from pprint import pprint
 
 from mlb_showdown_bot.core.database.postgres_db import PostgresDB, PlayerArchive
 
@@ -24,7 +25,12 @@ def _fetch_player_data(
     year_start: Optional[int] = None, 
     year_end: Optional[int] = None,
     limit: Optional[int] = None,
-    sort_field: str = 'bWAR'
+    sort_field: str = 'bWAR',
+    hof: bool = False,
+    mvp: bool = False,
+    cya: bool = False,
+    gold_glove: bool = False,
+    team: Optional[str] = None
 ) -> list[PlayerArchive]:
     """Fetches player data from the stats archive.
 
@@ -36,10 +42,16 @@ def _fetch_player_data(
       List of PlayerArchive objects
     """
 
+    # CONNECT TO DB
+    db = PostgresDB(is_archive=True)
+    if db.connection is None:
+        print("ERROR: NO CONNECTION TO DB")
+        return []
+
     # LIST OF YEAR INTS FROM 1900 TO NOW
     # GET CURRENT YEAR
     current_year = datetime.now().year
-    year_list = list(range(1900, current_year + 1))
+    year_list = list(range(1884, current_year + 1))
     
     # FILTER OUT YEARS BETWEEN YEAR START AND YEAR END ARGS
     if year_start is not None:
@@ -47,13 +59,18 @@ def _fetch_player_data(
     if year_end is not None:
         year_list = [year for year in year_list if year <= year_end]
 
-    db = PostgresDB(is_archive=True)
+    # DEFINE FILTERS TO PASS TO DB
+    filters = []
+    if team: filters.append(('team_id', team.upper()))
 
-    if db.connection is None:
-        print("ERROR: NO CONNECTION TO DB")
-    
-    sort_sql = f"(case when length((stats->>'{sort_field}')) = 0 then 0.0 else (stats->>'{sort_field}')::float end)"
-    player_data = db.fetch_all_stats_from_archive(year_list=year_list, limit=limit, order_by=sort_sql, exclude_records_with_stats=False)
+    sort_sql = f"(case when length(coalesce(trim(stats->>'{sort_field}'), '')) = 0 then 0.0 else (stats->>'{sort_field}')::float end)"
+    player_data = db.fetch_all_stats_from_archive(
+        year_list=year_list, 
+        filters=filters,
+        limit=limit, 
+        order_by=sort_sql, 
+        exclude_records_with_stats=False
+    )
 
     return player_data
 
@@ -99,7 +116,12 @@ def generate_auto_image_suggestions(
         year_start=year_start,
         year_end=year_end,
         limit=limit,
-        sort_field=sort_field
+        sort_field=sort_field,
+        team=team,
+        hof=hof,
+        mvp=mvp,
+        cya=cya,
+        gold_glove=gold_glove
     )
 
     if len(player_data) == 0:
@@ -129,9 +151,6 @@ def generate_auto_image_suggestions(
                  ]    
         if len(images) > 0:
             continue
-
-        # TEAM CHECK
-        if team and team != player.team_id: continue
 
         # HOF CHECK
         if hof and not is_hof: continue

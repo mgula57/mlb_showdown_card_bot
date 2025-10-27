@@ -204,7 +204,7 @@ class PostgresDB:
         
         return [PlayerArchive(**row) for row in query_results_list]
 
-    def fetch_all_stats_from_archive(self, year_list: list[int], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None, modified_start_date:str=None, modified_end_date:str=None) -> list[PlayerArchive]:
+    def fetch_all_stats_from_archive(self, year_list: list[int], filters:list[tuple] = [], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None, modified_start_date:str=None, modified_end_date:str=None) -> list[PlayerArchive]:
         """
         Fetch stats archive data for a list of years.
 
@@ -232,6 +232,15 @@ class PostgresDB:
         if modified_end_date:
             conditions.append(sql.SQL(' <= ').join([sql.Identifier("stats_modified_date"), sql.Placeholder()]))
             values_to_filter.append(modified_end_date)
+
+        for filter_tuple in filters:
+            if len(filter_tuple) != 2:
+                continue
+            column_name, value = filter_tuple
+            if value is None:
+                continue
+            conditions.append(sql.SQL(' = ').join([sql.Identifier(column_name), sql.Placeholder()]))
+            values_to_filter.append(value)
             
         where_clause = sql.SQL(' AND ').join(conditions)
 
