@@ -577,8 +577,8 @@ class BaseballReferenceScraper(BaseModel):
                 stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats)
                 sprint_speed_list = []
                 if is_hitter:
-                    for year in years_played:
-                        sprint_speed = self.statcast_sprint_speed(name=name, year=year)
+                    for y in years_played:
+                        sprint_speed = self.statcast_sprint_speed(name=name, year=y)
                         if sprint_speed:
                             sprint_speed_list.append(sprint_speed)
                 if len(sprint_speed_list) > 0:
