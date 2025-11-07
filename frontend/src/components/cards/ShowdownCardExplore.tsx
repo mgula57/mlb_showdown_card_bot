@@ -1,3 +1,10 @@
+/**
+ * @fileoverview ShowdownCardExplore - Advanced card database browser and filter system
+ * 
+ * This component provides a comprehensive interface for exploring the MLB Showdown card database
+ * with advanced filtering, sorting, and team hierarchy navigation capabilities.
+ */
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { type CardDatabaseRecord, fetchCardData } from "../../api/card_db/cardDatabase";
 import { CardDetail } from "./CardDetail";
@@ -25,59 +32,113 @@ import RangeFilter from "../customs/RangeFilter";
 import { TeamHierarchy } from "./TeamHierarchy";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 
+/**
+ * Props for the ShowdownCardExplore component
+ */
 type ShowdownCardExploreProps = {
+    /** Optional initial card data to display */
     showdownCards?: CardDatabaseRecord[] | null;
+    /** Additional CSS classes */
     className?: string;
 };
 
-// --------------------------------------------
-// MARK: - Filters
-// --------------------------------------------
+// =============================================================================
+// MARK: - FILTERS
+// =============================================================================
 
-/** State for the custom card form */
+/**
+ * Complete filter selections interface for card database queries
+ * 
+ * Provides comprehensive filtering across multiple dimensions:
+ * - Sorting and ordering
+ * - Real baseball statistics (PA, IP)
+ * - Showdown game mechanics (points, command, speed)
+ * - Team and league hierarchies
+ * - Player characteristics (position, handedness)
+ * - Data quality indicators
+ */
 interface FilterSelections {
+    // Sorting and display order
+    /** Field to sort results by */
+    sort_by?: string;
+    /** Sort direction: "asc" or "desc" */
+    sort_direction?: string;
 
-    // Sorting
-    sort_by?: string; // e.g., "Points"
-    sort_direction?: string; // "asc" or "desc"
-
-    // Real Stats
+    // Real baseball statistics filters
+    /** Minimum plate appearances (hitters) */
     min_pa?: number;
+    /** Maximum plate appearances (hitters) */
     max_pa?: number;
+    /** Minimum innings pitched (pitchers) */
     min_real_ip?: number;
+    /** Maximum innings pitched (pitchers) */
     max_real_ip?: number;
-    include_small_sample_size?: string[]; // e.g., ["true", "false"]
+    /** Include players with limited sample sizes */
+    include_small_sample_size?: string[];
 
-    // Showdown Min/Max
+    // Showdown game mechanics filters
+    /** Minimum point value */
     min_points?: number;
+    /** Maximum point value */
     max_points?: number;
+    /** Minimum speed rating */
     min_speed?: number;
+    /** Maximum speed rating */
     max_speed?: number;
+    /** Minimum innings pitched (Showdown stat) */
     min_ip?: number;
+    /** Maximum innings pitched (Showdown stat) */
     max_ip?: number;
 
+    /** Special ability icons (e.g., ["R", "S", "HR"]) */
     icons?: string[]; 
 
+    /** Minimum command/control rating */
     min_command?: number;
+    /** Maximum command/control rating */
     max_command?: number;
+    /** Minimum outs on chart */
     min_outs?: number;
+    /** Maximum outs on chart */
     max_outs?: number;
 
+    // Temporal filters
+    /** Minimum season year */
     min_year?: number;
+    /** Maximum season year */
     max_year?: number;
 
-    organization?: string[]; // e.g., ["MLB", "NGL"]
-    league?: string[]; // e.g., ["MLB", "NEGRO LEAGUES"]
-    team?: string[]; // e.g., ["Yankees", "Red Sox"]
+    // Organizational hierarchy filters
+    /** Organizations (e.g., ["MLB", "NGL"]) */
+    organization?: string[];
+    /** Leagues (e.g., ["AL", "NL", "NEGRO LEAGUES"]) */
+    league?: string[];
+    /** Specific teams (e.g., ["NYY", "BOS"]) */
+    team?: string[];
+    /** Players who played for multiple teams in one season */
     is_multi_team?: string[];
 
-    player_type?: string[]; // e.g., ["Hitter", "Pitcher"]
-    positions?: string[]; // e.g., ["C", "1B"]
-    hand?: string[]; // e.g., ["R", "L", "S"]
+    // Player characteristic filters
+    /** Player types (e.g., ["Hitter", "Pitcher"]) */
+    player_type?: string[];
+    /** Defensive positions (e.g., ["C", "1B", "SS"]) */
+    positions?: string[];
+    /** Batting/throwing handedness (e.g., ["R", "L", "S"]) */
+    hand?: string[];
 
+    // Data quality filters
+    /** Cards with unusual statistical profiles */
     is_chart_outlier?: string[];
 }
 
+/**
+ * Default filter selections applied on component initialization
+ * 
+ * Sets sensible defaults for exploring the card database:
+ * - Excludes small sample sizes by default
+ * - Sorts by points (descending) to show best cards first
+ * - Limits to MLB organization initially
+ */
 const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     include_small_sample_size: ["false"],
     sort_by: "points",
@@ -85,6 +146,12 @@ const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
     organization: ["MLB"],
 };
 
+/**
+ * Available sort options with icons for the dropdown selector
+ * 
+ * Includes both basic attributes (points, year, speed) and 
+ * defensive ratings for each position type.
+ */
 const SORT_OPTIONS: SelectOption[] = [
     { value: 'points', label: 'Points', icon: <FaDollarSign /> },
     { value: 'year', label: 'Year', icon: <FaCalendarAlt /> },
@@ -93,6 +160,7 @@ const SORT_OPTIONS: SelectOption[] = [
     { value: 'command', label: 'Control/Onbase', icon: <FaBaseballBall /> },
     { value: 'outs', label: 'Outs', icon: <FaO /> },
 
+    // Defensive position ratings
     { value: 'positions_and_defense_c', label: 'Defense (CA)', icon: <FaMitten /> },
     { value: 'positions_and_defense_1b', label: 'Defense (1B)', icon: <FaMitten /> },
     { value: 'positions_and_defense_2b', label: 'Defense (2B)', icon: <FaMitten /> },
@@ -104,36 +172,56 @@ const SORT_OPTIONS: SelectOption[] = [
     { value: 'positions_and_defense_of', label: 'Defense (OF)', icon: <FaMitten /> },
 ];
 
+/**
+ * Configuration for range filter UI components
+ */
 type RangeDef = {
+    /** Display label for the range filter */
     label: string;
+    /** FilterSelections key for minimum value */
     minKey: keyof FilterSelections;
+    /** FilterSelections key for maximum value */
     maxKey: keyof FilterSelections;
+    /** Step size for range inputs */
     step?: number;
 };
 
+/** Season-based range filters */
 const SEASON_RANGE_FILTERS: RangeDef[] = [
-    { label: "Year",     minKey: "min_year",    maxKey: "max_year",    step: 1 },
+    { label: "Year", minKey: "min_year", maxKey: "max_year", step: 1 },
 ];
 
+/** Real baseball statistics range filters */
 const REAL_RANGE_FILTERS: RangeDef[] = [
-    { label: "PA",       minKey: "min_pa",      maxKey: "max_pa",      step: 1 },
-    { label: "IP",       minKey: "min_real_ip", maxKey: "max_real_ip", step: 1 },
+    { label: "PA", minKey: "min_pa", maxKey: "max_pa", step: 1 },
+    { label: "IP", minKey: "min_real_ip", maxKey: "max_real_ip", step: 1 },
 ];
 
+/** Showdown game metadata range filters */
 const SHOWDOWN_METADATA_RANGE_FILTERS: RangeDef[] = [
-    { label: "PTS",      minKey: "min_points",  maxKey: "max_points",  step: 1 },
-    { label: "Speed",    minKey: "min_speed",   maxKey: "max_speed",   step: 1 },
-    { label: "IP",       minKey: "min_ip",      maxKey: "max_ip",      step: 1 },
+    { label: "PTS", minKey: "min_points", maxKey: "max_points", step: 1 },
+    { label: "Speed", minKey: "min_speed", maxKey: "max_speed", step: 1 },
+    { label: "IP", minKey: "min_ip", maxKey: "max_ip", step: 1 },
 ];
 
+/** Showdown chart mechanics range filters */
 const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
-    { label: "Ctrl/OB",  minKey: "min_command", maxKey: "max_command", step: 1 },
-    { label: "Outs",     minKey: "min_outs",    maxKey: "max_outs",    step: 1 },
+    { label: "Ctrl/OB", minKey: "min_command", maxKey: "max_command", step: 1 },
+    { label: "Outs", minKey: "min_outs", maxKey: "max_outs", step: 1 },
 ];
 
-// Filter Storage
+// =============================================================================
+// FILTER PERSISTENCE & UTILITIES
+// =============================================================================
+
+/** localStorage key for persisting filter selections across sessions */
 const FILTERS_STORAGE_KEY = 'exploreFilters:v1.01';
 
+/**
+ * Removes empty/null/undefined values from filter objects
+ * @param obj - Filter object to clean
+ * @returns Cleaned object with only meaningful values
+ */
 const stripEmpty = (obj: any) =>
     Object.fromEntries(
         Object.entries(obj || {}).filter(
@@ -141,6 +229,10 @@ const stripEmpty = (obj: any) =>
         )
     );
 
+/**
+ * Loads previously saved filter selections from localStorage
+ * @returns Saved filters merged with defaults, or null if none exist
+ */
 const loadSavedFilters = (): FilterSelections | null => {
     if (typeof window === 'undefined') return null;
     try {
@@ -170,24 +262,53 @@ const getInitialFilters = (): FilterSelections =>
 // MARK: - Component
 // --------------------------------------------
 
+/**
+ * ShowdownCardExplore - Advanced card database browser with filtering and search
+ * 
+ * This is the main card exploration interface providing:
+ * - Advanced multi-dimensional filtering system
+ * - Team hierarchy navigation 
+ * - Infinite scroll pagination
+ * - Real-time search and sorting
+ * - Detailed card previews and full detail modals
+ * - Filter persistence across sessions
+ * - Responsive design for mobile and desktop
+ * 
+ * The component manages a complex state system for filters, pagination, and UI interactions
+ * while providing smooth performance through debounced searches and lazy loading.
+ * 
+ * @param className - Additional CSS classes for the container
+ */
 export default function ShowdownCardExplore({ className }: ShowdownCardExploreProps) {
+    // =============================================================================
+    // CORE STATE MANAGEMENT
+    // =============================================================================
 
-    // State for showdown cards
+    /** Main card data state */
     const [showdownCards, setShowdownCards] = useState<CardDatabaseRecord[] | null>(null);
+    /** Loading state for initial data fetch */
     const [isLoading, setIsLoading] = useState(false);
+    /** Currently selected card for detail view */
     const [selectedCard, setSelectedCard] = useState<CardDatabaseRecord | null>(null);
 
-    // Pagination state
+    // Pagination state management
+    /** Current page number for infinite scroll */
     const [page, setPage] = useState(1);
+    /** Whether more cards are available to load */
     const [hasMore, setHasMore] = useState(true);
+    /** Loading state for pagination requests */
     const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-    // Modals
+    // UI modal visibility state
+    /** Show/hide filters modal on mobile */
     const [showFiltersModal, setShowFiltersModal] = useState(false);
+    /** Show/hide player detail modal */
     const [showPlayerDetailModal, setShowPlayerDetailModal] = useState(false);
+    /** Show/hide player detail sidebar */
     const [showPlayerDetailSidebar, setShowPlayerDetailSidebar] = useState(false);
 
-    // State for Set
+    // Global application state
+    /** Current user's selected Showdown set */
     const { userShowdownSet } = useSiteSettings();
 
     // Separate search from filters
