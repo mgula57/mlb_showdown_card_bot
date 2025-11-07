@@ -455,6 +455,12 @@ class BaseballReferenceScraper(BaseModel):
         has_ran_oaa = False
         stats_dict: dict[str, any] = {}
         for year in years_for_loop:
+            
+            # CHECK IF YEAR IS IN YEARS PLAYED
+            if str(year) not in years_played:
+                print(f"Skipping {self.name} {year} - Did Not Play")
+                continue
+
             stats_dict = {'bref_id': self.baseball_ref_id, 'bref_url': url_for_homepage_stats}
             
             # DEFENSE
@@ -489,8 +495,14 @@ class BaseballReferenceScraper(BaseModel):
             # CHECK IF `DID NOT PLAY` MESSAGE EXISTS FOR THE YEAR
             table_prefix = 'batting' if (type or '') == 'Hitter' else 'pitching'
             rows_for_year = soup_for_advanced_stats.find_all('tr',attrs={'id': f'players_standard_{table_prefix}.{year}'})
+            if len(rows_for_year) == 0:
+                type = None
+                break
+
             for row in rows_for_year:
-                if 'Did not play' in row.get_text():
+                # Check for 'Did not play' text or space in tr classes
+                class_names = row.get('class', [])
+                if 'Did not play' in row.get_text() or 'spacer' in class_names:
                     type = None
                     break
             
@@ -565,8 +577,8 @@ class BaseballReferenceScraper(BaseModel):
                 stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats)
                 sprint_speed_list = []
                 if is_hitter:
-                    for year in years_played:
-                        sprint_speed = self.statcast_sprint_speed(name=name, year=year)
+                    for y in years_played:
+                        sprint_speed = self.statcast_sprint_speed(name=name, year=y)
                         if sprint_speed:
                             sprint_speed_list.append(sprint_speed)
                 if len(sprint_speed_list) > 0:
@@ -867,7 +879,8 @@ class BaseballReferenceScraper(BaseModel):
         # GET THE POSITION COLUMN
         number_of_games_cell = record.find('td', attrs = {'data-stat': f'games_at_{position.lower()}'})
         if number_of_games_cell:
-            return int(number_of_games_cell.get_text())
+            number_of_games_cell_text = number_of_games_cell.get_text().strip()
+            return int(number_of_games_cell.get_text()) if len(number_of_games_cell_text) > 0 else None
                 
         return None
 
@@ -1961,6 +1974,10 @@ class BaseballReferenceScraper(BaseModel):
                     id = year.get('id', '')
                     if 'YR' in id.upper():
                         continue
+                    # Check for 'Did not play' text or space in tr classes
+                    class_names = year.get('class', [])
+                    if 'Did not play' in year.get_text() or 'spacer' in class_names:
+                        continue
                     years_parsed.append(id.split('.')[-1])
         
         # FILTER TO UNIQUE
@@ -1982,6 +1999,8 @@ class BaseballReferenceScraper(BaseModel):
         """
         table_prefix = 'batting' if type == 'Hitter' else 'pitching'
         standard_table = homepage_soup.find('div', attrs = {'id': re.compile(f'all_{table_prefix}_standard|all_players_standard_{table_prefix}')})
+        if standard_table is None:
+            return 'TOT'
         year_soup_objects_list = standard_table.find_all('tr', attrs = {'id': re.compile(f'{table_prefix}_standard\.|players_standard_{table_prefix}\.')})
         teams_and_games_played = {}
         for year_object in year_soup_objects_list:

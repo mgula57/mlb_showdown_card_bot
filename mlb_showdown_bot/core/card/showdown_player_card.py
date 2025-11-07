@@ -197,7 +197,11 @@ class ShowdownPlayerCard(BaseModel):
             # USED FOR DEFENSE CALCS
             if self.stats_period.type.is_regular_season_games_stat_needed and self.player_type == PlayerType.HITTER:
                 full_season_stats_used_for_stats_period['G_RS'] = self.stats.get('G', 0)
-            self.stats_period.stats.update(full_season_stats_used_for_stats_period)
+
+            # FILL IN MISSING STATS FROM FULL SEASON
+            if self.stats_period.type != StatsPeriodType.POSTSEASON:
+                self.stats_period.stats.update(full_season_stats_used_for_stats_period)
+
             self.stats_period.stats = self.clean_stats(stats=self.stats_period.stats)
 
             # USE OVERWRITTEN FULL SEASON STATS AS PARTIALS
@@ -1902,6 +1906,12 @@ class ShowdownPlayerCard(BaseModel):
 
         # ADD HBP TO BB NUMBER
         stats['BB'] = stats.get('BB', 0) + stats.get('HBP', 0)
+
+        # FILL IN CATEGORIES FOR HITTERS IF MISSING
+        categories = ['SO','BB','1B','2B','3B','HR']
+        for category in categories:
+            if self.is_hitter and category not in stats.keys():
+                stats[category] = 0
 
         return stats
 
