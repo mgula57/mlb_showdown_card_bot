@@ -11,9 +11,11 @@ app = typer.Typer()
 @app.command("run")
 def archive_stats(
     years: str = typer.Option(None, "--years", "-y", help="Which year(s) to archive."),
+    showdown_sets: str = typer.Option("CLASSIC,EXPANDED,2000,2001,2002,2003,2004,2005", "--showdown_sets", "-s", help="Showdown Set(s) to use, comma-separated."),
     publish_to_postgres: bool = typer.Option(False, "--publish_to_postgres", "-pg", help="Publish archived data to Postgres"),
     run_player_list: bool = typer.Option(False, "--run_player_list", "-list", help="Scrape player list from baseball reference"),
     run_player_stats: bool = typer.Option(False, "--run_player_stats", "-stats", help="Scrape player stats from baseball reference"),
+    run_player_cards: bool = typer.Option(False, "--run_player_cards", "-cards", help="Generate Showdown Player Cards for archived players"),
     exclude_records_with_stats: bool = typer.Option(False, "--exclude_records_with_stats", "-ers", help="Exclude records that already have stats in the database when scraping player stats"),
     daily_mid_season_update: bool = typer.Option(False, "--daily_mid_season_update", "-dmsu", help="Run a daily mid-season update to catch stat changes"),
     modified_start_date: Optional[str] = typer.Option(None, "--modified_start_date", "-mod_s", help="Only include records modified after this date"),
@@ -30,6 +32,9 @@ def archive_stats(
         parsed_player_id_list = None
         if player_id_list:
             parsed_player_id_list = [pid.strip() for pid in player_id_list.split(',') if pid.strip()]
+
+        # Parse showdown sets
+        showdown_set_list = [s.strip() for s in showdown_sets.split(',') if s.strip()]
 
         # RUN DAILY MID-SEASON UPDATE
         if daily_mid_season_update and year_list == [datetime.now().year]:
@@ -52,6 +57,10 @@ def archive_stats(
                 limit=limit,
                 player_id_list=parsed_player_id_list
             )
+
+        if run_player_cards:
+            player_stats_archive = PlayerStatsArchive(years=year_list, is_snapshot=False)
+            player_stats_archive.generate_showdown_player_cards(publish_to_postgres=publish_to_postgres, sets=showdown_set_list)
 
     except Exception as e:
         # Full traceback

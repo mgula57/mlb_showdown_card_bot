@@ -877,12 +877,16 @@ class PostgresDB:
                     card_data['player_id'] = "-".join(id_fields).lower()
                     card_data['name'] = unidecode(card_data['name'])
 
-                    batch_data.append((card_data['player_id'], showdown.set.value, card_data))
+                    batch_data.append((card_data['player_id'], showdown.set.value, showdown.version, card_data))
 
                 # Insert batch
                 insert_query = """
-                    INSERT INTO card_data (player_id, showdown_set, card_data) 
+                    INSERT INTO card_data (player_id, showdown_set, version, card_data) 
                     VALUES %s
+                    ON CONFLICT (player_id, showdown_set, version) 
+                    DO UPDATE SET 
+                        card_data = EXCLUDED.card_data,
+                        modified_date = NOW()
                 """
 
                 execute_values(

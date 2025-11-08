@@ -10,6 +10,7 @@ from requests import exceptions as req_exc
 from ..database.postgres_db import PostgresDB, PlayerArchive
 from .player_stats import PlayerStats, PlayerType
 from ..card.utils.shared_functions import convert_to_numeric
+from ..card.showdown_player_card import ShowdownPlayerCard, StatsPeriod, StatsPeriodType, ShowdownImage, StatHighlightsType, PlayerType, Set as ShowdownSet
 
 
 class PlayerStatsArchive:
@@ -240,8 +241,6 @@ class PlayerStatsArchive:
             db.create_stats_archive_table()
             db_cursor = db.connection.cursor()
 
-            print(player_id_list)
-
             # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
             if self.is_player_list_empty:
                 self.fill_player_stats_from_archive(db=db, exclude_records_with_stats=exclude_records_with_stats, modified_start_date=modified_start_date, modified_end_date=modified_end_date, player_id_list=player_id_list)
@@ -320,7 +319,70 @@ class PlayerStatsArchive:
                 setattr(player_stats, key, value)
             self.player_list.append(player_stats)
 
-    
+
+# ------------------------------------------------------------------------
+# CONVERTING TO SHOWDOWN CARDS
+# ------------------------------------------------------------------------
+
+    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, sets: list[ShowdownSet] = None) -> None:
+        """Using the class player_list"""
+
+        # DEFAULT SETS TO ALL IF NONE PROVIDED
+        if sets is None:
+            sets = [s for s in ShowdownSet]
+
+        # FETCH PLAYER DATA FROM ARCHIVE
+        if publish_to_postgres:
+            # CREATE DATABASE TABLE
+            db = PostgresDB(is_archive=True)
+
+            # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
+            if self.is_player_list_empty:
+                self.fill_player_stats_from_archive(db=db)
+
+        print("CONVERTING TO SHOWDOWN CARDS...")
+        showdown_cards: list[ShowdownPlayerCard] = []
+        for set in sets:
+            print(f'\nSET: {set}')
+            total_players = len(self.player_list)
+            for index, player in enumerate(self.player_list, 1):
+                type_override_raw = player.player_type_override
+                type_override = PlayerType.PITCHER if type_override_raw else None
+                name = player.name
+                year = str(player.year)
+                stats = player.stats
+                set = set
+
+                stats_period = StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=year)
+                image = ShowdownImage(stat_highlights_type=StatHighlightsType.ALL)
+
+                if player.bref_id in ['howelha01', 'dunnja01','sudhowi01','mercewi01'] and type_override_raw == '(pitcher)':
+                    continue
+                
+                # SKIP PLAYERS WITH 0 PA
+                if stats.get('PA', 0) == 0:
+                    continue
+
+                print(f"  {index}/{total_players}: {name: <30}", end="\r")
+                try:
+                    showdown = ShowdownPlayerCard(
+                        name=name, year=year, stats=stats, stats_period=stats_period,
+                        set=set, player_type_override=type_override, print_to_cli=False,
+                        image=image
+                    )
+                except Exception as e:
+                    print(f"\nERROR CREATING SHOWDOWN CARD FOR {name} ({year}) - {e}")
+                    continue
+                
+                showdown_cards.append(showdown)
+            
+        if len(showdown_cards) == 0:
+            print("NO SHOWDOWN CARDS GENERATED.")
+            return
+        
+        db.upload_to_card_data(showdown_cards=showdown_cards, batch_size=1000)
+
+
 # ------------------------------------------------------------------------
 # PARSE DATA
 # ------------------------------------------------------------------------
