@@ -18,12 +18,18 @@ def archive_stats(
     daily_mid_season_update: bool = typer.Option(False, "--daily_mid_season_update", "-dmsu", help="Run a daily mid-season update to catch stat changes"),
     modified_start_date: Optional[str] = typer.Option(None, "--modified_start_date", "-mod_s", help="Only include records modified after this date"),
     modified_end_date: Optional[str] = typer.Option(None, "--modified_end_date", "-mod_e", help="Only include records modified before this date"),
+    player_id_list: Optional[str] = typer.Option(None, "--player_id_list", "-pil", help="Comma-separated list of player IDs (e.g., 'abreuwi02,bailepa01,crowape01')"),
     limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Limit how many players are processed"),
 ):
     """Archive player stats to Postgres"""
     
     try:
         year_list = convert_year_string_to_list(years)
+        
+        # Parse player_id_list from comma-separated string
+        parsed_player_id_list = None
+        if player_id_list:
+            parsed_player_id_list = [pid.strip() for pid in player_id_list.split(',') if pid.strip()]
 
         # RUN DAILY MID-SEASON UPDATE
         if daily_mid_season_update and year_list == [datetime.now().year]:
@@ -43,7 +49,8 @@ def archive_stats(
                 exclude_records_with_stats=exclude_records_with_stats,
                 modified_start_date=modified_start_date,
                 modified_end_date=modified_end_date,
-                limit=limit
+                limit=limit,
+                player_id_list=parsed_player_id_list
             )
 
     except Exception as e:

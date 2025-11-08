@@ -239,8 +239,15 @@ class PostgresDB:
             column_name, value = filter_tuple
             if value is None:
                 continue
-            conditions.append(sql.SQL(' = ').join([sql.Identifier(column_name), sql.Placeholder()]))
-            values_to_filter.append(value)
+                
+            # Handle list values with IN operator, single values with = operator
+            if isinstance(value, list):
+                if len(value) > 0:  # Only add condition if list is not empty
+                    conditions.append(sql.SQL(' IN ').join([sql.Identifier(column_name), sql.Placeholder()]))
+                    values_to_filter.append(tuple(value))  # Convert list to tuple for psycopg2
+            else:
+                conditions.append(sql.SQL(' = ').join([sql.Identifier(column_name), sql.Placeholder()]))
+                values_to_filter.append(value)
             
         where_clause = sql.SQL(' AND ').join(conditions)
 

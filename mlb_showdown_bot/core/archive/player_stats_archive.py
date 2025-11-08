@@ -219,7 +219,7 @@ class PlayerStatsArchive:
     def is_player_list_empty(self) -> bool:
         return len(self.player_list) == 0
 
-    def scrape_stats_for_player_list(self, delay:float = 10.0, publish_to_postgres:bool=True, limit:int=None, exclude_records_with_stats:bool=True, modified_start_date:str = None, modified_end_date:str = None) -> None:
+    def scrape_stats_for_player_list(self, delay:float = 10.0, publish_to_postgres:bool=True, limit:int=None, exclude_records_with_stats:bool=True, modified_start_date:str = None, modified_end_date:str = None, player_id_list:list[str] = None) -> None:
         """Using the class player_list array, iterrate through players and scrape bref data.
 
         Args:
@@ -240,9 +240,11 @@ class PlayerStatsArchive:
             db.create_stats_archive_table()
             db_cursor = db.connection.cursor()
 
+            print(player_id_list)
+
             # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
             if self.is_player_list_empty:
-                self.fill_player_stats_from_archive(db=db, exclude_records_with_stats=exclude_records_with_stats, modified_start_date=modified_start_date, modified_end_date=modified_end_date)
+                self.fill_player_stats_from_archive(db=db, exclude_records_with_stats=exclude_records_with_stats, modified_start_date=modified_start_date, modified_end_date=modified_end_date, player_id_list=player_id_list)
             else:
                 self.player_list = [
                     player for player in self.player_list 
@@ -250,6 +252,7 @@ class PlayerStatsArchive:
                         (exclude_records_with_stats and player.stats and len(player.stats) > 0)
                         or (modified_start_date and player.modified_date and player.modified_date < datetime.fromisoformat(modified_start_date))
                         or (modified_end_date and player.modified_date and player.modified_date > datetime.fromisoformat(modified_end_date))
+                        or (player_id_list and player.bref_id not in player_id_list)
                     )
                 ]
 
@@ -286,9 +289,28 @@ class PlayerStatsArchive:
         if publish_to_postgres:
             # CLOSE CONNECTION
             db.close_connection()
-    
-    def fill_player_stats_from_archive(self, db: PostgresDB, exclude_records_with_stats:bool=False, modified_start_date: str = None, modified_end_date: str = None) -> None:
-        player_archive_list: list[PlayerArchive] = db.fetch_all_stats_from_archive(year_list=self.years, exclude_records_with_stats=exclude_records_with_stats, historical_date=self.historical_date, modified_start_date=modified_start_date, modified_end_date=modified_end_date)
+
+    def fill_player_stats_from_archive(self, db: PostgresDB, exclude_records_with_stats:bool=False, modified_start_date: str = None, modified_end_date: str = None, player_id_list: list[str] = None) -> None:
+        """Fill player stats list from archive database.
+        
+        Args:
+            db: PostgresDB object.
+            exclude_records_with_stats: Flag to exclude records with stats.
+            modified_start_date: Limit to only records modified after this date.
+            modified_end_date: Limit to only records modified before this date.
+            player_id_list: Limit to only records for these player IDs.
+        
+        Returns:
+            None
+        """
+        player_archive_list: list[PlayerArchive] = db.fetch_all_stats_from_archive(
+            year_list=self.years, 
+            exclude_records_with_stats=exclude_records_with_stats, 
+            historical_date=self.historical_date, 
+            modified_start_date=modified_start_date, 
+            modified_end_date=modified_end_date,
+            filters=[('bref_id', player_id_list)] if player_id_list else []
+        )
         for player_archive in player_archive_list:
             player_archive_data = player_archive.__dict__
             player_stats = PlayerStats(year=player_archive.year, type=PlayerType(player_archive.player_type), data=player_archive_data, two_way_players_list=[], historical_date=self.historical_date)
