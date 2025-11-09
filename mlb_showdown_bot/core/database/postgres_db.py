@@ -924,6 +924,13 @@ class PostgresDB:
                 ARRAY(
                     SELECT jsonb_array_elements_text(card_data->'icons')
                 ) as icons_list,
+
+                -- STATS
+                CASE
+                    WHEN stats->>'award_summary' = '' OR stats->>'award_summary' IS NULL 
+                    THEN ARRAY[]::text[]
+                    ELSE string_to_array(stats->>'award_summary', ',')
+                END as awards_list,
                 
                 -- CHART
                 cast(card_data->'chart'->>'command' as int) as command,
