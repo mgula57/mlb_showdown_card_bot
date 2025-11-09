@@ -101,32 +101,36 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
      * @param label - X-axis label (year or timestamp)
      */
     const CustomTooltip = ({ active, payload, label }: any) => {
-        if (active && payload && payload.length) {
-            const data = payload[0].payload;
-            // Format date based on chart type
-            const formattedDate = title === "Career Trends" 
-                ? `${label}` // Display year directly for career trends
-                : new Date(label).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric', 
-                    year: 'numeric'
-                  }); // Format timestamp for in-season trends
+        const isVisible = active && payload && payload.length;
+        const card = payload[0]?.payload as TrendDatapoint;
+        return (
+            <div className="bg-primary p-2 rounded-lg" style={{ visibility: isVisible ? 'visible' : 'hidden' }}>
+            {isVisible && (
+                <div className="flex flex-col text-xs">
 
-            return (
-                <div className="bg-gray-900 border border-gray-700 p-3 rounded-lg shadow-lg">
-                    <p className="text-white font-semibold mb-2">{formattedDate}</p>
-                    <div className="space-y-1">
-                        <p className="text-green-400">Overall: {data.overall}</p>
-                        <p className="text-blue-400">Onbase: {data.onbase}</p>
-                        <p className="text-red-400">Control: {data.control}</p>
-                        <p className="text-purple-400">Speed: {data.speed}</p>
-                        <p className="text-orange-400">IP: {data.ip}</p>
-                        <p className="text-gray-300">Team: {data.team}</p>
-                    </div>
+                    {/* POINTS */}
+                    <p className="font-black border-b border-gray-600">{`${formatXAxisLabel(label)} ${card.team}: ${card.points} PTS`}</p>
+
+                    {/* COMMAND/OUTS */}
+                    <p className="label pt-1">{`${card.command} ${card.command_type?.toUpperCase() === 'ONBASE' ? 'OB' : 'CO'} | ${card.outs} OUTS`}</p>
+
+                    {/* PITCHING */}
+                    {card.so && <p className="label">{`${card.so} SO`}</p>}
+                    {card.ip && <p className="label">{`${card.ip} IP`}</p>}
+                    
+                    {/* HITTING */}
+                    {card.hr && <p className="label">{`${card.hr} HR`}</p>}
+                    {card.defense && <p className="label">{`${card.defense}`}</p>}
+                    {card.speed && <p className="label">{`${card.speed} SPD`}</p>}
+                    {card["2b"] && <p className="label">{`${card["2b"]} 2B`}</p>}
+
+                    {/* SHOPS+ */}
+                    {card.shOPS_plus && <p className="label">{`${card.shOPS_plus} shOPS+`}</p>}
+
                 </div>
-            );
-        }
-        return null;
+            )}
+            </div>
+        );
     };
 
     /**
