@@ -3,19 +3,21 @@ from typing import Optional
 from datetime import datetime, timedelta, timezone
 
 # Import business logic
-from ...core.archive.player_stats_archive import PlayerStatsArchive
+from ...core.archive.player_stats_archive import PlayerStatsArchive, PostgresDB
 from ...core.card.utils.shared_functions import convert_year_string_to_list
 
 app = typer.Typer()
 
 @app.command("run")
-def archive_stats(
+def database_update(
     years: str = typer.Option(None, "--years", "-y", help="Which year(s) to archive."),
     showdown_sets: str = typer.Option("CLASSIC,EXPANDED,2000,2001,2002,2003,2004,2005", "--showdown_sets", "-s", help="Showdown Set(s) to use, comma-separated."),
     publish_to_postgres: bool = typer.Option(False, "--publish_to_postgres", "-pg", help="Publish archived data to Postgres"),
     run_player_list: bool = typer.Option(False, "--run_player_list", "-list", help="Scrape player list from baseball reference"),
     run_player_stats: bool = typer.Option(False, "--run_player_stats", "-stats", help="Scrape player stats from baseball reference"),
     run_player_cards: bool = typer.Option(False, "--run_player_cards", "-cards", help="Generate Showdown Player Cards for archived players"),
+    refresh_explore: bool = typer.Option(True, "--refresh_explore", "-exp", help="Refresh Explore materialized views"),
+    drop_existing: bool = typer.Option(False, "--drop_existing", "-drop", help="Drop existing materialized views before refreshing"),
     exclude_records_with_stats: bool = typer.Option(False, "--exclude_records_with_stats", "-ers", help="Exclude records that already have stats in the database when scraping player stats"),
     daily_mid_season_update: bool = typer.Option(False, "--daily_mid_season_update", "-dmsu", help="Run a daily mid-season update to catch stat changes"),
     modified_start_date: Optional[str] = typer.Option(None, "--modified_start_date", "-mod_s", help="Only include records modified after this date"),
@@ -26,7 +28,7 @@ def archive_stats(
     """Archive player stats to Postgres"""
     
     try:
-        year_list = convert_year_string_to_list(years)
+        year_list = convert_year_string_to_list(years) if years else []
         
         # Parse player_id_list from comma-separated string
         parsed_player_id_list = None
@@ -60,16 +62,25 @@ def archive_stats(
 
         if run_player_cards:
             player_stats_archive = PlayerStatsArchive(years=year_list, is_snapshot=False)
-            player_stats_archive.generate_showdown_player_cards(publish_to_postgres=publish_to_postgres, sets=showdown_set_list)
+            player_stats_archive.generate_showdown_player_cards(
+                publish_to_postgres=publish_to_postgres, 
+                refresh_explore=refresh_explore, 
+                sets=showdown_set_list
+            )
+
+        if not run_player_cards and refresh_explore:
+            print("Refreshing Explore materialized views...")
+            db = PostgresDB(is_archive=True)
+            db.refresh_explore_views(drop_existing=drop_existing)
 
     except Exception as e:
         # Full traceback
         import traceback
         traceback.print_exc()
 
-# Make archive the default command
+# Make database the default command
 @app.callback(invoke_without_command=True)
-def archive_main(ctx: typer.Context):
+def database_main(ctx: typer.Context):
     """Archive operations"""
     if ctx.invoked_subcommand is None:
-        ctx.invoke(archive_stats)
+        ctx.invoke(database_update)

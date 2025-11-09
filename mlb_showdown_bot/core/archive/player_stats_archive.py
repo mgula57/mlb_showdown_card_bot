@@ -324,7 +324,7 @@ class PlayerStatsArchive:
 # CONVERTING TO SHOWDOWN CARDS
 # ------------------------------------------------------------------------
 
-    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, sets: list[ShowdownSet] = None) -> None:
+    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, refresh_explore: bool=True, sets: list[ShowdownSet] = None) -> None:
         """Using the class player_list"""
 
         # DEFAULT SETS TO ALL IF NONE PROVIDED
@@ -381,6 +381,9 @@ class PlayerStatsArchive:
             return
         
         db.upload_to_card_data(showdown_cards=showdown_cards, batch_size=1000)
+
+        if refresh_explore:
+            db.refresh_explore_views()
 
 
 # ------------------------------------------------------------------------
