@@ -75,6 +75,8 @@ interface FilterSelections {
     max_real_ip?: number;
     /** Include players with limited sample sizes */
     include_small_sample_size?: string[];
+    /** Awards received (e.g., ["mvp-", "false"]) */
+    awards?: string[];
 
     // Showdown game mechanics filters
     /** Minimum point value */
@@ -889,7 +891,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                 />
                             </FormSection>
 
-                            <FormSection title="Real Stats" isOpenByDefault={true}>
+                            <FormSection title="Real Stats and Awards" isOpenByDefault={true}>
 
                                 {REAL_RANGE_FILTERS.map(def => (
                                     <RangeFilter
@@ -908,6 +910,23 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                     ]}
                                     selections={filtersForEditing.include_small_sample_size || []}
                                     onChange={(values) => setFiltersForEditing({ ...filtersForEditing, include_small_sample_size: values })}
+                                />
+
+                                <MultiSelect
+                                    label="Awards"
+                                    options={[
+                                        { value: 'MVP-1', label: 'MVP' },
+                                        { value: 'CYA-1', label: 'Cy Young' },
+                                        { value: 'ROY-1', label: 'Rookie of the Year' },
+                                        { value: 'GG', label: 'Gold Glove' },
+                                        { value: 'SS', label: 'Silver Slugger' },
+                                        { value: 'AS', label: 'All-Star' },
+                                        { value: 'MVP-', label: 'MVP Votes' },
+                                        { value: 'CYA-', label: 'Cy Young Votes' },
+                                        { value: 'ROY-', label: 'Rookie of the Year Votes' },
+                                    ]}
+                                    selections={filtersForEditing.awards || []}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, awards: values })}
                                 />
                             </FormSection>
 

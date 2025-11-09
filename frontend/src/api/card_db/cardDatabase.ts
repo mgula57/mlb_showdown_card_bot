@@ -53,6 +53,9 @@ export type CardDatabaseRecord = {
     speed_full?: string | null;
     speed_or_ip?: number | null;
 
+    // Stats
+    awards_list?: string[] | null;
+
     // Error Message
     error?: string | null;
 

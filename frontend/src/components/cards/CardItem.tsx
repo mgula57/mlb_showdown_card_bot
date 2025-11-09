@@ -147,6 +147,11 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
 
             {/* Statistical highlights ribbon */}
             <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
+                {card?.stats.award_summary.length > 0 && (
+                    <div className="font-semibold underline">
+                        {card?.stats.award_summary}
+                    </div>
+                )}
                 {card?.image.stat_highlights_list.map((stat, index) => (
                     <div key={index} className="">
                         {stat}

@@ -503,6 +503,25 @@ class PostgresDB:
                                 # Check if any of the provided icons are in the player's icons
                                 filter_clauses.append(sql.SQL("icons_list && %s"))
                                 filter_values.append(value)
+                            case 'awards':
+                                # Check if any of the provided awards are in the player's awards
+                                # Handle partial matching for values ending with '-'
+                                award_conditions = []
+                                for award in value:
+                                    if award.endswith('-'):
+                                        # Partial match: check if any element in the array starts with the prefix
+                                        award_prefix = award[:-1]  # Remove the trailing '-'
+                                        award_conditions.append(sql.SQL("EXISTS (SELECT 1 FROM unnest(awards_list) AS award WHERE award LIKE %s)"))
+                                        filter_values.append(f"{award_prefix}-%")
+                                    else:
+                                        # Exact match: check if the exact value exists in the array
+                                        award_conditions.append(sql.SQL("%s = ANY(awards_list)"))
+                                        filter_values.append(award)
+                                
+                                if award_conditions:
+                                    filter_clauses.append(sql.SQL("({})").format(
+                                        sql.SQL(" OR ").join(award_conditions)
+                                    ))
                             case 'include_small_sample_size':
                                 # Only filter if array is ["false"]
                                 if value == ["false"]:
@@ -510,7 +529,7 @@ class PostgresDB:
                                         " when positions_list && ARRAY['STARTER'] then real_ip >= 75" \
                                         " when positions_list && ARRAY['RELIEVER', 'CLOSER'] then real_ip >= 30" \
                                         " else pa >= 250" \
-                                    "end)"))
+                                    " end)"))
                             case _:
                                 # Regular IN clause for non-array fields
                                 placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))

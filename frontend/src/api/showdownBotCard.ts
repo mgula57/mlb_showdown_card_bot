@@ -342,6 +342,9 @@ export type ShowdownBotCard = {
     /** Point value calculation breakdown */
     points_breakdown: PointsBreakdown;
 
+    /** Stats Object */
+    stats: Record<string, any>;
+
     /** Data quality and edge case warnings */
     warnings: string[];
 };
