@@ -110,11 +110,12 @@ def database_update(
 def database_feature_status(
     feature_name: str = typer.Option(None, "--feature_name", "-f", help="Name of the feature to check status."),
     disable_feature: bool = typer.Option(False, "--disable", "-d", help="Is the feature disabled?"),
-    message: str = typer.Option(None, "--message", "-m", help="Optional message for the status update.")
+    message: str = typer.Option(None, "--message", "-m", help="Optional message for the status update."),
+    is_archive: bool = typer.Option(False, "--is_archive", "-arch", help="Use the archive database"),
 ):
     """Check status of database features"""
     print(f"Updating feature '{feature_name}' to disabled={disable_feature} with message='{message}'")
-    db = PostgresDB()
+    db = PostgresDB(is_archive=is_archive)
     db.update_feature_status(feature_name=feature_name, is_disabled=disable_feature, message=message)
     print("✅ Feature status updated.")
 
