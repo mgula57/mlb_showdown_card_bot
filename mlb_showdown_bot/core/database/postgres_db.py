@@ -11,8 +11,9 @@ from pydantic import BaseModel
 from typing import Optional, Any
 
 # INTERNAL
-from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Position, StatsPeriodType, __version__
+from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Set, StatsPeriodType, __version__
 from ..card.utils.shared_functions import convert_year_string_to_list
+from ..shared.google_drive import fetch_image_metadata
 
 class PlayerArchive(BaseModel):
     id: str
@@ -1044,6 +1045,143 @@ class PostgresDB:
         except:
             return
 
+    def build_auto_images_table(self, refresh_explore: bool=False) -> None:
+        """Creates and replaces the auto_images table in the database."""
+ 
+        # RETURN IF NO CONNECTION
+        if self.connection is None:
+            print("No database connection available for fetching auto-generated image metadata.")
+            return
+
+        # FETCH IMAGE METADATA FROM GOOGLE DRIVE
+        print("Fetching auto-generated image metadata from Google Drive...")
+        image_metadata = fetch_image_metadata(
+            folder_id=Set._2000.player_image_gdrive_folder_id, 
+            retries=3
+        )
+        print(f"Fetched metadata for {len(image_metadata)} files from Google Drive.")
+        
+        # TRANSFORM INTO DICT WITH {image_name: {BG: id, 'CUT': id }}
+        aggregated_images: dict[str, dict[str, str]] = {}
+        for item in image_metadata:
+            image_name: str = item['name']
+            if '-' not in image_name: continue
+            image_id: str = item['id']
+            image_name_without_type = image_name.split('-', 1)[-1]  # Remove prefix before first '-'
+            updated_dict = aggregated_images.get(image_name_without_type, {})
+            if 'BG' in image_name:
+                updated_dict['BG'] = image_id
+            elif 'CUT' in image_name:
+                updated_dict['CUT'] = image_id
+            aggregated_images[image_name_without_type] = updated_dict
+
+        # PARSE NAMES AND STORE AS CLASSES
+        auto_image_entries: list[dict] = []
+        for image_name, image_ids in aggregated_images.items():
+
+            # PARSE NAME INTO COMPONENTS
+            # EX: 2025-Raleigh-(raleica01)-(SEA).png
+            #   - year: 2025
+            #   - team_id: SEA
+            #   - player_id: raleica01
+            #   - player_name: Raleigh
+            final_attributes: dict[str, any] = {'image_ids': image_ids}
+            name_parts = image_name.rsplit('.', 1)[0].split('-')
+            has_reached_first_parenthesis = False
+            player_name = "" # ADDED TO IN MULTIPLE PARTS
+            for index, text in enumerate(name_parts):
+                has_parenthesis = text.startswith('(') and text.endswith(')')
+                
+                # YEAR
+                if index == 0:
+                    final_attributes['year'] = int(text)
+                    continue
+                
+                # PLAYER NAME
+                if not has_reached_first_parenthesis and not has_parenthesis:
+                    if player_name == "":
+                        player_name = text
+                    else:
+                        player_name += f" {text}"
+                    continue
+                
+                # PLAYER ID
+                if has_parenthesis and not has_reached_first_parenthesis:
+                    final_attributes['player_name'] = player_name # STORE PLAYER NAME
+                    final_attributes['player_id'] = text.split('(')[1].split(')')[0]
+                    has_reached_first_parenthesis = True
+
+                # TEAM ID
+                if has_parenthesis and len(text) <= 5:
+                    final_attributes['team_id'] = text.split('(')[1].split(')')[0]
+
+                if has_parenthesis and ('Hitter' in text or 'Pitcher' in text):
+                    final_attributes['player_type_override'] = text.split('(')[1].split(')')[0]
+
+            auto_image_entries.append(final_attributes)
+
+        # DATABASE OPERATIONS
+        db_cursor = self.connection.cursor()
+        
+        # DROP THE EXISTING TABLE
+        drop_table_statement = '''
+            DROP TABLE IF EXISTS auto_images;
+        '''
+        create_table_statement = f'''
+            CREATE TABLE IF NOT EXISTS auto_images(
+                year VARCHAR(20) NOT NULL,
+                player_id VARCHAR(10) NOT NULL,
+                player_name VARCHAR(48) NOT NULL,
+                team_id VARCHAR(10),
+                player_type_override VARCHAR(10),
+                image_ids JSONB,
+                created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );'''
+        
+        try:
+            db_cursor.execute(drop_table_statement)
+            db_cursor.execute(create_table_statement)
+        except Exception as e:
+            print(f"Error occurred while setting up database tables: {e}")
+            return
+        
+        # INSERT OR UPDATE ROWS
+        insert_statement = """
+            INSERT INTO auto_images (year, player_id, player_name, team_id, player_type_override, image_ids) 
+            VALUES %s
+        """
+        insert_values = []
+
+        for entry in auto_image_entries:
+            player_id = entry.get('player_id')
+            year = entry.get('year')
+            player_type_override = entry.get('player_type_override', None)
+            team_id = entry.get('team_id', None)
+            image_ids = entry.get('image_ids', {})
+            if not player_id or not year:
+                continue
+            insert_values.append((
+                year,
+                player_id,
+                entry.get('player_name'),
+                team_id,
+                player_type_override,
+                image_ids
+            ))
+        try:
+            execute_values(db_cursor, insert_statement, insert_values)
+            print(f"Inserted/Updated {len(insert_values)} rows into auto_images table.")
+        except Exception as e:
+            print(f"Error inserting/updating auto_images data: {e}")
+            self.connection.rollback()
+            return
+        finally:
+            db_cursor.close()
+
+        
+        # REFRESH EXPLORE (DOWNSTREAM DEPENDENCY)
+        if refresh_explore:
+            self.refresh_explore_views()
 
 # ------------------------------------------------------------------------
 # LOGGING

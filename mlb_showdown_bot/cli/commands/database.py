@@ -16,7 +16,8 @@ def database_update(
     run_player_list: bool = typer.Option(False, "--run_player_list", "-list", help="Scrape player list from baseball reference"),
     run_player_stats: bool = typer.Option(False, "--run_player_stats", "-stats", help="Scrape player stats from baseball reference"),
     run_player_cards: bool = typer.Option(False, "--run_player_cards", "-cards", help="Generate Showdown Player Cards for archived players"),
-    refresh_explore: bool = typer.Option(True, "--refresh_explore", "-exp", help="Refresh Explore materialized views"),
+    run_auto_image_suggestions: bool = typer.Option(False, "--run_auto_image_suggestions", "-auto_im", help="Generate auto image suggestions for archived players"),
+    refresh_explore: bool = typer.Option(False, "--refresh_explore", "-exp", help="Refresh Explore materialized views"),
     drop_existing: bool = typer.Option(False, "--drop_existing", "-drop", help="Drop existing materialized views before refreshing"),
     exclude_records_with_stats: bool = typer.Option(False, "--exclude_records_with_stats", "-ers", help="Exclude records that already have stats in the database when scraping player stats"),
     daily_mid_season_update: bool = typer.Option(False, "--daily_mid_season_update", "-dmsu", help="Run a daily mid-season update to catch stat changes"),
@@ -67,6 +68,10 @@ def database_update(
                 refresh_explore=refresh_explore, 
                 sets=showdown_set_list
             )
+
+        if run_auto_image_suggestions:
+            db = PostgresDB(is_archive=True)
+            db.build_auto_images_table(refresh_explore=refresh_explore)
 
         if not run_player_cards and refresh_explore:
             print("Refreshing Explore materialized views...")
