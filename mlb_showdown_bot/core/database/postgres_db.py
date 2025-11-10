@@ -509,9 +509,9 @@ class PostgresDB:
                                 # Handle partial matching for values ending with '-'
                                 award_conditions = []
                                 for award in value:
-                                    if award.endswith('-'):
+                                    if award.endswith('-*'):
                                         # Partial match: check if any element in the array starts with the prefix
-                                        award_prefix = award[:-1]  # Remove the trailing '-'
+                                        award_prefix = award[:-2]  # Remove the trailing '-*'
                                         award_conditions.append(sql.SQL("EXISTS (SELECT 1 FROM unnest(awards_list) AS award WHERE award LIKE %s)"))
                                         filter_values.append(f"{award_prefix}-%")
                                     else:

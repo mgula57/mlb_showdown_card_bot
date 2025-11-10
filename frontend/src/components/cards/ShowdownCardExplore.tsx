@@ -131,6 +131,10 @@ interface FilterSelections {
     // Data quality filters
     /** Cards with unusual statistical profiles */
     is_chart_outlier?: string[];
+
+    // Image attributes
+    /** Lets user filter for cards with/without images */
+    image_match_type?: string[];
 }
 
 /**
@@ -556,6 +560,12 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             return `Small Sample Sizes?: ${finalValue}`;
         }
 
+        const keysWithValuesToTitleCase = ['image_match_type']
+        if (keysWithValuesToTitleCase.includes(key)) {
+            const finalValue = Array.isArray(value) ? value.map(snakeToTitleCase).join(', ') : snakeToTitleCase(value);
+            return `${snakeToTitleCase(key)}: ${finalValue}`;
+        }
+
         return `${snakeToTitleCase(key)}: ${value}`;
     }
 
@@ -940,9 +950,9 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         { value: 'GG', label: 'Gold Glove' },
                                         { value: 'SS', label: 'Silver Slugger' },
                                         { value: 'AS', label: 'All-Star' },
-                                        { value: 'MVP-', label: 'MVP Votes' },
-                                        { value: 'CYA-', label: 'Cy Young Votes' },
-                                        { value: 'ROY-', label: 'Rookie of the Year Votes' },
+                                        { value: 'MVP-*', label: 'MVP Votes' },
+                                        { value: 'CYA-*', label: 'Cy Young Votes' },
+                                        { value: 'ROY-*', label: 'Rookie of the Year Votes' },
                                     ]}
                                     selections={filtersForEditing.awards || []}
                                     onChange={(values) => setFiltersForEditing({ ...filtersForEditing, awards: values })}
@@ -996,6 +1006,20 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                         {...bindRange(def.minKey, def.maxKey)}
                                     />
                                 ))}
+                            </FormSection>
+
+                            <FormSection title="Image Attributes" isOpenByDefault={true}>
+                                <MultiSelect
+                                    label="Auto Image Classification"
+                                    options={[
+                                        { value: 'exact', label: 'Exact Match (Year + Team)' },
+                                        { value: 'team match', label: 'Team Match, (Different Year)' },
+                                        { value: 'year match', label: 'Year Match (Different Team)' },
+                                        { value: 'no match', label: 'No Match' },
+                                    ]}
+                                    selections={filtersForEditing.image_match_type}
+                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, image_match_type: values })}
+                                />
                             </FormSection>
 
                         </div>
