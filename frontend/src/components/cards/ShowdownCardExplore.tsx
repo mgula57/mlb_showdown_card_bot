@@ -300,6 +300,8 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [hasMore, setHasMore] = useState(true);
     /** Loading state for pagination requests */
     const [isLoadingMore, setIsLoadingMore] = useState(false);
+    /** No result found messaging */
+    const [warningMessage, setWarningMessage] = useState<string | null>(null);
 
     // UI modal visibility state
     /** Show/hide filters modal on mobile */
@@ -438,14 +440,24 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             );
             const data = await fetchCardData(cleanedFilters);
 
+            let newCardData;
             if (append && showdownCards) {
-                setShowdownCards([...showdownCards, ...data]);
+                newCardData = [...showdownCards, ...data];
+                setShowdownCards(newCardData);
             } else {
-                setShowdownCards(data);
+                newCardData = data;
+                setShowdownCards(newCardData);
             }
 
             // Check if there is more data not loaded yet
             setHasMore(data.length === pageLimit); // If less than limit, no more data
+
+            // Check for warning message using the new data instead of state
+            if (newCardData.length === 0 && pageNum === 1) {
+                setWarningMessage("No results found for the given filters/search.");
+            } else {
+                setWarningMessage(null);
+            }
 
         } catch (error) {
             console.error("Error fetching showdown cards:", error);
@@ -703,6 +715,13 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
                         ))}
                     </div>
+
+                    {/* No results found message */}
+                    {warningMessage && (
+                        <div className="flex justify-center p-6 text-secondary bg-[var(--primary)]/10 rounded-xl m-10">
+                            <span className="text-sm">{warningMessage}</span>
+                        </div>
+                    )}
 
                     {/* Loading more indicator at bottom */}
                     {isLoadingMore && (
