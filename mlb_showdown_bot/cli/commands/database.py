@@ -1,6 +1,7 @@
 import typer
 from typing import Optional
 from datetime import datetime, timedelta, timezone
+import time
 
 # Import business logic
 from ...core.archive.player_stats_archive import PlayerStatsArchive, PostgresDB
@@ -27,6 +28,8 @@ def database_update(
     limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Limit how many players are processed"),
 ):
     """Archive player stats to Postgres"""
+
+    start_time = time.time()
     
     try:
         year_list = convert_year_string_to_list(years) if years else []
@@ -82,6 +85,25 @@ def database_update(
         # Full traceback
         import traceback
         traceback.print_exc()
+
+    finally:
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        
+        # Format the elapsed time nicely
+        if elapsed_time < 60:
+            time_str = f"{elapsed_time:.2f} seconds"
+        elif elapsed_time < 3600:
+            minutes = int(elapsed_time // 60)
+            seconds = elapsed_time % 60
+            time_str = f"{minutes}m {seconds:.1f}s"
+        else:
+            hours = int(elapsed_time // 3600)
+            minutes = int((elapsed_time % 3600) // 60)
+            seconds = elapsed_time % 60
+            time_str = f"{hours}h {minutes}m {seconds:.1f}s"
+        
+        print(f"\n✅ Database operation completed in {time_str}")
 
 # Make database the default command
 @app.callback(invoke_without_command=True)

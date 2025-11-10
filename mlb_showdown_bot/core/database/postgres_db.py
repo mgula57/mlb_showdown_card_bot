@@ -957,6 +957,32 @@ class PostgresDB:
                 cast(card_data->'chart'->>'outs_full' as int) as outs,
                 cast(card_data->'chart'->>'is_command_out_anomaly' as boolean) as is_chart_outlier,
                 
+                -- AUTO IMAGES
+                case
+                    when exists (
+                        select 1 from auto_images i
+                        where i.player_id = stats_archive.bref_id
+                        and i.year = stats_archive.year::text
+                        and i.team_id = stats_archive.team_id
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                    ) then 'exact'
+                    when exists (
+                        select 1 from auto_images i
+                        where i.player_id = stats_archive.bref_id
+                        and i.team_id = stats_archive.team_id
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                    ) then 'team match'
+                    when exists (
+                        select 1 from auto_images i
+                        where i.player_id = stats_archive.bref_id
+                        and i.year = stats_archive.year::text
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                    ) then 'year match'
+                    else 'no match'
+                end as image_match_type,
+                
+                exact_img_match.image_ids as image_ids,
+                
                 NOW() as updated_at
                 
             from stats_archive
@@ -964,7 +990,12 @@ class PostgresDB:
                 on stats_archive.id = card_data.player_id
             left join team_year_league_list
                 on team_year_league_list.year = stats_archive.year 
-                and team_year_league_list.team = stats_archive.team_id 
+                and team_year_league_list.team = stats_archive.team_id
+            left join auto_images as exact_img_match
+                on stats_archive.year::text = exact_img_match.year
+                and stats_archive.bref_id = exact_img_match.player_id
+                and coalesce(stats_archive.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
+                and stats_archive.team_id = exact_img_match.team_id
         '''
         indexes = [
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_explore_data_card_set_version ON explore_data (id, showdown_set, showdown_bot_version);"
@@ -1116,7 +1147,7 @@ class PostgresDB:
                     final_attributes['team_id'] = text.split('(')[1].split(')')[0]
 
                 if has_parenthesis and ('Hitter' in text or 'Pitcher' in text):
-                    final_attributes['player_type_override'] = text.split('(')[1].split(')')[0]
+                    final_attributes['player_type_override'] = text.lower() # KEEP PARENTHESIS AND LOWERCASE TO MATCH STATS ARCHIVE (e.g., (hitter), (pitcher))
 
             auto_image_entries.append(final_attributes)
 
@@ -1137,10 +1168,14 @@ class PostgresDB:
                 image_ids JSONB,
                 created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
             );'''
-        
+        index_statement = '''
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_auto_images_player_year_type
+            ON auto_images (year, player_id, player_type_override, team_id);
+        '''
         try:
             db_cursor.execute(drop_table_statement)
             db_cursor.execute(create_table_statement)
+            db_cursor.execute(index_statement)
         except Exception as e:
             print(f"Error occurred while setting up database tables: {e}")
             return
