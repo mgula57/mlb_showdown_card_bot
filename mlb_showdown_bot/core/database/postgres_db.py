@@ -1000,12 +1000,30 @@ class PostgresDB:
         indexes = [
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_explore_data_card_set_version ON explore_data (id, showdown_set, showdown_bot_version);"
         ]
-        return self._build_materialized_view(
+        # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
+        if drop_existing:
+            self.update_feature_status(
+                feature_name='explore',
+                status_message='The Explore data is being refreshed, this may take several minutes. Please check back soon!',
+                is_disabled=True
+            )
+            
+        status = self._build_materialized_view(
             view_name='explore_data',
             sql_logic=sql_logic,
             indexes=indexes,
             drop_existing=drop_existing
         )
+
+        # REMOVE STATUS MESSAGE IF SUCCESSFUL
+        if drop_existing:
+            self.update_feature_status(
+                feature_name='explore',
+                status_message=None,
+                is_disabled=False
+            )
+
+        return status
 
 
 # ------------------------------------------------------------------------
@@ -1475,5 +1493,67 @@ class PostgresDB:
             print(f"ERROR uploading to database: {e}")
             self.connection.rollback()
             raise
+        finally:
+            cursor.close()
+
+# ------------------------------------------------------------------------
+# STATUSES
+# ------------------------------------------------------------------------
+
+    def update_feature_status(self, feature_name:str, is_disabled:bool, message:str=None) -> bool:
+        """Update the status of a feature in the feature_status table.
+        
+        Args:
+            feature_name: Name of the feature to update.
+            is_disabled: New status of the feature (True for disabled, False for enabled).
+            message: Optional message associated with the status update.
+
+        Returns:
+            bool: True if the update was successful, False otherwise.
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return False
+
+        cursor = self.connection.cursor()
+
+        # CHECK IF TABLE EXISTS
+        table_check_query = """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'feature_status'
+            );
+        """
+        cursor.execute(table_check_query)
+        table_exists = cursor.fetchone()[0]
+        if not table_exists:
+            create_table_query = """
+                CREATE TABLE feature_status (
+                    feature_name VARCHAR(100) PRIMARY KEY,
+                    is_disabled BOOLEAN NOT NULL,
+                    message TEXT,
+                    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """
+            cursor.execute(create_table_query)
+            self.connection.commit()
+
+        try:
+            update_query = """
+                INSERT INTO feature_status (feature_name, is_disabled, message, updated_at)
+                VALUES (%s, %s, %s, NOW())
+                ON CONFLICT (feature_name) DO UPDATE SET
+                    is_disabled = EXCLUDED.is_disabled,
+                    message = EXCLUDED.message,
+                    updated_at = NOW()
+            """
+            cursor.execute(update_query, (feature_name, is_disabled, message))
+            self.connection.commit()
+            return cursor.rowcount > 0
+
+        except Exception as e:
+            print(f"ERROR updating feature status: {e}")
+            self.connection.rollback()
+            return False
         finally:
             cursor.close()

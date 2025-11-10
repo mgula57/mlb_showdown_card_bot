@@ -105,6 +105,19 @@ def database_update(
         
         print(f"\n✅ Database operation completed in {time_str}")
 
+
+@app.command("feature_status")
+def database_feature_status(
+    feature_name: str = typer.Option(None, "--feature_name", "-f", help="Name of the feature to check status."),
+    disable_feature: bool = typer.Option(True, "--disable", "-d", help="Is the feature disabled?"),
+    message: str = typer.Option(None, "--message", "-m", help="Optional message for the status update.")
+):
+    """Check status of database features"""
+    print(f"Updating feature '{feature_name}' to disabled={disable_feature} with message='{message}'")
+    db = PostgresDB()
+    db.update_feature_status(feature_name=feature_name, is_disabled=disable_feature, message=message)
+    print("✅ Feature status updated.")
+
 # Make database the default command
 @app.callback(invoke_without_command=True)
 def database_main(ctx: typer.Context):
