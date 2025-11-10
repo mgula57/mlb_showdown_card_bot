@@ -1,33 +1,64 @@
+/**
+ * @fileoverview PlayerSearchInput - Advanced player search and autocomplete component
+ * 
+ * Provides a sophisticated search interface for finding MLB players with features like
+ * autocomplete, filtering by year/team/type, award highlights, and advanced search options.
+ * Integrates with the player database API to provide real-time search results with
+ * comprehensive player information and statistics.
+ */
+
 import { useState, useEffect, useRef } from 'react';
 import { FaSearch } from 'react-icons/fa';
 import { FaXmark } from 'react-icons/fa6';
 import { createPortal } from 'react-dom';
 
+/**
+ * Player search result option with comprehensive metadata
+ */
 interface PlayerSearchOption {
+    /** Player's full name */
     name: string;
+    /** Season year or special designation (CAREER, etc.) */
     year: number | string;
+    /** Formatted year display (e.g., "2020-2024" for multi-year) */
     year_display?: string | null;
+    /** Baseball Reference player ID */
     bref_id: string;
+    /** Whether player is in Hall of Fame */
     is_hof: boolean;
+    /** Summary of major awards (MVP, Cy Young, etc.) */
     award_summary?: string | null;
+    /** Baseball WAR (Wins Above Replacement) value */
     bwar: number;
+    /** Team abbreviation for the season */
     team?: string | null;
+    /** Override for player type (Hitter/Pitcher) if ambiguous */
     player_type_override?: string | null;
 }
 
+/**
+ * Props for the PlayerSearchInput component
+ */
 interface PlayerSearchInputProps {
+    /** Display label for the search input */
     label: string;
+    /** Current search query value */
     value: string;
+    /** Callback when player is selected from search results */
     onChange: (selection: {
         name: string;
         year: string;
         bref_id: string;
         player_type_override?: string;
     }) => void;
+    /** Optional CSS class names for styling */
     className?: string;
 }
 
-// Add placeholder examples array
+/**
+ * Example search queries to cycle through in placeholder text
+ * Demonstrates various search capabilities and formats
+ */
 const PLACEHOLDER_EXAMPLES = [
     "Search for a player...",
     "Try: Aaron Judge",
@@ -41,6 +72,43 @@ const PLACEHOLDER_EXAMPLES = [
     "Try: Rodriguez NYY",
 ];
 
+/**
+ * PlayerSearchInput - Advanced player search with autocomplete
+ * 
+ * Provides a comprehensive player search interface with real-time autocomplete,
+ * advanced filtering options, and rich result display. Supports searching by
+ * player name, year, team, player type, and special designations like "Career".
+ * Results include player statistics, awards, and team information.
+ * 
+ * Search Features:
+ * - Real-time autocomplete with debounced API calls
+ * - Multi-criteria search (name, year, team, type)
+ * - Hall of Fame and award indicators
+ * - Career vs season-specific results
+ * - Player type disambiguation (pitcher/hitter)
+ * 
+ * @example
+ * ```tsx
+ * <PlayerSearchInput
+ *   label="Find Player"
+ *   value={searchQuery}
+ *   onChange={(selection) => {
+ *     setForm({
+ *       ...form,
+ *       name: selection.name,
+ *       year: selection.year,
+ *       player_id: selection.bref_id
+ *     });
+ *   }}
+ * />
+ * ```
+ * 
+ * @param label - Input field label
+ * @param value - Current search query
+ * @param onChange - Player selection handler
+ * @param className - Additional styling classes
+ * @returns Advanced player search component
+ */
 export function PlayerSearchInput({
     label,
     value,
@@ -48,25 +116,47 @@ export function PlayerSearchInput({
     className = ''
 }: PlayerSearchInputProps) {
 
+    // =============================================================================
+    // STATE MANAGEMENT
+    // =============================================================================
+
+    /** Current search query text */
     const [query, setQuery] = useState(value);
+    /** Available player search options from API */
     const [options, setOptions] = useState<PlayerSearchOption[]>([]);
+    /** Whether the dropdown menu is visible */
     const [isOpen, setIsOpen] = useState(false);
+    /** Whether API search is in progress */
     const [isLoading, setIsLoading] = useState(false);
+    /** Currently highlighted option index for keyboard navigation */
     const [selectedIndex, setSelectedIndex] = useState(-1);
+    /** Index for cycling placeholder examples */
     const [placeholderIndex, setPlaceholderIndex] = useState(0);
+    /** Whether input field has focus */
     const [isFocused, setIsFocused] = useState(false);
 
-    // Positioning
+    /** Dropdown positioning coordinates */
     const [menuPos, setMenuPos] = useState<{ left: number; top: number; width: number }>({ left: 0, top: 0, width: 0 });
 
-    // Refs
+    // =============================================================================
+    // REFS FOR DOM MANIPULATION AND TIMERS
+    // =============================================================================
+
+    /** Reference to the search input element */
     const inputRef = useRef<HTMLInputElement>(null);
+    /** Reference to the dropdown menu element */
     const dropdownRef = useRef<HTMLDivElement>(null);
+    /** Timer for debouncing search API calls */
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** Flag to prevent search when setting value programmatically */
     const programmaticChange = useRef(false);
+    /** Timer for cycling placeholder text examples */
     const placeholderInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    /** Measure the dropdown position and set direction based on available space */
+    /**
+     * Calculate and set dropdown positioning relative to input field
+     * Measures the input bounds and positions dropdown accordingly
+     */
     const measureAndSetDirection = () => {
         if (!inputRef.current) return;
         const inputRect = inputRef.current.getBoundingClientRect();
@@ -78,7 +168,10 @@ export function PlayerSearchInput({
         });
     };
 
-    /** Close dropdown when clicking outside */
+    /**
+     * Handle clicks outside the component to close dropdown
+     * Used for proper focus management and UX
+     */
     const handleClickOutside = (event: MouseEvent) => {
         const target = event.target;
         if (!(target instanceof Node)) return;

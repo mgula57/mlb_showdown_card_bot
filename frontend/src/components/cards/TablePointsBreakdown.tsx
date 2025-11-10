@@ -1,3 +1,11 @@
+/**
+ * @fileoverview TablePointsBreakdown - Point value calculation analysis table
+ * 
+ * Displays detailed breakdown of how a card's point value is calculated,
+ * showing contribution from each statistical category and mathematical
+ * adjustments applied during the point value algorithm.
+ */
+
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import { BasicDataTable } from "../shared/BasicDataTable";
 import { type PointsCategoryBreakdown, type PointsBreakdown } from "../../api/showdownBotCard";
@@ -5,7 +13,12 @@ import { formatStatValue, formatAsPct } from "../../functions/formatters";
 
 const h = createColumnHelper<PointsCategoryBreakdown>();
 
-/** Create a column helper that tells tanstack the format of the data*/
+/**
+ * Column definitions for the points breakdown table
+ * 
+ * Displays statistical categories with readable aliases and appropriate
+ * formatting for different value types (percentages, multipliers, etc.)
+ */
 const pointsBreakdownColumns: ColumnDef<PointsCategoryBreakdown, any>[] = [
     h.accessor("metric", { 
         header: "Category",
@@ -96,21 +109,65 @@ const pointsBreakdownColumns: ColumnDef<PointsCategoryBreakdown, any>[] = [
     }),
 ];
 
+/**
+ * Props for the TablePointsBreakdown component
+ */
 type TablePointsBreakdownProps = {
+    /** Complete points breakdown data from card generation */
     pointsBreakdownData: PointsBreakdown | null;
+    /** Innings pitched value for pitcher multiplier calculations */
     ip?: number | null;
+    /** Optional CSS classes for styling */
     className?: string;
 };
 
+/**
+ * TablePointsBreakdown - Point value calculation analysis table
+ * 
+ * Provides detailed breakdown of how a card's total point value is calculated
+ * by showing the contribution from each statistical category. Includes special
+ * rows for mathematical adjustments like IP multipliers and decay rates.
+ * 
+ * **Features:**
+ * - **Category Contributions**: Points earned from each statistical category
+ * - **Percentile Rankings**: Player's percentile rank in each category
+ * - **Mathematical Adjustments**: IP multipliers, decay rates, etc.
+ * - **Total Calculation**: Final point value with all adjustments
+ * 
+ * **Special Rows:**
+ * - `IPx`: Innings pitched multiplier for pitchers
+ * - `DECAY`: Point decay for extremely high values
+ * - `TOTAL`: Final calculated point value
+ * 
+ * Categories are sorted by point contribution (highest first) to show
+ * which aspects of the player's performance drive their overall value.
+ * 
+ * @param pointsBreakdownData - Complete points calculation data
+ * @param ip - Innings pitched for multiplier calculations
+ * @param className - Additional CSS classes
+ * 
+ * @example
+ * ```tsx
+ * <TablePointsBreakdown 
+ *   pointsBreakdownData={card.points_breakdown}
+ *   ip={card.ip}
+ *   className="mt-4"
+ * />
+ * ```
+ */
 export function TablePointsBreakdown({ pointsBreakdownData, ip, className }: TablePointsBreakdownProps) {
-
-    // Convert PointsBreakdown to list of Points Category Breakdowns
+    /**
+     * Convert points breakdown object to array format for table display
+     * Sorted by point contribution (descending) to highlight most valuable categories
+     */
     const pointsCategoryBreakdowns = Object.entries(pointsBreakdownData?.breakdowns || {})
         .map(([key, breakdown]) => ({ ...breakdown, metric: key }))
-        .sort((a, b) => b.points - a.points); // Sort by points descending
+        .sort((a, b) => b.points - a.points);
 
-    // Add another row for IP multiplier if applicable
-    // Use `ip` attribute in parent
+    /**
+     * Add IP multiplier row for pitchers if different from default (1.0)
+     * Shows how innings pitched affects the final point calculation
+     */
     const ip_multiplier = pointsBreakdownData?.ip_multiplier || 1.0;
     if (ip_multiplier !== 1.0) {
         const ipRow: PointsCategoryBreakdown = {
@@ -121,7 +178,10 @@ export function TablePointsBreakdown({ pointsBreakdownData, ip, className }: Tab
         pointsCategoryBreakdowns.push(ipRow);
     }
 
-    // Add another row for `decay_rate`, stored in parent
+    /**
+     * Add decay rate row if point decay is applied
+     * Shows penalty for extremely high statistical values to maintain game balance
+     */
     const decayRate = pointsBreakdownData?.decay_rate || 1.0;
     if (decayRate !== 1.0) {
         const decayRateRow: PointsCategoryBreakdown = {
@@ -131,10 +191,15 @@ export function TablePointsBreakdown({ pointsBreakdownData, ip, className }: Tab
         };
         pointsCategoryBreakdowns.push(decayRateRow);
     }
-    // Add total row
+
+    /**
+     * Calculate and add total points row
+     * Sum of all individual category contributions
+     */
     const totalPoints = Object.entries(pointsBreakdownData?.breakdowns || {})
-                                    .map(([key, breakdown]) => ({ ...breakdown, metric: key }))
-                                    .reduce((sum, breakdown) => sum + (breakdown.points || 0), 0);
+        .map(([key, breakdown]) => ({ ...breakdown, metric: key }))
+        .reduce((sum, breakdown) => sum + (breakdown.points || 0), 0);
+    
     const totalRow: PointsCategoryBreakdown = {
         metric: "TOTAL",
         value: null,

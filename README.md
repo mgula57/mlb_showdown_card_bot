@@ -46,10 +46,9 @@ card = generate_card(
 - [Prerequisites](#prerequisites)
 
 ### 🔧 How It Works
-- [Overview](#-how-it-works)
-- [Player Identification](#player-identification)
-- [Data Collection](#gather-player-data)
-- [Player Overrides](#overrides)
+- [Player Identification](#1-player-identification)
+- [Data Collection](#2-data-collection)
+- [Player Overrides](#3-player-overrides)
 
 ### 📊 Card Creation Formula
 - [Chart Generation](#creating-a-chart)
@@ -61,9 +60,9 @@ card = generate_card(
 - [Historical Players](#negro-leagues-and-pre-20th-century)
 
 ### 🎨 Customization Options
-- [Special Editions](#-editions)
+- [Special Editions](#editions)
 - [Visual Parallels](#parallels)
-- [Time Periods](#period)
+- [Time Periods](#periods)
 - [Advanced Options](#more-options)
 - [Custom Images](#uploading-custom-images)
 

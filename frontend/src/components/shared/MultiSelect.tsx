@@ -1,67 +1,160 @@
+/**
+ * @fileoverview MultiSelect Component
+ * 
+ * A comprehensive multi-selection dropdown component with advanced UX features:
+ * - Multiple option selection with visual tags
+ * - Intelligent portal-based positioning (opens above/below based on space)
+ * - Individual option removal with dedicated buttons
+ * - Bulk select all / clear all functionality
+ * - Responsive positioning that adapts to viewport changes
+ * - Click-outside detection with portal support
+ * - Searchable/filterable options with smooth interactions
+ * - Accessible design with proper ARIA labeling
+ * 
+ * Uses React portals to render dropdown outside component hierarchy, preventing
+ * z-index and overflow issues. Positioning dynamically adjusts based on available
+ * viewport space to ensure dropdown remains visible.
+ * 
+ * @component
+ * @example
+ * ```tsx
+ * <MultiSelect
+ *   label="Select Teams"
+ *   labelDescription="Choose multiple MLB teams"
+ *   options={[
+ *     { value: 'nyy', label: 'New York Yankees' },
+ *     { value: 'bos', label: 'Boston Red Sox' }
+ *   ]}
+ *   selections={selectedTeams}
+ *   onChange={setSelectedTeams}
+ *   placeholder="Choose teams..."
+ * />
+ * ```
+ */
+
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { FaChevronDown, FaCheck, FaTimes } from 'react-icons/fa';
 
-// Props for MultiSelect
+/**
+ * Props for the MultiSelect component
+ */
 interface MultiSelectProps {
+    /** Primary label text displayed above the component */
     label: string;
+    /** Optional secondary description text for additional context */
     labelDescription?: string;
+    /** Array of selectable options with value and display label */
     options: { value: string; label: string }[];
+    /** Current selected values array */
     selections?: string[];
+    /** Callback function called when selections change */
     onChange: (values: string[]) => void;
+    /** Placeholder text shown when no selections are made */
     placeholder?: string;
+    /** Optional CSS class for styling customization */
     className?: string;
 }
 
-// Multi-Select Dropdown Component
+/**
+ * MultiSelect dropdown component with intelligent positioning and rich interactions
+ * 
+ * Features:
+ * - Portal-based dropdown rendering for z-index independence
+ * - Smart positioning (above/below) based on available space
+ * - Individual tag removal and bulk selection controls
+ * - Responsive positioning updates on scroll/resize
+ * - Click-outside detection across portal boundaries
+ * - Visual selection feedback with checkboxes
+ * - Accessible keyboard and screen reader support
+ * 
+ * @param props - Component props
+ * @returns A multi-selection dropdown with tags and advanced UX
+ */
 const MultiSelect = ({ label, labelDescription, options, selections, onChange, placeholder = "Select...", className }: MultiSelectProps) => {
 
+    // State management for dropdown behavior and positioning
+    /** Controls dropdown visibility */
     const [isOpen, setIsOpen] = useState(false);
-    const wrapperRef = useRef<HTMLDivElement>(null);    // outer component
-    const triggerRef = useRef<HTMLButtonElement>(null); // button that triggers menu
-    const menuRef = useRef<HTMLDivElement>(null);       // portal menu
+    
+    // Refs for DOM access and portal positioning
+    const wrapperRef = useRef<HTMLDivElement>(null);    // Main component wrapper
+    const triggerRef = useRef<HTMLButtonElement>(null); // Button that opens dropdown
+    const menuRef = useRef<HTMLDivElement>(null);       // Portal dropdown menu
 
+    /** Determines if dropdown should open above the trigger */
     const [openAbove, setOpenAbove] = useState(false);
+    /** CSS styles for fixed positioning of portal dropdown */
     const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+    
+    /** Current selected values with fallback to empty array */
     const selectedValues = selections || [];
 
+    /** 
+     * Toggles selection state of an option (add if not selected, remove if selected)
+     * @param value - The option value to toggle
+     */
     const toggleOption = (value: string) => {
         const newValues = selectedValues.includes(value)
-            ? selectedValues.filter(v => v !== value)
-            : [...selectedValues, value];
+            ? selectedValues.filter(v => v !== value)  // Remove if already selected
+            : [...selectedValues, value];              // Add if not selected
         onChange(newValues);
     };
 
+    /** 
+     * Removes a specific option from selections (used by tag close buttons)
+     * @param value - The option value to remove
+     * @param event - Mouse event to prevent dropdown toggle
+     */
     const removeOption = (value: string, event: React.MouseEvent) => {
-        event.stopPropagation();
+        event.stopPropagation(); // Prevent triggering dropdown toggle
         const newValues = selectedValues.filter(v => v !== value);
         onChange(newValues);
     };
 
+    /** 
+     * Clears all selected options (used by "Clear All" button)
+     * @param event - Mouse event to prevent dropdown toggle
+     */
     const clearAll = (event: React.MouseEvent) => {
-        event.stopPropagation();
+        event.stopPropagation(); // Prevent triggering dropdown toggle
         onChange([]);
     };
 
-    // Recompute fixed position (and whether to open above)
+    /**
+     * Calculates and updates dropdown positioning based on available viewport space
+     * 
+     * This function:
+     * - Measures space above and below the trigger button
+     * - Determines optimal positioning (above/below) to keep dropdown visible
+     * - Ensures dropdown stays within viewport bounds with padding
+     * - Sets maximum height based on available space
+     * - Updates portal positioning styles for fixed positioning
+     */
     const updatePosition = () => {
         if (!triggerRef.current) return;
+        
         const rect = triggerRef.current.getBoundingClientRect();
-        const menuH = menuRef.current?.getBoundingClientRect()?.height ?? 240;
+        const menuH = menuRef.current?.getBoundingClientRect()?.height ?? 240; // Fallback height
 
+        // Calculate available space in both directions
         const spaceBelow = window.innerHeight - rect.bottom;
         const spaceAbove = rect.top;
+        
+        // Open above if insufficient space below and more space above
         const shouldOpenAbove = spaceBelow < menuH && spaceAbove > spaceBelow;
-
         setOpenAbove(shouldOpenAbove);
 
+        // Ensure dropdown stays within horizontal viewport bounds (8px padding)
         const left = Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8));
         const top = shouldOpenAbove ? rect.top : rect.bottom;
 
+        // Calculate maximum height based on available space (120px minimum)
         const maxHeight = shouldOpenAbove
-            ? Math.max(120, rect.top - 8)
-            : Math.max(120, window.innerHeight - rect.bottom - 8);
+            ? Math.max(120, rect.top - 8)         // Space above minus padding
+            : Math.max(120, window.innerHeight - rect.bottom - 8); // Space below minus padding
 
+        // Update portal styles for fixed positioning
         setDropdownStyle({
             position: 'fixed',
             top,
@@ -72,14 +165,28 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
         });
     };
 
-    // Position on open + keep updated on resize/scroll (capture to catch inner scrollers)
+    /**
+     * Effect: Manages dropdown positioning and responsive behavior
+     * 
+     * When dropdown is open:
+     * - Calculates initial position
+     * - Sets up event listeners for responsive repositioning
+     * - Handles viewport changes (resize, orientation, scroll)
+     * - Uses capture phase for scroll to catch nested scrollable containers
+     * 
+     * Updates whenever dropdown state or options change
+     */
     useEffect(() => {
         if (!isOpen) return;
+        
         updatePosition();
         const handle = () => updatePosition();
+        
+        // Listen for all events that might affect positioning
         window.addEventListener('resize', handle);
         window.addEventListener('orientationchange', handle);
-        window.addEventListener('scroll', handle, true);
+        window.addEventListener('scroll', handle, true); // Capture phase for nested scrollers
+        
         return () => {
             window.removeEventListener('resize', handle);
             window.removeEventListener('orientationchange', handle);
@@ -87,14 +194,23 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
         };
     }, [isOpen, options.length]);
 
-    // Close when clicking outside (account for portal)
+    /**
+     * Effect: Click-outside detection for dropdown closing
+     * 
+     * Handles clicks outside both the main component and the portal dropdown.
+     * This is necessary because the dropdown is rendered in a portal outside
+     * the normal component tree, requiring special handling for outside clicks.
+     */
     useEffect(() => {
         const onDocClick = (e: MouseEvent) => {
             const target = e.target as Node;
+            
+            // Close if click is outside both wrapper and portal menu
             if (!wrapperRef.current?.contains(target) && !menuRef.current?.contains(target)) {
                 setIsOpen(false);
             }
         };
+        
         document.addEventListener('mousedown', onDocClick);
         return () => document.removeEventListener('mousedown', onDocClick);
     }, []);

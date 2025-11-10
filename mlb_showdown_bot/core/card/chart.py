@@ -4,6 +4,7 @@ from typing import Union, Optional
 from collections import ChainMap
 from pprint import pprint
 from operator import itemgetter
+from datetime import datetime
 import numpy as np
 import math
 
@@ -1668,6 +1669,11 @@ class Chart(BaseModel):
         max_year_mlb_avgs = max(MLB_SEASON_AVGS.keys())
         num_years_card = len(year_list)
         max_year_card = max(year_list) if len(year_list) > 0 else 0
+
+        # ISSUE WARNING IF ITS THE CURRENT YEAR, AFTER JUNE 30TH, AND STILL USING LAST YEAR'S AVERAGES
+        current_year = datetime.now().year
+        if current_year > max_year_mlb_avgs and datetime.now().month > 6:
+            print(f"** WARNING: Using last year's ({max_year_mlb_avgs}) MLB averages for era adjustment. Consider updating to current year averages.")
 
         # IF SINGLE YEAR, TAKE ACTUALS FOR THAT YEAR OR THE PREVIOUS YEAR
         if num_years_card == 1:

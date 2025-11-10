@@ -1,58 +1,129 @@
+/**
+ * @fileoverview CustomSelect Component
+ * 
+ * A highly customizable dropdown select component with support for:
+ * - Rich option content (images, symbols, icons, custom colors)
+ * - Portal-based dropdown positioning to avoid z-index issues
+ * - Intelligent positioning (opens above when there's insufficient space below)
+ * - Click-outside detection for UX consistency
+ * - Extensive styling customization through className props
+ * - Responsive behavior with viewport boundary detection
+ * 
+ * The component uses React portals to render the dropdown menu directly to document.body,
+ * ensuring it appears above other elements regardless of parent container z-index or overflow settings.
+ * 
+ * @component
+ * @example
+ * ```tsx
+ * <CustomSelect
+ *   value={selectedTeam}
+ *   onChange={setSelectedTeam}
+ *   options={[
+ *     { value: 'nyy', label: 'Yankees', image: '/teams/nyy.png' },
+ *     { value: 'bos', label: 'Red Sox', symbol: '⚾' }
+ *   ]}
+ *   suffix="Team"
+ * />
+ * ```
+ */
+
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
-/* Represents a single option in the custom select dropdown */
+/**
+ * Represents a single option in the custom select dropdown
+ * Supports multiple content types for rich option display
+ */
 type SelectOption = {
+    /** Unique identifier for the option */
     value: string;
+    /** Display text for the option */
     label?: string;
+    /** URL to an image to display alongside the option */
     image?: string;
+    /** Single character or emoji symbol to display */
     symbol?: string;
+    /** React component or element to display as an icon */
     icon?: React.ReactNode;
+    /** Custom border color for the option when selected */
     borderColor?: string;
+    /** Custom text color for the option */
     textColor?: string;
 }
 
-/** Props for the custom select component */
+/**
+ * Props for the CustomSelect component
+ * Provides extensive customization options for styling and behavior
+ */
 type CustomSelectProps = {
+    /** Currently selected value */
     value: string;
+    /** Callback function called when selection changes */
     onChange: (value: string) => void;
+    /** Array of selectable options */
     options: SelectOption[];
-    className?: string; // Optional className for additional styling
-    buttonClassName?: string; // Optional className for the button
-    imageClassName?: string; // Optional className for the image
-    labelClassName?: string; // Optional className for the text
-    dropdownClassName?: string; // Optional className for the dropdown menu
-    suffix?: string; // Optional suffix to display after the selected value
+    /** Optional CSS class for the container element */
+    className?: string;
+    /** Optional CSS class for the select button */
+    buttonClassName?: string;
+    /** Optional CSS class for option images */
+    imageClassName?: string;
+    /** Optional CSS class for option labels */
+    labelClassName?: string;
+    /** Optional CSS class for the dropdown menu */
+    dropdownClassName?: string;
+    /** Optional text to display after the selected value */
+    suffix?: string;
 };
 
-/** Custom select component for selecting an option from a dropdown list. */
+/**
+ * Custom select component with intelligent dropdown positioning and rich option support
+ * 
+ * Features:
+ * - Portal-based dropdown rendering to avoid z-index issues
+ * - Automatic positioning (above/below) based on available viewport space
+ * - Support for images, symbols, and icons in options
+ * - Extensive styling customization
+ * - Click-outside detection for smooth UX
+ * - Responsive positioning that updates on scroll/resize
+ * 
+ * @param props - Component props
+ * @returns A customizable select dropdown component
+ */
 const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "" }) => {
 
-    /** State to manage dropdown open/close */
+    // State management for dropdown behavior and positioning
+    /** Controls whether the dropdown menu is visible */
     const [isOpen, setIsOpen] = useState(false);
-    const [openAbove, setOpenAbove] = useState(false); // NEW
+    /** Determines if dropdown should open above the button (when space below is limited) */
+    const [openAbove, setOpenAbove] = useState(false);
+    /** Absolute positioning coordinates for the portal dropdown */
     const [menuPos, setMenuPos] = useState<{ left: number; top: number; }>({ left: 0, top: 0 });
 
-    // Refs to manage click outside detection
+    // Refs for DOM element access and click-outside detection
     const buttonRef = useRef<HTMLButtonElement | null>(null);
     const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-    /** Open/close the dropdown when the button is clicked */
+    /** Toggles dropdown visibility when the select button is clicked */
     const handleToggle = () => {
         setIsOpen(!isOpen);
     };
 
-    /** User selects an option from the dropdown */
+    /** Handles option selection and closes the dropdown */
     const handleOptionClick = (optionValue: string) => {
         onChange(optionValue);
         setIsOpen(false);
     };
 
-    /** Close the dropdown if clicking outside of it */
+    /** 
+     * Closes dropdown when clicking outside the component
+     * Uses event delegation to detect clicks outside both button and dropdown
+     */
     const handleClickOutside = (event: MouseEvent) => {
         const target = event.target;
         if (!(target instanceof Node)) return;
 
+        // Close if click is outside both the button and dropdown elements
         if (
             dropdownRef.current &&
             !dropdownRef.current.contains(target) &&
@@ -63,26 +134,53 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
         }
     };
 
-    /** Measure the dropdown position and set direction based on available space */
+    /**
+     * Calculates optimal dropdown positioning based on available viewport space
+     * 
+     * Intelligently determines whether to open above or below the button by:
+     * - Measuring available space above and below the button
+     * - Comparing against dropdown menu height
+     * - Positioning the portal dropdown with fixed coordinates
+     * - Ensuring dropdown stays within viewport boundaries
+     */
     const measureAndSetDirection = () => {
         if (!buttonRef.current) return;
+        
         const btnRect = buttonRef.current.getBoundingClientRect();
         const spaceBelow = window.innerHeight - btnRect.bottom;
         const spaceAbove = btnRect.top;
         const menuH = dropdownRef.current?.getBoundingClientRect().height ?? 0;
+        
+        // Open above if insufficient space below and more space above
         const shouldOpenAbove = spaceBelow < menuH && spaceAbove > spaceBelow;
         setOpenAbove(shouldOpenAbove);
-        setMenuPos({ left: btnRect.left, top: shouldOpenAbove ? btnRect.top : btnRect.bottom });
+        
+        // Set fixed positioning coordinates for portal
+        setMenuPos({ 
+            left: btnRect.left, 
+            top: shouldOpenAbove ? btnRect.top : btnRect.bottom 
+        });
     };
 
-    // Add event listener for clicks outside the dropdown when it is open
+    /**
+     * Effect for managing dropdown positioning and event listeners
+     * 
+     * When dropdown opens:
+     * - Calculates initial position
+     * - Sets up responsive listeners for resize/scroll to maintain position
+     * - Adds click-outside detection
+     * 
+     * Uses capture:true for scroll to catch events from any scrollable container
+     */
     useEffect(() => {
         if (!isOpen) return;
 
         measureAndSetDirection();
         const handleUpdate = () => measureAndSetDirection();
+        
+        // Listen for viewport changes to maintain correct positioning
         window.addEventListener('resize', handleUpdate);
-        window.addEventListener('scroll', handleUpdate, true);
+        window.addEventListener('scroll', handleUpdate, true); // Capture phase for nested scrollers
         document.addEventListener('mousedown', handleClickOutside);
         
         return () => {
@@ -93,15 +191,23 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
 
     }, [isOpen, options.length]);
 
-    /** Helper functions to render any passed in image */
+    /** 
+     * Renders an image element for options that include image URLs
+     * @param image - Optional image URL string
+     * @returns Image element or null if no image provided
+     */
     const renderImage = (image: string | undefined) => {
         if (image) {
-            return <img src={image} alt="flag" className={imageClassName ? imageClassName : `mr-2 w-5 h-5 object-contain object-center`} />;
+            return <img src={image} alt="option image" className={imageClassName ? imageClassName : `mr-2 w-5 h-5 object-contain object-center`} />;
         }
         return null;
     };
 
-    /** Helper functions to render any passed in symbol */
+    /** 
+     * Renders a symbol/emoji for options that include symbol content
+     * @param symbol - Optional symbol string (emoji, character, etc.)
+     * @returns Span element with symbol or null if no symbol provided
+     */
     const renderSymbol = (symbol: string | undefined) => {
         if (symbol) {
             return <span className="mr-2">{symbol}</span>;
@@ -109,7 +215,11 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
         return null;
     };
 
-    /** Helper functions to render any passed in icon */
+    /** 
+     * Renders a React component/element for options that include custom icons
+     * @param icon - Optional React node for icon display
+     * @returns Span wrapper with icon or null if no icon provided
+     */
     const renderIcon = (icon: React.ReactNode) => {
         if (icon) {
             return <span className="bg-secondary my-auto mr-2">{icon}</span>;
@@ -117,7 +227,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
         return null;
     };
 
-    /** Check if the selected option has a custom border color, otherwise use default */
+    /** Determines border color for the select button based on selected option's custom styling */
     const selectedBorderColor = options.find(option => option.value === value)?.borderColor || 'border-form-element';
 
     return (

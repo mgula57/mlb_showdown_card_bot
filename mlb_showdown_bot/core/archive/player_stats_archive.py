@@ -10,6 +10,7 @@ from requests import exceptions as req_exc
 from ..database.postgres_db import PostgresDB, PlayerArchive
 from .player_stats import PlayerStats, PlayerType
 from ..card.utils.shared_functions import convert_to_numeric
+from ..card.showdown_player_card import ShowdownPlayerCard, StatsPeriod, StatsPeriodType, ShowdownImage, StatHighlightsType, PlayerType, Set as ShowdownSet
 
 
 class PlayerStatsArchive:
@@ -219,7 +220,7 @@ class PlayerStatsArchive:
     def is_player_list_empty(self) -> bool:
         return len(self.player_list) == 0
 
-    def scrape_stats_for_player_list(self, delay:float = 10.0, publish_to_postgres:bool=True, limit:int=None, exclude_records_with_stats:bool=True, modified_start_date:str = None, modified_end_date:str = None) -> None:
+    def scrape_stats_for_player_list(self, delay:float = 10.0, publish_to_postgres:bool=True, limit:int=None, exclude_records_with_stats:bool=True, modified_start_date:str = None, modified_end_date:str = None, player_id_list:list[str] = None) -> None:
         """Using the class player_list array, iterrate through players and scrape bref data.
 
         Args:
@@ -242,7 +243,7 @@ class PlayerStatsArchive:
 
             # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
             if self.is_player_list_empty:
-                self.fill_player_stats_from_archive(db=db, exclude_records_with_stats=exclude_records_with_stats, modified_start_date=modified_start_date, modified_end_date=modified_end_date)
+                self.fill_player_stats_from_archive(db=db, exclude_records_with_stats=exclude_records_with_stats, modified_start_date=modified_start_date, modified_end_date=modified_end_date, player_id_list=player_id_list)
             else:
                 self.player_list = [
                     player for player in self.player_list 
@@ -250,6 +251,7 @@ class PlayerStatsArchive:
                         (exclude_records_with_stats and player.stats and len(player.stats) > 0)
                         or (modified_start_date and player.modified_date and player.modified_date < datetime.fromisoformat(modified_start_date))
                         or (modified_end_date and player.modified_date and player.modified_date > datetime.fromisoformat(modified_end_date))
+                        or (player_id_list and player.bref_id not in player_id_list)
                     )
                 ]
 
@@ -286,9 +288,28 @@ class PlayerStatsArchive:
         if publish_to_postgres:
             # CLOSE CONNECTION
             db.close_connection()
-    
-    def fill_player_stats_from_archive(self, db: PostgresDB, exclude_records_with_stats:bool=False, modified_start_date: str = None, modified_end_date: str = None) -> None:
-        player_archive_list: list[PlayerArchive] = db.fetch_all_stats_from_archive(year_list=self.years, exclude_records_with_stats=exclude_records_with_stats, historical_date=self.historical_date, modified_start_date=modified_start_date, modified_end_date=modified_end_date)
+
+    def fill_player_stats_from_archive(self, db: PostgresDB, exclude_records_with_stats:bool=False, modified_start_date: str = None, modified_end_date: str = None, player_id_list: list[str] = None) -> None:
+        """Fill player stats list from archive database.
+        
+        Args:
+            db: PostgresDB object.
+            exclude_records_with_stats: Flag to exclude records with stats.
+            modified_start_date: Limit to only records modified after this date.
+            modified_end_date: Limit to only records modified before this date.
+            player_id_list: Limit to only records for these player IDs.
+        
+        Returns:
+            None
+        """
+        player_archive_list: list[PlayerArchive] = db.fetch_all_stats_from_archive(
+            year_list=self.years, 
+            exclude_records_with_stats=exclude_records_with_stats, 
+            historical_date=self.historical_date, 
+            modified_start_date=modified_start_date, 
+            modified_end_date=modified_end_date,
+            filters=[('bref_id', player_id_list)] if player_id_list else []
+        )
         for player_archive in player_archive_list:
             player_archive_data = player_archive.__dict__
             player_stats = PlayerStats(year=player_archive.year, type=PlayerType(player_archive.player_type), data=player_archive_data, two_way_players_list=[], historical_date=self.historical_date)
@@ -298,7 +319,73 @@ class PlayerStatsArchive:
                 setattr(player_stats, key, value)
             self.player_list.append(player_stats)
 
-    
+
+# ------------------------------------------------------------------------
+# CONVERTING TO SHOWDOWN CARDS
+# ------------------------------------------------------------------------
+
+    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, refresh_explore: bool=True, sets: list[ShowdownSet] = None) -> None:
+        """Using the class player_list"""
+
+        # DEFAULT SETS TO ALL IF NONE PROVIDED
+        if sets is None:
+            sets = [s for s in ShowdownSet]
+
+        # FETCH PLAYER DATA FROM ARCHIVE
+        if publish_to_postgres:
+            # CREATE DATABASE TABLE
+            db = PostgresDB(is_archive=True)
+
+            # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
+            if self.is_player_list_empty:
+                self.fill_player_stats_from_archive(db=db)
+
+        print("CONVERTING TO SHOWDOWN CARDS...")
+        showdown_cards: list[ShowdownPlayerCard] = []
+        for set in sets:
+            print(f'\nSET: {set}')
+            total_players = len(self.player_list)
+            for index, player in enumerate(self.player_list, 1):
+                type_override_raw = player.player_type_override
+                type_override = PlayerType.PITCHER if type_override_raw else None
+                name = player.name
+                year = str(player.year)
+                stats = player.stats
+                set = set
+
+                stats_period = StatsPeriod(type=StatsPeriodType.REGULAR_SEASON, year=year)
+                image = ShowdownImage(stat_highlights_type=StatHighlightsType.ALL)
+
+                if player.bref_id in ['howelha01', 'dunnja01','sudhowi01','mercewi01'] and type_override_raw == '(pitcher)':
+                    continue
+                
+                # SKIP PLAYERS WITH 0 PA
+                if stats.get('PA', 0) == 0:
+                    continue
+
+                print(f"  {index}/{total_players}: {name: <30}", end="\r")
+                try:
+                    showdown = ShowdownPlayerCard(
+                        name=name, year=year, stats=stats, stats_period=stats_period,
+                        set=set, player_type_override=type_override, print_to_cli=False,
+                        image=image
+                    )
+                except Exception as e:
+                    print(f"\nERROR CREATING SHOWDOWN CARD FOR {name} ({year}) - {e}")
+                    continue
+                
+                showdown_cards.append(showdown)
+            
+        if len(showdown_cards) == 0:
+            print("NO SHOWDOWN CARDS GENERATED.")
+            return
+        
+        db.upload_to_card_data(showdown_cards=showdown_cards, batch_size=1000)
+
+        if refresh_explore:
+            db.refresh_explore_views()
+
+
 # ------------------------------------------------------------------------
 # PARSE DATA
 # ------------------------------------------------------------------------

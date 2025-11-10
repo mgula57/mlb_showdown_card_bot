@@ -1,17 +1,67 @@
+/**
+ * @fileoverview TeamHierarchy - Hierarchical team selection component
+ * 
+ * Provides a three-tier selection system for filtering cards by organizational structure:
+ * Organization → League → Team, with dynamic filtering at each level.
+ */
+
 import { useMemo } from 'react';
 import MultiSelect from '../shared/MultiSelect';
 import type { TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 
+/**
+ * Props for the TeamHierarchy component
+ */
 interface TeamHierarchyProps {
+    /** Complete hierarchy data from the database */
     hierarchyData: TeamHierarchyRecord[];
+    /** Currently selected organizations */
     selectedOrganizations?: string[];
+    /** Currently selected leagues */
     selectedLeagues?: string[];
+    /** Currently selected teams */
     selectedTeams?: string[];
+    /** Handler for organization selection changes */
     onOrganizationChange: (values: string[]) => void;
+    /** Handler for league selection changes */
     onLeagueChange: (values: string[]) => void;
+    /** Handler for team selection changes */
     onTeamChange: (values: string[]) => void;
 }
 
+/**
+ * TeamHierarchy - Hierarchical team selection component
+ * 
+ * Provides cascading filters for baseball organizational structure:
+ * 
+ * **Organization Level**: MLB, Negro Leagues, etc.
+ * **League Level**: AL, NL, Eastern League, etc. (filtered by organization)
+ * **Team Level**: Individual teams (filtered by organization + league)
+ * 
+ * Each level dynamically updates based on higher-level selections,
+ * ensuring users can only select valid combinations that exist in the data.
+ * 
+ * @param hierarchyData - Complete team hierarchy from database
+ * @param selectedOrganizations - Current organization selections
+ * @param selectedLeagues - Current league selections  
+ * @param selectedTeams - Current team selections
+ * @param onOrganizationChange - Organization change handler
+ * @param onLeagueChange - League change handler
+ * @param onTeamChange - Team change handler
+ * 
+ * @example
+ * ```tsx
+ * <TeamHierarchy
+ *   hierarchyData={teamData}
+ *   selectedOrganizations={filters.organization}
+ *   selectedLeagues={filters.league}
+ *   selectedTeams={filters.team}
+ *   onOrganizationChange={(orgs) => updateFilters({organization: orgs})}
+ *   onLeagueChange={(leagues) => updateFilters({league: leagues})}
+ *   onTeamChange={(teams) => updateFilters({team: teams})}
+ * />
+ * ```
+ */
 export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
     hierarchyData,
     selectedOrganizations = [],
@@ -21,7 +71,10 @@ export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
     onLeagueChange,
     onTeamChange,
 }) => {
-    // Get unique organizations
+    /**
+     * Generate organization options from hierarchy data
+     * All unique organizations sorted alphabetically
+     */
     const organizationOptions: { value: string; label: string }[] = useMemo(() => {
         const uniqueOrgs = [...new Set(hierarchyData.map(item => item.organization))];
         return uniqueOrgs
@@ -29,10 +82,14 @@ export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
             .map(org => ({ value: org, label: org }));
     }, [hierarchyData]);
 
-    // Get leagues filtered by selected organizations
+    /**
+     * Generate league options filtered by selected organizations
+     * Only shows leagues that exist within the selected organizations
+     */
     const leagueOptions: { value: string; label: string }[] = useMemo(() => {
         let filteredData = hierarchyData;
         
+        // Filter by selected organizations if any are selected
         if (selectedOrganizations.length > 0) {
             filteredData = hierarchyData.filter(item => 
                 selectedOrganizations.includes(item.organization)
@@ -45,7 +102,10 @@ export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
             .map(league => ({ value: league, label: league }));
     }, [hierarchyData, selectedOrganizations]);
 
-    // Get teams filtered by selected organizations and leagues
+    /**
+     * Generate team options filtered by selected organizations and leagues
+     * Only shows teams that exist within the selected org/league combinations
+     */
     const teamOptions: { value: string; label: string }[] = useMemo(() => {
         let filteredData = hierarchyData;
         

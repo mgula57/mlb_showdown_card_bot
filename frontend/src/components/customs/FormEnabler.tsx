@@ -1,17 +1,49 @@
+/**
+ * @fileoverview FormEnabler - Toggle button form component
+ * 
+ * Provides a visual toggle button for boolean form options with checkmark icons
+ * and dynamic styling. Used for enabling/disabling features in the card builder
+ * such as borders, dark mode, or special effects.
+ */
+
 import React from 'react';
 import { FaCheckCircle, FaRegCircle } from 'react-icons/fa';
 
-/** Props for the FormEnabler component */
+/**
+ * Props for the FormEnabler component
+ */
 type FormEnablerProps = {
+    /** Display label for the toggle option */
     label: string;
+    /** Current enabled/disabled state */
     isEnabled: boolean;
+    /** Callback function when toggle state changes */
     onChange: (isEnabled: boolean) => void;
-    className?: string; // Optional className for additional styling
+    /** Optional CSS class names for additional styling */
+    className?: string;
 };
 
-/** 
- * FormEnabler component for toggling a form element's enabled state.
- * Displays a button that can be clicked to enable/disable the form element.
+/**
+ * FormEnabler - Visual toggle button for boolean form options
+ * 
+ * Creates an interactive button that displays the current state with icons
+ * (checkmark for enabled, circle for disabled) and dynamic styling. Provides
+ * immediate visual feedback for boolean settings in the card customization.
+ * 
+ * @example
+ * ```tsx
+ * <FormEnabler
+ *   label="Add Border"
+ *   isEnabled={form.is_bordered}
+ *   onChange={(enabled) => setForm({ ...form, is_bordered: enabled })}
+ * />
+ * ```
+ * 
+ * @param label - Text displayed next to the toggle icon
+ * @param isEnabled - Current boolean state
+ * @param onChange - Toggle state change handler
+ * @param className - Additional styling classes
+ * @returns Interactive toggle button component
  */
 const FormEnabler: React.FC<FormEnablerProps> = ({ label, isEnabled, onChange, className = "" }) => {
 
@@ -30,7 +62,7 @@ const FormEnabler: React.FC<FormEnablerProps> = ({ label, isEnabled, onChange, c
             `} 
             onClick={() => onChange(isEnabled)}
         >
-            {/* Show a checkmark or a circle based on the enabled state */}
+            {/* Toggle icon - checkmark when enabled, empty circle when disabled */}
             {isEnabled ? <FaCheckCircle /> : <FaRegCircle />}
             {label}
         </button>

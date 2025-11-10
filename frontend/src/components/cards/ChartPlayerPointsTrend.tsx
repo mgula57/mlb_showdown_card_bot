@@ -1,31 +1,82 @@
+/**
+ * @fileoverview ChartPlayerPointsTrend - Performance trend visualization component
+ * 
+ * Creates dynamic area charts showing how a player's Showdown card values
+ * change over time, with team-color gradients and interactive tooltips
+ * displaying detailed performance metrics for each data point.
+ */
+
 import { type TrendDatapoint } from '../../api/showdownBotCard';
 import { ResponsiveContainer, AreaChart, XAxis, YAxis, Tooltip, Area, CartesianGrid } from 'recharts';
 import { useMemo } from 'react';
 import { enhanceColorVisibility } from '../../functions/colors';
 
+/**
+ * Props for the ChartPlayerPointsTrend component
+ */
 type ChartPlayerPointsTrendProps = {
+    /** Chart title displayed above the visualization */
     title: string;
+    /** Trend data keyed by time period (year/date) */
     trendData?: Record<string, TrendDatapoint> | null;
 };
 
-
+/**
+ * ChartPlayerPointsTrend - Performance trend visualization component
+ * 
+ * Creates interactive area charts showing performance trends over time with:
+ * 
+ * **Visual Features:**
+ * - **Dynamic Gradients**: Colors change based on team affiliations over time
+ * - **Area Chart**: Shows point values with filled area under the curve
+ * - **Interactive Tooltips**: Detailed stats on hover for each data point
+ * - **Responsive Design**: Adapts to container size
+ * 
+ * **Chart Types:**
+ * - **Career Trends**: Year-by-year performance across player's career
+ * - **Season Trends**: Within-season performance by date/month/week
+ * 
+ * The component handles missing data gracefully by showing placeholder
+ * data with appropriate scaling and formatting for the chart type.
+ * 
+ * @param title - Chart title and type identifier
+ * @param trendData - Performance data points keyed by time period
+ * 
+ * @example
+ * ```tsx
+ * <ChartPlayerPointsTrend 
+ *   title="Career Trends"
+ *   trendData={cardResponse.historical_season_trends?.yearly_trends}
+ * />
+ * ```
+ */
 const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProps) => {
 
-    // Convert trendData to array format
+    /**
+     * Convert trend data from object to array format for chart consumption
+     * Enhances colors for better visibility and sets appropriate x-axis values
+     */
     const placeholderData = title === "Career Trends" ? generic_career_data : generic_in_season_data;
     const isPlaceholderData = !trendData || Object.keys(trendData).length === 0;
     const trendArray = Object.entries(trendData || placeholderData)
-                            .map(([key, value]) => ({ 
-                                ...value,
-                                color: enhanceColorVisibility(value.color),
-                                x_axis: title === "Career Trends" ? key : new Date(key).getTime(), // Use year or date as x_axis
-                            }))
+        .map(([key, value]) => ({ 
+            ...value,
+            color: enhanceColorVisibility(value.color),
+            // Use year for career trends, timestamp for season trends
+            x_axis: title === "Career Trends" ? key : new Date(key).getTime(),
+        }));
 
-    // Create unique id for each chart instance
+    /**
+     * Generate unique gradient IDs to prevent conflicts between multiple chart instances
+     * Each chart needs its own gradient definition in the SVG
+     */
     const gradientId = useMemo(() => `gradient-${Math.random().toString(36).substr(2, 9)}`, [title]);
     const strokeGradientId = useMemo(() => `stroke-gradient-${Math.random().toString(36).substr(2, 9)}`, [title]);
 
-    // Create horizontal gradient stops based on data colors
+    /**
+     * Create horizontal gradient stops based on team colors over time
+     * Each data point contributes its team color to the overall gradient
+     */
     const createHorizontalGradient = useMemo(() => {
         const totalPoints = trendArray.length;
         const stops = trendArray.map((point, index) => {
@@ -35,13 +86,20 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                     key={index}
                     offset={`${position}%`} 
                     stopColor={point.color} 
-                    stopOpacity={0.8} // Increased opacity to see colors better
+                    stopOpacity={0.8} // Enhanced opacity for better color visibility
                 />
             );
         });
         return stops;
     }, [trendArray]);
 
+    /**
+     * Custom tooltip component for displaying detailed point breakdown
+     * Shows all MLB Showdown stat categories with proper date formatting
+     * @param active - Whether tooltip is currently active
+     * @param payload - Chart data payload for the hovered point
+     * @param label - X-axis label (year or timestamp)
+     */
     const CustomTooltip = ({ active, payload, label }: any) => {
         const isVisible = active && payload && payload.length;
         const card = payload[0]?.payload as TrendDatapoint;
@@ -75,13 +133,18 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
         );
     };
 
-    // Format X-axis labels based on title
+    /**
+     * Format X-axis labels based on chart type
+     * Career trends show years, season trends show formatted dates
+     * @param value - Raw axis value (year string or timestamp)
+     * @returns Formatted display string
+     */
     const formatXAxisLabel = (value: string) => {
         if (title === "Career Trends") {
-            // For career trends, just return the year as-is
+            // Display year directly for career progression
             return value;
         } else {
-            // For dates, format as "Apr 1", "Apr 11", etc.
+            // Format timestamps as readable dates for in-season trends
             try {
                 const date = new Date(value);
                 const options: Intl.DateTimeFormatOptions = { 
@@ -90,13 +153,13 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                 };
                 return date.toLocaleDateString('en-US', options);
             } catch (error) {
-                // Fallback to original value if date parsing fails
+                // Graceful fallback if date parsing fails
                 return value;
             }
         }
     };
 
-    // MARK: MAIN CONTENT
+    // MARK: RENDER
     return (
         <div 
             className="
@@ -110,10 +173,10 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                 select-none
             "
         >
-            {/* Title */}
+            {/* Chart title */}
             <h2>{title}</h2>
 
-            {/* Placeholder overlay */}
+            {/* No data overlay - shown when using placeholder data */}
             {isPlaceholderData && (
                 <div className="
                     absolute inset-0 
@@ -135,22 +198,24 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                 </div>
             )}
 
-            {/* Graph */}
+            {/* Responsive area chart container */}
             <ResponsiveContainer width="100%" height={250}>
-                {/* Add your chart component here, using trendData as needed */}
                 <AreaChart 
                     data={trendArray}
-                    onClick={isPlaceholderData ? undefined : undefined} // Disable click
-                    onMouseEnter={isPlaceholderData ? undefined : undefined} // Disable mouse enter
-                    onMouseLeave={isPlaceholderData ? undefined : undefined} // Disable mouse leave
+                    // Disable interactions when showing placeholder data
+                    onClick={isPlaceholderData ? undefined : undefined}
+                    onMouseEnter={isPlaceholderData ? undefined : undefined}
+                    onMouseLeave={isPlaceholderData ? undefined : undefined}
                     style={{ 
                         pointerEvents: isPlaceholderData ? 'none' : 'auto',
                         opacity: isPlaceholderData ? 0.75 : 1,
                         cursor: isPlaceholderData ? 'default' : 'pointer'
                     }}
                 >
+                    {/* Grid lines for visual reference */}
                     <CartesianGrid strokeDasharray="3 3" stroke='var(--table-header)'/>
                     
+                    {/* X-axis configuration - adapts to chart type */}
                     <XAxis 
                         dataKey="x_axis" 
                         type={title === "Career Trends" ? "category" : "number"}
@@ -162,21 +227,24 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                         tickFormatter={formatXAxisLabel}
                     />
                     
+                    {/* Y-axis for point values */}
                     <YAxis 
                         fontSize={12} 
                         width={30}
                         tickFormatter={(value) => `${value}`}
                     />
 
+                    {/* Interactive tooltip with detailed stats */}
                     <Tooltip content={CustomTooltip}/>
 
-                    {/* Horizontal gradient definition */}
+                    {/* SVG gradient definitions */}
                     <defs>
+                        {/* Area fill gradient - horizontal team color transition */}
                         <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
                             {createHorizontalGradient}
                         </linearGradient>
 
-                        {/* Stroke gradient (same colors, full opacity) */}
+                        {/* Stroke gradient - same colors with full opacity */}
                         <linearGradient id={strokeGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
                             {trendArray.map((point, index) => {
                                 const position = (index / Math.max(trendArray.length - 1, 1)) * 100;
@@ -185,20 +253,21 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                                         key={index}
                                         offset={`${position}%`} 
                                         stopColor={point.color} 
-                                        stopOpacity={1.0} // Full opacity for stroke
+                                        stopOpacity={1.0} // Full opacity for border clarity
                                     />
                                 );
                             })}
                         </linearGradient>
-
                     </defs>
 
+                    {/* Main area chart with team color gradients */}
                     <Area 
                         type="monotone" 
                         dataKey="points" 
                         fill={`url(#${gradientId})`}
                         stroke={`url(#${strokeGradientId})`}
                         strokeWidth={1}
+                        // Custom dots showing team colors at each point
                         dot={(props) => {
                             const { cx, cy, payload } = props;
                             return (
@@ -212,6 +281,7 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
                                 />
                             );
                         }}
+                        // Highlighted dot on hover
                         activeDot={{ r: 6, stroke: 'var(--primary)', strokeWidth: 2 }}
                     />
 
@@ -224,11 +294,14 @@ const ChartPlayerPointsTrend = ({ title, trendData }: ChartPlayerPointsTrendProp
 
 export default ChartPlayerPointsTrend;
 
-// MARK: - Placeholder Data
+// MARK: - PLACEHOLDER DATA
+// Used when no real trend data is available to show chart structure
 
-let light_gray_color = 'var(--table-header)';
+/** Generic color for placeholder data points */
+const light_gray_color = 'var(--table-header)';
 
-let generic_career_data: Record<string, TrendDatapoint> = {
+/** Sample career progression data spanning multiple years */
+const generic_career_data: Record<string, TrendDatapoint> = {
     '2013': {'color': light_gray_color, 'points': 120, },
     '2014': {'color': light_gray_color, 'points': 160, },
     '2015': {'color': light_gray_color, 'points': 280, },
@@ -243,7 +316,9 @@ let generic_career_data: Record<string, TrendDatapoint> = {
     '2024': {'color': light_gray_color, 'points': 420, },
     '2025': {'color': light_gray_color, 'points': 320, },
 };
-let generic_in_season_data = {
+
+/** Sample in-season progression data with weekly intervals */
+const generic_in_season_data = {
     '2025-03-30': { 'color': light_gray_color, 'points': 150 },
     '2025-04-06': { 'color': light_gray_color, 'points': 110 },
     '2025-04-13': { 'color': light_gray_color, 'points': 160 },
