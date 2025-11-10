@@ -1004,10 +1004,10 @@ class PostgresDB:
         if drop_existing:
             self.update_feature_status(
                 feature_name='explore',
-                status_message='The Explore data is being refreshed, this may take several minutes. Please check back soon!',
+                message='The Explore data is being upgraded, this may take several minutes. Please check back soon!',
                 is_disabled=True
             )
-            
+
         status = self._build_materialized_view(
             view_name='explore_data',
             sql_logic=sql_logic,
@@ -1019,7 +1019,7 @@ class PostgresDB:
         if drop_existing:
             self.update_feature_status(
                 feature_name='explore',
-                status_message=None,
+                message=None,
                 is_disabled=False
             )
 
@@ -1555,5 +1555,45 @@ class PostgresDB:
             print(f"ERROR updating feature status: {e}")
             self.connection.rollback()
             return False
+        finally:
+            cursor.close()
+
+    def get_feature_statuses(self) -> dict[str, dict[str, any]]:
+        """Check the status of features in the feature_status table.
+        Used to show users if certain features are disabled.
+        
+        Returns:
+            dict: A dictionary with feature names as keys and their status info as values.
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return {}
+
+        cursor = self.connection.cursor()
+
+        try:
+            query = """
+                SELECT feature_name, is_disabled, message, updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York' as updated_at
+                FROM feature_status
+                WHERE is_disabled
+            """
+            cursor.execute(query)
+            results = cursor.fetchall()
+
+            # Map results to a dictionary
+            feature_statuses = {
+                row[0]: {
+                    'name': row[0],
+                    'is_disabled': row[1],
+                    'message': row[2],
+                    'updated_at': row[3]
+                }
+                for row in results
+            }
+            return feature_statuses
+
+        except Exception as e:
+            print(f"ERROR checking feature statuses: {e}")
+            return {}
         finally:
             cursor.close()

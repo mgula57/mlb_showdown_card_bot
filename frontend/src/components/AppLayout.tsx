@@ -38,7 +38,7 @@
  * ```
  */
 
-import React, { type ReactNode, useState, useEffect } from "react";
+import React, { type ReactNode, useState, useEffect, useRef } from "react";
 import SideMenu from "./side_menu/SideMenu";
 import ShowdownBotLogo from "./shared/ShowdownBotLogo";
 import { useLocation } from "react-router-dom";
@@ -47,6 +47,8 @@ import CustomSelect from "./shared/CustomSelect";
 import { FiMenu } from "react-icons/fi";
 import { sideMenuItems } from "./side_menu/SideMenuItem";
 import { WhatsNewModal, hasSeenWhatsNew, markWhatsNewAsSeen } from "./side_menu/WhatsNewModal";
+import { fetchFeatureStatuses, type FeatureStatus } from "../api/status/feature_status";
+import { FaExclamationCircle } from 'react-icons/fa';
 
 /**
  * Props for the AppLayout component
@@ -104,6 +106,21 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             return false; // Fallback to closed if localStorage fails
         }
     });
+    const hasCheckedFeatures = useRef(false);
+    const featureStatuses = useRef<Record<string, FeatureStatus>>({});
+
+    // When loaded, check feature statuses
+    useEffect(() => {
+        if (hasCheckedFeatures.current) return;
+        
+        const checkFeatures = async () => {
+            hasCheckedFeatures.current = true;
+            const statuses = await fetchFeatureStatuses();
+            featureStatuses.current = statuses;
+            console.log('Feature Statuses:', statuses);
+        };
+        checkFeatures();
+    }, []);
 
     // Modal state for "What's New" feature announcements
     const [showWhatsNewModal, setShowWhatsNewModal] = useState(false);
@@ -120,6 +137,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     // Find the corresponding menu item for the current route
     const selectedMenuItem = sideMenuItems.find(item => item.path.includes(locationName));
+    const selectedMenuItemStatus = selectedMenuItem ? featureStatuses.current[selectedMenuItem.text.toLowerCase()] : null;
 
     /**
      * Effect: Persist desktop sidebar state to localStorage
@@ -266,6 +284,17 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
                 {/* Main Content Area - Scrollable container for page content */}
                 <main className={`flex-1 overflow-auto w-full relative`}>
+                    {/* Status Message */}
+                    {selectedMenuItemStatus && (
+                        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 m-4 rounded" role="alert">
+                            <div className="font-bold items-center flex">
+                                <FaExclamationCircle className="inline mr-1" />
+                                Update in Progress
+                            </div>
+                            <p>{selectedMenuItemStatus.message || 'This feature is currently disabled.'}</p>
+                        </div>
+                    )}
+                    {/* Main Content */}
                     {children}
                 </main>
             </div>

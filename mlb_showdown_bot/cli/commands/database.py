@@ -109,7 +109,7 @@ def database_update(
 @app.command("feature_status")
 def database_feature_status(
     feature_name: str = typer.Option(None, "--feature_name", "-f", help="Name of the feature to check status."),
-    disable_feature: bool = typer.Option(True, "--disable", "-d", help="Is the feature disabled?"),
+    disable_feature: bool = typer.Option(False, "--disable", "-d", help="Is the feature disabled?"),
     message: str = typer.Option(None, "--message", "-m", help="Optional message for the status update.")
 ):
     """Check status of database features"""
