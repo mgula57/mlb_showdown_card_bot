@@ -112,7 +112,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
 
     // Calculate main content padding based on desktop sidebar state
-    const contentPadding = isSideMenuOpen ? 'md:pl-48' : 'md:pl-12';
+    const contentPadding = isSideMenuOpen ? 'md:pl-48' : 'md:pl-14';
     
     // Get current route information for header title and icon
     const location = useLocation();

@@ -205,10 +205,11 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
         <aside className={`min-h-dvh fixed left-0 top-0 ${className}`}>
             {/* Main navigation container with responsive width and smooth transitions */}
             <nav className={`
-                min-h-dvh ${isOpen ? 'w-64 md:w-48' : 'w-12'} space-y-4
+                min-h-dvh ${isOpen ? 'w-64 md:w-48' : 'w-14'} space-y-4
                 bg-secondary border-r-divider shadow-sm
                 transition-all duration-300 ease-in-out
                 flex flex-col
+                ${isOpen ? '' : 'items-center justify-center'}
             `}>
                 {/* Header Section: Logo and Toggle Button */}
                 <div className={`${isOpen ? 'flex space-x-2' : ''} h-12 p-4 pb-2 w-full items-center cursor-pointer`}>
@@ -226,13 +227,13 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
                         className="hover:text-secondary transition-colors duration-200 cursor-pointer"
                         aria-label={isOpen ? 'Close menu' : 'Open menu'}
                     >
-                        {isOpen ? (isMobile ? <FaXmark className="h-8 w-8" /> : <FaChevronLeft />) : <FaChevronRight />}
+                        {isOpen ? (isMobile ? <FaXmark className="h-8 w-8" /> : <FaChevronLeft />) : <FaChevronRight className="w-6" />}
                     </button>
                     
                 </div>
 
                 {/* Navigation Items - Scrollable list with responsive spacing */}
-                <ul className="flex-1 space-y-2 overflow-y-auto px-2">
+                <ul className="flex-1 space-y-2 overflow-y-auto px-2 w-full">
                     {sideMenuItems.map((item) => (
                         <li key={item.path}>
                             <SideMenuItem

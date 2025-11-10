@@ -76,7 +76,7 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
             to={item.path} 
             onClick={() => onClick(item)}
             className={`
-                flex items-center h-4 py-6 rounded-md
+                flex items-center h-4 py-6 rounded-md w-full
                 hover:bg-[var(--background-tertiary)] cursor-pointer
                 ${isSideMenuOpen ? 'justify-start pl-4' : 'justify-center'}
                 ${isSelected ? 'bg-tertiary' : ''}
@@ -84,7 +84,12 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
         >
         
             {/* Icon - Always visible, serves as the collapsed state identifier */}
-            {item.icon && <item.icon />}
+            <div className="flex flex-col items-center justify-center text-primary">
+                {item.icon && <item.icon />}
+                <span className={`${isSideMenuOpen ? 'hidden' : 'block'} mt-1 text-[7px] font-semibold text-primary`}>
+                    {item.text}
+                </span>
+            </div>
             
             {/* Text Label - Only visible when menu is expanded */}
             <h2 className={`${isSideMenuOpen ? 'block' : 'hidden'} pl-2 text-lg font-semibold text-primary`}>
