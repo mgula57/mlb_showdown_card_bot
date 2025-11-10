@@ -1013,7 +1013,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                     label="Auto Image Classification"
                                     options={[
                                         { value: 'exact', label: 'Exact Match (Year + Team)' },
-                                        { value: 'team match', label: 'Team Match, (Different Year)' },
+                                        { value: 'team match', label: 'Team Match (Different Year)' },
                                         { value: 'year match', label: 'Year Match (Different Team)' },
                                         { value: 'no match', label: 'No Match' },
                                     ]}
