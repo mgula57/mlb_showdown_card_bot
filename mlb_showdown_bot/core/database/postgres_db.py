@@ -11,8 +11,9 @@ from pydantic import BaseModel
 from typing import Optional, Any
 
 # INTERNAL
-from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Position, StatsPeriodType, __version__
+from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Set, StatsPeriodType, __version__
 from ..card.utils.shared_functions import convert_year_string_to_list
+from ..shared.google_drive import fetch_image_metadata
 
 class PlayerArchive(BaseModel):
     id: str
@@ -204,7 +205,7 @@ class PostgresDB:
         
         return [PlayerArchive(**row) for row in query_results_list]
 
-    def fetch_all_stats_from_archive(self, year_list: list[int], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None, modified_start_date:str=None, modified_end_date:str=None) -> list[PlayerArchive]:
+    def fetch_all_stats_from_archive(self, year_list: list[int], filters:list[tuple] = [], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None, modified_start_date:str=None, modified_end_date:str=None) -> list[PlayerArchive]:
         """
         Fetch stats archive data for a list of years.
 
@@ -232,6 +233,22 @@ class PostgresDB:
         if modified_end_date:
             conditions.append(sql.SQL(' <= ').join([sql.Identifier("stats_modified_date"), sql.Placeholder()]))
             values_to_filter.append(modified_end_date)
+
+        for filter_tuple in filters:
+            if len(filter_tuple) != 2:
+                continue
+            column_name, value = filter_tuple
+            if value is None:
+                continue
+                
+            # Handle list values with IN operator, single values with = operator
+            if isinstance(value, list):
+                if len(value) > 0:  # Only add condition if list is not empty
+                    conditions.append(sql.SQL(' IN ').join([sql.Identifier(column_name), sql.Placeholder()]))
+                    values_to_filter.append(tuple(value))  # Convert list to tuple for psycopg2
+            else:
+                conditions.append(sql.SQL(' = ').join([sql.Identifier(column_name), sql.Placeholder()]))
+                values_to_filter.append(value)
             
         where_clause = sql.SQL(' AND ').join(conditions)
 
@@ -487,6 +504,25 @@ class PostgresDB:
                                 # Check if any of the provided icons are in the player's icons
                                 filter_clauses.append(sql.SQL("icons_list && %s"))
                                 filter_values.append(value)
+                            case 'awards':
+                                # Check if any of the provided awards are in the player's awards
+                                # Handle partial matching for values ending with '-'
+                                award_conditions = []
+                                for award in value:
+                                    if award.endswith('-*'):
+                                        # Partial match: check if any element in the array starts with the prefix
+                                        award_prefix = award[:-2]  # Remove the trailing '-*'
+                                        award_conditions.append(sql.SQL("EXISTS (SELECT 1 FROM unnest(awards_list) AS award WHERE award LIKE %s)"))
+                                        filter_values.append(f"{award_prefix}-%")
+                                    else:
+                                        # Exact match: check if the exact value exists in the array
+                                        award_conditions.append(sql.SQL("%s = ANY(awards_list)"))
+                                        filter_values.append(award)
+                                
+                                if award_conditions:
+                                    filter_clauses.append(sql.SQL("({})").format(
+                                        sql.SQL(" OR ").join(award_conditions)
+                                    ))
                             case 'include_small_sample_size':
                                 # Only filter if array is ["false"]
                                 if value == ["false"]:
@@ -494,7 +530,7 @@ class PostgresDB:
                                         " when positions_list && ARRAY['STARTER'] then real_ip >= 75" \
                                         " when positions_list && ARRAY['RELIEVER', 'CLOSER'] then real_ip >= 30" \
                                         " else pa >= 250" \
-                                    "end)"))
+                                    " end)"))
                             case _:
                                 # Regular IN clause for non-array fields
                                 placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
@@ -587,6 +623,432 @@ class PostgresDB:
         data = self.execute_query(query)
         return data
 
+    def refresh_explore_views(self, drop_existing:bool=False) -> None:
+        """Refreshes all explore related materialized views.
+
+        Views:
+            - player_year_list: List of players and seasons with a bWAR and award summary. Source for advanced search on the customs page;
+            - team_year_league_list: List of teams by year and league. Source for league/team hierarchy filters on the explore page;
+            - explore_data: Main explore data view that powers the explore page.
+            
+        Args:
+            drop_existing: If True, drop existing views before recreating them.
+            
+        Returns:
+            None
+        """
+
+        if self.connection is None:
+            print("No database connection available for refreshing explore views.")
+            return
+
+        # BUILD EXTENSIONS
+        self._build_extensions()
+
+        # REFRESH MATERIALIZED VIEWS
+        if not self.build_player_year_list_view(drop_existing=drop_existing): return
+        if not self.build_team_year_league_list_view(drop_existing=drop_existing): return
+        if not self.build_explore_data_view(drop_existing=drop_existing): return
+
+        self.connection.close()
+
+
+# ------------------------------------------------------------------------
+# MATERIALIZED VIEWS
+# ------------------------------------------------------------------------
+
+    def _build_materialized_view(self, view_name:str, sql_logic: str, schema:str = 'public', indexes: list[str] = None, drop_existing:bool=False) -> bool:
+        """Create or replace a materialized view in the database.
+        
+        Args:
+            name: Name of the materialized view.
+            sql_logic: SQL logic to define the view. Does not include CREATE MATERIALIZED VIEW statement.
+            schema: Schema where the view will be created.
+            indexes: List of index creation SQL statements to execute after creating the view.
+            drop_existing: If True, drop the existing view before creating a new one.
+
+        Returns:
+            True if the view was rebuilt successfully, False otherwise.
+        """
+
+        # RETURN IF NO CONNECTION
+        if self.connection is None:
+            print("No database connection available for building materialized view.")
+            return
+        
+        try:
+            cursor = self.connection.cursor()
+
+            # DROP EXISTING VIEW IF REQUESTED
+            if drop_existing:
+                cursor.execute(sql.SQL("""
+                    DROP MATERIALIZED VIEW IF EXISTS {schema}.{view_name} CASCADE;
+                """).format(
+                    schema=sql.Identifier(schema),
+                    view_name=sql.Identifier(view_name)
+                ))
+                print(f"  → Dropped existing materialized view '{view_name}'.")
+            
+            # CHECK IF VIEW EXISTS
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT 1 FROM pg_matviews 
+                    WHERE matviewname = %s AND schemaname = %s
+                )
+            """, (view_name.lower(), schema.lower()))
+            view_exists = cursor.fetchone()[0]
+            
+            # VIEW EXISTS, REFRESH IT
+            if view_exists:
+                # DO IT CONCURRENTLY IF INDEXES EXIST
+                if indexes:
+                    cursor.execute(sql.SQL("""
+                        REFRESH MATERIALIZED VIEW CONCURRENTLY {schema}.{view_name};
+                    """).format(
+                        schema=sql.Identifier(schema),
+                        view_name=sql.Identifier(view_name)
+                    ))
+                else:
+                    cursor.execute(sql.SQL("""
+                        REFRESH MATERIALIZED VIEW {schema}.{view_name};
+                    """).format(
+                        schema=sql.Identifier(schema),
+                        view_name=sql.Identifier(view_name)
+                ))
+                print(f"  → Refreshed existing materialized view '{view_name}'.")
+                return True
+
+            # VIEW DOES NOT EXIST, CREATE IT
+            cursor.execute(sql.SQL("""
+                CREATE MATERIALIZED VIEW {schema}.{view_name} AS (
+                    {sql_logic}
+                );
+            """).format(
+                schema=sql.Identifier(schema),
+                view_name=sql.Identifier(view_name),
+                sql_logic=sql.SQL(sql_logic)
+            ))
+            print(f"  → Created materialized view '{view_name}'.")
+            if indexes:
+                for index in indexes:
+                    cursor.execute(index)
+                    print(f"  → Created index for materialized view '{view_name}': {index}")
+            return True
+
+        # EXCEPT BLOCK
+        except Exception as e:
+            print(f"Error creating {view_name} view: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+
+    def build_player_year_list_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the player_year_list materialized view.
+        
+        Args:
+            drop_existing: If True, drop the existing view before creating a new one.
+        
+        """
+
+        sql_logic = '''
+            with
+            
+            archive_data as (
+            
+                select
+                unaccent(replace(lower(name), '.', '')) as name,
+                year,
+                bref_id,
+                team_id as team,
+                player_type_override,
+                jsonb_extract_path(stats, 'is_hof')::boolean as is_hof,
+                case when length(stats->>'award_summary') = 0 then null else stats->>'award_summary'::text end as award_summary,
+                case when length((stats->>'bWAR')) = 0 then 0.0 else (stats->>'bWAR')::float end as bwar
+                from stats_archive
+                
+            ),
+            
+            current_season_data as (
+            
+                select
+                unaccent(replace(lower(name), '.', '')) as name,
+                date_part('year', modified_date) as year,
+                bref_id,
+                team_id as team,
+                null::text as player_type_override,
+                false as is_hof,
+                award_summary,
+                bwar
+                from current_season_players
+                where date_part('year', modified_date) > (select max(year) from stats_archive)
+                
+            ),
+            
+            combined as (
+            
+                select *
+                from archive_data
+                union all
+                select *
+                from current_season_data
+            
+            )
+            
+            select *
+            from combined
+        '''
+        indexes = [
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_player_year_list_bref_id ON player_year_list (bref_id, year, player_type_override);"
+        ]
+        return self._build_materialized_view(
+            view_name='player_year_list',
+            sql_logic=sql_logic,
+            indexes=indexes,
+            drop_existing=drop_existing
+        )
+
+    def build_team_year_league_list_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the team_year_league_list materialized view.
+        
+        Args:
+            drop_existing: If True, drop the existing view before creating a new one.
+        
+        """
+
+        sql_logic = '''
+            with 
+            
+            years_and_teams as (
+            
+                select 
+                distinct
+                    case
+                    when year = 1939 and team_id = 'TC2' then 'NGL'
+                    when lg_id in ('NN2', 'NNL', 'NAL', 'ECL', 'NSL', 'ANL', 'EWL') then 'NGL'
+                    when lg_id in ('PL', 'AA', 'FL', 'UA') then 'NON-MLB'
+                    when lg_id in ('2LG', 'NL', 'AL')  then 'MLB'
+                    else lg_id
+                    end as organization,
+                    
+                    case
+                    when year = 1939 and team_id = 'TC2' then 'NNL'
+                    else lg_id
+                    end as league,
+                    team_id as team,
+                    year
+                
+                from stats_archive
+                where true
+                and (
+                    lg_id not in ('2LG', 'MLB')
+                    or (year = 1939 and team_id = 'TC2')
+                )
+            
+            ), 
+            
+            --  explore_mismatches as (
+            --  
+            --    select distinct name, explore_data.year, explore_data.team_id
+            --    from explore_data
+            --    left join years_and_teams 
+            --      on explore_data.team_id = years_and_teams.team_id
+            --      and explore_data.year = years_and_teams.year
+            --    where explore_data.showdown_set = '2005'
+            --      and years_and_teams.team_id is null
+            --      
+            --  ),
+            
+            dupes as (
+            
+                select 
+                team,
+                year,
+                count(*) as rc
+                from years_and_teams
+                group by 1,2
+                having count(*) > 1
+                
+            )
+            
+            select *
+            from years_and_teams
+        '''
+        indexes = [
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_team_year_league_list ON team_year_league_list (team, year);"
+        ]
+        return self._build_materialized_view(
+            view_name='team_year_league_list',
+            sql_logic=sql_logic,
+            indexes=indexes,
+            drop_existing=drop_existing
+        )
+
+    def build_explore_data_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the explore_data materialized view.
+        
+        Args:
+            drop_existing: If True, drop the existing view before creating a new one.
+        
+        """
+
+        sql_logic = '''
+            select 
+                stats_archive.id,
+                stats_archive.year,
+                stats_archive.bref_id,
+                unaccent(stats_archive.name) as name,
+                stats_archive.player_type,
+                stats_archive.player_type_override,
+                stats_archive.is_two_way,
+                stats_archive.primary_positions,
+                stats_archive.secondary_positions,
+                stats_archive.g,
+                stats_archive.gs,
+                stats_archive.pa,
+                stats_archive.ip as real_ip,
+                stats_archive.lg_id,
+                stats_archive.team_id,
+                stats_archive.team_id_list,
+                stats_archive.team_games_played_dict,
+                stats_archive.team_override,
+                
+                card_data.card_data,
+                card_data.showdown_set,
+                card_data->>'version' as showdown_bot_version,
+                
+                
+                -- PARSED CARD ATTRIBUTES 
+                cast(card_data->>'points' as int) as points,
+                card_data->>'nationality' as nationality,
+                team_year_league_list.organization,
+                team_year_league_list.league,
+                team_year_league_list.team,
+                
+                -- METADATA
+                card_data->'positions_and_defense' as positions_and_defense,
+                card_data->>'positions_and_defense_string' as positions_and_defense_string,
+                ARRAY(
+                    SELECT jsonb_array_elements_text(card_data->'positions_list')
+                ) as positions_list,
+                cast(card_data->>'ip' as int) as ip,
+                cast(card_data->'speed'->>'speed' as int) as speed,
+                card_data->>'hand' as hand,
+                card_data->'speed'->>'letter' as speed_letter,
+                (card_data->'speed'->>'letter') || '(' || (card_data->'speed'->>'speed') || ')' as speed_full,
+                case
+                    when stats_archive.player_type = 'HITTER' then cast(card_data->'speed'->>'speed' as int)
+                    else cast(card_data->>'ip' as int)
+                end as speed_or_ip,
+                ARRAY(
+                    SELECT jsonb_array_elements_text(card_data->'icons')
+                ) as icons_list,
+
+                -- STATS
+                CASE
+                    WHEN stats->>'award_summary' = '' OR stats->>'award_summary' IS NULL 
+                    THEN ARRAY[]::text[]
+                    ELSE string_to_array(stats->>'award_summary', ',')
+                END as awards_list,
+                
+                -- CHART
+                cast(card_data->'chart'->>'command' as int) as command,
+                cast(card_data->'chart'->>'outs_full' as int) as outs,
+                cast(card_data->'chart'->>'is_command_out_anomaly' as boolean) as is_chart_outlier,
+                
+                -- AUTO IMAGES
+                case
+                    when exists (
+                        select 1 from auto_images i
+                        where i.player_id = stats_archive.bref_id
+                        and i.year = stats_archive.year::text
+                        and i.team_id = stats_archive.team_id
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                    ) then 'exact'
+                    when exists (
+                        select 1 from auto_images i
+                        where i.player_id = stats_archive.bref_id
+                        and i.team_id = stats_archive.team_id
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                    ) then 'team match'
+                    when exists (
+                        select 1 from auto_images i
+                        where i.player_id = stats_archive.bref_id
+                        and i.year = stats_archive.year::text
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                    ) then 'year match'
+                    else 'no match'
+                end as image_match_type,
+                
+                exact_img_match.image_ids as image_ids,
+                
+                NOW() as updated_at
+                
+            from stats_archive
+            join card_data 
+                on stats_archive.id = card_data.player_id
+            left join team_year_league_list
+                on team_year_league_list.year = stats_archive.year 
+                and team_year_league_list.team = stats_archive.team_id
+            left join auto_images as exact_img_match
+                on stats_archive.year::text = exact_img_match.year
+                and stats_archive.bref_id = exact_img_match.player_id
+                and coalesce(stats_archive.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
+                and stats_archive.team_id = exact_img_match.team_id
+        '''
+        indexes = [
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_explore_data_card_set_version ON explore_data (id, showdown_set, showdown_bot_version);"
+        ]
+        # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
+        if drop_existing:
+            self.update_feature_status(
+                feature_name='explore',
+                message='The Explore data is being upgraded, this may take several minutes. Please check back soon!',
+                is_disabled=True
+            )
+
+        status = self._build_materialized_view(
+            view_name='explore_data',
+            sql_logic=sql_logic,
+            indexes=indexes,
+            drop_existing=drop_existing
+        )
+
+        # REMOVE STATUS MESSAGE IF SUCCESSFUL
+        if drop_existing:
+            self.update_feature_status(
+                feature_name='explore',
+                message=None,
+                is_disabled=False
+            )
+
+        return status
+
+
+# ------------------------------------------------------------------------
+# EXTENSIONS
+# ------------------------------------------------------------------------
+
+    def _build_extensions(self) -> None:
+        """Create necessary extensions in the database."""
+
+        # RETURN IF NO CONNECTION
+        if self.connection is None:
+            print("No database connection available for creating extensions.")
+            return
+        
+        create_extension_statements = [
+            "CREATE EXTENSION IF NOT EXISTS unaccent;"
+        ]
+        db_cursor = self.connection.cursor()
+        try:
+            for statement in create_extension_statements:
+                db_cursor.execute(statement)
+        except:
+            return
+        finally:
+            db_cursor.close()
 
 # ------------------------------------------------------------------------
 # TABLES
@@ -632,6 +1094,147 @@ class PostgresDB:
         except:
             return
 
+    def build_auto_images_table(self, refresh_explore: bool=False) -> None:
+        """Creates and replaces the auto_images table in the database."""
+ 
+        # RETURN IF NO CONNECTION
+        if self.connection is None:
+            print("No database connection available for fetching auto-generated image metadata.")
+            return
+
+        # FETCH IMAGE METADATA FROM GOOGLE DRIVE
+        print("Fetching auto-generated image metadata from Google Drive...")
+        image_metadata = fetch_image_metadata(
+            folder_id=Set._2000.player_image_gdrive_folder_id, 
+            retries=3
+        )
+        print(f"Fetched metadata for {len(image_metadata)} files from Google Drive.")
+        
+        # TRANSFORM INTO DICT WITH {image_name: {BG: id, 'CUT': id }}
+        aggregated_images: dict[str, dict[str, str]] = {}
+        for item in image_metadata:
+            image_name: str = item['name']
+            if '-' not in image_name: continue
+            image_id: str = item['id']
+            image_name_without_type = image_name.split('-', 1)[-1]  # Remove prefix before first '-'
+            updated_dict = aggregated_images.get(image_name_without_type, {})
+            if 'BG' in image_name:
+                updated_dict['BG'] = image_id
+            elif 'CUT' in image_name:
+                updated_dict['CUT'] = image_id
+            aggregated_images[image_name_without_type] = updated_dict
+
+        # PARSE NAMES AND STORE AS CLASSES
+        auto_image_entries: list[dict] = []
+        for image_name, image_ids in aggregated_images.items():
+
+            # PARSE NAME INTO COMPONENTS
+            # EX: 2025-Raleigh-(raleica01)-(SEA).png
+            #   - year: 2025
+            #   - team_id: SEA
+            #   - player_id: raleica01
+            #   - player_name: Raleigh
+            final_attributes: dict[str, any] = {'image_ids': image_ids}
+            name_parts = image_name.rsplit('.', 1)[0].split('-')
+            has_reached_first_parenthesis = False
+            player_name = "" # ADDED TO IN MULTIPLE PARTS
+            for index, text in enumerate(name_parts):
+                has_parenthesis = text.startswith('(') and text.endswith(')')
+                
+                # YEAR
+                if index == 0:
+                    final_attributes['year'] = int(text)
+                    continue
+                
+                # PLAYER NAME
+                if not has_reached_first_parenthesis and not has_parenthesis:
+                    if player_name == "":
+                        player_name = text
+                    else:
+                        player_name += f" {text}"
+                    continue
+                
+                # PLAYER ID
+                if has_parenthesis and not has_reached_first_parenthesis:
+                    final_attributes['player_name'] = player_name # STORE PLAYER NAME
+                    final_attributes['player_id'] = text.split('(')[1].split(')')[0]
+                    has_reached_first_parenthesis = True
+
+                # TEAM ID
+                if has_parenthesis and len(text) <= 5:
+                    final_attributes['team_id'] = text.split('(')[1].split(')')[0]
+
+                if has_parenthesis and ('Hitter' in text or 'Pitcher' in text):
+                    final_attributes['player_type_override'] = text.lower() # KEEP PARENTHESIS AND LOWERCASE TO MATCH STATS ARCHIVE (e.g., (hitter), (pitcher))
+
+            auto_image_entries.append(final_attributes)
+
+        # DATABASE OPERATIONS
+        db_cursor = self.connection.cursor()
+        
+        # DROP THE EXISTING TABLE
+        drop_table_statement = '''
+            DROP TABLE IF EXISTS auto_images;
+        '''
+        create_table_statement = f'''
+            CREATE TABLE IF NOT EXISTS auto_images(
+                year VARCHAR(20) NOT NULL,
+                player_id VARCHAR(10) NOT NULL,
+                player_name VARCHAR(48) NOT NULL,
+                team_id VARCHAR(10),
+                player_type_override VARCHAR(10),
+                image_ids JSONB,
+                created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );'''
+        index_statement = '''
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_auto_images_player_year_type
+            ON auto_images (year, player_id, player_type_override, team_id);
+        '''
+        try:
+            db_cursor.execute(drop_table_statement)
+            db_cursor.execute(create_table_statement)
+            db_cursor.execute(index_statement)
+        except Exception as e:
+            print(f"Error occurred while setting up database tables: {e}")
+            return
+        
+        # INSERT OR UPDATE ROWS
+        insert_statement = """
+            INSERT INTO auto_images (year, player_id, player_name, team_id, player_type_override, image_ids) 
+            VALUES %s
+        """
+        insert_values = []
+
+        for entry in auto_image_entries:
+            player_id = entry.get('player_id')
+            year = entry.get('year')
+            player_type_override = entry.get('player_type_override', None)
+            team_id = entry.get('team_id', None)
+            image_ids = entry.get('image_ids', {})
+            if not player_id or not year:
+                continue
+            insert_values.append((
+                year,
+                player_id,
+                entry.get('player_name'),
+                team_id,
+                player_type_override,
+                image_ids
+            ))
+        try:
+            execute_values(db_cursor, insert_statement, insert_values)
+            print(f"Inserted/Updated {len(insert_values)} rows into auto_images table.")
+        except Exception as e:
+            print(f"Error inserting/updating auto_images data: {e}")
+            self.connection.rollback()
+            return
+        finally:
+            db_cursor.close()
+
+        
+        # REFRESH EXPLORE (DOWNSTREAM DEPENDENCY)
+        if refresh_explore:
+            self.refresh_explore_views()
 
 # ------------------------------------------------------------------------
 # LOGGING
@@ -861,12 +1464,16 @@ class PostgresDB:
                     card_data['player_id'] = "-".join(id_fields).lower()
                     card_data['name'] = unidecode(card_data['name'])
 
-                    batch_data.append((card_data['player_id'], showdown.set.value, card_data))
+                    batch_data.append((card_data['player_id'], showdown.set.value, showdown.version, card_data))
 
                 # Insert batch
                 insert_query = """
-                    INSERT INTO card_data (player_id, showdown_set, card_data) 
+                    INSERT INTO card_data (player_id, showdown_set, version, card_data) 
                     VALUES %s
+                    ON CONFLICT (player_id, showdown_set, version) 
+                    DO UPDATE SET 
+                        card_data = EXCLUDED.card_data,
+                        modified_date = NOW()
                 """
 
                 execute_values(
@@ -886,5 +1493,107 @@ class PostgresDB:
             print(f"ERROR uploading to database: {e}")
             self.connection.rollback()
             raise
+        finally:
+            cursor.close()
+
+# ------------------------------------------------------------------------
+# STATUSES
+# ------------------------------------------------------------------------
+
+    def update_feature_status(self, feature_name:str, is_disabled:bool, message:str=None) -> bool:
+        """Update the status of a feature in the feature_status table.
+        
+        Args:
+            feature_name: Name of the feature to update.
+            is_disabled: New status of the feature (True for disabled, False for enabled).
+            message: Optional message associated with the status update.
+
+        Returns:
+            bool: True if the update was successful, False otherwise.
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return False
+
+        cursor = self.connection.cursor()
+
+        # CHECK IF TABLE EXISTS
+        table_check_query = """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'feature_status'
+            );
+        """
+        cursor.execute(table_check_query)
+        table_exists = cursor.fetchone()[0]
+        if not table_exists:
+            create_table_query = """
+                CREATE TABLE feature_status (
+                    feature_name VARCHAR(100) PRIMARY KEY,
+                    is_disabled BOOLEAN NOT NULL,
+                    message TEXT,
+                    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                );
+            """
+            cursor.execute(create_table_query)
+            self.connection.commit()
+
+        try:
+            update_query = """
+                INSERT INTO feature_status (feature_name, is_disabled, message, updated_at)
+                VALUES (%s, %s, %s, NOW())
+                ON CONFLICT (feature_name) DO UPDATE SET
+                    is_disabled = EXCLUDED.is_disabled,
+                    message = EXCLUDED.message,
+                    updated_at = NOW()
+            """
+            cursor.execute(update_query, (feature_name, is_disabled, message))
+            self.connection.commit()
+            return cursor.rowcount > 0
+
+        except Exception as e:
+            print(f"ERROR updating feature status: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            cursor.close()
+
+    def get_feature_statuses(self) -> dict[str, dict[str, any]]:
+        """Check the status of features in the feature_status table.
+        Used to show users if certain features are disabled.
+        
+        Returns:
+            dict: A dictionary with feature names as keys and their status info as values.
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return {}
+
+        cursor = self.connection.cursor()
+
+        try:
+            query = """
+                SELECT feature_name, is_disabled, message, updated_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York' as updated_at
+                FROM feature_status
+                WHERE is_disabled
+            """
+            cursor.execute(query)
+            results = cursor.fetchall()
+
+            # Map results to a dictionary
+            feature_statuses = {
+                row[0]: {
+                    'name': row[0],
+                    'is_disabled': row[1],
+                    'message': row[2],
+                    'updated_at': row[3]
+                }
+                for row in results
+            }
+            return feature_statuses
+
+        except Exception as e:
+            print(f"ERROR checking feature statuses: {e}")
+            return {}
         finally:
             cursor.close()

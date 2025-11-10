@@ -1,3 +1,25 @@
+/**
+ * @fileoverview CustomCardBuilder - Main card creation and customization interface
+ * 
+ * This is the primary component for the MLB Showdown card builder application,
+ * providing a comprehensive interface for creating custom player cards with
+ * extensive customization options including player search, set configuration,
+ * image customization, and chart settings.
+ * 
+ * Key Features:
+ * - Advanced player search with autocomplete
+ * - Real-time card preview and generation
+ * - Comprehensive form sections for all card aspects
+ * - Live game integration for current players
+ * - Local storage persistence of settings
+ * - Responsive design for mobile and desktop
+ * - File upload and image URL support
+ * - Statistical analysis and trend visualization
+ * 
+ * The component manages complex state for form data, API calls, loading states,
+ * and user interactions while providing a smooth, intuitive user experience.
+ */
+
 // ----------------------------------
 // MARK: - Imports
 // ----------------------------------

@@ -1,3 +1,14 @@
+/**
+ * @fileoverview CardDetail - Comprehensive card display and analysis component
+ * 
+ * This component provides a detailed view of generated MLB Showdown cards including:
+ * - Full card visualization with dynamic styling
+ * - Statistical analysis tables (real vs projected, accuracy breakdowns)
+ * - Performance trends and historical data
+ * - Live game integration when applicable
+ * - Interactive table switching and customization options
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import CustomSelect from '../shared/CustomSelect';
@@ -7,46 +18,91 @@ import { enhanceColorVisibility } from '../../functions/colors';
 
 import { imageForSet } from "../shared/SiteSettingsContext";
 
-// Tables
+// Statistical analysis tables
 import { TableRealVsProjected } from './TableRealVsProjectedBreakdown';
 import { TableChartsBreakdown } from './TableChartsBreakdown';
 import { TablePointsBreakdown } from './TablePointsBreakdown';
 import { TableOpponentBreakdown } from './TableOpponentBreakdown';
 
-// API
+// API integration
 import { generateCardImage } from '../../api/showdownBotCard';
 
-// Trends
+// Performance visualization
 import ChartPlayerPointsTrend from './ChartPlayerPointsTrend';
 
-// Live Game
+// Live game integration
 import { GameBoxscore } from '../games/GameBoxscore';
 
-/** Type for CardDetail inputs */
+/**
+ * Props for the CardDetail component
+ */
 type CardDetailProps = {
+    /** Complete card data with statistics and analysis */
     showdownBotCardData: ShowdownBotCardAPIResponse | null;
+    /** Whether to hide trend graphs (optional for mobile/compact views) */
     hideTrendGraphs?: boolean;
+    /** Loading state for the main card data */
     isLoading?: boolean;
+    /** Loading state for live game data */
     isLoadingGameBoxscore?: boolean;
+    /** Usage context: 'custom' for card builder, 'explore' for database browser */
     context?: 'custom' | 'explore';
 };
 
-/** Shows Showdown Bot Card Details. Used in Custom card form and modals throughout UI */
+/**
+ * CardDetail - Comprehensive card display and analysis component
+ * 
+ * Provides a complete view of generated MLB Showdown cards with interactive
+ * analysis tools. Features include:
+ * 
+ * - **Card Visualization**: Full card display with team colors and styling
+ * - **Statistical Analysis**: Multiple comparison tables showing accuracy
+ * - **Performance Trends**: Historical and seasonal performance graphs
+ * - **Live Integration**: Real-time game data when applicable
+ * - **Interactive Tables**: Switchable views for different analysis types
+ * 
+ * The component adapts its layout and features based on the usage context
+ * and available data, providing both casual browsing and deep analysis capabilities.
+ * 
+ * @param showdownBotCardData - Complete card API response with all data
+ * @param hideTrendGraphs - Hide trend charts for compact layouts
+ * @param isLoading - Main loading state
+ * @param isLoadingGameBoxscore - Live game data loading state
+ * @param context - Usage context affecting available features
+ * 
+ * @example
+ * ```tsx
+ * <CardDetail 
+ *   showdownBotCardData={cardResponse}
+ *   context="explore"
+ *   hideTrendGraphs={isMobile}
+ * />
+ * ```
+ */
 export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false, context='custom' }: CardDetailProps) {
 
+    // =============================================================================
     // MARK: STATES
+    // =============================================================================
 
-    // Card
+    /**
+     * Internal card data state for handling dynamic updates
+     * Allows component to maintain its own copy for features like image regeneration
+     */
     const [internalCardData, setInternalCardData] = useState<ShowdownBotCardAPIResponse | null>(showdownBotCardData);
-    // Use internal state instead of prop throughout component
+    
+    // Use internal state when available, fallback to prop
     const activeCardData = internalCardData || showdownBotCardData;
 
-    // Theme
+    // Theme and settings
     const { isDark } = useTheme();
-
     const { userShowdownSet } = useSiteSettings();
 
-    // Update internal state when prop changes
+    /**
+     * Sync internal state with prop changes
+     * Ensures component reflects updates from parent while maintaining ability
+     * to handle local updates (like image regeneration)
+     */
     useEffect(() => {
         // Skip if no new data
         if (!showdownBotCardData) {

@@ -1,30 +1,93 @@
+/**
+ * @fileoverview GameBoxscore - Live MLB game display and tracking component
+ * 
+ * Provides real-time display of MLB game information including scores, inning status,
+ * team information, and player performance tracking. Integrates with MLB APIs to show
+ * live game updates and connects player performance to Showdown card generation.
+ * Features team colors, game status indicators, and direct links to MLB.com gameday.
+ */
+
 import { type GameBoxscore, type GameBoxscoreTeam } from "../../api/showdownBotCard"
 import { enhanceColorVisibility } from "../../functions/colors";
 import { FaBaseballBall } from "react-icons/fa";
 
-/** Props for the GameBoxscore component */
+/**
+ * Props for the GameBoxscore component
+ */
 type GameBoxscoreProps = {
+    /** Game boxscore data from MLB API */
     boxscore: GameBoxscore | null;
+    /** Whether the component is in a loading state */
     isLoading?: boolean;
 }
 
+/**
+ * GameBoxscore - Live MLB game information display
+ * 
+ * Renders comprehensive game information including team matchup, current score,
+ * inning status, and player-specific performance data. Supports both live games
+ * and completed games with different display modes. Integrates team colors and
+ * provides direct navigation to official MLB game pages.
+ * 
+ * Features:
+ * - Live score and inning display
+ * - Team color integration with enhanced visibility
+ * - Player performance tracking and point calculations
+ * - Game status indicators (live, final, scheduled)
+ * - Direct links to MLB.com gameday pages
+ * - Responsive design for various screen sizes
+ * 
+ * @example
+ * ```tsx
+ * <GameBoxscore
+ *   boxscore={gameData}
+ *   isLoading={isLoadingGame}
+ * />
+ * ```
+ * 
+ * @param boxscore - Game data including teams, scores, and player stats
+ * @param isLoading - Loading state for showing placeholders
+ * @returns Game boxscore display component
+ */
 export function GameBoxscore({ boxscore, isLoading }: GameBoxscoreProps) {
 
-    // Early return if no boxscore data is available
+    /** Early return if no boxscore data available */
     if (!boxscore) return null;
 
+    // =============================================================================
+    // DATA PROCESSING AND FORMATTING
+    // =============================================================================
+
+    /** Direct link to MLB.com gameday page */
     const gameLink = `https://www.mlb.com/gameday/${boxscore.game_pk}`;
+    
+    /** 
+     * Formatted player performance summary
+     * Shows different format for live vs completed games
+     */
     const playerStatline: string | null = 
         boxscore.game_player_summary
             ? (boxscore.has_game_ended
                 ? boxscore.game_player_summary.game_player_summary
                 : `${boxscore.game_player_summary.name.split(" ", 2)[1]}: ${boxscore.game_player_summary.game_player_summary}`)
             : null;
+    
+    /** Player point change from this game performance */
     const gamePlayerPtsChange = boxscore.game_player_pts_change;
+    /** Visual indicator for point changes (up/down arrows) */
     const gamePlayerPtsChangeSymbol = gamePlayerPtsChange ? (gamePlayerPtsChange >= 0 ? "▲" : "▼") : null;
+    /** Color coding for positive/negative point changes */
     const gamePlayerPtsChangeColor = gamePlayerPtsChange ? (gamePlayerPtsChange >= 0 ? enhanceColorVisibility("text-green-600") : enhanceColorVisibility("text-red-500")) : null;
 
-    // Team Summary
+    // =============================================================================
+    // TEAM DISPLAY COMPONENTS
+    // =============================================================================
+
+    /**
+     * Render team information with colors and scores
+     * @param team - Team data including name, colors, and score
+     * @returns Team summary component
+     */
     const teamSummary = (team: GameBoxscoreTeam) => {
         return (
             <div 
@@ -45,15 +108,18 @@ export function GameBoxscore({ boxscore, isLoading }: GameBoxscoreProps) {
                     <span className="font-bold">{team.abbreviation}</span>
                     <span className="font-black">{team.runs}</span>
                 </div>
-                
 
-                {/* Player Pitching/Hitting */}
+                {/* Live game player indicator */}
                 {team.player && !boxscore.has_game_ended && (
                     <span className="text-[9px] font-semibold px-2 pb-1 bg-black/10 text-white">{team.player}</span>
                 )}
             </div>
         );
     };
+
+    // =============================================================================
+    // MAIN COMPONENT RENDER
+    // =============================================================================
 
     return (
         <a 
@@ -68,18 +134,14 @@ export function GameBoxscore({ boxscore, isLoading }: GameBoxscoreProps) {
             target="_blank"
             rel="noopener noreferrer"
         >
-            {/* Scores */}
-            
-            {/* Away Team */}
+            {/* Team scores section */}
             {teamSummary(boxscore.teams.away)}
-
-            {/* Home Team */}
             {teamSummary(boxscore.teams.home)}
 
-            {/* Right Side */}
+            {/* Game status and details section */}
             <div className="flex gap-3 items-center px-2" >
 
-                {/* Inning and Date */}
+                {/* Inning indicator or final status */}
                 <div className="flex flex-col items-center gap-0 text-xs font-bold">
                     {boxscore.has_game_ended ? (
                         <>
@@ -88,6 +150,7 @@ export function GameBoxscore({ boxscore, isLoading }: GameBoxscoreProps) {
                         </>
                     ) : (
                         <>
+                            {/* Top/bottom inning indicators */}
                             <span className={` ${boxscore.isTopInning ? "text-yellow-500" : "opacity-50"}`}>
                                 ▲
                             </span>
@@ -99,16 +162,14 @@ export function GameBoxscore({ boxscore, isLoading }: GameBoxscoreProps) {
                             </span>
                         </>
                     )}
-                    
-                    
                 </div>
 
-                {/* Situation and Player Statline */}
+                {/* Live game situation display */}
                 <div className="flex flex-col items-start gap-0">
 
                     {!boxscore.has_game_ended && (
                         <div className="flex flex-row gap-4 items-center">
-                            {/* Baseball Bases */}
+                            {/* Baseball diamond with base runners */}
                             <div className="relative w-6 h-6 mt-1">
                                 {/* Second Base */}
                                 <div className={`absolute top-0 left-1/2 transform -translate-x-1/2 w-2 h-2 rotate-45 ${
@@ -155,7 +216,7 @@ export function GameBoxscore({ boxscore, isLoading }: GameBoxscoreProps) {
                 
             </div>
 
-            {/* Loading spinner */}
+            {/* Loading indicator for live game updates */}
             {isLoading && (
                 <FaBaseballBall 
                     className="text-sm animate-bounce" 
