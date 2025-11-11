@@ -996,6 +996,7 @@ class PostgresDB:
                 and stats_archive.bref_id = exact_img_match.player_id
                 and coalesce(stats_archive.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
                 and stats_archive.team_id = exact_img_match.team_id
+                and exact_img_match.is_postseason = FALSE
         '''
         indexes = [
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_explore_data_card_set_version ON explore_data (id, showdown_set, showdown_bot_version);"
@@ -1164,6 +1165,9 @@ class PostgresDB:
                 if has_parenthesis and len(text) <= 5:
                     final_attributes['team_id'] = text.split('(')[1].split(')')[0]
 
+                if text == '(POST)':
+                    final_attributes['is_postseason'] = True
+
                 if has_parenthesis and ('Hitter' in text or 'Pitcher' in text):
                     final_attributes['player_type_override'] = text.lower() # KEEP PARENTHESIS AND LOWERCASE TO MATCH STATS ARCHIVE (e.g., (hitter), (pitcher))
 
@@ -1171,11 +1175,28 @@ class PostgresDB:
 
         # DATABASE OPERATIONS
         db_cursor = self.connection.cursor()
+
+        # CHECK IF TABLE EXISTS
+        table_exists_query = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_name = 'auto_images'
+            );
+        """
+        db_cursor.execute(table_exists_query)
+        table_exists = db_cursor.fetchone()[0]
+        if table_exists:
+            print("auto_images table exists. It will be replaced with new data.")
         
-        # DROP THE EXISTING TABLE
-        drop_table_statement = '''
-            DROP TABLE IF EXISTS auto_images;
-        '''
+            # TRUNCATE THE EXISTING TABLE
+            truncate_or_drop_table_statement = '''
+                TRUNCATE TABLE auto_images;
+            '''
+        else:
+            truncate_or_drop_table_statement = '''
+                -- Table does not exist, will be created.
+            '''
         create_table_statement = f'''
             CREATE TABLE IF NOT EXISTS auto_images(
                 year VARCHAR(20) NOT NULL,
@@ -1183,15 +1204,16 @@ class PostgresDB:
                 player_name VARCHAR(48) NOT NULL,
                 team_id VARCHAR(10),
                 player_type_override VARCHAR(10),
+                is_postseason BOOLEAN DEFAULT FALSE,
                 image_ids JSONB,
                 created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
             );'''
         index_statement = '''
             CREATE UNIQUE INDEX IF NOT EXISTS idx_auto_images_player_year_type
-            ON auto_images (year, player_id, player_type_override, team_id);
+            ON auto_images (year, player_id, player_type_override, team_id, is_postseason);
         '''
         try:
-            db_cursor.execute(drop_table_statement)
+            db_cursor.execute(truncate_or_drop_table_statement)
             db_cursor.execute(create_table_statement)
             db_cursor.execute(index_statement)
         except Exception as e:
@@ -1200,7 +1222,7 @@ class PostgresDB:
         
         # INSERT OR UPDATE ROWS
         insert_statement = """
-            INSERT INTO auto_images (year, player_id, player_name, team_id, player_type_override, image_ids) 
+            INSERT INTO auto_images (year, player_id, player_name, team_id, player_type_override, image_ids, is_postseason) 
             VALUES %s
         """
         insert_values = []
@@ -1211,6 +1233,7 @@ class PostgresDB:
             player_type_override = entry.get('player_type_override', None)
             team_id = entry.get('team_id', None)
             image_ids = entry.get('image_ids', {})
+            is_postseason = entry.get('is_postseason', False)
             if not player_id or not year:
                 continue
             insert_values.append((
@@ -1219,7 +1242,8 @@ class PostgresDB:
                 entry.get('player_name'),
                 team_id,
                 player_type_override,
-                image_ids
+                image_ids,
+                is_postseason
             ))
         try:
             execute_values(db_cursor, insert_statement, insert_values)
