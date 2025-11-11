@@ -38,7 +38,7 @@ class PeopleClient(BaseMLBClient):
         ]
         if include_stats:
             hydrations.extend([
-                'team(league)',                          # Team details
+                'team(league)',
                 'stats(group=[hitting,fielding,pitching],type=[yearByYear,yearByYearAdvanced,career,careerAdvanced,sabermetrics],team(league))',
             ])
         params = {
