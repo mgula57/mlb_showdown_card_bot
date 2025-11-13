@@ -555,8 +555,7 @@ class PostgresDB:
                 sort_direction = 'desc'
 
             # CHECK FOR JSONB USE CASES
-            is_defensive_sort = 'positions_and_defense' in sort_by
-            if is_defensive_sort:
+            if 'positions_and_defense' in sort_by:
                 sort_by = sort_by.replace('positions_and_defense_', '').upper()
                 # For 1B, 2B, 3B, SS we need to check both the position and the 'IF' key
                 # For CF, LF/RF we need to check both the position and the 'OF' key
@@ -577,6 +576,13 @@ class PostgresDB:
                         direction=sql.SQL(sort_direction)
                     )
                     filter_values += [sort_by, sort_by]
+
+            elif 'chart_values' in sort_by:
+                chart_key = sort_by.replace('chart_values_', '').upper()
+                final_sort = sql.SQL("""(card_data->'chart'->'values'->>%s)::float {direction} NULLS LAST""").format(
+                    direction=sql.SQL(sort_direction)
+                )
+                filter_values += [chart_key]
 
             else:
                 final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
@@ -646,9 +652,10 @@ class PostgresDB:
         self._build_extensions()
 
         # REFRESH MATERIALIZED VIEWS
-        if not self.build_player_year_list_view(drop_existing=drop_existing): return
-        if not self.build_team_year_league_list_view(drop_existing=drop_existing): return
-        if not self.build_explore_data_view(drop_existing=drop_existing): return
+        # if not self.build_player_year_list_view(drop_existing=drop_existing): return
+        # if not self.build_team_year_league_list_view(drop_existing=drop_existing): return
+        # if not self.build_explore_data_view(drop_existing=drop_existing): return
+        if not self.build_team_hierarchy_view(drop_existing=drop_existing): return
 
         self.connection.close()
 
@@ -1026,6 +1033,41 @@ class PostgresDB:
 
         return status
 
+    def build_team_hierarchy_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the team_hierarchy materialized view. Used in the explore for filtering
+        
+        Args:
+            drop_existing: If True, drop the existing view before creating a new one.
+        """
+
+        sql_logic = '''
+            with teams as (
+  
+                select 
+                organization, 
+                league, 
+                team, 
+                min(year) as min_year, 
+                max(year) as max_year, 
+                count(*) as cards
+                
+                from explore_data
+                where true
+                and league != 'MLB'
+                group by 1,2,3
+            
+            )
+            
+            select *
+            from teams
+            order by team
+        '''
+        return self._build_materialized_view(
+            view_name='team_hierarchy',
+            sql_logic=sql_logic,
+            indexes=[],
+            drop_existing=True # Always drop to capture new teams
+        )
 
 # ------------------------------------------------------------------------
 # EXTENSIONS
