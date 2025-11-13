@@ -652,9 +652,9 @@ class PostgresDB:
         self._build_extensions()
 
         # REFRESH MATERIALIZED VIEWS
-        # if not self.build_player_year_list_view(drop_existing=drop_existing): return
-        # if not self.build_team_year_league_list_view(drop_existing=drop_existing): return
-        # if not self.build_explore_data_view(drop_existing=drop_existing): return
+        if not self.build_player_year_list_view(drop_existing=drop_existing): return
+        if not self.build_team_year_league_list_view(drop_existing=drop_existing): return
+        if not self.build_explore_data_view(drop_existing=drop_existing): return
         if not self.build_team_hierarchy_view(drop_existing=drop_existing): return
 
         self.connection.close()
