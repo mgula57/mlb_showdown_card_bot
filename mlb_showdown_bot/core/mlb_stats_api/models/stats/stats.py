@@ -6,7 +6,7 @@ from .enums import GameTypeEnum
 from ..generic import DisplayNameGeneric
 
 
-class Stat(BaseModel):
+class StatGroup(BaseModel):
     type: DisplayNameGeneric
     group: Optional[DisplayNameGeneric] = None
     exemptions: Optional[List] = None

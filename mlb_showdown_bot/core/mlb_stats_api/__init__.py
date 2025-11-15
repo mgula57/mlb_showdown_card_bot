@@ -7,6 +7,8 @@ from typing import Optional
 from pprint import pprint
 import logging
 
+from ..card.stats.stats_period import StatsPeriod
+
 # Logging
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,7 @@ class MLBStatsAPI:
         self.people = PeopleClient(**config)
         self.teams = TeamsClient(**config)
 
-    def build_full_player_from_search(self, search_name: str, season: Optional[str] = None) -> Player:
+    def build_full_player_from_search(self, search_name: str, stats_period: StatsPeriod) -> Player:
 
         # Search for the player by name
         player_search_results = self.people.search_players(name=search_name)
@@ -28,7 +30,7 @@ class MLBStatsAPI:
             return None
 
         # Fetch full player details using the player ID
-        player = self.people.get_player(player_id=player_search_results[0].id, season=season)
+        player = self.people.get_player(player_id=player_search_results[0].id, season=stats_period.year_int)
 
         return player
 

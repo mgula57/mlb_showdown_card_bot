@@ -53,6 +53,7 @@ def card_main(
     is_wotc: bool = typer.Option(False, "--is_wotc", "-wotc", help="Try loading from WOTC cards."),
     
     # DATABASE/CACHE
+    datasource: str = typer.Option("BREF", "--datasource", "-ds", help="Datasource to use for stats and info. Options are MLB_API or BREF."),
     store_in_logs: bool = typer.Option(False, "--store_in_logs", "-store", help="Optionally store card in logs."),
     db_connection: bool = typer.Option(None, "--db_connection", "-dbc", help="Optionally pass a database connection for logs."),
     ignore_showdown_library: bool = typer.Option(False, "--ignore_showdown_library", "-isl", help="Optionally force ignore Showdown Library, will create card live."),

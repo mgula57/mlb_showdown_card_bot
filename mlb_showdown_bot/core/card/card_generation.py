@@ -12,7 +12,9 @@ from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAgg
 from .stats.mlb_stats_api import MLBStatsAPI
 from .trends.trends import CareerTrends, InSeasonTrends, TrendDatapoint
 from ..database.postgres_db import PostgresDB, PlayerArchive
-from .utils.shared_functions import convert_to_date
+from ..mlb_stats_api import MLBStatsAPI as MLBStatsAPI_V2
+from .stats.normalized_player_stats import NormalizedPlayerStats, PlayerStatsNormalizer, PrimaryDatasource
+from .utils.shared_functions import convert_to_date, convert_year_string_to_list
 
 def clean_kwargs(kwargs: dict) -> dict:
     """Clean the kwargs dictionary by removing 'image_' and 'image_source_' prefixes from keys."""
@@ -87,14 +89,37 @@ def generate_card(**kwargs) -> dict[str, Any]:
         stats_period = StatsPeriod(type=stats_period_type, **kwargs)
         stats: dict[str: any] = None
 
-        # SETUP BASEBALL REFERENCE SCRAPER
-        baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)
-        stats = baseball_reference_stats.fetch_player_stats()
+        expected_source = PrimaryDatasource(kwargs.get('datasource', 'BREF'))
+        scraper_load_time = None
+        match expected_source:
+            case PrimaryDatasource.MLB_API:
+                start_time = datetime.now()
+                mlb_stats_api = MLBStatsAPI_V2()
 
-        # UPDATE STATS PERIOD BASED ON BREF STATS
-        stats_period = baseball_reference_stats.stats_period
-        kwargs['player_type_override'] = baseball_reference_stats.player_type_override
-        kwargs['team_override'] = baseball_reference_stats.team_override
+                # PULL FROM MLB API
+                # NORMALIZE FORMAT
+                player_data = mlb_stats_api.build_full_player_from_search(search_name=kwargs.get('name', ''), stats_period=stats_period)
+                normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
+                stats = normalized_player_stats.model_dump(
+                    exclude_none=True, 
+                    exclude_unset=True, 
+                    by_alias=True
+                )
+                stats_period.source = 'MLB Stats API'
+                scraper_load_time = datetime.now() - start_time
+
+            case PrimaryDatasource.BREF:
+
+                # SETUP BASEBALL REFERENCE SCRAPER
+                baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)
+                stats = baseball_reference_stats.fetch_player_stats()
+
+                # UPDATE STATS PERIOD BASED ON BREF STATS
+                stats_period = baseball_reference_stats.stats_period
+                kwargs['player_type_override'] = baseball_reference_stats.player_type_override
+                kwargs['team_override'] = baseball_reference_stats.team_override
+                stats['warnings'] = baseball_reference_stats.warnings
+                scraper_load_time = baseball_reference_stats.load_time
 
         # -----------------------------------
         # HIT MLB API FOR REALTIME STATS
@@ -122,7 +147,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
             stats=stats, 
             realtime_game_logs=player_mlb_api_stats.game_logs, 
             image=image,
-            warnings=baseball_reference_stats.warnings,
+            warnings=stats.get('warnings', []),
             **kwargs
         )
 
@@ -156,7 +181,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
         additional_logs['error_for_user'] = None
 
         # ADD ANY OTHER CONTEXTUAL LOGGING
-        additional_logs['scraper_load_time'] = baseball_reference_stats.load_time
+        additional_logs['scraper_load_time'] = scraper_load_time
 
         # ADD CODE TO LOG CARD TO DB
         if card_log_db:
@@ -440,3 +465,17 @@ def generate_random_player(**kwargs) -> PlayerArchive:
     # RETURN RANDOM PLAYER IF MATCH WAS FOUND
     if random_player:
         return random_player
+
+def _convert_to_seasons_list(input: list | str | int) -> list[str | int]:
+    """Convert input to a list of seasons."""
+    if isinstance(input, int):
+        return [input]
+    elif isinstance(input, str):
+        if input.lower() == 'career':
+            return ['career']
+        else:
+            return convert_year_string_to_list(input)
+    elif isinstance(input, list):
+        return input
+    else:
+        return []

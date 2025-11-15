@@ -4,9 +4,10 @@ from datetime import date
 
 # Models
 from .generic import EnumGeneric
-from .position import PrimaryPosition
+from .position import Position
 from .teams.team import Team
-from .stats.stats import Stat
+from .stats.stats import StatGroup, StatSplit
+from .stats.enums import StatGroupEnum, StatTypeEnum
 
 class Person(BaseModel):
     
@@ -30,14 +31,14 @@ class Player(Person):
     
     # Hydrations
     # Additional fields can be added here based on the hydrations used in the API requests
-    stats: Optional[List[Stat]] = None
+    stats: Optional[List[StatGroup]] = None
     awards: Optional[list] = None
     current_team: Optional[Team] = Field(None, alias='currentTeam')
     xref_ids: Optional[List[Dict[str, Any]]] = Field(None, alias='xrefIds') # EX: {'some_id': 'some_value'}
 
     # Other endpoints for more context
     active: Optional[bool] = None
-    primary_position: Optional[PrimaryPosition] = Field(None, alias='primaryPosition')
+    primary_position: Optional[Position] = Field(None, alias='primaryPosition')
     rookie_seasons: Optional[List[str]] = Field(None, alias='rookieSeasons')
 
     # Stats
@@ -58,3 +59,30 @@ class Player(Person):
     def model_post_init(self, __context):
         """Post-init processing to set calculated fields"""
         self.mlb_url = f"https://www.mlb.com/player/{self.id}"
+
+    # -------------------------------
+
+    def get_stat_splits(self, group_type: StatGroupEnum, type: StatTypeEnum, seasons: list[str | int]) -> Optional[List[StatSplit]]:
+        """Retrieve a specific StatsGroup by type"""
+        
+        # Check if stats are available
+        if not self.stats:
+            print(f"No stats available for player in seasons: {seasons}")
+            return None
+        
+        # Find the correct stats group
+        final_list: List[StatSplit] = []
+        for stats_group in self.stats:
+            # print(f"Checking stats group: {stats_group.group.display_name} = {group_type.value} | {stats_group.type.display_name} = {type.value}")
+            if stats_group.group.display_name == group_type.value and stats_group.type.display_name == type.value:
+
+                for split in stats_group.splits:
+                    is_included = group_type == StatTypeEnum.CAREER or int(split.season) in seasons
+                    if is_included:
+                        final_list.append(split)
+
+        if not final_list or len(final_list) == 0:
+            print(f"No stats found for group type: {group_type}, type: {type}, seasons: {seasons}")
+            return None
+        
+        return final_list
