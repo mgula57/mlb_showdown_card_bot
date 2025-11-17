@@ -121,6 +121,11 @@ class StatsPeriodDateAggregation(str, Enum):
             case StatsPeriodDateAggregation.MONTH:
                 return date(end_date.year, end_date.month, 1)
 
+class StatsPeriodYearType(str, Enum):
+    SINGLE_YEAR = "SINGLE_YEAR"
+    MULTI_YEAR = "MULTI_YEAR"
+    FULL_CAREER = "FULL_CAREER"
+
 
 class StatsPeriod(BaseModel):
 
@@ -130,6 +135,7 @@ class StatsPeriod(BaseModel):
 
     # MULTI-YEAR
     year_list: list[int] = []
+    year_type: StatsPeriodYearType = StatsPeriodYearType.SINGLE_YEAR
     is_full_career: bool = False
     is_multi_year: bool = False
 
@@ -156,8 +162,13 @@ class StatsPeriod(BaseModel):
         if self.year.upper() == 'CAREER':
             self.is_full_career = True
             self.is_multi_year = True
+            self.year_type = StatsPeriodYearType.FULL_CAREER
         elif self.year_list and len(self.year_list) > 1:
             self.is_multi_year = True
+            self.year_type = StatsPeriodYearType.MULTI_YEAR
+        else:
+            self.is_multi_year = False
+            self.year_type = StatsPeriodYearType.SINGLE_YEAR
 
         # VALIDATE ATTRIBUTES
         if not self.type.enable_date_range:

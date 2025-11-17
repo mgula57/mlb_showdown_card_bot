@@ -153,15 +153,19 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
     current_categories = stats_data.keys()
     if 'PA' not in current_categories:
         stats_data['is_stats_estimate'] = True
-
-        # CHECK FOR BATTERS FACED
-        bf = stats_data.get('batters_faced',0)
+        bf = stats_data.get('batters_faced', 0)
         is_bf_above_than_hits_and_bb = bf > ( stats_data.get('H', 0) + stats_data.get('BB', 0) ) # ACCOUNTS FOR BLANK BF ON PARTIAL SEASONS
-        if bf > 0 and is_bf_above_than_hits_and_bb:
+
+        # CHECK FOR HITS, BB, HBP, OUTS
+        # IF HITS, BB, AND OUTS ARE PRESENT, CAN DERIVE PA
+        if all (k in current_categories for k in ('H','BB','outs')):
+            stats_data['PA'] = stats_data.get('H', 0) + stats_data.get('BB', 0) + stats_data.get('HBP', 0) + stats_data.get('outs', 0)
+        # CHECK FOR BATTERS FACED
+        elif bf > 0 and is_bf_above_than_hits_and_bb:
             stats_data['PA'] = bf
         # ESTIMATE PA AGAINST
         else:
-            stats_data['PA'] = stats_data.get('IP', 0) * 4.25 # NEED TO ESTIMATE PA BASED ON AVG PA PER INNING
+            stats_data['PA'] = int(round(stats_data.get('IP', 0) * 4.25)) # NEED TO ESTIMATE PA BASED ON AVG PA PER INNING
 
     # PITCHER GAME LOGS DO NOT HAVE SH, SO DERIVE FROM PA
     if is_game_logs and is_pitcher and 'SH' not in current_categories:

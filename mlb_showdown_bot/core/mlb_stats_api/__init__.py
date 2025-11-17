@@ -30,7 +30,7 @@ class MLBStatsAPI:
             return None
 
         # Fetch full player details using the player ID
-        player = self.people.get_player(player_id=player_search_results[0].id, season=stats_period.year_int)
+        player = self.people.get_player(player_id=player_search_results[0].id, stats_period=stats_period)
 
         return player
 

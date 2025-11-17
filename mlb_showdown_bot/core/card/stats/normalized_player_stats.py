@@ -4,7 +4,8 @@ from enum import Enum
 
 from ...mlb_stats_api.models.person import Position, Player as MLBStatsApi_Player, StatGroupEnum, StatTypeEnum, StatSplit
 from ...shared.player_position import PlayerType
-from ...card.stats.stats_period import StatsPeriod
+from ..utils.shared_functions import fill_empty_stat_categories
+from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
 
 # -------------------------------
 # MARK: - Primary Datasources 
@@ -78,6 +79,18 @@ class NormalizedPlayerStats(BaseModel):
     SH: int = 0
     SF: int = 0
     IBB: int = 0
+
+    # Pitching Stats
+    W: int = 0
+    L: int = 0
+    GS: int = 0
+    IP: float = 0.0
+    ER: int = 0
+    earned_run_avg: Optional[float] = None
+    whip: Optional[float] = None
+    SV: int = 0
+    batters_faced: Optional[int] = None
+    outs: Optional[int] = None
     
     # Calculated Stats
     batting_avg: float = 0.0
@@ -119,6 +132,7 @@ class NormalizedPlayerStats(BaseModel):
 
     # Warnings
     warnings: Optional[List[str]] = None
+    is_stats_estimated: bool = False
 
     @field_serializer('primary_datasource')
     def serialize_primary_datasource(self, value: PrimaryDatasource) -> str:
@@ -165,6 +179,7 @@ class PlayerStatsNormalizer:
         # This is a placeholder for the actual normalization logic
         
         # Build normalized player
+        player_type = PlayerStatsNormalizer._mlb_api_determine_player_type(player.primary_position)
         normalized_data = {
             # Identity
             'primary_datasource': PrimaryDatasource.MLB_API,
@@ -172,8 +187,8 @@ class PlayerStatsNormalizer:
 
             'name': player.full_name,
             'year_ID': stats_period.year,
-            'team_ID': player.current_team.abbreviation if player.current_team else None,
-            'type': PlayerStatsNormalizer._mlb_api_determine_player_type(player.primary_position),
+            'team_ID': PlayerStatsNormalizer.extract_team_id(player, stats_period),
+            'type': player_type,
             'hand': Hand(player.bat_side.description).value,
             'hand_throw': Hand(player.pitch_hand.description).value,
             
@@ -192,7 +207,16 @@ class PlayerStatsNormalizer:
             # 'sprint_speed': getattr(mlb_player, 'sprint_speed', None),
             # 'onbase_plus_slugging_plus': self._extract_ops_plus(hitting_stats),
         }
-        return NormalizedPlayerStats(**normalized_data)
+
+        # FILL IN EMPTY VALUES
+        normalized_data = fill_empty_stat_categories(
+            stats_data=normalized_data,
+            is_pitcher=player_type == PlayerType.PITCHER.value,
+            is_game_logs=False
+        )
+
+        normalized_player_stats = NormalizedPlayerStats(**normalized_data)
+        return normalized_player_stats
     
     @staticmethod
     def from_bref_data(bref_data: Dict[str, Any]) -> NormalizedPlayerStats:
@@ -242,7 +266,7 @@ class PlayerStatsNormalizer:
             Dict[str, Dict[str, Any]]: Mapping of position abbr to their defensive stats
         """
 
-        stats_type = StatTypeEnum.CAREER if stats_period.is_full_career else StatTypeEnum.YEAR_BY_YEAR
+        stats_type = StatTypeEnum.CAREER if stats_period.is_full_career else StatTypeEnum.STATS_SINGLE_SEASON
 
         # Get fielding data for season(s)
         fielding_stat_splits = mlb_player.get_stat_splits(
@@ -292,7 +316,7 @@ class PlayerStatsNormalizer:
     def _extract_standard_stats(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Dict[str, Any]:
         """Extracts standard stats from a MLBStatsPlayer stat splits"""
 
-        stats_type = StatTypeEnum.CAREER if stats_period.is_full_career else StatTypeEnum.YEAR_BY_YEAR
+        stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
         group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
         standard_stat_splits = mlb_player.get_stat_splits(
             group_type=group_type,
@@ -341,6 +365,36 @@ class PlayerStatsNormalizer:
                     # e.g., take the latest value, average, etc. Here we skip.
 
         return standard_stats
+
+    @staticmethod
+    def extract_team_id(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[str]:
+        """Extracts the team ID for the player in the given stats period"""
+        stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
+        group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
+        standard_stat_splits = mlb_player.get_stat_splits(
+            group_type=group_type,
+            type=stats_type,
+            seasons=stats_period.year_list
+        )
+
+        if not standard_stat_splits or len(standard_stat_splits) == 0:
+            print("No standard stats available.")
+            return None  # No stats available
+        
+        # Get team with most games played
+        team_games_played: Dict[str, int] = {}
+        for split in standard_stat_splits:
+            team = split.team
+            if team and team.abbreviation:
+                games_played = split.stat.get('gamesPlayed', 0)
+                team_games_played[team.abbreviation] = team_games_played.get(team.abbreviation, 0) + games_played
+
+        if not team_games_played:
+            print("No team games played data available.")
+            return None
+
+        # Return the team with the most games played
+        return max(team_games_played, key=team_games_played.get)
     
     @staticmethod
     def _map_mlb_api_stats_to_bref() -> Dict[str, str]:
@@ -362,6 +416,7 @@ class PlayerStatsNormalizer:
             'homeRuns': 'HR',
             'inningsPitched': 'IP',
             'intentionalWalks': 'IBB',
+            'losses': 'L',
             'plateAppearances': 'PA',
             'rbi': 'RBI',
             'runs': "R",
@@ -372,6 +427,7 @@ class PlayerStatsNormalizer:
             'strikeOuts': 'SO',
             'totalBases': 'TB',
             'triples': '3B',
+            'wins': 'W',
             'whip': 'whip',
 
             # Slashline
@@ -397,6 +453,19 @@ class PlayerStatsNormalizer:
             'GO/AO': float,
             'date': str,  # Date is stored as a string in the format YYYY-MM-DD
         }
+
+    @staticmethod
+    def _primary_stats_type(stats_period_type: StatsPeriodYearType) -> StatTypeEnum:
+        """Returns a string representation of the stats period year type"""
+        match stats_period_type:
+            case StatsPeriodYearType.SINGLE_YEAR:
+                return StatTypeEnum.STATS_SINGLE_SEASON
+            case StatsPeriodYearType.FULL_CAREER:
+                return StatTypeEnum.CAREER
+            case StatsPeriodYearType.MULTI_YEAR:
+                return StatTypeEnum.YEAR_BY_YEAR
+            case _:
+                return StatTypeEnum.STATS_SINGLE_SEASON
 
 # -------------------------------
 # MARK: - Supporting Models
