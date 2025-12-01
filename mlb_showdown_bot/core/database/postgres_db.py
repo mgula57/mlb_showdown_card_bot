@@ -436,7 +436,7 @@ class PostgresDB:
             filter_values = []
 
             # Pop out sorting filters
-            sort_by = str(filters.pop('sort_by', 'points')).lower()
+            sort_by = str(filters.pop('sort_by', 'points'))
             sort_direction = str(filters.pop('sort_direction', 'desc')).lower()
 
             # Pop out pagination and limit
@@ -583,6 +583,13 @@ class PostgresDB:
                     direction=sql.SQL(sort_direction)
                 )
                 filter_values += [chart_key]
+
+            elif 'real_stats' in sort_by:
+                real_stats_key = sort_by.replace('real_stats_', '')
+                final_sort = sql.SQL("""case when length((card_data->'stats'->>%s)) = 0 then null else (card_data->'stats'->>%s)::float end {direction} NULLS LAST""").format(
+                    direction=sql.SQL(sort_direction)
+                )
+                filter_values += [real_stats_key, real_stats_key]
 
             else:
                 final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
@@ -1137,7 +1144,7 @@ class PostgresDB:
         except:
             return
 
-    def build_auto_images_table(self, refresh_explore: bool=False) -> None:
+    def build_auto_images_table(self, refresh_explore: bool=False, drop_existing:bool = False) -> None:
         """Creates and replaces the auto_images table in the database."""
  
         # RETURN IF NO CONNECTION
@@ -1232,9 +1239,14 @@ class PostgresDB:
             print("auto_images table exists. It will be replaced with new data.")
         
             # TRUNCATE THE EXISTING TABLE
-            truncate_or_drop_table_statement = '''
-                TRUNCATE TABLE auto_images;
-            '''
+            if drop_existing:
+                truncate_or_drop_table_statement = '''
+                    DROP TABLE IF EXISTS auto_images;
+                '''
+            else:
+                truncate_or_drop_table_statement = '''
+                    TRUNCATE TABLE auto_images;
+                '''
         else:
             truncate_or_drop_table_statement = '''
                 -- Table does not exist, will be created.
