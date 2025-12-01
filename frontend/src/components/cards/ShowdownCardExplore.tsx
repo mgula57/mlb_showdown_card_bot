@@ -192,7 +192,7 @@ const SORT_OPTIONS: SelectOption[] = [
     // Real Stats
     { value: 'real_stats_pa', label: 'Real Stats (PA)', icon: <FaHashtag /> },
     { value: 'real_stats_ip', label: 'Real Stats (IP)', icon: <FaHashtag /> },
-    { value: 'real_stats_g', label: 'Real Stats (G)', icon: <FaHashtag /> },
+    { value: 'real_stats_G', label: 'Real Stats (G)', icon: <FaHashtag /> },
     { value: 'real_stats_bWAR', label: 'Real Stats (bWAR)', icon: <FaHashtag /> },
     { value: 'real_stats_dWAR', label: 'Real Stats (dWAR)', icon: <FaHashtag /> },
 
