@@ -117,7 +117,7 @@ export async function fetchCardData(payload: Record<string, any>) : Promise<Card
 // =============================================================================
 
 // Cache configuration
-const HIERARCHY_CACHE_KEY = 'teamHierarchy:v1';
+const HIERARCHY_CACHE_KEY = 'teamHierarchy:v2';
 const HIERARCHY_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 /**

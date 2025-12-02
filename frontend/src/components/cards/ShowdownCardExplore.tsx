@@ -12,10 +12,10 @@ import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { Modal } from "../shared/Modal";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import {
-    FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes,
+    FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft
 } from "react-icons/fa";
-import { FaArrowRotateRight } from "react-icons/fa6";
+import { FaArrowRotateRight, FaTableList } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
 import { FaO, FaI } from "react-icons/fa6";
 
@@ -176,6 +176,47 @@ const SORT_OPTIONS: SelectOption[] = [
     { value: 'positions_and_defense_lf/rf', label: 'Defense (LF/RF)', icon: <FaMitten /> },
     { value: 'positions_and_defense_cf', label: 'Defense (CF)', icon: <FaMitten /> },
     { value: 'positions_and_defense_of', label: 'Defense (OF)', icon: <FaMitten /> },
+
+    // Chart Values
+    { value: 'chart_values_pu', label: 'Chart Values (PU)', icon: <FaTableList /> },
+    { value: 'chart_values_so', label: 'Chart Values (SO)', icon: <FaTableList /> },
+    { value: 'chart_values_gb', label: 'Chart Values (GB)', icon: <FaTableList /> },
+    { value: 'chart_values_fb', label: 'Chart Values (FB)', icon: <FaTableList /> },
+    { value: 'chart_values_bb', label: 'Chart Values (BB)', icon: <FaTableList /> },
+    { value: 'chart_values_1b', label: 'Chart Values (1B)', icon: <FaTableList /> },
+    { value: 'chart_values_1b+', label: 'Chart Values (1B+)', icon: <FaTableList /> },
+    { value: 'chart_values_2b', label: 'Chart Values (2B)', icon: <FaTableList /> },
+    { value: 'chart_values_3b', label: 'Chart Values (3B)', icon: <FaTableList /> },
+    { value: 'chart_values_hr', label: 'Chart Values (HR)', icon: <FaTableList /> },
+
+    // Real Stats
+    { value: 'real_stats_pa', label: 'Real Stats (PA)', icon: <FaHashtag /> },
+    { value: 'real_stats_ip', label: 'Real Stats (IP)', icon: <FaHashtag /> },
+    { value: 'real_stats_G', label: 'Real Stats (G)', icon: <FaHashtag /> },
+    { value: 'real_stats_bWAR', label: 'Real Stats (bWAR)', icon: <FaHashtag /> },
+    { value: 'real_stats_dWAR', label: 'Real Stats (dWAR)', icon: <FaHashtag /> },
+
+    { value: 'real_stats_batting_avg', label: 'Real Stats (BA)', icon: <FaHashtag /> },
+    { value: 'real_stats_onbase_perc', label: 'Real Stats (OBP)', icon: <FaHashtag /> },
+    { value: 'real_stats_slugging_perc', label: 'Real Stats (SLG)', icon: <FaHashtag /> },
+    { value: 'real_stats_onbase_plus_slugging', label: 'Real Stats (OPS)', icon: <FaHashtag /> },
+    { value: 'real_stats_onbase_plus_slugging_plus', label: 'Real Stats (OPS+)', icon: <FaHashtag /> },
+
+    { value: 'real_stats_earned_run_avg', label: 'Real Stats (ERA)', icon: <FaHashtag /> },
+    { value: 'real_stats_whip', label: 'Real Stats (WHIP)', icon: <FaHashtag /> },
+    
+    { value: 'real_stats_H', label: 'Real Stats (H)', icon: <FaHashtag /> },
+    { value: 'real_stats_1B', label: 'Real Stats (1B)', icon: <FaHashtag /> },
+    { value: 'real_stats_2B', label: 'Real Stats (2B)', icon: <FaHashtag /> },
+    { value: 'real_stats_3B', label: 'Real Stats (3B)', icon: <FaHashtag /> },
+    { value: 'real_stats_HR', label: 'Real Stats (HR)', icon: <FaHashtag /> },
+    { value: 'real_stats_SB', label: 'Real Stats (SB)', icon: <FaHashtag /> },
+
+    { value: 'real_stats_SO', label: 'Real Stats (SO)', icon: <FaHashtag /> },
+    { value: 'real_stats_BB', label: 'Real Stats (BB)', icon: <FaHashtag /> },
+    { value: 'real_stats_W', label: 'Real Stats (W)', icon: <FaHashtag /> },
+    { value: 'real_stats_SV', label: 'Real Stats (SV)', icon: <FaHashtag /> },
+
 ];
 
 /**

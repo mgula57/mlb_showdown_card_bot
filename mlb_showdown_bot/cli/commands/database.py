@@ -74,7 +74,7 @@ def database_update(
 
         if run_auto_image_suggestions:
             db = PostgresDB(is_archive=True)
-            db.build_auto_images_table(refresh_explore=refresh_explore)
+            db.build_auto_images_table(refresh_explore=refresh_explore, drop_existing=drop_existing)
 
         if not run_player_cards and refresh_explore:
             print("Refreshing Explore materialized views...")
