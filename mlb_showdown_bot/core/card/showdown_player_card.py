@@ -290,6 +290,9 @@ class ShowdownPlayerCard(BaseModel):
 
     @field_validator('era', mode='before')
     def handle_dynamic_era(cls, era:str, info:ValidationInfo) -> Era:
+        if isinstance(era, Era):
+            return era
+        
         if era.upper() != 'DYNAMIC':
             return Era(era)
         

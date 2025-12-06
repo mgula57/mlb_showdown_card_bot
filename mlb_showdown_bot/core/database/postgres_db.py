@@ -7,8 +7,9 @@ from psycopg2 import extensions, extras
 from psycopg2.extensions import AsIs
 from psycopg2 import sql
 from datetime import datetime
-from pydantic import BaseModel
-from typing import Optional, Any
+from pydantic import BaseModel, Field
+from typing import Optional, Any, Dict, List
+from enum import Enum
 
 # INTERNAL
 from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Set, StatsPeriodType, __version__
@@ -51,6 +52,178 @@ class PlayerArchive(BaseModel):
             return 'STARTING_PITCHER'
         else:
             return 'RELIEF_PITCHER'
+
+
+class ImageMatchType(str, Enum):
+    """Types of image matches available"""
+    EXACT = "exact"
+    TEAM_MATCH = "team match"
+    YEAR_MATCH = "year match"
+    NO_MATCH = "no match"
+
+class ExploreDataRecord(BaseModel):
+    """Pydantic model for records from the explore_data materialized view"""
+    
+    # Base identifiers
+    id: str
+    year: int
+    bref_id: str
+    name: str
+    
+    # Player type information
+    player_type: str
+    player_type_override: Optional[str] = None
+    is_two_way: bool = False
+    
+    # Position information
+    primary_positions: List[str]
+    secondary_positions: List[str]
+    positions_list: List[str]
+    
+    # Basic stats
+    g: int = Field(description="Games played")
+    gs: int = Field(description="Games started")
+    pa: Optional[int] = Field(None, description="Plate appearances")
+    real_ip: Optional[float] = Field(None, description="Innings pitched")
+    
+    # League and team information
+    lg_id: str = Field(description="League ID")
+    team_id: str = Field(description="Team ID")
+    team_id_list: List[str] = Field(description="List of teams if multi-team player")
+    team_games_played_dict: Dict[str, Any] = Field(description="Games played by team")
+    team_override: Optional[str] = None
+    
+    # Card data
+    card_data: ShowdownPlayerCard = Field(description="Raw card data as stored")
+    showdown_set: str = Field(description="Showdown set (e.g., '2001', 'CLASSIC')")
+    showdown_bot_version: Optional[str] = Field(None, description="Version of showdown bot used")
+    
+    # Parsed card attributes
+    points: Optional[int] = Field(None, description="Card point value")
+    nationality: Optional[str] = None
+    organization: Optional[str] = Field(None, description="MLB, NGL, etc.")
+    league: Optional[str] = Field(None, description="AL, NL, etc.")
+    team: Optional[str] = Field(None, description="Team from team hierarchy")
+    
+    # Metadata
+    positions_and_defense: Optional[Dict[str, Any]] = Field(None, description="Position and defense ratings")
+    positions_and_defense_string: Optional[str] = Field(None, description="Formatted positions string")
+    ip: Optional[int] = Field(None, description="Innings pitched (card value)")
+    speed: Optional[int] = Field(None, description="Speed rating")
+    hand: Optional[str] = Field(None, description="Handedness (L/R/S)")
+    speed_letter: Optional[str] = Field(None, description="Speed letter grade")
+    speed_full: Optional[str] = Field(None, description="Full speed designation (e.g., 'A(19)')")
+    speed_or_ip: Optional[int] = Field(None, description="Speed for hitters, IP for pitchers")
+    icons_list: List[str] = Field(default_factory=list, description="List of card icons")
+    
+    # Awards and stats
+    awards_list: List[str] = Field(default_factory=list, description="List of awards/achievements")
+    
+    # Chart information
+    command: Optional[int] = Field(None, description="Command rating")
+    outs: Optional[int] = Field(None, description="Number of outs on chart")
+    is_chart_outlier: Optional[bool] = Field(None, description="Whether chart has command/outs anomaly")
+    
+    # Image information
+    image_match_type: ImageMatchType = Field(ImageMatchType.NO_MATCH, description="Type of image match")
+    image_ids: Optional[Dict[str, str]] = Field(None, description="Available image IDs (BG/CUT)")
+    
+    # Metadata
+    updated_at: datetime = Field(description="When record was last updated")
+        
+    @property
+    def player_subtype(self) -> str:
+        """Derive player subtype based on games started ratio"""
+        if self.player_type == 'HITTER':
+            return 'POSITION_PLAYER'
+        
+        games_started_vs_total = round(self.gs / self.g, 4) if self.g > 0 else 0
+        if games_started_vs_total >= 0.5:
+            return 'STARTING_PITCHER'
+        else:
+            return 'RELIEF_PITCHER'
+    
+    @property
+    def is_multi_team(self) -> bool:
+        """Whether player played for multiple teams"""
+        return len(self.team_id_list) > 1
+    
+    @property
+    def has_awards(self) -> bool:
+        """Whether player has any awards"""
+        return len(self.awards_list) > 0
+    
+    @property
+    def has_image_match(self) -> bool:
+        """Whether player has any image match"""
+        return self.image_match_type != ImageMatchType.NO_MATCH
+    
+    @property
+    def chart_efficiency(self) -> Optional[float]:
+        """Calculate chart efficiency (command per out)"""
+        if self.command is not None and self.outs is not None and self.outs > 0:
+            return round(self.command / self.outs, 2)
+        return None
+    
+    @property
+    def war(self) -> Optional[float]:
+        """Get WAR from card data stats"""
+        if not self.card_data or not self.card_data.stats:
+            return None
+        
+        try:
+            war_value = self.card_data.stats.get('bWAR', None)
+            if war_value is not None:
+                return float(war_value)
+            return None
+        except (ValueError, TypeError):
+            return None
+    
+    def get_position_defense_rating(self, position: str) -> Optional[int]:
+        """Get defense rating for a specific position"""
+        if not self.positions_and_defense or position not in self.positions_and_defense:
+            return None
+        
+        try:
+            return int(self.positions_and_defense[position])
+        except (ValueError, TypeError):
+            return None
+    
+    def get_real_stat(self, stat_name: str) -> Optional[Any]:
+        """Get a real stat value from card data"""
+        if not self.card_data or 'stats' not in self.card_data:
+            return None
+        
+        stats = self.card_data['stats']
+        return stats.get(stat_name)
+    
+    def get_chart_value(self, outcome: str) -> Optional[float]:
+        """Get a specific chart outcome value"""
+        if not self.card_data or 'chart' not in self.card_data:
+            return None
+        
+        chart = self.card_data['chart']
+        if 'values' not in chart:
+            return None
+            
+        try:
+            return float(chart['values'].get(outcome, 0))
+        except (ValueError, TypeError):
+            return None
+    
+    def has_icon(self, icon: str) -> bool:
+        """Check if player has a specific icon"""
+        return icon in self.icons_list
+    
+    def has_award(self, award: str) -> bool:
+        """Check if player has a specific award"""
+        return award in self.awards_list
+    
+    def has_award_prefix(self, award_prefix: str) -> bool:
+        """Check if player has any award starting with prefix (e.g., 'MVP-' for any MVP ranking)"""
+        return any(award.startswith(award_prefix) for award in self.awards_list)
+
+
 
 class PostgresDB:
 
@@ -419,6 +592,16 @@ class PostgresDB:
 # EXPLORE
 # ------------------------------------------------------------------------
 
+    def fetch_explore_data(self, filters: dict = {}) -> list[ExploreDataRecord]:
+        """Fetch all explore data from the database with support for lists and min/max filtering."""
+
+        raw_data = self.fetch_card_data(filters=filters)
+        if raw_data is None:
+            return []
+
+        return [ExploreDataRecord(**row) for row in raw_data]
+
+
     def fetch_card_data(self, filters: dict = {}) -> list[dict]:
         """Fetch all card data from the database with support for lists and min/max filtering."""
 
@@ -602,7 +785,7 @@ class PostgresDB:
             # ADD LIMIT AND PAGINATION
             if not isinstance(page, int) or page < 1:
                 page = 1
-            if not isinstance(limit, int) or limit < 1 or limit > 1000:
+            if not isinstance(limit, int) or limit < 1 or limit > 5000:
                 limit = 50
 
             query += sql.SQL(" LIMIT %s OFFSET %s")
