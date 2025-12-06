@@ -6,9 +6,10 @@ import pandas as pd
 import os, json
 from pathlib import Path
 from rich.progress import track
+from pprint import pprint
 
 # INTERNAL
-from ..showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points, Position
+from ..showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points, Position, StatsPeriod, StatsPeriodType
 from ...database.postgres_db import PostgresDB, PlayerArchive
 
 # ------------------------------
@@ -21,9 +22,6 @@ class WotcDataSource(str, Enum):
 
 class WotcPlayerCard(ShowdownPlayerCard):
     """Expansion of the ShowdownPlayerCard class to include WOTC specific fields"""
-
-    points_estimated_breakdown: Points = Points()
-    points_estimated: int = 0
 
     def __init__(self, data_source: WotcDataSource = WotcDataSource.FILE, update_projections:bool = False, stats:dict = None, **data):
         match data_source:
@@ -47,7 +45,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                 else:
                     ss_year = data.get('ss_year', None)
                     data['year'] = str(int(ss_year) if ss_year else set_year)
-                data['stats'] = {}
+                data['stats'] = stats or {}
                 data['source'] = 'WOTC'
                 data['build_on_init'] = False
                 data['is_wotc'] = True
@@ -118,7 +116,6 @@ class WotcPlayerCard(ShowdownPlayerCard):
                         if len(chart_results) < 30:
                             chart_results += [chart_results[-1]] * (30 - len(chart_results))
                 opponent_chart = set.wotc_baseline_chart(player_type.opponent_type, my_type=player_sub_type, adjust_for_simulation_accuracy=True)
-                mlb_avgs_df = opponent_chart.load_mlb_league_avg_df()
                 chart = Chart(
                     is_pitcher = player_type.is_pitcher,
                     player_subtype = player_sub_type.value,
@@ -130,17 +127,23 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     outs = data['outs'],
                     opponent = opponent_chart,
                     wotc_chart_results = chart_results,
-                    mlb_avgs_df = mlb_avgs_df
                 )
                 data['chart'] = chart
-                data['stats'] = {'type': player_type.value}
+
+                data['stats_period'] = StatsPeriod(
+                    period_type=StatsPeriodType.REGULAR_SEASON,
+                    year=int(data['year'])
+                )
                 
                 # INIT WITH DATA
                 super().__init__(**data)
 
-                self.stats = self.add_estimates_to_stats(stats=stats) if stats else {}
+                self.chart.is_command_out_anomaly = self.chart.is_chart_an_outlier
+
+                self.stats = self.clean_stats(self.stats) if stats else {}
                 self.positions_and_defense_string = self.positions_and_defense_as_string(is_horizontal=True)
                 self.positions_and_defense_for_visuals = self.calc_positions_and_defense_for_visuals()
+                self.positions_list = list(self.positions_and_defense.keys())
 
                 stats_per_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats)
                 self.chart.stats_per_400_pa = stats_per_400_pa
@@ -230,10 +233,9 @@ class WotcPlayerCardSet(BaseModel):
 
         # LOAD CSV WITH ORIGINAL CARD DATA
         # REFER TO GOOGLE SHEET BELOW FOR LATEST DATA
-        # sheet_link = 'https://docs.google.com/spreadsheets/d/1WCrgXHIH0-amVd5pDPbhoMVnlhLuo1hU620lYCnh0VQ/edit#gid=0'
-        # export_url = sheet_link.replace('/edit#gid=', '/export?format=csv&gid=')
-        print("LOADING FROM LOCAL FILE")
-        df_wotc_cards = pd.read_csv(os.path.join(Path(os.path.dirname(__file__)), 'data', 'MLB Showdown WOTC Cards.csv'))
+        sheet_link = 'https://docs.google.com/spreadsheets/d/1WCrgXHIH0-amVd5pDPbhoMVnlhLuo1hU620lYCnh0VQ/edit#gid=0'
+        export_url = sheet_link.replace('/edit#gid=', '/export?format=csv&gid=')
+        df_wotc_cards = pd.read_csv(export_url)
 
         # FILTER PANDAS FOR CARDS IN SETS AND EXPANSIONS LIST
         expansion_values = [e.value for e in self.expansions]
@@ -252,7 +254,9 @@ class WotcPlayerCardSet(BaseModel):
         year_list = [y-1 for y in set_values] + ss_year_values
         print("FETCHING PLAYER STATS")
         real_player_stats_archive: list[PlayerArchive] = postgres_db.fetch_all_stats_from_archive(year_list=year_list, exclude_records_with_stats=False)
-
+        if len(real_player_stats_archive) == 0:
+            raise Exception('No player stats found in archive for WOTC conversion.')
+        
         # MAKE LIST OF ARCHIVE IDS TO IGNORE STATS FOR. DUE TO WOTC USING MULTIPLE YEARS FOR THEM.
         ignore_stats: list[str] = [
             '2000-mcgwima01' # MARK MCGWIRE 2001
@@ -294,6 +298,11 @@ class WotcPlayerCardSet(BaseModel):
         # JSON
         if 'json' in formats:
             json_data = self.model_dump(mode="json", exclude_none=True)
+
+            # Create directory if it doesn't exist
+            file_path = Path(self.local_file_path)
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+
             with open(self.local_file_path, "w") as json_file:
                 json.dump(json_data, json_file, indent=4, ensure_ascii=False)
 

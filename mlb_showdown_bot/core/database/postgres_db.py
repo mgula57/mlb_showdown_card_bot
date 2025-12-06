@@ -1,3 +1,4 @@
+import json
 import os
 import psycopg2
 import traceback
@@ -849,6 +850,202 @@ class PostgresDB:
 
         self.connection.close()
 
+# ------------------------------------------------------------------------
+# WOTC
+# ------------------------------------------------------------------------
+
+    def upload_wotc_card_data(self, wotc_card_data: list[ShowdownPlayerCard], drop_existing:bool=False) -> bool:
+        """Upload WOTC card data to the database.
+        
+        Args:
+            wotc_card_data: List of WOTCCardData objects to upload.
+            drop_existing: If True, drop existing table before uploading new data.
+        
+        Returns:
+            True if upload was successful, False otherwise.
+        """
+
+        if self.connection is None:
+            print("No database connection available for uploading WOTC card data.")
+            return False
+        
+        try:
+            cursor = self.connection.cursor()
+
+            # DROP EXISTING TABLE IF REQUESTED
+            if drop_existing:
+                cursor.execute("DROP TABLE IF EXISTS wotc_card_data;")
+                print("  → Dropped existing wotc_card_data table.")
+
+            # CREATE TABLE IF NOT EXISTS
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS wotc_card_data (
+                    wotc_card_id character varying(100) NOT NULL,
+                    player_id character varying(20),
+                    showdown_set character varying(20) NOT NULL,
+                    card_data jsonb,
+                    year character varying(15),
+                    bref_id character varying(10),
+                    name character varying(100),
+                    player_type character varying(50),
+                    player_type_override character varying(50),
+                    primary_positions character varying(100)[],
+                    secondary_positions character varying(100)[],
+                    g integer,
+                    gs integer,
+                    pa integer,
+                    real_ip integer,
+                    lg_id character varying(10),
+                    team_id character varying(10),
+                    team_id_list character varying(100)[],
+                    showdown_bot_version character varying(10),
+                    points integer,
+                    nationality character varying(50),
+                    organization character varying(50),
+                    league character varying(50),
+                    team character varying(50),
+                    positions_and_defense jsonb,
+                    positions_and_defense_string character varying(100),
+                    positions_list character varying(100)[],
+                    ip integer,
+                    speed integer,
+                    hand character varying(10),
+                    speed_letter character varying(5),
+                    speed_full character varying(20),
+                    speed_or_ip integer,
+                    icons_list character varying(100)[],
+                    awards_list character varying(100),
+                    command integer,
+                    outs integer,
+                    is_chart_outlier boolean,
+                    created_date timestamp without time zone DEFAULT now(),
+                    modified_date timestamp without time zone DEFAULT now()
+                );
+                """
+            )
+            print("  → Ensured wotc_card_data table exists.")
+
+            # CLEAR EXISTING DATA
+            cursor.execute("DELETE FROM wotc_card_data;")
+            print("  → Cleared existing WOTC card data.")
+
+            # PREPARE BATCH DATA
+            batch_data = []
+            for card in wotc_card_data:
+                player_id = "-".join([str(card.year), card.bref_id]) if card.bref_id else None
+                if card.stats_period.type != StatsPeriodType.REGULAR_SEASON:
+                    player_id += f"-{card.stats_period.id}"
+
+                stat_source = card.stats_for_card or {}
+                
+                batch_data.append((
+                    card.id,
+                    player_id,
+                    card.set.value,
+                    json.dumps(card.as_json()),
+                    card.year,
+                    card.bref_id,
+                    card.name,
+                    card.player_type.value.upper() if card.player_type else None,
+                    card.player_type_override.value.upper() if card.player_type_override else None,
+                    [p.value for p in card.positions_and_games_played.keys()],
+                    [],
+                    stat_source.get("G", None),
+                    stat_source.get("GS", None),
+                    stat_source.get("PA", None),
+                    stat_source.get("IP", None),
+                    card.league,
+                    card.team,
+                    [card.team],
+                    __version__,
+                    card.points,
+                    card.nationality.value if card.nationality else None,
+                    "MLB",
+                    card.league,
+                    card.team,
+                    json.dumps(card.positions_and_defense_for_visuals),
+                    card.positions_and_defense_string,
+                    [p.value for p in card.positions_and_games_played.keys()],
+                    card.ip if card.ip else None,
+                    card.speed.speed if card.speed.speed else None,
+                    card.hand.value if card.hand else None,
+                    card.speed.letter if card.speed.speed else None,
+                    card.speed.full_string if card.speed.speed else None,
+                    card.ip or card.speed.speed,
+                    [i.value for i in card.icons],
+                    stat_source.get("awards", None),
+                    card.chart.command,
+                    card.chart.outs_full,
+                    card.chart.is_command_out_anomaly,
+                    datetime.now(),
+                ))
+
+            # BATCH INSERT NEW DATA
+            insert_query = """
+                INSERT INTO wotc_card_data (
+                    wotc_card_id,
+                    player_id,
+                    showdown_set,
+                    card_data,
+                    year,
+                    bref_id,
+                    name,
+                    player_type,
+                    player_type_override,
+                    primary_positions,
+                    secondary_positions,
+                    g,
+                    gs,
+                    pa,
+                    real_ip,
+                    lg_id,
+                    team_id,
+                    team_id_list,
+                    showdown_bot_version,
+                    points,
+                    nationality,
+                    organization,
+                    league,
+                    team,
+                    positions_and_defense,
+                    positions_and_defense_string,
+                    positions_list,
+                    ip,
+                    speed,
+                    hand,
+                    speed_letter,
+                    speed_full,
+                    speed_or_ip,
+                    icons_list,
+                    awards_list,
+                    command,
+                    outs,
+                    is_chart_outlier,
+                    modified_date
+                )
+                VALUES %s
+            """
+
+            execute_values(
+                cursor, 
+                insert_query, 
+                batch_data,
+                template=None,
+                page_size=1000  # Process in chunks of 1000
+            )
+            
+            print(f"  → Uploaded {len(wotc_card_data)} WOTC card data records.")
+            return True
+
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Error uploading WOTC card data: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+
 
 # ------------------------------------------------------------------------
 # MATERIALIZED VIEWS
@@ -911,7 +1108,7 @@ class PostgresDB:
                     """).format(
                         schema=sql.Identifier(schema),
                         view_name=sql.Identifier(view_name)
-                ))
+                    ))
                 print(f"  → Refreshed existing materialized view '{view_name}'.")
                 return True
 

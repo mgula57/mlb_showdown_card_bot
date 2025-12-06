@@ -121,6 +121,10 @@ class ShowdownPlayerCard(BaseModel):
     real_vs_projected_stats: list[RealVsProjectedStat] = []
     command_out_accuracy_breakdowns: dict[str, dict[Stat, ChartAccuracyBreakdown]] = {}
 
+    # STATS FOR WOTC CONVERTED CARDS
+    points_estimated_breakdown: Optional[Points] = None
+    points_estimated: Optional[int] = None
+
     # SHOWING OUTPUT
     show_image: bool = False
     print_to_cli: bool = False
@@ -417,6 +421,8 @@ class ShowdownPlayerCard(BaseModel):
         fields = [self.year, self.bref_id, self.set.value, self.image.expansion.value,]
         if self.player_type_override:
             fields.append(self.player_type_override.value)
+        if self.is_wotc:
+            fields.append("WOTC")
         return "-".join(fields)
 
     @property
@@ -1931,7 +1937,7 @@ class ShowdownPlayerCard(BaseModel):
         if len(stats) == 0:
             return {}
 
-        pct_of_n_pa = (float(stats['PA'])) / plate_appearances
+        pct_of_n_pa = (float(stats.get('PA', 0))) / plate_appearances
 
         # POPULATE DICT WITH VALUES UNCHANGED BY SHIFT IN PA
         stats_for_n_pa = { k:v for k,v in stats.items() if k in ['batting_avg', 'onbase_perc', 'slugging_perc', 'onbase_plus_slugging', 'IF/FB', 'GO/AO'] }
