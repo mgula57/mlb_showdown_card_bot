@@ -22,7 +22,7 @@ const h = createColumnHelper<RealVsProjectedStat>();
  * - Bot: Card's projected statistical performance
  * - Diff: Difference between projected and real (with directional indicator)
  */
-const realVsProjectedStatColumns: ColumnDef<RealVsProjectedStat, any>[] = [
+const realVsProjectedStatColumns = (isWotc: boolean = false): ColumnDef<RealVsProjectedStat, any>[] => [
     h.accessor("stat", { 
         header: "Stat",
         cell: info => {
@@ -38,7 +38,7 @@ const realVsProjectedStatColumns: ColumnDef<RealVsProjectedStat, any>[] = [
         cell: info => formatStatValue(info.getValue(), info.row.getValue<string>("stat"))
     }),
     h.accessor("projected", {
-        header: "Bot",
+        header: isWotc ? "WOTC" : "Bot",
         cell: info => formatStatValue(info.getValue(), info.row.getValue<string>("stat"))
     }),
     h.accessor("diff_str", {
@@ -54,6 +54,8 @@ type TableRealVsProjectedProps = {
     realVsProjectedData: RealVsProjectedStat[];
     /** Optional CSS classes for styling */
     className?: string;
+    /** Flag indicating if the data is for WOTC cards */
+    isWotc?: boolean;
 };
 
 /**
@@ -86,12 +88,12 @@ type TableRealVsProjectedProps = {
  * />
  * ```
  */
-export function TableRealVsProjected({ realVsProjectedData, className }: TableRealVsProjectedProps) {
+export function TableRealVsProjected({ realVsProjectedData, className, isWotc=false }: TableRealVsProjectedProps) {
 
     return (
         <BasicDataTable 
             data={realVsProjectedData}
-            columns={realVsProjectedStatColumns}
+            columns={realVsProjectedStatColumns(isWotc)}
             className={className}
         />
     );

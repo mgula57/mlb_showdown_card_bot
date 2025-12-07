@@ -341,9 +341,14 @@ export type ShowdownBotCard = {
     
     /** Point value calculation breakdown */
     points_breakdown: PointsBreakdown;
+    points_estimated?: number | null;
+    points_estimated_breakdown?: PointsBreakdown | null;
 
     /** Stats Object */
     stats: Record<string, any>;
+
+    /** Flag indicating if the card is a WOTC card */
+    is_wotc?: boolean;
 
     /** Data quality and edge case warnings */
     warnings: string[];
@@ -385,7 +390,7 @@ export type ShowdownBotCardImage = {
     color_secondary: string;
 
     /** List of statistics to highlight on card */
-    stat_highlights_list: string[];
+    stat_highlights_list?: string[] | null;
 };
 
 // =============================================================================

@@ -7,9 +7,13 @@ import os, json
 from pathlib import Path
 from rich.progress import track
 from pprint import pprint
+import unidecode
 
 # INTERNAL
-from ..showdown_player_card import ShowdownPlayerCard, Set, Era, Edition, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points, Position, StatsPeriod, StatsPeriodType, ShowdownImage
+from ..showdown_player_card import ShowdownPlayerCard, Set, Era, Edition, Speed, \
+                                    PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, \
+                                    Points, Position, StatsPeriod, StatsPeriodType, ShowdownImage \
+                                    , StatHighlightsType
 from ...database.postgres_db import PostgresDB, PlayerArchive
 
 # ------------------------------
@@ -34,7 +38,9 @@ class WotcPlayerCard(ShowdownPlayerCard):
             case WotcDataSource.GSHEET:
                 # DATA NEEDS TO BE CONFORMED TO SHOWDOWN PLAYER CARD CLASS
                 data: dict = {k.lower().replace(' ', '_'): v for k,v in data.items() if type(v) is str or not isnan(v)}
+
                 # DERIVE REQUIRED FIELDS
+                data['name'] = unidecode.unidecode(data['name'])
                 set = Set(str(data['set']))
                 set_year = int(set.year)
                 data['set'] = set
@@ -44,12 +50,17 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     data['year'] = str(set_year - 1)
                 else:
                     ss_year = data.get('ss_year', None)
-                    data['year'] = str(int(ss_year) if ss_year else set_year)
+                    data['year'] = str(ss_year or set_year)
                 data['edition'] = Edition(data['edition']) if data['edition'] in ('SS', 'RS', 'CC', 'AS', 'PM') else Edition.NONE
-                data['stats'] = stats or {}
                 data['source'] = 'WOTC'
                 data['build_on_init'] = False
                 data['is_wotc'] = True
+
+                # STATS
+                name = (stats or {}).get('name', None)
+                if name:
+                    stats['name'] = unidecode.unidecode(name)
+                data['stats'] = stats or {}
 
                 # IMAGE
                 image = ShowdownImage(
@@ -57,7 +68,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     edition= data['edition'],
                     set_year = set_year,
                     set_number = str(data['set_number']),
-                    add_one_to_set_year = True
+                    add_one_to_set_year = False
                 )
                 data['image'] = image
 
@@ -93,6 +104,11 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     if icon:
                         icons.append(icon)
                 data['icons'] = icons
+
+                stats_period = StatsPeriod(
+                    period_type=StatsPeriodType.REGULAR_SEASON,
+                    year=data['year']
+                )
 
                 # CHART
                 categories_as_str = ['so','pu','gb','fb','bb','1b','1b+','2b','3b','hr'] if set == Set._2000 else ['pu','so','gb','fb','bb','1b','1b+','2b','3b','hr']
@@ -130,7 +146,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     is_pitcher = player_type.is_pitcher,
                     player_subtype = player_sub_type.value,
                     set = set.value,
-                    era_year_list=[int(data['year'])],
+                    era_year_list=stats_period.year_list,
                     era = Era.STEROID.value,
                     is_expanded = set.has_expanded_chart,
                     command = data['command'],
@@ -140,10 +156,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                 )
                 data['chart'] = chart
 
-                data['stats_period'] = StatsPeriod(
-                    period_type=StatsPeriodType.REGULAR_SEASON,
-                    year=int(data['year'])
-                )
+                data['stats_period'] = stats_period
                 
                 # INIT WITH DATA
                 super().__init__(**data)
@@ -153,15 +166,15 @@ class WotcPlayerCard(ShowdownPlayerCard):
                 self.image.color_secondary = self._team_color_rgb_str(is_secondary_color=True)
 
                 self.stats = self.clean_stats(self.stats) if stats else {}
-                self.positions_and_defense_string = self.positions_and_defense_as_string(is_horizontal=True)
                 self.positions_and_defense_for_visuals = self.calc_positions_and_defense_for_visuals()
+                self.positions_and_defense_string = self.positions_and_defense_as_string(is_horizontal=True)
                 self.positions_list = list(self.positions_and_defense.keys())
 
                 stats_per_400_pa = self.stats_per_n_pa(plate_appearances=400, stats=self.stats)
                 self.chart.stats_per_400_pa = stats_per_400_pa
                 self.chart.generate_accuracy_rating()
 
-        if update_projections and len(self.stats) > 0:
+        if update_projections:
             self.update_projections()
 
     def update_projections(self) -> None:
@@ -174,7 +187,6 @@ class WotcPlayerCard(ShowdownPlayerCard):
         # ADD PROJECTIONS
         chart_results_per_400_pa = self.chart.projected_stats_per_400_pa
         self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command, pa=self.stats.get('PA', 650))
-        self.accolades = self.parse_accolades()
 
         # ADD ESTIMATED PTS
         chart_for_pts = self.chart.model_copy()
@@ -183,6 +195,12 @@ class WotcPlayerCard(ShowdownPlayerCard):
         projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
         self.points_estimated_breakdown = self.calculate_points(projected=projections_for_pts, positions_and_defense=self.positions_and_defense, speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
         self.points_estimated = self.points_estimated_breakdown.total_points
+
+        if len(self.stats) > 0:
+            self.accolades = self.parse_accolades()
+            self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
+            self.image.stat_highlights_type = StatHighlightsType.CLASSIC
+            self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card)
 
 # ------------------------------
 # WOTC PLAYER CARDS
@@ -256,7 +274,7 @@ class WotcPlayerCardSet(BaseModel):
         df_wotc_cards = df_wotc_cards[df_wotc_cards['Set'].isin(set_values) & df_wotc_cards['Expansion'].isin(expansion_values) & df_wotc_cards['Player Type'].isin(player_type_values)]
 
         # GET DISTINCT VALUES FROM THE 'SS YEAR' COLUMN
-        ss_year_values = [int(s) for s in df_wotc_cards['SS Year'].unique() if math.isnan(s) == False]
+        ss_year_values = [int(s) for s in df_wotc_cards['SS Year'].unique() if len(str(s or "")) == 4]
 
         # CONVERT TO LIST OF DICTS
         list_of_dicts: list[dict[str, any]] = df_wotc_cards.to_dict(orient='records')
@@ -279,27 +297,35 @@ class WotcPlayerCardSet(BaseModel):
         converted_cards: list[WotcPlayerCard] = {}
         for gsheet_row in track(list_of_dicts, description="Converting WOTC Player Cards"):
 
-            if int(gsheet_row.get('Set', 0)) < 2002 and gsheet_row.get('Expansion') == 'PM':
-                continue
+            try:
 
-            # ADD STATS FROM ARCHIVE
-            bref_id = gsheet_row.get('BRef Id', '')
-            expansion = gsheet_row.get('Expansion', 'N/A')
-            ss_year = None if math.isnan(gsheet_row.get('SS Year', 0)) else int(gsheet_row.get('SS Year', 0))
-            set_year = int(gsheet_row.get('Set', 2000)) - 1
-            year = ss_year or set_year
-            archive_id = f'{year}-{bref_id}'
-            name = gsheet_row.get('Name', 'N/A')
-            stats: dict = None
-            if (expansion == Expansion.BS.value or ss_year) and archive_id not in ignore_stats:
-                player_archive = next((p for p in real_player_stats_archive if p.id == archive_id), None)
-                if player_archive:
-                    stats = player_archive.stats
-                if not player_archive:
-                    print(f'No stats found for {year} {name}')
+                if int(gsheet_row.get('Set', 0)) < 2002 and gsheet_row.get('Expansion') == 'PM':
+                    continue
 
-            card = WotcPlayerCard(data_source=WotcDataSource.GSHEET, update_projections=True, stats=stats, **gsheet_row)
-            converted_cards[card.id] = card
+                # ADD STATS FROM ARCHIVE
+                bref_id = gsheet_row.get('BRef Id', '')
+                expansion = gsheet_row.get('Expansion', 'N/A')
+                ss_year_raw = str(gsheet_row.get('SS Year', 'N/A'))
+                ss_year = None if ss_year_raw == 'N/A' or len(ss_year_raw) != 4 else int(ss_year_raw)
+                set_year = int(gsheet_row.get('Set', 2000)) - 1
+                year = ss_year or set_year
+                archive_id = f'{year}-{bref_id}'
+                name = gsheet_row.get('Name', 'N/A')
+                stats: dict = None
+                if (expansion not in ['TD', 'PR', 'ASG'] or ss_year) and archive_id not in ignore_stats:
+                    player_archive = next((p for p in real_player_stats_archive if p.id == archive_id), None)
+                    if player_archive:
+                        stats = player_archive.stats
+                    if not player_archive:
+                        print(f'No stats found for {year} {name}')
+
+                card = WotcPlayerCard(data_source=WotcDataSource.GSHEET, update_projections=True, stats=stats, **gsheet_row)
+                converted_cards[card.id] = card
+            except Exception as e:
+                print(f'Error converting WOTC card for {gsheet_row.get("Name", "N/A")}: {e}')
+                import traceback
+                traceback.print_exc()
+                break
         
         self.cards = converted_cards
         return

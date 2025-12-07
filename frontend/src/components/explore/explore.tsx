@@ -5,13 +5,26 @@
  * with advanced filtering, sorting, and team hierarchy navigation capabilities.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ShowdownBotSearch from "../cards/ShowdownCardSearch";
 
 export default function Explore() {
 
-    // State
-    const [tab, setTab] = useState<'BOT' | 'WOTC'>('BOT');
+    // State - Initialize from localStorage or default to 'BOT'
+    const [tab, setTab] = useState<'BOT' | 'WOTC'>(() => {
+        if (typeof window !== 'undefined') {
+            const savedTab = localStorage.getItem('explore-tab');
+            return (savedTab === 'BOT' || savedTab === 'WOTC') ? savedTab as 'BOT' | 'WOTC' : 'BOT';
+        }
+        return 'BOT';
+    });
+
+    // Persist tab selection to localStorage whenever it changes
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('explore-tab', tab);
+        }
+    }, [tab]);
 
     const tabSelectedStyle = "text-[var(--showdown-blue)] border-b-2 border-[var(--showdown-blue)]";
     const tabUnselectedStyle = "text-gray-500 hover:text-gray-700";

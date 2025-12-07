@@ -231,6 +231,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     <div className='space-y-2 overflow-y-auto'>
                         <TableRealVsProjected
                             realVsProjectedData={activeCardData?.card?.real_vs_projected_stats || []}
+                            isWotc={activeCardData?.card?.is_wotc || false}
                         />
 
                         {/* Footnote */}

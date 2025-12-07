@@ -459,8 +459,8 @@ class ShowdownPlayerCard(BaseModel):
         
         is_multi_position = len(positions) > 1
         hand_prefix = self.hand.silhouette_name(self.is_pitcher)
-        hand_throwing = self.stats_for_card['hand_throw']
-        throwing_hand_prefix = f"{hand_throwing[0].upper()}H"
+        hand_throwing = self.stats_for_card.get('hand_throw', None)
+        throwing_hand_prefix = f"{hand_throwing[0].upper()}H" if hand_throwing else None
 
         # CATCHERS
         if is_catcher:
@@ -493,7 +493,7 @@ class ShowdownPlayerCard(BaseModel):
                 return f"LH-OF"
 
             # 2. CHECK FOR 1B
-            if is_1b and not is_multi_position:
+            if is_1b and not is_multi_position and throwing_hand_prefix:
                 return f"{throwing_hand_prefix}-1B"
 
             # 3. CHECK FOR POWER HITTER
@@ -2005,9 +2005,13 @@ class ShowdownPlayerCard(BaseModel):
           List of stats.
         """
 
+        if stats is None or len(stats) == 0:
+            return None
+
         categories = self.player_sub_type.stat_highlight_categories(type=self.image.stat_highlights_type)
         stat_and_sort_rank: dict[str, float] = {}
         ignore_dwar = False
+
         for category in categories:
             stat_keys = category.stat_key_list
             category_multiplier = category.sort_rating_multiplier
@@ -2506,6 +2510,9 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           List of RealVsProjectedStats
         """
+
+        if self.projected is None or len(self.projected) == 0 or self.stats_for_card is None or len(self.stats_for_card) == 0:
+            return None
 
         final_player_data: list[RealVsProjectedStat] = []
 

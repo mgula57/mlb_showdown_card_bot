@@ -87,6 +87,23 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
         `IP ${card?.ip}`
     ];
 
+    const renderPointsComparison = (originalPoints: number, newPoints:number) => {
+        const difference = newPoints - originalPoints;
+        const absoluteDifference = Math.abs(difference);
+        const differenceSign = difference > 0 ? '▲' : '▼';
+        return (
+            <div className="flex items-center">
+                EST: {newPoints}
+                {difference !== 0 && (
+                    <span className={`ml-0.5 text-[8px] ${difference > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {differenceSign}
+                        {absoluteDifference}
+                    </span>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div
             className={`
@@ -116,7 +133,7 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
 
                         {/* Edition */}
                         {(card?.image.edition && card?.image.edition !== 'NONE') && (
-                            <img src={`/images/card/edition-${card?.image.edition?.toLowerCase()}.png`} className="w-5 h-5 object-contain object-center" alt="Edition" />
+                            <img src={`/images/card/edition-${card?.image.edition?.toLowerCase()}.png`} className="w-6 h-6 object-contain object-center" alt="Edition" />
                         )}
                         
                         {/* Special ability icons (e.g., "R" for Rookie, "S" for Silver Slugger) */}
@@ -136,10 +153,13 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                     </div>
                     
                     {/* Point value and player-specific metadata */}
-                    <div className="flex flex-row gap-1.5 text-[11px] text-secondary tracking-tight">
+                    <div className="flex flex-row gap-1.5 text-[11px] text-secondary tracking-tight items-center">
                         <div className="px-1 rounded-md font-semibold" style={colorStylingSecondary}>
                             {`${card?.points} PTS`}
                         </div>
+                        {card?.points_estimated && card?.points && (
+                            renderPointsComparison(card.points, card.points_estimated)
+                        )}
                         {metadataArray.map((meta, index) => (
                             <div key={index}>{meta}</div>
                         ))}
@@ -160,7 +180,7 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                             {card?.stats.award_summary}
                         </div>
                     )}
-                    {card?.image.stat_highlights_list.map((stat, index) => (
+                    {card?.image.stat_highlights_list?.map((stat, index) => (
                         <div key={index} className="">
                             {stat}
                         </div>
@@ -168,10 +188,23 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                 </div>
 
                 {/* Set and Expansion */}
-                <div className="flex flex-row justify-end text-[9px] tracking-tight text-nowrap">
-                    <div className="bg-[var(--showdown-blue)] text-white px-1 rounded-md font-bold shadow-md">
-                        {card?.image.expansion} {card?.set}
-                    </div>
+                <div className="
+                    flex flex-row justify-end items-center
+                    text-[9px] text-nowrap tracking-tight text-white 
+                    bg-[var(--background-tertiary)]
+                    px-1 rounded-md font-bold shadow-md
+                ">
+                    {card?.image.expansion && ['TD', 'PR'].includes(card?.image.expansion) && (
+                        <img 
+                            src={`/images/card/expansion-${card?.image.expansion.toLowerCase()}.png`} 
+                            className="inline-block w-5 h-4 object-contain object-center mr-0.5"
+                            alt="Expansion"
+                        />
+                    )}
+                    {['PM'].includes(card?.image.expansion || '') && (
+                        <span className="mr-1">PROMO</span>
+                    )}
+                    {card?.set}
                 </div>
 
             </div>
