@@ -4,12 +4,15 @@
  * This component provides a comprehensive interface for exploring the MLB Showdown card database
  * with advanced filtering, sorting, and team hierarchy navigation capabilities.
  * 
- * SOURCE-SPECIFIC FILTERING:
- * - Filters are conditionally displayed based on the card source (BOT vs WOTC)
+ * SOURCE-SPECIFIC FILTERING & SORTING:
+ * - Filters and sort options are conditionally displayed based on the card source (BOT vs WOTC)
  * - BOT cards support real stats, multi-team seasons, chart outliers, and image classification
  * - WOTC cards only show basic Showdown attributes and position/hand filters
+ * - BOT sorting includes all real stats (PA, IP, ERA, OPS, etc.)
+ * - WOTC sorting includes real vs estimated points, estimated points, and original set
  * - FILTER_AVAILABILITY configuration defines which filters are available for each source
- * - Filters are automatically cleaned when switching between sources
+ * - getSortOptions() function returns appropriate sort options for each source
+ * - Filters and sort options are automatically cleaned when switching between sources
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -215,6 +218,7 @@ const isFilterAvailable = (filterKey: keyof FilterSelections, source: CardSource
 
 /**
  * Clean up filter selections by removing filters not available for the current source
+ * Also ensures sort option is available for the new source
  */
 const cleanFiltersForSource = (filters: FilterSelections, source: CardSource): FilterSelections => {
     const cleaned: FilterSelections = {};
@@ -226,24 +230,38 @@ const cleanFiltersForSource = (filters: FilterSelections, source: CardSource): F
         }
     }
     
+    // Check if the current sort option is available for this source
+    if (cleaned.sort_by) {
+        const availableSortOptions = getSortOptions(source);
+        const isSortOptionAvailable = availableSortOptions.some(option => option.value === cleaned.sort_by);
+        
+        if (!isSortOptionAvailable) {
+            // Reset to default sort option for this source
+            const defaultFilters = getDefaultFilterSelections(source);
+            cleaned.sort_by = defaultFilters.sort_by;
+            cleaned.sort_direction = defaultFilters.sort_direction;
+        }
+    }
+    
     return cleaned;
 };
 
 /**
- * Available sort options with icons for the dropdown selector
- * 
- * Includes both basic attributes (points, year, speed) and 
- * defensive ratings for each position type.
+ * Base sort options available for all card sources
  */
-const SORT_OPTIONS: SelectOption[] = [
+const BASE_SORT_OPTIONS: SelectOption[] = [
     { value: 'points', label: 'Points', icon: <FaDollarSign /> },
     { value: 'year', label: 'Year', icon: <FaCalendarAlt /> },
     { value: 'speed', label: 'Speed', icon: <FaPersonRunning /> },
     { value: 'ip', label: 'IP', icon: <FaI /> },
     { value: 'command', label: 'Control/Onbase', icon: <FaBaseballBall /> },
     { value: 'outs', label: 'Outs', icon: <FaO /> },
+];
 
-    // Defensive position ratings
+/**
+ * Defensive position rating sort options (available for all sources)
+ */
+const DEFENSE_SORT_OPTIONS: SelectOption[] = [
     { value: 'positions_and_defense_c', label: 'Defense (CA)', icon: <FaMitten /> },
     { value: 'positions_and_defense_1b', label: 'Defense (1B)', icon: <FaMitten /> },
     { value: 'positions_and_defense_2b', label: 'Defense (2B)', icon: <FaMitten /> },
@@ -253,8 +271,12 @@ const SORT_OPTIONS: SelectOption[] = [
     { value: 'positions_and_defense_lf/rf', label: 'Defense (LF/RF)', icon: <FaMitten /> },
     { value: 'positions_and_defense_cf', label: 'Defense (CF)', icon: <FaMitten /> },
     { value: 'positions_and_defense_of', label: 'Defense (OF)', icon: <FaMitten /> },
+];
 
-    // Chart Values
+/**
+ * Chart values sort options (available for all sources)
+ */
+const CHART_VALUES_SORT_OPTIONS: SelectOption[] = [
     { value: 'chart_values_pu', label: 'Chart Values (PU)', icon: <FaTableList /> },
     { value: 'chart_values_so', label: 'Chart Values (SO)', icon: <FaTableList /> },
     { value: 'chart_values_gb', label: 'Chart Values (GB)', icon: <FaTableList /> },
@@ -265,8 +287,12 @@ const SORT_OPTIONS: SelectOption[] = [
     { value: 'chart_values_2b', label: 'Chart Values (2B)', icon: <FaTableList /> },
     { value: 'chart_values_3b', label: 'Chart Values (3B)', icon: <FaTableList /> },
     { value: 'chart_values_hr', label: 'Chart Values (HR)', icon: <FaTableList /> },
+];
 
-    // Real Stats
+/**
+ * Real stats sort options (BOT only)
+ */
+const REAL_STATS_SORT_OPTIONS: SelectOption[] = [
     { value: 'real_stats_pa', label: 'Real Stats (PA)', icon: <FaHashtag /> },
     { value: 'real_stats_ip', label: 'Real Stats (IP)', icon: <FaHashtag /> },
     { value: 'real_stats_G', label: 'Real Stats (G)', icon: <FaHashtag /> },
@@ -293,8 +319,41 @@ const SORT_OPTIONS: SelectOption[] = [
     { value: 'real_stats_BB', label: 'Real Stats (BB)', icon: <FaHashtag /> },
     { value: 'real_stats_W', label: 'Real Stats (W)', icon: <FaHashtag /> },
     { value: 'real_stats_SV', label: 'Real Stats (SV)', icon: <FaHashtag /> },
-
 ];
+
+/**
+ * WOTC-specific sort options
+ */
+const WOTC_SPECIFIC_SORT_OPTIONS: SelectOption[] = [
+    { value: 'points_vs_estimated', label: 'Original vs Estimated Points', icon: <FaDollarSign /> },
+    { value: 'points_estimated', label: 'Estimated Points', icon: <FaDollarSign /> },
+];
+
+/**
+ * Get available sort options based on the card source
+ */
+const getSortOptions = (source: CardSource): SelectOption[] => {
+    const baseOptions = [
+        ...BASE_SORT_OPTIONS,
+        ...DEFENSE_SORT_OPTIONS,
+        ...CHART_VALUES_SORT_OPTIONS,
+    ];
+
+    switch (source) {
+        case CardSource.BOT:
+            return [
+                ...baseOptions,
+                ...REAL_STATS_SORT_OPTIONS,
+            ];
+        case CardSource.WOTC:
+            return [
+                ...WOTC_SPECIFIC_SORT_OPTIONS,
+                ...baseOptions,
+            ];
+        default:
+            return baseOptions;
+    }
+};
 
 /**
  * Configuration for range filter UI components
@@ -459,8 +518,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
     const [isHierarchyDataLoaded, setIsHierarchyDataLoaded] = useState(false);
     const [isLoadingHierarchyData, setIsLoadingHierarchyData] = useState(false);
 
-    // Defined within component to access userShowdownSet
-    const selectedSortOption = SORT_OPTIONS.find(option => option.value === filters.sort_by) || null;
+    // Get sort options based on source and find selected option
+    const sortOptions = getSortOptions(source);
+    const selectedSortOption = sortOptions.find(option => option.value === filters.sort_by) || null;
 
     // Save filters whenever they change (kept separate so it doesn't run on search or set changes)
     useEffect(() => {
@@ -959,7 +1019,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
                                 <FormDropdown
                                     label="Sort Category"
-                                    options={SORT_OPTIONS}
+                                    options={sortOptions}
                                     selectedOption={filtersForEditing.sort_by || 'points'}
                                     onChange={(value) => setFiltersForEditing({ ...filtersForEditing, sort_by: value })}
                                 />

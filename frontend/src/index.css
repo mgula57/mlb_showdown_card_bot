@@ -21,6 +21,9 @@
     --warning: #F3CE32;
     --success: #4BB543;
 
+    --green: #287c22;
+    --red: #ca443d;
+
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 
 }
@@ -45,6 +48,9 @@
 
     --warning: #e9de3f;
     --success: #4dc545;
+
+    --green: #5df452;
+    --red: #fb3232;
 }
 
 /* Custom Fonts */

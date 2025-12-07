@@ -95,7 +95,7 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
             <div className="flex items-center">
                 EST: {newPoints}
                 {difference !== 0 && (
-                    <span className={`ml-0.5 text-[8px] ${difference > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    <span className={`ml-0.5 text-[8px] ${difference > 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
                         {differenceSign}
                         {absoluteDifference}
                     </span>
@@ -190,7 +190,7 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                 {/* Set and Expansion */}
                 <div className="
                     flex flex-row justify-end items-center
-                    text-[9px] text-nowrap tracking-tight text-white 
+                    text-[9px] text-nowrap tracking-tight text-primary
                     bg-[var(--background-tertiary)]
                     px-1 rounded-md font-bold shadow-md
                 ">

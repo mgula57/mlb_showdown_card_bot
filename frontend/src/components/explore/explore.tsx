@@ -8,6 +8,7 @@
 import { useState, useEffect } from "react";
 import ShowdownBotSearch from "../cards/ShowdownCardSearch";
 import { CardSource, isValidCardSource } from '../../types/cardSource';
+import { FaRobot } from "react-icons/fa6";
 
 export default function Explore() {
 
@@ -32,27 +33,31 @@ export default function Explore() {
     const tabSelectedStyle = "text-[var(--showdown-blue)] border-b-2 border-[var(--showdown-blue)]";
     const tabUnselectedStyle = "text-gray-500 hover:text-gray-700";
 
+    const tabButton = (src: CardSource) => {
+
+        return (
+            <button
+                className={`
+                    relative flex gap-x-1 items-center
+                    px-6 py-3 font-medium text-sm transition-colors duration-200
+                    ${tab === src ? tabSelectedStyle : tabUnselectedStyle}
+                `}
+                onClick={() => setTab(src)}
+            >
+                {src === CardSource.WOTC && <div className="text-[9px] bg-secondary px-1 rounded-sm">OG</div>}
+                {src === CardSource.BOT && <FaRobot />}
+                {src} Cards
+            </button>
+        );
+    }
+
     // Explore Component Layout
     return (
         <div>
             {/* Tab Selection */}
-            <div className="flex px-4 border-b-2 border-form-element">
-                <button
-                    className={`px-6 py-3 font-medium text-sm transition-colors duration-200 relative ${
-                        tab === CardSource.BOT ? tabSelectedStyle : tabUnselectedStyle
-                    }`}
-                    onClick={() => setTab(CardSource.BOT)}
-                >
-                    Showdown Bot Cards
-                </button>
-                <button
-                    className={`px-6 py-3 font-medium text-sm transition-colors duration-200 relative ${
-                        tab === CardSource.WOTC ? tabSelectedStyle : tabUnselectedStyle
-                    }`}
-                    onClick={() => setTab(CardSource.WOTC)}
-                >
-                    WOTC Cards
-                </button>
+            <div className="flex px-3 border-b-2 border-form-element">
+                {tabButton(CardSource.BOT)}
+                {tabButton(CardSource.WOTC)}
             </div>
 
             {/* Tab Content */}
