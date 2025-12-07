@@ -3,6 +3,13 @@
  * 
  * This component provides a comprehensive interface for exploring the MLB Showdown card database
  * with advanced filtering, sorting, and team hierarchy navigation capabilities.
+ * 
+ * SOURCE-SPECIFIC FILTERING:
+ * - Filters are conditionally displayed based on the card source (BOT vs WOTC)
+ * - BOT cards support real stats, multi-team seasons, chart outliers, and image classification
+ * - WOTC cards only show basic Showdown attributes and position/hand filters
+ * - FILTER_AVAILABILITY configuration defines which filters are available for each source
+ * - Filters are automatically cleaned when switching between sources
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -166,6 +173,60 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
         default:
             return baseDefaults;
     }
+};
+
+/**
+ * Configuration for which filters are available for each card source
+ */
+type FilterAvailability = {
+    [K in keyof FilterSelections]?: CardSource[];
+};
+
+/**
+ * Defines which filters are available for which card sources
+ * If a filter is not listed here, it's available for all sources
+ */
+const FILTER_AVAILABILITY: FilterAvailability = {
+    // BOT-specific filters (not available for WOTC)
+    is_multi_team: [CardSource.BOT],
+    include_small_sample_size: [CardSource.BOT],
+    image_match_type: [CardSource.BOT],
+    
+    // Real stats filters - only available for BOT since WOTC cards don't have real stats
+    min_pa: [CardSource.BOT],
+    max_pa: [CardSource.BOT],
+    min_real_ip: [CardSource.BOT],
+    max_real_ip: [CardSource.BOT],
+    awards: [CardSource.BOT],
+
+    // Organization/League filtering might not make sense for WOTC
+    organization: [CardSource.BOT],
+    league: [CardSource.BOT],
+};
+
+/**
+ * Check if a filter is available for the given card source
+ */
+const isFilterAvailable = (filterKey: keyof FilterSelections, source: CardSource): boolean => {
+    const availableSources = FILTER_AVAILABILITY[filterKey];
+    // If not specified in the config, it's available for all sources
+    return !availableSources || availableSources.includes(source);
+};
+
+/**
+ * Clean up filter selections by removing filters not available for the current source
+ */
+const cleanFiltersForSource = (filters: FilterSelections, source: CardSource): FilterSelections => {
+    const cleaned: FilterSelections = {};
+    
+    for (const [key, value] of Object.entries(filters)) {
+        const filterKey = key as keyof FilterSelections;
+        if (isFilterAvailable(filterKey, source)) {
+            cleaned[filterKey] = value;
+        }
+    }
+    
+    return cleaned;
 };
 
 /**
@@ -405,6 +466,20 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
     useEffect(() => {
         saveFilters(filters, source);
     }, [filters]);
+
+    // Clean filters when source changes to remove unavailable filters
+    useEffect(() => {
+        const cleanedFilters = cleanFiltersForSource(filters, source);
+        const cleanedForEditing = cleanFiltersForSource(filtersForEditing, source);
+        
+        // Only update if there are actual changes
+        if (JSON.stringify(cleanedFilters) !== JSON.stringify(filters)) {
+            setFilters(cleanedFilters);
+        }
+        if (JSON.stringify(cleanedForEditing) !== JSON.stringify(filtersForEditing)) {
+            setFiltersForEditing(cleanedForEditing);
+        }
+    }, [source]);
 
     // On initial load
     useEffect(() => {
@@ -913,25 +988,29 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     />
                                 ))}
 
-                                <TeamHierarchy
-                                    hierarchyData={teamHierarchyData}
-                                    selectedOrganizations={filtersForEditing.organization}
-                                    selectedLeagues={filtersForEditing.league}
-                                    selectedTeams={filtersForEditing.team}
-                                    onOrganizationChange={(values) => setFiltersForEditing({ ...filtersForEditing, organization: values })}
-                                    onLeagueChange={(values) => setFiltersForEditing({ ...filtersForEditing, league: values })}
-                                    onTeamChange={(values) => setFiltersForEditing({ ...filtersForEditing, team: values })}
-                                />
+                                {isFilterAvailable('organization', source) && (
+                                    <TeamHierarchy
+                                        hierarchyData={teamHierarchyData}
+                                        selectedOrganizations={filtersForEditing.organization}
+                                        selectedLeagues={filtersForEditing.league}
+                                        selectedTeams={filtersForEditing.team}
+                                        onOrganizationChange={(values) => setFiltersForEditing({ ...filtersForEditing, organization: values })}
+                                        onLeagueChange={(values) => setFiltersForEditing({ ...filtersForEditing, league: values })}
+                                        onTeamChange={(values) => setFiltersForEditing({ ...filtersForEditing, team: values })}
+                                    />
+                                )}
 
-                                <MultiSelect
-                                    label="Multi-Team Season?"
-                                    options={[
-                                        { value: 'true', label: 'Yes' },
-                                        { value: 'false', label: 'No' },
-                                    ]}
-                                    selections={filtersForEditing.is_multi_team}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_multi_team: values })}
-                                />
+                                {isFilterAvailable('is_multi_team', source) && (
+                                    <MultiSelect
+                                        label="Multi-Team Season?"
+                                        options={[
+                                            { value: 'true', label: 'Yes' },
+                                            { value: 'false', label: 'No' },
+                                        ]}
+                                        selections={filtersForEditing.is_multi_team}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_multi_team: values })}
+                                    />
+                                )}
 
                             </FormSection>
 
@@ -978,44 +1057,50 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                 />
                             </FormSection>
 
-                            <FormSection title="Real Stats and Awards" isOpenByDefault={true}>
+                            {isFilterAvailable('min_pa', source) && (
+                                <FormSection title="Real Stats and Awards" isOpenByDefault={true}>
 
-                                {REAL_RANGE_FILTERS.map(def => (
-                                    <RangeFilter
-                                        key={def.minKey as string}
-                                        label={def.label}
-                                        {...bindRange(def.minKey, def.maxKey)}
-                                    />
-                                ))}
+                                    {REAL_RANGE_FILTERS.map(def => (
+                                        <RangeFilter
+                                            key={def.minKey as string}
+                                            label={def.label}
+                                            {...bindRange(def.minKey, def.maxKey)}
+                                        />
+                                    ))}
 
-                                <MultiSelect
-                                    label="Include Small Sample Sizes?"
-                                    labelDescription="Defined as PA&lt;250 for Hitters, IP&lt;75 for Starters, IP&lt;35 for Relievers"
-                                    options={[
-                                        { value: 'true', label: 'Yes' },
-                                        { value: 'false', label: 'No' },
-                                    ]}
-                                    selections={filtersForEditing.include_small_sample_size || []}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, include_small_sample_size: values })}
-                                />
+                                    {isFilterAvailable('include_small_sample_size', source) && (
+                                        <MultiSelect
+                                            label="Include Small Sample Sizes?"
+                                            labelDescription="Defined as PA&lt;250 for Hitters, IP&lt;75 for Starters, IP&lt;35 for Relievers"
+                                            options={[
+                                                { value: 'true', label: 'Yes' },
+                                                { value: 'false', label: 'No' },
+                                            ]}
+                                            selections={filtersForEditing.include_small_sample_size || []}
+                                            onChange={(values) => setFiltersForEditing({ ...filtersForEditing, include_small_sample_size: values })}
+                                        />
+                                    )}
 
-                                <MultiSelect
-                                    label="Awards"
-                                    options={[
-                                        { value: 'MVP-1', label: 'MVP' },
-                                        { value: 'CYA-1', label: 'Cy Young' },
-                                        { value: 'ROY-1', label: 'Rookie of the Year' },
-                                        { value: 'GG', label: 'Gold Glove' },
-                                        { value: 'SS', label: 'Silver Slugger' },
-                                        { value: 'AS', label: 'All-Star' },
-                                        { value: 'MVP-*', label: 'MVP Votes' },
-                                        { value: 'CYA-*', label: 'Cy Young Votes' },
-                                        { value: 'ROY-*', label: 'Rookie of the Year Votes' },
-                                    ]}
-                                    selections={filtersForEditing.awards || []}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, awards: values })}
-                                />
-                            </FormSection>
+                                    {isFilterAvailable('awards', source) && (
+                                        <MultiSelect
+                                            label="Awards"
+                                            options={[
+                                                { value: 'MVP-1', label: 'MVP' },
+                                                { value: 'CYA-1', label: 'Cy Young' },
+                                                { value: 'ROY-1', label: 'Rookie of the Year' },
+                                                { value: 'GG', label: 'Gold Glove' },
+                                                { value: 'SS', label: 'Silver Slugger' },
+                                                { value: 'AS', label: 'All-Star' },
+                                                { value: 'MVP-*', label: 'MVP Votes' },
+                                                { value: 'CYA-*', label: 'Cy Young Votes' },
+                                                { value: 'ROY-*', label: 'Rookie of the Year Votes' },
+                                            ]}
+                                            selections={filtersForEditing.awards || []}
+                                            onChange={(values) => setFiltersForEditing({ ...filtersForEditing, awards: values })}
+                                        />
+                                    )}
+                                </FormSection>
+                            )}
 
                             <FormSection title="Showdown Attributes" isOpenByDefault={true}>
                                 {SHOWDOWN_METADATA_RANGE_FILTERS.map(def => (
@@ -1047,15 +1132,17 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                             </FormSection>
 
                             <FormSection title="Showdown Chart" isOpenByDefault={true}>
-                                <MultiSelect
-                                    label="Chart Outlier?"
-                                    options={[
-                                        { value: 'true', label: 'Yes' },
-                                        { value: 'false', label: 'No' },
-                                    ]}
-                                    selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
-                                />
+                                {isFilterAvailable('is_chart_outlier', source) && (
+                                    <MultiSelect
+                                        label="Chart Outlier?"
+                                        options={[
+                                            { value: 'true', label: 'Yes' },
+                                            { value: 'false', label: 'No' },
+                                        ]}
+                                        selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
+                                    />
+                                )}
                 
                                 {SHOWDOWN_CHART_RANGE_FILTERS.map(def => (
                                     <RangeFilter
@@ -1066,19 +1153,21 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                 ))}
                             </FormSection>
 
-                            <FormSection title="Image Attributes" isOpenByDefault={true}>
-                                <MultiSelect
-                                    label="Auto Image Classification"
-                                    options={[
-                                        { value: 'exact', label: 'Exact Match (Year + Team)' },
-                                        { value: 'team match', label: 'Team Match (Different Year)' },
-                                        { value: 'year match', label: 'Year Match (Different Team)' },
-                                        { value: 'no match', label: 'No Match' },
-                                    ]}
-                                    selections={filtersForEditing.image_match_type}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, image_match_type: values })}
-                                />
-                            </FormSection>
+                            {isFilterAvailable('image_match_type', source) && (
+                                <FormSection title="Image Attributes" isOpenByDefault={true}>
+                                    <MultiSelect
+                                        label="Auto Image Classification"
+                                        options={[
+                                            { value: 'exact', label: 'Exact Match (Year + Team)' },
+                                            { value: 'team match', label: 'Team Match (Different Year)' },
+                                            { value: 'year match', label: 'Year Match (Different Team)' },
+                                            { value: 'no match', label: 'No Match' },
+                                        ]}
+                                        selections={filtersForEditing.image_match_type}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, image_match_type: values })}
+                                    />
+                                </FormSection>
+                            )}
 
                         </div>
 
