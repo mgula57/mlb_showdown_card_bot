@@ -31,6 +31,7 @@ import RangeFilter from "../customs/RangeFilter";
 
 import { TeamHierarchy } from "./TeamHierarchy";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
+import { CardSource } from '../../types/cardSource';
 
 /**
  * Props for the ShowdownCardSearch component
@@ -41,7 +42,7 @@ type ShowdownCardSearchProps = {
     /** Additional CSS classes */
     className?: string;
     /** Source of the card data */
-    source: 'BOT' | 'WOTC';
+    source: CardSource;
 };
 
 // =============================================================================
@@ -142,10 +143,10 @@ interface FilterSelections {
 /**
  * Get default filter selections based on the data source
  * 
- * @param source - The data source ('BOT' or 'WOTC')
+ * @param source - The data source (CardSource enum value)
  * @returns Default filter selections optimized for the specific source
  */
-const getDefaultFilterSelections = (source: 'BOT' | 'WOTC'): FilterSelections => {
+const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
     const baseDefaults: FilterSelections = {
         include_small_sample_size: ["false"],
         sort_by: "points",
@@ -155,9 +156,9 @@ const getDefaultFilterSelections = (source: 'BOT' | 'WOTC'): FilterSelections =>
 
     // Customize defaults based on source
     switch (source) {
-        case 'BOT':
+        case CardSource.BOT:
             return baseDefaults;
-        case 'WOTC':
+        case CardSource.WOTC:
             return {
                 sort_by: "points",
                 sort_direction: "desc",
@@ -295,7 +296,7 @@ const stripEmpty = (obj: any) =>
  * Loads previously saved filter selections from localStorage
  * @returns Saved filters merged with defaults, or null if none exist
  */
-const loadSavedFilters = (source: 'BOT' | 'WOTC'): FilterSelections | null => {
+const loadSavedFilters = (source: CardSource): FilterSelections | null => {
     if (typeof window === 'undefined') return null;
     try {
         const raw = localStorage.getItem(FILTERS_STORAGE_KEY + ':' + source);
@@ -307,7 +308,7 @@ const loadSavedFilters = (source: 'BOT' | 'WOTC'): FilterSelections | null => {
     }
 };
 
-const saveFilters = (filters: FilterSelections, source: 'BOT' | 'WOTC') => {
+const saveFilters = (filters: FilterSelections, source: CardSource) => {
     if (typeof window === 'undefined') return;
     try {
         localStorage.setItem(FILTERS_STORAGE_KEY + ':' + source, JSON.stringify(stripEmpty(filters)));
@@ -317,7 +318,7 @@ const saveFilters = (filters: FilterSelections, source: 'BOT' | 'WOTC') => {
 };
 
 // Helper used for lazy init so we don't set state in an effect
-const getInitialFilters = (source: 'BOT' | 'WOTC'): FilterSelections =>
+const getInitialFilters = (source: CardSource): FilterSelections =>
   loadSavedFilters(source) ?? getDefaultFilterSelections(source);
 
 // --------------------------------------------
@@ -340,9 +341,9 @@ const getInitialFilters = (source: 'BOT' | 'WOTC'): FilterSelections =>
  * while providing smooth performance through debounced searches and lazy loading.
  * 
  * @param className - Additional CSS classes for the container
- * @param source - Source of the card data ('BOT' or 'WOTC')
+ * @param source - Source of the card data (CardSource enum)
  */
-export default function ShowdownCardSearch({ className, source = 'BOT' }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, source = CardSource.BOT }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================

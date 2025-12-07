@@ -4,6 +4,7 @@
  */
 
 import { type ShowdownBotCard } from '../showdownBotCard';
+import { type CardSource } from '../../types/cardSource';
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -81,14 +82,14 @@ export interface TeamHierarchyRecord {
 /**
  * Fetches card database records based on filter criteria
  * 
- * @param source - Source of the card data ('BOT' or 'WOTC')
+ * @param source - Source of the card data (CardSource enum)
  * @param payload - Filter parameters (year, team, player name, etc.)
  * @returns Promise resolving to array of card records
  * @throws Error if API request fails
  * 
  * @example
  * ```typescript
- * const cards = await fetchCardData({
+ * const cards = await fetchCardData(CardSource.BOT, {
  *   name: 'Aaron Judge',
  *   year: 2023,
  *   team: 'NYY',
@@ -96,7 +97,7 @@ export interface TeamHierarchyRecord {
  * });
  * ```
  */
-export async function fetchCardData(source: 'BOT' | 'WOTC', payload: Record<string, any>) : Promise<CardDatabaseRecord[]> {
+export async function fetchCardData(source: CardSource, payload: Record<string, any>) : Promise<CardDatabaseRecord[]> {
 
     const res = await fetch(`${API_BASE}/cards/data`, {
         method: "POST",

@@ -7,16 +7,19 @@
 
 import { useState, useEffect } from "react";
 import ShowdownBotSearch from "../cards/ShowdownCardSearch";
+import { CardSource, isValidCardSource } from '../../types/cardSource';
 
 export default function Explore() {
 
-    // State - Initialize from localStorage or default to 'BOT'
-    const [tab, setTab] = useState<'BOT' | 'WOTC'>(() => {
+    // State - Initialize from localStorage or default to BOT
+    const [tab, setTab] = useState<CardSource>(() => {
         if (typeof window !== 'undefined') {
             const savedTab = localStorage.getItem('explore-tab');
-            return (savedTab === 'BOT' || savedTab === 'WOTC') ? savedTab as 'BOT' | 'WOTC' : 'BOT';
+            if (savedTab && isValidCardSource(savedTab)) {
+                return savedTab as CardSource;
+            }
         }
-        return 'BOT';
+        return CardSource.BOT;
     });
 
     // Persist tab selection to localStorage whenever it changes
@@ -36,17 +39,17 @@ export default function Explore() {
             <div className="flex px-4 border-b-2 border-form-element">
                 <button
                     className={`px-6 py-3 font-medium text-sm transition-colors duration-200 relative ${
-                        tab === 'BOT' ? tabSelectedStyle : tabUnselectedStyle
+                        tab === CardSource.BOT ? tabSelectedStyle : tabUnselectedStyle
                     }`}
-                    onClick={() => setTab('BOT')}
+                    onClick={() => setTab(CardSource.BOT)}
                 >
                     Showdown Bot Cards
                 </button>
                 <button
                     className={`px-6 py-3 font-medium text-sm transition-colors duration-200 relative ${
-                        tab === 'WOTC' ? tabSelectedStyle : tabUnselectedStyle
+                        tab === CardSource.WOTC ? tabSelectedStyle : tabUnselectedStyle
                     }`}
-                    onClick={() => setTab('WOTC')}
+                    onClick={() => setTab(CardSource.WOTC)}
                 >
                     WOTC Cards
                 </button>
@@ -54,11 +57,11 @@ export default function Explore() {
 
             {/* Tab Content */}
             <div>
-                <div className={tab === 'BOT' ? 'block' : 'hidden'}>
-                    <ShowdownBotSearch source="BOT" />
+                <div className={tab === CardSource.BOT ? 'block' : 'hidden'}>
+                    <ShowdownBotSearch source={CardSource.BOT} />
                 </div>
-                <div className={tab === 'WOTC' ? 'block' : 'hidden'}>
-                    <ShowdownBotSearch source="WOTC" />
+                <div className={tab === CardSource.WOTC ? 'block' : 'hidden'}>
+                    <ShowdownBotSearch source={CardSource.WOTC} />
                 </div>
             </div>
         </div>
