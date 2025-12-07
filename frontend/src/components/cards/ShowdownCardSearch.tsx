@@ -1,5 +1,5 @@
 /**
- * @fileoverview ShowdownCardExplore - Advanced card database browser and filter system
+ * @fileoverview ShowdownCardSearch - Advanced card database browser and filter system
  * 
  * This component provides a comprehensive interface for exploring the MLB Showdown card database
  * with advanced filtering, sorting, and team hierarchy navigation capabilities.
@@ -33,13 +33,15 @@ import { TeamHierarchy } from "./TeamHierarchy";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
 
 /**
- * Props for the ShowdownCardExplore component
+ * Props for the ShowdownCardSearch component
  */
-type ShowdownCardExploreProps = {
+type ShowdownCardSearchProps = {
     /** Optional initial card data to display */
     showdownCards?: CardDatabaseRecord[] | null;
     /** Additional CSS classes */
     className?: string;
+    /** Source of the card data */
+    source: 'BOT' | 'WOTC';
 };
 
 // =============================================================================
@@ -138,18 +140,31 @@ interface FilterSelections {
 }
 
 /**
- * Default filter selections applied on component initialization
+ * Get default filter selections based on the data source
  * 
- * Sets sensible defaults for exploring the card database:
- * - Excludes small sample sizes by default
- * - Sorts by points (descending) to show best cards first
- * - Limits to MLB organization initially
+ * @param source - The data source ('BOT' or 'WOTC')
+ * @returns Default filter selections optimized for the specific source
  */
-const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
-    include_small_sample_size: ["false"],
-    sort_by: "points",
-    sort_direction: "desc",
-    organization: ["MLB"],
+const getDefaultFilterSelections = (source: 'BOT' | 'WOTC'): FilterSelections => {
+    const baseDefaults: FilterSelections = {
+        include_small_sample_size: ["false"],
+        sort_by: "points",
+        sort_direction: "desc",
+        organization: ["MLB"],
+    };
+
+    // Customize defaults based on source
+    switch (source) {
+        case 'BOT':
+            return baseDefaults;
+        case 'WOTC':
+            return {
+                sort_by: "points",
+                sort_direction: "desc",
+            };
+        default:
+            return baseDefaults;
+    }
 };
 
 /**
@@ -280,37 +295,37 @@ const stripEmpty = (obj: any) =>
  * Loads previously saved filter selections from localStorage
  * @returns Saved filters merged with defaults, or null if none exist
  */
-const loadSavedFilters = (): FilterSelections | null => {
+const loadSavedFilters = (source: 'BOT' | 'WOTC'): FilterSelections | null => {
     if (typeof window === 'undefined') return null;
     try {
-        const raw = localStorage.getItem(FILTERS_STORAGE_KEY);
+        const raw = localStorage.getItem(FILTERS_STORAGE_KEY + ':' + source);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
-        return { ...DEFAULT_FILTER_SELECTIONS, ...parsed } as FilterSelections;
+        return { ...getDefaultFilterSelections(source), ...parsed } as FilterSelections;
     } catch {
         return null;
     }
 };
 
-const saveFilters = (filters: FilterSelections) => {
+const saveFilters = (filters: FilterSelections, source: 'BOT' | 'WOTC') => {
     if (typeof window === 'undefined') return;
     try {
-        localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(stripEmpty(filters)));
+        localStorage.setItem(FILTERS_STORAGE_KEY + ':' + source, JSON.stringify(stripEmpty(filters)));
     } catch {
         // ignore storage errors
     }
 };
 
 // Helper used for lazy init so we don't set state in an effect
-const getInitialFilters = (): FilterSelections =>
-  loadSavedFilters() ?? DEFAULT_FILTER_SELECTIONS;
+const getInitialFilters = (source: 'BOT' | 'WOTC'): FilterSelections =>
+  loadSavedFilters(source) ?? getDefaultFilterSelections(source);
 
 // --------------------------------------------
 // MARK: - Component
 // --------------------------------------------
 
 /**
- * ShowdownCardExplore - Advanced card database browser with filtering and search
+ * ShowdownCardSearch - Advanced card database browser with filtering and search
  * 
  * This is the main card exploration interface providing:
  * - Advanced multi-dimensional filtering system
@@ -325,8 +340,9 @@ const getInitialFilters = (): FilterSelections =>
  * while providing smooth performance through debounced searches and lazy loading.
  * 
  * @param className - Additional CSS classes for the container
+ * @param source - Source of the card data ('BOT' or 'WOTC')
  */
-export default function ShowdownCardExplore({ className }: ShowdownCardExploreProps) {
+export default function ShowdownCardSearch({ className, source = 'BOT' }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -365,10 +381,10 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [debouncedSearchText, setDebouncedSearchText] = useState('');
 
     // Filters
-    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters);
-    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters);
+    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source));
+    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source));
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
-    const hasCustomFiltersApplied = JSON.stringify(stripEmpty(filtersWithoutSorting)) !== JSON.stringify(stripEmpty(DEFAULT_FILTER_SELECTIONS));
+    const hasCustomFiltersApplied = JSON.stringify(stripEmpty(filtersWithoutSorting)) !== JSON.stringify(stripEmpty(getDefaultFilterSelections(source)));
     const bindRange = (minKey: keyof FilterSelections, maxKey: keyof FilterSelections) => ({
         minValue: filtersForEditing[minKey] as number | undefined,
         maxValue: filtersForEditing[maxKey] as number | undefined,
@@ -386,7 +402,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
     // Save filters whenever they change (kept separate so it doesn't run on search or set changes)
     useEffect(() => {
-        saveFilters(filters);
+        saveFilters(filters, source);
     }, [filters]);
 
     // On initial load
@@ -483,7 +499,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             const cleanedFilters = Object.fromEntries(
                 Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && v.length !== 0)
             );
-            const data = await fetchCardData(cleanedFilters);
+            const data = await fetchCardData(source, cleanedFilters);
 
             let newCardData;
             if (append && showdownCards) {
@@ -566,10 +582,10 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
     const resetFilters = (targets: String[]) => {
         if (targets.includes('filters')) {
-            setFilters(DEFAULT_FILTER_SELECTIONS);
+            setFilters(getDefaultFilterSelections(source));
         }
         if (targets.includes('editing')) {
-            setFiltersForEditing(DEFAULT_FILTER_SELECTIONS);
+            setFiltersForEditing(getDefaultFilterSelections(source));
         }
     }
 
@@ -793,7 +809,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 
                 {/* Right Sidebar with Slide Animation */}
                 <div className={`
-                    fixed right-0 top-12 bottom-0 w-96 z-30
+                    fixed right-0 top-24 bottom-0 w-96 z-30
                     bg-primary border-l-2 border-t-2 border-form-element 
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}

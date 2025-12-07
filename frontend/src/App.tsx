@@ -31,7 +31,7 @@ import { BrowserRouter, useLocation } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import CustomCardBuilder from "./components/customs/CustomCardBuilder";
 import { SiteSettingsProvider } from "./components/shared/SiteSettingsContext";
-import ShowdownCardExplore from "./components/cards/ShowdownCardExplore";
+import Explore from "./components/explore/explore";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -43,7 +43,7 @@ import ShowdownCardExplore from "./components/cards/ShowdownCardExplore";
  * 
  * **Routing Logic:**
  * - `/` and `/customs` routes display the CustomCardBuilder
- * - `/explore` route displays the ShowdownCardExplore component
+ * - `/explore` route displays the ShowdownCardSearch component
  * - Components use CSS visibility (`block`/`hidden`) instead of conditional rendering
  * - All components receive state about their visibility for internal optimizations
  * 
@@ -68,7 +68,7 @@ const AppContent = () => {
             
             {/* Card Explorer - Visible on explore route */}
             <div className={location.pathname === '/explore' ? 'block' : 'hidden'}>
-                <ShowdownCardExplore />
+                <Explore />
             </div>
         </AppLayout>
     );

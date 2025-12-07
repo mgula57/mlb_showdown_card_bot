@@ -81,6 +81,7 @@ export interface TeamHierarchyRecord {
 /**
  * Fetches card database records based on filter criteria
  * 
+ * @param source - Source of the card data ('BOT' or 'WOTC')
  * @param payload - Filter parameters (year, team, player name, etc.)
  * @returns Promise resolving to array of card records
  * @throws Error if API request fails
@@ -95,14 +96,14 @@ export interface TeamHierarchyRecord {
  * });
  * ```
  */
-export async function fetchCardData(payload: Record<string, any>) : Promise<CardDatabaseRecord[]> {
+export async function fetchCardData(source: 'BOT' | 'WOTC', payload: Record<string, any>) : Promise<CardDatabaseRecord[]> {
 
     const res = await fetch(`${API_BASE}/cards/data`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ source, ...payload }),
     });
 
     // Handle errors

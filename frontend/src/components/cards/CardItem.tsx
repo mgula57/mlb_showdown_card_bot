@@ -113,6 +113,11 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                         <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
                             {card?.year} {card?.team.toUpperCase()}
                         </div>
+
+                        {/* Edition */}
+                        {(card?.image.edition && card?.image.edition !== 'NONE') && (
+                            <img src={`/images/card/edition-${card?.image.edition?.toLowerCase()}.png`} className="w-5 h-5 object-contain object-center" alt="Edition" />
+                        )}
                         
                         {/* Special ability icons (e.g., "R" for Rookie, "S" for Silver Slugger) */}
                         {card?.icons.map((icon, index) => (
@@ -145,18 +150,30 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
             {/* Interactive chart showing dice roll outcomes */}
             {card && <CardChart card={card} cellClassName="min-w-8" />}
 
-            {/* Statistical highlights ribbon */}
-            <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
-                {card?.stats.award_summary.length > 0 && (
-                    <div className="font-semibold underline">
-                        {card?.stats.award_summary}
+            {/* Bottom bar */}
+            <div className="flex flex-row justify-between items-center gap-x-1">
+
+                {/* Statistical highlights ribbon */}
+                <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
+                    {card?.stats.award_summary?.length > 0 && (
+                        <div className="font-semibold underline">
+                            {card?.stats.award_summary}
+                        </div>
+                    )}
+                    {card?.image.stat_highlights_list.map((stat, index) => (
+                        <div key={index} className="">
+                            {stat}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Set and Expansion */}
+                <div className="flex flex-row justify-end text-[9px] tracking-tight text-nowrap">
+                    <div className="bg-[var(--showdown-blue)] text-white px-1 rounded-md font-bold shadow-md">
+                        {card?.image.expansion} {card?.set}
                     </div>
-                )}
-                {card?.image.stat_highlights_list.map((stat, index) => (
-                    <div key={index} className="">
-                        {stat}
-                    </div>
-                ))}
+                </div>
+
             </div>
         </div>
     );

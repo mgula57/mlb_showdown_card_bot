@@ -611,11 +611,22 @@ class PostgresDB:
         
         try:
 
-            query = sql.SQL("""
-                SELECT *
-                FROM explore_data
-                WHERE TRUE
-            """)
+            # Pop Out Source
+            source = str(filters.pop('source', 'BOT')).lower()
+
+            match source:
+                case 'bot':
+                    query = sql.SQL("""
+                        SELECT *
+                        FROM explore_data
+                        WHERE TRUE
+                    """)
+                case 'wotc':
+                    query = sql.SQL("""
+                        SELECT *
+                        FROM wotc_card_data
+                        WHERE TRUE
+                    """)
 
             filter_values = []
 
@@ -880,7 +891,7 @@ class PostgresDB:
             # CREATE TABLE IF NOT EXISTS
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS wotc_card_data (
-                    wotc_card_id character varying(100) NOT NULL,
+                    id character varying(100) NOT NULL,
                     player_id character varying(20),
                     showdown_set character varying(20) NOT NULL,
                     card_data jsonb,
@@ -889,15 +900,15 @@ class PostgresDB:
                     name character varying(100),
                     player_type character varying(50),
                     player_type_override character varying(50),
-                    primary_positions character varying(100)[],
-                    secondary_positions character varying(100)[],
+                    primary_positions text[],
+                    secondary_positions text[],
                     g integer,
                     gs integer,
                     pa integer,
                     real_ip integer,
                     lg_id character varying(10),
                     team_id character varying(10),
-                    team_id_list character varying(100)[],
+                    team_id_list text[],
                     showdown_bot_version character varying(10),
                     points integer,
                     nationality character varying(50),
@@ -906,15 +917,15 @@ class PostgresDB:
                     team character varying(50),
                     positions_and_defense jsonb,
                     positions_and_defense_string character varying(100),
-                    positions_list character varying(100)[],
+                    positions_list text[],
                     ip integer,
                     speed integer,
                     hand character varying(10),
                     speed_letter character varying(5),
                     speed_full character varying(20),
                     speed_or_ip integer,
-                    icons_list character varying(100)[],
-                    awards_list character varying(100),
+                    icons_list text[],
+                    awards_list text[],
                     command integer,
                     outs integer,
                     is_chart_outlier boolean,
@@ -973,7 +984,7 @@ class PostgresDB:
                     card.speed.full_string if card.speed.speed else None,
                     card.ip or card.speed.speed,
                     [i.value for i in card.icons],
-                    stat_source.get("awards", None),
+                    [a for a in stat_source.get("awards", "").split(",") if a],
                     card.chart.command,
                     card.chart.outs_full,
                     card.chart.is_command_out_anomaly,
@@ -983,7 +994,7 @@ class PostgresDB:
             # BATCH INSERT NEW DATA
             insert_query = """
                 INSERT INTO wotc_card_data (
-                    wotc_card_id,
+                    id,
                     player_id,
                     showdown_set,
                     card_data,

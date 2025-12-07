@@ -9,7 +9,7 @@ from rich.progress import track
 from pprint import pprint
 
 # INTERNAL
-from ..showdown_player_card import ShowdownPlayerCard, Set, Era, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points, Position, StatsPeriod, StatsPeriodType
+from ..showdown_player_card import ShowdownPlayerCard, Set, Era, Edition, Speed, PlayerType, Chart, ChartCategory, Expansion, PlayerSubType, Points, Position, StatsPeriod, StatsPeriodType, ShowdownImage
 from ...database.postgres_db import PostgresDB, PlayerArchive
 
 # ------------------------------
@@ -45,11 +45,21 @@ class WotcPlayerCard(ShowdownPlayerCard):
                 else:
                     ss_year = data.get('ss_year', None)
                     data['year'] = str(int(ss_year) if ss_year else set_year)
+                data['edition'] = Edition(data['edition']) if data['edition'] in ('SS', 'RS', 'CC', 'AS', 'PM') else Edition.NONE
                 data['stats'] = stats or {}
                 data['source'] = 'WOTC'
                 data['build_on_init'] = False
                 data['is_wotc'] = True
-                data['add_one_to_set_year'] = True
+
+                # IMAGE
+                image = ShowdownImage(
+                    expansion = Expansion(data['expansion']),
+                    edition= data['edition'],
+                    set_year = set_year,
+                    set_number = str(data['set_number']),
+                    add_one_to_set_year = True
+                )
+                data['image'] = image
 
                 # TYPE
                 player_type = PlayerType(data['player_type'])
@@ -139,6 +149,8 @@ class WotcPlayerCard(ShowdownPlayerCard):
                 super().__init__(**data)
 
                 self.chart.is_command_out_anomaly = self.chart.is_chart_an_outlier
+                self.image.color_primary = self._team_color_rgb_str()
+                self.image.color_secondary = self._team_color_rgb_str(is_secondary_color=True)
 
                 self.stats = self.clean_stats(self.stats) if stats else {}
                 self.positions_and_defense_string = self.positions_and_defense_as_string(is_horizontal=True)

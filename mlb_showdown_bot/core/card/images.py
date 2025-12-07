@@ -18,6 +18,7 @@ class Edition(str, Enum):
     HOLIDAY = "HOL"
     NATIONALITY = "NAT"
     POSTSEASON = "POST"
+    PROMO = "PM"
 
     @classmethod
     def _missing_(cls, _):
