@@ -685,10 +685,25 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
         
         // Check screen size and show appropriate UI
         const isLargeScreen = window.innerWidth >= 1000; // 2xl breakpoint
+        const isSidebarAlreadyOpen = showPlayerDetailSidebar;
         
         if (isLargeScreen) {
             setShowPlayerDetailSidebar(true);
             setShowPlayerDetailModal(false);
+            
+            if (!isSidebarAlreadyOpen) {
+                // Auto-scroll to the selected card after the sidebar animation completes
+                setTimeout(() => {
+                    const selectedElement = document.querySelector(`[data-card-id="${card.id}"]`);
+                    if (selectedElement) {
+                        selectedElement.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center',
+                            inline: 'nearest'
+                        });
+                    }
+                }, 350); // Wait for sidebar animation (300ms + small buffer)
+            }
         } else {
             setShowPlayerDetailModal(true);
             setShowPlayerDetailSidebar(false);
@@ -907,6 +922,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         {showdownCards?.map((cardRecord, index) => (
                             <div
                                 key={cardRecord.id}
+                                data-card-id={cardRecord.id}
                                 ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
                             >
                                 <CardItem
