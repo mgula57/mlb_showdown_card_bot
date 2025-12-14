@@ -538,6 +538,7 @@ class ShowdownImage(BaseModel):
     # STATS
     stat_highlights_type: StatHighlightsType = StatHighlightsType.NONE
     stat_highlights_list: list[str] = []
+    disable_showing_stat_highlights: bool = False
 
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:

@@ -45,7 +45,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
                 set_year = int(set.year)
                 data['set'] = set
                 data['era'] = Era.STEROID.value
-                data['set_number'] = str(data['set_number'])
+                data['set_number'] = str(data['set_number']).zfill(3)
                 if data['expansion'] == 'BS':
                     data['year'] = str(set_year - 1)
                 else:
@@ -68,7 +68,8 @@ class WotcPlayerCard(ShowdownPlayerCard):
                     edition= data['edition'],
                     set_year = set_year,
                     set_number = str(data['set_number']),
-                    add_one_to_set_year = False
+                    add_one_to_set_year = False,
+                    disable_showing_stat_highlights = True
                 )
                 data['image'] = image
 

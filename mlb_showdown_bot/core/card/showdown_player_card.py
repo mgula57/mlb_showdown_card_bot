@@ -2896,7 +2896,7 @@ class ShowdownPlayerCard(BaseModel):
             card_image.paste(split_image, self._coordinates_adjusted_for_bordering(paste_coordinates), split_image)
 
         # STAT HIGHLIGHTS
-        if self.image.stat_highlights_type.has_image:
+        if self.image.stat_highlights_type.has_image and not self.image.disable_showing_stat_highlights:
             stat_highlights_img, paste_coordinates = self._stat_highlights_image()
             card_image.paste(stat_highlights_img, self._coordinates_adjusted_for_bordering(paste_coordinates), stat_highlights_img)
 
@@ -3314,7 +3314,7 @@ class ShowdownPlayerCard(BaseModel):
                 edition_extension = f"-{self.image.parallel.color_override_04_05_chart}"
             type_template = f'{year}-{type}{edition_extension}'
             template_image = Image.open(self._template_img_path(type_template))
-            if self.image.stat_highlights_type.has_image:
+            if self.image.stat_highlights_type.has_image and not self.image.disable_showing_stat_highlights:
                 bg_image = Image.open(self._template_img_path(f'2004-STAT-HIGHLIGHTS{edition_extension}'))
                 template_image.paste(bg_image, (0, 1975), bg_image)
             elif self.stats_period.type.show_text_on_card_image:
@@ -3988,7 +3988,7 @@ class ShowdownPlayerCard(BaseModel):
             # DIFFERENT STYLES BETWEEN NUMBER AND SET
             # CARD YEAR
             set_font_year = ImageFont.truetype(helvetica_neue_extra_black_path, size=180) if self.set.is_showdown_bot else set_font
-            year_as_str = str(self.year)
+            year_as_str = str(self.image.set_year) if self.image.set_year else str(self.year)
             alignment = "right" if self.set.is_showdown_bot else "left"
             set_year_size = (900, 450) if self.set.is_showdown_bot else (525, 450)
             if self.stats_period.is_multi_year and self.set.is_04_05:
