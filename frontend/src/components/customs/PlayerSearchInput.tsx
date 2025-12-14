@@ -438,7 +438,7 @@ export function PlayerSearchInput({
                                     <div className="text-xs text-gray-500">
                                         {option.player_type_override && <div className='font-bold'>{option.player_type_override.toUpperCase()}</div>}
                                         {option.award_summary && <div>Awards: {option.award_summary}</div>}
-                                        {option.bwar !== undefined && <div>bWAR: {option.bwar.toFixed(1)}</div>}
+                                        {option.bwar !== undefined && option.bwar !== null && <div>bWAR: {option.bwar.toFixed(1)}</div>}
                                     </div>
                                 </div>
                             </div>
