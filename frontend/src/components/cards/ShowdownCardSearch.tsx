@@ -561,10 +561,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
         loadHierarchyData();
     }, []); // Empty dependency array - only run once
 
-    // Clear selected card when user changes showdown set
-    useEffect(() => {
-        setSelectedCard(null);
-    }, [userShowdownSet]);
+    // Note: We don't clear selected card when showdown set changes anymore
+    // Instead, we let getCardsData handle checking if the card exists in the new results
 
     // Reload cards when set or filters change
     useEffect(() => {
@@ -654,6 +652,21 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                 setWarningMessage("No results found for the given filters/search.");
             } else {
                 setWarningMessage(null);
+            }
+
+            // If we have a selected card and this is the first page (new data load),
+            // check if the selected card still exists in the new results
+            if (selectedCard && pageNum === 1 && newCardData.length > 0) {
+                const cardStillExists = newCardData.find(card => card.id === selectedCard.id);
+                if (cardStillExists) {
+                    // Card exists in new results, update the selected card with new data
+                    setSelectedCard(cardStillExists);
+                } else {
+                    // Card no longer exists, clear selection
+                    setSelectedCard(null);
+                    setShowPlayerDetailSidebar(false);
+                    setShowPlayerDetailModal(false);
+                }
             }
 
         } catch (error) {
