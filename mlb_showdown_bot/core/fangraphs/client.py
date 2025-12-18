@@ -1,6 +1,4 @@
 import requests
-import pandas as pd
-from pydantic import BaseModel
 from typing import Any, Dict, List
 
 from .exceptions import FanGraphsError

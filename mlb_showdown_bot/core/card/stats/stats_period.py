@@ -314,6 +314,35 @@ class StatsPeriod(BaseModel):
         
         return False
 
+    @property
+    def first_year(self) -> Optional[int]:
+        """
+        Returns the first year in the stats period.
+        """
+        if len(self.year_list) > 0:
+            return self.year_list[0]
+        return None
+    
+    @property
+    def last_year(self) -> Optional[int]:
+        """
+        Returns the last year in the stats period.
+        """
+        if len(self.year_list) > 0:
+            return max(self.year_list)
+        return None
+
+    @property
+    def is_during_statcast_era(self) -> bool:
+        """
+        Returns True if the stats period is during the Statcast era (2015 and later).
+        """
+
+        if self.last_year is None:
+            return False
+        
+        return self.last_year >= 2015
+
     # ---------------------------------
     # METHODS
     # ---------------------------------

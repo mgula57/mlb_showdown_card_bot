@@ -9,13 +9,16 @@ import json
 from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
-from .stats.mlb_stats_api import MLBStatsAPI
+from .utils.shared_functions import convert_to_date, convert_year_string_to_list
 from .trends.trends import CareerTrends, InSeasonTrends, TrendDatapoint
 from ..database.postgres_db import PostgresDB, PlayerArchive
+
+# STATS
+from .stats.mlb_stats_api import MLBStatsAPI
 from ..mlb_stats_api import MLBStatsAPI as MLBStatsAPI_V2
 from ..fangraphs.client import FangraphsAPIClient
+from ..statcast.client import StatcastAPIClient
 from .stats.normalized_player_stats import PlayerStatsNormalizer, Datasource, PositionStats
-from .utils.shared_functions import convert_to_date, convert_year_string_to_list
 
 def clean_kwargs(kwargs: dict) -> dict:
     """Clean the kwargs dictionary by removing 'image_' and 'image_source_' prefixes from keys."""
@@ -95,17 +98,17 @@ def generate_card(**kwargs) -> dict[str, Any]:
         match expected_source:
             case Datasource.MLB_API:
                 start_time = datetime.now()
-                mlb_stats_api = MLBStatsAPI_V2()
-                fangraphs_api = FangraphsAPIClient()
 
                 # PULL FROM MLB API
                 # NORMALIZE FORMAT
+                mlb_stats_api = MLBStatsAPI_V2()
                 player_data = mlb_stats_api.build_full_player_from_search(search_name=kwargs.get('name', ''), stats_period=stats_period)
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
 
                 # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS
                 # GRAB FROM FANGRAPHS IF AVAILABLE
                 if player_data.fangraphs_id:
+                    fangraphs_api = FangraphsAPIClient()
                     fielding_stats_list = fangraphs_api.fetch_fielding_stats(
                         stats_period=stats_period,
                         position="all",
@@ -115,6 +118,10 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     position_stats = [PositionStats.from_fangraphs_fielding_stats(pos_stats) for pos_stats in fielding_stats_list]
                     normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
 
+                if stats_period.is_during_statcast_era:
+                    statcast_api_client = StatcastAPIClient()
+                    sprint_speed_data = statcast_api_client.fetch_sprint_speed_for_player(stats_period=stats_period, player_id=player_data.id)
+                    normalized_player_stats.sprint_speed = sprint_speed_data.sprint_speed
 
                 # TODO: EVENTUALLY PASS INTO SHOWDOWN PLAYER CARD AS CLASS
                 stats = normalized_player_stats.model_dump(
