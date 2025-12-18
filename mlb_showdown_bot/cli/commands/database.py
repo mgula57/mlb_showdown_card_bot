@@ -119,6 +119,18 @@ def database_feature_status(
     db.update_feature_status(feature_name=feature_name, is_disabled=disable_feature, message=message)
     print("✅ Feature status updated.")
 
+
+@app.command("store_fielding_stats")
+def store_fielding_stats_in_db():
+    """Fetch fielding stats from Fangraphs and store in Postgres DB"""
+    from ...core.fangraphs.client import FangraphsAPIClient
+    from ...core.archive.player_stats_archive import PostgresDB
+
+    print("Fetching fielding stats from Fangraphs...")
+    fg_api = FangraphsAPIClient()
+    df = fg_api.fetch_fielding_stats(season=2025, position="LF", fangraphs_player_ids=[])
+
+
 # Make database the default command
 @app.callback(invoke_without_command=True)
 def database_main(ctx: typer.Context):

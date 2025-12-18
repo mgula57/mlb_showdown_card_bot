@@ -13,7 +13,8 @@ from .stats.mlb_stats_api import MLBStatsAPI
 from .trends.trends import CareerTrends, InSeasonTrends, TrendDatapoint
 from ..database.postgres_db import PostgresDB, PlayerArchive
 from ..mlb_stats_api import MLBStatsAPI as MLBStatsAPI_V2
-from .stats.normalized_player_stats import NormalizedPlayerStats, PlayerStatsNormalizer, PrimaryDatasource
+from ..fangraphs.client import FangraphsAPIClient
+from .stats.normalized_player_stats import PlayerStatsNormalizer, Datasource, PositionStats
 from .utils.shared_functions import convert_to_date, convert_year_string_to_list
 
 def clean_kwargs(kwargs: dict) -> dict:
@@ -89,17 +90,33 @@ def generate_card(**kwargs) -> dict[str, Any]:
         stats_period = StatsPeriod(type=stats_period_type, **kwargs)
         stats: dict[str: any] = None
 
-        expected_source = PrimaryDatasource(kwargs.get('datasource', 'BREF'))
+        expected_source = Datasource(kwargs.get('datasource', 'BREF'))
         scraper_load_time = None
         match expected_source:
-            case PrimaryDatasource.MLB_API:
+            case Datasource.MLB_API:
                 start_time = datetime.now()
                 mlb_stats_api = MLBStatsAPI_V2()
+                fangraphs_api = FangraphsAPIClient()
 
                 # PULL FROM MLB API
                 # NORMALIZE FORMAT
                 player_data = mlb_stats_api.build_full_player_from_search(search_name=kwargs.get('name', ''), stats_period=stats_period)
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
+
+                # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS
+                # GRAB FROM FANGRAPHS IF AVAILABLE
+                if player_data.fangraphs_id:
+                    fielding_stats_list = fangraphs_api.fetch_fielding_stats(
+                        stats_period=stats_period,
+                        position="all",
+                        fangraphs_player_ids=[str(player_data.fangraphs_id)],
+                    )
+                    # INJECT INTO NORMALIZED STATS
+                    position_stats = [PositionStats.from_fangraphs_fielding_stats(pos_stats) for pos_stats in fielding_stats_list]
+                    normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+
+
+                # TODO: EVENTUALLY PASS INTO SHOWDOWN PLAYER CARD AS CLASS
                 stats = normalized_player_stats.model_dump(
                     exclude_none=True, 
                     exclude_unset=True, 
@@ -108,7 +125,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 stats_period.source = 'MLB Stats API'
                 scraper_load_time = datetime.now() - start_time
 
-            case PrimaryDatasource.BREF:
+            case Datasource.BREF:
 
                 # SETUP BASEBALL REFERENCE SCRAPER
                 baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)

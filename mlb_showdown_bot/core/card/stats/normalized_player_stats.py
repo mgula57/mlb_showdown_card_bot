@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, List, Set
 from enum import Enum
 
 from ...mlb_stats_api.models.person import Position, Player as MLBStatsApi_Player, StatGroupEnum, StatTypeEnum, StatSplit
+from ...fangraphs.models import FieldingStats
 from ...shared.player_position import PlayerType
 from ..utils.shared_functions import fill_empty_stat_categories
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
@@ -10,9 +11,10 @@ from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
 # -------------------------------
 # MARK: - Primary Datasources 
 # -------------------------------
-class PrimaryDatasource(str, Enum):
+class Datasource(str, Enum):
     MLB_API = "mlb_api"
     BREF = "bref"
+    FANGRAPHS = "fangraphs"
 
     @classmethod
     def _missing_(cls, value):
@@ -22,6 +24,8 @@ class PrimaryDatasource(str, Enum):
                     return cls.MLB_API
                 case 'bref' | 'baseball_reference' | 'baseballreference':
                     return cls.BREF
+                case 'fangraphs' | 'fg':
+                    return cls.FANGRAPHS
         return cls.BREF # Default to BREF if unrecognized
 
 # -------------------------------
@@ -31,7 +35,7 @@ class NormalizedPlayerStats(BaseModel):
     """Creates a shared structure for player stats across different sources"""
 
     # Identity & Metadata
-    primary_datasource: PrimaryDatasource
+    primary_datasource: Datasource
     bref_id: Optional[str] = None
     mlb_id: Optional[int] = None
     bref_url: Optional[str] = None
@@ -115,6 +119,7 @@ class NormalizedPlayerStats(BaseModel):
     # Position & Defense
     pos_season: Optional[str] = None  # e.g., "*6/DH"
     positions: Optional[Dict[str, 'PositionStats']] = None
+    defense_datasource: Optional[Datasource] = None
     dWAR: Optional[float] = None
     bWAR: Optional[float] = None
     
@@ -135,7 +140,7 @@ class NormalizedPlayerStats(BaseModel):
     is_stats_estimated: bool = False
 
     @field_serializer('primary_datasource')
-    def serialize_primary_datasource(self, value: PrimaryDatasource) -> str:
+    def serialize_primary_datasource(self, value: Datasource) -> str:
         """Serialize enum to its string value"""
         return value.value if value else None
 
@@ -164,6 +169,19 @@ class NormalizedPlayerStats(BaseModel):
                 valid_names.add(field_info.alias)
         
         return valid_names
+    
+    def inject_defensive_stats_list(self, position_stats_list: List['PositionStats'], source: Datasource) -> None:
+        """Injects defensive stats from a list of PositionStats into the positions field. Updates defense datasource as well."""
+        if not position_stats_list or len(position_stats_list) == 0:
+            return
+        
+        # RESET ALL POSITIONS EXCEPT PITCHER AND DH
+        self.positions = {k: v for k, v in (self.positions or {}).items() if k in ['P', 'DH']}
+        
+        for pos_stats in position_stats_list:
+            self.positions[pos_stats.position] = pos_stats
+
+        self.defense_datasource = source
 
 # -------------------------------
 # MARK: - Normalizer Class
@@ -182,7 +200,7 @@ class PlayerStatsNormalizer:
         player_type = PlayerStatsNormalizer._mlb_api_determine_player_type(player.primary_position)
         normalized_data = {
             # Identity
-            'primary_datasource': PrimaryDatasource.MLB_API,
+            'primary_datasource': Datasource.MLB_API,
             'mlb_id': player.id,
 
             'name': player.full_name,
@@ -223,7 +241,7 @@ class PlayerStatsNormalizer:
         """Normalizes stats from Baseball Reference data"""
         # Implementation would extract and map fields from bref_data to NormalizedPlayerStats
         # This is a placeholder for the actual normalization logic
-        normalized_stats = NormalizedPlayerStats(primary_datasource=PrimaryDatasource.BREF, **bref_data)
+        normalized_stats = NormalizedPlayerStats(primary_datasource=Datasource.BREF, **bref_data)
         return normalized_stats
 
     # Helper methods for normalization
@@ -475,10 +493,27 @@ class PositionStats(BaseModel):
     """Defensive stats for a specific position"""
     
     g: int = 0  # Games played at position
+    innings: Optional[float] = None  # Innings played at position
+    position: Optional[str] = None  # Position abbreviation. Sometimes wont be included if part of dictionary with key (ex: {"SS": {...}})
+
+    # METRICS
     tzr: Optional[float] = None  # Total Zone Rating
     drs: Optional[float] = None  # Defensive Runs Saved
     oaa: Optional[float] = None  # Outs Above Average
     uzr: Optional[float] = None  # Ultimate Zone Rating
+
+    @staticmethod
+    def from_fangraphs_fielding_stats(fangraphs_stats: FieldingStats) -> 'PositionStats':
+        """Creates PositionStats from Fangraphs FieldingStats model"""
+        return PositionStats(
+            g=int(fangraphs_stats.games) if fangraphs_stats.games is not None else 0,
+            innings=float(fangraphs_stats.innings) if fangraphs_stats.innings is not None else None,
+            position=fangraphs_stats.position,
+            tzr=float(fangraphs_stats.tz) if fangraphs_stats.tz is not None else None,
+            drs=float(fangraphs_stats.drs) if fangraphs_stats.drs is not None else None,
+            oaa=float(fangraphs_stats.oaa) if fangraphs_stats.oaa is not None else None,
+            uzr=float(fangraphs_stats.uzr) if fangraphs_stats.uzr is not None else None,
+        )
     
 class BaseGameLog(BaseModel):
     """Base game log model"""

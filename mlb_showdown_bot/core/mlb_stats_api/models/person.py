@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, List
 from datetime import date
 
 # Models
-from .generic import EnumGeneric
+from .generic import EnumGeneric, XRefIdData
 from .position import Position
 from .teams.team import Team
 from .stats.stats import StatGroup, StatSplit
@@ -34,7 +34,7 @@ class Player(Person):
     stats: Optional[List[StatGroup]] = None
     awards: Optional[list] = None
     current_team: Optional[Team] = Field(None, alias='currentTeam')
-    xref_ids: Optional[List[Dict[str, Any]]] = Field(None, alias='xrefIds') # EX: {'some_id': 'some_value'}
+    xref_ids: Optional[List[XRefIdData]] = Field(None, alias='xrefIds')
 
     # Other endpoints for more context
     active: Optional[bool] = None
@@ -86,3 +86,18 @@ class Player(Person):
             return None
         
         return final_list
+    
+    @property
+    def fangraphs_id(self) -> Optional[int]:
+        """Retrieve the Fangraphs ID from xrefIds if available"""
+        if not self.xref_ids:
+            return None
+        
+        for xref in self.xref_ids:
+            if xref.xref_type.lower() == 'fangraphs':
+                try:
+                    return int(xref.xref_id)
+                except ValueError:
+                    return None
+            
+        return None
