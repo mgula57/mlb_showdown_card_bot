@@ -1063,6 +1063,111 @@ class PostgresDB:
             if cursor:
                 cursor.close()
 
+# -------------------------------------------------------------------------
+# IDS
+# ------------------------------------------------------------------------
+
+    def update_player_id_table(self, data: List[dict]) -> None:
+        """Update the player_id_master table with new data. Load is always rip and replace.
+        
+        Args:
+            data: List of dictionaries containing player ID master data.
+        
+        Returns:
+            None
+        """
+
+        if self.connection is None:
+            print("No database connection available for updating player ID mapping.")
+            return
+
+        try:
+            cursor = self.connection.cursor()
+
+            # CREATE TABLE IF NOT EXISTS
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS player_id_master (
+                    bref_id character varying(10) PRIMARY KEY,
+                    mlb_id integer,
+                    fangraphs_id integer,
+                    name_first character varying(50),
+                    name_last character varying(50),
+                    mlb_first_year integer,
+                    mlb_last_year integer,
+                    created_date timestamp without time zone DEFAULT now(),
+                    modified_date timestamp without time zone DEFAULT now()
+                );
+                """
+            )
+            print("  → Ensured player_id_mapping table exists.")
+
+            # ADD INDEXES/UNIQUES ON bref_id AND mlb_id
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_player_id_master_mlb_id
+                ON player_id_master (mlb_id);
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_player_id_master_bref_id
+                ON player_id_master (bref_id);
+            """)
+            print("  → Ensured indexes on player_id_master table exist.")
+
+
+            # PREPARE BATCH DATA
+            batch_data = []
+            for record in data:
+                batch_data.append((
+                    record.get('bref_id'),
+                    record.get('mlb_id'),
+                    record.get('fangraphs_id'),
+                    record.get('name_first'),
+                    record.get('name_last'),
+                    record.get('mlb_first_year'),
+                    record.get('mlb_last_year'),
+                    datetime.now(),
+                ))
+
+            # UPSERT DATA
+            upsert_query = """
+                INSERT INTO player_id_master (
+                    bref_id,
+                    mlb_id,
+                    fangraphs_id,
+                    name_first,
+                    name_last,
+                    mlb_first_year,
+                    mlb_last_year,
+                    modified_date
+                )
+                VALUES %s
+                ON CONFLICT (bref_id) DO UPDATE SET
+                    mlb_id = EXCLUDED.mlb_id,
+                    fangraphs_id = EXCLUDED.fangraphs_id,
+                    name_first = EXCLUDED.name_first,
+                    name_last = EXCLUDED.name_last,
+                    mlb_first_year = EXCLUDED.mlb_first_year,
+                    mlb_last_year = EXCLUDED.mlb_last_year,
+                    modified_date = EXCLUDED.modified_date;
+            """
+
+            execute_values(
+                cursor, 
+                upsert_query, 
+                batch_data,
+                template=None,
+                page_size=1000  # Process in chunks of 1000
+            )
+            
+            print(f"  → Updated {len(data)} player ID master records.")
+
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Error updating player ID master: {e}")
+            self.connection.rollback()
+        finally:
+            if cursor:
+                cursor.close()
+
 
 # ------------------------------------------------------------------------
 # MATERIALIZED VIEWS

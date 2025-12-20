@@ -130,6 +130,20 @@ def store_fielding_stats_in_db():
     fg_api = FangraphsAPIClient()
     df = fg_api.fetch_fielding_stats(season=2025, position="LF", fangraphs_player_ids=[])
 
+@app.command("refresh_player_id_table")
+def refresh_player_id_table():
+    """Fetch player ID mapping data and refresh the player_id_master table in Postgres DB"""
+    from ...core.ids.fetch_player_id_csv import fetch_player_id_csv
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Fetching player ID mapping data...")
+    data = fetch_player_id_csv()
+    print(f"Fetched {len(data)} player ID records.")
+
+    print("Updating player_id_master table in Postgres DB...")
+    db = PostgresDB()
+    db.update_player_id_table(data)
+    print("✅ player_id_master table refreshed.")
 
 # Make database the default command
 @app.callback(invoke_without_command=True)

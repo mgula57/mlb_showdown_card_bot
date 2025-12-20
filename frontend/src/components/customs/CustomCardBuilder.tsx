@@ -604,6 +604,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 image_output_folder_path: "static/output",
                 show_historical_points: true,
                 season_trend_date_aggregation: 'WEEK',
+                datasource: 'MLB_API',
             });
             
             // Handle Errors
