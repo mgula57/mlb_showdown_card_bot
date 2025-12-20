@@ -156,12 +156,8 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
         bf = stats_data.get('batters_faced', 0)
         is_bf_above_than_hits_and_bb = bf > ( stats_data.get('H', 0) + stats_data.get('BB', 0) ) # ACCOUNTS FOR BLANK BF ON PARTIAL SEASONS
 
-        # CHECK FOR HITS, BB, HBP, OUTS
-        # IF HITS, BB, AND OUTS ARE PRESENT, CAN DERIVE PA
-        if all (k in current_categories for k in ('H','BB','outs')):
-            stats_data['PA'] = stats_data.get('H', 0) + stats_data.get('BB', 0) + stats_data.get('HBP', 0) + stats_data.get('outs', 0)
         # CHECK FOR BATTERS FACED
-        elif bf > 0 and is_bf_above_than_hits_and_bb:
+        if bf > 0 and is_bf_above_than_hits_and_bb:
             stats_data['PA'] = bf
         # ESTIMATE PA AGAINST
         else:

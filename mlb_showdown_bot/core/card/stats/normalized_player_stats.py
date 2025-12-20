@@ -6,7 +6,7 @@ from pprint import pprint
 from ...mlb_stats_api.models.person import Position, Player as MLBStatsApi_Player, StatGroupEnum, StatTypeEnum, StatSplit
 from ...fangraphs.models import FieldingStats
 from ...shared.player_position import PlayerType
-from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal
+from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
 
 # -------------------------------
@@ -355,6 +355,7 @@ class PlayerStatsNormalizer:
         
         stat_name_mapping = PlayerStatsNormalizer._map_mlb_api_stats_to_bref()
         stat_type_mapping = PlayerStatsNormalizer._stat_datatype_dict()
+        ip_multi_split_list: List[float] = [] # COMBINE IP FROM MULTIPLE SPLITS
         for split in standard_stat_splits:
             stats = split.stat
             if not stats:
@@ -365,7 +366,7 @@ class PlayerStatsNormalizer:
                 stat_key_normalized = stat_name_mapping.get(key, key)
                 is_non_counting_metric = stat_key_normalized in [
                     'batting_avg', 'onbase_perc', 'slugging_perc', 
-                    'onbase_plus_slugging', 'earned_run_avg', 'whip', 'IP', 'GO/AO'
+                    'onbase_plus_slugging', 'earned_run_avg', 'whip', 'GO/AO'
                 ]
 
                 # PASS ON STATS IF NOT A KEY IN NORMALIZEDPLAYERSTATS
@@ -384,19 +385,31 @@ class PlayerStatsNormalizer:
                     # LIMIT TO 4 DECIMAL PLACES FOR FLOATS
                     if isinstance(stat_value_converted, float):
                         stat_value_converted = round(stat_value_converted, 4)
+                        
                 except Exception as e:
                     print(f"Error converting stat '{stat_key_normalized}': {e}")
                     stat_value_converted = str(value)
-                
+
+                # IP needs custom handling
+                if stat_key_normalized == 'IP' and len(standard_stat_splits) > 1:
+                    ip_multi_split_list.append(stat_value_converted)
+                    continue
+
                 if stat_key_normalized not in standard_stats:
                     # STAT IS NOT YET IN DICT
                     standard_stats[stat_key_normalized] = stat_value_converted
-                else:
-                    # Sum numeric stats
-                    if isinstance(stat_value_converted, (int, float)):
-                        standard_stats[stat_key_normalized] += stat_value_converted
-                    # For non-numeric stats, you might want to handle differently
-                    # e.g., take the latest value, average, etc. Here we skip.
+                    continue
+                
+                # Sum numeric stats
+                if isinstance(stat_value_converted, (int, float)):
+                    standard_stats[stat_key_normalized] += stat_value_converted
+                # For non-numeric stats, you might want to handle differently
+                # e.g., take the latest value, average, etc. Here we skip.
+
+        # HANDLE COMBINED INNINGS PITCHED
+        if len(ip_multi_split_list) > 0:
+            total_ip = total_innings_pitched(ip_multi_split_list)
+            standard_stats['IP'] = total_ip
 
         return standard_stats
 
