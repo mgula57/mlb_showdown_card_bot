@@ -8,6 +8,7 @@ from .position import Position
 from .teams.team import Team
 from .stats.stats import StatGroup, StatSplit
 from .stats.enums import StatGroupEnum, StatTypeEnum
+from .stats.awards import Award
 
 class Person(BaseModel):
     
@@ -32,7 +33,7 @@ class Player(Person):
     # Hydrations
     # Additional fields can be added here based on the hydrations used in the API requests
     stats: Optional[List[StatGroup]] = None
-    awards: Optional[list] = None
+    awards: Optional[List[Award]] = None
     current_team: Optional[Team] = Field(None, alias='currentTeam')
     xref_ids: Optional[List[XRefIdData]] = Field(None, alias='xrefIds')
 

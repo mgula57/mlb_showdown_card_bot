@@ -1398,7 +1398,7 @@ class ShowdownPlayerCard(BaseModel):
             
             # LEADER
             if stat_category:
-                is_top_2 = len([a for a in self.accolades if ("2ND" in a or "LEADER" in a) and (f" {icon.accolade_search_term}" in a and 'SO/9' not in a)]) > 0
+                is_top_2 = len([a for a in self.accolades if ("2ND" in a or "1ST" in a or "LEADER" in a) and (f" {icon.accolade_search_term}" in a and 'SO/9' not in a)]) > 0
                 is_leader = self.stats_for_card.get(f"is_{stat_category.lower()}_leader", False)
                 if is_top_2 or is_leader:
                     icons.append(icon)

@@ -223,6 +223,8 @@ class PlayerStatsNormalizer:
             'sprint_speed': None, # Extracted later from statcase
             'accolades': PlayerStatsNormalizer._convert_mlb_stats_awards_and_ranks_to_accolades_dict(player, stats_period),
             'is_rookie': PlayerStatsNormalizer._determine_rookie_status(player, stats_period),
+            'award_summary': PlayerStatsNormalizer._build_award_summary_str(player, stats_period),
+            'is_above_w_threshold': PlayerStatsNormalizer._determine_20_game_winner(player, stats_period),
 
             # # Advanced metrics
             # 'sprint_speed': getattr(mlb_player, 'sprint_speed', None),
@@ -532,6 +534,8 @@ class PlayerStatsNormalizer:
         # FINAL DICT
         accolades: Dict[str, List[str]] = {}
 
+        # ----- RANKS ----- #
+
         # MLB STATS RANKINGS ARE STORED AS STAT SPLITS
         stats_type = StatTypeEnum.RANKINGS_BY_YEAR
         group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
@@ -563,6 +567,8 @@ class PlayerStatsNormalizer:
                 except: continue
 
                 stat_key_normalized = map_stat_names.get(key, key)
+                if stat_key_normalized == 'SO' and mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.PITCHER:
+                    stat_key_normalized = 'SO_p' # Bref differentiates hitter and pitcher strikeouts
                 existing_accolades_for_stat = accolades.get(stat_key_normalized, [])
                                 
                 ordinal_rank = convert_number_to_ordinal(rank_value).upper()
@@ -573,6 +579,37 @@ class PlayerStatsNormalizer:
                 accolade_str = f"{split.season} {league_abbr} ({ordinal_rank})"
                 existing_accolades_for_stat.append(accolade_str)
                 accolades[stat_key_normalized] = existing_accolades_for_stat
+
+        # ----- AWARDS ----- #
+
+        for award in mlb_player.awards:
+
+            # ONLY INCLUDE RELEVANT AWARDS
+            if not award.is_included_in_accolades:
+                continue
+
+            if not award.normalized_accolade_list_key and not award.is_in_normalized_award_list:
+                continue
+
+            if not award.season:
+                continue
+
+            if not award.season in stats_period.year_list_as_strs:
+                continue
+
+            league_abbr = award.league if award.league else "N/A"
+            accolade_str = f"{award.season} {league_abbr}"
+
+            if award.normalized_accolade_list_key:
+                existing_accolades_for_award = accolades.get(award.normalized_accolade_list_key, [])
+                existing_accolades_for_award.append(accolade_str)
+                accolades[award.normalized_accolade_list_key] = existing_accolades_for_award
+
+            if award.is_in_normalized_award_list:
+                existing_accolades_for_awards = accolades.get('awards', [])
+                accolade_str_with_award_name = f"{accolade_str} {award.long_name.upper()}"
+                existing_accolades_for_awards.append(accolade_str_with_award_name)
+                accolades['awards'] = existing_accolades_for_awards
 
         return accolades
 
@@ -591,6 +628,59 @@ class PlayerStatsNormalizer:
 
         if stats_period.year_type == StatsPeriodYearType.SINGLE_YEAR:
             return str(stats_period.year) in mlb_player.rookie_seasons
+
+        return False
+    
+    @staticmethod
+    def _build_award_summary_str(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> str:
+        """Builds a summary string of awards for the player in the given stats period.
+        Matches the format used by Baseball Reference.
+        
+        Example: "GG,SS,MVP-1"
+
+        Args:
+            mlb_player (MLBStatsApi_Player): The MLB Stats API Player model
+        
+        Returns:
+            str: Comma-separated award summary string
+        """
+
+        award_abbr_list: List[str] = []
+
+        for award in mlb_player.awards:
+            if not award.award_summary_abbr: continue
+            if not award.season: continue
+            if award.season not in stats_period.year_list_as_strs: continue
+
+            award_abbr_list.append(award.award_summary_abbr)
+
+        # MAKE LIST UNIQUE AND SORTED
+        award_abbr_list = sorted(list(set(award_abbr_list)))
+        return ",".join(award_abbr_list)
+
+    @staticmethod
+    def _determine_20_game_winner(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> bool:
+        """Determines if the pitcher won 20 games in the given stats period"""
+        
+        stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
+        group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
+        standard_stat_splits = mlb_player.get_stat_splits(
+            group_type=group_type,
+            type=stats_type,
+            seasons=stats_period.year_list
+        )
+
+        for split in standard_stat_splits:
+            if not split.stat: continue
+
+            for key, value in split.stat.items():
+                if key == 'wins':
+                    try:
+                        wins = int(value)
+                        if wins >= 20:
+                            return True
+                    except:
+                        continue
 
         return False
     
