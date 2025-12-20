@@ -32,7 +32,7 @@ from ..shared.speed import Speed, SpeedLetter
 from ..shared.hand import Hand
 
 from .utils import showdown_constants as sc, colors
-from .utils.shared_functions import convert_to_date
+from .utils.shared_functions import convert_to_date, convert_number_to_ordinal
 
 from .stats.accolade import Accolade
 from .stats.metrics import DefenseMetric
@@ -1462,7 +1462,7 @@ class ShowdownPlayerCard(BaseModel):
                             rank_int = int(accolade.split('(',1)[1].split(',')[0])
                         except:
                             continue
-                        ordinal_rank = self.ordinal(rank_int).upper()
+                        ordinal_rank = convert_number_to_ordinal(rank_int).upper()
                         year_parsed = accolade.split(' ', 1)[0]
                         year_str = f"{year_parsed} " if num_seasons > 1 else ''
                         final_string = f"{ordinal_rank} IN {year_str}{league_and_stat}"
@@ -1575,7 +1575,7 @@ class ShowdownPlayerCard(BaseModel):
                 # IGNORE 1ST PLACE, ALREADY REPRESENTED ELSEWHERE
                 if award_placement_int == 1:
                     continue
-                ordinal_rank = self.ordinal(award_placement_int).upper()
+                ordinal_rank = convert_number_to_ordinal(award_placement_int).upper()
                 league = f"{self.league} " if self.league != 'MLB' else ''
                 accolade_str = f"{ordinal_rank} IN {league}ROY"
                 accolades_rank_and_priority_tuples.append( (accolade_str, Accolade.AWARDS.rank, award_placement_int) )
@@ -2344,18 +2344,7 @@ class ShowdownPlayerCard(BaseModel):
 # ------------------------------------------------------------------------
 # GENERIC METHODS
 # ------------------------------------------------------------------------
-
-    def ordinal(self, number:int) -> str:
-        """Convert int to string with ordinal (ex: 1 -> 1st, 13 -> 13th)
-
-        Args:
-          number: Integer value to convert.
-
-        Returns:
-          String with ordinal number
-        """
-        return "%d%s" % (number,"tsnrhtdd"[(number//10%10!=1)*(number%10<4)*number%10::4])
-
+ 
     def _rbgs_to_hex(self, rgbs:tuple[int, int, int, int]) -> str:
         """Convert RGB tuples to hex string (Ex: (255, 255, 255, 0) -> "#fffffff")
 

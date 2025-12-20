@@ -256,3 +256,14 @@ def convert_year_string_to_list(year_input:str, all_years_played:list[str] = [])
         return [int(x.strip()) for x in years]
     else:
         return [int(year_input)]
+
+def convert_number_to_ordinal(number: int) -> str:
+    """Convert int to string with ordinal (ex: 1 -> 1st, 13 -> 13th)
+
+    Args:
+        number: Integer value to convert.
+
+    Returns:
+        String with ordinal number
+    """
+    return "%d%s" % (number,"tsnrhtdd"[(number//10%10!=1)*(number%10<4)*number%10::4])

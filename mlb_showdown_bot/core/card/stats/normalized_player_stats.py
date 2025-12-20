@@ -1,11 +1,12 @@
 from pydantic import BaseModel, Field, field_serializer
 from typing import Any, Dict, Optional, List, Set
 from enum import Enum
+from pprint import pprint
 
 from ...mlb_stats_api.models.person import Position, Player as MLBStatsApi_Player, StatGroupEnum, StatTypeEnum, StatSplit
 from ...fangraphs.models import FieldingStats
 from ...shared.player_position import PlayerType
-from ..utils.shared_functions import fill_empty_stat_categories
+from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
 
 # -------------------------------
@@ -206,6 +207,7 @@ class PlayerStatsNormalizer:
             'name': player.full_name,
             'year_ID': stats_period.year,
             'team_ID': PlayerStatsNormalizer.extract_team_id(player, stats_period),
+            'lg_ID': PlayerStatsNormalizer._extract_league_id(player, stats_period),
             'type': player_type,
             'hand': Hand(player.bat_side.description).value,
             'hand_throw': Hand(player.pitch_hand.description).value,
@@ -218,8 +220,8 @@ class PlayerStatsNormalizer:
 
             # Missing
             'outs_above_avg': {}, # TODO: Extract from Statcast data
-            'sprint_speed': None, # TODO: Extract from Statcast data
-            'accolades': {}, # TODO: Find a source for accolades
+            'sprint_speed': None, # Extracted later from statcase
+            'accolades': PlayerStatsNormalizer._convert_mlb_stats_awards_and_ranks_to_accolades_dict(player, stats_period),
             
             # # Advanced metrics
             # 'sprint_speed': getattr(mlb_player, 'sprint_speed', None),
@@ -424,7 +426,33 @@ class PlayerStatsNormalizer:
 
         # Return the team with the most games played
         return max(team_games_played, key=team_games_played.get)
-    
+
+    @staticmethod
+    def _extract_league_id(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[str]:
+        """Get corresponding league ID for the player in the given stats period"""
+
+        primary_team_id = PlayerStatsNormalizer.extract_team_id(mlb_player, stats_period)
+        if not primary_team_id:
+            return None
+        
+        # GET STAT SPLITS
+        # FIND THE TEAM MATCHING THE PRIMARY TEAM ID
+        # RETURN THE FIRST (WILL BE LATEST YEAR'S) LEAGUE ABBREVIATION
+        stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
+        group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
+        standard_stat_splits = mlb_player.get_stat_splits(
+            group_type=group_type,
+            type=stats_type,
+            seasons=stats_period.year_list
+        )
+        for split in standard_stat_splits:
+            team = split.team
+            if team and team.abbreviation == primary_team_id:
+                if team.league and team.league.abbreviation:
+                    return team.league.abbreviation
+                
+        return None
+
     @staticmethod
     def _map_mlb_api_stats_to_bref() -> Dict[str, str]:
         """Maps MLB Stats API stat keys to Baseball Reference stat keys"""
@@ -495,6 +523,58 @@ class PlayerStatsNormalizer:
                 return StatTypeEnum.STATS_SINGLE_SEASON
             case _:
                 return StatTypeEnum.STATS_SINGLE_SEASON
+
+    @staticmethod
+    def _convert_mlb_stats_awards_and_ranks_to_accolades_dict(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Dict[str, List[str]]:
+        """Converts MLB Stats API awards and ranks into accolades dictionary"""
+        
+        # FINAL DICT
+        accolades: Dict[str, List[str]] = {}
+
+        # MLB STATS RANKINGS ARE STORED AS STAT SPLITS
+        stats_type = StatTypeEnum.RANKINGS_BY_YEAR
+        group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
+        rankings_by_year = mlb_player.get_stat_splits(
+            group_type=group_type,
+            type=stats_type,
+            seasons=stats_period.year_list
+        )
+
+        # MLB STATS API WILL RETURN 2 SPLITS FOR YEARS
+        # FILTER TO ONE PER YEAR
+        deduped_rankings_by_year: List[StatSplit] = []
+        for split in rankings_by_year:
+            if any(existing_split.season == split.season for existing_split in deduped_rankings_by_year):
+                continue
+            deduped_rankings_by_year.append(split)
+
+        # CONVERT TO ACCOLADES DICT
+        map_stat_names = PlayerStatsNormalizer._map_mlb_api_stats_to_bref()
+        for split in deduped_rankings_by_year:
+            
+            stats = split.stat
+            if not stats:
+                continue
+            
+            for key, value in stats.items():
+
+                try: rank_value = int(value)
+                except: continue
+
+                stat_key_normalized = map_stat_names.get(key, key)
+                existing_accolades_for_stat = accolades.get(stat_key_normalized, [])
+                                
+                ordinal_rank = convert_number_to_ordinal(rank_value).upper()
+
+                # CONVERT TO STRING
+                # EX: "2025 AL (7TH)"
+                league_abbr = split.team.league.abbreviation if split.team and split.team.league else "N/A"
+                accolade_str = f"{split.season} {league_abbr} ({ordinal_rank})"
+                existing_accolades_for_stat.append(accolade_str)
+                accolades[stat_key_normalized] = existing_accolades_for_stat
+
+        return accolades
+
 
 # -------------------------------
 # MARK: - Supporting Models
