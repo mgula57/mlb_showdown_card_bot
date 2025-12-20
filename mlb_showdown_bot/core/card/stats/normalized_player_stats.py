@@ -222,7 +222,8 @@ class PlayerStatsNormalizer:
             'outs_above_avg': {}, # TODO: Extract from Statcast data
             'sprint_speed': None, # Extracted later from statcase
             'accolades': PlayerStatsNormalizer._convert_mlb_stats_awards_and_ranks_to_accolades_dict(player, stats_period),
-            
+            'is_rookie': PlayerStatsNormalizer._determine_rookie_status(player, stats_period),
+
             # # Advanced metrics
             # 'sprint_speed': getattr(mlb_player, 'sprint_speed', None),
             # 'onbase_plus_slugging_plus': self._extract_ops_plus(hitting_stats),
@@ -575,7 +576,24 @@ class PlayerStatsNormalizer:
 
         return accolades
 
+    @staticmethod
+    def _determine_rookie_status(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> bool:
+        """Determines if the player is a rookie in the given stats period"""
+        
+        if mlb_player.rookie_seasons is None or len(mlb_player.rookie_seasons) == 0:
+            return False
 
+        if stats_period.is_full_career:
+            return False
+        
+        if stats_period.is_multi_year:
+            return stats_period.year_list_as_strs == mlb_player.rookie_seasons
+
+        if stats_period.year_type == StatsPeriodYearType.SINGLE_YEAR:
+            return str(stats_period.year) in mlb_player.rookie_seasons
+
+        return False
+    
 # -------------------------------
 # MARK: - Supporting Models
 # -------------------------------

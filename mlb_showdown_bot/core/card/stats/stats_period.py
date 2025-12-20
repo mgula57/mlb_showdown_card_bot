@@ -343,6 +343,11 @@ class StatsPeriod(BaseModel):
         
         return self.last_year >= 2015
 
+    @property
+    def year_list_as_strs(self) -> str:
+        """Returns the year list as a list of strings. Orders in ascending order."""
+        return [str(year) for year in sorted(self.year_list)]
+
     # ---------------------------------
     # METHODS
     # ---------------------------------
