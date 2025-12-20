@@ -57,9 +57,9 @@ class FangraphsAPIClient:
             "stats": "fld",
             "lg": "all",
             "qual": "0",
-            "type": "1",             # GETS ADVANCED FIELDING STATS
-            "season": stats_period.year,
-            "season1": stats_period.year,
+            "type": "1",                             # GETS ADVANCED FIELDING STATS
+            "season1": str(stats_period.first_year), # START YEAR
+            "season": str(stats_period.last_year),   # END YEAR
             "month": "0",
             "ind": "0",
             "team": "0",

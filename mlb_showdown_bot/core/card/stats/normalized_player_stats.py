@@ -356,17 +356,27 @@ class PlayerStatsNormalizer:
                 continue
             for key, value in stats.items():
 
-                # Normalize stat name and type
+                # NORMALIZE STAT NAME AND TYPE
                 stat_key_normalized = stat_name_mapping.get(key, key)
+                is_non_counting_metric = stat_key_normalized in [
+                    'batting_avg', 'onbase_perc', 'slugging_perc', 
+                    'onbase_plus_slugging', 'earned_run_avg', 'whip', 'IP', 'GO/AO'
+                ]
 
-                # Pass on stats if not a key in NormalizedPlayerStats
+                # PASS ON STATS IF NOT A KEY IN NORMALIZEDPLAYERSTATS
                 if stat_key_normalized not in NormalizedPlayerStats.all_valid_field_names():
-                    print(f"Skipping unrecognized stat key: {stat_key_normalized}")
+                    # print(f"Skipping unrecognized stat key: {stat_key_normalized}")
+                    continue
+
+                # PASS IF MULTIPLE SPLITS AND THIS IS A NON-COUNTING METRIC
+                # ONCE SPLITS ARE COMBINED, THESE METRICS WILL BE RECALCULATED
+                if is_non_counting_metric and len(standard_stat_splits) > 1:
+                    # print(f"Skipping non-counting metric for multiple splits: {stat_key_normalized}")
                     continue
 
                 try:
                     stat_value_converted = stat_type_mapping.get(stat_key_normalized, int)(value)
-                    # Limit to 4 decimal places for floats
+                    # LIMIT TO 4 DECIMAL PLACES FOR FLOATS
                     if isinstance(stat_value_converted, float):
                         stat_value_converted = round(stat_value_converted, 4)
                 except Exception as e:
@@ -374,6 +384,7 @@ class PlayerStatsNormalizer:
                     stat_value_converted = str(value)
                 
                 if stat_key_normalized not in standard_stats:
+                    # STAT IS NOT YET IN DICT
                     standard_stats[stat_key_normalized] = stat_value_converted
                 else:
                     # Sum numeric stats
@@ -481,7 +492,7 @@ class PlayerStatsNormalizer:
             case StatsPeriodYearType.FULL_CAREER:
                 return StatTypeEnum.CAREER
             case StatsPeriodYearType.MULTI_YEAR:
-                return StatTypeEnum.YEAR_BY_YEAR
+                return StatTypeEnum.STATS_SINGLE_SEASON
             case _:
                 return StatTypeEnum.STATS_SINGLE_SEASON
 
