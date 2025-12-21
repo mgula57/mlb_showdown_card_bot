@@ -23,7 +23,8 @@ import { Modal } from "../shared/Modal";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
-    FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft
+    FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
+    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup
 } from "react-icons/fa";
 import { FaArrowRotateRight, FaTableList } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
@@ -148,6 +149,11 @@ interface FilterSelections {
     // Image attributes
     /** Lets user filter for cards with/without images */
     image_match_type?: string[];
+
+    // Showdown set filtering
+    showdown_set?: string[];
+    expansion?: string[];
+    edition?: string[];
 }
 
 /**
@@ -394,7 +400,7 @@ const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
 ];
 
 // =============================================================================
-// FILTER PERSISTENCE & UTILITIES
+// MARK: - FILTER PERSISTENCE & UTILITIES
 // =============================================================================
 
 /** localStorage key for persisting filter selections across sessions */
@@ -621,10 +627,16 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
             const pageLimit = 50;
             const searchFilters = debouncedSearchText ? { search: debouncedSearchText } : {};
+
+            // Only include userShowdownSet if filters.showdown_set is not already populated
+        const showdownSetFilter = filters.showdown_set && filters.showdown_set.length > 0 
+            ? {} 
+            : { showdown_set: userShowdownSet };
+
             const combinedFilters = {
                 ...filters,
                 ...searchFilters,
-                showdown_set: userShowdownSet,
+                ...showdownSetFilter,
                 page: pageNum,
                 limit: pageLimit // Cards per page
             };
@@ -779,6 +791,11 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
             const finalValues = value.length === 2 ? ['Yes', 'No'] : value[0] === 'true' ? ['Yes'] : ['No'];
             const finalValue = finalValues.join(',');
             return `Small Sample Sizes?: ${finalValue}`;
+        }
+
+        if (key === 'showdown_set') {
+            const finalValue = Array.isArray(value) ? value.map(s => s.toUpperCase()).join(', ') : value.toUpperCase();
+            return `Set: ${finalValue}`;
         }
 
         const keysWithValuesToTitleCase = ['image_match_type']
@@ -1044,7 +1061,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         <div className="flex flex-col gap-4 pb-12">
 
                             {/* Sorting */}
-                            <FormSection title="Sorting" isOpenByDefault={true}>
+                            <FormSection title="Sorting" icon={<FaSort />} isOpenByDefault={true}>
 
                                 <FormDropdown
                                     label="Sort Category"
@@ -1065,8 +1082,60 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
                             </FormSection>
 
+                            {/* Set */}
+                            {isFilterAvailable('showdown_set', source) && (
 
-                            <FormSection title="Seasons and Teams" isOpenByDefault={true}>
+                                <FormSection title="Showdown Set" icon={<FaLayerGroup />} isOpenByDefault={true}>
+
+                                    {/* Set */}
+                                    <MultiSelect
+                                        label="Set"
+                                        labelDescription={`Overrides your selected Showdown set above (${userShowdownSet?.toUpperCase()}).`}
+                                        className="col-span-full" // FULL WIDTH
+                                        options={[
+                                            { value: '2000', label: '2000' },
+                                            { value: '2001', label: '2001' },
+                                            { value: '2002', label: '2002' },
+                                            { value: '2003', label: '2003' },
+                                            { value: '2004', label: '2004' },
+                                            { value: '2005', label: '2005' },
+                                        ]}
+                                        selections={filtersForEditing.showdown_set || []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, showdown_set: values })}
+                                    />
+
+                                    {/* Expansion */}
+                                    <MultiSelect
+                                        label="Expansion"
+                                        options={[
+                                            { value: 'BS', label: 'BASE SET' },
+                                            { value: 'TD', label: 'TRADING DEADLINE' },
+                                            { value: 'PR', label: 'PENNANT RUN' },
+                                            { value: 'PM', label: 'PROMO' },
+                                            { value: 'ASG', label: 'ALL-STAR GAME' },
+                                        ]}
+                                        selections={filtersForEditing.expansion || []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, expansion: values })}
+                                    />
+
+                                    {/* Edition */}
+                                    <MultiSelect
+                                        label="Edition"
+                                        options={[
+                                            { value: 'NONE', label: 'None' },
+                                            { value: 'CC', label: 'Cooperstown Collection' },
+                                            { value: 'SS', label: 'Super Season' },
+                                            { value: 'RS', label: 'Rookie Season' },
+                                        ]}
+                                        selections={filtersForEditing.edition || []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, edition: values })}
+                                    />
+                                
+                                </FormSection>
+                            )}
+
+
+                            <FormSection title="Seasons and Teams" icon={<FaCalendarAlt />} isOpenByDefault={true}>
                                 {/* Filters options */}
 
                                 {SEASON_RANGE_FILTERS.map(def => (
@@ -1104,7 +1173,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                             </FormSection>
 
 
-                            <FormSection title="Positions and Hand" isOpenByDefault={true}>
+                            <FormSection title="Positions and Hand" icon={<FaMitten />} isOpenByDefault={true}>
                                 <MultiSelect
                                     label="Player Type"
                                     options={[
@@ -1147,7 +1216,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                             </FormSection>
 
                             {isFilterAvailable('min_pa', source) && (
-                                <FormSection title="Real Stats and Awards" isOpenByDefault={true}>
+                                <FormSection title="Real Stats and Awards" icon={<FaHashtag />} isOpenByDefault={true}>
 
                                     {REAL_RANGE_FILTERS.map(def => (
                                         <RangeFilter
@@ -1191,7 +1260,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                 </FormSection>
                             )}
 
-                            <FormSection title="Showdown Attributes" isOpenByDefault={true}>
+                            <FormSection title="Showdown Attributes" icon={<FaAddressCard />} isOpenByDefault={true}>
                                 {SHOWDOWN_METADATA_RANGE_FILTERS.map(def => (
                                     <RangeFilter
                                         key={def.minKey as string}
@@ -1220,7 +1289,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                 />
                             </FormSection>
 
-                            <FormSection title="Showdown Chart" isOpenByDefault={true}>
+                            <FormSection title="Showdown Chart" icon={<FaTable />} isOpenByDefault={true}>
                                 {isFilterAvailable('is_chart_outlier', source) && (
                                     <MultiSelect
                                         label="Chart Outlier?"
@@ -1243,7 +1312,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                             </FormSection>
 
                             {isFilterAvailable('image_match_type', source) && (
-                                <FormSection title="Image Attributes" isOpenByDefault={true}>
+                                <FormSection title="Image Attributes" icon={<FaImage />} isOpenByDefault={true}>
                                     <MultiSelect
                                         label="Auto Image Classification"
                                         options={[

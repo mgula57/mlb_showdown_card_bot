@@ -641,9 +641,19 @@ class PostgresDB:
             if filters and len(filters) > 0:
                 filter_clauses = []
 
-                # ADD FILTER FOR CURRENT VERSION OF SHOWDOWN BOT
-                if source == 'bot':
-                    filters['showdown_bot_version'] = __version__
+                # SOURCE SPECIFIC FILTERS
+                match source:
+                    case 'bot':
+                        filters['showdown_bot_version'] = __version__
+                    case 'wotc':
+                        sets = filters.get('showdown_set', [])
+                        # FILTER TO SPECIFIC SETS IF USER HAS `CLASSIC` OR `EXPANDED` SELECTED - THEY DIDNT EXIST IN WOTC
+                        if isinstance(sets, str):
+                            if sets == 'CLASSIC':
+                                filters['showdown_set'] = ['2000', '2001']
+                            elif sets == 'EXPANDED':
+                                filters['showdown_set'] = ['2002', '2003', '2004', '2005']
+
                 
                 for key, value in filters.items():
                     if value is None:
@@ -897,6 +907,8 @@ class PostgresDB:
                     id character varying(100) NOT NULL,
                     player_id character varying(20),
                     showdown_set character varying(20) NOT NULL,
+                    expansion character varying(20),
+                    edition character varying(20),
                     card_data jsonb,
                     year character varying(15),
                     bref_id character varying(10),
@@ -958,6 +970,8 @@ class PostgresDB:
                     card.id,
                     player_id,
                     card.set.value,
+                    card.image.expansion.value if card.image.expansion else None,
+                    card.image.edition.value if card.image.edition else None,
                     json.dumps(card.as_json()),
                     card.year,
                     card.bref_id,
@@ -1004,6 +1018,8 @@ class PostgresDB:
                     id,
                     player_id,
                     showdown_set,
+                    expansion,
+                    edition,
                     card_data,
                     year,
                     bref_id,
