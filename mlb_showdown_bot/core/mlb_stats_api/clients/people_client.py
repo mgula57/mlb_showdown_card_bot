@@ -4,12 +4,16 @@ from pprint import pprint
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from ..base_client import BaseMLBClient
-from ..models.person import Player, StatTypeEnum
+from ..models.person import Player, FreeAgent, StatTypeEnum
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
 import json
 
 class PeopleClient(BaseMLBClient):
     """Client for person/player related endpoints - inherits all base functionality"""
+
+    # -----------------------
+    # STANDARD PLAYERS
+    # -----------------------
 
     def search_players(self, name: str, active_status: str = 'both', limit: int = 25) -> List[Player]:
         """Search for players by name"""
@@ -89,3 +93,20 @@ class PeopleClient(BaseMLBClient):
             if "404" in str(e):
                 raise Exception(f"Player {player_id} not found")
             raise
+
+
+    # -----------------------
+    # FREE AGENTS
+    # -----------------------
+    def get_free_agents(self, season: int) -> List[FreeAgent]:
+        """Get list of free agent players for a given season"""
+        params = {
+            'season': season,
+            'hydrate': 'team,person',
+        }
+        data = self._make_request('people/freeAgents', params)
+        free_agent_list = data.get('freeAgents', [])
+
+        free_agent_objects = [FreeAgent(**fa_data) for fa_data in free_agent_list]
+                
+        return sorted(free_agent_objects, key=lambda fa: (fa.sort_order if fa.sort_order is not None else 9999, fa.date_signed or datetime.max.date()))

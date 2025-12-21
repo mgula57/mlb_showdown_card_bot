@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, List
 from datetime import date
 
@@ -102,3 +102,30 @@ class Player(Person):
                     return None
             
         return None
+    
+
+class FreeAgent(BaseModel):
+    """Model for free agents"""
+    
+    player: Player
+    position: Position
+    original_team: Optional[Team] = Field(None, alias='originalTeam')
+    new_team: Optional[Team] = Field(None, alias='newTeam')
+    date_declared: Optional[date] = Field(None, alias='dateDeclared')
+    date_signed: Optional[date] = Field(None, alias='dateSigned')
+    notes: Optional[str] = None
+    sort_order: Optional[int] = Field(None, alias='sortOrder')  # For internal sorting purposes
+    
+    @field_validator('new_team', mode='before')
+    def validate_new_team(cls, v):
+        """Null out new_team if it's a dict with only a 'link' key"""
+        if isinstance(v, dict) and len(v) == 1 and 'link' in v:
+            return None
+        return v
+    
+    @field_validator('original_team', mode='before')
+    def validate_original_team(cls, v):
+        """Null out original_team if it's a dict with only a 'link' key"""
+        if isinstance(v, dict) and len(v) == 1 and 'link' in v:
+            return None
+        return v
