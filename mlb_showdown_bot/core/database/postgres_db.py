@@ -602,7 +602,6 @@ class PostgresDB:
 
         return [ExploreDataRecord(**row) for row in raw_data]
 
-
     def fetch_card_data(self, filters: dict = {}) -> list[dict]:
         """Fetch all card data from the database with support for lists and min/max filtering."""
 
@@ -641,6 +640,10 @@ class PostgresDB:
             # Apply filters if any
             if filters and len(filters) > 0:
                 filter_clauses = []
+
+                # ADD FILTER FOR CURRENT VERSION OF SHOWDOWN BOT
+                if source == 'bot':
+                    filters['showdown_bot_version'] = __version__
                 
                 for key, value in filters.items():
                     if value is None:
@@ -981,8 +984,8 @@ class PostgresDB:
                     json.dumps(card.positions_and_defense_for_visuals),
                     card.positions_and_defense_string,
                     [p.value for p in card.positions_and_games_played.keys()],
-                    card.ip if card.ip else None,
-                    card.speed.speed if card.speed.speed else None,
+                    card.ip if card.ip else 0,
+                    card.speed.speed if card.speed.speed else 0,
                     card.hand.value if card.hand else None,
                     card.speed.letter if card.speed.speed else None,
                     card.speed.full_string if card.speed.speed else None,

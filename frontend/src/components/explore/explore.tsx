@@ -33,16 +33,21 @@ export default function Explore() {
     const tabSelectedStyle = "text-[var(--showdown-blue)] border-b-2 border-[var(--showdown-blue)]";
     const tabUnselectedStyle = "text-gray-500 hover:text-gray-700";
 
+    const getTabClasses = (src: CardSource) => {
+        const baseClasses = "relative flex gap-x-1 items-center px-6 py-3 font-medium text-sm transition-colors duration-200";
+        const stateClasses = tab === src ? tabSelectedStyle : tabUnselectedStyle;
+        return `${baseClasses} ${stateClasses}`;
+    };
+
     const tabButton = (src: CardSource) => {
+        const isSelected = tab === src;
 
         return (
             <button
-                className={`
-                    relative flex gap-x-1 items-center
-                    px-6 py-3 font-medium text-sm transition-colors duration-200
-                    ${tab === src ? tabSelectedStyle : tabUnselectedStyle}
-                `}
+                key={src} // Add key to force re-render
+                className={getTabClasses(src)}
                 onClick={() => setTab(src)}
+                aria-selected={isSelected} // For accessibility
             >
                 {src === CardSource.WOTC && <div className="text-[9px] bg-secondary px-1 rounded-sm">OG</div>}
                 {src === CardSource.BOT && <FaRobot />}
