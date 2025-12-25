@@ -169,7 +169,11 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
         chart_version: activeCardData.card.chart_version == 1 ? null : `CHART ${activeCardData.card.chart_version}`,
         parallel: activeCardData.card.image.parallel == "NONE" ? null : `PARALLEL: ${activeCardData.card.image.parallel}`,
     } : {};
-    const weeklyChangePoints = activeCardData?.in_season_trends?.pts_change?.week || null;
+    var weeklyChangePoints = activeCardData?.in_season_trends?.pts_change?.week || null;
+    const isThisYearBeforeOct8th = activeCardData?.card?.year === String(new Date().getFullYear()) && (new Date().getMonth() < 9 || (new Date().getMonth() === 9 && new Date().getDate() < 8));
+    if (isThisYearBeforeOct8th === false) {
+        weeklyChangePoints = null; // Only show for current year cards
+    }
     const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-green-500' : 'text-red-500') : '';
     const weeklyChangePointsSymbol = weeklyChangePoints ? (weeklyChangePoints > 0 ? '▲' : '▼') : '';
 
