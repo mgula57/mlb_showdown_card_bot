@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
 from typing import Any, Dict, Optional, List, Set
 from enum import Enum
 from pprint import pprint
@@ -48,10 +48,12 @@ class NormalizedPlayerStats(BaseModel):
     year_id: int | str = Field(..., alias='year_ID')  # e.g., 2023 or "Career"
     age: Optional[int] = None
     team_id: Optional[str] = Field(None, alias='team_ID')
+    team_override: Optional[str] = None  # Manually override team if needed
     lg_ID: Optional[str] = None
     
     # Player Type & Physical
-    type: str  # "Hitter" or "Pitcher"
+    type: PlayerType  # "Hitter" or "Pitcher"
+    player_type_override: Optional[PlayerType] = None  # Manually override player type if needed
     hand: Optional[str] = None  # "Left", "Right", "Both"
     hand_throw: Optional[str] = None  # "Left", "Right"
     
@@ -144,6 +146,11 @@ class NormalizedPlayerStats(BaseModel):
     def serialize_primary_datasource(self, value: Datasource) -> str:
         """Serialize enum to its string value"""
         return value.value if value else None
+
+    @field_validator('pos_season', mode='before')
+    def validate_pos_season(cls, value) -> str:
+        """Ensures pos_season is always a string, defaults to empty string if None"""
+        return str(value) if value is not None else None
 
     @classmethod
     def expected_fields(cls) -> List[str]:
@@ -696,7 +703,217 @@ class PlayerStatsNormalizer:
                         continue
 
         return False
-    
+
+    # -------------------------------
+    # Multi-Year Combining Methods
+    # -------------------------------
+
+    @staticmethod
+    def combine_multi_year_stats(stats_list: List[NormalizedPlayerStats], stats_period: StatsPeriod) -> NormalizedPlayerStats:
+        """Combines multiple years of NormalizedPlayerStats into a single NormalizedPlayerStats for multi-year periods"""
+        
+        if not stats_list or len(stats_list) == 0:
+            raise ValueError("Cannot combine empty stats list")
+        
+        if len(stats_list) == 1:
+            return stats_list[0]  # Nothing to combine
+        
+        # Use the first entry as base template - USE ALIASES IN OUTPUT
+        base_stats = stats_list[0]
+        combined_data = base_stats.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
+        
+        # Update metadata for multi-year
+        combined_data['year_ID'] = "CAREER" if stats_period.is_full_career else "-".join(str(s.year_id) for s in stats_list)
+        combined_data['primary_datasource'] = base_stats.primary_datasource.value  # Serialize enum
+
+        # USE TEAM WITH THE MOST GAMES PLAYED
+        team_games_played: Dict[str, int] = {}
+        for stats in stats_list:
+            if stats.team_id and stats.G:
+                team_games_played[stats.team_id] = team_games_played.get(stats.team_id, 0) + stats.G
+        combined_data['team_id'] = max(team_games_played, key=team_games_played.get) if team_games_played else None
+        
+        # Define aggregation strategies - USE ALIASES for fields that have them
+        counting_stats = {
+            'G', 'PA', 'AB', 'R', 'H', 'singles', 'doubles', 'triples', 'HR', 'RBI',
+            'SB', 'CS', 'BB', 'SO', 'TB', 'GIDP', 'HBP', 'SH', 'SF', 'IBB',
+            'W', 'L', 'GS', 'ER', 'SV', 'bWAR', 'dWAR'
+        }
+        
+        averaging_stats = {
+            'sprint_speed', 'go_ao_ratio', 'if_fb_ratio'  # Use aliases here too
+        }
+        
+        max_stats = {
+            'is_hr_leader', 'is_sb_leader', 'is_so_leader', 'is_above_hr_threshold',
+            'is_above_so_threshold', 'is_above_sb_threshold', 'is_above_w_threshold'
+        }
+        
+        concatenation_stats = {
+            'award_summary'
+        }
+        
+        # Create field mapping for accessing attributes by alias
+        field_attr_to_alias = {k: k for k in NormalizedPlayerStats.__annotations__.keys()}
+        field_attr_to_alias.update({v: k for k, v in NormalizedPlayerStats.field_aliases().items()} )
+        
+        # Aggregate counting stats (sum)
+        for stat in counting_stats:
+            alias = field_attr_to_alias.get(stat, stat)
+            if alias in combined_data:
+                # Get the actual field name to use with getattr
+                total = sum(getattr(stats, stat, 0) for stats in stats_list)
+                if isinstance(combined_data[alias], float):
+                    total = round(total, 4)
+                combined_data[alias] = total
+        
+        # Handle IP separately (special decimal handling)
+        ip_values = [stats.IP for stats in stats_list if stats.IP > 0]
+        if ip_values:
+            combined_data['IP'] = total_innings_pitched(ip_values)
+        
+        # Aggregate averaging stats (mean)
+        for stat in averaging_stats:
+            alias = field_attr_to_alias.get(stat, stat)
+            if alias in combined_data:
+                
+                valid_values = [getattr(stats, stat) for stats in stats_list 
+                            if getattr(stats, stat, None) is not None]
+                if valid_values:
+                    combined_data[alias] = round(sum(valid_values) / len(valid_values), 4)
+                else:
+                    combined_data[alias] = None
+        
+        # Aggregate max stats (any True = True)
+        for stat in max_stats:
+            alias = field_attr_to_alias.get(stat, stat)
+            if alias in combined_data:
+                combined_data[alias] = any(getattr(stats, stat, False) for stats in stats_list)
+        
+        # Handle concatenation stats
+        for stat in concatenation_stats:
+            alias = field_attr_to_alias.get(stat, stat)
+            if alias in combined_data:
+                values = [getattr(stats, stat) for stats in stats_list 
+                        if getattr(stats, stat, None)]
+                if values:
+                    # Remove duplicates and join
+                    unique_values = list(dict.fromkeys(values))  # Preserves order
+                    combined_data[alias] = ','.join(unique_values)
+                else:
+                    combined_data[alias] = None
+        
+        # Rest of the combining logic...
+        combined_positions = PlayerStatsNormalizer._combine_positions(stats_list)
+        combined_data['positions'] = combined_positions
+        
+        combined_accolades = PlayerStatsNormalizer._combine_accolades(stats_list)
+        combined_data['accolades'] = combined_accolades
+        
+        # Recalculate rate stats after combining counting stats
+        combined_data.update(PlayerStatsNormalizer._recalculate_rate_stats(combined_data))
+
+        # Remove rookie status 
+        combined_data['is_rookie'] = False
+        
+        # Create and return new NormalizedPlayerStats
+        return NormalizedPlayerStats(**combined_data)
+
+    @staticmethod
+    def _combine_positions(stats_list: List[NormalizedPlayerStats]) -> Optional[Dict[str, 'PositionStats']]:
+        """Combine position stats from multiple years"""
+        combined_positions = {}
+        
+        for stats in stats_list:
+            if not stats.positions:
+                continue
+                
+            for pos, pos_stats in stats.positions.items():
+                if pos not in combined_positions:
+                    combined_positions[pos] = PositionStats(
+                        g=pos_stats.g,
+                        innings=pos_stats.innings,
+                        position=pos,
+                        tzr=pos_stats.tzr,
+                        drs=pos_stats.drs,
+                        oaa=pos_stats.oaa,
+                        uzr=pos_stats.uzr
+                    )
+                else:
+                    # Sum games, average the metrics
+                    existing = combined_positions[pos]
+                    existing.g += pos_stats.g
+                    
+                    # Average the defensive metrics
+                    metrics = ['tzr', 'drs', 'oaa', 'uzr', 'innings']
+                    for metric in metrics:
+                        existing_val = getattr(existing, metric)
+                        new_val = getattr(pos_stats, metric)
+                        
+                        if existing_val is not None and new_val is not None:
+                            setattr(existing, metric, (existing_val + new_val) / 2)
+                        elif new_val is not None:
+                            setattr(existing, metric, new_val)
+        
+        return combined_positions if combined_positions else None
+
+    @staticmethod
+    def _combine_accolades(stats_list: List[NormalizedPlayerStats]) -> Optional[Dict[str, List[str]]]:
+        """Combine accolades from multiple years"""
+        combined_accolades = {}
+        
+        for stats in stats_list:
+            if not stats.accolades:
+                continue
+                
+            for key, values in stats.accolades.items():
+                if key not in combined_accolades:
+                    combined_accolades[key] = []
+                combined_accolades[key].extend(values)
+        
+        # Remove duplicates while preserving order
+        for key in combined_accolades:
+            combined_accolades[key] = list(dict.fromkeys(combined_accolades[key]))
+        
+        return combined_accolades if combined_accolades else None
+
+    @staticmethod
+    def _recalculate_rate_stats(combined_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Recalculate rate stats after combining counting stats"""
+        rate_updates = {}
+        
+        # Batting rates
+        ab = combined_data.get('AB', 0)
+        h = combined_data.get('H', 0)
+        bb = combined_data.get('BB', 0)
+        hbp = combined_data.get('HBP', 0)
+        sf = combined_data.get('SF', 0)
+        tb = combined_data.get('TB', 0)
+        
+        if ab > 0:
+            rate_updates['batting_avg'] = round(h / ab, 4)
+            rate_updates['slugging_perc'] = round(tb / ab, 4)
+            
+            obp_denominator = ab + bb + hbp + sf
+            if obp_denominator > 0:
+                rate_updates['onbase_perc'] = round((h + bb + hbp) / obp_denominator, 4)
+                rate_updates['onbase_plus_slugging'] = round(
+                    rate_updates.get('onbase_perc', 0) + rate_updates.get('slugging_perc', 0), 4
+                )
+        
+        # Pitching rates
+        ip = combined_data.get('IP', 0)
+        er = combined_data.get('ER', 0)
+        h_allowed = combined_data.get('H', 0)  # For pitchers, this would be hits allowed
+        bb_allowed = combined_data.get('BB', 0)  # Walks allowed
+        
+        if ip > 0:
+            rate_updates['earned_run_avg'] = round(9 * er / ip, 4)
+            if h_allowed + bb_allowed > 0:
+                rate_updates['whip'] = round((h_allowed + bb_allowed) / ip, 4)
+        
+        return rate_updates
+
 # -------------------------------
 # MARK: - Supporting Models
 # -------------------------------

@@ -2475,6 +2475,9 @@ class ShowdownPlayerCard(BaseModel):
         projections_showdown = all_numeric_value_lists[0]
         real_life = all_numeric_value_lists[1]
         for index, key in enumerate(stat_categories_dict.values()):
+            if key in ['SB', 'IP'] or (key in ['onbase_plus_slugging_plus'] and self.is_pitcher):
+                cleaned_diffs.append('-')
+                continue
             try:
                 diff_value = projections_showdown[index] - real_life[index]
                 diff_value_str = self._stat_formatted(category=key, value=diff_value)

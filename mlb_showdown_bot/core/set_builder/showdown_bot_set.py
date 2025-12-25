@@ -289,21 +289,20 @@ class ShowdownBotSet(BaseModel):
         unused_slots = self.set_size - total_selected
         
         if unused_slots <= 0:
-            return selected_players
+            return [ShowdownBotSetPlayer(**p.model_dump()) for p in selected_players]
         
         print(f"Redistributing {unused_slots} unused slots...")
         
         # Get all unselected players
-        unselected_players = [p for p in player_pool if p not in selected_players]
+        ids = set(p.id for p in selected_players)
+        unselected_players = [p for p in player_pool if p.id not in ids]
+        print(f"Found {len(unselected_players)} unselected players for redistribution. There are {len(player_pool)} total qualified players.")
         
         # Sort by priority score
         unselected_with_priority = []
         for player in unselected_players:
             priority_score = self._calculate_priority_score(player)
             unselected_with_priority.append((player, priority_score))
-
-            if player.team_id == 'NYM':
-                print(f"NYM | {player.name} | {priority_score:.2f}")
         
         unselected_with_priority.sort(key=lambda x: x[1], reverse=True)
         
@@ -365,9 +364,9 @@ class ShowdownBotSet(BaseModel):
         print(f"Total Players Selected: {len(selected_players)} / {self.set_size}")
 
         # MISSING IMAGES
-        top_players_missing_images = [p for p in selected_players if not p.image_match_type in (ImageMatchType.EXACT, ImageMatchType.TEAM_MATCH) and p.team_id == 'ATH']
+        top_players_missing_images = [p for p in selected_players if not p.image_match_type in (ImageMatchType.EXACT, ImageMatchType.TEAM_MATCH)]
         print(f"\nPlayers Missing Exact Images: {len(top_players_missing_images)}")
-        top_players_missing_images.sort(key=lambda p: p.priority_score or 0, reverse=True)
+        top_players_missing_images.sort(key=lambda p: getattr(p, "priority_score", 0) or 0, reverse=True)
         tbl_missing = PrettyTable()
         tbl_missing.field_names = ["Name", "Score", "WAR", "Pos", "G", "GS", "Team", "Img"]
         for player in top_players_missing_images[:20]:

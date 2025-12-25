@@ -18,7 +18,7 @@ from .stats.mlb_stats_api import MLBStatsAPI
 from ..mlb_stats_api import MLBStatsAPI as MLBStatsAPI_V2
 from ..fangraphs.client import FangraphsAPIClient
 from ..statcast.client import StatcastAPIClient
-from .stats.normalized_player_stats import PlayerStatsNormalizer, Datasource, PositionStats
+from .stats.normalized_player_stats import PlayerStatsNormalizer, NormalizedPlayerStats, Datasource, PositionStats
 
 def clean_kwargs(kwargs: dict) -> dict:
     """Clean the kwargs dictionary by removing 'image_' and 'image_source_' prefixes from keys."""
@@ -137,14 +137,46 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
                 # SETUP BASEBALL REFERENCE SCRAPER
                 baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)
-                stats = baseball_reference_stats.fetch_player_stats()
 
-                # UPDATE STATS PERIOD BASED ON BREF STATS
-                stats_period = baseball_reference_stats.stats_period
+                # FOR MULTI-YEAR CARDS, FIRST CHECK ARCHIVE DB
+                if baseball_reference_stats.stats_period.is_multi_year and not baseball_reference_stats.ignore_archive:
+                    db = PostgresDB(is_archive=True)
+                    player_archive_list: list[PlayerArchive] = db.fetch_all_player_year_stats_from_archive(
+                        bref_id=baseball_reference_stats.baseball_ref_id,
+                        type_override=baseball_reference_stats.player_type_override
+                    ) or []
+                    db.close_connection()
+
+                    # FILTER TO YEARS IN STATS PERIOD
+                    stats_yearly_list = [
+                        NormalizedPlayerStats(primary_datasource=Datasource.BREF, **d.stats) \
+                            for d in player_archive_list \
+                            if d.year in baseball_reference_stats.stats_period.year_list or baseball_reference_stats.stats_period.is_full_career
+                    ]
+                    if len(stats_yearly_list) > 0:
+                        # COMBINE STATS FROM EACH YEAR
+                        combined_stats = PlayerStatsNormalizer.combine_multi_year_stats(stats_yearly_list, stats_period=baseball_reference_stats.stats_period)
+                        stats = combined_stats.model_dump(
+                            exclude_none=True,
+                            exclude_unset=True,
+                            by_alias=True,
+                        )
+                        stats_period = baseball_reference_stats.stats_period
+                        stats_period.year_list = [int(y) for y in combined_stats.years_played]
+                        stats_period.source = 'Archive'
+                    
+                # FETCH STATS THE OLD WAY
+                if not stats:
+                    stats = baseball_reference_stats.fetch_player_stats()
+
+                    # UPDATE STATS PERIOD BASED ON BREF STATS
+                    stats_period = baseball_reference_stats.stats_period
+                    stats['warnings'] = baseball_reference_stats.warnings
+                    scraper_load_time = baseball_reference_stats.load_time
+
+                # ALWAYS APPLY THESE
                 kwargs['player_type_override'] = baseball_reference_stats.player_type_override
                 kwargs['team_override'] = baseball_reference_stats.team_override
-                stats['warnings'] = baseball_reference_stats.warnings
-                scraper_load_time = baseball_reference_stats.load_time
 
         # -----------------------------------
         # HIT MLB API FOR REALTIME STATS
