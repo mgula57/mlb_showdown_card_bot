@@ -482,6 +482,16 @@ class BaseballReferenceScraper(BaseModel):
             if type is None and (overall_type or '') == 'Hitter':
                 type = 'Hitter'
 
+            # HANDLE SCENARIO WHERE PLAYER SWITCHED BETWEEN PITCHING AND HITTING IN THEIR CAREER
+            # EX: RICK ANKIEL
+            is_corrected_type = False
+            if (overall_type or '') != type and not is_multi_year:
+                # REDOWNLOAD `soup_for_advanced_stats` WITH CORRECT PAGE SUFFIX
+                page_suffix = '-bat' if (type or '') == 'Hitter' else '-pitch'
+                url_advanced_stats = f'https://www.baseball-reference.com/players/{self.first_initial}/{self.baseball_ref_id}{page_suffix}.shtml'
+                soup_for_advanced_stats = self.__soup_for_url(url_advanced_stats, is_baseball_ref_page=True)
+                is_corrected_type = True
+
             # CHECK IF `DID NOT PLAY` MESSAGE EXISTS FOR THE YEAR
             table_prefix = 'batting' if (type or '') == 'Hitter' else 'pitching'
             rows_for_year = soup_for_advanced_stats.find_all('tr',attrs={'id': f'players_standard_{table_prefix}.{year}'})
@@ -508,7 +518,7 @@ class BaseballReferenceScraper(BaseModel):
                         type = None
                         break
 
-            mismatching_type = type != overall_type
+            mismatching_type = type != overall_type and not is_corrected_type
             if type is None or mismatching_type:
                 continue
 
@@ -539,6 +549,7 @@ class BaseballReferenceScraper(BaseModel):
             # ADVANCED STATS
             # STORES HITTING AND HITTING AGAINST STATS THAT ARE NEEDED FOR CARD CREATION
             advanced_stats = self.parse_advanced_stats(soup_for_advanced_stats=soup_for_advanced_stats, type=type, year=year, ignore_ip_per_gs=has_reduced_stats)
+            pprint(advanced_stats)
             stats_dict.update(advanced_stats)
 
             # ICON THRESHOLDS
