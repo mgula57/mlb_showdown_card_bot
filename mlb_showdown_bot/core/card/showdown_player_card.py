@@ -4604,6 +4604,7 @@ class ShowdownPlayerCard(BaseModel):
         text_size = 120
         text_y_offset = 12
         text_x_offset = -5
+        text_length_limit = 19
         match self.set:
             case Set._2002:
                 split_image = Image.new('RGBA', (255, 38), color=colors.BLACK)
@@ -4639,7 +4640,7 @@ class ShowdownPlayerCard(BaseModel):
                 text = self.stats_period.split.upper()
                 text_list = [text]
                 
-        text = text if len(text) < 17 else f"{text[:13]}.."
+        text = text if len(text) < text_length_limit else f"{text[:text_length_limit-3]}.."
         text_color = self.set.template_component_font_color(TemplateImageComponent.SPLIT, is_dark_mode=self.image.is_dark_mode)
         text_image_large = self._text_image(
             text = text,

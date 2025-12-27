@@ -162,7 +162,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                             by_alias=True,
                         )
                         stats_period = baseball_reference_stats.stats_period
-                        stats_period.year_list = [int(y) for y in combined_stats.years_played]
+                        stats_period.year_list = [int(y.year_id) for y in stats_yearly_list]
                         stats_period.source = 'Archive'
                     
                 # FETCH STATS THE OLD WAY

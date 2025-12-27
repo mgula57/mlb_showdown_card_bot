@@ -402,6 +402,8 @@ class StatsPeriod(BaseModel):
         # ADD STATS TO DICTIONARY
         stats_as_lists: dict[str, list] = {}
         first_year = self.year_list[0]
+        last_year = self.year_list[-1]
+        is_multi_year = first_year != last_year
         for game_log_data in game_logs:
 
             # ------------------------
@@ -484,15 +486,25 @@ class StatsPeriod(BaseModel):
         if game_dates:
             first_game_date_str: str = str(game_dates[0]).upper().split(' (', 1)[0]
             last_game_date_str: str = str(game_dates[-1]).upper().split(' (', 1)[0]
-            aggregated_data['first_game_date'] = first_game_date_str
-            aggregated_data['last_game_date'] = last_game_date_str
 
             # UPDATE STATS PERIOD OBJECT WITH EXACT GAME DATES
             try:
                 self.start_date = datetime.strptime(f'{first_game_date_str} {first_year}', "%b %d %Y").date()
-                self.end_date = datetime.strptime(f'{last_game_date_str} {first_year}', "%b %d %Y").date()
+                self.end_date = datetime.strptime(f'{last_game_date_str} {last_year}', "%b %d %Y").date()
+
+                # FORMAT MULTI-YEAR DATE RANGES DIFFERENTLY
+                # EX: 6/3/00
+                if is_multi_year:
+                    first_game_date_str = self.start_date.strftime("%-m/%-d/%y")
+                    last_game_date_str = self.end_date.strftime("%-m/%-d/%y")
+
             except:
+                import traceback
+                
                 pass
+
+            aggregated_data['first_game_date'] = first_game_date_str
+            aggregated_data['last_game_date'] = last_game_date_str
 
         # FILL IN EMPTY CATEGORIES
         aggregated_data = fill_empty_stat_categories(stats_data=aggregated_data, is_pitcher=is_pitcher, is_game_logs=True)

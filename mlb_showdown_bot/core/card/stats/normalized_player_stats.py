@@ -752,6 +752,10 @@ class PlayerStatsNormalizer:
         concatenation_stats = {
             'award_summary'
         }
+
+        list_concatenation_stats = {
+            'game_logs', 'postseason_game_logs', 'warnings'
+        }
         
         # Create field mapping for accessing attributes by alias
         field_attr_to_alias = {k: k for k in NormalizedPlayerStats.__annotations__.keys()}
@@ -802,6 +806,17 @@ class PlayerStatsNormalizer:
                     combined_data[alias] = ','.join(unique_values)
                 else:
                     combined_data[alias] = None
+        
+
+        # Combine game logs and warnings lists
+        for stat in list_concatenation_stats:
+            alias = field_attr_to_alias.get(stat, stat)
+            combined_list = []
+            for stats in stats_list:
+                stat_list = getattr(stats, stat, [])
+                if stat_list:
+                    combined_list.extend(stat_list)
+            combined_data[alias] = combined_list if combined_list else None
         
         # Rest of the combining logic...
         combined_positions = PlayerStatsNormalizer._combine_positions(stats_list)
@@ -969,6 +984,16 @@ class BaseGameLog(BaseModel):
     SH: int = 0
     GIDP: int = 0
     IBB: int = 0
+
+    @field_validator('GIDP', mode='before')
+    def validate_gidp(cls, v):
+        """Validates GIDP to ensure it's an integer"""
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                return 0
+        return v
 
 class GameLog(BaseGameLog):
     """Regular season game log"""
