@@ -549,7 +549,6 @@ class BaseballReferenceScraper(BaseModel):
             # ADVANCED STATS
             # STORES HITTING AND HITTING AGAINST STATS THAT ARE NEEDED FOR CARD CREATION
             advanced_stats = self.parse_advanced_stats(soup_for_advanced_stats=soup_for_advanced_stats, type=type, year=year, ignore_ip_per_gs=has_reduced_stats)
-            pprint(advanced_stats)
             stats_dict.update(advanced_stats)
 
             # ICON THRESHOLDS
