@@ -30,11 +30,11 @@ export default function Explore() {
         }
     }, [tab]);
 
-    const tabSelectedStyle = "text-[var(--showdown-blue)] border-b-2 border-[var(--showdown-blue)]";
-    const tabUnselectedStyle = "text-gray-500 hover:text-gray-700";
+    const tabSelectedStyle = "bg-[var(--divider)] font-bold text-[var(--showdown-blue)]";
+    const tabUnselectedStyle = "text-gray-500 font-medium hover:bg-[var(--divider)]";
 
     const getTabClasses = (src: CardSource) => {
-        const baseClasses = "relative flex gap-x-1 items-center px-6 py-3 font-medium text-sm transition-colors duration-200";
+        const baseClasses = "relative flex gap-x-1 items-center px-4 py-3 text-sm transition-colors duration-200 rounded-lg";
         const stateClasses = tab === src ? tabSelectedStyle : tabUnselectedStyle;
         return `${baseClasses} ${stateClasses}`;
     };
@@ -60,7 +60,7 @@ export default function Explore() {
     return (
         <div>
             {/* Tab Selection */}
-            <div className="flex px-3 border-b-2 border-form-element">
+            <div className="flex px-3 border-b-2 pt-2 pb-1 border-form-element gap-x-2">
                 {tabButton(CardSource.BOT)}
                 {tabButton(CardSource.WOTC)}
             </div>

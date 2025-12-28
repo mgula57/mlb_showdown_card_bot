@@ -991,7 +991,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                 
                 {/* Right Sidebar with Slide Animation */}
                 <div className={`
-                    fixed right-0 top-24 bottom-0 w-96 z-30
+                    fixed right-0 top-26 bottom-0 w-96 z-30
                     bg-primary border-l-2 border-t-2 border-form-element 
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
