@@ -211,6 +211,11 @@ const FILTER_AVAILABILITY: FilterAvailability = {
     // Organization/League filtering might not make sense for WOTC
     organization: [CardSource.BOT],
     league: [CardSource.BOT],
+
+    // Expansion and edition filters - only for WOTC
+    expansion: [CardSource.WOTC],
+    edition: [CardSource.WOTC],
+    showdown_set: [CardSource.WOTC],
 };
 
 /**

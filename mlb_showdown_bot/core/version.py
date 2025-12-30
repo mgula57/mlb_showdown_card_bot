@@ -1,3 +1,3 @@
 # VERSION OF MODULE
 
-__version__ = "4.01"
+__version__ = "4.0"
