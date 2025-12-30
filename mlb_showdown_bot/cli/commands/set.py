@@ -11,6 +11,8 @@ def set_builder(
     years: str = typer.Option(None, "--years", "-y", help="Which year(s) to archive."),
     showdown_sets: str = typer.Option("CLASSIC,EXPANDED,2000,2001,2002,2003,2004,2005", "--showdown_sets", "-s", help="Showdown Set(s) to use, comma-separated."),
     set_size: int = typer.Option(100, "--set_size", "-ss", help="Number of cards to include in the set."),
+    team_breakdown: str = typer.Option(None, "--team_breakdown", "-tb", help="Show team breakdown for a specific team."),
+    ideal_low_point_percentage: float = typer.Option(None, "--ideal_low_point_percentage", "-ilpp", help="Ideal percentage of low-point cards in the set.")
 ):
     """Archive player stats to Postgres"""
 
@@ -28,8 +30,9 @@ def set_builder(
             years=year_list,
             showdown_sets=showdown_set_list,
             set_size=set_size,
+            ideal_low_point_percentage=ideal_low_point_percentage
         )
-        showdown_bot_set.build_set()
+        showdown_bot_set.build_set(show_team_breakdown=team_breakdown)
 
     except Exception as e:
         # Full traceback
