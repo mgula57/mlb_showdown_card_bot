@@ -151,6 +151,11 @@ class NormalizedPlayerStats(BaseModel):
     def validate_pos_season(cls, value) -> str:
         """Ensures pos_season is always a string, defaults to empty string if None"""
         return str(value) if value is not None else None
+    
+    @field_validator('dWAR', mode='before')
+    def validate_dwar(cls, value) -> float:
+        """Defaults dWAR to None if empty string"""
+        return None if value is not None and str(value) == '' else value
 
     @classmethod
     def expected_fields(cls) -> List[str]:
@@ -765,8 +770,11 @@ class PlayerStatsNormalizer:
         for stat in counting_stats:
             alias = field_attr_to_alias.get(stat, stat)
             if alias in combined_data:
+                if stat == 'PA':
+                    print("Combining PA")
+                    print([getattr(stats, stat, 0) for stats in stats_list])
                 # Get the actual field name to use with getattr
-                total = sum(getattr(stats, stat, 0) for stats in stats_list)
+                total = sum((getattr(stats, stat, 0) or 0) for stats in stats_list)
                 if isinstance(combined_data[alias], float):
                     total = round(total, 4)
                 combined_data[alias] = total
@@ -965,6 +973,7 @@ class BaseGameLog(BaseModel):
     date: str  # Keep as string to match your format
     team_ID: str
     player_game_span: str  # e.g., "CG", "GS-8", "CG(10)"
+    game_decision: Optional[str] = None  # e.g., "W", "L", "SV", "HLD", etc.
     
     # Game stats
     PA: int = 0
@@ -984,6 +993,12 @@ class BaseGameLog(BaseModel):
     SH: int = 0
     GIDP: int = 0
     IBB: int = 0
+
+    W: Optional[int] = 0
+    ER: Optional[int] = 0
+    IP: Optional[float] = 0.0
+    SV: Optional[int] = 0
+    batters_faced: Optional[int] = 0
 
     @field_validator('GIDP', mode='before')
     def validate_gidp(cls, v):
