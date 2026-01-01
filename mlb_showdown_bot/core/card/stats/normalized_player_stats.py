@@ -770,9 +770,6 @@ class PlayerStatsNormalizer:
         for stat in counting_stats:
             alias = field_attr_to_alias.get(stat, stat)
             if alias in combined_data:
-                if stat == 'PA':
-                    print("Combining PA")
-                    print([getattr(stats, stat, 0) for stats in stats_list])
                 # Get the actual field name to use with getattr
                 total = sum((getattr(stats, stat, 0) or 0) for stats in stats_list)
                 if isinstance(combined_data[alias], float):
@@ -845,7 +842,9 @@ class PlayerStatsNormalizer:
     @staticmethod
     def _combine_positions(stats_list: List[NormalizedPlayerStats]) -> Optional[Dict[str, 'PositionStats']]:
         """Combine position stats from multiple years"""
-        combined_positions = {}
+        combined_positions: Dict[str, 'PositionStats'] = {}
+
+        years_with_stat: Dict[str, list] = {}  # Track number of years with stats for deciding which to use
         
         for stats in stats_list:
             if not stats.positions:
@@ -867,17 +866,38 @@ class PlayerStatsNormalizer:
                     existing = combined_positions[pos]
                     existing.g += pos_stats.g
                     
-                    # Average the defensive metrics
-                    metrics = ['tzr', 'drs', 'oaa', 'uzr', 'innings']
+                    # ADD UP THE METRICS
+                    metrics = ['tzr', 'drs', 'oaa', 'uzr',]
                     for metric in metrics:
                         existing_val = getattr(existing, metric)
                         new_val = getattr(pos_stats, metric)
                         
                         if existing_val is not None and new_val is not None:
-                            setattr(existing, metric, (existing_val + new_val) / 2)
+                            setattr(existing, metric, existing_val + new_val)
                         elif new_val is not None:
                             setattr(existing, metric, new_val)
+                        
+                        # TRACK NUMBER OF YEARS WITH METRIC AVAILABLE
+                        if new_val is not None:
+                            existing_year_list_for_metric = years_with_stat.get(metric, [])
+                            if stats.year_id not in existing_year_list_for_metric:
+                                existing_year_list_for_metric.append(stats.year_id)
+                            years_with_stat[metric] = existing_year_list_for_metric
+
+
+        if not combined_positions:
+            return None
         
+        # REMOVE METRICS THAT HAVE A SMALL PERCENTAGE OF YEARS WITH DATA
+        total_years = len(stats_list)
+        for pos, pos_stats in combined_positions.items():
+            metrics = ['tzr', 'drs', 'oaa', 'uzr',]
+            for metric in metrics:
+                year_list_for_metric = years_with_stat.get(metric, [])
+                if len(year_list_for_metric) / total_years < 0.80:
+                    # LESS THAN 80% OF YEARS HAVE DATA, REMOVE METRIC
+                    setattr(pos_stats, metric, None)
+
         return combined_positions if combined_positions else None
 
     @staticmethod
@@ -980,6 +1000,7 @@ class BaseGameLog(BaseModel):
     AB: int = 0
     R: int = 0
     H: int = 0
+    singles: int = Field(0, alias='1B')
     doubles: int = Field(0, alias='2B')
     triples: int = Field(0, alias='3B')
     HR: int = 0
@@ -1000,7 +1021,7 @@ class BaseGameLog(BaseModel):
     SV: Optional[int] = 0
     batters_faced: Optional[int] = 0
 
-    @field_validator('GIDP', mode='before')
+    @field_validator('GIDP', 'AB', 'R', 'SB', 'ER', 'IP', mode='before')
     def validate_gidp(cls, v):
         """Validates GIDP to ensure it's an integer"""
         if isinstance(v, str):
