@@ -346,12 +346,14 @@ export type ShowdownBotCard = {
 
     /** Stats Object */
     stats: Record<string, any>;
+    stats_period: StatsPeriod;
 
     /** Flag indicating if the card is a WOTC card */
     is_wotc?: boolean;
 
     /** Data quality and edge case warnings */
     warnings: string[];
+    notes?: string | null;
 };
 
 // =============================================================================
@@ -391,7 +393,27 @@ export type ShowdownBotCardImage = {
 
     /** List of statistics to highlight on card */
     stat_highlights_list?: string[] | null;
+
+    /** Set number within the expansion */
+    set_number?: number | null;
 };
+
+// =============================================================================
+// MARK: - STATS
+// =============================================================================
+
+type StatsPeriodType = "REGULAR" | "DATES" | "POST" | "SPLIT";
+
+export type StatsPeriod = {
+    /** Type of stats period (e.g., "REGULAR", "DATES") */
+    type: StatsPeriodType;
+
+    /** Year or range of years */
+    year: string;
+
+    /** Summary of the stats period */
+    display_text?: string | null;
+}
 
 // =============================================================================
 // MARK: - CHART & GAME MECHANICS TYPES

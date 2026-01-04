@@ -905,7 +905,7 @@ class PostgresDB:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS wotc_card_data (
                     id character varying(100) NOT NULL,
-                    player_id character varying(20),
+                    player_id character varying(64),
                     showdown_set character varying(20) NOT NULL,
                     expansion character varying(20),
                     edition character varying(20),

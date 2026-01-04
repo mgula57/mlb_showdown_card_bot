@@ -49,7 +49,7 @@ export default function Explore() {
                 onClick={() => setTab(src)}
                 aria-selected={isSelected} // For accessibility
             >
-                {src === CardSource.WOTC && <div className="text-[9px] bg-secondary px-1 rounded-sm">OG</div>}
+                {src === CardSource.WOTC && <div className="text-[9px] bg-secondary px-1 rounded-sm shrink-0">OG</div>}
                 {src === CardSource.BOT && <FaRobot />}
                 {src} Cards
             </button>
@@ -60,7 +60,7 @@ export default function Explore() {
     return (
         <div>
             {/* Tab Selection */}
-            <div className="flex px-3 border-b-2 pt-2 pb-1 border-form-element gap-x-2">
+            <div className="flex px-3 border-b-2 pt-2 pb-1 border-form-element gap-x-2 h-12">
                 {tabButton(CardSource.BOT)}
                 {tabButton(CardSource.WOTC)}
             </div>

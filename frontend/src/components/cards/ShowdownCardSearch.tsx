@@ -533,6 +533,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
     const sortOptions = getSortOptions(source);
     const selectedSortOption = sortOptions.find(option => option.value === filters.sort_by) || null;
 
+    // Ref for scrollable main content area
+    const cardScrollParentRef = useRef<HTMLDivElement>(null);
+
     // Save filters whenever they change (kept separate so it doesn't run on search or set changes)
     useEffect(() => {
         saveFilters(filters, source);
@@ -841,8 +844,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
         <div
             className={`
                 flex flex-col ${className}
-                md:h-[calc(100vh-theme(spacing.12))]                            /* fallback */
-                md:supports-[height:100dvh]:h-[calc(100dvh-theme(spacing.12))]  /* prefer dvh */
+                md:h-[calc(100vh-theme(spacing.24))]                            /* fallback */
+                md:supports-[height:100dvh]:h-[calc(100dvh-theme(spacing.24))]  /* prefer dvh */
                 md:overflow-y-auto                                              /* scroller on desktop */
                 md:min-h-0                                                      /* allow child to size for overflow */
             `}
@@ -946,7 +949,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
             <div className="flex flex-1">
 
                 {/* Main Content Area */}
-                <div className={`
+                <div 
+                    ref={cardScrollParentRef}
+                    className={`
                         relative flex-1 min-w-0
                         ${showPlayerDetailSidebar ? 'lg:mr-96' : ''}
                         transition-all duration-300 ease-in-out
@@ -996,8 +1001,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                 
                 {/* Right Sidebar with Slide Animation */}
                 <div className={`
-                    fixed right-0 top-26 bottom-0 w-96 z-30
-                    bg-primary border-l-2 border-t-2 border-form-element 
+                    fixed right-0 top-24 bottom-0 w-96 z-30
+                    bg-primary border-l-2 border-form-element 
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
                     hidden lg:block
@@ -1010,7 +1015,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         {/* Stick header with close button */}
                         <div className="py-8 h-12 flex items-center space-x-2 p-2 border-b border-form-element">
                             <button 
-                                onClick={() => setShowPlayerDetailSidebar(false)}>
+                                onClick={handleCloseModal}>
                                 <FaChevronCircleRight className="text-[var(--tertiary)] w-7 h-7" />
                             </button>
                             <h2 className="text-[var(--tertiary)] text-lg font-bold">Card Detail</h2>
@@ -1131,6 +1136,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                             { value: 'CC', label: 'Cooperstown Collection' },
                                             { value: 'SS', label: 'Super Season' },
                                             { value: 'RS', label: 'Rookie Season' },
+                                            { value: 'ASG', label: 'All-Star' },
                                         ]}
                                         selections={filtersForEditing.edition || []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, edition: values })}

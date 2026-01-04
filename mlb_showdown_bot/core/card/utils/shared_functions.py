@@ -3,6 +3,23 @@ from statistics import mode
 from typing import Any
 from datetime import datetime, date
 
+def total_ip_for_calculations(ip: float) -> float:
+    """
+    Convert innings pitched to decimal for calculations.
+
+    Args:
+        ip (float): Innings pitched (e.g. 6.1, 7.2)
+
+    Returns:
+        float: Converted innings pitched (e.g. 6.33, 7.66)
+    """
+    decimal_part = ip % 1.0
+    new_decimal = 0.0
+    match round(decimal_part, 1):
+        case 0.1: new_decimal = 1.0 / 3.0
+        case 0.2: new_decimal = 2.0 / 3.0
+    return math.floor(ip) + new_decimal
+
 def total_innings_pitched(ip_list: list[float]) -> float:
     """
     Calculate the total innings pitched from a list of IPs.
@@ -16,12 +33,7 @@ def total_innings_pitched(ip_list: list[float]) -> float:
     # CONVERT THE STATS LIST DECIMAL VALUES FROM .1, .2 to .33, .66
     converted_stats = []
     for stat in ip_list:
-        decimal_part = stat % 1.0
-        new_decimal = 0.0
-        match round(decimal_part, 1):
-            case 0.1: new_decimal = 1.0 / 3.0
-            case 0.2: new_decimal = 2.0 / 3.0
-        converted_stats.append(math.floor(stat) + new_decimal)
+        converted_stats.append(total_ip_for_calculations(stat))
     
     # GET TOTAL AND CONVERT BACK TO "BASEBALL" DECIMAL
     total_real_decimal = sum(converted_stats)

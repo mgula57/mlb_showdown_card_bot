@@ -3,6 +3,7 @@ import CardChart from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";
+import { FaStar, FaBook } from 'react-icons/fa6';
 
 /**
  * Props for the CardItem component
@@ -125,15 +126,26 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                     {/* Player name, year/team badge, and special ability icons */}
                     <div className="flex flex-row gap-1 items-center">
                         <div className="font-black">{card?.name.toUpperCase()}</div>
+
+                        {card?.notes && (
+                            <FaBook className="inline-block w-3 h-3 text-secondary shrink-0" title={card.notes} />
+                        )}
                         
                         {/* Year and team badge with team colors */}
                         <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
-                            {card?.year} {card?.team.toUpperCase()}
+                            {card?.stats_period.year} {card?.team.toUpperCase()}
                         </div>
 
                         {/* Edition */}
                         {(card?.image.edition && card?.image.edition !== 'NONE') && (
-                            <img src={`/images/card/edition-${card?.image.edition?.toLowerCase()}.png`} className="w-6 h-6 object-contain object-center" alt="Edition" />
+                            <>
+                                {card?.image.edition === 'ASG' ? (
+                                    <FaStar className="inline-block w-4 h-4 text-yellow-400 shrink-0" />
+                                ) : (
+                                    <img src={`/images/card/edition-${card?.image.edition?.toLowerCase()}.png`} className="w-6 h-6 object-contain object-center" alt="Edition" />
+                                )}
+                                
+                            </>
                         )}
                         
                         {/* Special ability icons (e.g., "R" for Rookie, "S" for Silver Slugger) */}
@@ -188,21 +200,32 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                 </div>
 
                 {/* Set and Expansion */}
-                <div className="
-                    flex flex-row justify-end items-center
-                    text-[9px] text-nowrap tracking-tight text-primary
-                    bg-[var(--background-tertiary)]
-                    px-1 rounded-md font-bold shadow-md
-                ">
+                <div 
+                    className="
+                        flex flex-row justify-end items-center gap-x-1
+                        text-[9px] text-nowrap tracking-tight text-primary
+                        bg-[var(--background-tertiary)]
+                        px-1 rounded-md font-bold shadow-md
+                    "
+                    style={{
+                        minWidth: card?.image.expansion && ['TD', 'PR', 'ASG'].includes(card?.image.expansion) ? '75px' : undefined
+                    }}
+                >
+                    {card?.image.set_number && (
+                        <span className="font-medium text-secondary">{String(card?.image.set_number).padStart(3, '0')}</span>
+                    )}
                     {card?.image.expansion && ['TD', 'PR'].includes(card?.image.expansion) && (
                         <img 
                             src={`/images/card/expansion-${card?.image.expansion.toLowerCase()}.png`} 
-                            className="inline-block w-5 h-4 object-contain object-center mr-0.5"
+                            className="inline-block w-5 h-4 object-contain object-center flex-shrink-0"
                             alt="Expansion"
                         />
                     )}
+                    {card?.image.expansion && card?.image.expansion === 'ASG' && (
+                        <FaStar className="inline-block w-4 h-3 text-yellow-400" />
+                    )}
                     {['PM'].includes(card?.image.expansion || '') && (
-                        <span className="mr-1">PROMO</span>
+                        <span>PROMO</span>
                     )}
                     {card?.set}
                 </div>

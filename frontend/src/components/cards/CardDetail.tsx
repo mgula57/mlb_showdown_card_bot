@@ -164,10 +164,11 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
     const cardAttributes: Record<string, string | number | null> = activeCardData?.card ? {
         points: `${activeCardData.card.points} PTS`,
         year: activeCardData.card.year,
+        stats_period_summary: activeCardData.card.stats_period.type !== "REGULAR" ? activeCardData.card.stats_period.display_text || null : null,
         expansion: activeCardData.card.image.expansion == "BS" ? null : activeCardData.card.image.expansion,
-        edition: activeCardData.card.image.edition == "NONE" ? null : activeCardData.card.image.edition,
-        chart_version: activeCardData.card.chart_version == 1 ? null : `CHART ${activeCardData.card.chart_version}`,
-        parallel: activeCardData.card.image.parallel == "NONE" ? null : `PARALLEL: ${activeCardData.card.image.parallel}`,
+        edition: activeCardData.card.image.edition == "NONE" || activeCardData.card.image.edition == undefined ? null : activeCardData.card.image.edition,
+        chart_version: activeCardData.card.chart_version === 1 || activeCardData.card.chart_version == undefined ? null : `CHART ${activeCardData.card.chart_version}`,
+        parallel: activeCardData.card.image.parallel == "NONE" || activeCardData.card.image.parallel == undefined ? null : `PARALLEL: ${activeCardData.card.image.parallel}`,
     } : {};
     var weeklyChangePoints = activeCardData?.in_season_trends?.pts_change?.week || null;
     const isThisYearBeforeOct8th = activeCardData?.card?.year === String(new Date().getFullYear()) && (new Date().getMonth() < 9 || (new Date().getMonth() === 9 && new Date().getDate() < 8));
@@ -358,6 +359,19 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     </div>
                 ))}
             </div>
+
+            {/* Notes */}
+            {activeCardData?.card?.notes && (
+                <div className="
+                    bg-secondary/50
+                    border-2 border-form-element
+                    rounded-lg
+                    p-3
+                    text-xs
+                ">
+                    <strong>Notes:</strong> {activeCardData.card.notes}
+                </div>
+            )}
 
             {/* Game Boxscore */}
             {showGameBoxscore() &&  (

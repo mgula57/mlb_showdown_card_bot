@@ -6,7 +6,7 @@ from pprint import pprint
 from ...mlb_stats_api.models.person import Position, Player as MLBStatsApi_Player, StatGroupEnum, StatTypeEnum, StatSplit
 from ...fangraphs.models import FieldingStats
 from ...shared.player_position import PlayerType
-from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched
+from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
 
 # -------------------------------
@@ -141,6 +141,19 @@ class NormalizedPlayerStats(BaseModel):
     # Warnings
     warnings: Optional[List[str]] = None
     is_stats_estimated: bool = False
+
+    def model_post_init(self, __context):
+        
+        # FILL IN MISSING ER FOR PITCHERS
+        # DIDN'T START STORING THAT DATA UNTIL 2024
+        # DERIVE FROM ERA AND IP IF MISSING
+        try:
+            if self.type == PlayerType.PITCHER and self.earned_run_avg is not None and self.IP and self.IP > 0:
+                if self.ER is None or self.ER == 0:
+                    self.ER = int(round((self.earned_run_avg * total_ip_for_calculations(self.IP)) / 9))
+        except Exception as e:
+            print(f"Error calculating ER from ERA and IP: {e}")
+            pass
 
     @field_serializer('primary_datasource')
     def serialize_primary_datasource(self, value: Datasource) -> str:

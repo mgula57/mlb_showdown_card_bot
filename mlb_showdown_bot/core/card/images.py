@@ -53,7 +53,7 @@ class Edition(str, Enum):
 
     @property
     def rotate_team_logo_2002(self) -> bool:
-        return self not in [Edition.COOPERSTOWN_COLLECTION, Edition.NATIONALITY]
+        return self not in [Edition.COOPERSTOWN_COLLECTION, Edition.NATIONALITY, Edition.ALL_STAR_GAME]
     
     @property
     def ignore_showdown_library(self) -> bool:
@@ -267,6 +267,7 @@ class SpecialEdition(str, Enum):
     ASG_2023 = "ASG 2023"
     ASG_2024 = "ASG 2024"
     ASG_2025 = "ASG 2025"
+    ASG_LINES = "ASG LINES"
     COOPERSTOWN_COLLECTION = "CC"
     SUPER_SEASON = "SS"
     TEAM_COLOR_BLAST_DARK = "TCBD"
@@ -290,6 +291,10 @@ class SpecialEdition(str, Enum):
         return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
 
     @property
+    def ignore_edition_based_team_logo(self) -> bool:
+        return self in [SpecialEdition.ASG_LINES]
+
+    @property
     def has_full_bleed_background(self) -> bool:
         return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
 
@@ -302,6 +307,9 @@ class SpecialEdition(str, Enum):
             }
             case SpecialEdition.SUPER_SEASON: return {
                 PlayerImageComponent.BACKGROUND: 0.75,
+            }
+            case SpecialEdition.ASG_LINES: return {
+                PlayerImageComponent.BACKGROUND: 0.30,
             }
         return {}
     
@@ -554,6 +562,15 @@ class ShowdownImage(BaseModel):
             if self.edition == Edition.ALL_STAR_GAME and year == '2025':
                 self.special_edition = SpecialEdition.ASG_2025
                 return 
+            
+            if self.edition == Edition.ALL_STAR_GAME and is_04_05:
+                try:
+                    year_int = int(year)
+                    if year_int >= 1980: # ASG LOGOS AVAILABLE FOR 1980 AND LATER
+                        self.special_edition = SpecialEdition.ASG_LINES
+                    return
+                except:
+                    pass
             
             if self.edition == Edition.SUPER_SEASON and is_04_05:
                 self.special_edition = SpecialEdition.SUPER_SEASON
