@@ -322,7 +322,8 @@ class WotcPlayerCardSet(BaseModel):
                 edition = gsheet_row.get('Edition', 'N/A')
                 ss_year_raw = str(gsheet_row.get('Stats Year', 'N/A'))
                 ss_year = None if ss_year_raw == 'N/A' or len(ss_year_raw) != 4 else int(ss_year_raw)
-                ss_years = [int(y) for y in str(ss_year_raw).split('-')] if len(ss_year_raw) == 9 else None
+                ss_range_start_end = tuple(int(y) for y in str(ss_year_raw).split('-')) if len(ss_year_raw) == 9 else None
+                ss_years = list(range(ss_range_start_end[0], ss_range_start_end[1]+1)) if ss_range_start_end else None
                 set_year = showdown_set - 1
                 year = ss_year or set_year
                 archive_id = f'{year}-{bref_id}'
