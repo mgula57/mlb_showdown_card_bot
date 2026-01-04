@@ -208,6 +208,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
         projections_for_pts = self.projected_statline(stats_per_400_pa=projections_for_pts_per_400_pa, command=chart_for_pts.command, pa=650)
         self.points_estimated_breakdown = self.calculate_points(projected=projections_for_pts, positions_and_defense=self.positions_and_defense, speed_or_ip=self.ip if self.is_pitcher else self.speed.speed)
         self.points_estimated = self.points_estimated_breakdown.total_points
+        self.points_diff_estimated_vs_actual = (self.points_estimated or 0) - (self.points or 0)
 
         if len(self.stats) > 0:
             self.accolades = self.parse_accolades()

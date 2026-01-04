@@ -125,6 +125,7 @@ class ShowdownPlayerCard(BaseModel):
     # STATS FOR WOTC CONVERTED CARDS
     points_estimated_breakdown: Optional[Points] = None
     points_estimated: Optional[int] = None
+    points_diff_estimated_vs_actual: Optional[int] = None
 
     # SHOWING OUTPUT
     show_image: bool = False

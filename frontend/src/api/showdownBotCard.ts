@@ -343,6 +343,7 @@ export type ShowdownBotCard = {
     points_breakdown: PointsBreakdown;
     points_estimated?: number | null;
     points_estimated_breakdown?: PointsBreakdown | null;
+    points_diff_estimated_vs_actual?: number | null;
 
     /** Stats Object */
     stats: Record<string, any>;

@@ -336,7 +336,7 @@ const REAL_STATS_SORT_OPTIONS: SelectOption[] = [
  * WOTC-specific sort options
  */
 const WOTC_SPECIFIC_SORT_OPTIONS: SelectOption[] = [
-    { value: 'points_vs_estimated', label: 'Original vs Estimated Points', icon: <FaDollarSign /> },
+    { value: 'points_diff_estimated_vs_actual', label: 'Points Diff: Estimated vs Original', icon: <FaDollarSign /> },
     { value: 'points_estimated', label: 'Estimated Points', icon: <FaDollarSign /> },
 ];
 

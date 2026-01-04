@@ -88,15 +88,14 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
         `IP ${card?.ip}`
     ];
 
-    const renderPointsComparison = (originalPoints: number, newPoints:number) => {
-        const difference = newPoints - originalPoints;
-        const absoluteDifference = Math.abs(difference);
-        const differenceSign = difference > 0 ? '▲' : '▼';
+    const renderPointsComparison = (estPoints:number, diffPoints:number) => {
+        const absoluteDifference = Math.abs(diffPoints);
+        const differenceSign = diffPoints > 0 ? '▲' : '▼';
         return (
             <div className="flex items-center">
-                EST: {newPoints}
-                {difference !== 0 && (
-                    <span className={`ml-0.5 text-[8px] ${difference > 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
+                EST: {estPoints}
+                {diffPoints !== 0 && (
+                    <span className={`ml-0.5 text-[8px] ${diffPoints > 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
                         {differenceSign}
                         {absoluteDifference}
                     </span>
@@ -170,7 +169,7 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                             {`${card?.points} PTS`}
                         </div>
                         {card?.points_estimated && card?.points && (
-                            renderPointsComparison(card.points, card.points_estimated)
+                            renderPointsComparison(card.points_estimated, card.points_diff_estimated_vs_actual || 0)
                         )}
                         {metadataArray.map((meta, index) => (
                             <div key={index}>{meta}</div>
