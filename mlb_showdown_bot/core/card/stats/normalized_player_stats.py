@@ -165,7 +165,7 @@ class NormalizedPlayerStats(BaseModel):
         """Ensures pos_season is always a string, defaults to empty string if None"""
         return str(value) if value is not None else None
     
-    @field_validator('dWAR', mode='before')
+    @field_validator('dWAR', 'RBI', 'PA', mode='before')
     def validate_dwar(cls, value) -> float:
         """Defaults dWAR to None if empty string"""
         return None if value is not None and str(value) == '' else value
@@ -1034,7 +1034,7 @@ class BaseGameLog(BaseModel):
     SV: Optional[int] = 0
     batters_faced: Optional[int] = 0
 
-    @field_validator('GIDP', 'AB', 'R', 'SB', 'ER', 'IP', mode='before')
+    @field_validator('GIDP', 'AB', 'R', 'SB', 'ER', 'IP', 'RBI', 'PA', mode='before')
     def validate_gidp(cls, v):
         """Validates GIDP to ensure it's an integer"""
         if isinstance(v, str):
