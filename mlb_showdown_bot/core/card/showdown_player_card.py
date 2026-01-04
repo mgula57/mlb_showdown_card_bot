@@ -257,6 +257,7 @@ class ShowdownPlayerCard(BaseModel):
         # STATS DISPLAYED ON FRONTEND
         self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
         self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card)
+        self.image.award_summary_list = self._generate_award_summary_list(award_summary=self.stats_for_card.get('award_summary', None))
 
         if show_image or self.image.output_folder_path:
             self.generate_card_image(show=show_image)
@@ -2108,6 +2109,57 @@ class ShowdownPlayerCard(BaseModel):
         stats_list_final = list(stat_and_sort_rank.keys())
 
         return stats_list_final
+
+    def _generate_award_summary_list(self, award_summary:str) -> Optional[list[str]]:
+        """Generate award summary list from stats_for_card. 
+        
+        If single year, keep award_summary as is.
+        For multi year, aggregate awards into counts. Only include 1st place or non-ordinal awards.
+
+        Args:
+            award_summary: Comma separated award summary string.
+
+        Returns:
+          Optional list of award summary strings.
+        """
+        if not award_summary or len(award_summary.strip()) == 0:
+            return None
+
+        awards_list = award_summary.upper().split(',')
+        if not self.stats_period.is_multi_year:
+            return [award.strip() for award in awards_list if len(award.strip()) > 0]
+
+        # AGGREGATE AWARDS FOR MULTI YEAR
+        award_counts: dict[str, int] = {}
+        for award in awards_list:
+            award = award.strip()
+            if len(award) == 0:
+                continue
+            award_parts = award.split('-')
+            if len(award_parts) < 2:
+                award_name = award
+                placement = None
+            else:
+                award_name = '-'.join(award_parts[0:-1])
+                placement_str = award_parts[-1]
+                try:
+                    placement = int(placement_str)
+                except:
+                    placement = None
+
+            # ONLY COUNT 1ST PLACE OR NON-ORDINAL AWARDS
+            if placement is None or placement == 1:
+                award_counts[award_name] = award_counts.get(award_name, 0) + 1
+
+        # FORMAT AWARD SUMMARY LIST
+        award_summary_list: list[str] = []
+        for award_name, count in award_counts.items():
+            if count == 1:
+                award_summary_list.append(award_name)
+            else:
+                award_summary_list.append(f"{count}X {award_name}")
+
+        return award_summary_list
 
     def _stat_formatted(self, category:str, value:float | int) -> str:
         """Format a stat for display.

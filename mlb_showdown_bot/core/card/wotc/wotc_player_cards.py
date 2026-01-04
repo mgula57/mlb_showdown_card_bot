@@ -214,6 +214,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
             self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
             self.image.stat_highlights_type = StatHighlightsType.CLASSIC
             self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card)
+            self.image.award_summary_list = self._generate_award_summary_list(award_summary=self.stats.get('award_summary', None))
 
 # ------------------------------
 # WOTC PLAYER CARDS

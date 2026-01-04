@@ -394,6 +394,9 @@ export type ShowdownBotCardImage = {
     /** List of statistics to highlight on card */
     stat_highlights_list?: string[] | null;
 
+    /** List of player awards and honors */
+    award_summary_list?: string[] | null;
+
     /** Set number within the expansion */
     set_number?: number | null;
 };

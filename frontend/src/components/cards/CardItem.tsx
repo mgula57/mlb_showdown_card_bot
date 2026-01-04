@@ -187,11 +187,25 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
 
                 {/* Statistical highlights ribbon */}
                 <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
-                    {card?.stats.award_summary?.length > 0 && (
+                    
+                    {/* AWARDS: OLD WAY */}
+                    {card?.stats.award_summary?.length > 0 && card?.image.award_summary_list == null && (
                         <div className="font-semibold underline">
                             {card?.stats.award_summary}
                         </div>
                     )}
+
+                    {/* AWARDS: NEW WAY */}
+                    {card?.image.award_summary_list && card?.image.award_summary_list?.length > 0 && (
+                        <div className="font-semibold underline">
+                            {card?.image.award_summary_list?.map((stat, index) => (
+                                <span key={index} className="font-semibold underline">
+                                    {stat}{index < (card?.image.award_summary_list?.length || 0) - 1 ? ',' : ''}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    
                     {card?.image.stat_highlights_list?.map((stat, index) => (
                         <div key={index} className="">
                             {stat}

@@ -768,7 +768,7 @@ class PlayerStatsNormalizer:
         }
         
         concatenation_stats = {
-            # EMPTY FOR NOW
+            'award_summary'
         }
 
         list_concatenation_stats = {
@@ -842,12 +842,6 @@ class PlayerStatsNormalizer:
         
         combined_accolades = PlayerStatsNormalizer._combine_accolades(stats_list)
         combined_data['accolades'] = combined_accolades
-
-        try:
-            combined_award_summary = PlayerStatsNormalizer._combine_award_summary(stats_list)
-            combined_data['award_summary'] = combined_award_summary
-        except Exception as e:
-            combined_data['award_summary'] = None
         
         # Recalculate rate stats after combining counting stats
         combined_data.update(PlayerStatsNormalizer._recalculate_rate_stats(combined_data))
@@ -938,41 +932,6 @@ class PlayerStatsNormalizer:
             combined_accolades[key] = list(dict.fromkeys(combined_accolades[key]))
         
         return combined_accolades if combined_accolades else None
-    
-    @staticmethod
-    def _combine_award_summary(stats_list: List[NormalizedPlayerStats]) -> Optional[str]:
-        """
-        Combine award summaries from multiple years. 
-        Each year is a string of comma-separated awards. Parse each out and combine uniquely.
-        Then sort based on placement with a category and alphabetically across categories.
-        """
-        award_set = set()
-        
-        for stats in stats_list:
-            if not stats.award_summary or stats.award_summary.strip() == "":
-                continue
-            
-            awards = [award.strip() for award in stats.award_summary.split(',') if award.strip()]
-            award_set.update(awards)
-        
-        if not award_set:
-            return None
-        
-        # SORT AWARDS
-        def award_sort_key(award: str) -> tuple:
-            # Split by '-' to separate category and placement
-            if '-' in award:
-                category, placement = award.rsplit('-', 1)
-                # Convert placement to a sortable number (e.g., "1ST" -> 1)
-                try:
-                    placement_num = int(''.join(filter(str.isdigit, placement)))
-                except:
-                    placement_num = float('inf')  # Place non-numeric placements at the end
-                return (category, placement_num)
-            return (award, float('inf'))  # No placement means lower priority
-        
-        sorted_awards = sorted(award_set, key=award_sort_key)
-        return ','.join(sorted_awards)
 
     @staticmethod
     def _recalculate_rate_stats(combined_data: Dict[str, Any]) -> Dict[str, Any]:
