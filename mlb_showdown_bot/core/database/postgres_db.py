@@ -946,6 +946,8 @@ class PostgresDB:
                     command integer,
                     outs integer,
                     is_chart_outlier boolean,
+                    is_errata boolean DEFAULT FALSE,
+                    notes text,
                     created_date timestamp without time zone DEFAULT now(),
                     modified_date timestamp without time zone DEFAULT now()
                 );
@@ -1009,6 +1011,8 @@ class PostgresDB:
                     card.chart.command,
                     card.chart.outs_full,
                     card.chart.is_command_out_anomaly,
+                    card.is_errata,
+                    card.notes,
                     datetime.now(),
                 ))
 
@@ -1057,6 +1061,8 @@ class PostgresDB:
                     command,
                     outs,
                     is_chart_outlier,
+                    is_errata,
+                    notes,
                     modified_date
                 )
                 VALUES %s
@@ -2021,8 +2027,11 @@ class PostgresDB:
                     ON CONFLICT (id) DO UPDATE SET
                     (stats_modified_date, stats) = (NOW(), EXCLUDED.stats)
                 '''
-
-        cursor.execute(insert_statement, (AsIs(','.join(columns)), tuple(values)))
+        try:
+            cursor.execute(insert_statement, (AsIs(','.join(columns)), tuple(values)))
+        except Exception as e:
+            print(f"ERROR upserting stats archive row for id {data.get('id')}: {e}")
+            pass
         
     def upload_to_card_data(self, showdown_cards: list[ShowdownPlayerCard], batch_size: int = 1000) -> None:
         """Upload showdown cards to PostgreSQL database

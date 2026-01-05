@@ -126,6 +126,7 @@ class ShowdownPlayerCard(BaseModel):
     points_estimated_breakdown: Optional[Points] = None
     points_estimated: Optional[int] = None
     points_diff_estimated_vs_actual: Optional[int] = None
+    is_errata: Optional[bool] = None
 
     # SHOWING OUTPUT
     show_image: bool = False

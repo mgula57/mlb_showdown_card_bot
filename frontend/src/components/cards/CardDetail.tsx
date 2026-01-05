@@ -169,6 +169,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
         edition: activeCardData.card.image.edition == "NONE" || activeCardData.card.image.edition == undefined ? null : activeCardData.card.image.edition,
         chart_version: activeCardData.card.chart_version === 1 || activeCardData.card.chart_version == undefined ? null : `CHART ${activeCardData.card.chart_version}`,
         parallel: activeCardData.card.image.parallel == "NONE" || activeCardData.card.image.parallel == undefined ? null : `PARALLEL: ${activeCardData.card.image.parallel}`,
+        is_errata: activeCardData.card.is_errata ? 'ERRATA' : null,
     } : {};
     var weeklyChangePoints = activeCardData?.in_season_trends?.pts_change?.week || null;
     const isThisYearBeforeOct8th = activeCardData?.card?.year === String(new Date().getFullYear()) && (new Date().getMonth() < 9 || (new Date().getMonth() === 9 && new Date().getDate() < 8));
@@ -369,7 +370,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     p-3
                     text-xs
                 ">
-                    <strong>Notes:</strong> {activeCardData.card.notes}
+                    {activeCardData.card.notes}
                 </div>
             )}
 

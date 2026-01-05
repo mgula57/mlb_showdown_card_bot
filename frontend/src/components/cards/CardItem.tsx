@@ -3,7 +3,7 @@ import CardChart from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";
-import { FaStar, FaBook } from 'react-icons/fa6';
+import { FaStar, FaBook, FaScrewdriverWrench } from 'react-icons/fa6';
 
 /**
  * Props for the CardItem component
@@ -125,6 +125,22 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                     {/* Player name, year/team badge, and special ability icons */}
                     <div className="flex flex-row gap-1 items-center">
                         <div className="font-black">{card?.name.toUpperCase()}</div>
+
+                        {card?.is_errata && (
+                            <div 
+                                className="
+                                    text-[9px] flex
+                                    items-center font-bold justify-center
+                                    rounded-lg tracking-tight shrink-0
+                                    border-1 border-white/30 px-1
+                                    bg-[var(--red)] text-white
+                                    " 
+                                title="Errata Card"
+                            >
+                                <FaScrewdriverWrench className="inline-block w-2 h-2 mr-0.5" />
+                                ER
+                            </div>
+                        )}
 
                         {card?.notes && (
                             <FaBook className="inline-block w-3 h-3 text-secondary shrink-0" title={card.notes} />

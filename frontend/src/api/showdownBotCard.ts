@@ -354,6 +354,7 @@ export type ShowdownBotCard = {
 
     /** Data quality and edge case warnings */
     warnings: string[];
+    is_errata?: boolean | null;
     notes?: string | null;
 };
 

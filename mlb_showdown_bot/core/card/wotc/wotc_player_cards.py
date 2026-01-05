@@ -102,7 +102,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
 
                 # ICONS
                 icons: list[str] = []
-                for i in range(1, 5):
+                for i in range(1, 6):
                     icon = data.get(f'icon{i}', None)
                     if icon:
                         icons.append(icon)
@@ -336,7 +336,7 @@ class WotcPlayerCardSet(BaseModel):
                     
                 # FIND YEAR OF STATS TO USE
                 if expansion in ['BS', 'PM'] or ss_year:
-                    player_archive = next((p for p in real_player_stats_archive if p.id == archive_id), None)
+                    player_archive = next((p for p in real_player_stats_archive if p.id == archive_id and p.stats and len(p.stats) > 0), None)
                     if player_archive:
 
                         # CHECK IF SMALL SAMPLE SIZE
@@ -350,7 +350,7 @@ class WotcPlayerCardSet(BaseModel):
                         if uses_multi_year_due_to_small_sample_size:
                             two_years_ago = showdown_set - 2
                             prior_year_archive_id = f'{two_years_ago}-{bref_id}'
-                            prior_year_player_archive = next((p for p in real_player_stats_archive if p.id == prior_year_archive_id), None)
+                            prior_year_player_archive = next((p for p in real_player_stats_archive if p.id == prior_year_archive_id and p.stats and len(p.stats) > 0), None)
                             if prior_year_player_archive:
                                 stats_list = [
                                     NormalizedPlayerStats(primary_datasource='bref', **player_archive.stats),
@@ -392,7 +392,7 @@ class WotcPlayerCardSet(BaseModel):
                             stats_list = [
                                 NormalizedPlayerStats(primary_datasource='bref', **p.stats) 
                                 for p in real_player_stats_archive 
-                                if p.bref_id == bref_id and p.year in ss_years
+                                if p.bref_id == bref_id and p.year in ss_years and p.stats and len(p.stats) > 0
                             ]
                             stats_period = StatsPeriod(
                                 type=StatsPeriodType.REGULAR_SEASON,
@@ -415,7 +415,7 @@ class WotcPlayerCardSet(BaseModel):
                             stats_list = [
                                 NormalizedPlayerStats(primary_datasource='bref', **p.stats) 
                                 for p in real_player_stats_archive 
-                                if p.bref_id == bref_id and p.year in [set_year, showdown_set]
+                                if p.bref_id == bref_id and p.year in [set_year, showdown_set] and p.stats and len(p.stats) > 0
                             ]
                         case 'CURRENT YEAR - MAY' | 'CURRENT YEAR - ASG':
                             # FOR PR IN 2002 AND BEYOND, USE STATS FROM SHOWDOWN SET YEAR ONLY (EX: 2002 PR USES ONLY APRIL-MAY 2002 STATS)
@@ -429,7 +429,7 @@ class WotcPlayerCardSet(BaseModel):
                                 disable_display_text_on_card=True,
                             )
                             new_archive_id = f'{showdown_set}-{bref_id}'
-                            player_archive = next((p for p in real_player_stats_archive if p.id == new_archive_id), None)
+                            player_archive = next((p for p in real_player_stats_archive if p.id == new_archive_id and p.stats and len(p.stats) > 0), None)
                             stats = player_archive.stats if player_archive else None
 
                     if len(stats_list) > 0:
