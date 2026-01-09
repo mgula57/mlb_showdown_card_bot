@@ -5434,6 +5434,7 @@ class ShowdownPlayerCard(BaseModel):
         if is_cooperstown and not self.set.is_00_01:
             components_dict = special_components_for_context
             components_dict[PlayerImageComponent.COOPERSTOWN] = self._card_art_path('RADIAL' if self.set in [Set._2002, Set._2003] else 'COOPERSTOWN')
+            components_dict[PlayerImageComponent.CUSTOM_BACKGROUND] = self._card_art_path('COOPERSTOWN-BROWN-BG')
             return components_dict
 
         # SUPER SEASON
