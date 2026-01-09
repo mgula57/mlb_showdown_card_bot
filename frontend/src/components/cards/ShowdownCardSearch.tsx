@@ -91,6 +91,7 @@ interface FilterSelections {
     include_small_sample_size?: string[];
     /** Awards received (e.g., ["mvp-", "false"]) */
     awards?: string[];
+    is_hof?: string[];
 
     // Showdown game mechanics filters
     /** Minimum point value */
@@ -1266,6 +1267,18 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                             ]}
                                             selections={filtersForEditing.awards || []}
                                             onChange={(values) => setFiltersForEditing({ ...filtersForEditing, awards: values })}
+                                        />
+                                    )}
+
+                                    {isFilterAvailable('is_hof', source) && (
+                                        <MultiSelect
+                                            label="HOF?"
+                                            options={[
+                                                { value: 'true', label: 'Yes' },
+                                                { value: 'false', label: 'No' },
+                                            ]}
+                                            selections={filtersForEditing.is_hof ? filtersForEditing.is_hof.map(String) : []}
+                                            onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_hof: values.length > 0 ? values : undefined })}
                                         />
                                     )}
                                 </FormSection>

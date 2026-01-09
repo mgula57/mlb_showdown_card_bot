@@ -487,7 +487,7 @@ class ShowdownBotSet(BaseModel):
         print(f"Total Players Selected: {len(selected_players)} / {self.set_size}")
 
         # MISSING IMAGES
-        top_players_missing_images = [p for p in selected_players if not p.image_match_type in (ImageMatchType.EXACT)]
+        top_players_missing_images = [p for p in selected_players if not p.image_match_type in (ImageMatchType.EXACT, ImageMatchType.TEAM_MATCH)]
         print(f"\nPlayers Missing Exact Images: {len(top_players_missing_images)}")
         top_players_missing_images.sort(key=lambda p: getattr(p, "priority_score", 0) or 0, reverse=True)
         tbl_missing = PrettyTable()

@@ -739,6 +739,13 @@ class PostgresDB:
                                         " when positions_list && ARRAY['RELIEVER', 'CLOSER'] then real_ip >= 30" \
                                         " else pa >= 250" \
                                     " end)"))
+                            case 'is_hof':
+                                # Filter based on Hall of Fame status
+                                if value == ['true']:
+                                    filter_clauses.append(sql.SQL("jsonb_extract_path(card_data, 'stats', 'is_hof')::BOOLEAN IS TRUE"))
+                                elif value == ['false']:
+                                    filter_clauses.append(sql.SQL("jsonb_extract_path(card_data, 'stats', 'is_hof')::BOOLEAN IS NOT TRUE"))
+                                
                             case _:
                                 # Regular IN clause for non-array fields
                                 placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
