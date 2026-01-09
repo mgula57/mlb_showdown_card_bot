@@ -1151,7 +1151,7 @@ class ShowdownPlayerCard(BaseModel):
         #      DOES NOT EFFECT VALUES UP UNTIL EXCESS (EX: 1-5 FOR SS)
         
         metric_max = metric.range_max(position_str=position.value, set_str=self.set.value)
-        if rating > metric_max and not is_1b:
+        if rating > metric_max:
             amount_over_max = rating - metric_max
             over_max_small_sample_reduction = min((games / 120), 1.0)
             reduced_amount_over_max = amount_over_max * metric.over_max_multiplier * over_max_small_sample_reduction
@@ -1169,7 +1169,8 @@ class ShowdownPlayerCard(BaseModel):
 
         # ADD IN STATIC METRICS FOR 1B
         if is_1b:
-            if rating > metric.first_base_plus_2_cutoff:
+            games_required_for_plus_2 = 30 if not self.stats_period.is_multi_year and self.set.year == '2020' else 90
+            if rating > metric.first_base_plus_2_cutoff and games >= games_required_for_plus_2:
                 defense = 2
             elif rating > metric.first_base_plus_1_cutoff:
                 defense = 1
