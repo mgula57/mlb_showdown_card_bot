@@ -6343,4 +6343,4 @@ class ShowdownPlayerCard(BaseModel):
     def as_json(self, exclude: dict = None) -> dict:
         """Convert current class to a json"""
         
-        return self.model_dump(mode="json", exclude=exclude, exclude_none=True, exclude_unset=True)
+        return self.model_dump(mode="json", exclude=exclude, exclude_none=True)

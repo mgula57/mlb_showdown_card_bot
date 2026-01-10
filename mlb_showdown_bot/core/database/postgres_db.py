@@ -295,7 +295,7 @@ class PostgresDB:
         # PRINT QUERY AND FILTER VALUES FOR DEBUGGING        
         try:
             db_cursor.execute(query, filter_values)
-            # print(db_cursor.mogrify(query, filter_values).decode())
+            print(db_cursor.mogrify(query, filter_values).decode())
         except:
             print(db_cursor.mogrify(query, filter_values).decode())
             return []
@@ -638,8 +638,6 @@ class PostgresDB:
 
                 # SOURCE SPECIFIC FILTERS
                 match source:
-                    case 'bot':
-                        filters['showdown_bot_version'] = __version__
                     case 'wotc':
                         sets = filters.get('showdown_set', [])
                         # FILTER TO SPECIFIC SETS IF USER HAS `CLASSIC` OR `EXPANDED` SELECTED - THEY DIDNT EXIST IN WOTC

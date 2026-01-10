@@ -363,7 +363,6 @@ class WotcPlayerCardSet(BaseModel):
                                 )
                                 combined_stats = PlayerStatsNormalizer.combine_multi_year_stats(stats_list, stats_period)
                                 stats = combined_stats.model_dump(
-                                    exclude_unset=True,
                                     exclude_none=True,
                                     by_alias=True,
                                 )
