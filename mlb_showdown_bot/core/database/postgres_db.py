@@ -68,7 +68,7 @@ class ImageMatchType(str, Enum):
     NO_MATCH = "no match"
 
 class ExploreDataRecord(BaseModel):
-    """Pydantic model for records from the explore_data materialized view"""
+    """Pydantic model for records from the card_bot materialized view"""
     
     # Base identifiers
     id: str
@@ -304,7 +304,7 @@ class PostgresDB:
         return output
     
     def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:Team = None, type_override:PlayerType = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.REGULAR_SEASON) -> tuple[PlayerArchive, float]:
-        """Query the stats_archive table for a particular player's data from a single year
+        """Query the player_season_stats table for a particular player's data from a single year
         
         Args:
           year: Year input by the user. Showdown archive does not support multi-year.
@@ -342,7 +342,7 @@ class PostgresDB:
 
         query = sql.SQL("SELECT * FROM {table} WHERE {column} = %s ORDER BY modified_date DESC;") \
                     .format(
-                        table=sql.Identifier("stats_archive"),
+                        table=sql.Identifier("player_season_stats"),
                         column=sql.Identifier("id")
                     )
         query_results_list = self.execute_query(query=query, filter_values=(player_stats_id, ))
@@ -362,7 +362,7 @@ class PostgresDB:
         return (first_player_archive, load_time)
 
     def fetch_all_player_year_stats_from_archive(self, bref_id:str, type_override:PlayerType = None) -> list[PlayerArchive]:
-        """Query the stats_archive table for all player data for a given player
+        """Query the player_season_stats table for all player data for a given player
         
         Args:
             bref_id: Unique ID for the player defined by bref.
@@ -378,7 +378,7 @@ class PostgresDB:
         
         query = sql.SQL("SELECT * FROM {table} WHERE {column} = %s ORDER BY year;") \
                     .format(
-                        table=sql.Identifier("stats_archive"),
+                        table=sql.Identifier("player_season_stats"),
                         column=sql.Identifier("bref_id")
                     )
         query_results_list = self.execute_query(query=query, filter_values=(bref_id, ))
@@ -450,14 +450,14 @@ class PostgresDB:
         if exclude_records_with_stats:
             query = sql.SQL("SELECT * FROM {table} WHERE jsonb_extract_path(stats, 'bref_id') IS NULL AND {where_clause} {order_by_filter}") \
                         .format(
-                            table=sql.Identifier("stats_archive"),
+                            table=sql.Identifier("player_season_stats"),
                             where_clause=where_clause,
                             order_by_filter=sql.SQL(' ').join(additional_conditions)
                         )
         else:
             query = sql.SQL("SELECT * FROM {table} WHERE {where_clause} {order_by_filter}") \
                         .format(
-                            table=sql.Identifier("stats_archive"),
+                            table=sql.Identifier("player_season_stats"),
                             where_clause=where_clause,
                             order_by_filter=sql.SQL(' ').join(additional_conditions)
                         )
@@ -467,7 +467,7 @@ class PostgresDB:
         return [PlayerArchive(**row) for row in results]
     
     def fetch_player_search_from_archive(self, players_stats_ids: list[str]) -> list[dict]:
-        """Query the stats_archive table for all player data for given a list of player_stats_ids ('{bref_id}-{year}')
+        """Query the player_season_stats table for all player data for given a list of player_stats_ids ('{bref_id}-{year}')
         
         Args:
           players_stats_ids: List of concatinated strings for bref_id and year
@@ -479,7 +479,7 @@ class PostgresDB:
         conditions = [sql.SQL(' IN ').join([sql.Identifier('id'), sql.Placeholder()])]
         query = sql.SQL("SELECT * FROM {table} WHERE {where_clause}") \
                     .format(
-                        table=sql.Identifier("stats_archive"),
+                        table=sql.Identifier("player_season_stats"),
                         where_clause=sql.SQL(' AND ').join(conditions)
                     )
         filters = (tuple(players_stats_ids), )
@@ -570,7 +570,7 @@ class PostgresDB:
                             AND ({edition_where_clause}) 
                         ORDER BY RANDOM() LIMIT 1"""
                     ).format(
-                        table=sql.Identifier("stats_archive"),
+                        table=sql.Identifier("player_season_stats"),
                         where_clause=where_clause,
                         hitter_games_minimum=hitter_games_minimum_statement,
                         pitcher_ip_minimum=pitcher_ip_minimum_statement,
@@ -602,7 +602,7 @@ class PostgresDB:
 # EXPLORE
 # ------------------------------------------------------------------------
 
-    def fetch_explore_data(self, filters: dict = {}) -> list[ExploreDataRecord]:
+    def fetch_card_bot(self, filters: dict = {}) -> list[ExploreDataRecord]:
         """Fetch all explore data from the database with support for lists and min/max filtering."""
 
         raw_data = self.fetch_card_data(filters=filters)
@@ -626,7 +626,7 @@ class PostgresDB:
                 case 'bot':
                     query = sql.SQL("""
                         SELECT *
-                        FROM explore_data
+                        FROM card_bot
                         WHERE TRUE
                     """)
                 case 'wotc':
@@ -865,8 +865,9 @@ class PostgresDB:
 
         Views:
             - player_search: List of players and seasons with a bWAR and award summary. Source for advanced search on the customs page;
-            - team_year_league_list: List of teams by year and league. Source for league/team hierarchy filters on the explore page;
-            - explore_data: Main explore data view that powers the explore page.
+            - dim_team_years: List of teams by year and league. Source for league/team hierarchy filters on the explore page;
+            - card_bot: Main explore data view that powers the explore page.
+            - team_search: List of teams with their organization, league, years active, and number of cards.
             
         Args:
             drop_existing: If True, drop existing views before recreating them.
@@ -884,8 +885,8 @@ class PostgresDB:
 
         # REFRESH MATERIALIZED VIEWS
         if not self.build_player_search_view(drop_existing=drop_existing): return
-        if not self.build_team_year_league_list_view(drop_existing=drop_existing): return
-        if not self.build_explore_data_view(drop_existing=drop_existing): return
+        if not self.build_dim_team_years_view(drop_existing=drop_existing): return
+        if not self.build_card_bot_view(drop_existing=drop_existing): return
         if not self.build_team_search_view(drop_existing=drop_existing): return
 
         self.connection.close()
@@ -1231,10 +1232,19 @@ class PostgresDB:
         # RETURN IF NO CONNECTION
         if self.connection is None:
             print("No database connection available for building materialized view.")
-            return
+            return False
         
         try:
             cursor = self.connection.cursor()
+
+            if schema != 'public':
+                # ENSURE SCHEMA EXISTS
+                cursor.execute(sql.SQL("""
+                    CREATE SCHEMA IF NOT EXISTS {schema};
+                """).format(
+                    schema=sql.Identifier(schema)
+                ))
+                print(f"  → Ensured schema '{schema}' exists.")
 
             # DROP EXISTING VIEW IF REQUESTED
             if drop_existing:
@@ -1323,7 +1333,7 @@ class PostgresDB:
                 jsonb_extract_path(stats, 'is_hof')::boolean as is_hof,
                 case when length(stats->>'award_summary') = 0 then null else stats->>'award_summary'::text end as award_summary,
                 case when length((stats->>'bWAR')) = 0 then 0.0 else (stats->>'bWAR')::float end as bwar
-                from stats_archive
+                from player_season_stats
                 
             ),
             
@@ -1339,7 +1349,7 @@ class PostgresDB:
                 award_summary,
                 bwar
                 from current_season_players
-                where date_part('year', modified_date) > (select max(year) from stats_archive)
+                where date_part('year', modified_date) > (select max(year) from player_season_stats)
                 
             ),
             
@@ -1366,8 +1376,8 @@ class PostgresDB:
             drop_existing=drop_existing
         )
 
-    def build_team_year_league_list_view(self, drop_existing:bool = False) -> None:
-        """Build or refresh the team_year_league_list materialized view.
+    def build_dim_team_years_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the dim_team_years materialized view.
         
         Args:
             drop_existing: If True, drop the existing view before creating a new one.
@@ -1396,7 +1406,7 @@ class PostgresDB:
                     team_id as team,
                     year
                 
-                from stats_archive
+                from player_season_stats
                 where true
                 and (
                     lg_id not in ('2LG', 'MLB')
@@ -1407,12 +1417,12 @@ class PostgresDB:
             
             --  explore_mismatches as (
             --  
-            --    select distinct name, explore_data.year, explore_data.team_id
-            --    from explore_data
+            --    select distinct name, card_bot.year, card_bot.team_id
+            --    from card_bot
             --    left join years_and_teams 
-            --      on explore_data.team_id = years_and_teams.team_id
-            --      and explore_data.year = years_and_teams.year
-            --    where explore_data.showdown_set = '2005'
+            --      on card_bot.team_id = years_and_teams.team_id
+            --      and card_bot.year = years_and_teams.year
+            --    where card_bot.showdown_set = '2005'
             --      and years_and_teams.team_id is null
             --      
             --  ),
@@ -1433,17 +1443,18 @@ class PostgresDB:
             from years_and_teams
         '''
         indexes = [
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_team_year_league_list ON team_year_league_list (team, year);"
+            "CREATE UNIQUE INDEX IF NOT EXISTS internal.idx_dim_team_years ON internal.dim_team_years (team, year);"
         ]
         return self._build_materialized_view(
-            view_name='team_year_league_list',
+            view_name='dim_team_years',
+            schema='internal',
             sql_logic=sql_logic,
             indexes=indexes,
             drop_existing=drop_existing
         )
 
-    def build_explore_data_view(self, drop_existing:bool = False) -> None:
-        """Build or refresh the explore_data materialized view.
+    def build_card_bot_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the card_bot materialized view.
         
         Args:
             drop_existing: If True, drop the existing view before creating a new one.
@@ -1452,24 +1463,24 @@ class PostgresDB:
 
         sql_logic = '''
             select 
-                stats_archive.id,
-                stats_archive.year,
-                stats_archive.bref_id,
-                unaccent(stats_archive.name) as name,
-                stats_archive.player_type,
-                stats_archive.player_type_override,
-                stats_archive.is_two_way,
-                stats_archive.primary_positions,
-                stats_archive.secondary_positions,
-                stats_archive.g,
-                stats_archive.gs,
-                stats_archive.pa,
-                stats_archive.ip as real_ip,
-                stats_archive.lg_id,
-                stats_archive.team_id,
-                stats_archive.team_id_list,
-                stats_archive.team_games_played_dict,
-                stats_archive.team_override,
+                player_season_stats.id,
+                player_season_stats.year,
+                player_season_stats.bref_id,
+                unaccent(player_season_stats.name) as name,
+                player_season_stats.player_type,
+                player_season_stats.player_type_override,
+                player_season_stats.is_two_way,
+                player_season_stats.primary_positions,
+                player_season_stats.secondary_positions,
+                player_season_stats.g,
+                player_season_stats.gs,
+                player_season_stats.pa,
+                player_season_stats.ip as real_ip,
+                player_season_stats.lg_id,
+                player_season_stats.team_id,
+                player_season_stats.team_id_list,
+                player_season_stats.team_games_played_dict,
+                player_season_stats.team_override,
                 
                 card_data.card_data,
                 card_data.showdown_set,
@@ -1479,9 +1490,9 @@ class PostgresDB:
                 -- PARSED CARD ATTRIBUTES 
                 cast(card_data->>'points' as int) as points,
                 card_data->>'nationality' as nationality,
-                team_year_league_list.organization,
-                team_year_league_list.league,
-                team_year_league_list.team,
+                team_years.organization,
+                team_years.league,
+                team_years.team,
                 
                 -- METADATA
                 card_data->'positions_and_defense' as positions_and_defense,
@@ -1495,7 +1506,7 @@ class PostgresDB:
                 card_data->'speed'->>'letter' as speed_letter,
                 (card_data->'speed'->>'letter') || '(' || (card_data->'speed'->>'speed') || ')' as speed_full,
                 case
-                    when stats_archive.player_type = 'HITTER' then cast(card_data->'speed'->>'speed' as int)
+                    when player_season_stats.player_type = 'HITTER' then cast(card_data->'speed'->>'speed' as int)
                     else cast(card_data->>'ip' as int)
                 end as speed_or_ip,
                 ARRAY(
@@ -1518,22 +1529,22 @@ class PostgresDB:
                 case
                     when exists (
                         select 1 from auto_images i
-                        where i.player_id = stats_archive.bref_id
-                        and i.year = stats_archive.year::text
-                        and i.team_id = stats_archive.team_id
-                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                        where i.player_id = player_season_stats.bref_id
+                        and i.year = player_season_stats.year::text
+                        and i.team_id = player_season_stats.team_id
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
                     ) then 'exact'
                     when exists (
                         select 1 from auto_images i
-                        where i.player_id = stats_archive.bref_id
-                        and i.team_id = stats_archive.team_id
-                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                        where i.player_id = player_season_stats.bref_id
+                        and i.team_id = player_season_stats.team_id
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
                     ) then 'team match'
                     when exists (
                         select 1 from auto_images i
-                        where i.player_id = stats_archive.bref_id
-                        and i.year = stats_archive.year::text
-                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                        where i.player_id = player_season_stats.bref_id
+                        and i.year = player_season_stats.year::text
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
                     ) then 'year match'
                     else 'no match'
                 end as image_match_type,
@@ -1542,21 +1553,21 @@ class PostgresDB:
                 
                 NOW() as updated_at
                 
-            from stats_archive
+            from player_season_stats
             join card_data 
-                on stats_archive.id = card_data.player_id
-            left join team_year_league_list
-                on team_year_league_list.year = stats_archive.year 
-                and team_year_league_list.team = stats_archive.team_id
+                on player_season_stats.id = card_data.player_id
+            left join internal.dim_team_years as team_years
+                on team_years.year = player_season_stats.year 
+                and team_years.team = player_season_stats.team_id
             left join auto_images as exact_img_match
-                on stats_archive.year::text = exact_img_match.year
-                and stats_archive.bref_id = exact_img_match.player_id
-                and coalesce(stats_archive.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
-                and stats_archive.team_id = exact_img_match.team_id
+                on player_season_stats.year::text = exact_img_match.year
+                and player_season_stats.bref_id = exact_img_match.player_id
+                and coalesce(player_season_stats.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
+                and player_season_stats.team_id = exact_img_match.team_id
                 and exact_img_match.is_postseason = FALSE
         '''
         indexes = [
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_explore_data_card_set_version ON explore_data (id, showdown_set, showdown_bot_version);"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_card_bot_card_set_version ON card_bot (id, showdown_set, showdown_bot_version);"
         ]
         # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
         if drop_existing:
@@ -1567,7 +1578,7 @@ class PostgresDB:
             )
 
         status = self._build_materialized_view(
-            view_name='explore_data',
+            view_name='card_bot',
             sql_logic=sql_logic,
             indexes=indexes,
             drop_existing=drop_existing
@@ -1601,7 +1612,7 @@ class PostgresDB:
                 max(year) as max_year, 
                 count(*) as cards
                 
-                from explore_data
+                from card_bot
                 where true
                 and league != 'MLB'
                 group by 1,2,3
@@ -1647,7 +1658,7 @@ class PostgresDB:
 # TABLES
 # ------------------------------------------------------------------------
 
-    def create_stats_archive_table(self, table_suffix:str='') -> None:
+    def create_player_season_stats_table(self, table_suffix:str='') -> None:
         """"""
 
         # RETURN IF NO CONNECTION
@@ -1655,7 +1666,7 @@ class PostgresDB:
             return
         
         create_table_statement = f'''
-            CREATE TABLE IF NOT EXISTS stats_archive{table_suffix}(
+            CREATE TABLE IF NOT EXISTS player_season_stats{table_suffix}(
                 id varchar(100) PRIMARY KEY,
                 year int NOT NULL,
                 bref_id VARCHAR(10) NOT NULL,
@@ -1975,7 +1986,7 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def upsert_stats_archive_row(self, cursor, data:dict, conflict_strategy:str = "do_nothing") -> None:
+    def upsert_player_season_stats_row(self, cursor, data:dict, conflict_strategy:str = "do_nothing") -> None:
         """Upsert record into stats archive. 
         Insert record if it does not exist, otherwise update the row's `stats` and `modified_date` values
 
@@ -1992,12 +2003,12 @@ class PostgresDB:
         match conflict_strategy:
             case "do_nothing":
                 insert_statement = '''
-                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO NOTHING
                 '''
             case "update_all_columns":
                 insert_statement = '''
-                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                     (
                         year, historical_date, name, 
@@ -2018,7 +2029,7 @@ class PostgresDB:
                 '''
             case "update_all_exclude_stats":
                 insert_statement = '''
-                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                     (
                         year, historical_date, name, 
@@ -2039,7 +2050,7 @@ class PostgresDB:
                 '''
             case "update_stats_only":
                 insert_statement = '''
-                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                     (stats_modified_date, stats) = (NOW(), EXCLUDED.stats)
                 '''
