@@ -44,6 +44,8 @@ type ModalProps = {
     title?: string;
     /** Size preset for the modal width - defaults to 'lg' */
     size?: 'sm' | 'md' | 'lg' | 'xl';
+    /** If true, disables the close button in the header */
+    disableCloseButton?: boolean;
 };
 
 /**
@@ -60,7 +62,7 @@ type ModalProps = {
  * @param props - Modal component props
  * @returns A full-screen modal dialog overlay
  */
-export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
+export function Modal({ children, onClose, title, size = 'lg', disableCloseButton = false }: ModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
     const scrollYRef = useRef(0); // Stores scroll position for restoration
 
@@ -193,6 +195,7 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
                         {closeButton()}
                     </div>
                 ) : (
+                    !disableCloseButton &&
                     // Floating close button when no title is provided
                     <div className="absolute right-3 top-3 z-10">
                         {closeButton()}

@@ -24,9 +24,9 @@ import { useSiteSettings } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
     FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
-    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup
+    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck
 } from "react-icons/fa";
-import { FaArrowRotateRight, FaTableList } from "react-icons/fa6";
+import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
 import { FaO, FaI } from "react-icons/fa6";
 
@@ -517,6 +517,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
     const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source));
     const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source));
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
+    const filtersWithoutSortingForEditing = { ...filtersForEditing, sort_by: null, sort_direction: null };
     const hasCustomFiltersApplied = JSON.stringify(stripEmpty(filtersWithoutSorting)) !== JSON.stringify(stripEmpty(getDefaultFilterSelections(source)));
     const bindRange = (minKey: keyof FilterSelections, maxKey: keyof FilterSelections) => ({
         minValue: filtersForEditing[minKey] as number | undefined,
@@ -533,6 +534,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
     // Get sort options based on source and find selected option
     const sortOptions = getSortOptions(source);
     const selectedSortOption = sortOptions.find(option => option.value === filters.sort_by) || null;
+    const selectedSortOptionForEditing = sortOptions.find(option => option.value === filtersForEditing.sort_by) || null;
 
     // Ref for scrollable main content area
     const cardScrollParentRef = useRef<HTMLDivElement>(null);
@@ -755,6 +757,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
         setShowFiltersModal(true);
     }
 
+    const hasFiltersChanged = JSON.stringify(filters) !== JSON.stringify(filtersForEditing);
+
     // Remove the getCardsData call from handleFilterApply
     const handleFilterApply = () => {
         // Check if difference between filters and filtersForEditing
@@ -833,7 +837,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
     const renderResetButton = (targets: String[]) => {
         return (
-            <button onClick={() => resetFilters(targets)} className="text-white flex items-center bg-[var(--showdown-gray)] rounded-full px-2 gap-1 py-1 cursor-pointer">
+            <button onClick={() => resetFilters(targets)} className="text-[var(--background-primary)] font-bold flex items-center bg-[var(--showdown-gray)] rounded-full px-2 gap-1 py-1 cursor-pointer">
                 <FaArrowRotateRight />
                 <span className="text-sm">Reset</span>
             </button>
@@ -1063,14 +1067,80 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
             {/* MARK: Filters Modal */}
             {showFiltersModal && (
-                <Modal onClose={handleFilterApply}>
-                    <div className="p-4 min-h-48 max-h-[80vh] md:min-h-128 md:max-h-[90vh]">
-                        <div className="flex gap-3 mb-4 items-center border-b-2 border-form-element pb-2">
-                            <h2 className="text-xl font-bold">Filter Options</h2>
-                            {renderResetButton(['editing'])}
+                <Modal onClose={handleFilterApply} disableCloseButton={true}>
+
+                    <div className="min-h-48 max-h-[80vh] md:min-h-128 md:max-h-[90vh]">
+
+                        {/* Header */}
+                        <div 
+                            className="
+                                sticky top-0 flex flex-col
+                                gap-y-1 mb-4 px-4 pb-3 pt-4 z-10
+                                border-b-2 border-form-element 
+                                bg-background-secondary/95 backdrop-blur
+                            ">
+                            
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-xl font-bold">Filter Options</h2>
+
+                                <div className="absolute text-sm flex gap-x-6 right-0 p-4 text-[var(--background-primary)]">
+                                    {/* Reset button */}
+                                    {renderResetButton(['editing'])}
+
+                                    {/* Apply or Close Button */}
+                                    {hasFiltersChanged ? (
+                                        <button
+                                            onClick={handleFilterApply}
+                                            className="bg-[var(--success)] rounded-full flex items-center px-2 gap-1 py-1 cursor-pointer"
+                                        >
+                                            <FaCheck />
+                                            <span className="font-bold">Apply</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleFilterApply}
+                                            className="bg-[var(--warning)] rounded-full flex items-center px-3 gap-1 py-1 cursor-pointer"
+                                        >
+                                            <FaXmark />
+                                            <span className="font-bold">Exit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Filters Summary */}
+                            <div className="flex flex-1 gap-2 overflow-x-scroll scrollbar-hide">
+
+                                {selectedSortOptionForEditing && (
+                                    <button
+                                        className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                        onClick={() => setFiltersForEditing((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
+                                    >
+                                        <div className="flex flex-row gap-1 items-center">
+                                            Sort:
+                                            {selectedSortOptionForEditing.icon && <span className="text-primary">{selectedSortOptionForEditing.icon}</span>}
+                                            <span>
+                                                {selectedSortOptionForEditing.label || "N/A"} {filtersForEditing.sort_direction === 'asc' ? '↑' : '↓'}
+                                            </span>
+                                        </div>
+                                    </button>
+                                )}
+
+                                {Object.entries(filtersWithoutSortingForEditing)
+                                    .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
+                                    .map(([key, value]) => (
+                                        <div key={key} className={`flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1`}>
+                                            <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
+                                            <button onClick={() => setFiltersForEditing((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
+                                                <FaTimes />
+                                            </button>
+                                        </div>
+                                ))}
+                            </div>
                         </div>
 
-                        <div className="flex flex-col gap-4 pb-12">
+                        {/* Filters */}
+                        <div className="flex flex-col gap-4 pb-12 px-4">
 
                             {/* Sorting */}
                             <FormSection title="Sorting" icon={<FaSort />} isOpenByDefault={true}>
