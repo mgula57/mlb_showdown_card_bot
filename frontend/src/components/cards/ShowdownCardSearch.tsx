@@ -870,7 +870,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                             value={searchText || ''}
                             placeholder="Search for a Player..."
                             onChange={(value) => setSearchText(value || '')}
-                            className="w-full sm:w-1/3"
+                            className="w-full sm:w-1/3 font-bold"
                             isClearable={true}
                             isTitleCase={true}
                         />

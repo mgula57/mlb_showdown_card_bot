@@ -4,6 +4,7 @@
     --primary: #000000;
     --secondary: #292929;
     --tertiary: #3c3c3c;
+    --quaternary: #5a5a5a;
 
     --showdown-blue: #1a3b5f;
     --showdown-red: #9a362f;
@@ -12,7 +13,7 @@
     --background-primary: #f3f7fa;
     --background-secondary: #ffffff;
     --background-tertiary: #e8ebed;
-
+    --background-quaternary: #dfdede;
     --divider: #e0e0e0;
 
     --table-header: #dbdbdb;
@@ -32,6 +33,7 @@
     --primary: #ffffff;
     --secondary: #dfdfdf;
     --tertiary: #cfcfcf;
+    --quaternary: #b0b0b0;
 
     --showdown-blue: #4682e6;
     --showdown-red: #d04e47;
@@ -40,6 +42,7 @@
     --background-primary: #2d2d32;
     --background-secondary: #232526;
     --background-tertiary: #3a3a3f;
+    --background-quaternary: #434347;
 
     --divider: #444444;
 
@@ -81,6 +84,10 @@
 
     .text-secondary {
         color: var(--secondary);
+    }
+
+    .text-tertiary {
+        color: var(--tertiary);
     }
 
     .border-form-element {

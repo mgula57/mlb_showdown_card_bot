@@ -30,11 +30,11 @@ export default function Explore() {
         }
     }, [tab]);
 
-    const tabSelectedStyle = "bg-[var(--divider)] font-bold text-[var(--showdown-blue)]";
-    const tabUnselectedStyle = "text-gray-500 font-medium hover:bg-[var(--divider)]";
+    const tabSelectedStyle = "bg-[var(--background-quaternary)] font-bold text-[var(--showdown-blue)]";
+    const tabUnselectedStyle = "text-tertiary font-medium hover:bg-[var(--divider)]";
 
     const getTabClasses = (src: CardSource) => {
-        const baseClasses = "relative flex gap-x-1 items-center px-4 py-3 text-sm transition-colors duration-200 rounded-lg";
+        const baseClasses = "relative flex gap-x-1 items-center px-4 py-3 text-sm rounded-lg";
         const stateClasses = tab === src ? tabSelectedStyle : tabUnselectedStyle;
         return `${baseClasses} ${stateClasses}`;
     };
