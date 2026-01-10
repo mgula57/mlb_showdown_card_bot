@@ -56,15 +56,15 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
     # SETUP LOGGING
     log_to_db = kwargs.get('store_in_logs', False)
-    card_log_db = kwargs.get('db_connection', None)
+    db_for_logs = kwargs.get('db_connection', None)
     if log_to_db:
         # CONNECT TO DB
-        card_log_db = card_log_db or PostgresDB(is_archive=False)
-        if not card_log_db.connection:
-            card_log_db = None
+        db_for_logs = db_for_logs or PostgresDB(is_archive=False)
+        if not db_for_logs.connection:
+            db_for_logs = None
             print("Failed to connect to database for logging. Continuing without logging.")
     else:
-        card_log_db = None
+        db_for_logs = None
 
     try:
 
@@ -241,8 +241,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
         additional_logs['scraper_load_time'] = scraper_load_time
 
         # ADD CODE TO LOG CARD TO DB
-        if card_log_db:
-            card_log_db.log_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_logs)
+        if db_for_logs:
+            db_for_logs.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_logs)
 
         # CONVERT CARD TO DICT AND RETURN IT
         final_card_payload = additional_logs
@@ -300,9 +300,9 @@ def generate_card(**kwargs) -> dict[str, Any]:
         print("---------------------------------")
 
         # ADD CODE TO LOG CARD TO DB
-        if card_log_db:
+        if db_for_logs:
             # LOG THE ERROR
-            card_log_db.log_card_submission(
+            db_for_logs.log_custom_card_submission(
                 card=card,  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
                 user_inputs=kwargs,
                 additional_attributes={

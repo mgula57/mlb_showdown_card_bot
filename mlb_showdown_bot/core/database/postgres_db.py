@@ -632,7 +632,7 @@ class PostgresDB:
                 case 'wotc':
                     query = sql.SQL("""
                         SELECT *
-                        FROM wotc_card_data
+                        FROM card_wotc
                         WHERE TRUE
                     """)
 
@@ -892,8 +892,52 @@ class PostgresDB:
         self.connection.close()
 
 # ------------------------------------------------------------------------
-# WOTC
+# CARD DATA UPLOADS (BOT AND WOTC)
 # ------------------------------------------------------------------------
+
+    def create_dim_card_table(self) -> bool:
+        """Create the dim_card table if it does not exist.
+        
+        Returns:
+            True if creation was successful or table already exists, False otherwise.
+        """
+
+        if self.connection is None:
+            print("No database connection available for creating dim_card table.")
+            return False
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            # ENSURE SCHEMA EXISTS
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+
+            # CREATE TABLE IF NOT EXISTS
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS internal.dim_card (
+                    player_id character varying(100) NOT NULL,
+                    showdown_set character varying(20) NOT NULL,
+                    card_data jsonb,
+                    created_date timestamp without time zone DEFAULT now(),
+                    modified_date timestamp without time zone DEFAULT now(),
+                    version character varying(10)
+                );
+                """
+            )
+            print("  → Ensured dim_card table exists.")
+
+            # CREATE INDEXES
+            cursor.execute("""
+                CREATE UNIQUE INDEX idx_card_data_player_set_version_unique ON internal.dim_card(player_id text_ops,showdown_set text_ops,version text_ops);
+            """)
+            print("  → Ensured dim_card indexes exist.")
+
+            return True
+
+        except Exception as e:
+            print("Error creating dim_card table:", e)
+            traceback.print_exc()
+            return False
 
     def upload_wotc_card_data(self, wotc_card_data: list[ShowdownPlayerCard], drop_existing:bool=False) -> bool:
         """Upload WOTC card data to the database.
@@ -915,12 +959,12 @@ class PostgresDB:
 
             # DROP EXISTING TABLE IF REQUESTED
             if drop_existing:
-                cursor.execute("DROP TABLE IF EXISTS wotc_card_data;")
-                print("  → Dropped existing wotc_card_data table.")
+                cursor.execute("DROP TABLE IF EXISTS card_wotc;")
+                print("  → Dropped existing card_wotc table.")
 
             # CREATE TABLE IF NOT EXISTS
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS wotc_card_data (
+                CREATE TABLE IF NOT EXISTS card_wotc (
                     id character varying(100) NOT NULL,
                     player_id character varying(64),
                     showdown_set character varying(20) NOT NULL,
@@ -970,10 +1014,10 @@ class PostgresDB:
                 );
                 """
             )
-            print("  → Ensured wotc_card_data table exists.")
+            print("  → Ensured card_wotc table exists.")
 
             # CLEAR EXISTING DATA
-            cursor.execute("DELETE FROM wotc_card_data;")
+            cursor.execute("DELETE FROM card_wotc;")
             print("  → Cleared existing WOTC card data.")
 
             # PREPARE BATCH DATA
@@ -1035,7 +1079,7 @@ class PostgresDB:
 
             # BATCH INSERT NEW DATA
             insert_query = """
-                INSERT INTO wotc_card_data (
+                INSERT INTO card_wotc (
                     id,
                     player_id,
                     showdown_set,
@@ -1482,35 +1526,35 @@ class PostgresDB:
                 player_season_stats.team_games_played_dict,
                 player_season_stats.team_override,
                 
-                card_data.card_data,
-                card_data.showdown_set,
-                card_data->>'version' as showdown_bot_version,
+                dim_card.card_data,
+                dim_card.showdown_set,
+                dim_card->>'version' as showdown_bot_version,
                 
                 
                 -- PARSED CARD ATTRIBUTES 
-                cast(card_data->>'points' as int) as points,
-                card_data->>'nationality' as nationality,
+                cast(dim_card->>'points' as int) as points,
+                dim_card->>'nationality' as nationality,
                 team_years.organization,
                 team_years.league,
                 team_years.team,
                 
                 -- METADATA
-                card_data->'positions_and_defense' as positions_and_defense,
-                card_data->>'positions_and_defense_string' as positions_and_defense_string,
+                dim_card->'positions_and_defense' as positions_and_defense,
+                dim_card->>'positions_and_defense_string' as positions_and_defense_string,
                 ARRAY(
-                    SELECT jsonb_array_elements_text(card_data->'positions_list')
+                    SELECT jsonb_array_elements_text(dim_card->'positions_list')
                 ) as positions_list,
-                cast(card_data->>'ip' as int) as ip,
-                cast(card_data->'speed'->>'speed' as int) as speed,
-                card_data->>'hand' as hand,
-                card_data->'speed'->>'letter' as speed_letter,
-                (card_data->'speed'->>'letter') || '(' || (card_data->'speed'->>'speed') || ')' as speed_full,
+                cast(dim_card->>'ip' as int) as ip,
+                cast(dim_card->'speed'->>'speed' as int) as speed,
+                dim_card->>'hand' as hand,
+                dim_card->'speed'->>'letter' as speed_letter,
+                (dim_card->'speed'->>'letter') || '(' || (dim_card->'speed'->>'speed') || ')' as speed_full,
                 case
-                    when player_season_stats.player_type = 'HITTER' then cast(card_data->'speed'->>'speed' as int)
-                    else cast(card_data->>'ip' as int)
+                    when player_season_stats.player_type = 'HITTER' then cast(dim_card->'speed'->>'speed' as int)
+                    else cast(dim_card->>'ip' as int)
                 end as speed_or_ip,
                 ARRAY(
-                    SELECT jsonb_array_elements_text(card_data->'icons')
+                    SELECT jsonb_array_elements_text(dim_card->'icons')
                 ) as icons_list,
 
                 -- STATS
@@ -1521,27 +1565,27 @@ class PostgresDB:
                 END as awards_list,
                 
                 -- CHART
-                cast(card_data->'chart'->>'command' as int) as command,
-                cast(card_data->'chart'->>'outs_full' as int) as outs,
-                cast(card_data->'chart'->>'is_command_out_anomaly' as boolean) as is_chart_outlier,
+                cast(dim_card->'chart'->>'command' as int) as command,
+                cast(dim_card->'chart'->>'outs_full' as int) as outs,
+                cast(dim_card->'chart'->>'is_command_out_anomaly' as boolean) as is_chart_outlier,
                 
                 -- AUTO IMAGES
                 case
                     when exists (
-                        select 1 from auto_images i
+                        select 1 from internal.dim_auto_image i
                         where i.player_id = player_season_stats.bref_id
                         and i.year = player_season_stats.year::text
                         and i.team_id = player_season_stats.team_id
                         and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
                     ) then 'exact'
                     when exists (
-                        select 1 from auto_images i
+                        select 1 from internal.dim_auto_image i
                         where i.player_id = player_season_stats.bref_id
                         and i.team_id = player_season_stats.team_id
                         and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
                     ) then 'team match'
                     when exists (
-                        select 1 from auto_images i
+                        select 1 from internal.dim_auto_image i
                         where i.player_id = player_season_stats.bref_id
                         and i.year = player_season_stats.year::text
                         and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
@@ -1554,12 +1598,12 @@ class PostgresDB:
                 NOW() as updated_at
                 
             from player_season_stats
-            join card_data 
-                on player_season_stats.id = card_data.player_id
+            join internal.dim_card as dim_card
+                on player_season_stats.id = dim_card.player_id
             left join internal.dim_team_years as team_years
                 on team_years.year = player_season_stats.year 
                 and team_years.team = player_season_stats.team_id
-            left join auto_images as exact_img_match
+            left join internal.dim_auto_image as exact_img_match
                 on player_season_stats.year::text = exact_img_match.year
                 and player_season_stats.bref_id = exact_img_match.player_id
                 and coalesce(player_season_stats.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
@@ -1698,8 +1742,8 @@ class PostgresDB:
         except:
             return
 
-    def build_auto_images_table(self, refresh_explore: bool=False, drop_existing:bool = False) -> None:
-        """Creates and replaces the auto_images table in the database."""
+    def build_auto_image_table(self, refresh_explore: bool=False, drop_existing:bool = False) -> None:
+        """Creates and replaces the internal.dim_auto_image table in the database."""
  
         # RETURN IF NO CONNECTION
         if self.connection is None:
@@ -1784,29 +1828,29 @@ class PostgresDB:
             SELECT EXISTS (
                 SELECT 1
                 FROM information_schema.tables
-                WHERE table_name = 'auto_images'
+                WHERE table_name = 'dim_auto_image'
             );
         """
         db_cursor.execute(table_exists_query)
         table_exists = db_cursor.fetchone()[0]
         if table_exists:
-            print("auto_images table exists. It will be replaced with new data.")
+            print("dim_auto_image table exists. It will be replaced with new data.")
         
             # TRUNCATE THE EXISTING TABLE
             if drop_existing:
                 truncate_or_drop_table_statement = '''
-                    DROP TABLE IF EXISTS auto_images;
+                    DROP TABLE IF EXISTS internal.dim_auto_image;
                 '''
             else:
                 truncate_or_drop_table_statement = '''
-                    TRUNCATE TABLE auto_images;
+                    TRUNCATE TABLE internal.dim_auto_image;
                 '''
         else:
             truncate_or_drop_table_statement = '''
                 -- Table does not exist, will be created.
             '''
         create_table_statement = f'''
-            CREATE TABLE IF NOT EXISTS auto_images(
+            CREATE TABLE IF NOT EXISTS internal.dim_auto_image(
                 year VARCHAR(20) NOT NULL,
                 player_id VARCHAR(10) NOT NULL,
                 player_name VARCHAR(48) NOT NULL,
@@ -1817,8 +1861,8 @@ class PostgresDB:
                 created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
             );'''
         index_statement = '''
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_auto_images_player_year_type
-            ON auto_images (year, player_id, player_type_override, team_id, is_postseason);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_auto_image
+            ON internal.dim_auto_image (year, player_id, player_type_override, team_id, is_postseason);
         '''
         try:
             db_cursor.execute(truncate_or_drop_table_statement)
@@ -1830,7 +1874,7 @@ class PostgresDB:
         
         # INSERT OR UPDATE ROWS
         insert_statement = """
-            INSERT INTO auto_images (year, player_id, player_name, team_id, player_type_override, image_ids, is_postseason) 
+            INSERT INTO internal.dim_auto_image (year, player_id, player_name, team_id, player_type_override, image_ids, is_postseason) 
             VALUES %s
         """
         insert_values = []
@@ -1855,9 +1899,9 @@ class PostgresDB:
             ))
         try:
             execute_values(db_cursor, insert_statement, insert_values)
-            print(f"Inserted/Updated {len(insert_values)} rows into auto_images table.")
+            print(f"Inserted/Updated {len(insert_values)} rows into dim_auto_image table.")
         except Exception as e:
-            print(f"Error inserting/updating auto_images data: {e}")
+            print(f"Error inserting/updating dim_auto_image data: {e}")
             self.connection.rollback()
             return
         finally:
@@ -1872,9 +1916,91 @@ class PostgresDB:
 # LOGGING
 # ------------------------------------------------------------------------
 
-    def log_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
+    def create_custom_card_logging_table(self) -> None:
+        """Create the log_custom_card_bot table if it does not exist."""
+
+        if not self.connection:
+            print("No database connection available for creating logging table.")
+            return 
+        
+        # CHECK IF `INTERNAL` SCHEMA EXISTS
+        schema_check_sql = """
+            CREATE SCHEMA IF NOT EXISTS internal;
         """
-        Store card submission data in the card_log table.
+        
+        create_table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.log_custom_card_bot (
+                id SERIAL PRIMARY KEY,
+                name character varying(64),
+                year text,
+                set text,
+                is_cooperstown boolean,
+                is_super_season boolean,
+                img_url character varying(2048),
+                img_name character varying(512),
+                error character varying(256),
+                created_on timestamp without time zone DEFAULT now(),
+                is_all_star_game boolean,
+                expansion text,
+                stats_offset integer,
+                set_num text,
+                is_holiday boolean,
+                is_dark_mode boolean,
+                is_rookie_season boolean,
+                is_variable_spd_00_01 boolean,
+                is_random boolean,
+                is_automated_image boolean,
+                is_foil boolean,
+                is_stats_loaded_from_library boolean,
+                is_img_loaded_from_library boolean,
+                add_year_container boolean,
+                ignore_showdown_library boolean,
+                set_year_plus_one boolean,
+                edition character varying(64),
+                hide_team_logo boolean,
+                date_override character varying(256),
+                era character varying(64),
+                image_parallel character varying(64),
+                bref_id character varying(32),
+                team character varying(32),
+                data_source character varying(64),
+                image_source character varying(64),
+                scraper_load_time numeric(10,2),
+                card_load_time numeric(10,2),
+                is_secondary_color boolean,
+                nickname_index integer,
+                period character varying(64),
+                period_start_date character varying(64),
+                period_end_date character varying(64),
+                period_split character varying(64),
+                is_multi_colored boolean,
+                stat_highlights_type character varying(64),
+                glow_multiplier numeric(10,2),
+                error_for_user text,
+                user_inputs jsonb,
+                historical_season_trends jsonb,
+                version text,
+                in_season_trends jsonb
+            );
+        """
+
+        index_sql = """
+            CREATE UNIQUE INDEX internal.log_custom_card_bot_id_idx ON internal.log_custom_card_bot(id int4_ops);
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(schema_check_sql)
+                cur.execute(create_table_sql)
+                cur.execute(index_sql)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating internal.log_custom_card_bot table: {error}")
+            self.connection.rollback()
+
+    def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
+        """
+        Store card submission data in the log_custom_card_bot table.
 
         Args:
             ShowdownPlayerCard: Card object to log.
@@ -1975,7 +2101,7 @@ class PostgresDB:
         columns = ', '.join(column_list)
         placeholders = ', '.join(['%s'] * len(column_list))
         values = list(card_submission.values())
-        sql = f"INSERT INTO card_log ({columns}) VALUES ({placeholders})"
+        sql = f"INSERT INTO log_custom_card_bot ({columns}) VALUES ({placeholders})"
         try:
             with self.connection.cursor() as cur:
                 cur.execute(sql, values)
@@ -1985,6 +2111,10 @@ class PostgresDB:
             print(f"Error logging card submission to DB: {error}")
             self.connection.rollback()
             return None
+
+# ------------------------------------------------------------------------
+# PLAYER SEASON STATS
+# ------------------------------------------------------------------------
 
     def upsert_player_season_stats_row(self, cursor, data:dict, conflict_strategy:str = "do_nothing") -> None:
         """Upsert record into stats archive. 
@@ -2103,7 +2233,7 @@ class PostgresDB:
 
                 # Insert batch
                 insert_query = """
-                    INSERT INTO card_data (player_id, showdown_set, version, card_data) 
+                    INSERT INTO dim_card (player_id, showdown_set, version, card_data) 
                     VALUES %s
                     ON CONFLICT (player_id, showdown_set, version) 
                     DO UPDATE SET 
