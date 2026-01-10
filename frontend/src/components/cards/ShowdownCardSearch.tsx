@@ -922,8 +922,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
                         {/* Selected Filters */}
                         {/* The last element should add lots of padding */}
-                        {Object.entries(filtersWithoutSorting).map(([key, value]) => (
-                            value === undefined || value === null || (Array.isArray(value) && value.length === 0) ? null :
+                        {Object.entries(filtersWithoutSorting)
+                            .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
+                            .map(([key, value]) => (
                                 <div key={key} className={`flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1`}>
                                     <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
                                     <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
