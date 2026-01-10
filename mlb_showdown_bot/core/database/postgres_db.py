@@ -751,9 +751,9 @@ class PostgresDB:
                             case 'is_hof':
                                 # Filter based on Hall of Fame status
                                 if value == ['true']:
-                                    filter_clauses.append(sql.SQL("jsonb_extract_path(card_data, 'stats', 'is_hof')::BOOLEAN IS TRUE"))
+                                    filter_clauses.append(sql.SQL("is_hof = TRUE"))
                                 elif value == ['false']:
-                                    filter_clauses.append(sql.SQL("jsonb_extract_path(card_data, 'stats', 'is_hof')::BOOLEAN IS NOT TRUE"))
+                                    filter_clauses.append(sql.SQL("is_hof IS NOT TRUE"))
                                 
                             case _:
                                 # Regular IN clause for non-array fields
@@ -1170,9 +1170,12 @@ class PostgresDB:
         try:
             cursor = self.connection.cursor()
 
+            # ENSURE SCHEMA EXISTS
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+
             # CREATE TABLE IF NOT EXISTS
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS player_id_master (
+                CREATE TABLE IF NOT EXISTS internal.dim_player_id_map (
                     bref_id character varying(10) PRIMARY KEY,
                     mlb_id integer,
                     fangraphs_id integer,
@@ -1185,19 +1188,22 @@ class PostgresDB:
                 );
                 """
             )
-            print("  → Ensured player_id_mapping table exists.")
+            print("  → Ensured internal.dim_player_id_map table exists.")
 
             # ADD INDEXES/UNIQUES ON bref_id AND mlb_id
             cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_player_id_master_mlb_id
-                ON player_id_master (mlb_id);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_player_id_map_mlb_id
+                ON internal.dim_player_id_map (mlb_id);
             """)
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_player_id_master_bref_id
-                ON player_id_master (bref_id);
+                CREATE INDEX IF NOT EXISTS idx_dim_player_id_map_bref_id
+                ON internal.dim_player_id_map (bref_id);
             """)
-            print("  → Ensured indexes on player_id_master table exist.")
+            print("  → Ensured indexes on internal.dim_player_id_map table exist.")
 
+            # WIPE EXISTING DATA
+            cursor.execute("DELETE FROM internal.dim_player_id_map;")
+            print("  → Cleared existing player ID mapping data.")
 
             # PREPARE BATCH DATA
             batch_data = []
@@ -1215,7 +1221,7 @@ class PostgresDB:
 
             # UPSERT DATA
             upsert_query = """
-                INSERT INTO player_id_master (
+                INSERT INTO internal.dim_player_id_map (
                     bref_id,
                     mlb_id,
                     fangraphs_id,
@@ -1244,11 +1250,11 @@ class PostgresDB:
                 page_size=1000  # Process in chunks of 1000
             )
             
-            print(f"  → Updated {len(data)} player ID master records.")
+            print(f"  → Updated {len(data)} player ID mapping records.")
 
         except Exception as e:
             traceback.print_exc()
-            print(f"Error updating player ID master: {e}")
+            print(f"Error updating player ID mapping: {e}")
             self.connection.rollback()
         finally:
             if cursor:
@@ -1563,6 +1569,7 @@ class PostgresDB:
                     THEN ARRAY[]::text[]
                     ELSE string_to_array(stats->>'award_summary', ',')
                 END as awards_list,
+                coalesce((stats->>'is_hof')::boolean, false) as is_hof,
                 
                 -- CHART
                 cast(dim_card->'chart'->>'command' as int) as command,
