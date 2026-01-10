@@ -853,7 +853,7 @@ class PostgresDB:
                 min_year,
                 max_year,
                 cards
-            FROM team_hierarchy
+            FROM team_search
             ORDER BY team
         """)
         
@@ -886,7 +886,7 @@ class PostgresDB:
         if not self.build_player_search_view(drop_existing=drop_existing): return
         if not self.build_team_year_league_list_view(drop_existing=drop_existing): return
         if not self.build_explore_data_view(drop_existing=drop_existing): return
-        if not self.build_team_hierarchy_view(drop_existing=drop_existing): return
+        if not self.build_team_search_view(drop_existing=drop_existing): return
 
         self.connection.close()
 
@@ -1583,8 +1583,8 @@ class PostgresDB:
 
         return status
 
-    def build_team_hierarchy_view(self, drop_existing:bool = False) -> None:
-        """Build or refresh the team_hierarchy materialized view. Used in the explore for filtering
+    def build_team_search_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the team_search materialized view. Used in the explore for filtering
         
         Args:
             drop_existing: If True, drop the existing view before creating a new one.
@@ -1613,7 +1613,7 @@ class PostgresDB:
             order by team
         '''
         return self._build_materialized_view(
-            view_name='team_hierarchy',
+            view_name='team_search',
             sql_logic=sql_logic,
             indexes=[],
             drop_existing=True # Always drop to capture new teams
