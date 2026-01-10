@@ -295,7 +295,7 @@ class PostgresDB:
         # PRINT QUERY AND FILTER VALUES FOR DEBUGGING        
         try:
             db_cursor.execute(query, filter_values)
-            print(db_cursor.mogrify(query, filter_values).decode())
+            # print(db_cursor.mogrify(query, filter_values).decode())
         except:
             print(db_cursor.mogrify(query, filter_values).decode())
             return []
@@ -727,11 +727,7 @@ class PostgresDB:
                             case 'include_small_sample_size':
                                 # Only filter if array is ["false"]
                                 if value == ["false"]:
-                                    filter_clauses.append(sql.SQL("(case" \
-                                        " when positions_list && ARRAY['STARTER'] then real_ip >= 75" \
-                                        " when positions_list && ARRAY['RELIEVER', 'CLOSER'] then real_ip >= 30" \
-                                        " else pa >= 250" \
-                                    " end)"))
+                                    filter_clauses.append(sql.SQL("not is_small_sample_size"))
                             case 'is_hof':
                                 # Filter based on Hall of Fame status
                                 if value == ['true']:
@@ -1528,6 +1524,13 @@ class PostgresDB:
                     ELSE string_to_array(stats->>'award_summary', ',')
                 END as awards_list,
                 coalesce((stats->>'is_hof')::boolean, false) as is_hof,
+                case 
+                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['STARTER'] 
+                        then player_season_stats.ip < 75 
+                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['RELIEVER', 'CLOSER'] 
+                        then player_season_stats.ip < 30 
+                    else player_season_stats.pa < 250 
+                end as is_small_sample_size,
                 
                 -- CHART
                 cast(dim_card.card_data->'chart'->>'command' as int) as command,
@@ -1586,6 +1589,7 @@ class PostgresDB:
                 is_disabled=True
             )
 
+        print("Building card_bot materialized view. This may take several minutes...")
         status = self._build_materialized_view(
             view_name='card_bot',
             sql_logic=sql_logic,

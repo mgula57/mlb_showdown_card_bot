@@ -1242,7 +1242,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     {isFilterAvailable('include_small_sample_size', source) && (
                                         <MultiSelect
                                             label="Include Small Sample Sizes?"
-                                            labelDescription="Defined as PA&lt;250 for Hitters, IP&lt;75 for Starters, IP&lt;35 for Relievers"
+                                            labelDescription="Defined as PA&lt;250 for Hitters, IP&lt;75 for Starters, IP&lt;30 for Relievers"
                                             options={[
                                                 { value: 'true', label: 'Yes' },
                                                 { value: 'false', label: 'No' },
