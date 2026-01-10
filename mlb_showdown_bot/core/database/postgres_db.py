@@ -17,6 +17,11 @@ from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Er
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
 
+
+# ----------------------------------------------------------------
+# MARK: - DATA MODELS
+# ----------------------------------------------------------------
+
 class PlayerArchive(BaseModel):
     id: str
     year: int
@@ -225,6 +230,10 @@ class ExploreDataRecord(BaseModel):
         return any(award.startswith(award_prefix) for award in self.awards_list)
 
 
+
+# ----------------------------------------------------------------
+# MARK: - POSTGRES DB CLASS
+# ----------------------------------------------------------------
 
 class PostgresDB:
 
@@ -457,7 +466,7 @@ class PostgresDB:
 
         return [PlayerArchive(**row) for row in results]
     
-    def fetch_player_year_list_from_archive(self, players_stats_ids: list[str]) -> list[dict]:
+    def fetch_player_search_from_archive(self, players_stats_ids: list[str]) -> list[dict]:
         """Query the stats_archive table for all player data for given a list of player_stats_ids ('{bref_id}-{year}')
         
         Args:
@@ -855,7 +864,7 @@ class PostgresDB:
         """Refreshes all explore related materialized views.
 
         Views:
-            - player_year_list: List of players and seasons with a bWAR and award summary. Source for advanced search on the customs page;
+            - player_search: List of players and seasons with a bWAR and award summary. Source for advanced search on the customs page;
             - team_year_league_list: List of teams by year and league. Source for league/team hierarchy filters on the explore page;
             - explore_data: Main explore data view that powers the explore page.
             
@@ -874,7 +883,7 @@ class PostgresDB:
         self._build_extensions()
 
         # REFRESH MATERIALIZED VIEWS
-        if not self.build_player_year_list_view(drop_existing=drop_existing): return
+        if not self.build_player_search_view(drop_existing=drop_existing): return
         if not self.build_team_year_league_list_view(drop_existing=drop_existing): return
         if not self.build_explore_data_view(drop_existing=drop_existing): return
         if not self.build_team_hierarchy_view(drop_existing=drop_existing): return
@@ -1292,8 +1301,8 @@ class PostgresDB:
             if cursor:
                 cursor.close()
 
-    def build_player_year_list_view(self, drop_existing:bool = False) -> None:
-        """Build or refresh the player_year_list materialized view.
+    def build_player_search_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the player_search materialized view.
         
         Args:
             drop_existing: If True, drop the existing view before creating a new one.
@@ -1348,10 +1357,10 @@ class PostgresDB:
             from combined
         '''
         indexes = [
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_player_year_list_bref_id ON player_year_list (bref_id, year, player_type_override);"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_player_search_bref_id ON player_search (bref_id, year, player_type_override);"
         ]
         return self._build_materialized_view(
-            view_name='player_year_list',
+            view_name='player_search',
             sql_logic=sql_logic,
             indexes=indexes,
             drop_existing=drop_existing

@@ -63,7 +63,7 @@ def search_players():
                     is_hof,
                     award_summary,
                     bwar
-                FROM player_year_list
+                FROM player_search
                 WHERE team = %s
                 ORDER BY COALESCE(bwar, 0) DESC, year DESC, name
                 LIMIT 30
@@ -100,7 +100,7 @@ def search_players():
                     MIN(year) as first_year,
                     MAX(year) as last_year,
                     COUNT(*) as seasons
-                FROM player_year_list
+                FROM player_search
                 WHERE bwar IS NOT NULL
                 GROUP BY name, bref_id
                 HAVING SUM(COALESCE(bwar, 0)) > 5
@@ -147,7 +147,7 @@ def search_players():
                         MAX(year) as last_year,
                         string_agg(DISTINCT award_summary, ',' ORDER BY award_summary) as award_summary,
                         SUM(COALESCE(bwar, 0)) as total_bwar
-                    FROM player_year_list
+                    FROM player_search
                     WHERE year BETWEEN %s AND %s
                         AND bwar IS NOT NULL
                     GROUP BY name, bref_id
@@ -210,7 +210,7 @@ def search_players():
                     is_hof,
                     award_summary,
                     bwar
-                FROM player_year_list
+                FROM player_search
                 WHERE year = %s
                 ORDER BY COALESCE(bwar, 0) DESC, name
                 LIMIT 30
@@ -249,7 +249,7 @@ def search_players():
                         is_hof,
                         award_summary,
                         bwar
-                    FROM player_year_list
+                    FROM player_search
                     WHERE name LIKE LOWER(%s) AND year = %s
                     ORDER BY COALESCE(bwar, 0) DESC, name
                     LIMIT 30
@@ -288,7 +288,7 @@ def search_players():
                         WHEN LOWER(name) LIKE LOWER(%s) THEN 3                 -- Contains
                         ELSE 4
                     END as match_rank
-                FROM player_year_list
+                FROM player_search
                 WHERE LOWER(name) LIKE LOWER(%s) 
                     AND team = %s
                 ORDER BY 
@@ -337,7 +337,7 @@ def search_players():
                     SUM(COALESCE(bwar, 0)) as career_bwar,
                     MIN(year) as first_year,
                     MAX(year) as last_year
-                FROM player_year_list
+                FROM player_search
                 WHERE name = LOWER(%s)
                 GROUP BY name, bref_id, player_type_override
                 ORDER BY SUM(COALESCE(bwar, 0)) DESC
@@ -380,7 +380,7 @@ def search_players():
                         WHEN LOWER(name) LIKE LOWER(%s) THEN 3                 -- Contains
                         ELSE 4
                     END as match_rank
-                FROM player_year_list
+                FROM player_search
                 WHERE LOWER(name) LIKE LOWER(%s)
                 ORDER BY 
                     LOWER(name) = LOWER(%s) DESC, -- Exact match first
