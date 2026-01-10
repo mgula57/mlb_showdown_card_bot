@@ -289,7 +289,7 @@ class PlayerStatsArchive:
             # CLOSE CONNECTION
             db.close_connection()
 
-    def fill_player_stats_from_archive(self, db: PostgresDB, exclude_records_with_stats:bool=False, modified_start_date: str = None, modified_end_date: str = None, player_id_list: list[str] = None) -> None:
+    def fill_player_stats_from_archive(self, db: PostgresDB, exclude_records_with_stats:bool=False, modified_start_date: str = None, modified_end_date: str = None, player_id_list: list[str] = None, ignore_minimums: bool = False) -> None:
         """Fill player stats list from archive database.
         
         Args:
@@ -298,17 +298,25 @@ class PlayerStatsArchive:
             modified_start_date: Limit to only records modified after this date.
             modified_end_date: Limit to only records modified before this date.
             player_id_list: Limit to only records for these player IDs.
-        
+            ignore_minimums: Flag to ignore minimum PA/IP when filling player stats.
         Returns:
             None
         """
+
+        filters: list[tuple[str, list]] = []
+        if not ignore_minimums:
+            filters.append(('(pa >= 35 or ip >= 15)', []))
+
+        if player_id_list:
+            filters.append(('bref_id', player_id_list))
+
         player_archive_list: list[PlayerArchive] = db.fetch_all_stats_from_archive(
             year_list=self.years, 
             exclude_records_with_stats=exclude_records_with_stats, 
             historical_date=self.historical_date, 
             modified_start_date=modified_start_date, 
             modified_end_date=modified_end_date,
-            filters=[('bref_id', player_id_list)] if player_id_list else []
+            filters=filters
         )
         for player_archive in player_archive_list:
             player_archive_data = player_archive.__dict__
@@ -324,8 +332,18 @@ class PlayerStatsArchive:
 # CONVERTING TO SHOWDOWN CARDS
 # ------------------------------------------------------------------------
 
-    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, refresh_explore: bool=True, sets: list[ShowdownSet] = None) -> None:
-        """Using the class player_list"""
+    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, refresh_explore: bool=True, sets: list[ShowdownSet] = None, ignore_minimums: bool = False) -> None:
+        """Using the class player_list
+        
+        Args:
+            publish_to_postgres: Flag to publish data to postgres.
+            refresh_explore: Flag to refresh explore views after upload.
+            sets: List of Showdown Sets to generate cards for. If None, generates for all sets.
+            ignore_minimums: Flag to ignore minimum PA/IP when generating cards.
+
+        Returns:
+            None
+        """
 
         # DEFAULT SETS TO ALL IF NONE PROVIDED
         if sets is None:
@@ -338,7 +356,7 @@ class PlayerStatsArchive:
 
             # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
             if self.is_player_list_empty:
-                self.fill_player_stats_from_archive(db=db)
+                self.fill_player_stats_from_archive(db=db, ignore_minimums=ignore_minimums)
 
         print("CONVERTING TO SHOWDOWN CARDS...")
         showdown_cards: list[ShowdownPlayerCard] = []

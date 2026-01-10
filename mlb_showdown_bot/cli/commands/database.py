@@ -26,6 +26,7 @@ def database_update(
     modified_end_date: Optional[str] = typer.Option(None, "--modified_end_date", "-mod_e", help="Only include records modified before this date"),
     player_id_list: Optional[str] = typer.Option(None, "--player_id_list", "-pil", help="Comma-separated list of player IDs (e.g., 'abreuwi02,bailepa01,crowape01')"),
     limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Limit how many players are processed"),
+    ignore_minimums: bool = typer.Option(False, "--ignore_minimums", "-im", help="Ignore minimum PA/IP when archiving stats")
 ):
     """Archive player stats to Postgres"""
 
@@ -69,7 +70,8 @@ def database_update(
             player_stats_archive.generate_showdown_player_cards(
                 publish_to_postgres=publish_to_postgres, 
                 refresh_explore=refresh_explore, 
-                sets=showdown_set_list
+                sets=showdown_set_list,
+                ignore_minimums=ignore_minimums
             )
 
         if run_auto_image_suggestions:

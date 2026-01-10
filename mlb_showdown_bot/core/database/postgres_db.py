@@ -584,20 +584,6 @@ class PostgresDB:
 
         return PlayerArchive(**result_list[0])
 
-    def fetch_current_season_player_data(self) -> list[dict]:
-        """Fetch current season player data from the database."""
-
-        if not self.connection:
-            return None
-
-        query = sql.SQL("""
-            SELECT *
-            FROM current_season_players
-        """)
-
-        result_list = self.execute_query(query=query)
-        return result_list
-
 # ------------------------------------------------------------------------
 # EXPLORE
 # ------------------------------------------------------------------------
@@ -1372,7 +1358,7 @@ class PostgresDB:
         sql_logic = '''
             with
             
-            archive_data as (
+            player_season_stats as (
             
                 select
                 unaccent(replace(lower(name), '.', '')) as name,
@@ -1385,36 +1371,10 @@ class PostgresDB:
                 case when length((stats->>'bWAR')) = 0 then 0.0 else (stats->>'bWAR')::float end as bwar
                 from player_season_stats
                 
-            ),
-            
-            current_season_data as (
-            
-                select
-                unaccent(replace(lower(name), '.', '')) as name,
-                date_part('year', modified_date) as year,
-                bref_id,
-                team_id as team,
-                null::text as player_type_override,
-                false as is_hof,
-                award_summary,
-                bwar
-                from current_season_players
-                where date_part('year', modified_date) > (select max(year) from player_season_stats)
-                
-            ),
-            
-            combined as (
-            
-                select *
-                from archive_data
-                union all
-                select *
-                from current_season_data
-            
             )
             
             select *
-            from combined
+            from player_season_stats
         '''
         indexes = [
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_player_search_bref_id ON player_search (bref_id, year, player_type_override);"
@@ -1493,7 +1453,7 @@ class PostgresDB:
             from years_and_teams
         '''
         indexes = [
-            "CREATE UNIQUE INDEX IF NOT EXISTS internal.idx_dim_team_years ON internal.dim_team_years (team, year);"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_team_years ON internal.dim_team_years (team, year);"
         ]
         return self._build_materialized_view(
             view_name='dim_team_years',
@@ -1534,33 +1494,33 @@ class PostgresDB:
                 
                 dim_card.card_data,
                 dim_card.showdown_set,
-                dim_card->>'version' as showdown_bot_version,
+                (dim_card.card_data->>'version')::text as showdown_bot_version,
                 
                 
                 -- PARSED CARD ATTRIBUTES 
-                cast(dim_card->>'points' as int) as points,
-                dim_card->>'nationality' as nationality,
+                cast(dim_card.card_data->>'points' as int) as points,
+                dim_card.card_data->>'nationality' as nationality,
                 team_years.organization,
                 team_years.league,
                 team_years.team,
                 
                 -- METADATA
-                dim_card->'positions_and_defense' as positions_and_defense,
-                dim_card->>'positions_and_defense_string' as positions_and_defense_string,
+                dim_card.card_data->'positions_and_defense' as positions_and_defense,
+                dim_card.card_data->>'positions_and_defense_string' as positions_and_defense_string,
                 ARRAY(
-                    SELECT jsonb_array_elements_text(dim_card->'positions_list')
+                    SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')
                 ) as positions_list,
-                cast(dim_card->>'ip' as int) as ip,
-                cast(dim_card->'speed'->>'speed' as int) as speed,
-                dim_card->>'hand' as hand,
-                dim_card->'speed'->>'letter' as speed_letter,
-                (dim_card->'speed'->>'letter') || '(' || (dim_card->'speed'->>'speed') || ')' as speed_full,
+                cast(dim_card.card_data->>'ip' as int) as ip,
+                cast(dim_card.card_data->'speed'->>'speed' as int) as speed,
+                dim_card.card_data->>'hand' as hand,
+                dim_card.card_data->'speed'->>'letter' as speed_letter,
+                (dim_card.card_data->'speed'->>'letter') || '(' || (dim_card.card_data->'speed'->>'speed') || ')' as speed_full,
                 case
-                    when player_season_stats.player_type = 'HITTER' then cast(dim_card->'speed'->>'speed' as int)
-                    else cast(dim_card->>'ip' as int)
+                    when player_season_stats.player_type = 'HITTER' then cast(dim_card.card_data->'speed'->>'speed' as int)
+                    else cast(dim_card.card_data->>'ip' as int)
                 end as speed_or_ip,
                 ARRAY(
-                    SELECT jsonb_array_elements_text(dim_card->'icons')
+                    SELECT jsonb_array_elements_text(dim_card.card_data->'icons')
                 ) as icons_list,
 
                 -- STATS
@@ -1572,9 +1532,9 @@ class PostgresDB:
                 coalesce((stats->>'is_hof')::boolean, false) as is_hof,
                 
                 -- CHART
-                cast(dim_card->'chart'->>'command' as int) as command,
-                cast(dim_card->'chart'->>'outs_full' as int) as outs,
-                cast(dim_card->'chart'->>'is_command_out_anomaly' as boolean) as is_chart_outlier,
+                cast(dim_card.card_data->'chart'->>'command' as int) as command,
+                cast(dim_card.card_data->'chart'->>'outs_full' as int) as outs,
+                cast(dim_card.card_data->'chart'->>'is_command_out_anomaly' as boolean) as is_chart_outlier,
                 
                 -- AUTO IMAGES
                 case
@@ -2240,7 +2200,7 @@ class PostgresDB:
 
                 # Insert batch
                 insert_query = """
-                    INSERT INTO dim_card (player_id, showdown_set, version, card_data) 
+                    INSERT INTO internal.dim_card (player_id, showdown_set, version, card_data) 
                     VALUES %s
                     ON CONFLICT (player_id, showdown_set, version) 
                     DO UPDATE SET 
