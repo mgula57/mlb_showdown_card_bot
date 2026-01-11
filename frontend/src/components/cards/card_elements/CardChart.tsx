@@ -1,4 +1,3 @@
-import { type ShowdownBotCard } from "../../../api/showdownBotCard";
 import { getContrastColor } from "../../shared/Color";
 
 /**
@@ -6,9 +5,14 @@ import { getContrastColor } from "../../shared/Color";
  */
 type CardChartProps = {
     /** Complete card data containing chart ranges and styling information */
-    card: ShowdownBotCard;
+    chartRanges: Record<string, string>;
+    showdownSet: string;
+    primaryColor: string;
+    secondaryColor: string;
+    team?: string;
     /** Optional CSS class name for customizing cell sizing */
     cellClassName?: string;
+    className?: string;
 };
 
 /**
@@ -29,10 +33,10 @@ type CardChartProps = {
  * />
  * ```
  */
-export default function CardChart({ card, cellClassName }: CardChartProps) {
+export default function CardChart({ chartRanges, showdownSet, primaryColor, secondaryColor, team, cellClassName, className }: CardChartProps) {
     // Extract chart data with fallback to empty object
-    const chartData = card?.chart.ranges || {};
-    const showdownSet = card?.set || '2000';
+    const chartData = chartRanges || {};
+    const showdownSetValue = showdownSet || '2001';
 
     /**
      * Sort chart results based on set-specific ordering
@@ -44,7 +48,7 @@ export default function CardChart({ card, cellClassName }: CardChartProps) {
      * Results are ordered from worst to best outcomes for the hitter:
      * Outs (SO, PU, GB, FB) → Walk (BB) → Hits (1B, 1B+, 2B, 3B, HR)
      */
-    const sortOrder = showdownSet === '2000' 
+    const sortOrder = showdownSetValue === '2000' 
         ? ['so', 'pu', 'gb', 'fb', 'bb', '1b', '1b+', '2b', '3b', 'hr']
         : ['pu', 'so', 'gb', 'fb', 'bb', '1b', '1b+', '2b', '3b', 'hr'];
     
@@ -58,7 +62,21 @@ export default function CardChart({ card, cellClassName }: CardChartProps) {
     );
 
     // Use sorted data for rendering
-    const chartDataToRender = sortedChartData;
+    const blankChartData = {
+        "SO": "---",
+        "PU": "---",
+        "GB": "---",
+        "FB": "---",
+        "BB": "---",
+        "1B": "---",
+        "1B+": "---",
+        "2B": "---",
+        "3B": "---",
+        "HR": "---"
+    }
+    const chartDataToRender = sortedChartData && Object.keys(sortedChartData).length > 0
+        ? sortedChartData 
+        : blankChartData;
 
     /**
      * Determines color styling for chart cells based on result type
@@ -70,9 +88,9 @@ export default function CardChart({ card, cellClassName }: CardChartProps) {
         const lowerKey = key.toLowerCase();
         
         // Use secondary color for certain teams (NYM, SDP) for better contrast
-        const color = (['NYM', 'SDP'].includes(card.team) 
-            ? card.image.color_secondary 
-            : card.image.color_primary) || 'rgb(0, 0, 0)';
+        const color = (['NYM', 'SDP'].includes(team || '') 
+            ? secondaryColor 
+            : primaryColor) || 'rgb(0, 0, 0)';
         
         // Out results get team color background with contrasting text
         if (lowerKey.includes('so') || lowerKey.includes('gb') || 
@@ -93,7 +111,7 @@ export default function CardChart({ card, cellClassName }: CardChartProps) {
     };
 
     return (
-        <div className="inline-flex rounded-lg overflow-hidden text-xs font-semibold border-2 border-form-element">
+        <div className={`inline-flex rounded-lg overflow-hidden text-xs font-semibold border-2 border-form-element ${className || ''}`}>
             {Object.entries(chartDataToRender).map(([key, value], index) => {
                 const colorInfo = getColorClass(key, index);
                 

@@ -281,7 +281,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
     }
 
     const getBlankPlayerImageName = (): string => {
-        const setName = userShowdownSet.toLowerCase() || '2000';
+        const setName = userShowdownSet.toLowerCase() || '2001';
         const appearance = isDark ? 'dark' : 'light';
         return `/images/blank_players/blankplayer-${setName}-${appearance}.png`;
     };

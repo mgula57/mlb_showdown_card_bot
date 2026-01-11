@@ -31,7 +31,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
-import { FaAddressCard, FaCompass } from "react-icons/fa";
+import { FaAddressCard, FaCompass, FaHome } from "react-icons/fa";
 
 /**
  * Props for the SideMenuItem component
@@ -68,8 +68,8 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
 
     // Determine active state based on current selection
     const selectedPath = selectedItem?.path || '/';
-    // Special case: highlight customs when on root path as fallback behavior
-    const isSelected = selectedPath === item.path || (selectedPath === '/' && item.path === '/customs');
+    // Special case: highlight home when on root path as fallback behavior
+    const isSelected = selectedPath === item.path || (selectedPath === '/' && item.path === '/home');
 
     return (
         <NavLink 
@@ -111,6 +111,11 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
  * integrate with the routing system for active state detection.
  */
 export const sideMenuItems: SideMenuItemType[] = [
+    {
+        text: "Home",
+        icon: FaHome,      // Home icon representing home/exploration
+        path: "/home"
+    },
     {
         text: "Custom",
         icon: FaAddressCard,  // Card/profile icon representing custom card creation

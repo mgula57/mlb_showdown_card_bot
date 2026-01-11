@@ -12,7 +12,7 @@ type CardItemProps = {
     /** Card data to display */
     card?: ShowdownBotCard | null;
     /** Click handler for card selection */
-    onClick: () => void;
+    onClick?: () => void | undefined;
     /** Optional CSS classes for styling */
     className?: string;
     /** Whether this card is currently selected */
@@ -49,6 +49,7 @@ type CardItemProps = {
  */
 export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps) => {
     const { isDark } = useTheme();
+    const isRedacted = card == null;
     
     // Team-specific color handling for better contrast (NYM, SDP use secondary first)
     const primaryColor = (['NYM', 'SDP'].includes(card?.team || 'N/A') 
@@ -111,7 +112,8 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                 flex flex-col p-2 gap-1
                 bg-secondary
                 rounded-xl
-                border-3 cursor-pointer
+                border-3
+                ${onClick ? 'cursor-pointer' : ''}
                 ${borderSettings}
             `}
             onClick={onClick}
@@ -119,12 +121,19 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
             {/* Header: Command Rating + Player Info */}
             <div className="flex flex-row gap-2 items-center text-nowrap">
                 {/* Command rating with themed background */}
-                <CardCommand card={card} className="w-9 h-9 shrink-0" />
+                <CardCommand
+                    isPitcher={card?.chart.is_pitcher || false}
+                    primaryColor={primaryColor}
+                    secondaryColor={secondaryColor}
+                    command={card?.chart.command}
+                    team={card?.team}
+                    className="w-9 h-9 shrink-0" 
+                />
 
-                <div className="flex flex-col overflow-x-scroll scrollbar-hide">
+                <div className="flex flex-col gap-0.5 overflow-x-scroll scrollbar-hide">
                     {/* Player name, year/team badge, and special ability icons */}
                     <div className="flex flex-row gap-1 items-center">
-                        <div className="font-black">{card?.name.toUpperCase()}</div>
+                        <div className={`font-black ${isRedacted ? 'redacted text-sm' : ''}`}>{card?.name.toUpperCase() || 'REDACTED NAME'}</div>
 
                         {card?.is_errata && (
                             <div 
@@ -182,20 +191,33 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                     {/* Point value and player-specific metadata */}
                     <div className="flex flex-row gap-1.5 text-[11px] text-secondary tracking-tight items-center">
                         <div className="px-1 rounded-md font-semibold" style={colorStylingSecondary}>
-                            {`${card?.points} PTS`}
+                            {isRedacted ? (
+                                <span className="text-transparent">REDACTED</span>
+                            ) : ( 
+                                <>
+                                    {`${card?.points} PTS`}
+                                </>
+                            )}
                         </div>
                         {card?.points_estimated && card?.points && (
                             renderPointsComparison(card.points_estimated, card.points_diff_estimated_vs_actual || 0)
                         )}
                         {metadataArray.map((meta, index) => (
-                            <div key={index}>{meta}</div>
+                            <div key={index} className={`${isRedacted ? 'redacted' : ''}`}>{meta}</div>
                         ))}
                     </div>
                 </div>
             </div>
 
             {/* Interactive chart showing dice roll outcomes */}
-            {card && <CardChart card={card} cellClassName="min-w-8" />}
+            <CardChart
+                chartRanges={card?.chart.ranges || {}} 
+                showdownSet={card?.set || '2001'}
+                primaryColor={card?.image.color_primary || ''}
+                secondaryColor={card?.image.color_secondary || ''}
+                team={card?.team}
+                cellClassName="min-w-8" 
+            />
 
             {/* Bottom bar */}
             <div className="flex flex-row justify-between items-center gap-x-1">

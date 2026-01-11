@@ -32,6 +32,7 @@ import AppLayout from "./components/AppLayout";
 import CustomCardBuilder from "./components/customs/CustomCardBuilder";
 import { SiteSettingsProvider } from "./components/shared/SiteSettingsContext";
 import Explore from "./components/explore/explore";
+import Home from "./components/Home";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -61,11 +62,16 @@ const AppContent = () => {
 
     return (
         <AppLayout>
-            {/* Custom Card Builder - Visible on root and customs routes */}
-            <div className={['/customs', '/'].includes(location.pathname) ? 'block' : 'hidden'}>
+            {/* Home Page - Visible on root route */}
+            <div className={location.pathname === '/home' || location.pathname === '/' ? 'block' : 'hidden'}>
+                <Home />
+            </div>
+
+            {/* Custom Card Builder - Visible on customs route */}
+            <div className={location.pathname === '/customs' ? 'block' : 'hidden'}>
                 <CustomCardBuilder isHidden={location.pathname !== '/customs'} />
             </div>
-            
+
             {/* Card Explorer - Visible on explore route */}
             <div className={location.pathname === '/explore' ? 'block' : 'hidden'}>
                 <Explore />

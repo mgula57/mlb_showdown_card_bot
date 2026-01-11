@@ -261,10 +261,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         {!isSideMenuOpen && <ShowdownBotLogo className="max-w-48 hidden md:block" />}
                         
                         {/* Page Title with Icon - Route-based content */}
-                        <h1 className="hidden sm:flex sm:flex-row text-xl font-semibold text-secondary items-center">
-                            {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-5 h-5 mr-2" />}
-                            {selectedMenuItem?.text || 'Custom'}
-                        </h1>
+                        {(selectedMenuItem?.text || 'Home') !== 'Home' && (
+                            <h1 className="hidden sm:flex sm:flex-row text-xl font-semibold text-secondary items-center">
+                                {selectedMenuItem?.icon && <selectedMenuItem.icon className="w-5 h-5 mr-2" />}
+                                {selectedMenuItem?.text || 'Home'}
+                            </h1>
+                        )}
                     </div>
 
                     {/* Right Section: Showdown Set Selector */}

@@ -39,10 +39,10 @@
     --showdown-red: #d04e47;
     --showdown-gray: #a0a0a5;
 
-    --background-primary: #2d2d32;
-    --background-secondary: #232526;
-    --background-tertiary: #3a3a3f;
-    --background-quaternary: #434347;
+    --background-primary: #18191c;
+    --background-secondary: #202225;
+    --background-tertiary: #2f3136;
+    --background-quaternary: #36393f;
 
     --divider: #444444;
 
@@ -130,6 +130,15 @@
     .scrollbar-hide {
         -ms-overflow-style: none;  /* Internet Explorer 10+ */
         scrollbar-width: none;  /* Firefox */
+    }
+
+    /* Redacted */
+    .redacted {
+        /* @apply bg-gray-300 text-transparent rounded select-none; */
+        background-color: var(--background-tertiary);
+        color: transparent;
+        border-radius: 0.50rem; /* rounded */
+        user-select: none;
     }
 
 }
