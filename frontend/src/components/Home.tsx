@@ -27,10 +27,7 @@ export default function Home() {
             className={`
                 px-8
                 space-y-8
-                ${isDark 
-                    ? 'bg-gradient-to-br from-black via-neutral-900 to-neutral-950' 
-                    : 'bg-gradient-to-br from-white via-neutral-100 to-neutral-200'
-                }
+                gradient-page
             `}>
 
             {/* Hero Section */}
@@ -49,7 +46,7 @@ export default function Home() {
                     </p>
                     <form className={`rounded-2xl p-6 flex flex-col gap-4 w-full ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <PlayerSearchInput label='Search for a player' value={searchQuery} onChange={(e) => {}} />
-                        <CardItem card={selectedCard} onClick={() => {}}/>
+                        <CardItem card={selectedCard}/>
                     </form>
                     <div className="flex gap-4 mt-2">
                         <Link to="/customs" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow hover:bg-neutral-200 transition ${isDark ? 'bg-white text-black' : 'bg-black text-white'}`}>

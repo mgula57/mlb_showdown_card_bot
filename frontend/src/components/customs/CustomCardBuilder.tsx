@@ -31,7 +31,7 @@ import FormDropdown from './FormDropdown';
 import FormEnabler from './FormEnabler';
 import { PlayerSearchInput } from './PlayerSearchInput';
 import type { SelectOption } from '../shared/CustomSelect';
-import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { useSiteSettings, useTheme } from '../shared/SiteSettingsContext';
 
 import { CardDetail } from '../cards/CardDetail';
 
@@ -177,6 +177,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     // Card States
     const { userShowdownSet } = useSiteSettings();
+    const { isDark } = useTheme();
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isProcessingCard, setIsProcessingCard] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -1380,12 +1381,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 <section 
                     id="preview-section"
                     ref={previewSectionRef}
-                    className="
+                    className={`
                         w-full @2xl:flex-grow
                         pb-64 @2xl:pb-0
                         scroll-mt-12
                         @2xl:scroll-mt-0
-                    "
+                        gradient-page
+                    `}
                 >
                     <CardDetail 
                         showdownBotCardData={showdownBotCardData} 

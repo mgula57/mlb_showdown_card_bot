@@ -184,6 +184,7 @@ export function Modal({ children, onClose, title, size = 'lg', disableCloseButto
                     overflow-y-auto
                     cursor-default
                     relative
+                    border-1 border-form-element
                 `}
             >
                 {/* Conditional header with title and close button */}

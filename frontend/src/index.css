@@ -6,6 +6,7 @@
     --tertiary: #3c3c3c;
     --quaternary: #5a5a5a;
 
+
     --showdown-blue: #1a3b5f;
     --showdown-red: #9a362f;
     --showdown-gray: #6e6e73;
@@ -15,6 +16,7 @@
     --background-tertiary: #e8ebed;
     --background-quaternary: #dfdede;
     --divider: #e0e0e0;
+    --background-gradient: linear-gradient(to bottom right, rgb(216, 217, 220), rgb(255 255 255), rgb(226, 222, 222));
 
     --table-header: #dbdbdb;
     --table-banding: #eeecec;
@@ -43,6 +45,7 @@
     --background-secondary: #202225;
     --background-tertiary: #2f3136;
     --background-quaternary: #36393f;
+    --background-gradient: linear-gradient(to bottom right, rgb(14, 14, 14), rgb(33, 33, 37), rgb(28 25 23));
 
     --divider: #444444;
 
@@ -76,6 +79,9 @@
 
     .bg-tertiary {
         background-color: var(--background-tertiary);
+    }
+    .gradient-page {
+        background-image: var(--background-gradient);
     }
 
     .text-primary {
