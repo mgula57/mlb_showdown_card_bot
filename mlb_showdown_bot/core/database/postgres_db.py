@@ -2070,7 +2070,7 @@ class PostgresDB:
         columns = ', '.join(column_list)
         placeholders = ', '.join(['%s'] * len(column_list))
         values = list(card_submission.values())
-        sql = f"INSERT INTO log_custom_card_bot ({columns}) VALUES ({placeholders})"
+        sql = f"INSERT INTO internal.log_custom_card_bot ({columns}) VALUES ({placeholders})"
         try:
             with self.connection.cursor() as cur:
                 cur.execute(sql, values)

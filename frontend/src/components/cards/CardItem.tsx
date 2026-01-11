@@ -70,7 +70,7 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
     // Dynamic border styling based on selection state and theme
     const borderSettings = isSelected 
         ? (isDark ? 'border-3' : 'border-3 shadow-xl hover:shadow-2xl') 
-        : (isDark ? 'border-white/10 hover:border-white/50' : 'shadow-xl hover:shadow-2xl border-transparent hover:border-black/10');
+        : (isDark ? 'border-white/10 hover:border-white/50' : 'shadow-xl hover:shadow-2xl border-gray-200 hover:border-black/40');
 
     /**
      * Player-type specific metadata display
