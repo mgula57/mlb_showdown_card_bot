@@ -1617,7 +1617,6 @@ class PostgresDB:
                 and coalesce(player_season_stats.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
                 and player_season_stats.team_id = exact_img_match.team_id
                 and exact_img_match.is_postseason = FALSE
-            where player_season_stats.year >= 2025
         '''
         indexes = [
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_card_bot_card_set_version ON card_bot (id, showdown_set, showdown_bot_version);"
