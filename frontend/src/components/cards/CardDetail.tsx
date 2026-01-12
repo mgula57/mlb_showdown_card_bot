@@ -25,7 +25,7 @@ import { TablePointsBreakdown } from './TablePointsBreakdown';
 import { TableOpponentBreakdown } from './TableOpponentBreakdown';
 
 // API integration
-import { generateCardImage } from '../../api/showdownBotCard';
+import { generateCardImage, fetchCardById } from '../../api/showdownBotCard';
 
 // Performance visualization
 import ChartPlayerPointsTrend from './ChartPlayerPointsTrend';
@@ -38,7 +38,9 @@ import { GameBoxscore } from '../games/GameBoxscore';
  */
 type CardDetailProps = {
     /** Complete card data with statistics and analysis */
-    showdownBotCardData: ShowdownBotCardAPIResponse | null;
+    showdownBotCardData?: ShowdownBotCardAPIResponse | null;
+    /** Card Id is passed in when loading from search */
+    cardId?: string;
     /** Whether to hide trend graphs (optional for mobile/compact views) */
     hideTrendGraphs?: boolean;
     /** Loading state for the main card data */
@@ -79,7 +81,7 @@ type CardDetailProps = {
  * />
  * ```
  */
-export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false, context='custom' }: CardDetailProps) {
+export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false, context='custom' }: CardDetailProps) {
 
     // =============================================================================
     // MARK: STATES
@@ -89,7 +91,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
      * Internal card data state for handling dynamic updates
      * Allows component to maintain its own copy for features like image regeneration
      */
-    const [internalCardData, setInternalCardData] = useState<ShowdownBotCardAPIResponse | null>(showdownBotCardData);
+    const [internalCardData, setInternalCardData] = useState<ShowdownBotCardAPIResponse | null | undefined>(showdownBotCardData);
     
     // Use internal state when available, fallback to prop
     const activeCardData = internalCardData || showdownBotCardData;
@@ -104,6 +106,25 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
      * to handle local updates (like image regeneration)
      */
     useEffect(() => {
+
+        // Check for empty data but populated ID
+        const cardData = showdownBotCardData?.card || null;
+        if (!cardData && cardId) {
+            setIsLoadingFromId(true);
+            fetchCardById(cardId)
+                .then((data) => {
+                    console.log("Fetched single card data by ID:", data);
+                    if (data) {
+                        setInternalCardData(data as ShowdownBotCardAPIResponse);
+                    }
+                }).catch((error) => {
+                    console.error("Error fetching card by ID:", error);
+                }).finally(() => {
+                    setIsLoadingFromId(false);
+                });
+            return;
+        }
+
         // Skip if no new data
         if (!showdownBotCardData) {
             return;
@@ -118,18 +139,18 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
         ) {
             return;
         }
-
         setInternalCardData(showdownBotCardData);
-    }, [showdownBotCardData]);
+    }, [showdownBotCardData, cardId]);
 
     // Breakdown State
     const [breakdownType, setBreakdownType] = useState<string>("Stats");
 
     // Image Generation State
     const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
+    const [isLoadingFromId, setIsLoadingFromId] = useState<boolean>(false);
 
     // Mark if isLoading or isGeneratingImage
-    const isLoadingOverall = isLoading || isGeneratingImage;
+    const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId;
 
     // Game
     const showGameBoxscore = (): boolean => {

@@ -102,7 +102,7 @@ class ShowdownBotSet(BaseModel):
         db = PostgresDB(is_archive=True)
         
         # Get all players from the season
-        all_players = db.fetch_card_bot(
+        all_players = db.fetch_cards_bot(
             {'year': [str(y) for y in self.years], 'showdown_set': self.showdown_sets, 'limit': 2000},
         )
 

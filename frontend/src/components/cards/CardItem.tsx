@@ -1,4 +1,5 @@
 import type { ShowdownBotCard } from "../../api/showdownBotCard";
+import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import CardChart from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
 import { getContrastColor } from "../shared/Color";
@@ -9,8 +10,52 @@ import { FaStar, FaBook, FaScrewdriverWrench } from 'react-icons/fa6';
  * Props for the CardItem component
  */
 type CardItemProps = {
-    /** Card data to display */
-    card?: ShowdownBotCard | null;
+    /** Card Id */
+    cardId?: string;
+
+    // Name and Year
+    cardName?: string;
+    cardYear?: string;
+    cardTeam?: string;
+
+    // Set
+    cardSet?: string;
+    cardExpansion?: string;
+    cardSetNumber?: number;
+
+    // Points
+    cardPoints?: number;
+    cardPointsEstimated?: number;
+    cardPointsDiffEstimatedVsActual?: number;
+
+    // Command and Outs
+    cardCommand?: number;
+    cardOuts?: number;
+
+    // Card Metadata
+    cardIsPitcher?: boolean;
+    cardSpeed?: number;
+    cardHand?: string;
+    cardIp?: number;
+    cardPositionsAndDefenseString?: string;
+
+    // Awards and Stats
+    cardIcons?: string[];
+    cardAwardList?: string[];
+    cardStatHighlightsList?: string[];
+
+    // Image
+    cardEdition?: string;
+    cardPrimaryColor?: string;
+    cardSecondaryColor?: string;
+
+    // Chart
+    cardChartRanges?: Record<string, string>;
+
+    // Misc
+    cardIsErrata?: boolean;
+    cardNotes?: string;
+
     /** Click handler for card selection */
     onClick?: () => void | undefined;
     /** Optional CSS classes for styling */
@@ -47,22 +92,34 @@ type CardItemProps = {
  * />
  * ```
  */
-export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps) => {
+export const CardItem = ({ 
+    cardId, cardTeam, cardName, cardYear, 
+    cardCommand, cardIsPitcher,
+    cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual,
+    cardSpeed, cardHand, cardIp, cardPositionsAndDefenseString,
+    cardIsErrata, cardNotes,
+    cardPrimaryColor, cardSecondaryColor, cardEdition,
+    cardSet, cardExpansion, cardSetNumber,
+    cardIcons, cardAwardList, cardStatHighlightsList,
+    cardChartRanges,
+    onClick, className, isSelected 
+}: CardItemProps) => {
+
     const { isDark } = useTheme();
-    const isRedacted = card == null;
+    const isRedacted = cardId === null || cardId === undefined;
     
     // Team-specific color handling for better contrast (NYM, SDP use secondary first)
-    const primaryColor = (['NYM', 'SDP'].includes(card?.team || 'N/A') 
-        ? card?.image.color_secondary 
-        : card?.image.color_primary) || 'rgb(0, 0, 0)';
+    const primaryColor = (['NYM', 'SDP'].includes(cardTeam || 'N/A') 
+        ? cardSecondaryColor
+        : cardPrimaryColor) || 'rgb(0, 0, 0)';
     const colorStylingPrimary = { 
         backgroundColor: primaryColor, 
         color: getContrastColor(primaryColor) 
     };
     
-    const secondaryColor = (['NYM', 'SDP'].includes(card?.team || 'N/A') 
-        ? card?.image.color_primary 
-        : card?.image.color_secondary) || 'rgb(0, 0, 0)';
+    const secondaryColor = (['NYM', 'SDP'].includes(cardTeam || 'N/A') 
+        ? cardPrimaryColor
+        : cardSecondaryColor) || 'rgb(0, 0, 0)';
     const colorStylingSecondary = { 
         backgroundColor: secondaryColor, 
         color: getContrastColor(secondaryColor) 
@@ -79,14 +136,14 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
      * Hitters show: Speed, Batting handedness, Defensive positions
      * Pitchers show: Positions, Pitching handedness, Innings pitched
      */
-    const metadataArray: (string | undefined)[] = card?.player_type === 'Hitter' ? [
-        `SPD ${card?.speed.speed}`,
-        `BATS ${card?.hand}`,
-        card?.positions_and_defense_string,
+    const metadataArray: (string | undefined)[] = cardIsPitcher ? [
+        cardPositionsAndDefenseString,
+        `${cardHand}HP`, // HP = Handed Pitcher
+        `IP ${cardIp}`,
     ] : [
-        card?.positions_and_defense_string,
-        `${card?.hand}HP`, // HP = Handed Pitcher
-        `IP ${card?.ip}`
+        `SPD ${cardSpeed}`,
+        `BATS ${cardHand}`,
+        cardPositionsAndDefenseString,
     ];
 
     const renderPointsComparison = (estPoints:number, diffPoints:number) => {
@@ -122,20 +179,20 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
             <div className="flex flex-row gap-2 items-center text-nowrap">
                 {/* Command rating with themed background */}
                 <CardCommand
-                    isPitcher={card?.chart.is_pitcher || false}
+                    isPitcher={cardIsPitcher || false}
                     primaryColor={primaryColor}
                     secondaryColor={secondaryColor}
-                    command={card?.chart.command}
-                    team={card?.team}
+                    command={cardCommand}
+                    team={cardTeam}
                     className="w-9 h-9 shrink-0" 
                 />
 
                 <div className="flex flex-col gap-0.5 overflow-x-scroll scrollbar-hide">
                     {/* Player name, year/team badge, and special ability icons */}
                     <div className="flex flex-row gap-1 items-center">
-                        <div className={`font-black ${isRedacted ? 'redacted text-sm' : ''}`}>{card?.name.toUpperCase() || 'REDACTED NAME'}</div>
+                        <div className={`font-black ${isRedacted ? 'redacted text-sm' : ''}`}>{cardName?.toUpperCase() || 'REDACTED NAME'}</div>
 
-                        {card?.is_errata && (
+                        {cardIsErrata && (
                             <div 
                                 className="
                                     text-[9px] flex
@@ -151,29 +208,29 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                             </div>
                         )}
 
-                        {card?.notes && (
-                            <FaBook className="inline-block w-3 h-3 text-secondary shrink-0" title={card.notes} />
+                        {cardNotes && (
+                            <FaBook className="inline-block w-3 h-3 text-secondary shrink-0" title={cardNotes} />
                         )}
                         
                         {/* Year and team badge with team colors */}
                         <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
-                            {card?.stats_period.year} {card?.team.toUpperCase()}
+                            {cardYear} {cardTeam?.toUpperCase()}
                         </div>
 
                         {/* Edition */}
-                        {(card?.image.edition && card?.image.edition !== 'NONE') && (
+                        {(cardEdition && cardEdition !== 'NONE') && (
                             <>
-                                {card?.image.edition === 'ASG' ? (
+                                {cardEdition === 'ASG' ? (
                                     <FaStar className="inline-block w-4 h-4 text-yellow-400 shrink-0" />
                                 ) : (
-                                    <img src={`/images/card/edition-${card?.image.edition?.toLowerCase()}.png`} className="w-6 h-6 object-contain object-center" alt="Edition" />
+                                    <img src={`/images/card/edition-${cardEdition.toLowerCase()}.png`} className="w-6 h-6 object-contain object-center" alt="Edition" />
                                 )}
                                 
                             </>
                         )}
                         
                         {/* Special ability icons (e.g., "R" for Rookie, "S" for Silver Slugger) */}
-                        {card?.icons.map((icon, index) => (
+                        {cardIcons?.map((icon, index) => (
                             <div 
                                 key={index} 
                                 className="
@@ -195,12 +252,12 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                                 <span className="text-transparent">REDACTED</span>
                             ) : ( 
                                 <>
-                                    {`${card?.points} PTS`}
+                                    {`${cardPoints} PTS`}
                                 </>
                             )}
                         </div>
-                        {card?.points_estimated && card?.points && (
-                            renderPointsComparison(card.points_estimated, card.points_diff_estimated_vs_actual || 0)
+                        {cardPointsEstimated && cardPoints && (
+                            renderPointsComparison(cardPointsEstimated, cardPointsDiffEstimatedVsActual || 0)
                         )}
                         {metadataArray.map((meta, index) => (
                             <div key={index} className={`${isRedacted ? 'redacted' : ''}`}>{meta}</div>
@@ -211,11 +268,11 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
 
             {/* Interactive chart showing dice roll outcomes */}
             <CardChart
-                chartRanges={card?.chart.ranges || {}} 
-                showdownSet={card?.set || '2001'}
-                primaryColor={card?.image.color_primary || ''}
-                secondaryColor={card?.image.color_secondary || ''}
-                team={card?.team}
+                chartRanges={cardChartRanges || {}} 
+                showdownSet={cardSet || '2001'}
+                primaryColor={colorStylingPrimary.backgroundColor}
+                secondaryColor={colorStylingSecondary.backgroundColor}
+                team={cardTeam}
                 cellClassName="min-w-8" 
             />
 
@@ -225,25 +282,18 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                 {/* Statistical highlights ribbon */}
                 <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
                     
-                    {/* AWARDS: OLD WAY */}
-                    {card?.stats.award_summary?.length > 0 && card?.image.award_summary_list == null && (
-                        <div className="font-semibold underline">
-                            {card?.stats.award_summary}
-                        </div>
-                    )}
-
                     {/* AWARDS: NEW WAY */}
-                    {card?.image.award_summary_list && card?.image.award_summary_list?.length > 0 && (
+                    {cardAwardList && cardAwardList.length > 0 && (
                         <div className="font-semibold underline">
-                            {card?.image.award_summary_list?.map((stat, index) => (
+                            {cardAwardList.map((stat, index) => (
                                 <span key={index} className="font-semibold underline">
-                                    {stat}{index < (card?.image.award_summary_list?.length || 0) - 1 ? ',' : ''}
+                                    {stat}{index < (cardAwardList.length || 0) - 1 ? ',' : ''}
                                 </span>
                             ))}
                         </div>
                     )}
                     
-                    {card?.image.stat_highlights_list?.map((stat, index) => (
+                    {cardStatHighlightsList?.map((stat, index) => (
                         <div key={index} className="">
                             {stat}
                         </div>
@@ -259,29 +309,131 @@ export const CardItem = ({ card, onClick, className, isSelected }: CardItemProps
                         px-1 rounded-md font-bold shadow-md
                     "
                     style={{
-                        minWidth: card?.image.expansion && ['TD', 'PR', 'ASG'].includes(card?.image.expansion) ? '75px' : undefined
+                        minWidth: cardExpansion && ['TD', 'PR', 'ASG'].includes(cardExpansion) ? '75px' : undefined
                     }}
                 >
-                    {card?.image.set_number && (
-                        <span className="font-medium text-secondary">{String(card?.image.set_number).padStart(3, '0')}</span>
+                    {cardSetNumber && (
+                        <span className="font-medium text-secondary">{String(cardSetNumber).padStart(3, '0')}</span>
                     )}
-                    {card?.image.expansion && ['TD', 'PR'].includes(card?.image.expansion) && (
+                    {cardExpansion && ['TD', 'PR'].includes(cardExpansion) && (
                         <img 
-                            src={`/images/card/expansion-${card?.image.expansion.toLowerCase()}.png`} 
+                            src={`/images/card/expansion-${cardExpansion.toLowerCase()}.png`} 
                             className="inline-block w-5 h-4 object-contain object-center flex-shrink-0"
                             alt="Expansion"
                         />
                     )}
-                    {card?.image.expansion && card?.image.expansion === 'ASG' && (
+                    {cardExpansion && cardExpansion === 'ASG' && (
                         <FaStar className="inline-block w-4 h-3 text-yellow-400" />
                     )}
-                    {['PM'].includes(card?.image.expansion || '') && (
+                    {['PM'].includes(cardExpansion || '') && (
                         <span>PROMO</span>
                     )}
-                    {card?.set}
+                    {cardSet}
                 </div>
 
             </div>
         </div>
+    );
+}
+
+/**
+ * Props for the CardItem component
+ */
+type CardItemFromCardProps = {
+    /** Card **/
+    card?: ShowdownBotCard | null;
+
+    /** Click handler for card selection */
+    onClick?: () => void | undefined;
+    /** Optional CSS classes for styling */
+    className?: string;
+    /** Whether this card is currently selected */
+    isSelected?: boolean;
+};
+
+export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardItemFromCardProps) => {
+    return (
+        <CardItem
+            cardId={card === undefined || card === null ? undefined : `${card.bref_id}-${card.stats_period.year}-${card.set}`}
+            cardTeam={card?.team}
+            cardName={card?.name}
+            cardYear={card?.stats_period.year}
+            cardCommand={card?.chart.command}
+            cardOuts={card?.chart.outs}
+            cardIsPitcher={card?.chart.is_pitcher}
+            cardPoints={card?.points}
+            cardPointsEstimated={card?.points_estimated || undefined}
+            cardPointsDiffEstimatedVsActual={card?.points_diff_estimated_vs_actual || undefined}
+            cardSpeed={card?.speed.speed || undefined}
+            cardHand={card?.hand || undefined}
+            cardIp={card?.ip || undefined}
+            cardPositionsAndDefenseString={card?.positions_and_defense_string || undefined}
+            cardIsErrata={card?.is_errata || false}
+            cardNotes={card?.notes || undefined}
+            cardPrimaryColor={card?.image.color_primary || undefined}
+            cardSecondaryColor={card?.image.color_secondary || undefined}
+            cardEdition={card?.image.edition || undefined}
+            cardSet={card?.set}
+            cardExpansion={card?.image.expansion || undefined}
+            cardSetNumber={card?.image.set_number || undefined}
+            cardIcons={card?.icons || []}
+            cardAwardList={card?.image.award_summary_list || []}
+            cardStatHighlightsList={card?.image.stat_highlights_list || []}
+            cardChartRanges={card?.chart.ranges || {}}
+            onClick={onClick}
+            className={className}
+            isSelected={isSelected}
+        />
+    );
+}
+
+/**
+ * Props for the CardItem component
+ */
+type CardItemFromCardDatabaseRecordProps = {
+    /** Card **/
+    card?: CardDatabaseRecord;
+
+    /** Click handler for card selection */
+    onClick?: () => void | undefined;
+    /** Optional CSS classes for styling */
+    className?: string;
+    /** Whether this card is currently selected */
+    isSelected?: boolean;
+};
+
+export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected }: CardItemFromCardDatabaseRecordProps) => {
+    return (
+        <CardItem
+            cardId={card?.card_id}
+            cardTeam={card?.team}
+            cardName={card?.name}
+            cardYear={card?.card_year}
+            cardCommand={card?.command}
+            cardOuts={card?.outs}
+            cardIsPitcher={card?.is_pitcher}
+            cardPoints={card?.points}
+            cardPointsEstimated={card?.points_estimated || undefined}
+            cardPointsDiffEstimatedVsActual={card?.points_diff_estimated_vs_actual || undefined}
+            cardSpeed={card?.speed || undefined}
+            cardHand={card?.hand || undefined}
+            cardIp={card?.ip || undefined}
+            cardPositionsAndDefenseString={card?.positions_and_defense_string || undefined}
+            cardIsErrata={card?.is_errata || false}
+            cardNotes={card?.notes || undefined}
+            cardPrimaryColor={card?.color_primary || undefined}
+            cardSecondaryColor={card?.color_secondary || undefined}
+            cardEdition={card?.edition || undefined}
+            cardSet={card?.showdown_set}
+            cardExpansion={card?.expansion || undefined}
+            cardSetNumber={card?.set_number ? parseInt(card?.set_number) : undefined}
+            cardIcons={card?.icons_list || []}
+            cardAwardList={card?.awards_list || []}
+            cardStatHighlightsList={card?.stat_highlights_list || []}
+            cardChartRanges={card?.chart_ranges || {}}
+            onClick={onClick}
+            className={className}
+            isSelected={isSelected}
+        />
     );
 }

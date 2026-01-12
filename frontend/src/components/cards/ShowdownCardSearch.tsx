@@ -36,7 +36,7 @@ import MultiSelect from "../shared/MultiSelect";
 import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
 import type { SelectOption } from '../shared/CustomSelect';
-import { CardItem } from "./CardItem";
+import { CardItemFromCardDatabaseRecord, CardItemFromCard } from "./CardItem";
 import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
 
@@ -711,6 +711,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
     // Handle row selection
     const handleRowClick = (card: CardDatabaseRecord) => {
+        console.log("Card clicked:", card);
         if (card.id === selectedCard?.id) {
             // If clicking the same card, close the side menu (if applicable)
             handleCloseModal();
@@ -971,11 +972,19 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                 data-card-id={cardRecord.id}
                                 ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
                             >
-                                <CardItem
-                                    card={cardRecord.card_data}
-                                    onClick={() => handleRowClick(cardRecord)}
-                                    isSelected={selectedCard?.id === cardRecord.id}
-                                />
+                                {source === CardSource.WOTC && (
+                                    <CardItemFromCard
+                                        card={cardRecord.card_data}
+                                        onClick={() => handleRowClick(cardRecord)}
+                                        isSelected={selectedCard?.id === cardRecord.id}
+                                    />
+                                )}
+                                {source === CardSource.BOT && (
+                                    <CardItemFromCardDatabaseRecord
+                                        card={cardRecord}
+                                        onClick={() => handleRowClick(cardRecord)}
+                                    />
+                                )}
                             </div>
 
                         ))}
@@ -1032,6 +1041,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         <div className="flex-1 overflow-y-auto min-h-0">
                             <CardDetail
                                 showdownBotCardData={{ card: selectedCard?.card_data } as ShowdownBotCardAPIResponse}
+                                cardId={selectedCard?.card_id}
                                 hideTrendGraphs={true}
                                 context='explore'
                             />
@@ -1058,7 +1068,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
             {showPlayerDetailModal && selectedCard && (
                 <Modal onClose={handleCloseModal}>
                     <CardDetail
-                        showdownBotCardData={{ card: selectedCard.card_data } as ShowdownBotCardAPIResponse}
+                        cardId={selectedCard?.card_id || ""}
                         hideTrendGraphs={true}
                         context='explore'
                     />

@@ -151,6 +151,21 @@ export async function generateCardImage(card: ShowdownBotCardAPIResponse): Promi
     return res.json();
 }
 
+export async function fetchCardById(cardId: string): Promise<ShowdownBotCardAPIResponse> {
+    const res = await fetch(`${API_BASE}/cards/card?id=${encodeURIComponent(cardId)}`, {
+        method: "GET",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(`Fetch card failed: ${res.status} ${res.statusText}`);
+    }
+
+    return res.json();
+}
+
 // =============================================================================
 // MARK: - API RESPONSE TYPES
 // =============================================================================

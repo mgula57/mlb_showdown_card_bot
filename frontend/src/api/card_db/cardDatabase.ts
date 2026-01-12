@@ -37,25 +37,69 @@ export type CardDatabaseRecord = {
     team_games_played_dict?: Record<string, number> | null;
     team_override?: string | null;
 
-    // Card
-    card_data: ShowdownBotCard | null; // Full card data, nullable if not yet generated
+    // Only exists in WOTC records
+    card_data?: ShowdownBotCard | null;
 
-    // From Card Data
+    // Identifiers
+    card_id: string;
+    card_year: string;
     showdown_set: string;
+    showdown_bot_version: string;
+
+    // Set
+    expansion?: string | null;
+    edition?: string | null;
+    set_number?: string | null;
+
+    // Points
     points: number;
-    command: number;
-    outs: number;
+    points_estimated: number;
+    points_diff_estimated_vs_actual: number;
+
+    // Team
     nationality: string;
+    organization: string;
+    league: string;
     team: string;
+    color_primary?: string | null;
+    color_secondary?: string | null;
+
+    // Metadata
+    positions_and_defense: any; // JSON object
     positions_and_defense_string: string;
+    positions_list: string[];
     ip?: number | null;
     speed?: number | null;
+    hand?: string | null;
     speed_letter?: string | null;
     speed_full?: string | null;
     speed_or_ip?: number | null;
+    icons_list: string[];
 
     // Stats
-    awards_list?: string[] | null;
+    awards_list: string[];
+    is_hof: boolean;
+    is_small_sample_size: boolean;
+    stat_highlights_list: any; // JSON array
+
+    // Chart
+    command: number;
+    outs: number;
+    is_pitcher: boolean;
+    is_chart_outlier: boolean;
+    chart_ranges: any; // JSON object
+    chart_values: any; // JSON object
+
+    // Card Misc
+    is_errata: boolean;
+    notes?: string | null;
+
+    // Auto Images
+    image_match_type: 'exact' | 'team match' | 'year match' | 'no match';
+    image_ids?: string[] | null;
+
+    // Updated
+    updated_at: string;
 
     // Error Message
     error?: string | null;
@@ -99,7 +143,7 @@ export interface TeamHierarchyRecord {
  */
 export async function fetchCardData(source: CardSource, payload: Record<string, any>) : Promise<CardDatabaseRecord[]> {
 
-    const res = await fetch(`${API_BASE}/cards/data`, {
+    const res = await fetch(`${API_BASE}/cards/search`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',

@@ -587,17 +587,34 @@ class PostgresDB:
 # ------------------------------------------------------------------------
 # EXPLORE
 # ------------------------------------------------------------------------
+    def fetch_single_card(self, card_id: str) -> Optional[ShowdownPlayerCard]:
+        """Fetch a single explore data record from the database by card ID."""
+        
+        query = sql.SQL("""
+            SELECT *
+            FROM internal.dim_card
+            WHERE id = %s
+            LIMIT 1
+        """)
+        raw_data = self.execute_query(query=query, filter_values=(card_id,))
+        if len(raw_data) == 0:
+            return None
+        
+        if 'card_data' not in raw_data[0]:
+            return None
+        
+        return ShowdownPlayerCard(**raw_data[0].get('card_data'))
 
-    def fetch_card_bot(self, filters: dict = {}) -> list[ExploreDataRecord]:
+    def fetch_cards_bot(self, filters: dict = {}) -> list[ExploreDataRecord]:
         """Fetch all explore data from the database with support for lists and min/max filtering."""
 
-        raw_data = self.fetch_card_data(filters=filters)
+        raw_data = self.fetch_card_list(filters=filters)
         if raw_data is None:
             return []
 
         return [ExploreDataRecord(**row) for row in raw_data]
 
-    def fetch_card_data(self, filters: dict = {}) -> list[dict]:
+    def fetch_card_list(self, filters: dict = {}) -> list[dict]:
         """Fetch all card data from the database with support for lists and min/max filtering."""
 
         if not self.connection:
@@ -895,6 +912,7 @@ class PostgresDB:
             # CREATE TABLE IF NOT EXISTS
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS internal.dim_card (
+                    id character varying(100) NOT NULL PRIMARY KEY,
                     player_id character varying(100) NOT NULL,
                     showdown_set character varying(20) NOT NULL,
                     card_data jsonb,
@@ -908,7 +926,7 @@ class PostgresDB:
 
             # CREATE INDEXES
             cursor.execute("""
-                CREATE UNIQUE INDEX idx_card_data_player_set_version_unique ON internal.dim_card(player_id text_ops,showdown_set text_ops,version text_ops);
+                CREATE UNIQUE INDEX idx_dim_card_id ON internal.dim_card(id);
             """)
             print("  → Ensured dim_card indexes exist.")
 
@@ -1486,17 +1504,31 @@ class PostgresDB:
                 player_season_stats.team_games_played_dict,
                 player_season_stats.team_override,
                 
-                dim_card.card_data,
+                ----- PARSED CARD ATTRIBUTES -----
+
+                -- IDENTIFIERS
+                dim_card.id as card_id,
+                (dim_card.card_data->'stats_period'->>'year')::text as card_year,
                 dim_card.showdown_set,
                 (dim_card.card_data->>'version')::text as showdown_bot_version,
                 
-                
-                -- PARSED CARD ATTRIBUTES 
+                -- SET
+                dim_card.card_data->>'expansion' as expansion,
+                dim_card.card_data->>'edition' as edition,
+                dim_card.card_data->>'set_number' as set_number,
+
+                -- POINTS
                 cast(dim_card.card_data->>'points' as int) as points,
+                cast(dim_card.card_data->>'points_estimated' as int) as points_estimated,
+                cast(dim_card.card_data->>'points_diff_estimated_vs_actual' as int) as points_diff_estimated_vs_actual,
+
+                -- TEAM
                 dim_card.card_data->>'nationality' as nationality,
                 team_years.organization,
                 team_years.league,
                 team_years.team,
+                dim_card.card_data->'image'->>'color_primary' as color_primary,
+                dim_card.card_data->'image'->>'color_secondary' as color_secondary,
                 
                 -- METADATA
                 dim_card.card_data->'positions_and_defense' as positions_and_defense,
@@ -1531,11 +1563,19 @@ class PostgresDB:
                         then player_season_stats.ip < 30 
                     else player_season_stats.pa < 250 
                 end as is_small_sample_size,
+                card_data->'image'->'stat_highlights_list' as stat_highlights_list,
                 
                 -- CHART
                 cast(dim_card.card_data->'chart'->>'command' as int) as command,
                 cast(dim_card.card_data->'chart'->>'outs_full' as int) as outs,
+                cast(dim_card.card_data->'chart'->>'is_pitcher' as boolean) as is_pitcher,
                 cast(dim_card.card_data->'chart'->>'is_command_out_anomaly' as boolean) as is_chart_outlier,
+                card_data->'chart'->'ranges' as chart_ranges,
+                card_data->'chart'->'values' as chart_values,
+
+                -- CARD MISC
+                coalesce(cast(dim_card.card_data->>'is_errata' as boolean), false) as is_errata,
+                dim_card.card_data->>'notes' as notes,
                 
                 -- AUTO IMAGES
                 case
@@ -1577,6 +1617,7 @@ class PostgresDB:
                 and coalesce(player_season_stats.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
                 and player_season_stats.team_id = exact_img_match.team_id
                 and exact_img_match.is_postseason = FALSE
+            where player_season_stats.year >= 2025
         '''
         indexes = [
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_card_bot_card_set_version ON card_bot (id, showdown_set, showdown_bot_version);"
@@ -1590,6 +1631,16 @@ class PostgresDB:
             )
 
         print("Building card_bot materialized view. This may take several minutes...")
+
+        # SET TIMEOUT TO 30 MINUTES FOR LARGE REFRESHES
+        query = "SET statement_timeout = %s;"
+        timeout_ms = '30min'
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(query, (timeout_ms,))
+        except Exception as e:
+            print(f"Error setting statement timeout: {e}")
+
         status = self._build_materialized_view(
             view_name='card_bot',
             sql_logic=sql_logic,
