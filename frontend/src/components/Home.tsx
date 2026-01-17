@@ -63,7 +63,7 @@ export default function Home() {
                         Enter a player and season. We turn real stats into a simulated card for the iconic 20-sided dice game — ready to share, use in your league, or just admire.
                     </p>
                     <form className={`rounded-2xl p-6 flex flex-col gap-4 w-full ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <PlayerSearchInput label='Search for a player' value={searchQuery} onChange={handlePlayerSelect} />
+                        <PlayerSearchInput label='Try it out! Search for a player' value={searchQuery} onChange={handlePlayerSelect} />
                         <CardItemFromCard card={selectedCard || undefined} className={`pointer-events-none ${isLoadingSearchCard ? 'blur-xs' : ''}`} />
                     </form>
                     <div className="flex gap-4 mt-2">
