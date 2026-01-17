@@ -352,6 +352,13 @@ type CardItemFromCardProps = {
 };
 
 export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardItemFromCardProps) => {
+
+    const primaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+                            ? card?.image.color_secondary 
+                            : card?.image.color_primary) || 'rgb(0, 0, 0)';
+    const secondaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+                            ? card?.image.color_primary 
+                            : card?.image.color_secondary) || 'rgb(0, 0, 0)';
     return (
         <CardItem
             cardId={card === undefined || card === null ? undefined : `${card.bref_id}-${card.stats_period.year}-${card.set}`}
@@ -370,8 +377,8 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardI
             cardPositionsAndDefenseString={card?.positions_and_defense_string || undefined}
             cardIsErrata={card?.is_errata || false}
             cardNotes={card?.notes || undefined}
-            cardPrimaryColor={card?.image.color_primary || undefined}
-            cardSecondaryColor={card?.image.color_secondary || undefined}
+            cardPrimaryColor={primaryColor}
+            cardSecondaryColor={secondaryColor}
             cardEdition={card?.image.edition || undefined}
             cardSet={card?.set}
             cardExpansion={card?.image.expansion || undefined}
@@ -403,6 +410,13 @@ type CardItemFromCardDatabaseRecordProps = {
 };
 
 export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected }: CardItemFromCardDatabaseRecordProps) => {
+    const primaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+                            ? card?.color_secondary
+                            : card?.color_primary) || 'rgb(0, 0, 0)';
+    const secondaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+                            ? card?.color_primary 
+                            : card?.color_secondary) || 'rgb(0, 0, 0)';
+    
     return (
         <CardItem
             cardId={card?.card_id}
@@ -421,8 +435,8 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardPositionsAndDefenseString={card?.positions_and_defense_string || undefined}
             cardIsErrata={card?.is_errata || false}
             cardNotes={card?.notes || undefined}
-            cardPrimaryColor={card?.color_primary || undefined}
-            cardSecondaryColor={card?.color_secondary || undefined}
+            cardPrimaryColor={primaryColor}
+            cardSecondaryColor={secondaryColor}
             cardEdition={card?.edition || undefined}
             cardSet={card?.showdown_set}
             cardExpansion={card?.expansion || undefined}
