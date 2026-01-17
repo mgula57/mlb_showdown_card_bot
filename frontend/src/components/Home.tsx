@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 import {
     FaBolt, FaChevronRight, FaShieldAlt,
-    FaUsers, FaFire, FaClock, FaDiceD20
+    FaUsers, FaFire, FaClock, FaDiceD20, FaStar
 } from 'react-icons/fa';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme } from './shared/SiteSettingsContext';
 import { useSiteSettings } from './shared/SiteSettingsContext';
 
@@ -15,6 +15,8 @@ import CardCommand from './cards/card_elements/CardCommand';
 import CardChart from './cards/card_elements/CardChart';
 import type { ShowdownBotCard } from '../api/showdownBotCard';
 import { fetchCardById } from '../api/showdownBotCard';
+import { fetchTotalCardCount, fetchTrendingPlayers } from '../api/card_db/cardDatabase';
+import type { TrendingCardRecord } from '../api/card_db/cardDatabase';
 
 export default function Home() {
 
@@ -22,8 +24,29 @@ export default function Home() {
     const [searchQuery, _] = useState<string>('');
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
     const [isLoadingSearchCard, setIsLoadingSearchCard] = useState<boolean>(false);
+
+    // Trends
+    const [totalCardCount, setTotalCardCount] = useState<number | null>(null);
+    const [trendingPlayers, setTrendingPlayers] = useState<TrendingCardRecord[]>([]);
+
+    // Theme & Settings
     const { isDark } = useTheme();
     const { userShowdownSet } = useSiteSettings();
+
+    // Fetch data on mount
+    useEffect(() => {
+        fetchTotalCardCount().then(count => {
+            setTotalCardCount(count);
+        }).catch(err => {
+            console.error('Failed to fetch total card count:', err);
+        });
+        // Fetch trending players (not used in this component yet)
+        fetchTrendingPlayers(userShowdownSet).then(players => {
+            setTrendingPlayers(players);
+        }).catch(err => {
+            console.error('Failed to fetch trending players:', err);
+        });
+    }, []);
 
     /* 
         * Simulated card lookup based on search query
@@ -39,6 +62,16 @@ export default function Home() {
         });
     };
 
+    const renderBlankExploreCards = () => {
+        return <>
+            <div className='space-y-3'>
+                {[...Array(4)].map((_, index) => (
+                    <div key={index} className={`h-32 rounded-lg ${isDark ? 'bg-neutral-800 animate-pulse' : 'bg-neutral-200 animate-pulse'}`} />
+                ))}
+            </div>
+        </>
+    }
+
     return (
         <div
             className={`
@@ -53,9 +86,15 @@ export default function Home() {
 
                 {/* Left: Text and Actions */}
                 <div className="flex-1 flex flex-col gap-4 items-start">
-                    <span className={`inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold mb-2 ${isDark ? 'bg-white/10' : 'bg-black/10'}`}>
-                        <FaBolt className="text-yellow-400" /> Custom Showdown cards in seconds
-                    </span>
+                    <div className="flex items-center gap-3 mb-2">
+                        <span className={`inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
+                            <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} /> Custom Showdown cards in seconds
+                        </span>
+                        <div className={`inline-flex items-center gap-1 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30' : 'bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300'}`}>
+                            <span className={`font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} ${totalCardCount !== null ? '' : 'redacted animate-pulse'}`}>{totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}</span>
+                            <span className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>cards created</span>
+                        </div>
+                    </div>
                     <h1 className="text-4xl md:text-5xl font-extrabold leading-tight">
                         Digital Cards that Play Ball.
                     </h1>
@@ -81,15 +120,15 @@ export default function Home() {
 
                 {/* Right: Random Card of the Day */}
                 <div className="flex-1 flex flex-col items-center md:items-end w-full">
-                    <div className={`rounded-3xl p-6 w-full max-w-md min-h-[400px] flex flex-col relative gap-1 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
+                    <div className={`rounded-3xl p-6 w-full max-w-md min-h-[400px] flex flex-col relative gap-2 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <div className="flex justify-between items-center mb-2">
                             <span className={`text-lg font-semibold ${isDark ? 'text-white/80' : 'text-black/80'}`}>Card of the Day</span>
                             <span className={`text-xs ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Generated by the Community</span>
                         </div>
                         <div className="flex-1 flex flex-col justify-center items-center gap-4">
-                            <img src={`/images/blank_players/blankplayer-${userShowdownSet}-dark.png`} alt="Sample Showdown Card" className="min-h-64 max-h-124 rounded-lg shadow-lg object-contain" />
+                            <img src={`/images/blank_players/blankplayer-${userShowdownSet}-${isDark ? 'dark' : 'light'}.png`} alt="Sample Showdown Card" className="min-h-64 max-h-124 rounded-lg object-contain shadow-2xl" />
                         </div>
-                        <div className={`left-4 right-4 text-xs text-left ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                        <div className={`left-4 right-4 text-xs text-left pt-2 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
                             Showing 2004 Mike Piazza • Using the {userShowdownSet} Set
                         </div>
                     </div>
@@ -172,7 +211,7 @@ export default function Home() {
                                     <FaChevronRight className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`} />
                                     <span className={`text-[9px] font-semibold uppercase ${isDark ? 'text-neutral-500' : 'text-neutral-600'}`}>Find</span>
                                 </div>
-                                <div className="flex-1">
+                                <div className="flex-1 overflow-x-scroll">
                                     <CardChart 
                                         chartRanges={{"SO":"1-2","GB":"3-4","FB":"5-6","BB":"7-8","1B":"9-15","1B+":"-","2B":"16-17","3B":"18","HR":`${['2000', '2001', 'CLASSIC'].includes(userShowdownSet)? '19-20' : '19+'}`}} 
                                         showdownSet={userShowdownSet || '2001'}
@@ -237,21 +276,29 @@ export default function Home() {
                         Open Explore <FaChevronRight />
                     </Link>
                 </div>
-                <div className="grid md:grid-cols-3 gap-6">
-                    <div className={`rounded-2xl p-6 min-h-[180px] ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <div className="font-semibold mb-2 flex items-center gap-2"><FaFire className="text-red-500" /> Trending this week</div>
                         <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Most-generated players and seasons.</div>
-                        <div className={`rounded-lg h-16 ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
+                        {trendingPlayers.length > 0 ? (
+                            <div className='space-y-3'>
+                                {trendingPlayers.slice(0, 4).map((card, index) => (
+                                    <CardItemFromCard key={index} card={card.card_data} className="max-w-full" />
+                                ))}
+                            </div>
+                        ) : (
+                            renderBlankExploreCards()
+                        )}
                     </div>
-                    <div className={`rounded-2xl p-6 min-h-[180px] ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <div className="font-semibold mb-2 flex items-center gap-2"><FaClock className="text-yellow-400" /> Live cards</div>
-                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Real-time updates during games.</div>
-                        <div className={`rounded-lg h-16 ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
+                    <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
+                        <div className="font-semibold mb-2 flex items-center gap-2"><FaStar className="text-yellow-400" /> Most Popular</div>
+                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>All-time most viewed cards.</div>
+                        {renderBlankExploreCards()}
                     </div>
-                    <div className={`rounded-2xl p-6 min-h-[180px] ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
+                    <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <div className="font-semibold mb-2 flex items-center gap-2"><FaUsers className="text-primary" /> Creator picks</div>
                         <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Curated sets and fun themes.</div>
-                        <div className={`rounded-lg h-16 ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'}`} />
+                        {renderBlankExploreCards()}
                     </div>
                 </div>
             </div>
@@ -262,7 +309,7 @@ export default function Home() {
                 <div className="grid md:grid-cols-2 gap-6">
                     <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <h3 className="text-lg font-semibold mb-2">Can I print these?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>No. These are digital-only cards designed for online use. This is just a passion project and has no commercial intent.</p>
+                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>These are digital-only cards designed for online use. This is just a passion project and has no commercial intent. Print at your own risk.</p>
                     </div>
                     <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <h3 className="text-lg font-semibold mb-2">Do I need an account?</h3>

@@ -19,6 +19,7 @@ def database_update(
     run_player_cards: bool = typer.Option(False, "--run_player_cards", "-cards", help="Generate Showdown Player Cards for archived players"),
     run_auto_image_suggestions: bool = typer.Option(False, "--run_auto_image_suggestions", "-auto_im", help="Generate auto image suggestions for archived players"),
     refresh_explore: bool = typer.Option(False, "--refresh_explore", "-exp", help="Refresh Explore materialized views"),
+    refresh_trends: bool = typer.Option(False, "--refresh_trends", "-trends", help="Refresh trending cards data"),
     drop_existing: bool = typer.Option(False, "--drop_existing", "-drop", help="Drop existing materialized views before refreshing"),
     exclude_records_with_stats: bool = typer.Option(False, "--exclude_records_with_stats", "-ers", help="Exclude records that already have stats in the database when scraping player stats"),
     daily_mid_season_update: bool = typer.Option(False, "--daily_mid_season_update", "-dmsu", help="Run a daily mid-season update to catch stat changes"),
@@ -82,6 +83,11 @@ def database_update(
             print("Refreshing Explore materialized views...")
             db = PostgresDB(is_archive=True)
             db.refresh_explore_views(drop_existing=drop_existing)
+
+        if refresh_trends:
+            print("Refreshing Trending Cards data...")
+            db = PostgresDB(is_archive=True)
+            db.refresh_all_trends()
 
     except Exception as e:
         # Full traceback

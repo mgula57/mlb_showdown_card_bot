@@ -1,5 +1,5 @@
+from pprint import pprint
 from flask import Blueprint, request, jsonify
-from ..core.card.showdown_player_card import ShowdownPlayerCard
 from ..core.database.postgres_db import PostgresDB
 
 card_db_bp = Blueprint('card_data', __name__)
@@ -49,4 +49,34 @@ def fetch_card():
         return jsonify({'card': card.as_json()})
 
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/total_count', methods=["GET"])
+def fetch_total_card_count():
+    """Fetch the total count of cards in the database"""
+    try:
+        db = PostgresDB(is_archive=True)
+        total_count = db.fetch_total_card_count()
+        db.close_connection()
+
+        return jsonify({'total_count': total_count})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/trending', methods=["GET", "POST"])
+def fetch_trending_cards():
+    """Fetch trending cards from the database"""
+    try:
+
+        payload = request.get_json() or {}
+        showdown_set = payload.get('set')
+        db = PostgresDB(is_archive=True)
+        trending_cards = db.fetch_trending_cards(set=showdown_set)
+        db.close_connection()
+
+        return jsonify({'trending_cards': trending_cards})
+
+    except Exception as e:
+        print(f"Error fetching trending cards: {e}")
         return jsonify({'error': str(e)}), 500

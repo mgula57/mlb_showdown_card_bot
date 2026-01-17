@@ -587,6 +587,7 @@ class PostgresDB:
 # ------------------------------------------------------------------------
 # EXPLORE
 # ------------------------------------------------------------------------
+
     def fetch_single_card(self, card_id: str) -> Optional[ShowdownPlayerCard]:
         """Fetch a single explore data record from the database by card ID."""
         
@@ -2381,3 +2382,212 @@ class PostgresDB:
             return {}
         finally:
             cursor.close()
+
+# ------------------------------------------------------------------------
+# TRENDS
+# ------------------------------------------------------------------------
+
+    def fetch_total_card_count(self) -> int:
+        """Fetch total count of cards in the database with support for lists and min/max filtering."""
+
+        sql_query = sql.SQL("""
+            SELECT COUNT(*) AS total_count
+            FROM internal.log_custom_card_bot
+            WHERE length(coalesce(error, '')) = 0
+        """)
+        raw_data = self.execute_query(query=sql_query)
+        if len(raw_data) == 0:
+            return 0
+        return raw_data[0].get('total_count', 0)
+
+    def fetch_trending_cards(self, set:str, limit:int=10) -> list[dict]:
+        """Fetch trending cards from the card_trending table.
+        
+        Args:
+            set: The showdown set to filter trending cards by.
+            limit: Number of trending cards to fetch.
+        
+        Returns:
+            List of trending cards as dictionaries.
+        """
+        sql_query = sql.SQL("""
+            SELECT 
+                player_id, views_this_week, views_last_week, 
+                wow_change, wow_percent, trending_score, 
+                card_data, showdown_set, version, 
+                card_modified_date, trends_calculated_date
+            FROM public.card_trending
+            WHERE showdown_set = %s
+            ORDER BY trends_calculated_date DESC, trending_score DESC
+            LIMIT %s
+        """)
+        raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
+        return raw_data
+
+    def refresh_all_trends(self) -> None:
+        """Refresh all trend-related tables and materialized views."""
+        print("Refreshing trending cards...")
+        self.refresh_trending_cards()
+        print("✓ Trending cards refreshed.")
+
+    def refresh_trending_cards(self) -> None:
+        """
+        Build or refresh the trending_cards table. Inserts the top 10 trending cards based on views in the last week.
+        Duplicates across each showdown set.
+        """
+
+        if not self.connection:
+            print("No database connection available for refreshing trending cards.")
+            return
+
+        cursor = self.connection.cursor()
+
+        # CREATE TABLE IF NOT EXISTS
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS public.card_trending (
+                player_id VARCHAR(50),
+                views_this_week INT,
+                views_last_week INT,
+                wow_change INT,
+                wow_percent FLOAT,
+                trending_score FLOAT,
+                card_data JSONB,
+                showdown_set VARCHAR(50),
+                version VARCHAR(50),
+                card_modified_date TIMESTAMP WITHOUT TIME ZONE,
+                trends_calculated_date TIMESTAMP WITHOUT TIME ZONE
+            );
+        '''
+        create_index_sql = '''
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_card_trending_player_set
+            ON public.card_trending (player_id, showdown_set, trends_calculated_date);
+        '''
+        try:
+            cursor.execute(create_table_sql)
+            cursor.execute(create_index_sql)
+            self.connection.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR creating trending_cards table: {e}")
+            return
+        finally:
+            cursor.close()
+
+        new_trending_cards_sql = '''
+            WITH 
+
+            dates AS (
+
+                SELECT distinct
+                    '2025-09-01'::date as current_week_end,
+                    '2025-09-01'::date - interval '7 day' as current_week_start,
+                    '2025-09-01'::date - interval '14 day' as last_week_start
+                FROM internal.log_custom_card_bot
+            ),
+
+            current_week AS (
+                SELECT 
+                    year || '-' || bref_id as player_id,
+                    max(name) as name,
+                    COUNT(*) as views_this_week
+                FROM internal.log_custom_card_bot, dates
+                WHERE created_on >= current_week_start 
+                and error is not null 
+                and bref_id is not null
+                and created_on <= current_week_end
+                and length(year) = 4
+                GROUP BY 1
+            ),
+
+            last_week AS (
+
+                SELECT 
+                    year || '-' || bref_id as player_id,
+                    COUNT(*) as views_last_week
+                FROM internal.log_custom_card_bot, dates
+                WHERE created_on >= last_week_start
+                AND created_on < current_week_start
+                and error is not null and bref_id is not null
+                and length(year) = 4
+                GROUP BY 1
+
+            ),
+
+            wow AS (
+
+                SELECT 
+                    c.player_id,
+                    c.views_this_week,
+                    COALESCE(l.views_last_week, 0) as views_last_week,
+                    
+                    -- Week-over-week change
+                    c.views_this_week - COALESCE(l.views_last_week, 0) as wow_change,
+                    
+                    -- Percent change (handle division by zero)
+                    CASE 
+                        WHEN COALESCE(l.views_last_week, 0) = 0 THEN 100.0
+                        ELSE ((c.views_this_week - l.views_last_week)::FLOAT / l.views_last_week * 100)
+                    END as wow_percent,
+                    
+                    -- Trending score: prioritize growth + absolute volume
+                    (
+                        (c.views_this_week * 0.7) + 
+                        ((c.views_this_week - COALESCE(l.views_last_week, 0)) * 2.0)
+                    )
+                    -- REMOVE WEIRD CASES
+                    * (case when l.views_last_week < 5 and c.views_this_week > 30 then 0.25 else 1.0 end) as trending_score
+                    
+                FROM current_week c
+                LEFT JOIN last_week l ON c.player_id = l.player_id
+                WHERE c.views_this_week >= 5  -- Minimum threshold to avoid noise
+                ORDER BY trending_score desc
+                LIMIT 10
+            )
+            select
+                wow.*,
+                dc.card_data,
+                dc.showdown_set,
+                dc.version,
+                dc.modified_date as card_modified_date,
+                now() as trends_calculated_date
+            from wow
+            left join internal.dim_card dc on wow.player_id = dc.player_id
+        '''
+        try:
+            new_trending_cards = self.execute_query(query=new_trending_cards_sql)
+        except Exception as e:
+            print(f"ERROR fetching new trending cards: {e}")
+            return
+        
+        # INSERT NEW RECORDS
+        insert_sql = '''
+            INSERT INTO public.card_trending (
+                player_id, views_this_week, views_last_week, 
+                wow_change, wow_percent, trending_score, 
+                card_data, showdown_set, version, 
+                card_modified_date, trends_calculated_date
+            ) VALUES %s
+        '''
+        insert_values = []
+        for card in new_trending_cards:
+            insert_values.append((
+                card['player_id'],
+                card['views_this_week'],
+                card['views_last_week'],
+                card['wow_change'],
+                card['wow_percent'],
+                card['trending_score'],
+                card['card_data'],
+                card['showdown_set'],
+                card['version'],
+                card['card_modified_date'],
+                card['trends_calculated_date']
+            ))
+        try:
+            cursor = self.connection.cursor()
+            execute_values(cursor, insert_sql, insert_values)
+            self.connection.commit()
+            cursor.close()
+        except Exception as e:
+            print(f"ERROR inserting new trending cards: {e}")

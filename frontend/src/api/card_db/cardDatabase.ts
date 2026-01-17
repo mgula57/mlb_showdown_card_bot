@@ -106,6 +106,16 @@ export type CardDatabaseRecord = {
 
 };
 
+export type TrendingCardRecord = {
+    card_data: ShowdownBotCard;
+    trending_score: number;
+    player_id: string;
+    views_last_week: number;
+    views_this_week: number;
+    wow_change: number;
+    wow_percent: number;
+};
+
 /**
  * Team hierarchy data structure for organizational filtering.
  * Comes from materialized view in database, helps show only relevant values depending on prior selections.
@@ -156,6 +166,38 @@ export async function fetchCardData(source: CardSource, payload: Record<string, 
 
     // Convert to CardDatabaseRecords
     return res.json();
+}
+
+export async function fetchTotalCardCount(): Promise<number> {
+    const res = await fetch(`${API_BASE}/cards/total_count`, {
+        method: "GET",
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    });
+
+    // Handle errors
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    
+    const data = await res.json();
+    return data?.total_count ?? 0;
+}
+
+export async function fetchTrendingPlayers(showdownSet: string): Promise<TrendingCardRecord[]> {
+    const res = await fetch(`${API_BASE}/cards/trending`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ set: showdownSet }),
+    });
+
+    // Handle errors
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    
+    const data = await res.json();
+    console.log("Trending players data:", data);
+    return data?.trending_cards ?? [];
 }
 
 // =============================================================================
