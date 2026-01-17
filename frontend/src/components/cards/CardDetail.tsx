@@ -9,7 +9,7 @@
  * - Interactive table switching and customization options
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import CustomSelect from '../shared/CustomSelect';
 import { FaTable, FaPoll, FaCoins, FaBaseballBall, FaUser } from 'react-icons/fa';

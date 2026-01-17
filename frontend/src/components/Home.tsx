@@ -9,18 +9,35 @@ import { useSiteSettings } from './shared/SiteSettingsContext';
 
 // Create Card Sampler
 import { PlayerSearchInput } from './customs/PlayerSearchInput';
+import type { PlayerSearchSelection } from './customs/PlayerSearchInput';
 import { CardItemFromCard } from './cards/CardItem';
 import CardCommand from './cards/card_elements/CardCommand';
 import CardChart from './cards/card_elements/CardChart';
 import type { ShowdownBotCard } from '../api/showdownBotCard';
+import { fetchCardById } from '../api/showdownBotCard';
 
 export default function Home() {
 
     // State
     const [searchQuery, _] = useState<string>('');
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
+    const [isLoadingSearchCard, setIsLoadingSearchCard] = useState<boolean>(false);
     const { isDark } = useTheme();
     const { userShowdownSet } = useSiteSettings();
+
+    /* 
+        * Simulated card lookup based on search query
+
+    */
+    const handlePlayerSelect = (selection: PlayerSearchSelection) => {
+        // Simulate fetching a card based on the selected player and year
+        const cardId = `${selection.year}-${selection.bref_id}${selection.player_type_override ? `-${selection.player_type_override}` : ''}-${userShowdownSet}`;
+        setIsLoadingSearchCard(true);
+        fetchCardById(cardId).then(card => {
+            setSelectedCard(card.card || null);
+            setIsLoadingSearchCard(false);
+        });
+    };
 
     return (
         <div
@@ -46,8 +63,8 @@ export default function Home() {
                         Enter a player and season. We turn real stats into a simulated card for the iconic 20-sided dice game — ready to share, use in your league, or just admire.
                     </p>
                     <form className={`rounded-2xl p-6 flex flex-col gap-4 w-full ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <PlayerSearchInput label='Search for a player' value={searchQuery} onChange={(e) => {}} />
-                        <CardItemFromCard card={selectedCard || undefined}/>
+                        <PlayerSearchInput label='Search for a player' value={searchQuery} onChange={handlePlayerSelect} />
+                        <CardItemFromCard card={selectedCard || undefined} className={`pointer-events-none ${isLoadingSearchCard ? 'blur-xs' : ''}`} />
                     </form>
                     <div className="flex gap-4 mt-2">
                         <Link to="/customs" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow hover:bg-neutral-200 transition ${isDark ? 'bg-white text-black' : 'bg-black text-white'}`}>
@@ -73,7 +90,7 @@ export default function Home() {
                             <img src={`/images/blank_players/blankplayer-${userShowdownSet}-dark.png`} alt="Sample Showdown Card" className="min-h-64 max-h-124 rounded-lg shadow-lg object-contain" />
                         </div>
                         <div className={`left-4 right-4 text-xs text-left ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
-                            Showing 2004 Mike Piazza • Using the 2001 Set
+                            Showing 2004 Mike Piazza • Using the {userShowdownSet} Set
                         </div>
                     </div>
                 </div>

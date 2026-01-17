@@ -36,6 +36,13 @@ interface PlayerSearchOption {
     player_type_override?: string | null;
 }
 
+export type PlayerSearchSelection = {
+    name: string;
+    year: string;
+    bref_id: string;
+    player_type_override?: string;
+};
+
 /**
  * Props for the PlayerSearchInput component
  */
@@ -45,12 +52,7 @@ interface PlayerSearchInputProps {
     /** Current search query value */
     value: string;
     /** Callback when player is selected from search results */
-    onChange: (selection: {
-        name: string;
-        year: string;
-        bref_id: string;
-        player_type_override?: string;
-    }) => void;
+    onChange: (selection: PlayerSearchSelection) => void;
     /** Optional CSS class names for styling */
     className?: string;
 }
@@ -163,7 +165,7 @@ export function PlayerSearchInput({
 
         setMenuPos({
             left: inputRect.left,
-            top: inputRect.bottom,
+            top: inputRect.bottom + 4, // Add small gap below input
             width: inputRect.width
         });
     };
@@ -403,10 +405,11 @@ export function PlayerSearchInput({
                     <div 
                         ref={dropdownRef}
                         className="
-                            absolute z-[1000]
-                            left-0 transform
+                            fixed z-[5]
+                            transform
                             bg-secondary rounded-xl shadow-lg
                             text-nowrap overflow-auto max-h-[40vh]
+                            border-2 border-form-element
                         "
                         style={{ left: menuPos.left, top: menuPos.top, width: menuPos.width }}
                     >
