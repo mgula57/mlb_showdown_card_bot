@@ -92,6 +92,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
      * Allows component to maintain its own copy for features like image regeneration
      */
     const [internalCardData, setInternalCardData] = useState<ShowdownBotCardAPIResponse | null | undefined>(showdownBotCardData);
+    const [internalCardId, setInternalCardId] = useState<string | undefined>(cardId);
     
     // Use internal state when available, fallback to prop
     const activeCardData = internalCardData || showdownBotCardData;
@@ -106,40 +107,48 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
      * to handle local updates (like image regeneration)
      */
     useEffect(() => {
+        // Case 1: New data provided via prop
+        if (showdownBotCardData && showdownBotCardData.card) {
+            console.log("New card data provided via prop:", showdownBotCardData);
+            // Skip if same card (by bref_id + year + set)
+            const isSameCard = 
+                context === 'explore' &&
+                (
+                    internalCardData?.card?.bref_id === showdownBotCardData?.card?.bref_id &&
+                    internalCardData?.card?.year === showdownBotCardData?.card?.year &&
+                    internalCardData?.card?.set === showdownBotCardData?.card?.set
+                );
+            
+            if (!isSameCard) {
+                setInternalCardData(showdownBotCardData);
+                setInternalCardId(cardId);
+            }
+            return;
+        }
 
-        // Check for empty data but populated ID
-        const cardData = showdownBotCardData?.card || null;
-        if (!cardData && cardId) {
+        // Case 2: No data but cardId provided - fetch it from DB
+        if (cardId && cardId !== internalCardId) {
             setIsLoadingFromId(true);
+            console.log("Fetching card data by ID:", cardId);
             fetchCardById(cardId)
                 .then((data) => {
                     console.log("Fetched single card data by ID:", data);
                     if (data) {
                         setInternalCardData(data as ShowdownBotCardAPIResponse);
+                        setInternalCardId(cardId);
                     }
-                }).catch((error) => {
+                })
+                .catch((error) => {
                     console.error("Error fetching card by ID:", error);
-                }).finally(() => {
+                })
+                .finally(() => {
                     setIsLoadingFromId(false);
                 });
             return;
         }
 
-        // Skip if no new data
-        if (!showdownBotCardData) {
-            return;
-        }
-
-        // Skip if same card (by bref_id + year + set)
-        if (
-            context === 'explore' &&
-            internalCardData?.card?.bref_id === showdownBotCardData?.card?.bref_id &&
-            internalCardData?.card?.year === showdownBotCardData?.card?.year &&
-            internalCardData?.card?.set === showdownBotCardData?.card?.set
-        ) {
-            return;
-        }
-        setInternalCardData(showdownBotCardData);
+        // Case 3: No data and no cardId - do nothing (preserve internal state)
+        console.log("No new card data or ID provided; preserving internal state.");
     }, [showdownBotCardData, cardId]);
 
     // Breakdown State
@@ -150,7 +159,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     const [isLoadingFromId, setIsLoadingFromId] = useState<boolean>(false);
 
     // Mark if isLoading or isGeneratingImage
-    const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId;
+    const isLoadingOverall = isLoading || isGeneratingImage;
 
     // Game
     const showGameBoxscore = (): boolean => {
@@ -497,7 +506,9 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                     />
 
                     {/* Breakdown Table */}
-                    {renderBreakdownTable()}
+                    <div className={`${isLoadingFromId ? 'blur-xs' : ''}`}>
+                        {renderBreakdownTable()}
+                    </div>
 
                 </div>
 
