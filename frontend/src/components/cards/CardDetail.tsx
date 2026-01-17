@@ -109,7 +109,6 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     useEffect(() => {
         // Case 1: New data provided via prop
         if (showdownBotCardData && showdownBotCardData.card) {
-            console.log("New card data provided via prop:", showdownBotCardData);
             // Skip if same card (by bref_id + year + set)
             const isSameCard = 
                 context === 'explore' &&
@@ -129,7 +128,6 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
         // Case 2: No data but cardId provided - fetch it from DB
         if (cardId && cardId !== internalCardId) {
             setIsLoadingFromId(true);
-            console.log("Fetching card data by ID:", cardId);
             fetchCardById(cardId)
                 .then((data) => {
                     console.log("Fetched single card data by ID:", data);
@@ -147,8 +145,6 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
             return;
         }
 
-        // Case 3: No data and no cardId - do nothing (preserve internal state)
-        console.log("No new card data or ID provided; preserving internal state.");
     }, [showdownBotCardData, cardId]);
 
     // Breakdown State

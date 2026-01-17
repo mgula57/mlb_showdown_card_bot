@@ -983,6 +983,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     <CardItemFromCardDatabaseRecord
                                         card={cardRecord}
                                         onClick={() => handleRowClick(cardRecord)}
+                                        isSelected={selectedCard?.id === cardRecord.id}
                                     />
                                 )}
                             </div>
