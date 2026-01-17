@@ -121,7 +121,13 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
             if (!isSameCard) {
                 setInternalCardData(showdownBotCardData);
                 setInternalCardId(cardId);
+                // Load image if necessary
+                const isDataWithoutImage = !showdownBotCardData.card?.image.output_file_name && showdownBotCardData.card;
+                if (isDataWithoutImage && !isGeneratingImage) {
+                    handleGenerateImage(showdownBotCardData);
+                }
             }
+            
             return;
         }
 
@@ -132,8 +138,16 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                 .then((data) => {
                     console.log("Fetched single card data by ID:", data);
                     if (data) {
-                        setInternalCardData(data as ShowdownBotCardAPIResponse);
+                        const cardResponse = data as ShowdownBotCardAPIResponse;
                         setInternalCardId(cardId);
+                        
+                        // Load image if necessary
+                        const isDataWithoutImage = !cardResponse.card?.image.output_file_name && cardResponse.card;
+                        if (isDataWithoutImage && !isGeneratingImage) {
+                            handleGenerateImage(cardResponse);
+                        } else {
+                            setInternalCardData(cardResponse);
+                        }                        
                     }
                 })
                 .catch((error) => {
@@ -142,6 +156,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                 .finally(() => {
                     setIsLoadingFromId(false);
                 });
+            
             return;
         }
 
@@ -155,7 +170,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     const [isLoadingFromId, setIsLoadingFromId] = useState<boolean>(false);
 
     // Mark if isLoading or isGeneratingImage
-    const isLoadingOverall = isLoading || isGeneratingImage;
+    const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId;
 
     // Game
     const showGameBoxscore = (): boolean => {
@@ -182,9 +197,6 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     // MARK: - EFFECTS
     // --------------------------------
 
-    // Flag if image is undefined but data is populated
-    const isDataWithoutImage = !activeCardData?.card?.image.output_file_name && activeCardData?.card;
-
     // Card Calcs
     const cardImagePath: string | null = activeCardData?.card?.image && activeCardData.card.image.output_folder_path && activeCardData.card.image.output_file_name ? `${activeCardData.card.image.output_folder_path}/${activeCardData.card.image.output_file_name}` : null;
     const cardAttributes: Record<string, string | number | null> = activeCardData?.card ? {
@@ -206,13 +218,13 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     const weeklyChangePointsSymbol = weeklyChangePoints ? (weeklyChangePoints > 0 ? '▲' : '▼') : '';
 
     // Handle Image Generation
-    const handleGenerateImage = useCallback(() => {
-        if (!activeCardData?.card || isGeneratingImage || context !== 'explore') return;
+    const handleGenerateImage = (data: ShowdownBotCardAPIResponse) => {
+        if (!data?.card || isGeneratingImage || context !== 'explore') return;
         
         console.log("Starting image generation...");
         setIsGeneratingImage(true);
         
-        generateCardImage(activeCardData)
+        generateCardImage(data)
             .then((data) => {
                 console.log("Received card data with image:", data);
                 if (data) {
@@ -225,18 +237,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
             .finally(() => {
                 setIsGeneratingImage(false);
             });
-    }, [activeCardData, isGeneratingImage]);
-
-    // Use useEffect only to trigger the function once
-    useEffect(() => {
-        if (isDataWithoutImage && !isGeneratingImage) {
-            const timer = setTimeout(() => {
-                handleGenerateImage();
-            }, 100); // Small delay to prevent rapid calls
-            
-            return () => clearTimeout(timer);
-        }
-    }, [isDataWithoutImage, handleGenerateImage, isGeneratingImage]);
+    };
 
     // Changing opacity of color
     const addOpacityToRGB = (rgbColor: string, opacity: number) => {
