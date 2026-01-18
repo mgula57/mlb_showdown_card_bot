@@ -369,12 +369,12 @@ export default function Home() {
                         <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>The original formula was reverse engineered and slightly altered to be as accurate as possible when simulating. The Bot's source code is publicly available on GitHub. Look at the <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" target="_blank" rel="noopener noreferrer" className="text-primary underline">README</a> for formula details.</p>
                     </div>
                     <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <h3 className="text-lg font-semibold mb-2">How can I get in contact with the developers?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className="text-primary underline">mlbshowdownbot@gmail.com</a>. Feel free to reach out with questions or feedback.</p>
+                        <h3 className="text-lg font-semibold mb-2">What Showdown sets are supported?</h3>
+                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>The bot supports all original Showdown sets (2000-2005). It adds CLASSIC and EXPANDED sets, which are updated designs with more diverse and accurate charting. Each set has unique point values and chart distributions.</p>
                     </div>
                     <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <h3 className="text-lg font-semibold mb-2">How do you keep internal tables private?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Keep raw tables in a non-exposed schema and expose only views/RPC in public.</p>
+                        <h3 className="text-lg font-semibold mb-2">How can I get in contact with the developers?</h3>
+                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className="text-primary underline">mlbshowdownbot@gmail.com</a>. Feel free to reach out with questions or feedback.</p>
                     </div>
                 </div>
             </div>
