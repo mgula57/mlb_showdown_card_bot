@@ -153,6 +153,19 @@ def refresh_player_id_table():
     db.update_player_id_table(data)
     print("✅ player_id_master table refreshed.")
 
+@app.command("spotlight")
+def publish_spotlight_cards(
+    player_ids: str = typer.Option(..., "--player_ids", "-p", help="Comma-separated list of player IDs to spotlight."),
+    message: str = typer.Option("Featured by the MLB Showdown Bot team", "--message", "-m", help="Message or reason for spotlighting the cards.")
+):
+    """Publish spotlight cards to the database"""
+    parsed_player_ids = [pid.strip() for pid in player_ids.split(',') if pid.strip()]
+    print(f"Publishing spotlight for player IDs: {parsed_player_ids} with message: '{message}'")
+
+    db = PostgresDB(is_archive=True)
+    db.publish_new_spotlight(player_ids=parsed_player_ids, message=message)
+    print("✅ Spotlight cards published.")
+
 # Make database the default command
 @app.callback(invoke_without_command=True)
 def database_main(ctx: typer.Context):

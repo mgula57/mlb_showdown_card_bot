@@ -2444,6 +2444,27 @@ class PostgresDB:
         raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
         return raw_data
 
+    def fetch_latest_spotlight_cards(self, set:str, limit:int=4) -> list[dict]:
+        """Fetch latest spotlight cards from the card_spotlight table.
+        
+        Args:
+            set: The showdown set to filter spotlight cards by.
+            limit: Number of spotlight cards to fetch.
+
+        Returns:
+            List of spotlight cards as dictionaries.
+        """
+
+        sql_query = sql.SQL("""
+            SELECT *
+            FROM public.card_spotlight
+            WHERE showdown_set = %s
+            ORDER BY spotlight_published_date DESC, sort_index
+            LIMIT %s
+        """)
+        raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
+        return raw_data
+
     def refresh_all_trends(self) -> None:
         """Refresh all trend-related tables and materialized views."""
         print("Refreshing trending cards...")
@@ -2699,3 +2720,93 @@ class PostgresDB:
                 print("✓ All-time cards refreshed.")
             except Exception as e:
                 print(f"ERROR refreshing all-time cards: {e}")
+
+    def publish_new_spotlight(self, player_ids: list[str], message: str) -> None:
+        """Publish new spotlight cards to the spotlight table.
+        
+        Args:
+            player_ids: List of player IDs to spotlight.
+            message: Message or reason for spotlighting the cards.
+        
+        Returns:
+            None
+        """
+        if not self.connection:
+            print("No database connection available for publishing spotlight cards.")
+            return
+        
+        cursor = self.connection.cursor()
+        
+        # CREATE TABLE IF NOT EXISTS
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS public.card_spotlight (
+                player_id VARCHAR(50),
+                card_data JSONB,
+                sort_index INT,
+                spotlight_reason TEXT,
+                showdown_set VARCHAR(50),
+                version VARCHAR(50),
+                card_modified_date TIMESTAMP WITHOUT TIME ZONE,
+                spotlight_published_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+        '''
+        create_index_sql = '''
+            CREATE INDEX IF NOT EXISTS card_spotlight_published_date_idx
+            ON public.card_spotlight (showdown_set, spotlight_published_date DESC);
+        '''
+        try:
+            cursor.execute(create_table_sql)
+            cursor.execute(create_index_sql)
+            self.connection.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR creating spotlight table: {e}")
+            return
+        finally:
+            cursor.close()
+
+        # FETCH CARD DATA FOR PLAYER IDS
+        format_strings = ','.join(['%s'] * len(player_ids))
+        fetch_cards_sql = f'''
+            SELECT 
+                player_id,
+                card_data,
+                showdown_set,
+                version,
+                modified_date as card_modified_date
+            FROM internal.dim_card
+            WHERE player_id IN ({format_strings})
+        '''
+        try:
+            cards_data = self.execute_query(query=fetch_cards_sql, filter_values=tuple(player_ids))
+        except Exception as e:
+            print(f"ERROR fetching spotlight card data: {e}")
+            return
+        
+        # INSERT NEW SPOTLIGHT RECORDS
+        insert_sql = '''
+            INSERT INTO public.card_spotlight (
+                player_id, card_data, sort_index, spotlight_reason, showdown_set, version, card_modified_date
+            ) VALUES %s
+        '''
+        insert_values = []
+        for card in cards_data:
+            sort_index = player_ids.index(card['player_id']) if card['player_id'] in player_ids else len(player_ids)
+            insert_values.append((
+                card['player_id'],
+                card['card_data'],
+                sort_index,
+                message,
+                card['showdown_set'],
+                card['version'],
+                card['card_modified_date']
+            ))
+        try:
+            cursor = self.connection.cursor()
+            execute_values(cursor, insert_sql, insert_values)
+            self.connection.commit()
+            cursor.close()
+            print(f"✓ Published {len(insert_values)} spotlight cards.")
+        except Exception as e:
+            print(f"ERROR inserting spotlight cards: {e}")

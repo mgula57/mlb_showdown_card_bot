@@ -97,3 +97,21 @@ def fetch_popular_cards():
     except Exception as e:
         print(f"Error fetching popular cards: {e}")
         return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/spotlight', methods=["GET", "POST"])
+def fetch_spotlight_cards():
+    """Fetch spotlight cards from the database"""
+    try:
+
+        payload = request.get_json() or {}
+        showdown_set = payload.get('set')
+        limit = payload.get('limit', 4)
+        db = PostgresDB(is_archive=True)
+        spotlight_cards = db.fetch_latest_spotlight_cards(set=showdown_set, limit=limit)
+        db.close_connection()
+
+        return jsonify({'spotlight_cards': spotlight_cards})
+
+    except Exception as e:
+        print(f"Error fetching spotlight cards: {e}")
+        return jsonify({'error': str(e)}), 500

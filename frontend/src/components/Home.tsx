@@ -23,8 +23,8 @@ import { CardDetail } from './cards/CardDetail';
 
 // API
 import { fetchCardById } from '../api/showdownBotCard';
-import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards } from '../api/card_db/cardDatabase';
-import type { PopularCardRecord, TrendingCardRecord } from '../api/card_db/cardDatabase';
+import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpotlightCards } from '../api/card_db/cardDatabase';
+import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord } from '../api/card_db/cardDatabase';
 
 export default function Home() {
 
@@ -38,6 +38,7 @@ export default function Home() {
     const [totalCardCount, setTotalCardCount] = useState<number | null>(null);
     const [trendingPlayers, setTrendingPlayers] = useState<TrendingCardRecord[]>([]);
     const [popularCards, setPopularCards] = useState<PopularCardRecord[]>([]);
+    const [spotlightCards, setSpotlightCards] = useState<SpotlightCardRecord[]>([]);
 
     // Theme & Settings
     const { isDark } = useTheme();
@@ -60,7 +61,7 @@ export default function Home() {
     }, [userShowdownSet]);
 
     const refreshPlayerTrends = () => {
-        // Fetch trending players (not used in this component yet)
+        // Fetch trending players
         fetchTrendingPlayers(userShowdownSet).then(players => {
             setTrendingPlayers(players);
         }).catch(err => {
@@ -72,6 +73,13 @@ export default function Home() {
             setPopularCards(cards);
         }).catch(err => {
             console.error('Failed to fetch popular cards:', err);
+        });
+
+        // Spotlight cards
+        fetchSpotlightCards(userShowdownSet).then(cards => {
+            setSpotlightCards(cards);
+        }).catch(err => {
+            console.error('Failed to fetch spotlight cards:', err);
         });
     };
 
@@ -334,8 +342,16 @@ export default function Home() {
                     </div>
                     <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <div className="font-semibold mb-2 flex items-center gap-2"><FaUsers className="text-primary" />Spotlight</div>
-                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Curated sets and fun themes.</div>
-                        {renderBlankExploreCards()}
+                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>{spotlightCards.length > 0 ? spotlightCards[0].spotlight_reason : 'Curated sets and fun themes.'}</div>
+                        {spotlightCards.length > 0 ? (
+                            <div className='space-y-3'>
+                                {spotlightCards.slice(0, 4).map((card, index) => (
+                                    <CardItemFromCard key={index} card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
+                                ))}
+                            </div>
+                        ) : (
+                            renderBlankExploreCards()
+                        )}
                     </div>
                 </div>
             </div>

@@ -122,6 +122,11 @@ export type PopularCardRecord = {
     showdown_set: string;
 };
 
+export interface SpotlightCardRecord {
+    card_data: ShowdownBotCard;
+    spotlight_reason: string;
+}
+
 /**
  * Team hierarchy data structure for organizational filtering.
  * Comes from materialized view in database, helps show only relevant values depending on prior selections.
@@ -219,6 +224,21 @@ export async function fetchPopularCards(showdownSet: string): Promise<PopularCar
     if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
     const data = await res.json();
     return data?.popular_cards ?? [];
+}
+
+export async function fetchSpotlightCards(showdownSet: string): Promise<SpotlightCardRecord[]> {
+    const res = await fetch(`${API_BASE}/cards/spotlight`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ set: showdownSet }),
+    });
+    
+    // Handle errors
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    const data = await res.json();
+    return data?.spotlight_cards ?? [];
 }
 
 // =============================================================================

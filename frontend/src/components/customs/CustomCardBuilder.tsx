@@ -31,7 +31,7 @@ import FormDropdown from './FormDropdown';
 import FormEnabler from './FormEnabler';
 import { PlayerSearchInput } from './PlayerSearchInput';
 import type { SelectOption } from '../shared/CustomSelect';
-import { useSiteSettings, useTheme } from '../shared/SiteSettingsContext';
+import { useSiteSettings } from '../shared/SiteSettingsContext';
 
 import { CardDetail } from '../cards/CardDetail';
 
