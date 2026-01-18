@@ -177,7 +177,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
     // Card States
     const { userShowdownSet } = useSiteSettings();
-    const { isDark } = useTheme();
     const [showdownBotCardData, setShowdownBotCardData] = useState<ShowdownBotCardAPIResponse | null>(null);
     const [isProcessingCard, setIsProcessingCard] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);

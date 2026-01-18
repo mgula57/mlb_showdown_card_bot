@@ -7,13 +7,21 @@ import { useState, useEffect } from 'react';
 import { useTheme } from './shared/SiteSettingsContext';
 import { useSiteSettings } from './shared/SiteSettingsContext';
 
+// Modal
+import { Modal } from './shared/Modal';
+
 // Create Card Sampler
 import { PlayerSearchInput } from './customs/PlayerSearchInput';
 import type { PlayerSearchSelection } from './customs/PlayerSearchInput';
+
+// Card Components
 import { CardItemFromCard } from './cards/CardItem';
 import CardCommand from './cards/card_elements/CardCommand';
 import CardChart from './cards/card_elements/CardChart';
-import type { ShowdownBotCard } from '../api/showdownBotCard';
+import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from '../api/showdownBotCard';
+import { CardDetail } from './cards/CardDetail';
+
+// API
 import { fetchCardById } from '../api/showdownBotCard';
 import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards } from '../api/card_db/cardDatabase';
 import type { PopularCardRecord, TrendingCardRecord } from '../api/card_db/cardDatabase';
@@ -24,6 +32,7 @@ export default function Home() {
     const [searchQuery, _] = useState<string>('');
     const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
     const [isLoadingSearchCard, setIsLoadingSearchCard] = useState<boolean>(false);
+    const [selectedModalCard, setSelectedModalCard] = useState<ShowdownBotCard | null>(null);
 
     // Trends
     const [totalCardCount, setTotalCardCount] = useState<number | null>(null);
@@ -43,6 +52,14 @@ export default function Home() {
         }).catch(err => {
             console.error('Failed to fetch total card count:', err);
         });
+    }, []);
+
+    // Refresh player trends/popularity if showdown set changes
+    useEffect(() => {
+        refreshPlayerTrends();
+    }, [userShowdownSet]);
+
+    const refreshPlayerTrends = () => {
         // Fetch trending players (not used in this component yet)
         fetchTrendingPlayers(userShowdownSet).then(players => {
             setTrendingPlayers(players);
@@ -56,12 +73,9 @@ export default function Home() {
         }).catch(err => {
             console.error('Failed to fetch popular cards:', err);
         });
-    }, []);
+    };
 
-    /* 
-        * Simulated card lookup based on search query
-
-    */
+    /** Simulated card lookup based on search query */
     const handlePlayerSelect = (selection: PlayerSearchSelection) => {
         // Simulate fetching a card based on the selected player and year
         const cardId = `${selection.year}-${selection.bref_id}${selection.player_type_override ? `-${selection.player_type_override}` : ''}-${userShowdownSet}`;
@@ -72,6 +86,11 @@ export default function Home() {
         });
     };
 
+    const handleModalCardClose = () => {
+        setSelectedModalCard(null);
+    };
+
+    /** Shows animated placeholder cards during loading */
     const renderBlankExploreCards = () => {
         return <>
             <div className='space-y-3'>
@@ -98,7 +117,7 @@ export default function Home() {
                 <div className="flex-1 flex flex-col gap-4 items-start">
                     <div className="flex items-center gap-3 mb-2">
                         <span className={`inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                            <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} /> Custom Showdown cards in seconds
+                            <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} /> Showdown cards in seconds
                         </span>
                         <div className={`inline-flex items-center gap-1 px-4 py-1 rounded-full text-sm font-semibold ${gradientBlueBg}`}>
                             <span className={`font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} ${totalCardCount !== null ? '' : 'redacted animate-pulse'}`}>{totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}</span>
@@ -122,9 +141,6 @@ export default function Home() {
                         <Link to="/explore" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
                             Explore Cards <FaChevronRight />
                         </Link>
-                        {/* <Link to="/rules" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
-                            I'm new to Showdown <FaChevronRight />
-                        </Link> */}
                     </div>
                 </div>
 
@@ -289,11 +305,11 @@ export default function Home() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <div className="font-semibold mb-2 flex items-center gap-2"><FaFire className="text-red-500" /> Trending this week</div>
-                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Most-generated players and seasons.</div>
+                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Players and seasons gaining attention recently.</div>
                         {trendingPlayers.length > 0 ? (
                             <div className='space-y-3'>
                                 {trendingPlayers.slice(0, 4).map((card, index) => (
-                                    <CardItemFromCard key={index} card={card.card_data} className="max-w-full" />
+                                    <CardItemFromCard key={index} card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
                                 ))}
                             </div>
                         ) : (
@@ -308,7 +324,7 @@ export default function Home() {
                                 {popularCards.slice(0, 4).map((card, index) => (
                                     <div className="relative max-w-full">
                                         <span className={`absolute text-[12px] right-0 top-[-6px] ${gradientBlueBg} text-white rounded-full px-2 py-1`}>{card.num_creations.toLocaleString()}</span>
-                                        <CardItemFromCard key={index} card={card.card_data} className="max-w-full" />
+                                        <CardItemFromCard key={index} card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
                                     </div>
                                 ))}
                             </div>
@@ -317,7 +333,7 @@ export default function Home() {
                         )}
                     </div>
                     <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <div className="font-semibold mb-2 flex items-center gap-2"><FaUsers className="text-primary" /> Creator picks</div>
+                        <div className="font-semibold mb-2 flex items-center gap-2"><FaUsers className="text-primary" />Spotlight</div>
                         <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Curated sets and fun themes.</div>
                         {renderBlankExploreCards()}
                     </div>
@@ -330,15 +346,15 @@ export default function Home() {
                 <div className="grid md:grid-cols-2 gap-6">
                     <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <h3 className="text-lg font-semibold mb-2">Can I print these?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>These are digital-only cards designed for online use. This is just a passion project and has no commercial intent. Print at your own risk.</p>
+                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>These cards are for personal, non-commercial use only. This is a fan project not affiliated with or endorsed by WOTC or MLB. Cards are not licensed for printing, distribution, or sale.</p>
                     </div>
                     <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <h3 className="text-lg font-semibold mb-2">Do I need an account?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Optional. Let guests generate, then offer accounts for saving collections and sharing links.</p>
+                        <h3 className="text-lg font-semibold mb-2">How does the formula work?</h3>
+                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>The original formula was reverse engineered and slightly altered to be as accurate as possible when simulating. The Bot's source code is publicly available on GitHub. Look at the <a href="https://github.com/mgula57/mlb_showdown_card_bot/blob/master/README.md" target="_blank" rel="noopener noreferrer" className="text-primary underline">README</a> for formula details.</p>
                     </div>
                     <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <h3 className="text-lg font-semibold mb-2">What years are supported?</h3>
-                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Broad support across eras. If a player-season is missing, provide an issue/report flow.</p>
+                        <h3 className="text-lg font-semibold mb-2">How can I get in contact with the developers?</h3>
+                        <p className={isDark ? 'text-neutral-400' : 'text-neutral-600'}>Send an email to <a href="mailto:mlbshowdownbot@gmail.com" className="text-primary underline">mlbshowdownbot@gmail.com</a>. Feel free to reach out with questions or feedback.</p>
                     </div>
                     <div className={`rounded-2xl p-6 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <h3 className="text-lg font-semibold mb-2">How do you keep internal tables private?</h3>
@@ -346,6 +362,17 @@ export default function Home() {
                     </div>
                 </div>
             </div>
+
+            {/* Modal */}
+            {selectedModalCard && (
+                <Modal onClose={handleModalCardClose} >
+                    {/* Modal content goes here */}
+                    <CardDetail 
+                        showdownBotCardData={{ card: selectedModalCard} as ShowdownBotCardAPIResponse} 
+                        context="home" 
+                    />
+                </Modal>
+            )}
         </div>
     );
 }

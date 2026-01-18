@@ -48,7 +48,7 @@ type CardDetailProps = {
     /** Loading state for live game data */
     isLoadingGameBoxscore?: boolean;
     /** Usage context: 'custom' for card builder, 'explore' for database browser */
-    context?: 'custom' | 'explore';
+    context?: 'custom' | 'explore' | 'home';
 };
 
 /**
@@ -111,23 +111,24 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
         if (showdownBotCardData && showdownBotCardData.card) {
             // Skip if same card (by bref_id + year + set)
             const isSameCard = 
-                context === 'explore' &&
+                context !== 'custom' &&
                 (
                     internalCardData?.card?.bref_id === showdownBotCardData?.card?.bref_id &&
                     internalCardData?.card?.year === showdownBotCardData?.card?.year &&
                     internalCardData?.card?.set === showdownBotCardData?.card?.set
                 );
-            
+            console.log("CardDetail: Checking for prop data update, isSameCard =", isSameCard);
             if (!isSameCard) {
                 setInternalCardData(showdownBotCardData);
                 setInternalCardId(cardId);
-                // Load image if necessary
-                const isDataWithoutImage = !showdownBotCardData.card?.image.output_file_name && showdownBotCardData.card;
-                if (isDataWithoutImage && !isGeneratingImage) {
-                    handleGenerateImage(showdownBotCardData);
-                }
+                
             }
-            
+            // Load image if necessary
+            const isDataWithoutImage = !showdownBotCardData.card?.image.output_file_name && showdownBotCardData.card;
+            if (isDataWithoutImage && !isGeneratingImage) {
+                console.log("Generating image for new prop data...");
+                handleGenerateImage(showdownBotCardData);
+            }            
             return;
         }
 
@@ -219,7 +220,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
 
     // Handle Image Generation
     const handleGenerateImage = (data: ShowdownBotCardAPIResponse) => {
-        if (!data?.card || isGeneratingImage || context !== 'explore') return;
+        if (!data?.card || isGeneratingImage || context === 'custom') return;
         
         console.log("Starting image generation...");
         setIsGeneratingImage(true);
