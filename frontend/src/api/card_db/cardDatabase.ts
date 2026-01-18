@@ -127,6 +127,11 @@ export interface SpotlightCardRecord {
     spotlight_reason: string;
 }
 
+export type CardOfTheDayRecord = {
+    card_data: ShowdownBotCard;
+    date: string;
+};
+
 /**
  * Team hierarchy data structure for organizational filtering.
  * Comes from materialized view in database, helps show only relevant values depending on prior selections.
@@ -239,6 +244,21 @@ export async function fetchSpotlightCards(showdownSet: string): Promise<Spotligh
     if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
     const data = await res.json();
     return data?.spotlight_cards ?? [];
+}
+
+export async function fetchCardOfTheDay(showdownSet: string): Promise<CardOfTheDayRecord | null> {
+    const res = await fetch(`${API_BASE}/cards/card_of_the_day`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ set: showdownSet }),
+    });
+    
+    // Handle errors
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    const data = await res.json();
+    return data?.card_of_the_day ?? null;
 }
 
 // =============================================================================

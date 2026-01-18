@@ -1,5 +1,7 @@
 from pprint import pprint
 from flask import Blueprint, request, jsonify
+
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard
 from ..core.database.postgres_db import PostgresDB
 
 card_db_bp = Blueprint('card_data', __name__)
@@ -114,4 +116,29 @@ def fetch_spotlight_cards():
 
     except Exception as e:
         print(f"Error fetching spotlight cards: {e}")
+        return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/card_of_the_day', methods=["GET", "POST"])
+def fetch_card_of_the_day():
+    """Fetch the card of the day from the database"""
+    try:
+        payload = request.get_json() or {}
+        showdown_set = payload.get('set')
+        db = PostgresDB(is_archive=True)
+        card_of_the_day = db.fetch_card_of_the_day(set=showdown_set)
+        db.close_connection()
+
+        # GENERATE AN IMAGE FOR THE CARD
+        card_json = card_of_the_day.get('card_data')
+        card = ShowdownPlayerCard(**card_json)
+        card.image.output_folder_path = "static/output"
+
+        # PRODUCE IMAGE AND UPDATE DATASET
+        card.generate_card_image()
+        card_of_the_day['card_data'] = card.as_json()
+
+        return jsonify({'card_of_the_day': card_of_the_day})
+
+    except Exception as e:
+        print(f"Error fetching card of the day: {e}")
         return jsonify({'error': str(e)}), 500

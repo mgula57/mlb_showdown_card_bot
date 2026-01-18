@@ -166,6 +166,16 @@ def publish_spotlight_cards(
     db.publish_new_spotlight(player_ids=parsed_player_ids, message=message)
     print("✅ Spotlight cards published.")
 
+@app.command("refresh_card_of_the_day")
+def refresh_card_of_the_day():
+    """Refresh the Card of the Day in the database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Refreshing Card of the Day...")
+    db = PostgresDB(is_archive=True)
+    db.refresh_card_of_the_day()
+    print("✅ Card of the Day refreshed.")
+
 # Make database the default command
 @app.callback(invoke_without_command=True)
 def database_main(ctx: typer.Context):

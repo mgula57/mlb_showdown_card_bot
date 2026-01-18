@@ -2465,6 +2465,25 @@ class PostgresDB:
         raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
         return raw_data
 
+    def fetch_card_of_the_day(self, set:str) -> dict[str, any]:
+        """Fetch the current Card of the Day from the card_of_the_day table.
+        
+        Returns:
+            Dictionary representing the Card of the Day.
+        """
+
+        sql_query = sql.SQL("""
+            SELECT *
+            FROM public.card_of_the_day
+            WHERE showdown_set = %s
+            ORDER BY last_refreshed DESC
+            LIMIT 1
+        """)
+        raw_data = self.execute_query(query=sql_query, filter_values=(set,))
+        if len(raw_data) == 0:
+            return {}
+        return raw_data[0]
+
     def refresh_all_trends(self) -> None:
         """Refresh all trend-related tables and materialized views."""
         print("Refreshing trending cards...")
@@ -2810,3 +2829,108 @@ class PostgresDB:
             print(f"✓ Published {len(insert_values)} spotlight cards.")
         except Exception as e:
             print(f"ERROR inserting spotlight cards: {e}")
+
+    def refresh_card_of_the_day(self) -> None:
+        """Refresh the card_of_the_day materialized view."""
+        
+        if not self.connection:
+            print("No database connection available for refreshing card of the day.")
+            return
+
+        # CREATE TABLE IF IT DOESN'T EXIST
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS public.card_of_the_day (
+                card_date DATE,
+                player_id VARCHAR(50),
+                card_data JSONB,
+                showdown_set VARCHAR(50),
+                version VARCHAR(50),
+                card_modified_date TIMESTAMP WITHOUT TIME ZONE,
+                last_refreshed TIMESTAMP WITHOUT TIME ZONE
+            );
+        '''
+        index_sql = '''
+            CREATE INDEX IF NOT EXISTS card_of_the_day_last_refreshed_idx
+            ON public.card_of_the_day (last_refreshed DESC, showdown_set);
+        '''
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(create_table_sql)
+            cursor.execute(index_sql)
+            self.connection.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR creating card_of_the_day table: {e}")
+            cursor.close()
+            return
+        
+        # REFRESH LOGIC: Pick a random card from the dim_card table for today
+        refresh_sql = '''
+            with 
+
+            selected_id as (
+
+                select
+                    year || '-' || player_id as player_id
+                from internal.dim_auto_image
+                where year || '-' || player_id not in (
+                    select player_id
+                    from public.card_of_the_day
+                    where card_date >= current_date - interval '90 day'
+                )
+                order by random()
+                limit 1
+
+            ),
+
+            cards as (
+
+                select 
+                    player_id,
+                    card_data,
+                    showdown_set,
+                    version,
+                    modified_date
+                from internal.dim_card
+                where player_id = (select * from selected_id)
+
+            )
+
+            select *
+            from cards
+        '''
+        try:
+            card_data = self.execute_query(query=refresh_sql)
+        except Exception as e:
+            print(f"ERROR fetching card of the day data: {e}")
+            cursor.close()
+            return
+        
+        if len(card_data) == 0:
+            print("No new card found for card of the day.")
+            cursor.close()
+            return
+        
+        insert_sql = '''
+            INSERT INTO public.card_of_the_day (
+                card_date, player_id, card_data, showdown_set, version, card_modified_date, last_refreshed
+            ) VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        '''
+        try:
+            for card in card_data:
+                cursor.execute(insert_sql, (
+                    datetime.now().date(),
+                    card['player_id'],
+                    card['card_data'],
+                    card['showdown_set'],
+                    card['version'],
+                    card['modified_date']
+                ))
+            self.connection.commit()
+            print("✓ Card of the day refreshed.")
+        except Exception as e:
+            print(f"ERROR inserting card of the day: {e}")
+            self.connection.rollback()
+        finally:
+            cursor.close()
