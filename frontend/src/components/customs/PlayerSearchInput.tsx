@@ -55,6 +55,13 @@ interface PlayerSearchInputProps {
     onChange: (selection: PlayerSearchSelection) => void;
     /** Optional CSS class names for styling */
     className?: string;
+    /** Optional search filter options */
+    searchOptions?: {
+        exclude_multi_year?: boolean;
+        exclude_career?: boolean;
+        min_bwar?: number;
+        limit?: number;
+    };
 }
 
 /**
@@ -115,7 +122,8 @@ export function PlayerSearchInput({
     label,
     value,
     onChange,
-    className = ''
+    className = '',
+    searchOptions = {}
 }: PlayerSearchInputProps) {
 
     // =============================================================================
@@ -230,13 +238,26 @@ export function PlayerSearchInput({
         debounceRef.current = setTimeout(async () => {
             setIsLoading(true);
             try {
-                const response = await fetch('/api/players/search?q=' + encodeURIComponent(query));
-                console.log(response);
+                // Build query params
+                const params = new URLSearchParams({ q: query });
+                
+                if (searchOptions.exclude_multi_year) {
+                    params.append('exclude_multi_year', 'true');
+                }
+                if (searchOptions.exclude_career) {
+                    params.append('exclude_career', 'true');
+                }
+                if (searchOptions.min_bwar !== undefined) {
+                    params.append('min_bwar', searchOptions.min_bwar.toString());
+                }
+                if (searchOptions.limit !== undefined) {
+                    params.append('limit', searchOptions.limit.toString());
+                }
+
+                const response = await fetch(`/api/players/search?${params.toString()}`);
                 const results = await response.json();
                 
                 setOptions(results);
-
-                console.log(options.length)
                 setIsOpen(results.length > 0);
                 setSelectedIndex(-1);
             } catch (error) {

@@ -273,7 +273,7 @@ export const CardItem = ({
                 primaryColor={colorStylingPrimary.backgroundColor}
                 secondaryColor={colorStylingSecondary.backgroundColor}
                 team={cardTeam}
-                cellClassName="min-w-8" 
+                cellClassName="min-w-6 md:min-w-8 xl:min-w-10" 
             />
 
             {/* Bottom bar */}
@@ -292,7 +292,16 @@ export const CardItem = ({
                             ))}
                         </div>
                     )}
-                    
+
+                    {isRedacted && (
+                        <div className="space-x-2">
+                            {['-----', '----', '----------', '-----'].map((stat, index) => (
+                                <span key={index} className="font-semibold redacted">
+                                    {stat}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                     {cardStatHighlightsList?.map((stat, index) => (
                         <div key={index} className="">
                             {stat}
@@ -328,7 +337,7 @@ export const CardItem = ({
                     {['PM'].includes(cardExpansion || '') && (
                         <span>PROMO</span>
                     )}
-                    {cardSet}
+                    <span className={`${cardSet ? '' : 'redacted'}`}>{cardSet || '2005'}</span>
                 </div>
 
             </div>

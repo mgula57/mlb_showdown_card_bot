@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
-    FaBolt, FaChevronRight, FaShieldAlt,
+    FaBolt, FaChevronRight, FaChevronDown, FaShieldAlt,
     FaUsers, FaFire, FaDiceD20, FaStar
 } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
@@ -138,8 +138,10 @@ export default function Home() {
     return (
         <div
             className={`
-                px-8
-                space-y-8
+                px-6
+                md:px-8
+                space-y-6
+                md:space-y-8
                 gradient-page
                 pb-24
             `}>
@@ -148,12 +150,13 @@ export default function Home() {
             <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between py-10 gap-10">
 
                 {/* Left: Text and Actions */}
-                <div className="flex-1 flex flex-col gap-4 items-start">
+                <div className="w-full md:w-1/2 3xl:flex-[0.6] flex flex-col gap-4 items-start">
                     <div className="flex items-center gap-3 mb-2">
                         <span className={`inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                            <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} /> Showdown cards in seconds
+                            <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} /> 
+                            <span className='leading-tight'>Showdown cards in seconds</span>
                         </span>
-                        <div className={`inline-flex items-center gap-1 px-4 py-1 rounded-full text-sm font-semibold ${gradientBlueBg}`}>
+                        <div className={`leading-tight inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-sm font-semibold ${gradientBlueBg}`}>
                             <span className={`font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} ${totalCardCount !== null ? '' : 'redacted animate-pulse'}`}>{totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}</span>
                             <span className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>cards created</span>
                         </div>
@@ -164,9 +167,9 @@ export default function Home() {
                     <p className={`text-lg max-w-xl leading-6 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
                         Enter a player and season. We turn real stats into a simulated card for the iconic 20-sided dice game — ready to share, use in your league, or just admire.
                     </p>
-                    <form className={`rounded-2xl p-6 flex flex-col gap-4 w-full ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <PlayerSearchInput label='Try it out! Search for a player' value={searchQuery} onChange={handlePlayerSelect} />
-                        <CardItemFromCard card={selectedCard || undefined} className={`pointer-events-none ${isLoadingSearchCard ? 'blur-xs' : ''}`} />
+                    <form className={`rounded-2xl p-6 flex flex-col w-full gap-4 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
+                        <PlayerSearchInput label='Try it out! Search for a player' value={searchQuery} onChange={handlePlayerSelect} searchOptions={{ exclude_multi_year: true }} />
+                        <CardItemFromCard card={selectedCard || undefined} className={`${selectedCard ? '' : 'pointer-events-none'} ${isLoadingSearchCard ? 'blur-xs' : ''}`} onClick={() => setSelectedModalCard(selectedCard)} />
                     </form>
                     <div className="flex gap-4 mt-2">
                         <Link to="/customs" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow hover:bg-neutral-200 transition ${isDark ? 'bg-white text-black' : 'bg-black text-white'}`}>
@@ -179,7 +182,7 @@ export default function Home() {
                 </div>
 
                 {/* Right: Random Card of the Day */}
-                <div className="flex-1 flex flex-col items-center md:items-end w-full">
+                <div className="flex-1 3xl:flex-[0.4] flex flex-col items-center md:items-end w-full">
                     <div className={`rounded-3xl p-6 w-full max-w-md min-h-[400px] flex flex-col relative gap-2 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <div className="flex justify-between items-center mb-2">
                             <span className={`text-lg font-semibold ${isDark ? 'text-white/80' : 'text-black/80'}`}>Card of the Day</span>
@@ -268,23 +271,28 @@ export default function Home() {
                         </div>
                         
                         <div className={`rounded-xl p-3 ${isDark ? 'bg-neutral-800/50 border border-neutral-700' : 'bg-neutral-100 border border-neutral-300'}`}>
-                            <div className="flex items-start gap-3">
-                                <div className='flex flex-col items-center gap-1 pt-2'>
-                                    <FaDiceD20 className="text-gray-500 w-8 h-8" />
-                                    <span className='text-[10px] font-bold text-tertiary'>Roll</span>
+                            <div className="flex flex-col lg:flex-row items-center lg:items-start gap-2 max-w-full">
+                                
+                                <div className='flex gap-3 items-center lg:items-start lg:mr-3'>
+                                    <div className='flex flex-col items-center gap-1 pt-2'>
+                                        <FaDiceD20 className="text-gray-500 w-6 h-6 lg:w-8 lg:h-8" />
+                                        <span className='text-[10px] font-bold text-tertiary'>Roll</span>
+                                    </div>
+                                    <div className='flex flex-col items-center justify-center gap-0.5 pt-3'>
+                                        <FaChevronRight className={`hidden lg:block ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`} />
+                                        <FaChevronDown className={`lg:hidden ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`} />
+                                        <span className={`text-[7px] font-semibold uppercase ${isDark ? 'text-neutral-500' : 'text-neutral-600'}`}>Find</span>
+                                    </div>
                                 </div>
-                                <div className='flex flex-col items-center justify-center gap-1 pt-3'>
-                                    <FaChevronRight className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`} />
-                                    <span className={`text-[9px] font-semibold uppercase ${isDark ? 'text-neutral-500' : 'text-neutral-600'}`}>Find</span>
-                                </div>
-                                <div className="flex-1 overflow-x-scroll">
-                                    <CardChart 
+                                
+                                <div className="flex-1 ">
+                                    <CardChart
                                         chartRanges={{"SO":"1-2","GB":"3-4","FB":"5-6","BB":"7-8","1B":"9-15","1B+":"-","2B":"16-17","3B":"18","HR":`${['2000', '2001', 'CLASSIC'].includes(userShowdownSet)? '19-20' : '19+'}`}} 
                                         showdownSet={userShowdownSet || '2001'}
                                         primaryColor="rgb(12, 35, 64)"
                                         secondaryColor="rgb(255, 255, 255)"
                                         team="NYY"
-                                        cellClassName="min-w-9"
+                                        cellClassName="lg:min-w-8 xl:min-w-10"
                                         className="mb-1"
                                     />
                                     <p className={`text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-600'}`}>Example: Roll 16 = Double!</p>
@@ -417,6 +425,7 @@ export default function Home() {
                     {/* Modal content goes here */}
                     <CardDetail 
                         showdownBotCardData={{ card: selectedModalCard} as ShowdownBotCardAPIResponse} 
+                        hideTrendGraphs={true}
                         context="home" 
                     />
                 </Modal>
