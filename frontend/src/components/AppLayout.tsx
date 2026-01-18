@@ -91,9 +91,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     const [isSideMenuOpen, setIsSideMenuOpen] = useState(() => {
         try {
             const stored = localStorage.getItem(SIDE_MENU_STORAGE_KEY);
-            return stored !== null ? JSON.parse(stored) : true; // Default to open on desktop
+            return stored !== null ? JSON.parse(stored) : false; // Default to open on desktop
         } catch {
-            return true; // Fallback to open if localStorage fails
+            return false; // Fallback to open if localStorage fails
         }
     });
 
@@ -133,7 +133,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     
     // Get current route information for header title and icon
     const location = useLocation();
-    const locationName = location.pathname.split('/')[1] || 'customs';
+    const locationName = location.pathname.split('/')[1] || 'home';
 
     // Find the corresponding menu item for the current route
     const selectedMenuItem = sideMenuItems.find(item => item.path.includes(locationName));
@@ -161,7 +161,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     useEffect(() => {
         const timer = setTimeout(() => {
             if (!hasSeenWhatsNew()) {
-                setShowWhatsNewModal(true);
+                // setShowWhatsNewModal(true); DISABLED FOR 4.01
             }
         }, 1000); // 1 second delay for smooth UX
 

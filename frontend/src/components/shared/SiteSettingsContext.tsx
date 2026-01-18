@@ -81,8 +81,8 @@ const SiteSettingsContext = createContext<SiteSettings | undefined>(undefined);
  */
 export const SiteSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
-    // MLB Showdown set preference state (defaults to 2000 set)
-    const [userShowdownSet, setUserShowdownSetState] = useState("2000");
+    // MLB Showdown set preference state (defaults to 2001 set)
+    const [userShowdownSet, setUserShowdownSetState] = useState("2001");
 
     // Theme preference state with localStorage initialization
     const [theme, setThemeState] = useState<Theme>(() => {
