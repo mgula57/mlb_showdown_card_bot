@@ -80,3 +80,20 @@ def fetch_trending_cards():
     except Exception as e:
         print(f"Error fetching trending cards: {e}")
         return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/popular', methods=["GET", "POST"])
+def fetch_popular_cards():
+    """Fetch all-time popular cards from the database"""
+    try:
+
+        payload = request.get_json() or {}
+        showdown_set = payload.get('set')
+        db = PostgresDB(is_archive=True)
+        popular_cards = db.fetch_popular_cards(set=showdown_set)
+        db.close_connection()
+
+        return jsonify({'popular_cards': popular_cards})
+
+    except Exception as e:
+        print(f"Error fetching popular cards: {e}")
+        return jsonify({'error': str(e)}), 500

@@ -2424,11 +2424,33 @@ class PostgresDB:
         raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
         return raw_data
 
+    def fetch_popular_cards(self, set:str, limit:int=10) -> list[dict]:
+        """Fetch all-time popular cards from the card_popular table.
+        
+        Args:
+            set: The showdown set to filter popular cards by.
+            limit: Number of popular cards to fetch.
+        
+        Returns:
+            List of popular cards as dictionaries.
+        """
+        sql_query = sql.SQL("""
+            SELECT *
+            FROM public.card_popularity_all_time
+            WHERE showdown_set = %s
+            ORDER BY last_refreshed DESC, num_creations DESC
+            LIMIT %s
+        """)
+        raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
+        return raw_data
+
     def refresh_all_trends(self) -> None:
         """Refresh all trend-related tables and materialized views."""
         print("Refreshing trending cards...")
         self.refresh_trending_cards()
         print("✓ Trending cards refreshed.")
+        self.refresh_all_time_cards()
+        print("✓ All-time cards refreshed.")
 
     def refresh_trending_cards(self) -> None:
         """
@@ -2591,3 +2613,89 @@ class PostgresDB:
             cursor.close()
         except Exception as e:
             print(f"ERROR inserting new trending cards: {e}")
+
+    def refresh_all_time_cards(self) -> None:
+        """Refresh all-time cards materialized view."""
+
+        # CHECK CONNECTION
+        if not self.connection:
+            print("No database connection available for refreshing all-time cards.")
+            return
+
+        # CHECK IF VIEW EXISTS
+        check_view_sql = '''
+            SELECT EXISTS (
+                SELECT 1
+                FROM pg_matviews
+                WHERE matviewname = 'card_popularity_all_time'
+            );
+        '''
+        cursor = self.connection.cursor()
+        cursor.execute(check_view_sql)
+        view_exists = cursor.fetchone()[0]
+
+        if not view_exists:
+            print("All-time cards materialized view does not exist. Creating it now...")
+            create_view_sql = '''
+                CREATE MATERIALIZED VIEW public.card_popularity_all_time AS
+                with
+
+                most_common_creations as (
+
+                    select
+                        year || '-' || bref_id as player_id,
+                        bref_id,
+                        min(created_on) as first_date,
+                        max(created_on) as last_date,
+                        count(*) as num_creations
+                    from internal.log_custom_card_bot
+                    where bref_id is not null
+                    and length(coalesce(error, '')) = 0
+                    group by 1,2
+                    order by count(*) desc 
+                    limit 100
+
+                ),
+
+                add_cards as (
+
+                    select
+                        cnt.*,
+                        dc.card_data,
+                        dc.showdown_set,
+                        dc.version,
+                        dc.modified_date as card_modified_date,
+                        now() as last_refreshed
+                    from most_common_creations as cnt
+                    left join internal.dim_card as dc
+                        on cnt.player_id = dc.player_id
+
+                )
+
+                select *
+                from add_cards;
+            '''
+            try:
+                cursor.execute(create_view_sql)
+                self.connection.commit()
+                print("✓ All-time cards materialized view created.")
+            except Exception as e:
+                print(f"ERROR creating all-time cards materialized view: {e}")
+                self.connection.rollback()
+                return
+            finally:
+                cursor.close()
+
+        else:
+            print("Refreshing all-time cards...")
+            refresh_sql = '''
+                REFRESH MATERIALIZED VIEW public.card_popularity_all_time;
+            '''
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute(refresh_sql)
+                self.connection.commit()
+                cursor.close()
+                print("✓ All-time cards refreshed.")
+            except Exception as e:
+                print(f"ERROR refreshing all-time cards: {e}")

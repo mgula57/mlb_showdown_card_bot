@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
     FaBolt, FaChevronRight, FaShieldAlt,
-    FaUsers, FaFire, FaClock, FaDiceD20, FaStar
+    FaUsers, FaFire, FaDiceD20, FaStar
 } from 'react-icons/fa';
 import { useState, useEffect } from 'react';
 import { useTheme } from './shared/SiteSettingsContext';
@@ -15,8 +15,8 @@ import CardCommand from './cards/card_elements/CardCommand';
 import CardChart from './cards/card_elements/CardChart';
 import type { ShowdownBotCard } from '../api/showdownBotCard';
 import { fetchCardById } from '../api/showdownBotCard';
-import { fetchTotalCardCount, fetchTrendingPlayers } from '../api/card_db/cardDatabase';
-import type { TrendingCardRecord } from '../api/card_db/cardDatabase';
+import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards } from '../api/card_db/cardDatabase';
+import type { PopularCardRecord, TrendingCardRecord } from '../api/card_db/cardDatabase';
 
 export default function Home() {
 
@@ -28,10 +28,13 @@ export default function Home() {
     // Trends
     const [totalCardCount, setTotalCardCount] = useState<number | null>(null);
     const [trendingPlayers, setTrendingPlayers] = useState<TrendingCardRecord[]>([]);
+    const [popularCards, setPopularCards] = useState<PopularCardRecord[]>([]);
 
     // Theme & Settings
     const { isDark } = useTheme();
     const { userShowdownSet } = useSiteSettings();
+
+    const gradientBlueBg = isDark ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30' : 'bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300'
 
     // Fetch data on mount
     useEffect(() => {
@@ -45,6 +48,13 @@ export default function Home() {
             setTrendingPlayers(players);
         }).catch(err => {
             console.error('Failed to fetch trending players:', err);
+        });
+
+        // Fetch popular cards
+        fetchPopularCards(userShowdownSet).then(cards => {
+            setPopularCards(cards);
+        }).catch(err => {
+            console.error('Failed to fetch popular cards:', err);
         });
     }, []);
 
@@ -90,7 +100,7 @@ export default function Home() {
                         <span className={`inline-flex items-center gap-2 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
                             <FaBolt className={`${isDark ? 'text-yellow-400' : 'text-yellow-500'}`} /> Custom Showdown cards in seconds
                         </span>
-                        <div className={`inline-flex items-center gap-1 px-4 py-1 rounded-full text-sm font-semibold ${isDark ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30' : 'bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300'}`}>
+                        <div className={`inline-flex items-center gap-1 px-4 py-1 rounded-full text-sm font-semibold ${gradientBlueBg}`}>
                             <span className={`font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'} ${totalCardCount !== null ? '' : 'redacted animate-pulse'}`}>{totalCardCount !== null ? totalCardCount.toLocaleString() : '---------'}</span>
                             <span className={`${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>cards created</span>
                         </div>
@@ -292,8 +302,19 @@ export default function Home() {
                     </div>
                     <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <div className="font-semibold mb-2 flex items-center gap-2"><FaStar className="text-yellow-400" /> Most Popular</div>
-                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>All-time most viewed cards.</div>
-                        {renderBlankExploreCards()}
+                        <div className={`text-sm mb-2 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Most created custom cards all-time.</div>
+                        {popularCards.length > 0 ? (
+                            <div className='space-y-3'>
+                                {popularCards.slice(0, 4).map((card, index) => (
+                                    <div className="relative max-w-full">
+                                        <span className={`absolute text-[12px] right-0 top-[-6px] ${gradientBlueBg} text-white rounded-full px-2 py-1`}>{card.num_creations.toLocaleString()}</span>
+                                        <CardItemFromCard key={index} card={card.card_data} className="max-w-full" />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            renderBlankExploreCards()
+                        )}
                     </div>
                     <div className={`rounded-2xl p-6 overflow-hidden ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
                         <div className="font-semibold mb-2 flex items-center gap-2"><FaUsers className="text-primary" /> Creator picks</div>

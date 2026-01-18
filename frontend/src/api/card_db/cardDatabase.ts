@@ -116,6 +116,12 @@ export type TrendingCardRecord = {
     wow_percent: number;
 };
 
+export type PopularCardRecord = {
+    card_data: ShowdownBotCard;
+    num_creations: number;
+    showdown_set: string;
+};
+
 /**
  * Team hierarchy data structure for organizational filtering.
  * Comes from materialized view in database, helps show only relevant values depending on prior selections.
@@ -198,6 +204,21 @@ export async function fetchTrendingPlayers(showdownSet: string): Promise<Trendin
     const data = await res.json();
     console.log("Trending players data:", data);
     return data?.trending_cards ?? [];
+}
+
+export async function fetchPopularCards(showdownSet: string): Promise<PopularCardRecord[]> {
+    const res = await fetch(`${API_BASE}/cards/popular`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ set: showdownSet }),
+    });
+    
+    // Handle errors
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    const data = await res.json();
+    return data?.popular_cards ?? [];
 }
 
 // =============================================================================
