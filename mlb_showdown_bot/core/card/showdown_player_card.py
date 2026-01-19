@@ -2994,7 +2994,8 @@ class ShowdownPlayerCard(BaseModel):
 
         is_00_01_set = self.set.is_00_01        
         dark_mode_suffix = '-DARK' if self.image.is_dark_mode and self.set.is_showdown_bot else ''
-        default_image_path = self._template_img_path(f'Default Background - {self.set.template_year}{dark_mode_suffix}')
+        def_bg_template = 'OG' if self.set.is_00_01 else f"BALLPARK"
+        default_image_path = self._template_img_path(f'Default Background - {def_bg_template}{dark_mode_suffix}')
         
         # CHECK FOR CUSTOM LOCAL IMAGE ASSET (EX: NATIONALITY, ASG)
         custom_image_path: str = None
