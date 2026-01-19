@@ -802,9 +802,14 @@ class PostgresDB:
 
             elif 'chart_values' in sort_by:
                 chart_key = sort_by.replace('chart_values_', '').upper()
-                final_sort = sql.SQL("""(chart_values->>%s)::float {direction} NULLS LAST""").format(
-                    direction=sql.SQL(sort_direction)
-                )
+                if source == 'wotc':
+                    final_sort = sql.SQL("""(card_data->'chart'->'values'->>%s)::float {direction} NULLS LAST""").format(
+                        direction=sql.SQL(sort_direction)
+                    )
+                else:
+                    final_sort = sql.SQL("""(chart_values->>%s)::float {direction} NULLS LAST""").format(
+                        direction=sql.SQL(sort_direction)
+                    )
                 filter_values += [chart_key]
 
             elif 'real_stats' in sort_by:

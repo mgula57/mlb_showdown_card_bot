@@ -18,7 +18,7 @@ def wotc_conversion(
 
     if upload_to_postgres:
         start_time = time.time()
-        db = PostgresDB()
+        db = PostgresDB(is_archive=True)
         db.upload_wotc_card_data(wotc_card_data=list(wotc_set.cards.values()), drop_existing=drop_existing)
         end_time = time.time()
         print(f"✅ Uploaded WOTC data to Postgres in {end_time - start_time:.2f} seconds.")

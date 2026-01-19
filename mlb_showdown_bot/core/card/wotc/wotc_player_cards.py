@@ -171,8 +171,8 @@ class WotcPlayerCard(ShowdownPlayerCard):
 
                 self.stats = self.clean_stats(self.stats) if stats else {}
 
-                game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
                 # ADD LOGS AS STATS IN PERIOD
+                game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
                 self.stats_period.add_stats_from_game_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
 
                 if self.stats_period.stats:
@@ -199,7 +199,7 @@ class WotcPlayerCard(ShowdownPlayerCard):
         
         # ADD PROJECTIONS
         chart_results_per_400_pa = self.chart.projected_stats_per_400_pa
-        self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command, pa=self.stats.get('PA', 650))
+        self.projected = self.projected_statline(stats_per_400_pa=chart_results_per_400_pa, command=self.chart.command, pa=self.stats_for_card.get('PA', 650))
 
         # ADD ESTIMATED PTS
         chart_for_pts = self.chart.model_copy()
@@ -302,7 +302,7 @@ class WotcPlayerCardSet(BaseModel):
 
         # LOAD PLAYER STATS FROM ARCHIVE DB
         postgres_db = PostgresDB(is_archive=True)
-        year_list = [y-1 for y in set_values] + ss_year_values
+        year_list = [y-1 for y in set_values] + ss_year_values + [2005]  # ADD 2005 FOR TD EXPANSION
         print("FETCHING PLAYER STATS")
         real_player_stats_archive: list[PlayerArchive] = postgres_db.fetch_all_stats_from_archive(year_list=year_list, exclude_records_with_stats=False)
         if len(real_player_stats_archive) == 0:
@@ -432,6 +432,7 @@ class WotcPlayerCardSet(BaseModel):
                             stats = player_archive.stats if player_archive else None
 
                     if len(stats_list) > 0:
+                        stats_list.sort(key=lambda x: int(x.year_id))
                         combined_stats = PlayerStatsNormalizer.combine_multi_year_stats(stats_list, stats_period)
                         stats = combined_stats.model_dump(
                             exclude_unset=True,
