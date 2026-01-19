@@ -2,6 +2,7 @@
   "name": "mlb-showdown-card-bot",
   "version": "1.0.0",
   "scripts": {
+    "build": "echo 'Build handled by heroku-postbuild'",
     "heroku-postbuild": "cd frontend && npm ci && npm run build"
   },
   "engines": {
