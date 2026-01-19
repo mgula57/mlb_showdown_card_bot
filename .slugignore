@@ -1,14 +1,63 @@
-
+# Documentation
 *.md
 docs/
+README*
+LICENSE
+CHANGELOG*
+
+# Tests and coverage
 test/
 tests/
 spec/
-frontend/node_modules/.cache/
+**/test_*.py
+**/*_test.py
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Frontend source (only need dist in production)
+frontend/src/
+frontend/public/
+frontend/node_modules/
+frontend/.vite/
+frontend/package.json
+frontend/package-lock.json
+frontend/tsconfig*.json
+frontend/eslint.config.js
+frontend/vite.config.ts
 frontend/dist/stats.html
-frontend/src/**/*.test.tsx
-frontend/src/**/*.spec.tsx
+
+# Python distribution packages (don't need in slug)
+dist/
+*.whl
+*.tar.gz
+
+# Python cache and build artifacts
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+build/
+*.egg-info/
+.eggs/
+
+# Development tools
 .git/
 .github/
 .vscode/
+.idea/
+.editorconfig
+.prettierrc
+
+# Logs and temp files
 *.log
+temp_uploads/
+cache/
+mlb_showdown_bot/scripts/cache/
+mlb_showdown_bot/scripts/output/
+
+# Test data
+tests/data/
+
+# Misc
+.DS_Store
+Thumbs.db
