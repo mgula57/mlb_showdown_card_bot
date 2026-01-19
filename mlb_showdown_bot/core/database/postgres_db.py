@@ -2760,9 +2760,9 @@ class PostgresDB:
             dates AS (
 
                 SELECT distinct
-                    '2025-09-01'::date as current_week_end,
-                    '2025-09-01'::date - interval '7 day' as current_week_start,
-                    '2025-09-01'::date - interval '14 day' as last_week_start
+                    max(created_on)::date as current_week_end,
+                    max(created_on)::date - interval '7 day' as current_week_start,
+                    max(created_on)::date - interval '14 day' as last_week_start
                 FROM internal.log_custom_card_bot
             ),
 
@@ -2773,7 +2773,7 @@ class PostgresDB:
                     COUNT(*) as views_this_week
                 FROM internal.log_custom_card_bot, dates
                 WHERE created_on >= current_week_start 
-                and error is not null 
+                and error is null 
                 and bref_id is not null
                 and created_on <= current_week_end
                 and length(year) = 4
@@ -2788,7 +2788,7 @@ class PostgresDB:
                 FROM internal.log_custom_card_bot, dates
                 WHERE created_on >= last_week_start
                 AND created_on < current_week_start
-                and error is not null and bref_id is not null
+                and error is null and bref_id is not null
                 and length(year) = 4
                 GROUP BY 1
 
@@ -2821,9 +2821,11 @@ class PostgresDB:
                 FROM current_week c
                 LEFT JOIN last_week l ON c.player_id = l.player_id
                 WHERE c.views_this_week >= 5  -- Minimum threshold to avoid noise
+                and l.views_last_week >= 1
                 ORDER BY trending_score desc
                 LIMIT 10
             )
+            
             select
                 wow.*,
                 dc.card_data,
