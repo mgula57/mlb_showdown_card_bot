@@ -262,6 +262,7 @@ class PostgresDB:
             extensions.register_adapter(dict, extras.Json)
 
         except Exception as e:
+            print(f"Error connecting to database: {e}")
             self.connection = None
 
     def close_connection(self) -> None:
