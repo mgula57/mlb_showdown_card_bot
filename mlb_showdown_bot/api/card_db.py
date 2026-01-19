@@ -44,7 +44,9 @@ def fetch_card():
     try:
         db = PostgresDB(is_archive=True)
         id = request.args.get('id')
+        source = request.args.get('src', 'unknown')
         card = db.fetch_single_card(id)
+        db.log_card_id_lookup(card_id=id, source=source)
         db.close_connection()
 
         if card is None:

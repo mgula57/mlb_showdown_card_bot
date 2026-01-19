@@ -1991,6 +1991,8 @@ class PostgresDB:
         """Create necessary logging tables if they do not exist."""
         # self.create_custom_card_logging_table()
         self.create_log_player_search_table()
+        self.create_log_card_image_generation_table()
+        self.create_log_card_id_lookup_table()
 
     def create_custom_card_logging_table(self) -> None:
         """Create the log_custom_card_bot table if it does not exist."""
@@ -2098,6 +2100,57 @@ class PostgresDB:
         except Exception as error:
             traceback.print_exc()
             print(f"Error creating internal.log_player_search table: {error}")
+            self.connection.rollback()
+
+    def create_log_card_image_generation_table(self) -> None:
+        """Create the log_card_image_generation table if it does not exist."""
+
+        if not self.connection:
+            print("No database connection available for creating logging table.")
+            return 
+        
+        create_table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.log_card_image_generation (
+                id SERIAL PRIMARY KEY,
+                timestamp timestamp without time zone DEFAULT now(),
+                card_id character varying(32),
+                error text
+            );
+        """
+
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(create_table_sql)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating internal.log_card_image_generation table: {error}")
+            self.connection.rollback()
+
+    def create_log_card_id_lookup_table(self) -> None:
+        """Create the log_card_id_lookup table if it does not exist."""
+
+        if not self.connection:
+            print("No database connection available for creating logging table.")
+            return 
+        
+        create_table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.log_card_id_lookup (
+                id SERIAL PRIMARY KEY,
+                timestamp timestamp without time zone DEFAULT now(),
+                card_id character varying(32),
+                source character varying(128),
+                error text
+            );
+        """
+
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(create_table_sql)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating internal.log_card_id_lookup table: {error}")
             self.connection.rollback()
 
     def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
@@ -2239,6 +2292,61 @@ class PostgresDB:
         except Exception as error:
             traceback.print_exc()
             print(f"Error logging player search to DB: {error}")
+            self.connection.rollback()
+            return None
+
+    def log_card_image_generation(self, card_id: str, error: str = None) -> None:
+        """
+        Store card image generation data in the log_card_image_generation table.
+
+        Args:
+            card_id: ID of the card.
+            error: Error message if any.
+        """
+        
+        if not self.connection:
+            print("No database connection available for logging.")
+            return 
+        
+        sql = """
+            INSERT INTO internal.log_card_image_generation (card_id, error) 
+            VALUES (%s, %s)
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, (card_id, error))
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error logging card image generation to DB: {error}")
+            self.connection.rollback()
+            return None
+
+    def log_card_id_lookup(self, card_id: str, source: str, error: str = None) -> None:
+        """
+        Store card ID lookup data in the log_card_id_lookup table.
+
+        Args:
+            card_id: ID of the card.
+            source: Source of the lookup.
+            error: Error message if any.
+        """
+        
+        if not self.connection:
+            print("No database connection available for logging.")
+            return 
+        
+        sql = """
+            INSERT INTO internal.log_card_id_lookup (card_id, source, error) 
+            VALUES (%s, %s, %s)
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, (card_id, source, error))
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error logging card ID lookup to DB: {error}")
             self.connection.rollback()
             return None
 

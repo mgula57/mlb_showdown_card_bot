@@ -136,7 +136,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
         // Case 2: No data but cardId provided - fetch it from DB
         if (cardId && cardId !== internalCardId) {
             setIsLoadingFromId(true);
-            fetchCardById(cardId)
+            fetchCardById(cardId, 'card-detail')
                 .then((data) => {
                     console.log("Fetched single card data by ID:", data);
                     if (data) {

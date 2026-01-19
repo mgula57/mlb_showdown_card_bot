@@ -114,7 +114,7 @@ export default function Home() {
         // Simulate fetching a card based on the selected player and year
         const cardId = `${selection.year}-${selection.bref_id}${selection.player_type_override ? `-${selection.player_type_override}` : ''}-${userShowdownSet}`;
         setIsLoadingSearchCard(true);
-        fetchCardById(cardId).then(card => {
+        fetchCardById(cardId, 'home-search').then(card => {
             setSelectedCard(card.card || null);
             setIsLoadingSearchCard(false);
         });
