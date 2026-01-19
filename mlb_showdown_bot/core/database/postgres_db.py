@@ -243,7 +243,7 @@ class PostgresDB:
 
     def __init__(self, skip_connection:bool = False, is_archive:bool = False) -> None:
         self.connection = None
-        self.env_var_name = 'DATABASE_URL_ARCHIVE' if is_archive else 'DATABASE_URL'
+        self.env_var_name = 'DATABASE_URL_ARCHIVE' if is_archive else 'DATABASE_URL_LOGS'
         if not skip_connection:
             self.connect()
         
