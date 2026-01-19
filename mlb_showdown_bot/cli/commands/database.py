@@ -127,7 +127,6 @@ def database_feature_status(
     db.update_feature_status(feature_name=feature_name, is_disabled=disable_feature, message=message)
     print("✅ Feature status updated.")
 
-
 @app.command("store_fielding_stats")
 def store_fielding_stats_in_db():
     """Fetch fielding stats from Fangraphs and store in Postgres DB"""
@@ -175,6 +174,18 @@ def refresh_card_of_the_day():
     db = PostgresDB(is_archive=True)
     db.refresh_card_of_the_day()
     print("✅ Card of the Day refreshed.")
+
+@app.command("build_logging_tables")
+def build_logging_tables(
+    is_archive: bool = typer.Option(False, "--is_archive", "-arch", help="Build logging tables in the archive database")
+):
+    """Build logging tables in the archive database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building logging tables in the archive database...")
+    db = PostgresDB(is_archive=is_archive)
+    db.build_logging_tables()
+    print("✅ Logging tables built.")
 
 # Make database the default command
 @app.callback(invoke_without_command=True)

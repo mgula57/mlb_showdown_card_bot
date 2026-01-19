@@ -15,6 +15,8 @@ def fetch_card_list():
         # Get query parameters
         payload = request.get_json() or {}
         card_data = db.fetch_card_list(filters = payload)
+
+        db.log_player_search(filters=payload, result_count=len(card_data or []))
         db.close_connection()
 
         return jsonify(card_data)

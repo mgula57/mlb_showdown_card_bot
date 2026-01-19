@@ -1987,6 +1987,11 @@ class PostgresDB:
 # LOGGING
 # ------------------------------------------------------------------------
 
+    def build_logging_tables(self) -> None:
+        """Create necessary logging tables if they do not exist."""
+        # self.create_custom_card_logging_table()
+        self.create_log_player_search_table()
+
     def create_custom_card_logging_table(self) -> None:
         """Create the log_custom_card_bot table if it does not exist."""
 
@@ -2056,7 +2061,7 @@ class PostgresDB:
         """
 
         index_sql = """
-            CREATE UNIQUE INDEX internal.log_custom_card_bot_id_idx ON internal.log_custom_card_bot(id int4_ops);
+            CREATE UNIQUE INDEX IF NOT EXISTS log_custom_card_bot_id_idx ON internal.log_custom_card_bot(id int4_ops);
         """
         try:
             with self.connection.cursor() as cur:
@@ -2067,6 +2072,32 @@ class PostgresDB:
         except Exception as error:
             traceback.print_exc()
             print(f"Error creating internal.log_custom_card_bot table: {error}")
+            self.connection.rollback()
+
+    def create_log_player_search_table(self) -> None:
+        """Create the log_player_search table if it does not exist."""
+
+        if not self.connection:
+            print("No database connection available for creating logging table.")
+            return 
+        
+        create_table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.log_player_search (
+                id SERIAL PRIMARY KEY,
+                timestamp timestamp without time zone DEFAULT now(),
+                filters jsonb,
+                result_count integer,
+                error text
+            );
+        """
+
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(create_table_sql)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating internal.log_player_search table: {error}")
             self.connection.rollback()
 
     def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
@@ -2180,6 +2211,34 @@ class PostgresDB:
         except Exception as error:
             traceback.print_exc()
             print(f"Error logging card submission to DB: {error}")
+            self.connection.rollback()
+            return None
+
+    def log_player_search(self, filters: dict, result_count: int, error: str = None) -> None:
+        """
+        Store player search data in the log_player_search table.
+
+        Args:
+            filters: Search filters used.
+            result_count: Number of results returned.
+            error: Error message if any.
+        """
+        
+        if not self.connection:
+            print("No database connection available for logging.")
+            return 
+        
+        sql = """
+            INSERT INTO internal.log_player_search (filters, result_count, error) 
+            VALUES (%s, %s, %s)
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, (json.dumps(filters), result_count, error))
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error logging player search to DB: {error}")
             self.connection.rollback()
             return None
 
