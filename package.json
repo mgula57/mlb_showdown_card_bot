@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "build": "echo 'Build handled by heroku-postbuild'",
-    "heroku-postbuild": "cd frontend && npm ci && npm run build"
+    "heroku-postbuild": "cd frontend && npm install --production=false && npm run build"
   },
   "engines": {
     "node": "22.x",
