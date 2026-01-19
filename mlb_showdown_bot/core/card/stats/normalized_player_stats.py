@@ -747,6 +747,17 @@ class PlayerStatsNormalizer:
         if len(stats_list) == 1:
             return stats_list[0]  # Nothing to combine
         
+        # For 2-way players, filter out stats that don't match the primary type
+        # Identify type based on game counts
+        type_game_counts: Dict[str, int] = {}
+        for stats in stats_list:
+            player_type = stats.player_type_override if stats.player_type_override else stats.type
+            type_game_counts[player_type] = type_game_counts.get(player_type, 0) + (stats.G or 0)
+
+        if len(type_game_counts) > 1:
+            primary_type = max(type_game_counts, key=type_game_counts.get)
+            stats_list = [s for s in stats_list if (s.player_type_override if s.player_type_override else s.type) == primary_type]
+        
         # Use the first entry as base template - USE ALIASES IN OUTPUT
         base_stats = stats_list[-1]  # Use the most recent year as base
         combined_data = base_stats.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)

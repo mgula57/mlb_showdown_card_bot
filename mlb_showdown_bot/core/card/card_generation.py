@@ -151,7 +151,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     stats_yearly_list = [
                         NormalizedPlayerStats(primary_datasource=Datasource.BREF, year_id=str(d.year), **( d.stats | ({'year_ID': str(d.year)} if d.stats.get('year_ID', None) is None else {}) )) \
                             for d in player_archive_list \
-                            if d.year in baseball_reference_stats.stats_period.year_list or baseball_reference_stats.stats_period.is_full_career
+                            if (d.year in baseball_reference_stats.stats_period.year_list or baseball_reference_stats.stats_period.is_full_career) \
+                                and d.stats is not None and len(d.stats) > 0
                     ]
                     if len(stats_yearly_list) > 0:
                         # COMBINE STATS FROM EACH YEAR

@@ -386,7 +386,7 @@ class PostgresDB:
         if len(query_results_list) == 0:
             return []
         
-        return [PlayerArchive(**row) for row in query_results_list]
+        return [PlayerArchive(**row) for row in query_results_list if (not type_override or (row.get('player_type', 'n/a') == type_override.value.upper()))]
 
     def fetch_all_stats_from_archive(self, year_list: list[int], filters:list[tuple] = [], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None, modified_start_date:str=None, modified_end_date:str=None) -> list[PlayerArchive]:
         """
