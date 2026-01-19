@@ -44,6 +44,10 @@ type ModalProps = {
     title?: string;
     /** Size preset for the modal width - defaults to 'lg' */
     size?: 'sm' | 'md' | 'lg' | 'xl';
+    /** If true, disables the close button in the header */
+    disableCloseButton?: boolean;
+    /** Controls whether the modal is visible - for scroll lock management */
+    isVisible?: boolean;
 };
 
 /**
@@ -60,7 +64,7 @@ type ModalProps = {
  * @param props - Modal component props
  * @returns A full-screen modal dialog overlay
  */
-export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
+export function Modal({ children, onClose, title, size = 'lg', disableCloseButton = false, isVisible = true }: ModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
     const scrollYRef = useRef(0); // Stores scroll position for restoration
 
@@ -101,6 +105,9 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
      * - Restores exact scroll position on cleanup
      */
     useEffect(() => {
+        // Only apply scroll lock when modal is visible
+        if (!isVisible) return;
+
         // Increment modal count and apply scroll lock if this is the first modal
         bodyScrollLockCount += 1;
         if (bodyScrollLockCount === 1) {
@@ -140,7 +147,7 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
                 window.scrollTo(0, -y);
             }
         };
-    }, []);
+    }, [isVisible]);
 
     /** Responsive size classes for different modal sizes */
     const sizeClasses = {
@@ -182,6 +189,7 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
                     overflow-y-auto
                     cursor-default
                     relative
+                    border-1 border-form-element
                 `}
             >
                 {/* Conditional header with title and close button */}
@@ -193,6 +201,7 @@ export function Modal({ children, onClose, title, size = 'lg' }: ModalProps) {
                         {closeButton()}
                     </div>
                 ) : (
+                    !disableCloseButton &&
                     // Floating close button when no title is provided
                     <div className="absolute right-3 top-3 z-10">
                         {closeButton()}

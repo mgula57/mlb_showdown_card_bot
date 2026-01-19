@@ -36,6 +36,13 @@ interface PlayerSearchOption {
     player_type_override?: string | null;
 }
 
+export type PlayerSearchSelection = {
+    name: string;
+    year: string;
+    bref_id: string;
+    player_type_override?: string;
+};
+
 /**
  * Props for the PlayerSearchInput component
  */
@@ -45,14 +52,16 @@ interface PlayerSearchInputProps {
     /** Current search query value */
     value: string;
     /** Callback when player is selected from search results */
-    onChange: (selection: {
-        name: string;
-        year: string;
-        bref_id: string;
-        player_type_override?: string;
-    }) => void;
+    onChange: (selection: PlayerSearchSelection) => void;
     /** Optional CSS class names for styling */
     className?: string;
+    /** Optional search filter options */
+    searchOptions?: {
+        exclude_multi_year?: boolean;
+        exclude_career?: boolean;
+        min_bwar?: number;
+        limit?: number;
+    };
 }
 
 /**
@@ -113,7 +122,8 @@ export function PlayerSearchInput({
     label,
     value,
     onChange,
-    className = ''
+    className = '',
+    searchOptions = {}
 }: PlayerSearchInputProps) {
 
     // =============================================================================
@@ -163,7 +173,7 @@ export function PlayerSearchInput({
 
         setMenuPos({
             left: inputRect.left,
-            top: inputRect.bottom,
+            top: inputRect.bottom + 4, // Add small gap below input
             width: inputRect.width
         });
     };
@@ -228,13 +238,26 @@ export function PlayerSearchInput({
         debounceRef.current = setTimeout(async () => {
             setIsLoading(true);
             try {
-                const response = await fetch('/api/players/search?q=' + encodeURIComponent(query));
-                console.log(response);
+                // Build query params
+                const params = new URLSearchParams({ q: query });
+                
+                if (searchOptions.exclude_multi_year) {
+                    params.append('exclude_multi_year', 'true');
+                }
+                if (searchOptions.exclude_career) {
+                    params.append('exclude_career', 'true');
+                }
+                if (searchOptions.min_bwar !== undefined) {
+                    params.append('min_bwar', searchOptions.min_bwar.toString());
+                }
+                if (searchOptions.limit !== undefined) {
+                    params.append('limit', searchOptions.limit.toString());
+                }
+
+                const response = await fetch(`/api/players/search?${params.toString()}`);
                 const results = await response.json();
                 
                 setOptions(results);
-
-                console.log(options.length)
                 setIsOpen(results.length > 0);
                 setSelectedIndex(-1);
             } catch (error) {
@@ -403,10 +426,11 @@ export function PlayerSearchInput({
                     <div 
                         ref={dropdownRef}
                         className="
-                            absolute z-[1000]
-                            left-0 transform
+                            fixed z-[5]
+                            transform
                             bg-secondary rounded-xl shadow-lg
                             text-nowrap overflow-auto max-h-[40vh]
+                            border-2 border-form-element
                         "
                         style={{ left: menuPos.left, top: menuPos.top, width: menuPos.width }}
                     >

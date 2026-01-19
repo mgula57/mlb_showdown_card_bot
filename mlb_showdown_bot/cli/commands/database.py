@@ -19,6 +19,7 @@ def database_update(
     run_player_cards: bool = typer.Option(False, "--run_player_cards", "-cards", help="Generate Showdown Player Cards for archived players"),
     run_auto_image_suggestions: bool = typer.Option(False, "--run_auto_image_suggestions", "-auto_im", help="Generate auto image suggestions for archived players"),
     refresh_explore: bool = typer.Option(False, "--refresh_explore", "-exp", help="Refresh Explore materialized views"),
+    refresh_trends: bool = typer.Option(False, "--refresh_trends", "-trends", help="Refresh trending cards data"),
     drop_existing: bool = typer.Option(False, "--drop_existing", "-drop", help="Drop existing materialized views before refreshing"),
     exclude_records_with_stats: bool = typer.Option(False, "--exclude_records_with_stats", "-ers", help="Exclude records that already have stats in the database when scraping player stats"),
     daily_mid_season_update: bool = typer.Option(False, "--daily_mid_season_update", "-dmsu", help="Run a daily mid-season update to catch stat changes"),
@@ -26,6 +27,7 @@ def database_update(
     modified_end_date: Optional[str] = typer.Option(None, "--modified_end_date", "-mod_e", help="Only include records modified before this date"),
     player_id_list: Optional[str] = typer.Option(None, "--player_id_list", "-pil", help="Comma-separated list of player IDs (e.g., 'abreuwi02,bailepa01,crowape01')"),
     limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Limit how many players are processed"),
+    ignore_minimums: bool = typer.Option(False, "--ignore_minimums", "-im", help="Ignore minimum PA/IP when archiving stats")
 ):
     """Archive player stats to Postgres"""
 
@@ -69,17 +71,23 @@ def database_update(
             player_stats_archive.generate_showdown_player_cards(
                 publish_to_postgres=publish_to_postgres, 
                 refresh_explore=refresh_explore, 
-                sets=showdown_set_list
+                sets=showdown_set_list,
+                ignore_minimums=ignore_minimums
             )
 
         if run_auto_image_suggestions:
             db = PostgresDB(is_archive=True)
-            db.build_auto_images_table(refresh_explore=refresh_explore, drop_existing=drop_existing)
+            db.build_auto_image_table(refresh_explore=refresh_explore, drop_existing=drop_existing)
 
         if not run_player_cards and refresh_explore:
             print("Refreshing Explore materialized views...")
             db = PostgresDB(is_archive=True)
             db.refresh_explore_views(drop_existing=drop_existing)
+
+        if refresh_trends:
+            print("Refreshing Trending Cards data...")
+            db = PostgresDB(is_archive=True)
+            db.refresh_all_trends()
 
     except Exception as e:
         # Full traceback
@@ -118,6 +126,66 @@ def database_feature_status(
     db = PostgresDB(is_archive=is_archive)
     db.update_feature_status(feature_name=feature_name, is_disabled=disable_feature, message=message)
     print("✅ Feature status updated.")
+
+@app.command("store_fielding_stats")
+def store_fielding_stats_in_db():
+    """Fetch fielding stats from Fangraphs and store in Postgres DB"""
+    from ...core.fangraphs.client import FangraphsAPIClient
+    from ...core.archive.player_stats_archive import PostgresDB
+
+    print("Fetching fielding stats from Fangraphs...")
+    fg_api = FangraphsAPIClient()
+    df = fg_api.fetch_fielding_stats(season=2025, position="LF", fangraphs_player_ids=[])
+
+@app.command("refresh_player_id_table")
+def refresh_player_id_table():
+    """Fetch player ID mapping data and refresh the player_id_master table in Postgres DB"""
+    from ...core.ids.fetch_player_id_csv import fetch_player_id_csv
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Fetching player ID mapping data...")
+    data = fetch_player_id_csv()
+    print(f"Fetched {len(data)} player ID records.")
+
+    print("Updating player_id_master table in Postgres DB...")
+    db = PostgresDB()
+    db.update_player_id_table(data)
+    print("✅ player_id_master table refreshed.")
+
+@app.command("spotlight")
+def publish_spotlight_cards(
+    player_ids: str = typer.Option(..., "--player_ids", "-p", help="Comma-separated list of player IDs to spotlight."),
+    message: str = typer.Option("Featured by the MLB Showdown Bot team", "--message", "-m", help="Message or reason for spotlighting the cards.")
+):
+    """Publish spotlight cards to the database"""
+    parsed_player_ids = [pid.strip() for pid in player_ids.split(',') if pid.strip()]
+    print(f"Publishing spotlight for player IDs: {parsed_player_ids} with message: '{message}'")
+
+    db = PostgresDB(is_archive=True)
+    db.publish_new_spotlight(player_ids=parsed_player_ids, message=message)
+    print("✅ Spotlight cards published.")
+
+@app.command("refresh_card_of_the_day")
+def refresh_card_of_the_day():
+    """Refresh the Card of the Day in the database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Refreshing Card of the Day...")
+    db = PostgresDB(is_archive=True)
+    db.refresh_card_of_the_day()
+    print("✅ Card of the Day refreshed.")
+
+@app.command("build_logging_tables")
+def build_logging_tables(
+    is_archive: bool = typer.Option(False, "--is_archive", "-arch", help="Build logging tables in the archive database")
+):
+    """Build logging tables in the archive database"""
+    from ...core.database.postgres_db import PostgresDB
+
+    print("Building logging tables in the archive database...")
+    db = PostgresDB(is_archive=is_archive)
+    db.build_logging_tables()
+    print("✅ Logging tables built.")
 
 # Make database the default command
 @app.callback(invoke_without_command=True)

@@ -1,3 +1,4 @@
+import json
 import os
 import psycopg2
 import traceback
@@ -7,13 +8,19 @@ from psycopg2 import extensions, extras
 from psycopg2.extensions import AsIs
 from psycopg2 import sql
 from datetime import datetime
-from pydantic import BaseModel
-from typing import Optional, Any
+from pydantic import BaseModel, Field
+from typing import Optional, Any, Dict, List
+from enum import Enum
 
 # INTERNAL
 from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Set, StatsPeriodType, __version__
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
+
+
+# ----------------------------------------------------------------
+# MARK: - DATA MODELS
+# ----------------------------------------------------------------
 
 class PlayerArchive(BaseModel):
     id: str
@@ -52,6 +59,182 @@ class PlayerArchive(BaseModel):
         else:
             return 'RELIEF_PITCHER'
 
+
+class ImageMatchType(str, Enum):
+    """Types of image matches available"""
+    EXACT = "exact"
+    TEAM_MATCH = "team match"
+    YEAR_MATCH = "year match"
+    NO_MATCH = "no match"
+
+class ExploreDataRecord(BaseModel):
+    """Pydantic model for records from the card_bot materialized view"""
+    
+    # Base identifiers
+    id: str
+    year: int
+    bref_id: str
+    name: str
+    
+    # Player type information
+    player_type: str
+    player_type_override: Optional[str] = None
+    is_two_way: bool = False
+    
+    # Position information
+    primary_positions: List[str]
+    secondary_positions: List[str]
+    positions_list: List[str]
+    
+    # Basic stats
+    g: int = Field(description="Games played")
+    gs: int = Field(description="Games started")
+    pa: Optional[int] = Field(None, description="Plate appearances")
+    real_ip: Optional[float] = Field(None, description="Innings pitched")
+    
+    # League and team information
+    lg_id: str = Field(description="League ID")
+    team_id: str = Field(description="Team ID")
+    team_id_list: List[str] = Field(description="List of teams if multi-team player")
+    team_games_played_dict: Dict[str, Any] = Field(description="Games played by team")
+    team_override: Optional[str] = None
+    
+    # Card data
+    card_data: ShowdownPlayerCard = Field(description="Raw card data as stored")
+    showdown_set: str = Field(description="Showdown set (e.g., '2001', 'CLASSIC')")
+    showdown_bot_version: Optional[str] = Field(None, description="Version of showdown bot used")
+    
+    # Parsed card attributes
+    points: Optional[int] = Field(None, description="Card point value")
+    nationality: Optional[str] = None
+    organization: Optional[str] = Field(None, description="MLB, NGL, etc.")
+    league: Optional[str] = Field(None, description="AL, NL, etc.")
+    team: Optional[str] = Field(None, description="Team from team hierarchy")
+    
+    # Metadata
+    positions_and_defense: Optional[Dict[str, Any]] = Field(None, description="Position and defense ratings")
+    positions_and_defense_string: Optional[str] = Field(None, description="Formatted positions string")
+    ip: Optional[int] = Field(None, description="Innings pitched (card value)")
+    speed: Optional[int] = Field(None, description="Speed rating")
+    hand: Optional[str] = Field(None, description="Handedness (L/R/S)")
+    speed_letter: Optional[str] = Field(None, description="Speed letter grade")
+    speed_full: Optional[str] = Field(None, description="Full speed designation (e.g., 'A(19)')")
+    speed_or_ip: Optional[int] = Field(None, description="Speed for hitters, IP for pitchers")
+    icons_list: List[str] = Field(default_factory=list, description="List of card icons")
+    
+    # Awards and stats
+    awards_list: List[str] = Field(default_factory=list, description="List of awards/achievements")
+    
+    # Chart information
+    command: Optional[int] = Field(None, description="Command rating")
+    outs: Optional[int] = Field(None, description="Number of outs on chart")
+    is_chart_outlier: Optional[bool] = Field(None, description="Whether chart has command/outs anomaly")
+    
+    # Image information
+    image_match_type: ImageMatchType = Field(ImageMatchType.NO_MATCH, description="Type of image match")
+    image_ids: Optional[Dict[str, str]] = Field(None, description="Available image IDs (BG/CUT)")
+    
+    # Metadata
+    updated_at: datetime = Field(description="When record was last updated")
+        
+    @property
+    def player_subtype(self) -> str:
+        """Derive player subtype based on games started ratio"""
+        if self.player_type == 'HITTER':
+            return 'POSITION_PLAYER'
+        
+        games_started_vs_total = round(self.gs / self.g, 4) if self.g > 0 else 0
+        if games_started_vs_total >= 0.5:
+            return 'STARTING_PITCHER'
+        else:
+            return 'RELIEF_PITCHER'
+    
+    @property
+    def is_multi_team(self) -> bool:
+        """Whether player played for multiple teams"""
+        return len(self.team_id_list) > 1
+    
+    @property
+    def has_awards(self) -> bool:
+        """Whether player has any awards"""
+        return len(self.awards_list) > 0
+    
+    @property
+    def has_image_match(self) -> bool:
+        """Whether player has any image match"""
+        return self.image_match_type != ImageMatchType.NO_MATCH
+    
+    @property
+    def chart_efficiency(self) -> Optional[float]:
+        """Calculate chart efficiency (command per out)"""
+        if self.command is not None and self.outs is not None and self.outs > 0:
+            return round(self.command / self.outs, 2)
+        return None
+    
+    @property
+    def war(self) -> Optional[float]:
+        """Get WAR from card data stats"""
+        if not self.card_data or not self.card_data.stats:
+            return None
+        
+        try:
+            war_value = self.card_data.stats.get('bWAR', None)
+            if war_value is not None:
+                return float(war_value)
+            return None
+        except (ValueError, TypeError):
+            return None
+    
+    def get_position_defense_rating(self, position: str) -> Optional[int]:
+        """Get defense rating for a specific position"""
+        if not self.positions_and_defense or position not in self.positions_and_defense:
+            return None
+        
+        try:
+            return int(self.positions_and_defense[position])
+        except (ValueError, TypeError):
+            return None
+    
+    def get_real_stat(self, stat_name: str) -> Optional[Any]:
+        """Get a real stat value from card data"""
+        if not self.card_data or 'stats' not in self.card_data:
+            return None
+        
+        stats = self.card_data['stats']
+        return stats.get(stat_name)
+    
+    def get_chart_value(self, outcome: str) -> Optional[float]:
+        """Get a specific chart outcome value"""
+        if not self.card_data or 'chart' not in self.card_data:
+            return None
+        
+        chart = self.card_data['chart']
+        if 'values' not in chart:
+            return None
+            
+        try:
+            return float(chart['values'].get(outcome, 0))
+        except (ValueError, TypeError):
+            return None
+    
+    def has_icon(self, icon: str) -> bool:
+        """Check if player has a specific icon"""
+        return icon in self.icons_list
+    
+    def has_award(self, award: str) -> bool:
+        """Check if player has a specific award"""
+        return award in self.awards_list
+    
+    def has_award_prefix(self, award_prefix: str) -> bool:
+        """Check if player has any award starting with prefix (e.g., 'MVP-' for any MVP ranking)"""
+        return any(award.startswith(award_prefix) for award in self.awards_list)
+
+
+
+# ----------------------------------------------------------------
+# MARK: - POSTGRES DB CLASS
+# ----------------------------------------------------------------
+
 class PostgresDB:
 
 # ------------------------------------------------------------------------
@@ -60,7 +243,7 @@ class PostgresDB:
 
     def __init__(self, skip_connection:bool = False, is_archive:bool = False) -> None:
         self.connection = None
-        self.env_var_name = 'DATABASE_URL_ARCHIVE' if is_archive else 'DATABASE_URL'
+        self.env_var_name = 'DATABASE_URL_ARCHIVE' if is_archive else 'DATABASE_URL_LOGS'
         if not skip_connection:
             self.connect()
         
@@ -79,6 +262,7 @@ class PostgresDB:
             extensions.register_adapter(dict, extras.Json)
 
         except Exception as e:
+            print(f"Error connecting to database: {e}")
             self.connection = None
 
     def close_connection(self) -> None:
@@ -121,7 +305,7 @@ class PostgresDB:
         return output
     
     def fetch_player_stats_from_archive(self, year:str, bref_id:str, team_override:Team = None, type_override:PlayerType = None, historical_date:str = None, stats_period_type:StatsPeriodType = StatsPeriodType.REGULAR_SEASON) -> tuple[PlayerArchive, float]:
-        """Query the stats_archive table for a particular player's data from a single year
+        """Query the player_season_stats table for a particular player's data from a single year
         
         Args:
           year: Year input by the user. Showdown archive does not support multi-year.
@@ -159,7 +343,7 @@ class PostgresDB:
 
         query = sql.SQL("SELECT * FROM {table} WHERE {column} = %s ORDER BY modified_date DESC;") \
                     .format(
-                        table=sql.Identifier("stats_archive"),
+                        table=sql.Identifier("player_season_stats"),
                         column=sql.Identifier("id")
                     )
         query_results_list = self.execute_query(query=query, filter_values=(player_stats_id, ))
@@ -179,7 +363,7 @@ class PostgresDB:
         return (first_player_archive, load_time)
 
     def fetch_all_player_year_stats_from_archive(self, bref_id:str, type_override:PlayerType = None) -> list[PlayerArchive]:
-        """Query the stats_archive table for all player data for a given player
+        """Query the player_season_stats table for all player data for a given player
         
         Args:
             bref_id: Unique ID for the player defined by bref.
@@ -195,7 +379,7 @@ class PostgresDB:
         
         query = sql.SQL("SELECT * FROM {table} WHERE {column} = %s ORDER BY year;") \
                     .format(
-                        table=sql.Identifier("stats_archive"),
+                        table=sql.Identifier("player_season_stats"),
                         column=sql.Identifier("bref_id")
                     )
         query_results_list = self.execute_query(query=query, filter_values=(bref_id, ))
@@ -203,7 +387,7 @@ class PostgresDB:
         if len(query_results_list) == 0:
             return []
         
-        return [PlayerArchive(**row) for row in query_results_list]
+        return [PlayerArchive(**row) for row in query_results_list if (not type_override or (row.get('player_type', 'n/a') == type_override.value.upper()))]
 
     def fetch_all_stats_from_archive(self, year_list: list[int], filters:list[tuple] = [], limit: int = None, order_by: str = None, exclude_records_with_stats: bool = True, historical_date: datetime = None, modified_start_date:str=None, modified_end_date:str=None) -> list[PlayerArchive]:
         """
@@ -267,14 +451,14 @@ class PostgresDB:
         if exclude_records_with_stats:
             query = sql.SQL("SELECT * FROM {table} WHERE jsonb_extract_path(stats, 'bref_id') IS NULL AND {where_clause} {order_by_filter}") \
                         .format(
-                            table=sql.Identifier("stats_archive"),
+                            table=sql.Identifier("player_season_stats"),
                             where_clause=where_clause,
                             order_by_filter=sql.SQL(' ').join(additional_conditions)
                         )
         else:
             query = sql.SQL("SELECT * FROM {table} WHERE {where_clause} {order_by_filter}") \
                         .format(
-                            table=sql.Identifier("stats_archive"),
+                            table=sql.Identifier("player_season_stats"),
                             where_clause=where_clause,
                             order_by_filter=sql.SQL(' ').join(additional_conditions)
                         )
@@ -283,8 +467,8 @@ class PostgresDB:
 
         return [PlayerArchive(**row) for row in results]
     
-    def fetch_player_year_list_from_archive(self, players_stats_ids: list[str]) -> list[dict]:
-        """Query the stats_archive table for all player data for given a list of player_stats_ids ('{bref_id}-{year}')
+    def fetch_player_search_from_archive(self, players_stats_ids: list[str]) -> list[dict]:
+        """Query the player_season_stats table for all player data for given a list of player_stats_ids ('{bref_id}-{year}')
         
         Args:
           players_stats_ids: List of concatinated strings for bref_id and year
@@ -296,7 +480,7 @@ class PostgresDB:
         conditions = [sql.SQL(' IN ').join([sql.Identifier('id'), sql.Placeholder()])]
         query = sql.SQL("SELECT * FROM {table} WHERE {where_clause}") \
                     .format(
-                        table=sql.Identifier("stats_archive"),
+                        table=sql.Identifier("player_season_stats"),
                         where_clause=sql.SQL(' AND ').join(conditions)
                     )
         filters = (tuple(players_stats_ids), )
@@ -387,7 +571,7 @@ class PostgresDB:
                             AND ({edition_where_clause}) 
                         ORDER BY RANDOM() LIMIT 1"""
                     ).format(
-                        table=sql.Identifier("stats_archive"),
+                        table=sql.Identifier("player_season_stats"),
                         where_clause=where_clause,
                         hitter_games_minimum=hitter_games_minimum_statement,
                         pitcher_ip_minimum=pitcher_ip_minimum_statement,
@@ -401,25 +585,38 @@ class PostgresDB:
 
         return PlayerArchive(**result_list[0])
 
-    def fetch_current_season_player_data(self) -> list[dict]:
-        """Fetch current season player data from the database."""
-
-        if not self.connection:
-            return None
-
-        query = sql.SQL("""
-            SELECT *
-            FROM current_season_players
-        """)
-
-        result_list = self.execute_query(query=query)
-        return result_list
-
 # ------------------------------------------------------------------------
 # EXPLORE
 # ------------------------------------------------------------------------
 
-    def fetch_card_data(self, filters: dict = {}) -> list[dict]:
+    def fetch_single_card(self, card_id: str) -> Optional[ShowdownPlayerCard]:
+        """Fetch a single explore data record from the database by card ID."""
+        
+        query = sql.SQL("""
+            SELECT *
+            FROM internal.dim_card
+            WHERE id = %s
+            LIMIT 1
+        """)
+        raw_data = self.execute_query(query=query, filter_values=(card_id,))
+        if len(raw_data) == 0:
+            return None
+        
+        if 'card_data' not in raw_data[0]:
+            return None
+        
+        return ShowdownPlayerCard(**raw_data[0].get('card_data'))
+
+    def fetch_cards_bot(self, filters: dict = {}) -> list[ExploreDataRecord]:
+        """Fetch all explore data from the database with support for lists and min/max filtering."""
+
+        raw_data = self.fetch_card_list(filters=filters)
+        if raw_data is None:
+            return []
+
+        return [ExploreDataRecord(**row) for row in raw_data]
+
+    def fetch_card_list(self, filters: dict = {}) -> list[dict]:
         """Fetch all card data from the database with support for lists and min/max filtering."""
 
         if not self.connection:
@@ -427,11 +624,22 @@ class PostgresDB:
         
         try:
 
-            query = sql.SQL("""
-                SELECT *
-                FROM explore_data
-                WHERE TRUE
-            """)
+            # Pop Out Source
+            source = str(filters.pop('source', 'BOT')).lower()
+
+            match source:
+                case 'bot':
+                    query = sql.SQL("""
+                        SELECT *
+                        FROM card_bot
+                        WHERE TRUE
+                    """)
+                case 'wotc':
+                    query = sql.SQL("""
+                        SELECT *
+                        FROM card_wotc
+                        WHERE TRUE
+                    """)
 
             filter_values = []
 
@@ -446,6 +654,18 @@ class PostgresDB:
             # Apply filters if any
             if filters and len(filters) > 0:
                 filter_clauses = []
+
+                # SOURCE SPECIFIC FILTERS
+                match source:
+                    case 'wotc':
+                        sets = filters.get('showdown_set', [])
+                        # FILTER TO SPECIFIC SETS IF USER HAS `CLASSIC` OR `EXPANDED` SELECTED - THEY DIDNT EXIST IN WOTC
+                        if isinstance(sets, str):
+                            if sets == 'CLASSIC':
+                                filters['showdown_set'] = ['2000', '2001']
+                            elif sets == 'EXPANDED':
+                                filters['showdown_set'] = ['2002', '2003', '2004', '2005']
+
                 
                 for key, value in filters.items():
                     if value is None:
@@ -526,11 +746,14 @@ class PostgresDB:
                             case 'include_small_sample_size':
                                 # Only filter if array is ["false"]
                                 if value == ["false"]:
-                                    filter_clauses.append(sql.SQL("(case" \
-                                        " when positions_list && ARRAY['STARTER'] then real_ip >= 75" \
-                                        " when positions_list && ARRAY['RELIEVER', 'CLOSER'] then real_ip >= 30" \
-                                        " else pa >= 250" \
-                                    " end)"))
+                                    filter_clauses.append(sql.SQL("not is_small_sample_size"))
+                            case 'is_hof':
+                                # Filter based on Hall of Fame status
+                                if value == ['true']:
+                                    filter_clauses.append(sql.SQL("is_hof = TRUE"))
+                                elif value == ['false']:
+                                    filter_clauses.append(sql.SQL("is_hof IS NOT TRUE"))
+                                
                             case _:
                                 # Regular IN clause for non-array fields
                                 placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
@@ -579,17 +802,22 @@ class PostgresDB:
 
             elif 'chart_values' in sort_by:
                 chart_key = sort_by.replace('chart_values_', '').upper()
-                final_sort = sql.SQL("""(card_data->'chart'->'values'->>%s)::float {direction} NULLS LAST""").format(
-                    direction=sql.SQL(sort_direction)
-                )
+                if source == 'wotc':
+                    final_sort = sql.SQL("""(card_data->'chart'->'values'->>%s)::float {direction} NULLS LAST""").format(
+                        direction=sql.SQL(sort_direction)
+                    )
+                else:
+                    final_sort = sql.SQL("""(chart_values->>%s)::float {direction} NULLS LAST""").format(
+                        direction=sql.SQL(sort_direction)
+                    )
                 filter_values += [chart_key]
 
             elif 'real_stats' in sort_by:
-                real_stats_key = sort_by.replace('real_stats_', '')
-                final_sort = sql.SQL("""case when length((card_data->'stats'->>%s)) = 0 then null else (card_data->'stats'->>%s)::float end {direction} NULLS LAST""").format(
+                real_stats_key = sort_by.replace('real_stats_', 'real_').lower()
+                final_sort = sql.SQL("""%s {direction} NULLS LAST""").format(
                     direction=sql.SQL(sort_direction)
                 )
-                filter_values += [real_stats_key, real_stats_key]
+                filter_values += [real_stats_key]
 
             else:
                 final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
@@ -602,7 +830,7 @@ class PostgresDB:
             # ADD LIMIT AND PAGINATION
             if not isinstance(page, int) or page < 1:
                 page = 1
-            if not isinstance(limit, int) or limit < 1 or limit > 1000:
+            if not isinstance(limit, int) or limit < 1 or limit > 5000:
                 limit = 50
 
             query += sql.SQL(" LIMIT %s OFFSET %s")
@@ -629,7 +857,7 @@ class PostgresDB:
                 min_year,
                 max_year,
                 cards
-            FROM team_hierarchy
+            FROM team_search
             ORDER BY team
         """)
         
@@ -640,9 +868,10 @@ class PostgresDB:
         """Refreshes all explore related materialized views.
 
         Views:
-            - player_year_list: List of players and seasons with a bWAR and award summary. Source for advanced search on the customs page;
-            - team_year_league_list: List of teams by year and league. Source for league/team hierarchy filters on the explore page;
-            - explore_data: Main explore data view that powers the explore page.
+            - player_search: List of players and seasons with a bWAR and award summary. Source for advanced search on the customs page;
+            - dim_team_years: List of teams by year and league. Source for league/team hierarchy filters on the explore page;
+            - card_bot: Main explore data view that powers the explore page.
+            - team_search: List of teams with their organization, league, years active, and number of cards.
             
         Args:
             drop_existing: If True, drop existing views before recreating them.
@@ -659,12 +888,382 @@ class PostgresDB:
         self._build_extensions()
 
         # REFRESH MATERIALIZED VIEWS
-        if not self.build_player_year_list_view(drop_existing=drop_existing): return
-        if not self.build_team_year_league_list_view(drop_existing=drop_existing): return
-        if not self.build_explore_data_view(drop_existing=drop_existing): return
-        if not self.build_team_hierarchy_view(drop_existing=drop_existing): return
+        if not self.build_player_search_view(drop_existing=drop_existing): return
+        if not self.build_dim_team_years_view(drop_existing=drop_existing): return
+        if not self.build_card_bot_view(drop_existing=drop_existing): return
+        if not self.build_team_search_view(drop_existing=drop_existing): return
 
         self.connection.close()
+
+# ------------------------------------------------------------------------
+# CARD DATA UPLOADS (BOT AND WOTC)
+# ------------------------------------------------------------------------
+
+    def create_dim_card_table(self) -> bool:
+        """Create the dim_card table if it does not exist.
+        
+        Returns:
+            True if creation was successful or table already exists, False otherwise.
+        """
+
+        if self.connection is None:
+            print("No database connection available for creating dim_card table.")
+            return False
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            # ENSURE SCHEMA EXISTS
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+
+            # CREATE TABLE IF NOT EXISTS
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS internal.dim_card (
+                    id character varying(100) NOT NULL PRIMARY KEY,
+                    player_id character varying(100) NOT NULL,
+                    showdown_set character varying(20) NOT NULL,
+                    card_data jsonb,
+                    created_date timestamp without time zone DEFAULT now(),
+                    modified_date timestamp without time zone DEFAULT now(),
+                    version character varying(10)
+                );
+                """
+            )
+            print("  → Ensured dim_card table exists.")
+
+            # CREATE INDEXES
+            cursor.execute("""
+                CREATE UNIQUE INDEX idx_dim_card_id ON internal.dim_card(id);
+            """)
+            print("  → Ensured dim_card indexes exist.")
+
+            return True
+
+        except Exception as e:
+            print("Error creating dim_card table:", e)
+            traceback.print_exc()
+            return False
+
+    def upload_wotc_card_data(self, wotc_card_data: list[ShowdownPlayerCard], drop_existing:bool=False) -> bool:
+        """Upload WOTC card data to the database.
+        
+        Args:
+            wotc_card_data: List of WOTCCardData objects to upload.
+            drop_existing: If True, drop existing table before uploading new data.
+        
+        Returns:
+            True if upload was successful, False otherwise.
+        """
+
+        if self.connection is None:
+            print("No database connection available for uploading WOTC card data.")
+            return False
+        
+        try:
+            cursor = self.connection.cursor()
+
+            # DROP EXISTING TABLE IF REQUESTED
+            if drop_existing:
+                cursor.execute("DROP TABLE IF EXISTS card_wotc;")
+                print("  → Dropped existing card_wotc table.")
+
+            # CREATE TABLE IF NOT EXISTS
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS card_wotc (
+                    id character varying(100) NOT NULL,
+                    player_id character varying(64),
+                    showdown_set character varying(20) NOT NULL,
+                    expansion character varying(20),
+                    edition character varying(20),
+                    card_data jsonb,
+                    year character varying(15),
+                    bref_id character varying(10),
+                    name character varying(100),
+                    player_type character varying(50),
+                    player_type_override character varying(50),
+                    primary_positions text[],
+                    secondary_positions text[],
+                    g integer,
+                    gs integer,
+                    pa integer,
+                    real_ip integer,
+                    lg_id character varying(10),
+                    team_id character varying(10),
+                    team_id_list text[],
+                    showdown_bot_version character varying(10),
+                    points integer,
+                    points_estimated integer,
+                    points_diff_estimated_vs_actual integer,
+                    nationality character varying(50),
+                    organization character varying(50),
+                    league character varying(50),
+                    team character varying(50),
+                    positions_and_defense jsonb,
+                    positions_and_defense_string character varying(100),
+                    positions_list text[],
+                    ip integer,
+                    speed integer,
+                    hand character varying(10),
+                    speed_letter character varying(5),
+                    speed_full character varying(20),
+                    speed_or_ip integer,
+                    icons_list text[],
+                    awards_list text[],
+                    command integer,
+                    outs integer,
+                    is_chart_outlier boolean,
+                    is_errata boolean DEFAULT FALSE,
+                    notes text,
+                    created_date timestamp without time zone DEFAULT now(),
+                    modified_date timestamp without time zone DEFAULT now()
+                );
+                """
+            )
+            print("  → Ensured card_wotc table exists.")
+
+            # CLEAR EXISTING DATA
+            cursor.execute("DELETE FROM card_wotc;")
+            print("  → Cleared existing WOTC card data.")
+
+            # PREPARE BATCH DATA
+            batch_data = []
+            for card in wotc_card_data:
+                player_id = "-".join([str(card.year), card.bref_id]) if card.bref_id else None
+                if card.stats_period.type != StatsPeriodType.REGULAR_SEASON:
+                    player_id += f"-{card.stats_period.id}"
+
+                stat_source = card.stats_for_card or {}
+                
+                batch_data.append((
+                    card.id,
+                    player_id,
+                    card.set.value,
+                    card.image.expansion.value if card.image.expansion else None,
+                    card.image.edition.value if card.image.edition else None,
+                    json.dumps(card.as_json()),
+                    card.year,
+                    card.bref_id,
+                    card.name,
+                    card.player_type.value.upper() if card.player_type else None,
+                    card.player_type_override.value.upper() if card.player_type_override else None,
+                    [p.value for p in card.positions_and_games_played.keys()],
+                    [],
+                    stat_source.get("G", None),
+                    stat_source.get("GS", None),
+                    stat_source.get("PA", None),
+                    stat_source.get("IP", None),
+                    card.league,
+                    card.team,
+                    [card.team],
+                    __version__,
+                    card.points,
+                    card.points_estimated,
+                    card.points_diff_estimated_vs_actual,
+                    card.nationality.value if card.nationality else None,
+                    "MLB",
+                    card.league,
+                    card.team,
+                    json.dumps(card.positions_and_defense_for_visuals),
+                    card.positions_and_defense_string,
+                    [p.value for p in card.positions_list],
+                    card.ip if card.ip else 0,
+                    card.speed.speed if card.speed.speed else 0,
+                    card.hand.value if card.hand else None,
+                    card.speed.letter if card.speed.speed else None,
+                    card.speed.full_string if card.speed.speed else None,
+                    card.ip or card.speed.speed,
+                    [i.value for i in card.icons],
+                    [a for a in stat_source.get("awards", "").split(",") if a],
+                    card.chart.command,
+                    card.chart.outs_full,
+                    card.chart.is_command_out_anomaly,
+                    card.is_errata,
+                    card.notes,
+                    datetime.now(),
+                ))
+
+            # BATCH INSERT NEW DATA
+            insert_query = """
+                INSERT INTO card_wotc (
+                    id,
+                    player_id,
+                    showdown_set,
+                    expansion,
+                    edition,
+                    card_data,
+                    year,
+                    bref_id,
+                    name,
+                    player_type,
+                    player_type_override,
+                    primary_positions,
+                    secondary_positions,
+                    g,
+                    gs,
+                    pa,
+                    real_ip,
+                    lg_id,
+                    team_id,
+                    team_id_list,
+                    showdown_bot_version,
+                    points,
+                    points_estimated,
+                    points_diff_estimated_vs_actual,
+                    nationality,
+                    organization,
+                    league,
+                    team,
+                    positions_and_defense,
+                    positions_and_defense_string,
+                    positions_list,
+                    ip,
+                    speed,
+                    hand,
+                    speed_letter,
+                    speed_full,
+                    speed_or_ip,
+                    icons_list,
+                    awards_list,
+                    command,
+                    outs,
+                    is_chart_outlier,
+                    is_errata,
+                    notes,
+                    modified_date
+                )
+                VALUES %s
+            """
+
+            execute_values(
+                cursor, 
+                insert_query, 
+                batch_data,
+                template=None,
+                page_size=1000  # Process in chunks of 1000
+            )
+            
+            print(f"  → Uploaded {len(wotc_card_data)} WOTC card data records.")
+            return True
+
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Error uploading WOTC card data: {e}")
+            self.connection.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+
+# -------------------------------------------------------------------------
+# IDS
+# ------------------------------------------------------------------------
+
+    def update_player_id_table(self, data: List[dict]) -> None:
+        """Update the player_id_master table with new data. Load is always rip and replace.
+        
+        Args:
+            data: List of dictionaries containing player ID master data.
+        
+        Returns:
+            None
+        """
+
+        if self.connection is None:
+            print("No database connection available for updating player ID mapping.")
+            return
+
+        try:
+            cursor = self.connection.cursor()
+
+            # ENSURE SCHEMA EXISTS
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS internal;")
+
+            # CREATE TABLE IF NOT EXISTS
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS internal.dim_player_id_map (
+                    bref_id character varying(10) PRIMARY KEY,
+                    mlb_id integer,
+                    fangraphs_id integer,
+                    name_first character varying(50),
+                    name_last character varying(50),
+                    mlb_first_year integer,
+                    mlb_last_year integer,
+                    created_date timestamp without time zone DEFAULT now(),
+                    modified_date timestamp without time zone DEFAULT now()
+                );
+                """
+            )
+            print("  → Ensured internal.dim_player_id_map table exists.")
+
+            # ADD INDEXES/UNIQUES ON bref_id AND mlb_id
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_player_id_map_mlb_id
+                ON internal.dim_player_id_map (mlb_id);
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_dim_player_id_map_bref_id
+                ON internal.dim_player_id_map (bref_id);
+            """)
+            print("  → Ensured indexes on internal.dim_player_id_map table exist.")
+
+            # WIPE EXISTING DATA
+            cursor.execute("DELETE FROM internal.dim_player_id_map;")
+            print("  → Cleared existing player ID mapping data.")
+
+            # PREPARE BATCH DATA
+            batch_data = []
+            for record in data:
+                batch_data.append((
+                    record.get('bref_id'),
+                    record.get('mlb_id'),
+                    record.get('fangraphs_id'),
+                    record.get('name_first'),
+                    record.get('name_last'),
+                    record.get('mlb_first_year'),
+                    record.get('mlb_last_year'),
+                    datetime.now(),
+                ))
+
+            # UPSERT DATA
+            upsert_query = """
+                INSERT INTO internal.dim_player_id_map (
+                    bref_id,
+                    mlb_id,
+                    fangraphs_id,
+                    name_first,
+                    name_last,
+                    mlb_first_year,
+                    mlb_last_year,
+                    modified_date
+                )
+                VALUES %s
+                ON CONFLICT (bref_id) DO UPDATE SET
+                    mlb_id = EXCLUDED.mlb_id,
+                    fangraphs_id = EXCLUDED.fangraphs_id,
+                    name_first = EXCLUDED.name_first,
+                    name_last = EXCLUDED.name_last,
+                    mlb_first_year = EXCLUDED.mlb_first_year,
+                    mlb_last_year = EXCLUDED.mlb_last_year,
+                    modified_date = EXCLUDED.modified_date;
+            """
+
+            execute_values(
+                cursor, 
+                upsert_query, 
+                batch_data,
+                template=None,
+                page_size=1000  # Process in chunks of 1000
+            )
+            
+            print(f"  → Updated {len(data)} player ID mapping records.")
+
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Error updating player ID mapping: {e}")
+            self.connection.rollback()
+        finally:
+            if cursor:
+                cursor.close()
 
 
 # ------------------------------------------------------------------------
@@ -688,10 +1287,19 @@ class PostgresDB:
         # RETURN IF NO CONNECTION
         if self.connection is None:
             print("No database connection available for building materialized view.")
-            return
+            return False
         
         try:
             cursor = self.connection.cursor()
+
+            if schema != 'public':
+                # ENSURE SCHEMA EXISTS
+                cursor.execute(sql.SQL("""
+                    CREATE SCHEMA IF NOT EXISTS {schema};
+                """).format(
+                    schema=sql.Identifier(schema)
+                ))
+                print(f"  → Ensured schema '{schema}' exists.")
 
             # DROP EXISTING VIEW IF REQUESTED
             if drop_existing:
@@ -728,15 +1336,15 @@ class PostgresDB:
                     """).format(
                         schema=sql.Identifier(schema),
                         view_name=sql.Identifier(view_name)
-                ))
+                    ))
                 print(f"  → Refreshed existing materialized view '{view_name}'.")
                 return True
 
-            # VIEW DOES NOT EXIST, CREATE IT
+            # VIEW DOES NOT EXIST, CREATE AND REFRESH IT
             cursor.execute(sql.SQL("""
                 CREATE MATERIALIZED VIEW {schema}.{view_name} AS (
                     {sql_logic}
-                );
+                ) WITH NO DATA;
             """).format(
                 schema=sql.Identifier(schema),
                 view_name=sql.Identifier(view_name),
@@ -747,6 +1355,25 @@ class PostgresDB:
                 for index in indexes:
                     cursor.execute(index)
                     print(f"  → Created index for materialized view '{view_name}': {index}")
+
+            # REFRESH THE NEW VIEW
+            cursor.execute(sql.SQL("""
+                REFRESH MATERIALIZED VIEW {schema}.{view_name};
+            """).format(
+                schema=sql.Identifier(schema),
+                view_name=sql.Identifier(view_name)
+            ))
+            print(f"  → Refreshed materialized view '{view_name}'.")
+
+            # RUN ANALYZE
+            cursor.execute(sql.SQL("""
+                ANALYZE {schema}.{view_name};
+            """).format(
+                schema=sql.Identifier(schema),
+                view_name=sql.Identifier(view_name)
+            ))
+            print(f"  → Analyzed materialized view '{view_name}'.")
+
             return True
 
         # EXCEPT BLOCK
@@ -758,8 +1385,8 @@ class PostgresDB:
             if cursor:
                 cursor.close()
 
-    def build_player_year_list_view(self, drop_existing:bool = False) -> None:
-        """Build or refresh the player_year_list materialized view.
+    def build_player_search_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the player_search materialized view.
         
         Args:
             drop_existing: If True, drop the existing view before creating a new one.
@@ -769,7 +1396,7 @@ class PostgresDB:
         sql_logic = '''
             with
             
-            archive_data as (
+            player_season_stats as (
             
                 select
                 unaccent(replace(lower(name), '.', '')) as name,
@@ -780,51 +1407,25 @@ class PostgresDB:
                 jsonb_extract_path(stats, 'is_hof')::boolean as is_hof,
                 case when length(stats->>'award_summary') = 0 then null else stats->>'award_summary'::text end as award_summary,
                 case when length((stats->>'bWAR')) = 0 then 0.0 else (stats->>'bWAR')::float end as bwar
-                from stats_archive
+                from player_season_stats
                 
-            ),
-            
-            current_season_data as (
-            
-                select
-                unaccent(replace(lower(name), '.', '')) as name,
-                date_part('year', modified_date) as year,
-                bref_id,
-                team_id as team,
-                null::text as player_type_override,
-                false as is_hof,
-                award_summary,
-                bwar
-                from current_season_players
-                where date_part('year', modified_date) > (select max(year) from stats_archive)
-                
-            ),
-            
-            combined as (
-            
-                select *
-                from archive_data
-                union all
-                select *
-                from current_season_data
-            
             )
             
             select *
-            from combined
+            from player_season_stats
         '''
         indexes = [
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_player_year_list_bref_id ON player_year_list (bref_id, year, player_type_override);"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_player_search_bref_id ON player_search (bref_id, year, player_type_override);"
         ]
         return self._build_materialized_view(
-            view_name='player_year_list',
+            view_name='player_search',
             sql_logic=sql_logic,
             indexes=indexes,
             drop_existing=drop_existing
         )
 
-    def build_team_year_league_list_view(self, drop_existing:bool = False) -> None:
-        """Build or refresh the team_year_league_list materialized view.
+    def build_dim_team_years_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the dim_team_years materialized view.
         
         Args:
             drop_existing: If True, drop the existing view before creating a new one.
@@ -853,7 +1454,7 @@ class PostgresDB:
                     team_id as team,
                     year
                 
-                from stats_archive
+                from player_season_stats
                 where true
                 and (
                     lg_id not in ('2LG', 'MLB')
@@ -864,12 +1465,12 @@ class PostgresDB:
             
             --  explore_mismatches as (
             --  
-            --    select distinct name, explore_data.year, explore_data.team_id
-            --    from explore_data
+            --    select distinct name, card_bot.year, card_bot.team_id
+            --    from card_bot
             --    left join years_and_teams 
-            --      on explore_data.team_id = years_and_teams.team_id
-            --      and explore_data.year = years_and_teams.year
-            --    where explore_data.showdown_set = '2005'
+            --      on card_bot.team_id = years_and_teams.team_id
+            --      and card_bot.year = years_and_teams.year
+            --    where card_bot.showdown_set = '2005'
             --      and years_and_teams.team_id is null
             --      
             --  ),
@@ -890,17 +1491,18 @@ class PostgresDB:
             from years_and_teams
         '''
         indexes = [
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_team_year_league_list ON team_year_league_list (team, year);"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_team_years ON internal.dim_team_years (team, year);"
         ]
         return self._build_materialized_view(
-            view_name='team_year_league_list',
+            view_name='dim_team_years',
+            schema='internal',
             sql_logic=sql_logic,
             indexes=indexes,
             drop_existing=drop_existing
         )
 
-    def build_explore_data_view(self, drop_existing:bool = False) -> None:
-        """Build or refresh the explore_data materialized view.
+    def build_card_bot_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the card_bot materialized view.
         
         Args:
             drop_existing: If True, drop the existing view before creating a new one.
@@ -909,88 +1511,144 @@ class PostgresDB:
 
         sql_logic = '''
             select 
-                stats_archive.id,
-                stats_archive.year,
-                stats_archive.bref_id,
-                unaccent(stats_archive.name) as name,
-                stats_archive.player_type,
-                stats_archive.player_type_override,
-                stats_archive.is_two_way,
-                stats_archive.primary_positions,
-                stats_archive.secondary_positions,
-                stats_archive.g,
-                stats_archive.gs,
-                stats_archive.pa,
-                stats_archive.ip as real_ip,
-                stats_archive.lg_id,
-                stats_archive.team_id,
-                stats_archive.team_id_list,
-                stats_archive.team_games_played_dict,
-                stats_archive.team_override,
+                player_season_stats.id,
+                player_season_stats.year,
+                player_season_stats.bref_id,
+                unaccent(player_season_stats.name) as name,
+                player_season_stats.player_type,
+                player_season_stats.player_type_override,
+                player_season_stats.is_two_way,
+                player_season_stats.primary_positions,
+                player_season_stats.secondary_positions,
+                player_season_stats.g,
+                player_season_stats.gs,
+                player_season_stats.pa,
+                player_season_stats.ip as real_ip,
+                player_season_stats.lg_id,
+                player_season_stats.team_id,
+                player_season_stats.team_id_list,
+                player_season_stats.team_games_played_dict,
+                player_season_stats.team_override,
                 
-                card_data.card_data,
-                card_data.showdown_set,
-                card_data->>'version' as showdown_bot_version,
+                ----- PARSED CARD ATTRIBUTES -----
+
+                -- IDENTIFIERS
+                dim_card.id as card_id,
+                (dim_card.card_data->'stats_period'->>'year')::text as card_year,
+                dim_card.showdown_set,
+                (dim_card.card_data->>'version')::text as showdown_bot_version,
                 
-                
-                -- PARSED CARD ATTRIBUTES 
-                cast(card_data->>'points' as int) as points,
-                card_data->>'nationality' as nationality,
-                team_year_league_list.organization,
-                team_year_league_list.league,
-                team_year_league_list.team,
+                -- SET
+                dim_card.card_data->>'expansion' as expansion,
+                dim_card.card_data->>'edition' as edition,
+                dim_card.card_data->>'set_number' as set_number,
+
+                -- POINTS
+                cast(dim_card.card_data->>'points' as int) as points,
+                cast(dim_card.card_data->>'points_estimated' as int) as points_estimated,
+                cast(dim_card.card_data->>'points_diff_estimated_vs_actual' as int) as points_diff_estimated_vs_actual,
+
+                -- TEAM
+                dim_card.card_data->>'nationality' as nationality,
+                team_years.organization,
+                team_years.league,
+                team_years.team,
+                dim_card.card_data->'image'->>'color_primary' as color_primary,
+                dim_card.card_data->'image'->>'color_secondary' as color_secondary,
                 
                 -- METADATA
-                card_data->'positions_and_defense' as positions_and_defense,
-                card_data->>'positions_and_defense_string' as positions_and_defense_string,
+                dim_card.card_data->'positions_and_defense' as positions_and_defense,
+                dim_card.card_data->>'positions_and_defense_string' as positions_and_defense_string,
                 ARRAY(
-                    SELECT jsonb_array_elements_text(card_data->'positions_list')
+                    SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')
                 ) as positions_list,
-                cast(card_data->>'ip' as int) as ip,
-                cast(card_data->'speed'->>'speed' as int) as speed,
-                card_data->>'hand' as hand,
-                card_data->'speed'->>'letter' as speed_letter,
-                (card_data->'speed'->>'letter') || '(' || (card_data->'speed'->>'speed') || ')' as speed_full,
+                cast(dim_card.card_data->>'ip' as int) as ip,
+                cast(dim_card.card_data->'speed'->>'speed' as int) as speed,
+                dim_card.card_data->>'hand' as hand,
+                dim_card.card_data->'speed'->>'letter' as speed_letter,
+                (dim_card.card_data->'speed'->>'letter') || '(' || (dim_card.card_data->'speed'->>'speed') || ')' as speed_full,
                 case
-                    when stats_archive.player_type = 'HITTER' then cast(card_data->'speed'->>'speed' as int)
-                    else cast(card_data->>'ip' as int)
+                    when player_season_stats.player_type = 'HITTER' then cast(dim_card.card_data->'speed'->>'speed' as int)
+                    else cast(dim_card.card_data->>'ip' as int)
                 end as speed_or_ip,
                 ARRAY(
-                    SELECT jsonb_array_elements_text(card_data->'icons')
+                    SELECT jsonb_array_elements_text(dim_card.card_data->'icons')
                 ) as icons_list,
 
-                -- STATS
+                -- AWARDS / HIGHLIGHTS
                 CASE
                     WHEN stats->>'award_summary' = '' OR stats->>'award_summary' IS NULL 
                     THEN ARRAY[]::text[]
                     ELSE string_to_array(stats->>'award_summary', ',')
                 END as awards_list,
+                coalesce((stats->>'is_hof')::boolean, false) as is_hof,
+                card_data->'image'->'stat_highlights_list' as stat_highlights_list,
+
+                -- SMALL SAMPLE
+                case 
+                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['STARTER'] 
+                        then player_season_stats.ip < 75 
+                    when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['RELIEVER', 'CLOSER'] 
+                        then player_season_stats.ip < 30 
+                    else player_season_stats.pa < 250 
+                end as is_small_sample_size,
+
+                -- REAL STATS
+                case when length((stats->>'PA')) = 0 then null else round((stats->>'PA')::float)::int end as real_pa,
+                case when length((stats->>'G')) = 0 then null else (stats->>'G')::int end as real_g,
+                case when length((stats->>'GS')) = 0 then null else (stats->>'GS')::int end as real_gs,
+                case when length((stats->>'bWAR')) = 0 then null else (stats->>'bWAR')::float end as real_bwar,
+                case when length((stats->>'dWAR')) = 0 then null else (stats->>'dWAR')::float end as real_dwar,
+                case when length((stats->>'batting_avg')) = 0 then null else (stats->>'batting_avg')::float end as real_batting_avg,
+                case when length((stats->>'onbase_perc')) = 0 then null else (stats->>'onbase_perc')::float end as real_onbase_perc,
+                case when length((stats->>'slugging_perc')) = 0 then null else (stats->>'slugging_perc')::float end as real_slugging_perc,
+                case when length((stats->>'onbase_plus_slugging')) = 0 then null else (stats->>'onbase_plus_slugging')::float end as real_onbase_plus_slugging,
+                case when length((stats->>'onbase_plus_slugging_plus')) = 0 then null else (stats->>'onbase_plus_slugging_plus')::float end as real_onbase_plus_slugging_plus,
+                case when length((stats->>'earned_run_avg')) = 0 then null else (stats->>'earned_run_avg')::float end as real_earned_run_avg,
+                case when length((stats->>'whip')) = 0 then null else (stats->>'whip')::float end as real_whip,
+                case when length((stats->>'H')) = 0 then null else (stats->>'H')::int end as real_h,
+                case when length((stats->>'1B')) = 0 then null else (stats->>'1B')::int end as real_1b,
+                case when length((stats->>'2B')) = 0 then null else (stats->>'2B')::int end as real_2b,
+                case when length((stats->>'3B')) = 0 then null else (stats->>'3B')::int end as real_3b,
+                case when length((stats->>'HR')) = 0 then null else (stats->>'HR')::int end as real_hr,
+                case when length((stats->>'SB')) = 0 then null else (stats->>'SB')::int end as real_sb,
+                case when length((stats->>'SO')) = 0 then null else (stats->>'SO')::int end as real_so,
+                case when length((stats->>'BB')) = 0 then null else (stats->>'BB')::int end as real_bb,
+                case when length((stats->>'W')) = 0 then null else (stats->>'W')::int end as real_w,
+                case when length((stats->>'SV')) = 0 then null else (stats->>'SV')::int end as real_sv,
                 
                 -- CHART
-                cast(card_data->'chart'->>'command' as int) as command,
-                cast(card_data->'chart'->>'outs_full' as int) as outs,
-                cast(card_data->'chart'->>'is_command_out_anomaly' as boolean) as is_chart_outlier,
+                cast(dim_card.card_data->'chart'->>'command' as int) as command,
+                cast(dim_card.card_data->'chart'->>'outs_full' as int) as outs,
+                cast(dim_card.card_data->'chart'->>'is_pitcher' as boolean) as is_pitcher,
+                cast(dim_card.card_data->'chart'->>'is_command_out_anomaly' as boolean) as is_chart_outlier,
+                card_data->'chart'->'ranges' as chart_ranges,
+                card_data->'chart'->'values' as chart_values,
+
+                -- CARD MISC
+                coalesce(cast(dim_card.card_data->>'is_errata' as boolean), false) as is_errata,
+                dim_card.card_data->>'notes' as notes,
                 
                 -- AUTO IMAGES
                 case
                     when exists (
-                        select 1 from auto_images i
-                        where i.player_id = stats_archive.bref_id
-                        and i.year = stats_archive.year::text
-                        and i.team_id = stats_archive.team_id
-                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                        select 1 from internal.dim_auto_image i
+                        where i.player_id = player_season_stats.bref_id
+                        and i.year = player_season_stats.year::text
+                        and i.team_id = player_season_stats.team_id
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
                     ) then 'exact'
                     when exists (
-                        select 1 from auto_images i
-                        where i.player_id = stats_archive.bref_id
-                        and i.team_id = stats_archive.team_id
-                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                        select 1 from internal.dim_auto_image i
+                        where i.player_id = player_season_stats.bref_id
+                        and i.team_id = player_season_stats.team_id
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
                     ) then 'team match'
                     when exists (
-                        select 1 from auto_images i
-                        where i.player_id = stats_archive.bref_id
-                        and i.year = stats_archive.year::text
-                        and coalesce(i.player_type_override, 'n/a') = coalesce(stats_archive.player_type_override, 'n/a')
+                        select 1 from internal.dim_auto_image i
+                        where i.player_id = player_season_stats.bref_id
+                        and i.year = player_season_stats.year::text
+                        and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
                     ) then 'year match'
                     else 'no match'
                 end as image_match_type,
@@ -999,21 +1657,21 @@ class PostgresDB:
                 
                 NOW() as updated_at
                 
-            from stats_archive
-            join card_data 
-                on stats_archive.id = card_data.player_id
-            left join team_year_league_list
-                on team_year_league_list.year = stats_archive.year 
-                and team_year_league_list.team = stats_archive.team_id
-            left join auto_images as exact_img_match
-                on stats_archive.year::text = exact_img_match.year
-                and stats_archive.bref_id = exact_img_match.player_id
-                and coalesce(stats_archive.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
-                and stats_archive.team_id = exact_img_match.team_id
+            from player_season_stats
+            join internal.dim_card as dim_card
+                on player_season_stats.id = dim_card.player_id
+            left join internal.dim_team_years as team_years
+                on team_years.year = player_season_stats.year 
+                and team_years.team = player_season_stats.team_id
+            left join internal.dim_auto_image as exact_img_match
+                on player_season_stats.year::text = exact_img_match.year
+                and player_season_stats.bref_id = exact_img_match.player_id
+                and coalesce(player_season_stats.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
+                and player_season_stats.team_id = exact_img_match.team_id
                 and exact_img_match.is_postseason = FALSE
         '''
         indexes = [
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_explore_data_card_set_version ON explore_data (id, showdown_set, showdown_bot_version);"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_card_bot_card_set_version ON card_bot (id, showdown_set, showdown_bot_version);"
         ]
         # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
         if drop_existing:
@@ -1023,8 +1681,19 @@ class PostgresDB:
                 is_disabled=True
             )
 
+        print("Building card_bot materialized view. This may take several minutes...")
+
+        # SET TIMEOUT TO 30 MINUTES FOR LARGE REFRESHES
+        query = "SET statement_timeout = %s;"
+        timeout_ms = '30min'
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(query, (timeout_ms,))
+        except Exception as e:
+            print(f"Error setting statement timeout: {e}")
+
         status = self._build_materialized_view(
-            view_name='explore_data',
+            view_name='card_bot',
             sql_logic=sql_logic,
             indexes=indexes,
             drop_existing=drop_existing
@@ -1040,8 +1709,8 @@ class PostgresDB:
 
         return status
 
-    def build_team_hierarchy_view(self, drop_existing:bool = False) -> None:
-        """Build or refresh the team_hierarchy materialized view. Used in the explore for filtering
+    def build_team_search_view(self, drop_existing:bool = False) -> None:
+        """Build or refresh the team_search materialized view. Used in the explore for filtering
         
         Args:
             drop_existing: If True, drop the existing view before creating a new one.
@@ -1058,7 +1727,7 @@ class PostgresDB:
                 max(year) as max_year, 
                 count(*) as cards
                 
-                from explore_data
+                from card_bot
                 where true
                 and league != 'MLB'
                 group by 1,2,3
@@ -1070,7 +1739,7 @@ class PostgresDB:
             order by team
         '''
         return self._build_materialized_view(
-            view_name='team_hierarchy',
+            view_name='team_search',
             sql_logic=sql_logic,
             indexes=[],
             drop_existing=True # Always drop to capture new teams
@@ -1104,7 +1773,7 @@ class PostgresDB:
 # TABLES
 # ------------------------------------------------------------------------
 
-    def create_stats_archive_table(self, table_suffix:str='') -> None:
+    def create_player_season_stats_table(self, table_suffix:str='') -> None:
         """"""
 
         # RETURN IF NO CONNECTION
@@ -1112,7 +1781,7 @@ class PostgresDB:
             return
         
         create_table_statement = f'''
-            CREATE TABLE IF NOT EXISTS stats_archive{table_suffix}(
+            CREATE TABLE IF NOT EXISTS player_season_stats{table_suffix}(
                 id varchar(100) PRIMARY KEY,
                 year int NOT NULL,
                 bref_id VARCHAR(10) NOT NULL,
@@ -1144,8 +1813,8 @@ class PostgresDB:
         except:
             return
 
-    def build_auto_images_table(self, refresh_explore: bool=False, drop_existing:bool = False) -> None:
-        """Creates and replaces the auto_images table in the database."""
+    def build_auto_image_table(self, refresh_explore: bool=False, drop_existing:bool = False) -> None:
+        """Creates and replaces the internal.dim_auto_image table in the database."""
  
         # RETURN IF NO CONNECTION
         if self.connection is None:
@@ -1230,29 +1899,29 @@ class PostgresDB:
             SELECT EXISTS (
                 SELECT 1
                 FROM information_schema.tables
-                WHERE table_name = 'auto_images'
+                WHERE table_name = 'dim_auto_image'
             );
         """
         db_cursor.execute(table_exists_query)
         table_exists = db_cursor.fetchone()[0]
         if table_exists:
-            print("auto_images table exists. It will be replaced with new data.")
+            print("dim_auto_image table exists. It will be replaced with new data.")
         
             # TRUNCATE THE EXISTING TABLE
             if drop_existing:
                 truncate_or_drop_table_statement = '''
-                    DROP TABLE IF EXISTS auto_images;
+                    DROP TABLE IF EXISTS internal.dim_auto_image;
                 '''
             else:
                 truncate_or_drop_table_statement = '''
-                    TRUNCATE TABLE auto_images;
+                    TRUNCATE TABLE internal.dim_auto_image;
                 '''
         else:
             truncate_or_drop_table_statement = '''
                 -- Table does not exist, will be created.
             '''
         create_table_statement = f'''
-            CREATE TABLE IF NOT EXISTS auto_images(
+            CREATE TABLE IF NOT EXISTS internal.dim_auto_image(
                 year VARCHAR(20) NOT NULL,
                 player_id VARCHAR(10) NOT NULL,
                 player_name VARCHAR(48) NOT NULL,
@@ -1263,8 +1932,8 @@ class PostgresDB:
                 created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
             );'''
         index_statement = '''
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_auto_images_player_year_type
-            ON auto_images (year, player_id, player_type_override, team_id, is_postseason);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_auto_image
+            ON internal.dim_auto_image (year, player_id, player_type_override, team_id, is_postseason);
         '''
         try:
             db_cursor.execute(truncate_or_drop_table_statement)
@@ -1276,7 +1945,7 @@ class PostgresDB:
         
         # INSERT OR UPDATE ROWS
         insert_statement = """
-            INSERT INTO auto_images (year, player_id, player_name, team_id, player_type_override, image_ids, is_postseason) 
+            INSERT INTO internal.dim_auto_image (year, player_id, player_name, team_id, player_type_override, image_ids, is_postseason) 
             VALUES %s
         """
         insert_values = []
@@ -1301,9 +1970,9 @@ class PostgresDB:
             ))
         try:
             execute_values(db_cursor, insert_statement, insert_values)
-            print(f"Inserted/Updated {len(insert_values)} rows into auto_images table.")
+            print(f"Inserted/Updated {len(insert_values)} rows into dim_auto_image table.")
         except Exception as e:
-            print(f"Error inserting/updating auto_images data: {e}")
+            print(f"Error inserting/updating dim_auto_image data: {e}")
             self.connection.rollback()
             return
         finally:
@@ -1318,9 +1987,175 @@ class PostgresDB:
 # LOGGING
 # ------------------------------------------------------------------------
 
-    def log_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
+    def build_logging_tables(self) -> None:
+        """Create necessary logging tables if they do not exist."""
+        # self.create_custom_card_logging_table()
+        self.create_log_player_search_table()
+        self.create_log_card_image_generation_table()
+        self.create_log_card_id_lookup_table()
+
+    def create_custom_card_logging_table(self) -> None:
+        """Create the log_custom_card_bot table if it does not exist."""
+
+        if not self.connection:
+            print("No database connection available for creating logging table.")
+            return 
+        
+        # CHECK IF `INTERNAL` SCHEMA EXISTS
+        schema_check_sql = """
+            CREATE SCHEMA IF NOT EXISTS internal;
         """
-        Store card submission data in the card_log table.
+        
+        create_table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.log_custom_card_bot (
+                id SERIAL PRIMARY KEY,
+                name character varying(64),
+                year text,
+                set text,
+                is_cooperstown boolean,
+                is_super_season boolean,
+                img_url character varying(2048),
+                img_name character varying(512),
+                error character varying(256),
+                created_on timestamp without time zone DEFAULT now(),
+                is_all_star_game boolean,
+                expansion text,
+                stats_offset integer,
+                set_num text,
+                is_holiday boolean,
+                is_dark_mode boolean,
+                is_rookie_season boolean,
+                is_variable_spd_00_01 boolean,
+                is_random boolean,
+                is_automated_image boolean,
+                is_foil boolean,
+                is_stats_loaded_from_library boolean,
+                is_img_loaded_from_library boolean,
+                add_year_container boolean,
+                ignore_showdown_library boolean,
+                set_year_plus_one boolean,
+                edition character varying(64),
+                hide_team_logo boolean,
+                date_override character varying(256),
+                era character varying(64),
+                image_parallel character varying(64),
+                bref_id character varying(32),
+                team character varying(32),
+                data_source character varying(64),
+                image_source character varying(64),
+                scraper_load_time numeric(10,2),
+                card_load_time numeric(10,2),
+                is_secondary_color boolean,
+                nickname_index integer,
+                period character varying(64),
+                period_start_date character varying(64),
+                period_end_date character varying(64),
+                period_split character varying(64),
+                is_multi_colored boolean,
+                stat_highlights_type character varying(64),
+                glow_multiplier numeric(10,2),
+                error_for_user text,
+                user_inputs jsonb,
+                historical_season_trends jsonb,
+                version text,
+                in_season_trends jsonb
+            );
+        """
+
+        index_sql = """
+            CREATE UNIQUE INDEX IF NOT EXISTS log_custom_card_bot_id_idx ON internal.log_custom_card_bot(id int4_ops);
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(schema_check_sql)
+                cur.execute(create_table_sql)
+                cur.execute(index_sql)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating internal.log_custom_card_bot table: {error}")
+            self.connection.rollback()
+
+    def create_log_player_search_table(self) -> None:
+        """Create the log_player_search table if it does not exist."""
+
+        if not self.connection:
+            print("No database connection available for creating logging table.")
+            return 
+        
+        create_table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.log_player_search (
+                id SERIAL PRIMARY KEY,
+                timestamp timestamp without time zone DEFAULT now(),
+                filters jsonb,
+                result_count integer,
+                error text
+            );
+        """
+
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(create_table_sql)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating internal.log_player_search table: {error}")
+            self.connection.rollback()
+
+    def create_log_card_image_generation_table(self) -> None:
+        """Create the log_card_image_generation table if it does not exist."""
+
+        if not self.connection:
+            print("No database connection available for creating logging table.")
+            return 
+        
+        create_table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.log_card_image_generation (
+                id SERIAL PRIMARY KEY,
+                timestamp timestamp without time zone DEFAULT now(),
+                card_id character varying(32),
+                error text
+            );
+        """
+
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(create_table_sql)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating internal.log_card_image_generation table: {error}")
+            self.connection.rollback()
+
+    def create_log_card_id_lookup_table(self) -> None:
+        """Create the log_card_id_lookup table if it does not exist."""
+
+        if not self.connection:
+            print("No database connection available for creating logging table.")
+            return 
+        
+        create_table_sql = """
+            CREATE TABLE IF NOT EXISTS internal.log_card_id_lookup (
+                id SERIAL PRIMARY KEY,
+                timestamp timestamp without time zone DEFAULT now(),
+                card_id character varying(32),
+                source character varying(128),
+                error text
+            );
+        """
+
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(create_table_sql)
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error creating internal.log_card_id_lookup table: {error}")
+            self.connection.rollback()
+
+    def log_custom_card_submission(self, card:ShowdownPlayerCard, user_inputs: dict[str: Any], additional_attributes: dict[str: Any]) -> str:
+        """
+        Store card submission data in the log_custom_card_bot table.
 
         Args:
             ShowdownPlayerCard: Card object to log.
@@ -1421,7 +2256,7 @@ class PostgresDB:
         columns = ', '.join(column_list)
         placeholders = ', '.join(['%s'] * len(column_list))
         values = list(card_submission.values())
-        sql = f"INSERT INTO card_log ({columns}) VALUES ({placeholders})"
+        sql = f"INSERT INTO internal.log_custom_card_bot ({columns}) VALUES ({placeholders})"
         try:
             with self.connection.cursor() as cur:
                 cur.execute(sql, values)
@@ -1432,7 +2267,94 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
-    def upsert_stats_archive_row(self, cursor, data:dict, conflict_strategy:str = "do_nothing") -> None:
+    def log_player_search(self, filters: dict, result_count: int, error: str = None) -> None:
+        """
+        Store player search data in the log_player_search table.
+
+        Args:
+            filters: Search filters used.
+            result_count: Number of results returned.
+            error: Error message if any.
+        """
+        
+        if not self.connection:
+            print("No database connection available for logging.")
+            return 
+        
+        sql = """
+            INSERT INTO internal.log_player_search (filters, result_count, error) 
+            VALUES (%s, %s, %s)
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, (json.dumps(filters), result_count, error))
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error logging player search to DB: {error}")
+            self.connection.rollback()
+            return None
+
+    def log_card_image_generation(self, card_id: str, error: str = None) -> None:
+        """
+        Store card image generation data in the log_card_image_generation table.
+
+        Args:
+            card_id: ID of the card.
+            error: Error message if any.
+        """
+        
+        if not self.connection:
+            print("No database connection available for logging.")
+            return 
+        
+        sql = """
+            INSERT INTO internal.log_card_image_generation (card_id, error) 
+            VALUES (%s, %s)
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, (card_id, error))
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error logging card image generation to DB: {error}")
+            self.connection.rollback()
+            return None
+
+    def log_card_id_lookup(self, card_id: str, source: str, error: str = None) -> None:
+        """
+        Store card ID lookup data in the log_card_id_lookup table.
+
+        Args:
+            card_id: ID of the card.
+            source: Source of the lookup.
+            error: Error message if any.
+        """
+        
+        if not self.connection:
+            print("No database connection available for logging.")
+            return 
+        
+        sql = """
+            INSERT INTO internal.log_card_id_lookup (card_id, source, error) 
+            VALUES (%s, %s, %s)
+        """
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, (card_id, source, error))
+                self.connection.commit()
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error logging card ID lookup to DB: {error}")
+            self.connection.rollback()
+            return None
+
+# ------------------------------------------------------------------------
+# PLAYER SEASON STATS
+# ------------------------------------------------------------------------
+
+    def upsert_player_season_stats_row(self, cursor, data:dict, conflict_strategy:str = "do_nothing") -> None:
         """Upsert record into stats archive. 
         Insert record if it does not exist, otherwise update the row's `stats` and `modified_date` values
 
@@ -1449,12 +2371,12 @@ class PostgresDB:
         match conflict_strategy:
             case "do_nothing":
                 insert_statement = '''
-                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO NOTHING
                 '''
             case "update_all_columns":
                 insert_statement = '''
-                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                     (
                         year, historical_date, name, 
@@ -1475,7 +2397,7 @@ class PostgresDB:
                 '''
             case "update_all_exclude_stats":
                 insert_statement = '''
-                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                     (
                         year, historical_date, name, 
@@ -1496,12 +2418,15 @@ class PostgresDB:
                 '''
             case "update_stats_only":
                 insert_statement = '''
-                    INSERT INTO STATS_ARCHIVE (%s) VALUES %s
+                    INSERT INTO player_season_stats (%s) VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                     (stats_modified_date, stats) = (NOW(), EXCLUDED.stats)
                 '''
-
-        cursor.execute(insert_statement, (AsIs(','.join(columns)), tuple(values)))
+        try:
+            cursor.execute(insert_statement, (AsIs(','.join(columns)), tuple(values)))
+        except Exception as e:
+            print(f"ERROR upserting stats archive row for id {data.get('id')}: {e}")
+            pass
         
     def upload_to_card_data(self, showdown_cards: list[ShowdownPlayerCard], batch_size: int = 1000) -> None:
         """Upload showdown cards to PostgreSQL database
@@ -1546,7 +2471,7 @@ class PostgresDB:
 
                 # Insert batch
                 insert_query = """
-                    INSERT INTO card_data (player_id, showdown_set, version, card_data) 
+                    INSERT INTO internal.dim_card (player_id, showdown_set, version, card_data) 
                     VALUES %s
                     ON CONFLICT (player_id, showdown_set, version) 
                     DO UPDATE SET 
@@ -1673,5 +2598,559 @@ class PostgresDB:
         except Exception as e:
             print(f"ERROR checking feature statuses: {e}")
             return {}
+        finally:
+            cursor.close()
+
+# ------------------------------------------------------------------------
+# TRENDS
+# ------------------------------------------------------------------------
+
+    def fetch_total_card_count(self) -> int:
+        """Fetch total count of cards in the database with support for lists and min/max filtering."""
+
+        sql_query = sql.SQL("""
+            SELECT COUNT(*) AS total_count
+            FROM internal.log_custom_card_bot
+            WHERE length(coalesce(error, '')) = 0
+        """)
+        raw_data = self.execute_query(query=sql_query)
+        if len(raw_data) == 0:
+            return 0
+        return raw_data[0].get('total_count', 0)
+
+    def fetch_trending_cards(self, set:str, limit:int=10) -> list[dict]:
+        """Fetch trending cards from the card_trending table.
+        
+        Args:
+            set: The showdown set to filter trending cards by.
+            limit: Number of trending cards to fetch.
+        
+        Returns:
+            List of trending cards as dictionaries.
+        """
+        sql_query = sql.SQL("""
+            SELECT 
+                player_id, views_this_week, views_last_week, 
+                wow_change, wow_percent, trending_score, 
+                card_data, showdown_set, version, 
+                card_modified_date, trends_calculated_date
+            FROM public.card_trending
+            WHERE showdown_set = %s
+            ORDER BY trends_calculated_date DESC, trending_score DESC
+            LIMIT %s
+        """)
+        raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
+        return raw_data
+
+    def fetch_popular_cards(self, set:str, limit:int=10) -> list[dict]:
+        """Fetch all-time popular cards from the card_popular table.
+        
+        Args:
+            set: The showdown set to filter popular cards by.
+            limit: Number of popular cards to fetch.
+        
+        Returns:
+            List of popular cards as dictionaries.
+        """
+        sql_query = sql.SQL("""
+            SELECT *
+            FROM public.card_popularity_all_time
+            WHERE showdown_set = %s
+            ORDER BY last_refreshed DESC, num_creations DESC
+            LIMIT %s
+        """)
+        raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
+        return raw_data
+
+    def fetch_latest_spotlight_cards(self, set:str, limit:int=4) -> list[dict]:
+        """Fetch latest spotlight cards from the card_spotlight table.
+        
+        Args:
+            set: The showdown set to filter spotlight cards by.
+            limit: Number of spotlight cards to fetch.
+
+        Returns:
+            List of spotlight cards as dictionaries.
+        """
+
+        sql_query = sql.SQL("""
+            SELECT *
+            FROM public.card_spotlight
+            WHERE showdown_set = %s
+            ORDER BY spotlight_published_date DESC, sort_index
+            LIMIT %s
+        """)
+        raw_data = self.execute_query(query=sql_query, filter_values=(set, limit))
+        return raw_data
+
+    def fetch_card_of_the_day(self, set:str) -> dict[str, any]:
+        """Fetch the current Card of the Day from the card_of_the_day table.
+        
+        Returns:
+            Dictionary representing the Card of the Day.
+        """
+
+        sql_query = sql.SQL("""
+            SELECT *
+            FROM public.card_of_the_day
+            WHERE showdown_set = %s
+            ORDER BY last_refreshed DESC
+            LIMIT 1
+        """)
+        raw_data = self.execute_query(query=sql_query, filter_values=(set,))
+        if len(raw_data) == 0:
+            return {}
+        return raw_data[0]
+
+    def refresh_all_trends(self) -> None:
+        """Refresh all trend-related tables and materialized views."""
+        print("Refreshing trending cards...")
+        self.refresh_trending_cards()
+        print("✓ Trending cards refreshed.")
+        self.refresh_all_time_cards()
+        print("✓ All-time cards refreshed.")
+
+    def refresh_trending_cards(self) -> None:
+        """
+        Build or refresh the trending_cards table. Inserts the top 10 trending cards based on views in the last week.
+        Duplicates across each showdown set.
+        """
+
+        if not self.connection:
+            print("No database connection available for refreshing trending cards.")
+            return
+
+        cursor = self.connection.cursor()
+
+        # CREATE TABLE IF NOT EXISTS
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS public.card_trending (
+                player_id VARCHAR(50),
+                views_this_week INT,
+                views_last_week INT,
+                wow_change INT,
+                wow_percent FLOAT,
+                trending_score FLOAT,
+                card_data JSONB,
+                showdown_set VARCHAR(50),
+                version VARCHAR(50),
+                card_modified_date TIMESTAMP WITHOUT TIME ZONE,
+                trends_calculated_date TIMESTAMP WITHOUT TIME ZONE
+            );
+        '''
+        create_index_sql = '''
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_card_trending_player_set
+            ON public.card_trending (player_id, showdown_set, trends_calculated_date);
+        '''
+        try:
+            cursor.execute(create_table_sql)
+            cursor.execute(create_index_sql)
+            self.connection.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR creating trending_cards table: {e}")
+            return
+        finally:
+            cursor.close()
+
+        new_trending_cards_sql = '''
+            WITH 
+
+            dates AS (
+
+                SELECT distinct
+                    max(created_on)::date as current_week_end,
+                    max(created_on)::date - interval '7 day' as current_week_start,
+                    max(created_on)::date - interval '14 day' as last_week_start
+                FROM internal.log_custom_card_bot
+            ),
+
+            current_week AS (
+                SELECT 
+                    year || '-' || bref_id as player_id,
+                    max(name) as name,
+                    COUNT(*) as views_this_week
+                FROM internal.log_custom_card_bot, dates
+                WHERE created_on >= current_week_start 
+                and error is null 
+                and bref_id is not null
+                and created_on <= current_week_end
+                and length(year) = 4
+                GROUP BY 1
+            ),
+
+            last_week AS (
+
+                SELECT 
+                    year || '-' || bref_id as player_id,
+                    COUNT(*) as views_last_week
+                FROM internal.log_custom_card_bot, dates
+                WHERE created_on >= last_week_start
+                AND created_on < current_week_start
+                and error is null and bref_id is not null
+                and length(year) = 4
+                GROUP BY 1
+
+            ),
+
+            wow AS (
+
+                SELECT 
+                    c.player_id,
+                    c.views_this_week,
+                    COALESCE(l.views_last_week, 0) as views_last_week,
+                    
+                    -- Week-over-week change
+                    c.views_this_week - COALESCE(l.views_last_week, 0) as wow_change,
+                    
+                    -- Percent change (handle division by zero)
+                    CASE 
+                        WHEN COALESCE(l.views_last_week, 0) = 0 THEN 100.0
+                        ELSE ((c.views_this_week - l.views_last_week)::FLOAT / l.views_last_week * 100)
+                    END as wow_percent,
+                    
+                    -- Trending score: prioritize growth + absolute volume
+                    (
+                        (c.views_this_week * 0.7) + 
+                        ((c.views_this_week - COALESCE(l.views_last_week, 0)) * 2.0)
+                    )
+                    -- REMOVE WEIRD CASES
+                    * (case when l.views_last_week < 5 and c.views_this_week > 30 then 0.25 else 1.0 end) as trending_score
+                    
+                FROM current_week c
+                LEFT JOIN last_week l ON c.player_id = l.player_id
+                WHERE c.views_this_week >= 5  -- Minimum threshold to avoid noise
+                and l.views_last_week >= 1
+                ORDER BY trending_score desc
+                LIMIT 10
+            )
+            
+            select
+                wow.*,
+                dc.card_data,
+                dc.showdown_set,
+                dc.version,
+                dc.modified_date as card_modified_date,
+                now() as trends_calculated_date
+            from wow
+            left join internal.dim_card dc on wow.player_id = dc.player_id
+        '''
+        try:
+            new_trending_cards = self.execute_query(query=new_trending_cards_sql)
+        except Exception as e:
+            print(f"ERROR fetching new trending cards: {e}")
+            return
+        
+        # INSERT NEW RECORDS
+        insert_sql = '''
+            INSERT INTO public.card_trending (
+                player_id, views_this_week, views_last_week, 
+                wow_change, wow_percent, trending_score, 
+                card_data, showdown_set, version, 
+                card_modified_date, trends_calculated_date
+            ) VALUES %s
+        '''
+        insert_values = []
+        for card in new_trending_cards:
+            insert_values.append((
+                card['player_id'],
+                card['views_this_week'],
+                card['views_last_week'],
+                card['wow_change'],
+                card['wow_percent'],
+                card['trending_score'],
+                card['card_data'],
+                card['showdown_set'],
+                card['version'],
+                card['card_modified_date'],
+                card['trends_calculated_date']
+            ))
+        try:
+            cursor = self.connection.cursor()
+            execute_values(cursor, insert_sql, insert_values)
+            self.connection.commit()
+            cursor.close()
+        except Exception as e:
+            print(f"ERROR inserting new trending cards: {e}")
+
+    def refresh_all_time_cards(self) -> None:
+        """Refresh all-time cards materialized view."""
+
+        # CHECK CONNECTION
+        if not self.connection:
+            print("No database connection available for refreshing all-time cards.")
+            return
+
+        # CHECK IF VIEW EXISTS
+        check_view_sql = '''
+            SELECT EXISTS (
+                SELECT 1
+                FROM pg_matviews
+                WHERE matviewname = 'card_popularity_all_time'
+            );
+        '''
+        cursor = self.connection.cursor()
+        cursor.execute(check_view_sql)
+        view_exists = cursor.fetchone()[0]
+
+        if not view_exists:
+            print("All-time cards materialized view does not exist. Creating it now...")
+            create_view_sql = '''
+                CREATE MATERIALIZED VIEW public.card_popularity_all_time AS
+                with
+
+                most_common_creations as (
+
+                    select
+                        year || '-' || bref_id as player_id,
+                        bref_id,
+                        min(created_on) as first_date,
+                        max(created_on) as last_date,
+                        count(*) as num_creations
+                    from internal.log_custom_card_bot
+                    where bref_id is not null
+                    and length(coalesce(error, '')) = 0
+                    group by 1,2
+                    order by count(*) desc 
+                    limit 100
+
+                ),
+
+                add_cards as (
+
+                    select
+                        cnt.*,
+                        dc.card_data,
+                        dc.showdown_set,
+                        dc.version,
+                        dc.modified_date as card_modified_date,
+                        now() as last_refreshed
+                    from most_common_creations as cnt
+                    left join internal.dim_card as dc
+                        on cnt.player_id = dc.player_id
+
+                )
+
+                select *
+                from add_cards;
+            '''
+            try:
+                cursor.execute(create_view_sql)
+                self.connection.commit()
+                print("✓ All-time cards materialized view created.")
+            except Exception as e:
+                print(f"ERROR creating all-time cards materialized view: {e}")
+                self.connection.rollback()
+                return
+            finally:
+                cursor.close()
+
+        else:
+            print("Refreshing all-time cards...")
+            refresh_sql = '''
+                REFRESH MATERIALIZED VIEW public.card_popularity_all_time;
+            '''
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute(refresh_sql)
+                self.connection.commit()
+                cursor.close()
+                print("✓ All-time cards refreshed.")
+            except Exception as e:
+                print(f"ERROR refreshing all-time cards: {e}")
+
+    def publish_new_spotlight(self, player_ids: list[str], message: str) -> None:
+        """Publish new spotlight cards to the spotlight table.
+        
+        Args:
+            player_ids: List of player IDs to spotlight.
+            message: Message or reason for spotlighting the cards.
+        
+        Returns:
+            None
+        """
+        if not self.connection:
+            print("No database connection available for publishing spotlight cards.")
+            return
+        
+        cursor = self.connection.cursor()
+        
+        # CREATE TABLE IF NOT EXISTS
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS public.card_spotlight (
+                player_id VARCHAR(50),
+                card_data JSONB,
+                sort_index INT,
+                spotlight_reason TEXT,
+                showdown_set VARCHAR(50),
+                version VARCHAR(50),
+                card_modified_date TIMESTAMP WITHOUT TIME ZONE,
+                spotlight_published_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+        '''
+        create_index_sql = '''
+            CREATE INDEX IF NOT EXISTS card_spotlight_published_date_idx
+            ON public.card_spotlight (showdown_set, spotlight_published_date DESC);
+        '''
+        try:
+            cursor.execute(create_table_sql)
+            cursor.execute(create_index_sql)
+            self.connection.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR creating spotlight table: {e}")
+            return
+        finally:
+            cursor.close()
+
+        # FETCH CARD DATA FOR PLAYER IDS
+        format_strings = ','.join(['%s'] * len(player_ids))
+        fetch_cards_sql = f'''
+            SELECT 
+                player_id,
+                card_data,
+                showdown_set,
+                version,
+                modified_date as card_modified_date
+            FROM internal.dim_card
+            WHERE player_id IN ({format_strings})
+        '''
+        try:
+            cards_data = self.execute_query(query=fetch_cards_sql, filter_values=tuple(player_ids))
+        except Exception as e:
+            print(f"ERROR fetching spotlight card data: {e}")
+            return
+        
+        # INSERT NEW SPOTLIGHT RECORDS
+        insert_sql = '''
+            INSERT INTO public.card_spotlight (
+                player_id, card_data, sort_index, spotlight_reason, showdown_set, version, card_modified_date
+            ) VALUES %s
+        '''
+        insert_values = []
+        for card in cards_data:
+            sort_index = player_ids.index(card['player_id']) if card['player_id'] in player_ids else len(player_ids)
+            insert_values.append((
+                card['player_id'],
+                card['card_data'],
+                sort_index,
+                message,
+                card['showdown_set'],
+                card['version'],
+                card['card_modified_date']
+            ))
+        try:
+            cursor = self.connection.cursor()
+            execute_values(cursor, insert_sql, insert_values)
+            self.connection.commit()
+            cursor.close()
+            print(f"✓ Published {len(insert_values)} spotlight cards.")
+        except Exception as e:
+            print(f"ERROR inserting spotlight cards: {e}")
+
+    def refresh_card_of_the_day(self) -> None:
+        """Refresh the card_of_the_day materialized view."""
+        
+        if not self.connection:
+            print("No database connection available for refreshing card of the day.")
+            return
+
+        # CREATE TABLE IF IT DOESN'T EXIST
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS public.card_of_the_day (
+                card_date DATE,
+                player_id VARCHAR(50),
+                card_data JSONB,
+                showdown_set VARCHAR(50),
+                version VARCHAR(50),
+                card_modified_date TIMESTAMP WITHOUT TIME ZONE,
+                last_refreshed TIMESTAMP WITHOUT TIME ZONE
+            );
+        '''
+        index_sql = '''
+            CREATE INDEX IF NOT EXISTS card_of_the_day_last_refreshed_idx
+            ON public.card_of_the_day (last_refreshed DESC, showdown_set);
+        '''
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(create_table_sql)
+            cursor.execute(index_sql)
+            self.connection.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR creating card_of_the_day table: {e}")
+            cursor.close()
+            return
+        
+        # REFRESH LOGIC: Pick a random card from the dim_card table for today
+        refresh_sql = '''
+            with 
+
+            selected_id as (
+
+                select
+                    year || '-' || player_id as player_id
+                from internal.dim_auto_image
+                where year || '-' || player_id not in (
+                    select player_id
+                    from public.card_of_the_day
+                    where card_date >= current_date - interval '90 day'
+                )
+                order by random()
+                limit 1
+
+            ),
+
+            cards as (
+
+                select 
+                    player_id,
+                    card_data,
+                    showdown_set,
+                    version,
+                    modified_date
+                from internal.dim_card
+                where player_id = (select * from selected_id)
+
+            )
+
+            select *
+            from cards
+        '''
+        try:
+            card_data = self.execute_query(query=refresh_sql)
+        except Exception as e:
+            print(f"ERROR fetching card of the day data: {e}")
+            cursor.close()
+            return
+        
+        if len(card_data) == 0:
+            print("No new card found for card of the day.")
+            cursor.close()
+            return
+        
+        insert_sql = '''
+            INSERT INTO public.card_of_the_day (
+                card_date, player_id, card_data, showdown_set, version, card_modified_date, last_refreshed
+            ) VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        '''
+        try:
+            for card in card_data:
+                cursor.execute(insert_sql, (
+                    datetime.now().date(),
+                    card['player_id'],
+                    card['card_data'],
+                    card['showdown_set'],
+                    card['version'],
+                    card['modified_date']
+                ))
+            self.connection.commit()
+            print("✓ Card of the day refreshed.")
+        except Exception as e:
+            print(f"ERROR inserting card of the day: {e}")
+            self.connection.rollback()
         finally:
             cursor.close()

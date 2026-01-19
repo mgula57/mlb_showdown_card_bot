@@ -136,11 +136,9 @@ class PlayerStats:
 
     @property
     def meets_minimum_pa_or_ip_requirements(self) -> bool:
-        """Check that IP > 30 for pitchers and PA > 30 for hitters"""
+        """Check that IP >= 1 for pitchers and PA >= 1 for hitters"""
         stat = self.pa if self.player_type == PlayerType.HITTER else self.ip
-        limit = 10 if self.player_type == PlayerType.HITTER else 10
-        if self.year == 2020:
-            limit = limit * 0.4
+        limit = 1 if self.player_type == PlayerType.HITTER else 1
         if stat is None:
             return False
         

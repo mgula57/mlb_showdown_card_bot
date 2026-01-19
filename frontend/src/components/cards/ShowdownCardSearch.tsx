@@ -1,8 +1,18 @@
 /**
- * @fileoverview ShowdownCardExplore - Advanced card database browser and filter system
+ * @fileoverview ShowdownCardSearch - Advanced card database browser and filter system
  * 
  * This component provides a comprehensive interface for exploring the MLB Showdown card database
  * with advanced filtering, sorting, and team hierarchy navigation capabilities.
+ * 
+ * SOURCE-SPECIFIC FILTERING & SORTING:
+ * - Filters and sort options are conditionally displayed based on the card source (BOT vs WOTC)
+ * - BOT cards support real stats, multi-team seasons, chart outliers, and image classification
+ * - WOTC cards only show basic Showdown attributes and position/hand filters
+ * - BOT sorting includes all real stats (PA, IP, ERA, OPS, etc.)
+ * - WOTC sorting includes real vs estimated points, estimated points, and original set
+ * - FILTER_AVAILABILITY configuration defines which filters are available for each source
+ * - getSortOptions() function returns appropriate sort options for each source
+ * - Filters and sort options are automatically cleaned when switching between sources
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -13,9 +23,10 @@ import { Modal } from "../shared/Modal";
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import {
     FaFilter, FaBaseballBall, FaArrowUp, FaArrowDown, FaTimes, FaHashtag,
-    FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft
+    FaDollarSign, FaMitten, FaCalendarAlt, FaChevronCircleRight, FaChevronCircleLeft,
+    FaSort, FaTable, FaImage, FaAddressCard, FaLayerGroup, FaCheck
 } from "react-icons/fa";
-import { FaArrowRotateRight, FaTableList } from "react-icons/fa6";
+import { FaArrowRotateRight, FaTableList, FaXmark } from "react-icons/fa6";
 import { snakeToTitleCase } from "../../functions/text";
 import { FaO, FaI } from "react-icons/fa6";
 
@@ -25,21 +36,24 @@ import MultiSelect from "../shared/MultiSelect";
 import FormDropdown from "../customs/FormDropdown";
 import FormSection from "../customs/FormSection";
 import type { SelectOption } from '../shared/CustomSelect';
-import { CardItem } from "./CardItem";
+import { CardItemFromCardDatabaseRecord, CardItemFromCard } from "./CardItem";
 import { FaPersonRunning } from "react-icons/fa6";
 import RangeFilter from "../customs/RangeFilter";
 
 import { TeamHierarchy } from "./TeamHierarchy";
 import { fetchTeamHierarchy, type TeamHierarchyRecord } from '../../api/card_db/cardDatabase';
+import { CardSource } from '../../types/cardSource';
 
 /**
- * Props for the ShowdownCardExplore component
+ * Props for the ShowdownCardSearch component
  */
-type ShowdownCardExploreProps = {
+type ShowdownCardSearchProps = {
     /** Optional initial card data to display */
     showdownCards?: CardDatabaseRecord[] | null;
     /** Additional CSS classes */
     className?: string;
+    /** Source of the card data */
+    source: CardSource;
 };
 
 // =============================================================================
@@ -77,6 +91,7 @@ interface FilterSelections {
     include_small_sample_size?: string[];
     /** Awards received (e.g., ["mvp-", "false"]) */
     awards?: string[];
+    is_hof?: string[];
 
     // Showdown game mechanics filters
     /** Minimum point value */
@@ -135,38 +150,130 @@ interface FilterSelections {
     // Image attributes
     /** Lets user filter for cards with/without images */
     image_match_type?: string[];
+
+    // Showdown set filtering
+    showdown_set?: string[];
+    expansion?: string[];
+    edition?: string[];
 }
 
 /**
- * Default filter selections applied on component initialization
+ * Get default filter selections based on the data source
  * 
- * Sets sensible defaults for exploring the card database:
- * - Excludes small sample sizes by default
- * - Sorts by points (descending) to show best cards first
- * - Limits to MLB organization initially
+ * @param source - The data source (CardSource enum value)
+ * @returns Default filter selections optimized for the specific source
  */
-const DEFAULT_FILTER_SELECTIONS: FilterSelections = {
-    include_small_sample_size: ["false"],
-    sort_by: "points",
-    sort_direction: "desc",
-    organization: ["MLB"],
+const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
+    const baseDefaults: FilterSelections = {
+        include_small_sample_size: ["false"],
+        sort_by: "points",
+        sort_direction: "desc",
+        organization: ["MLB"],
+    };
+
+    // Customize defaults based on source
+    switch (source) {
+        case CardSource.BOT:
+            return baseDefaults;
+        case CardSource.WOTC:
+            return {
+                sort_by: "points",
+                sort_direction: "desc",
+            };
+        default:
+            return baseDefaults;
+    }
 };
 
 /**
- * Available sort options with icons for the dropdown selector
- * 
- * Includes both basic attributes (points, year, speed) and 
- * defensive ratings for each position type.
+ * Configuration for which filters are available for each card source
  */
-const SORT_OPTIONS: SelectOption[] = [
+type FilterAvailability = {
+    [K in keyof FilterSelections]?: CardSource[];
+};
+
+/**
+ * Defines which filters are available for which card sources
+ * If a filter is not listed here, it's available for all sources
+ */
+const FILTER_AVAILABILITY: FilterAvailability = {
+    // BOT-specific filters (not available for WOTC)
+    is_multi_team: [CardSource.BOT],
+    include_small_sample_size: [CardSource.BOT],
+    image_match_type: [CardSource.BOT],
+    
+    // Real stats filters - only available for BOT since WOTC cards don't have real stats
+    min_pa: [CardSource.BOT],
+    max_pa: [CardSource.BOT],
+    min_real_ip: [CardSource.BOT],
+    max_real_ip: [CardSource.BOT],
+    awards: [CardSource.BOT],
+
+    // Organization/League filtering might not make sense for WOTC
+    organization: [CardSource.BOT],
+    league: [CardSource.BOT],
+
+    // Expansion and edition filters - only for WOTC
+    expansion: [CardSource.WOTC],
+    edition: [CardSource.WOTC],
+    showdown_set: [CardSource.WOTC],
+};
+
+/**
+ * Check if a filter is available for the given card source
+ */
+const isFilterAvailable = (filterKey: keyof FilterSelections, source: CardSource): boolean => {
+    const availableSources = FILTER_AVAILABILITY[filterKey];
+    // If not specified in the config, it's available for all sources
+    return !availableSources || availableSources.includes(source);
+};
+
+/**
+ * Clean up filter selections by removing filters not available for the current source
+ * Also ensures sort option is available for the new source
+ */
+const cleanFiltersForSource = (filters: FilterSelections, source: CardSource): FilterSelections => {
+    const cleaned: FilterSelections = {};
+    
+    for (const [key, value] of Object.entries(filters)) {
+        const filterKey = key as keyof FilterSelections;
+        if (isFilterAvailable(filterKey, source)) {
+            cleaned[filterKey] = value;
+        }
+    }
+    
+    // Check if the current sort option is available for this source
+    if (cleaned.sort_by) {
+        const availableSortOptions = getSortOptions(source);
+        const isSortOptionAvailable = availableSortOptions.some(option => option.value === cleaned.sort_by);
+        
+        if (!isSortOptionAvailable) {
+            // Reset to default sort option for this source
+            const defaultFilters = getDefaultFilterSelections(source);
+            cleaned.sort_by = defaultFilters.sort_by;
+            cleaned.sort_direction = defaultFilters.sort_direction;
+        }
+    }
+    
+    return cleaned;
+};
+
+/**
+ * Base sort options available for all card sources
+ */
+const BASE_SORT_OPTIONS: SelectOption[] = [
     { value: 'points', label: 'Points', icon: <FaDollarSign /> },
     { value: 'year', label: 'Year', icon: <FaCalendarAlt /> },
     { value: 'speed', label: 'Speed', icon: <FaPersonRunning /> },
     { value: 'ip', label: 'IP', icon: <FaI /> },
     { value: 'command', label: 'Control/Onbase', icon: <FaBaseballBall /> },
     { value: 'outs', label: 'Outs', icon: <FaO /> },
+];
 
-    // Defensive position ratings
+/**
+ * Defensive position rating sort options (available for all sources)
+ */
+const DEFENSE_SORT_OPTIONS: SelectOption[] = [
     { value: 'positions_and_defense_c', label: 'Defense (CA)', icon: <FaMitten /> },
     { value: 'positions_and_defense_1b', label: 'Defense (1B)', icon: <FaMitten /> },
     { value: 'positions_and_defense_2b', label: 'Defense (2B)', icon: <FaMitten /> },
@@ -176,8 +283,12 @@ const SORT_OPTIONS: SelectOption[] = [
     { value: 'positions_and_defense_lf/rf', label: 'Defense (LF/RF)', icon: <FaMitten /> },
     { value: 'positions_and_defense_cf', label: 'Defense (CF)', icon: <FaMitten /> },
     { value: 'positions_and_defense_of', label: 'Defense (OF)', icon: <FaMitten /> },
+];
 
-    // Chart Values
+/**
+ * Chart values sort options (available for all sources)
+ */
+const CHART_VALUES_SORT_OPTIONS: SelectOption[] = [
     { value: 'chart_values_pu', label: 'Chart Values (PU)', icon: <FaTableList /> },
     { value: 'chart_values_so', label: 'Chart Values (SO)', icon: <FaTableList /> },
     { value: 'chart_values_gb', label: 'Chart Values (GB)', icon: <FaTableList /> },
@@ -188,8 +299,12 @@ const SORT_OPTIONS: SelectOption[] = [
     { value: 'chart_values_2b', label: 'Chart Values (2B)', icon: <FaTableList /> },
     { value: 'chart_values_3b', label: 'Chart Values (3B)', icon: <FaTableList /> },
     { value: 'chart_values_hr', label: 'Chart Values (HR)', icon: <FaTableList /> },
+];
 
-    // Real Stats
+/**
+ * Real stats sort options (BOT only)
+ */
+const REAL_STATS_SORT_OPTIONS: SelectOption[] = [
     { value: 'real_stats_pa', label: 'Real Stats (PA)', icon: <FaHashtag /> },
     { value: 'real_stats_ip', label: 'Real Stats (IP)', icon: <FaHashtag /> },
     { value: 'real_stats_G', label: 'Real Stats (G)', icon: <FaHashtag /> },
@@ -216,8 +331,41 @@ const SORT_OPTIONS: SelectOption[] = [
     { value: 'real_stats_BB', label: 'Real Stats (BB)', icon: <FaHashtag /> },
     { value: 'real_stats_W', label: 'Real Stats (W)', icon: <FaHashtag /> },
     { value: 'real_stats_SV', label: 'Real Stats (SV)', icon: <FaHashtag /> },
-
 ];
+
+/**
+ * WOTC-specific sort options
+ */
+const WOTC_SPECIFIC_SORT_OPTIONS: SelectOption[] = [
+    { value: 'points_diff_estimated_vs_actual', label: 'Points Diff: Estimated vs Original', icon: <FaDollarSign /> },
+    { value: 'points_estimated', label: 'Estimated Points', icon: <FaDollarSign /> },
+];
+
+/**
+ * Get available sort options based on the card source
+ */
+const getSortOptions = (source: CardSource): SelectOption[] => {
+    const baseOptions = [
+        ...BASE_SORT_OPTIONS,
+        ...DEFENSE_SORT_OPTIONS,
+        ...CHART_VALUES_SORT_OPTIONS,
+    ];
+
+    switch (source) {
+        case CardSource.BOT:
+            return [
+                ...baseOptions,
+                ...REAL_STATS_SORT_OPTIONS,
+            ];
+        case CardSource.WOTC:
+            return [
+                ...WOTC_SPECIFIC_SORT_OPTIONS,
+                ...baseOptions,
+            ];
+        default:
+            return baseOptions;
+    }
+};
 
 /**
  * Configuration for range filter UI components
@@ -258,7 +406,7 @@ const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
 ];
 
 // =============================================================================
-// FILTER PERSISTENCE & UTILITIES
+// MARK: - FILTER PERSISTENCE & UTILITIES
 // =============================================================================
 
 /** localStorage key for persisting filter selections across sessions */
@@ -280,37 +428,37 @@ const stripEmpty = (obj: any) =>
  * Loads previously saved filter selections from localStorage
  * @returns Saved filters merged with defaults, or null if none exist
  */
-const loadSavedFilters = (): FilterSelections | null => {
+const loadSavedFilters = (source: CardSource): FilterSelections | null => {
     if (typeof window === 'undefined') return null;
     try {
-        const raw = localStorage.getItem(FILTERS_STORAGE_KEY);
+        const raw = localStorage.getItem(FILTERS_STORAGE_KEY + ':' + source);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
-        return { ...DEFAULT_FILTER_SELECTIONS, ...parsed } as FilterSelections;
+        return { ...getDefaultFilterSelections(source), ...parsed } as FilterSelections;
     } catch {
         return null;
     }
 };
 
-const saveFilters = (filters: FilterSelections) => {
+const saveFilters = (filters: FilterSelections, source: CardSource) => {
     if (typeof window === 'undefined') return;
     try {
-        localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(stripEmpty(filters)));
+        localStorage.setItem(FILTERS_STORAGE_KEY + ':' + source, JSON.stringify(stripEmpty(filters)));
     } catch {
         // ignore storage errors
     }
 };
 
 // Helper used for lazy init so we don't set state in an effect
-const getInitialFilters = (): FilterSelections =>
-  loadSavedFilters() ?? DEFAULT_FILTER_SELECTIONS;
+const getInitialFilters = (source: CardSource): FilterSelections =>
+  loadSavedFilters(source) ?? getDefaultFilterSelections(source);
 
 // --------------------------------------------
 // MARK: - Component
 // --------------------------------------------
 
 /**
- * ShowdownCardExplore - Advanced card database browser with filtering and search
+ * ShowdownCardSearch - Advanced card database browser with filtering and search
  * 
  * This is the main card exploration interface providing:
  * - Advanced multi-dimensional filtering system
@@ -325,8 +473,9 @@ const getInitialFilters = (): FilterSelections =>
  * while providing smooth performance through debounced searches and lazy loading.
  * 
  * @param className - Additional CSS classes for the container
+ * @param source - Source of the card data (CardSource enum)
  */
-export default function ShowdownCardExplore({ className }: ShowdownCardExploreProps) {
+export default function ShowdownCardSearch({ className, source = CardSource.BOT }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -336,7 +485,9 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     /** Loading state for initial data fetch */
     const [isLoading, setIsLoading] = useState(false);
     /** Currently selected card for detail view */
-    const [selectedCard, setSelectedCard] = useState<CardDatabaseRecord | null>(null);
+    const [selectedCardForModal, setSelectedCardForModal] = useState<CardDatabaseRecord | null>(null);
+    const [selectedCardForSidebar, setSelectedCardForSidebar] = useState<CardDatabaseRecord | null>(null);
+    const selectedCard = window.innerWidth >= 1000 ? selectedCardForSidebar : selectedCardForModal;
 
     // Pagination state management
     /** Current page number for infinite scroll */
@@ -365,10 +516,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [debouncedSearchText, setDebouncedSearchText] = useState('');
 
     // Filters
-    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters);
-    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters);
+    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source));
+    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source));
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
-    const hasCustomFiltersApplied = JSON.stringify(stripEmpty(filtersWithoutSorting)) !== JSON.stringify(stripEmpty(DEFAULT_FILTER_SELECTIONS));
+    const filtersWithoutSortingForEditing = { ...filtersForEditing, sort_by: null, sort_direction: null };
+    const hasCustomFiltersApplied = JSON.stringify(stripEmpty(filtersWithoutSorting)) !== JSON.stringify(stripEmpty(getDefaultFilterSelections(source)));
     const bindRange = (minKey: keyof FilterSelections, maxKey: keyof FilterSelections) => ({
         minValue: filtersForEditing[minKey] as number | undefined,
         maxValue: filtersForEditing[maxKey] as number | undefined,
@@ -381,13 +533,32 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
     const [isHierarchyDataLoaded, setIsHierarchyDataLoaded] = useState(false);
     const [isLoadingHierarchyData, setIsLoadingHierarchyData] = useState(false);
 
-    // Defined within component to access userShowdownSet
-    const selectedSortOption = SORT_OPTIONS.find(option => option.value === filters.sort_by) || null;
+    // Get sort options based on source and find selected option
+    const sortOptions = getSortOptions(source);
+    const selectedSortOption = sortOptions.find(option => option.value === filters.sort_by) || null;
+    const selectedSortOptionForEditing = sortOptions.find(option => option.value === filtersForEditing.sort_by) || null;
+
+    // Ref for scrollable main content area
+    const cardScrollParentRef = useRef<HTMLDivElement>(null);
 
     // Save filters whenever they change (kept separate so it doesn't run on search or set changes)
     useEffect(() => {
-        saveFilters(filters);
+        saveFilters(filters, source);
     }, [filters]);
+
+    // Clean filters when source changes to remove unavailable filters
+    useEffect(() => {
+        const cleanedFilters = cleanFiltersForSource(filters, source);
+        const cleanedForEditing = cleanFiltersForSource(filtersForEditing, source);
+        
+        // Only update if there are actual changes
+        if (JSON.stringify(cleanedFilters) !== JSON.stringify(filters)) {
+            setFilters(cleanedFilters);
+        }
+        if (JSON.stringify(cleanedForEditing) !== JSON.stringify(filtersForEditing)) {
+            setFiltersForEditing(cleanedForEditing);
+        }
+    }, [source]);
 
     // On initial load
     useEffect(() => {
@@ -409,10 +580,8 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
         loadHierarchyData();
     }, []); // Empty dependency array - only run once
 
-    // Clear selected card when user changes showdown set
-    useEffect(() => {
-        setSelectedCard(null);
-    }, [userShowdownSet]);
+    // Note: We don't clear selected card when showdown set changes anymore
+    // Instead, we let getCardsData handle checking if the card exists in the new results
 
     // Reload cards when set or filters change
     useEffect(() => {
@@ -471,10 +640,16 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
             const pageLimit = 50;
             const searchFilters = debouncedSearchText ? { search: debouncedSearchText } : {};
+
+            // Only include userShowdownSet if filters.showdown_set is not already populated
+        const showdownSetFilter = filters.showdown_set && filters.showdown_set.length > 0 
+            ? {} 
+            : { showdown_set: userShowdownSet };
+
             const combinedFilters = {
                 ...filters,
                 ...searchFilters,
-                showdown_set: userShowdownSet,
+                ...showdownSetFilter,
                 page: pageNum,
                 limit: pageLimit // Cards per page
             };
@@ -483,7 +658,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             const cleanedFilters = Object.fromEntries(
                 Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && v.length !== 0)
             );
-            const data = await fetchCardData(cleanedFilters);
+            const data = await fetchCardData(source, cleanedFilters);
 
             let newCardData;
             if (append && showdownCards) {
@@ -502,6 +677,20 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 setWarningMessage("No results found for the given filters/search.");
             } else {
                 setWarningMessage(null);
+            }
+
+            // If we have a selected card and this is the first page (new data load),
+            // check if the selected card still exists in the new results
+            if (selectedCardForSidebar && pageNum === 1 && newCardData.length > 0) {
+                const cardStillExists = newCardData.find(card => card.id === selectedCardForSidebar.id);
+                if (cardStillExists) {
+                    // Card exists in new results, update the selected card with new data
+                    setSelectedCardForSidebar(cardStillExists);
+                } else {
+                    // Card no longer exists, clear selection
+                    setSelectedCardForSidebar(null);
+                    setShowPlayerDetailSidebar(false);
+                }
             }
 
         } catch (error) {
@@ -523,36 +712,65 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
     // Handle row selection
     const handleRowClick = (card: CardDatabaseRecord) => {
+        
+        const isLargeScreen = window.innerWidth >= 1000; // 2xl breakpoint
+        
+        console.log("Card clicked:", card);
         if (card.id === selectedCard?.id) {
             // If clicking the same card, close the side menu (if applicable)
-            handleCloseModal();
-            setSelectedCard(null);
+            if (isLargeScreen) {
+                handleCloseSidebar();
+            } else {
+                handleCloseModal();
+            }
             return;
         }
-        setSelectedCard(card);
+        if (isLargeScreen) {
+            setSelectedCardForSidebar(card);
+        } else {
+            setSelectedCardForModal(card);
+        }
         
         // Check screen size and show appropriate UI
-        const isLargeScreen = window.innerWidth >= 1000; // 2xl breakpoint
+        const isSidebarAlreadyOpen = showPlayerDetailSidebar;
         
         if (isLargeScreen) {
             setShowPlayerDetailSidebar(true);
-            setShowPlayerDetailModal(false);
+            
+            if (!isSidebarAlreadyOpen) {
+                // Auto-scroll to the selected card after the sidebar animation completes
+                setTimeout(() => {
+                    const selectedElement = document.querySelector(`[data-card-id="${card.id}"]`);
+                    if (selectedElement) {
+                        selectedElement.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center',
+                            inline: 'nearest'
+                        });
+                    }
+                }, 350); // Wait for sidebar animation (300ms + small buffer)
+            }
         } else {
             setShowPlayerDetailModal(true);
-            setShowPlayerDetailSidebar(false);
         }
     };
 
     const handleCloseModal = () => {
         setShowPlayerDetailModal(false);
-        setShowPlayerDetailSidebar(false);
-        setSelectedCard(null);
+        setSelectedCardForModal(null);
     };
+
+    const handleCloseSidebar = () => {
+        setShowPlayerDetailSidebar(false);
+        setSelectedCardForSidebar(null);
+    }
 
     const handleOpenFilters = () => {
         setFiltersForEditing(filters);
         setShowFiltersModal(true);
     }
+
+    const hasFiltersChanged = JSON.stringify(filters) !== JSON.stringify(filtersForEditing);
 
     // Remove the getCardsData call from handleFilterApply
     const handleFilterApply = () => {
@@ -566,10 +784,10 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
     const resetFilters = (targets: String[]) => {
         if (targets.includes('filters')) {
-            setFilters(DEFAULT_FILTER_SELECTIONS);
+            setFilters(getDefaultFilterSelections(source));
         }
         if (targets.includes('editing')) {
-            setFiltersForEditing(DEFAULT_FILTER_SELECTIONS);
+            setFiltersForEditing(getDefaultFilterSelections(source));
         }
     }
 
@@ -601,6 +819,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             return `Small Sample Sizes?: ${finalValue}`;
         }
 
+        if (key === 'showdown_set') {
+            const finalValue = Array.isArray(value) ? value.map(s => s.toUpperCase()).join(', ') : value.toUpperCase();
+            return `Set: ${finalValue}`;
+        }
+
         const keysWithValuesToTitleCase = ['image_match_type']
         if (keysWithValuesToTitleCase.includes(key)) {
             const finalValue = Array.isArray(value) ? value.map(snakeToTitleCase).join(', ') : snakeToTitleCase(value);
@@ -627,7 +850,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
     const renderResetButton = (targets: String[]) => {
         return (
-            <button onClick={() => resetFilters(targets)} className="text-white flex items-center bg-[var(--showdown-gray)] rounded-full px-2 gap-1 py-1 cursor-pointer">
+            <button onClick={() => resetFilters(targets)} className="text-[var(--background-primary)] font-bold flex items-center bg-[var(--showdown-gray)] rounded-full px-2 gap-1 py-1 cursor-pointer">
                 <FaArrowRotateRight />
                 <span className="text-sm">Reset</span>
             </button>
@@ -639,8 +862,8 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
         <div
             className={`
                 flex flex-col ${className}
-                md:h-[calc(100vh-theme(spacing.12))]                            /* fallback */
-                md:supports-[height:100dvh]:h-[calc(100dvh-theme(spacing.12))]  /* prefer dvh */
+                md:h-[calc(100vh-theme(spacing.24))]                            /* fallback */
+                md:supports-[height:100dvh]:h-[calc(100dvh-theme(spacing.24))]  /* prefer dvh */
                 md:overflow-y-auto                                              /* scroller on desktop */
                 md:min-h-0                                                      /* allow child to size for overflow */
             `}
@@ -660,7 +883,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                             value={searchText || ''}
                             placeholder="Search for a Player..."
                             onChange={(value) => setSearchText(value || '')}
-                            className="w-full sm:w-1/3"
+                            className="w-full sm:w-1/3 font-bold"
                             isClearable={true}
                             isTitleCase={true}
                         />
@@ -716,8 +939,9 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
                         {/* Selected Filters */}
                         {/* The last element should add lots of padding */}
-                        {Object.entries(filtersWithoutSorting).map(([key, value]) => (
-                            value === undefined || value === null || (Array.isArray(value) && value.length === 0) ? null :
+                        {Object.entries(filtersWithoutSorting)
+                            .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
+                            .map(([key, value]) => (
                                 <div key={key} className={`flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1`}>
                                     <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
                                     <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
@@ -744,7 +968,9 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             <div className="flex flex-1">
 
                 {/* Main Content Area */}
-                <div className={`
+                <div 
+                    ref={cardScrollParentRef}
+                    className={`
                         relative flex-1 min-w-0
                         ${showPlayerDetailSidebar ? 'lg:mr-96' : ''}
                         transition-all duration-300 ease-in-out
@@ -755,13 +981,23 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                         {showdownCards?.map((cardRecord, index) => (
                             <div
                                 key={cardRecord.id}
+                                data-card-id={cardRecord.id}
                                 ref={showdownCards.length === (index + 1) ? lastCardElementRef : null}
                             >
-                                <CardItem
-                                    card={cardRecord.card_data}
-                                    onClick={() => handleRowClick(cardRecord)}
-                                    isSelected={selectedCard?.id === cardRecord.id}
-                                />
+                                {source === CardSource.WOTC && (
+                                    <CardItemFromCard
+                                        card={cardRecord.card_data}
+                                        onClick={() => handleRowClick(cardRecord)}
+                                        isSelected={selectedCard?.id === cardRecord.id}
+                                    />
+                                )}
+                                {source === CardSource.BOT && (
+                                    <CardItemFromCardDatabaseRecord
+                                        card={cardRecord}
+                                        onClick={() => handleRowClick(cardRecord)}
+                                        isSelected={selectedCard?.id === cardRecord.id}
+                                    />
+                                )}
                             </div>
 
                         ))}
@@ -793,8 +1029,8 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                 
                 {/* Right Sidebar with Slide Animation */}
                 <div className={`
-                    fixed right-0 top-12 bottom-0 w-96 z-30
-                    bg-primary border-l-2 border-t-2 border-form-element 
+                    fixed right-0 top-24 bottom-0 w-96 z-30
+                    bg-primary border-l-2 border-form-element 
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
                     hidden lg:block
@@ -807,7 +1043,7 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                         {/* Stick header with close button */}
                         <div className="py-8 h-12 flex items-center space-x-2 p-2 border-b border-form-element">
                             <button 
-                                onClick={() => setShowPlayerDetailSidebar(false)}>
+                                onClick={handleCloseSidebar}>
                                 <FaChevronCircleRight className="text-[var(--tertiary)] w-7 h-7" />
                             </button>
                             <h2 className="text-[var(--tertiary)] text-lg font-bold">Card Detail</h2>
@@ -817,9 +1053,11 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                         {/* Scrollable Content */}
                         <div className="flex-1 overflow-y-auto min-h-0">
                             <CardDetail
-                                showdownBotCardData={{ card: selectedCard?.card_data } as ShowdownBotCardAPIResponse}
+                                showdownBotCardData={{ card: selectedCardForSidebar?.card_data } as ShowdownBotCardAPIResponse}
+                                cardId={selectedCardForSidebar?.card_id}
                                 hideTrendGraphs={true}
                                 context='explore'
+                                parent="sidebar"
                             />
                         </div>
                     </div>
@@ -841,33 +1079,101 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
             )}
 
             {/* Player Detail Modal */}
-            {showPlayerDetailModal && selectedCard && (
-                <Modal onClose={handleCloseModal}>
+            <div className={showPlayerDetailModal && selectedCardForModal ? '' : 'hidden pointer-events-none'}>
+                <Modal onClose={handleCloseModal} isVisible={showPlayerDetailModal && !!selectedCardForModal}>
                     <CardDetail
-                        showdownBotCardData={{ card: selectedCard.card_data } as ShowdownBotCardAPIResponse}
+                        showdownBotCardData={selectedCardForModal ? { card: selectedCardForModal.card_data } as ShowdownBotCardAPIResponse : undefined}
+                        cardId={selectedCardForModal?.card_id}
                         hideTrendGraphs={true}
                         context='explore'
+                        parent="modal"
                     />
                 </Modal>
-            )}
+            </div>
 
             {/* MARK: Filters Modal */}
             {showFiltersModal && (
-                <Modal onClose={handleFilterApply}>
-                    <div className="p-4 min-h-48 max-h-[80vh] md:min-h-128 md:max-h-[90vh]">
-                        <div className="flex gap-3 mb-4 items-center border-b-2 border-form-element pb-2">
-                            <h2 className="text-xl font-bold">Filter Options</h2>
-                            {renderResetButton(['editing'])}
+                <Modal onClose={handleFilterApply} disableCloseButton={true}>
+
+                    <div className="min-h-48 max-h-[80vh] md:min-h-128 md:max-h-[90vh]">
+
+                        {/* Header */}
+                        <div 
+                            className="
+                                sticky top-0 flex flex-col
+                                gap-y-1 mb-4 px-4 pb-3 pt-4 z-10
+                                border-b-2 border-form-element 
+                                bg-background-secondary/95 backdrop-blur
+                            ">
+                            
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-xl font-bold">Filter Options</h2>
+
+                                <div className="absolute text-sm flex gap-x-6 right-0 p-4 text-[var(--background-primary)]">
+                                    {/* Reset button */}
+                                    {renderResetButton(['editing'])}
+
+                                    {/* Apply or Close Button */}
+                                    {hasFiltersChanged ? (
+                                        <button
+                                            onClick={handleFilterApply}
+                                            className="bg-[var(--success)] rounded-full flex items-center px-2 gap-1 py-1 cursor-pointer"
+                                        >
+                                            <FaCheck />
+                                            <span className="font-bold">Apply</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleFilterApply}
+                                            className="bg-[var(--warning)] rounded-full flex items-center px-3 gap-1 py-1 cursor-pointer"
+                                        >
+                                            <FaXmark />
+                                            <span className="font-bold">Exit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Filters Summary */}
+                            <div className="flex flex-1 gap-2 overflow-x-scroll scrollbar-hide">
+
+                                {selectedSortOptionForEditing && (
+                                    <button
+                                        className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                        onClick={() => setFiltersForEditing((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
+                                    >
+                                        <div className="flex flex-row gap-1 items-center">
+                                            Sort:
+                                            {selectedSortOptionForEditing.icon && <span className="text-primary">{selectedSortOptionForEditing.icon}</span>}
+                                            <span>
+                                                {selectedSortOptionForEditing.label || "N/A"} {filtersForEditing.sort_direction === 'asc' ? '↑' : '↓'}
+                                            </span>
+                                        </div>
+                                    </button>
+                                )}
+
+                                {Object.entries(filtersWithoutSortingForEditing)
+                                    .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
+                                    .map(([key, value]) => (
+                                        <div key={key} className={`flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1`}>
+                                            <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
+                                            <button onClick={() => setFiltersForEditing((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
+                                                <FaTimes />
+                                            </button>
+                                        </div>
+                                ))}
+                            </div>
                         </div>
 
-                        <div className="flex flex-col gap-4 pb-12">
+                        {/* Filters */}
+                        <div className="flex flex-col gap-4 pb-12 px-4">
 
                             {/* Sorting */}
-                            <FormSection title="Sorting" isOpenByDefault={true}>
+                            <FormSection title="Sorting" icon={<FaSort />} isOpenByDefault={true}>
 
                                 <FormDropdown
                                     label="Sort Category"
-                                    options={SORT_OPTIONS}
+                                    options={sortOptions}
                                     selectedOption={filtersForEditing.sort_by || 'points'}
                                     onChange={(value) => setFiltersForEditing({ ...filtersForEditing, sort_by: value })}
                                 />
@@ -884,8 +1190,61 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
 
                             </FormSection>
 
+                            {/* Set */}
+                            {isFilterAvailable('showdown_set', source) && (
 
-                            <FormSection title="Seasons and Teams" isOpenByDefault={true}>
+                                <FormSection title="Showdown Set" icon={<FaLayerGroup />} isOpenByDefault={true}>
+
+                                    {/* Set */}
+                                    <MultiSelect
+                                        label="Set"
+                                        labelDescription={`Overrides your selected Showdown set above (${userShowdownSet?.toUpperCase()}).`}
+                                        className="col-span-full" // FULL WIDTH
+                                        options={[
+                                            { value: '2000', label: '2000' },
+                                            { value: '2001', label: '2001' },
+                                            { value: '2002', label: '2002' },
+                                            { value: '2003', label: '2003' },
+                                            { value: '2004', label: '2004' },
+                                            { value: '2005', label: '2005' },
+                                        ]}
+                                        selections={filtersForEditing.showdown_set || []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, showdown_set: values })}
+                                    />
+
+                                    {/* Expansion */}
+                                    <MultiSelect
+                                        label="Expansion"
+                                        options={[
+                                            { value: 'BS', label: 'BASE SET' },
+                                            { value: 'TD', label: 'TRADING DEADLINE' },
+                                            { value: 'PR', label: 'PENNANT RUN' },
+                                            { value: 'PM', label: 'PROMO' },
+                                            { value: 'ASG', label: 'ALL-STAR GAME' },
+                                        ]}
+                                        selections={filtersForEditing.expansion || []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, expansion: values })}
+                                    />
+
+                                    {/* Edition */}
+                                    <MultiSelect
+                                        label="Edition"
+                                        options={[
+                                            { value: 'NONE', label: 'None' },
+                                            { value: 'CC', label: 'Cooperstown Collection' },
+                                            { value: 'SS', label: 'Super Season' },
+                                            { value: 'RS', label: 'Rookie Season' },
+                                            { value: 'ASG', label: 'All-Star' },
+                                        ]}
+                                        selections={filtersForEditing.edition || []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, edition: values })}
+                                    />
+                                
+                                </FormSection>
+                            )}
+
+
+                            <FormSection title="Seasons and Teams" icon={<FaCalendarAlt />} isOpenByDefault={true}>
                                 {/* Filters options */}
 
                                 {SEASON_RANGE_FILTERS.map(def => (
@@ -896,30 +1255,34 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                     />
                                 ))}
 
-                                <TeamHierarchy
-                                    hierarchyData={teamHierarchyData}
-                                    selectedOrganizations={filtersForEditing.organization}
-                                    selectedLeagues={filtersForEditing.league}
-                                    selectedTeams={filtersForEditing.team}
-                                    onOrganizationChange={(values) => setFiltersForEditing({ ...filtersForEditing, organization: values })}
-                                    onLeagueChange={(values) => setFiltersForEditing({ ...filtersForEditing, league: values })}
-                                    onTeamChange={(values) => setFiltersForEditing({ ...filtersForEditing, team: values })}
-                                />
+                                {isFilterAvailable('organization', source) && (
+                                    <TeamHierarchy
+                                        hierarchyData={teamHierarchyData}
+                                        selectedOrganizations={filtersForEditing.organization}
+                                        selectedLeagues={filtersForEditing.league}
+                                        selectedTeams={filtersForEditing.team}
+                                        onOrganizationChange={(values) => setFiltersForEditing({ ...filtersForEditing, organization: values })}
+                                        onLeagueChange={(values) => setFiltersForEditing({ ...filtersForEditing, league: values })}
+                                        onTeamChange={(values) => setFiltersForEditing({ ...filtersForEditing, team: values })}
+                                    />
+                                )}
 
-                                <MultiSelect
-                                    label="Multi-Team Season?"
-                                    options={[
-                                        { value: 'true', label: 'Yes' },
-                                        { value: 'false', label: 'No' },
-                                    ]}
-                                    selections={filtersForEditing.is_multi_team}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_multi_team: values })}
-                                />
+                                {isFilterAvailable('is_multi_team', source) && (
+                                    <MultiSelect
+                                        label="Multi-Team Season?"
+                                        options={[
+                                            { value: 'true', label: 'Yes' },
+                                            { value: 'false', label: 'No' },
+                                        ]}
+                                        selections={filtersForEditing.is_multi_team}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_multi_team: values })}
+                                    />
+                                )}
 
                             </FormSection>
 
 
-                            <FormSection title="Positions and Hand" isOpenByDefault={true}>
+                            <FormSection title="Positions and Hand" icon={<FaMitten />} isOpenByDefault={true}>
                                 <MultiSelect
                                     label="Player Type"
                                     options={[
@@ -961,46 +1324,64 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                 />
                             </FormSection>
 
-                            <FormSection title="Real Stats and Awards" isOpenByDefault={true}>
+                            {isFilterAvailable('min_pa', source) && (
+                                <FormSection title="Real Stats and Awards" icon={<FaHashtag />} isOpenByDefault={true}>
 
-                                {REAL_RANGE_FILTERS.map(def => (
-                                    <RangeFilter
-                                        key={def.minKey as string}
-                                        label={def.label}
-                                        {...bindRange(def.minKey, def.maxKey)}
-                                    />
-                                ))}
+                                    {REAL_RANGE_FILTERS.map(def => (
+                                        <RangeFilter
+                                            key={def.minKey as string}
+                                            label={def.label}
+                                            {...bindRange(def.minKey, def.maxKey)}
+                                        />
+                                    ))}
 
-                                <MultiSelect
-                                    label="Include Small Sample Sizes?"
-                                    labelDescription="Defined as PA&lt;250 for Hitters, IP&lt;75 for Starters, IP&lt;35 for Relievers"
-                                    options={[
-                                        { value: 'true', label: 'Yes' },
-                                        { value: 'false', label: 'No' },
-                                    ]}
-                                    selections={filtersForEditing.include_small_sample_size || []}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, include_small_sample_size: values })}
-                                />
+                                    {isFilterAvailable('include_small_sample_size', source) && (
+                                        <MultiSelect
+                                            label="Include Small Sample Sizes?"
+                                            labelDescription="Defined as PA&lt;250 for Hitters, IP&lt;75 for Starters, IP&lt;30 for Relievers"
+                                            options={[
+                                                { value: 'true', label: 'Yes' },
+                                                { value: 'false', label: 'No' },
+                                            ]}
+                                            selections={filtersForEditing.include_small_sample_size || []}
+                                            onChange={(values) => setFiltersForEditing({ ...filtersForEditing, include_small_sample_size: values })}
+                                        />
+                                    )}
 
-                                <MultiSelect
-                                    label="Awards"
-                                    options={[
-                                        { value: 'MVP-1', label: 'MVP' },
-                                        { value: 'CYA-1', label: 'Cy Young' },
-                                        { value: 'ROY-1', label: 'Rookie of the Year' },
-                                        { value: 'GG', label: 'Gold Glove' },
-                                        { value: 'SS', label: 'Silver Slugger' },
-                                        { value: 'AS', label: 'All-Star' },
-                                        { value: 'MVP-*', label: 'MVP Votes' },
-                                        { value: 'CYA-*', label: 'Cy Young Votes' },
-                                        { value: 'ROY-*', label: 'Rookie of the Year Votes' },
-                                    ]}
-                                    selections={filtersForEditing.awards || []}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, awards: values })}
-                                />
-                            </FormSection>
+                                    {isFilterAvailable('awards', source) && (
+                                        <MultiSelect
+                                            label="Awards"
+                                            options={[
+                                                { value: 'MVP-1', label: 'MVP' },
+                                                { value: 'CYA-1', label: 'Cy Young' },
+                                                { value: 'ROY-1', label: 'Rookie of the Year' },
+                                                { value: 'GG', label: 'Gold Glove' },
+                                                { value: 'SS', label: 'Silver Slugger' },
+                                                { value: 'AS', label: 'All-Star' },
+                                                { value: 'MVP-*', label: 'MVP Votes' },
+                                                { value: 'CYA-*', label: 'Cy Young Votes' },
+                                                { value: 'ROY-*', label: 'Rookie of the Year Votes' },
+                                            ]}
+                                            selections={filtersForEditing.awards || []}
+                                            onChange={(values) => setFiltersForEditing({ ...filtersForEditing, awards: values })}
+                                        />
+                                    )}
 
-                            <FormSection title="Showdown Attributes" isOpenByDefault={true}>
+                                    {isFilterAvailable('is_hof', source) && (
+                                        <MultiSelect
+                                            label="HOF?"
+                                            options={[
+                                                { value: 'true', label: 'Yes' },
+                                                { value: 'false', label: 'No' },
+                                            ]}
+                                            selections={filtersForEditing.is_hof ? filtersForEditing.is_hof.map(String) : []}
+                                            onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_hof: values.length > 0 ? values : undefined })}
+                                        />
+                                    )}
+                                </FormSection>
+                            )}
+
+                            <FormSection title="Showdown Attributes" icon={<FaAddressCard />} isOpenByDefault={true}>
                                 {SHOWDOWN_METADATA_RANGE_FILTERS.map(def => (
                                     <RangeFilter
                                         key={def.minKey as string}
@@ -1029,16 +1410,18 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                 />
                             </FormSection>
 
-                            <FormSection title="Showdown Chart" isOpenByDefault={true}>
-                                <MultiSelect
-                                    label="Chart Outlier?"
-                                    options={[
-                                        { value: 'true', label: 'Yes' },
-                                        { value: 'false', label: 'No' },
-                                    ]}
-                                    selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
-                                />
+                            <FormSection title="Showdown Chart" icon={<FaTable />} isOpenByDefault={true}>
+                                {isFilterAvailable('is_chart_outlier', source) && (
+                                    <MultiSelect
+                                        label="Chart Outlier?"
+                                        options={[
+                                            { value: 'true', label: 'Yes' },
+                                            { value: 'false', label: 'No' },
+                                        ]}
+                                        selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
+                                    />
+                                )}
                 
                                 {SHOWDOWN_CHART_RANGE_FILTERS.map(def => (
                                     <RangeFilter
@@ -1049,19 +1432,21 @@ export default function ShowdownCardExplore({ className }: ShowdownCardExplorePr
                                 ))}
                             </FormSection>
 
-                            <FormSection title="Image Attributes" isOpenByDefault={true}>
-                                <MultiSelect
-                                    label="Auto Image Classification"
-                                    options={[
-                                        { value: 'exact', label: 'Exact Match (Year + Team)' },
-                                        { value: 'team match', label: 'Team Match (Different Year)' },
-                                        { value: 'year match', label: 'Year Match (Different Team)' },
-                                        { value: 'no match', label: 'No Match' },
-                                    ]}
-                                    selections={filtersForEditing.image_match_type}
-                                    onChange={(values) => setFiltersForEditing({ ...filtersForEditing, image_match_type: values })}
-                                />
-                            </FormSection>
+                            {isFilterAvailable('image_match_type', source) && (
+                                <FormSection title="Image Attributes" icon={<FaImage />} isOpenByDefault={true}>
+                                    <MultiSelect
+                                        label="Auto Image Classification"
+                                        options={[
+                                            { value: 'exact', label: 'Exact Match (Year + Team)' },
+                                            { value: 'team match', label: 'Team Match (Different Year)' },
+                                            { value: 'year match', label: 'Year Match (Different Team)' },
+                                            { value: 'no match', label: 'No Match' },
+                                        ]}
+                                        selections={filtersForEditing.image_match_type}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, image_match_type: values })}
+                                    />
+                                </FormSection>
+                            )}
 
                         </div>
 

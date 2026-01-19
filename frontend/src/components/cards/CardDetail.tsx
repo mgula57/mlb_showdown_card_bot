@@ -9,7 +9,7 @@
  * - Interactive table switching and customization options
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme, useSiteSettings } from "../shared/SiteSettingsContext";
 import CustomSelect from '../shared/CustomSelect';
 import { FaTable, FaPoll, FaCoins, FaBaseballBall, FaUser } from 'react-icons/fa';
@@ -25,7 +25,7 @@ import { TablePointsBreakdown } from './TablePointsBreakdown';
 import { TableOpponentBreakdown } from './TableOpponentBreakdown';
 
 // API integration
-import { generateCardImage } from '../../api/showdownBotCard';
+import { generateCardImage, fetchCardById } from '../../api/showdownBotCard';
 
 // Performance visualization
 import ChartPlayerPointsTrend from './ChartPlayerPointsTrend';
@@ -38,7 +38,9 @@ import { GameBoxscore } from '../games/GameBoxscore';
  */
 type CardDetailProps = {
     /** Complete card data with statistics and analysis */
-    showdownBotCardData: ShowdownBotCardAPIResponse | null;
+    showdownBotCardData?: ShowdownBotCardAPIResponse | null;
+    /** Card Id is passed in when loading from search */
+    cardId?: string;
     /** Whether to hide trend graphs (optional for mobile/compact views) */
     hideTrendGraphs?: boolean;
     /** Loading state for the main card data */
@@ -46,7 +48,8 @@ type CardDetailProps = {
     /** Loading state for live game data */
     isLoadingGameBoxscore?: boolean;
     /** Usage context: 'custom' for card builder, 'explore' for database browser */
-    context?: 'custom' | 'explore';
+    context?: 'custom' | 'explore' | 'home';
+    parent?: string;
 };
 
 /**
@@ -79,7 +82,7 @@ type CardDetailProps = {
  * />
  * ```
  */
-export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false, context='custom' }: CardDetailProps) {
+export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false, context='custom', parent }: CardDetailProps) {
 
     // =============================================================================
     // MARK: STATES
@@ -89,7 +92,8 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
      * Internal card data state for handling dynamic updates
      * Allows component to maintain its own copy for features like image regeneration
      */
-    const [internalCardData, setInternalCardData] = useState<ShowdownBotCardAPIResponse | null>(showdownBotCardData);
+    const [internalCardData, setInternalCardData] = useState<ShowdownBotCardAPIResponse | null | undefined>(showdownBotCardData);
+    const [internalCardId, setInternalCardId] = useState<string | undefined>(cardId);
     
     // Use internal state when available, fallback to prop
     const activeCardData = internalCardData || showdownBotCardData;
@@ -104,32 +108,71 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
      * to handle local updates (like image regeneration)
      */
     useEffect(() => {
-        // Skip if no new data
-        if (!showdownBotCardData) {
+        // Case 1: New data provided via prop
+        if (showdownBotCardData && showdownBotCardData.card) {
+            // Skip if same card (by bref_id + year + set)
+            const isSameCard = 
+                context !== 'custom' &&
+                (
+                    internalCardData?.card?.bref_id === showdownBotCardData?.card?.bref_id &&
+                    internalCardData?.card?.year === showdownBotCardData?.card?.year &&
+                    internalCardData?.card?.set === showdownBotCardData?.card?.set
+                );
+            console.log("CardDetail: Checking for prop data update, isSameCard =", isSameCard);
+            if (!isSameCard) {
+                setInternalCardData(showdownBotCardData);
+                setInternalCardId(cardId);
+
+                // Load image if necessary
+                const isDataWithoutImage = !showdownBotCardData.card?.image.output_file_name && showdownBotCardData.card;
+                if (isDataWithoutImage && !isGeneratingImage) {
+                    console.log("Generating image for new prop data...");
+                    handleGenerateImage(showdownBotCardData);
+                }            
+                return;
+            }
+        }
+
+        // Case 2: No data but cardId provided - fetch it from DB
+        if (cardId && cardId !== internalCardId) {
+            setIsLoadingFromId(true);
+            fetchCardById(cardId, 'card-detail')
+                .then((data) => {
+                    console.log("Fetched single card data by ID:", data);
+                    if (data) {
+                        const cardResponse = data as ShowdownBotCardAPIResponse;
+                        setInternalCardId(cardId);
+                        
+                        // Load image if necessary
+                        const isDataWithoutImage = !cardResponse.card?.image.output_file_name && cardResponse.card;
+                        if (isDataWithoutImage && !isGeneratingImage) {
+                            handleGenerateImage(cardResponse);
+                        } else {
+                            setInternalCardData(cardResponse);
+                        }                        
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error fetching card by ID:", error);
+                })
+                .finally(() => {
+                    setIsLoadingFromId(false);
+                });
+            
             return;
         }
 
-        // Skip if same card (by bref_id + year + set)
-        if (
-            context === 'explore' &&
-            internalCardData?.card?.bref_id === showdownBotCardData?.card?.bref_id &&
-            internalCardData?.card?.year === showdownBotCardData?.card?.year &&
-            internalCardData?.card?.set === showdownBotCardData?.card?.set
-        ) {
-            return;
-        }
-
-        setInternalCardData(showdownBotCardData);
-    }, [showdownBotCardData]);
+    }, [showdownBotCardData, cardId]);
 
     // Breakdown State
     const [breakdownType, setBreakdownType] = useState<string>("Stats");
 
     // Image Generation State
     const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
+    const [isLoadingFromId, setIsLoadingFromId] = useState<boolean>(false);
 
     // Mark if isLoading or isGeneratingImage
-    const isLoadingOverall = isLoading || isGeneratingImage;
+    const isLoadingOverall = isLoading || isGeneratingImage || isLoadingFromId;
 
     // Game
     const showGameBoxscore = (): boolean => {
@@ -156,31 +199,34 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
     // MARK: - EFFECTS
     // --------------------------------
 
-    // Flag if image is undefined but data is populated
-    const isDataWithoutImage = !activeCardData?.card?.image.output_file_name && activeCardData?.card;
-
     // Card Calcs
     const cardImagePath: string | null = activeCardData?.card?.image && activeCardData.card.image.output_folder_path && activeCardData.card.image.output_file_name ? `${activeCardData.card.image.output_folder_path}/${activeCardData.card.image.output_file_name}` : null;
     const cardAttributes: Record<string, string | number | null> = activeCardData?.card ? {
         points: `${activeCardData.card.points} PTS`,
         year: activeCardData.card.year,
+        stats_period_summary: activeCardData.card.stats_period.type !== "REGULAR" ? activeCardData.card.stats_period.display_text || null : null,
         expansion: activeCardData.card.image.expansion == "BS" ? null : activeCardData.card.image.expansion,
-        edition: activeCardData.card.image.edition == "NONE" ? null : activeCardData.card.image.edition,
-        chart_version: activeCardData.card.chart_version == 1 ? null : `CHART ${activeCardData.card.chart_version}`,
-        parallel: activeCardData.card.image.parallel == "NONE" ? null : `PARALLEL: ${activeCardData.card.image.parallel}`,
+        edition: activeCardData.card.image.edition == "NONE" || activeCardData.card.image.edition == undefined ? null : activeCardData.card.image.edition,
+        chart_version: activeCardData.card.chart_version === 1 || activeCardData.card.chart_version == undefined ? null : `CHART ${activeCardData.card.chart_version}`,
+        parallel: activeCardData.card.image.parallel == "NONE" || activeCardData.card.image.parallel == undefined ? null : `PARALLEL: ${activeCardData.card.image.parallel}`,
+        is_errata: activeCardData.card.is_errata ? 'ERRATA' : null,
     } : {};
-    const weeklyChangePoints = activeCardData?.in_season_trends?.pts_change?.week || null;
+    var weeklyChangePoints = activeCardData?.in_season_trends?.pts_change?.week || null;
+    const isThisYearBeforeOct8th = activeCardData?.card?.year === String(new Date().getFullYear()) && (new Date().getMonth() < 9 || (new Date().getMonth() === 9 && new Date().getDate() < 8));
+    if (isThisYearBeforeOct8th === false) {
+        weeklyChangePoints = null; // Only show for current year cards
+    }
     const weeklyChangePointsColor = weeklyChangePoints ? (weeklyChangePoints > 0 ? 'text-green-500' : 'text-red-500') : '';
     const weeklyChangePointsSymbol = weeklyChangePoints ? (weeklyChangePoints > 0 ? '▲' : '▼') : '';
 
     // Handle Image Generation
-    const handleGenerateImage = useCallback(() => {
-        if (!activeCardData?.card || isGeneratingImage || context !== 'explore') return;
+    const handleGenerateImage = (data: ShowdownBotCardAPIResponse) => {
+        if (!data?.card || isGeneratingImage || context === 'custom') return;
         
-        console.log("Starting image generation...");
+        console.log("Starting image generation...", parent);
         setIsGeneratingImage(true);
         
-        generateCardImage(activeCardData)
+        generateCardImage(data)
             .then((data) => {
                 console.log("Received card data with image:", data);
                 if (data) {
@@ -193,18 +239,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
             .finally(() => {
                 setIsGeneratingImage(false);
             });
-    }, [activeCardData, isGeneratingImage]);
-
-    // Use useEffect only to trigger the function once
-    useEffect(() => {
-        if (isDataWithoutImage && !isGeneratingImage) {
-            const timer = setTimeout(() => {
-                handleGenerateImage();
-            }, 100); // Small delay to prevent rapid calls
-            
-            return () => clearTimeout(timer);
-        }
-    }, [isDataWithoutImage, handleGenerateImage, isGeneratingImage]);
+    };
 
     // Changing opacity of color
     const addOpacityToRGB = (rgbColor: string, opacity: number) => {
@@ -231,6 +266,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     <div className='space-y-2 overflow-y-auto'>
                         <TableRealVsProjected
                             realVsProjectedData={activeCardData?.card?.real_vs_projected_stats || []}
+                            isWotc={activeCardData?.card?.is_wotc || false}
                         />
 
                         {/* Footnote */}
@@ -274,7 +310,7 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
     }
 
     const getBlankPlayerImageName = (): string => {
-        const setName = userShowdownSet.toLowerCase() || '2000';
+        const setName = userShowdownSet.toLowerCase() || '2001';
         const appearance = isDark ? 'dark' : 'light';
         return `/images/blank_players/blankplayer-${setName}-${appearance}.png`;
     };
@@ -353,6 +389,19 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     </div>
                 ))}
             </div>
+
+            {/* Notes */}
+            {activeCardData?.card?.notes && (
+                <div className="
+                    bg-secondary/50
+                    border-2 border-form-element
+                    rounded-lg
+                    p-3
+                    text-xs
+                ">
+                    {activeCardData.card.notes}
+                </div>
+            )}
 
             {/* Game Boxscore */}
             {showGameBoxscore() &&  (
@@ -456,7 +505,9 @@ export function CardDetail({ showdownBotCardData, isLoading, isLoadingGameBoxsco
                     />
 
                     {/* Breakdown Table */}
-                    {renderBreakdownTable()}
+                    <div className={`${isLoadingFromId ? 'blur-xs' : ''}`}>
+                        {renderBreakdownTable()}
+                    </div>
 
                 </div>
 

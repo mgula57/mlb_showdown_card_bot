@@ -208,11 +208,6 @@ class BaseballReferenceScraper(BaseModel):
         default_bref_id = self.__check_for_default_bref_id(name=name, years=self.stats_period.year_list)
         if default_bref_id:
             return default_bref_id
-        
-        # SEARCH CURRENT SEASON
-        current_season_bref_id = self._check_for_current_season_bref_id(name=name)
-        if current_season_bref_id:
-            return current_season_bref_id
 
         # SEARCH BING
         return self._search_bing_for_b_ref_id(name, year)
@@ -263,47 +258,6 @@ class BaseballReferenceScraper(BaseModel):
             # RETURN FIRST RESULT OF player_ids_pd_filtered
             bref_id = player_ids_pd_filtered.head(1)['brefid'].values[0]
             return bref_id if len(bref_id) > 0 else None
-
-    def _check_for_current_season_bref_id(self, name:str) -> str:
-        """For current year, script creates a separate table with player IDs.
-        This is used to quickly access player name list without needing to scrape, reducing errors with rookies.
-
-        Args:
-          name: User inputted player name.
-
-        Returns:
-          Bref Id if match is found.
-        """
-
-        if str(self.year).strip() != str(datetime.now().year):
-            return None
-
-        # GET STORED PLAYER LIST DATA
-        # |  bref_id  |  player_name  | bwar |
-        # |-----------|---------------|------|
-        # | ottavad01 | adam ottavino |  0.1 |
-        # | bellobr01 | brayan bello  |  2.3 |
-        db = PostgresDB()
-        player_id_list = db.fetch_current_season_player_data()
-        if player_id_list is None:
-            return None
-        pd_player_ids = pd.DataFrame(player_id_list)
-
-        name_cleaned = unidecode.unidecode(name.replace("'", "").replace(".", "").lower().strip().split('(')[0].strip())
-
-        # DEFINE SIMILARITY SCORE
-        pd_player_ids['similarity_score'] = pd_player_ids['name'].apply(lambda x: fuzz.ratio(name_cleaned, x))
-
-        # FILTER BY SIMILARITY SCORE
-        pd_player_ids_filtered = pd_player_ids.loc[pd_player_ids['similarity_score'] > 86].sort_values(by=['similarity_score', 'bwar'], ascending=[False, False])
-        results_count = len(pd_player_ids_filtered)
-
-        if results_count == 0:
-            return None
-
-        # RETURN FIRST RESULT OF pd_player_ids_filtered
-        bref_id = pd_player_ids_filtered.head(1)['bref_id'].values[0]
-        return bref_id if len(bref_id) > 0 else None
 
     def _search_bing_for_b_ref_id(self, name:str, year:str) -> str:
         """Convert name to a baseball reference Player ID.
@@ -482,6 +436,16 @@ class BaseballReferenceScraper(BaseModel):
             if type is None and (overall_type or '') == 'Hitter':
                 type = 'Hitter'
 
+            # HANDLE SCENARIO WHERE PLAYER SWITCHED BETWEEN PITCHING AND HITTING IN THEIR CAREER
+            # EX: RICK ANKIEL
+            is_corrected_type = False
+            if (overall_type or '') != type and not is_multi_year:
+                # REDOWNLOAD `soup_for_advanced_stats` WITH CORRECT PAGE SUFFIX
+                page_suffix = '-bat' if (type or '') == 'Hitter' else '-pitch'
+                url_advanced_stats = f'https://www.baseball-reference.com/players/{self.first_initial}/{self.baseball_ref_id}{page_suffix}.shtml'
+                soup_for_advanced_stats = self.__soup_for_url(url_advanced_stats, is_baseball_ref_page=True)
+                is_corrected_type = True
+
             # CHECK IF `DID NOT PLAY` MESSAGE EXISTS FOR THE YEAR
             table_prefix = 'batting' if (type or '') == 'Hitter' else 'pitching'
             rows_for_year = soup_for_advanced_stats.find_all('tr',attrs={'id': f'players_standard_{table_prefix}.{year}'})
@@ -508,7 +472,7 @@ class BaseballReferenceScraper(BaseModel):
                         type = None
                         break
 
-            mismatching_type = type != overall_type
+            mismatching_type = type != overall_type and not is_corrected_type
             if type is None or mismatching_type:
                 continue
 

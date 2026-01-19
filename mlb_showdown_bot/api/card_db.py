@@ -1,18 +1,22 @@
+from pprint import pprint
 from flask import Blueprint, request, jsonify
-from ..core.card.showdown_player_card import ShowdownPlayerCard
+
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard
 from ..core.database.postgres_db import PostgresDB
 
 card_db_bp = Blueprint('card_data', __name__)
 
-@card_db_bp.route('/cards/data', methods=["POST", "GET"])
-def fetch_card_data():
+@card_db_bp.route('/cards/search', methods=["POST", "GET"])
+def fetch_card_list():
     """Fetch card data from the database"""
     try:
         db = PostgresDB(is_archive=True)
 
         # Get query parameters
         payload = request.get_json() or {}
-        card_data = db.fetch_card_data(filters = payload)
+        card_data = db.fetch_card_list(filters = payload)
+
+        db.log_player_search(filters=payload, result_count=len(card_data or []))
         db.close_connection()
 
         return jsonify(card_data)
@@ -32,4 +36,113 @@ def fetch_team_data():
         return jsonify(team_data)
 
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/card', methods=["GET"])
+def fetch_card():
+    """Fetch a single card by its ID"""
+    try:
+        db = PostgresDB(is_archive=True)
+        id = request.args.get('id')
+        source = request.args.get('src', 'unknown')
+        card = db.fetch_single_card(id)
+        db.log_card_id_lookup(card_id=id, source=source)
+        db.close_connection()
+
+        if card is None:
+            return jsonify({'error': 'Card not found'}), 404
+
+        return jsonify({'card': card.as_json()})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/total_count', methods=["GET"])
+def fetch_total_card_count():
+    """Fetch the total count of cards in the database"""
+    try:
+        db = PostgresDB(is_archive=True)
+        total_count = db.fetch_total_card_count()
+        db.close_connection()
+
+        return jsonify({'total_count': total_count})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/trending', methods=["GET", "POST"])
+def fetch_trending_cards():
+    """Fetch trending cards from the database"""
+    try:
+
+        payload = request.get_json() or {}
+        showdown_set = payload.get('set')
+        db = PostgresDB(is_archive=True)
+        trending_cards = db.fetch_trending_cards(set=showdown_set)
+        db.close_connection()
+
+        return jsonify({'trending_cards': trending_cards})
+
+    except Exception as e:
+        print(f"Error fetching trending cards: {e}")
+        return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/popular', methods=["GET", "POST"])
+def fetch_popular_cards():
+    """Fetch all-time popular cards from the database"""
+    try:
+
+        payload = request.get_json() or {}
+        showdown_set = payload.get('set')
+        db = PostgresDB(is_archive=True)
+        popular_cards = db.fetch_popular_cards(set=showdown_set)
+        db.close_connection()
+
+        return jsonify({'popular_cards': popular_cards})
+
+    except Exception as e:
+        print(f"Error fetching popular cards: {e}")
+        return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/spotlight', methods=["GET", "POST"])
+def fetch_spotlight_cards():
+    """Fetch spotlight cards from the database"""
+    try:
+
+        payload = request.get_json() or {}
+        showdown_set = payload.get('set')
+        limit = payload.get('limit', 4)
+        db = PostgresDB(is_archive=True)
+        spotlight_cards = db.fetch_latest_spotlight_cards(set=showdown_set, limit=limit)
+        db.close_connection()
+
+        return jsonify({'spotlight_cards': spotlight_cards})
+
+    except Exception as e:
+        print(f"Error fetching spotlight cards: {e}")
+        return jsonify({'error': str(e)}), 500
+    
+@card_db_bp.route('/cards/card_of_the_day', methods=["GET", "POST"])
+def fetch_card_of_the_day():
+    """Fetch the card of the day from the database"""
+    try:
+        payload = request.get_json() or {}
+        showdown_set = payload.get('set')
+        db = PostgresDB(is_archive=True)
+        card_of_the_day = db.fetch_card_of_the_day(set=showdown_set)
+        db.close_connection()
+
+        # GENERATE AN IMAGE FOR THE CARD
+        card_json = card_of_the_day.get('card_data')
+        card = ShowdownPlayerCard(**card_json)
+        card.image.output_folder_path = "static/output"
+
+        # PRODUCE IMAGE AND UPDATE DATASET
+        card.generate_card_image()
+        card_of_the_day['card_data'] = card.as_json()
+
+        return jsonify({'card_of_the_day': card_of_the_day})
+
+    except Exception as e:
+        print(f"Error fetching card of the day: {e}")
         return jsonify({'error': str(e)}), 500

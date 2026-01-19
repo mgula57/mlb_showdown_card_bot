@@ -1,4 +1,3 @@
-import { type ShowdownBotCard } from "../../../api/showdownBotCard";
 import { useTheme } from "../../shared/SiteSettingsContext";
 
 /**
@@ -6,7 +5,11 @@ import { useTheme } from "../../shared/SiteSettingsContext";
  */
 type CardCommandProps = {
     /** Card data containing command rating and player type */
-    card?: ShowdownBotCard | null;
+    isPitcher: boolean;
+    primaryColor: string;
+    secondaryColor: string;
+    command?: number;
+    team?: string;
     /** Optional CSS classes for sizing and positioning */
     className?: string;
 };
@@ -33,13 +36,13 @@ type CardCommandProps = {
  * />
  * ```
  */
-export default function CardCommand({ card, className = "w-10 h-10" }: CardCommandProps) {
+export default function CardCommand({ isPitcher, primaryColor, secondaryColor, command, team, className = "w-10 h-10" }: CardCommandProps) {
     const { isDark } = useTheme();
     
     // Use secondary color for certain teams for better contrast
-    const color = (['NYM', 'SDP'].includes(card?.team || 'N/A') 
-        ? card?.image.color_secondary 
-        : card?.image.color_primary) || 'rgb(0, 0, 0)';
+    const color = (['NYM', 'SDP'].includes(team || 'N/A') 
+        ? secondaryColor 
+        : primaryColor) || 'rgb(0, 0, 0)';
 
     /**
      * Gets the appropriate background image based on player type and theme
@@ -47,7 +50,7 @@ export default function CardCommand({ card, className = "w-10 h-10" }: CardComma
      */
     const getSrcImage = () => {
         const appearance = isDark ? 'dark' : 'light';
-        const commandName = card?.chart.is_pitcher ? 'control' : 'onbase';
+        const commandName = isPitcher ? 'control' : 'onbase';
         return `/images/card/${commandName}-${appearance}.png`;
     };
 
@@ -56,7 +59,7 @@ export default function CardCommand({ card, className = "w-10 h-10" }: CardComma
             {/* Theme-aware command background image */}
             <img
                 src={getSrcImage()}
-                alt={card?.chart.is_pitcher ? 'Control Background' : 'OnBase Background'}
+                alt={isPitcher ? 'Control Background' : 'OnBase Background'}
                 className="absolute top-0 left-0 w-full h-full object-cover"
             />
             
@@ -65,7 +68,7 @@ export default function CardCommand({ card, className = "w-10 h-10" }: CardComma
                 className={`
                     absolute top-1/2 left-1/2 
                     transform -translate-x-1/2 
-                    ${card?.chart.is_pitcher ? '-translate-y-1/2' : '-translate-y-3/5'}
+                    ${isPitcher ? '-translate-y-1/2' : '-translate-y-3/5'}
                     text-white font-black tracking-tighter
                     drop-shadow-lg
                 `}
@@ -73,7 +76,7 @@ export default function CardCommand({ card, className = "w-10 h-10" }: CardComma
                     color: color,
                 }}
             >
-                {card?.chart.command}
+                {command}
             </div>
         </div>
     );

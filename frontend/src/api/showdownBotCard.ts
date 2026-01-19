@@ -151,6 +151,21 @@ export async function generateCardImage(card: ShowdownBotCardAPIResponse): Promi
     return res.json();
 }
 
+export async function fetchCardById(cardId: string, source: string): Promise<ShowdownBotCardAPIResponse> {
+    const res = await fetch(`${API_BASE}/cards/card?id=${encodeURIComponent(cardId)}&src=${encodeURIComponent(source)}`, {
+        method: "GET",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(`Fetch card failed: ${res.status} ${res.statusText}`);
+    }
+
+    return res.json();
+}
+
 // =============================================================================
 // MARK: - API RESPONSE TYPES
 // =============================================================================
@@ -341,12 +356,21 @@ export type ShowdownBotCard = {
     
     /** Point value calculation breakdown */
     points_breakdown: PointsBreakdown;
+    points_estimated?: number | null;
+    points_estimated_breakdown?: PointsBreakdown | null;
+    points_diff_estimated_vs_actual?: number | null;
 
     /** Stats Object */
     stats: Record<string, any>;
+    stats_period: StatsPeriod;
+
+    /** Flag indicating if the card is a WOTC card */
+    is_wotc?: boolean;
 
     /** Data quality and edge case warnings */
     warnings: string[];
+    is_errata?: boolean | null;
+    notes?: string | null;
 };
 
 // =============================================================================
@@ -385,8 +409,31 @@ export type ShowdownBotCardImage = {
     color_secondary: string;
 
     /** List of statistics to highlight on card */
-    stat_highlights_list: string[];
+    stat_highlights_list?: string[] | null;
+
+    /** List of player awards and honors */
+    award_summary_list?: string[] | null;
+
+    /** Set number within the expansion */
+    set_number?: number | null;
 };
+
+// =============================================================================
+// MARK: - STATS
+// =============================================================================
+
+type StatsPeriodType = "REGULAR" | "DATES" | "POST" | "SPLIT";
+
+export type StatsPeriod = {
+    /** Type of stats period (e.g., "REGULAR", "DATES") */
+    type: StatsPeriodType;
+
+    /** Year or range of years */
+    year: string;
+
+    /** Summary of the stats period */
+    display_text?: string | null;
+}
 
 // =============================================================================
 // MARK: - CHART & GAME MECHANICS TYPES

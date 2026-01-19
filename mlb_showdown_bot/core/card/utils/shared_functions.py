@@ -3,6 +3,23 @@ from statistics import mode
 from typing import Any
 from datetime import datetime, date
 
+def total_ip_for_calculations(ip: float) -> float:
+    """
+    Convert innings pitched to decimal for calculations.
+
+    Args:
+        ip (float): Innings pitched (e.g. 6.1, 7.2)
+
+    Returns:
+        float: Converted innings pitched (e.g. 6.33, 7.66)
+    """
+    decimal_part = ip % 1.0
+    new_decimal = 0.0
+    match round(decimal_part, 1):
+        case 0.1: new_decimal = 1.0 / 3.0
+        case 0.2: new_decimal = 2.0 / 3.0
+    return math.floor(ip) + new_decimal
+
 def total_innings_pitched(ip_list: list[float]) -> float:
     """
     Calculate the total innings pitched from a list of IPs.
@@ -16,12 +33,7 @@ def total_innings_pitched(ip_list: list[float]) -> float:
     # CONVERT THE STATS LIST DECIMAL VALUES FROM .1, .2 to .33, .66
     converted_stats = []
     for stat in ip_list:
-        decimal_part = stat % 1.0
-        new_decimal = 0.0
-        match round(decimal_part, 1):
-            case 0.1: new_decimal = 1.0 / 3.0
-            case 0.2: new_decimal = 2.0 / 3.0
-        converted_stats.append(math.floor(stat) + new_decimal)
+        converted_stats.append(total_ip_for_calculations(stat))
     
     # GET TOTAL AND CONVERT BACK TO "BASEBALL" DECIMAL
     total_real_decimal = sum(converted_stats)
@@ -153,15 +165,15 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
     current_categories = stats_data.keys()
     if 'PA' not in current_categories:
         stats_data['is_stats_estimate'] = True
+        bf = stats_data.get('batters_faced', 0)
+        is_bf_above_than_hits_and_bb = bf > ( stats_data.get('H', 0) + stats_data.get('BB', 0) ) # ACCOUNTS FOR BLANK BF ON PARTIAL SEASONS
 
         # CHECK FOR BATTERS FACED
-        bf = stats_data.get('batters_faced',0)
-        is_bf_above_than_hits_and_bb = bf > ( stats_data.get('H', 0) + stats_data.get('BB', 0) ) # ACCOUNTS FOR BLANK BF ON PARTIAL SEASONS
         if bf > 0 and is_bf_above_than_hits_and_bb:
             stats_data['PA'] = bf
         # ESTIMATE PA AGAINST
         else:
-            stats_data['PA'] = stats_data.get('IP', 0) * 4.25 # NEED TO ESTIMATE PA BASED ON AVG PA PER INNING
+            stats_data['PA'] = int(round(stats_data.get('IP', 0) * 4.25)) # NEED TO ESTIMATE PA BASED ON AVG PA PER INNING
 
     # PITCHER GAME LOGS DO NOT HAVE SH, SO DERIVE FROM PA
     if is_game_logs and is_pitcher and 'SH' not in current_categories:
@@ -252,3 +264,14 @@ def convert_year_string_to_list(year_input:str, all_years_played:list[str] = [])
         return [int(x.strip()) for x in years]
     else:
         return [int(year_input)]
+
+def convert_number_to_ordinal(number: int) -> str:
+    """Convert int to string with ordinal (ex: 1 -> 1st, 13 -> 13th)
+
+    Args:
+        number: Integer value to convert.
+
+    Returns:
+        String with ordinal number
+    """
+    return "%d%s" % (number,"tsnrhtdd"[(number//10%10!=1)*(number%10<4)*number%10::4])

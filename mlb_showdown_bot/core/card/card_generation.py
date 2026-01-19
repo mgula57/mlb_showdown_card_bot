@@ -9,10 +9,16 @@ import json
 from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
-from .stats.mlb_stats_api import MLBStatsAPI
+from .utils.shared_functions import convert_to_date, convert_year_string_to_list
 from .trends.trends import CareerTrends, InSeasonTrends, TrendDatapoint
 from ..database.postgres_db import PostgresDB, PlayerArchive
-from .utils.shared_functions import convert_to_date
+
+# STATS
+from .stats.mlb_stats_api import MLBStatsAPI
+from ..mlb_stats_api import MLBStatsAPI as MLBStatsAPI_V2
+from ..fangraphs.client import FangraphsAPIClient
+from ..statcast.client import StatcastAPIClient
+from .stats.normalized_player_stats import PlayerStatsNormalizer, NormalizedPlayerStats, Datasource, PositionStats
 
 def clean_kwargs(kwargs: dict) -> dict:
     """Clean the kwargs dictionary by removing 'image_' and 'image_source_' prefixes from keys."""
@@ -50,15 +56,15 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
     # SETUP LOGGING
     log_to_db = kwargs.get('store_in_logs', False)
-    card_log_db = kwargs.get('db_connection', None)
+    db_for_logs = kwargs.get('db_connection', None)
     if log_to_db:
         # CONNECT TO DB
-        card_log_db = card_log_db or PostgresDB(is_archive=False)
-        if not card_log_db.connection:
-            card_log_db = None
+        db_for_logs = db_for_logs or PostgresDB(is_archive=False)
+        if not db_for_logs.connection:
+            db_for_logs = None
             print("Failed to connect to database for logging. Continuing without logging.")
     else:
-        card_log_db = None
+        db_for_logs = None
 
     try:
 
@@ -72,7 +78,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
             kwargs['year'] = str(random_player.year)
 
         # REPLACE NAME WITH PLAYER ID IF PROVIDED
-        if kwargs.get('player_id', None):
+        disable_player_id = kwargs.get('datasource', 'BREF') == 'MLB_API' # TODO: REMOVE THIS LATER
+        if kwargs.get('player_id', None) and not disable_player_id:
             kwargs['name'] = kwargs['player_id']
 
         # REMOVE IMAGE PREFIXES FROM KEYS
@@ -87,14 +94,90 @@ def generate_card(**kwargs) -> dict[str, Any]:
         stats_period = StatsPeriod(type=stats_period_type, **kwargs)
         stats: dict[str: any] = None
 
-        # SETUP BASEBALL REFERENCE SCRAPER
-        baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)
-        stats = baseball_reference_stats.fetch_player_stats()
+        expected_source = Datasource(kwargs.get('datasource', 'BREF'))
+        scraper_load_time = None
+        match expected_source:
+            case Datasource.MLB_API:
+                start_time = datetime.now()
 
-        # UPDATE STATS PERIOD BASED ON BREF STATS
-        stats_period = baseball_reference_stats.stats_period
-        kwargs['player_type_override'] = baseball_reference_stats.player_type_override
-        kwargs['team_override'] = baseball_reference_stats.team_override
+                # PULL FROM MLB API
+                # NORMALIZE FORMAT
+                mlb_stats_api = MLBStatsAPI_V2()
+                player_data = mlb_stats_api.build_full_player_from_search(search_name=kwargs.get('name', ''), stats_period=stats_period)
+                normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
+
+                # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS
+                # GRAB FROM FANGRAPHS IF AVAILABLE
+                if player_data.fangraphs_id:
+                    fangraphs_api = FangraphsAPIClient()
+                    fielding_stats_list = fangraphs_api.fetch_fielding_stats(
+                        stats_period=stats_period,
+                        position="all",
+                        fangraphs_player_ids=[str(player_data.fangraphs_id)],
+                    )
+                    # INJECT INTO NORMALIZED STATS
+                    position_stats = [PositionStats.from_fangraphs_fielding_stats(pos_stats) for pos_stats in fielding_stats_list]
+                    normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+
+                if stats_period.is_during_statcast_era:
+                    statcast_api_client = StatcastAPIClient()
+                    sprint_speed_data = statcast_api_client.fetch_sprint_speed_for_player(stats_period=stats_period, player_id=player_data.id)
+                    normalized_player_stats.sprint_speed = sprint_speed_data.sprint_speed
+
+                # TODO: EVENTUALLY PASS INTO SHOWDOWN PLAYER CARD AS CLASS
+                stats = normalized_player_stats.model_dump(
+                    exclude_none=True, 
+                    exclude_unset=True, 
+                    by_alias=True
+                )
+                stats_period.source = 'MLB Stats API'
+                scraper_load_time = (datetime.now() - start_time).total_seconds()
+
+            case Datasource.BREF:
+
+                # SETUP BASEBALL REFERENCE SCRAPER
+                baseball_reference_stats = BaseballReferenceScraper(stats_period=stats_period, **kwargs)
+
+                # FOR MULTI-YEAR CARDS, FIRST CHECK ARCHIVE DB
+                if baseball_reference_stats.stats_period.is_multi_year and not baseball_reference_stats.ignore_archive:
+                    db = PostgresDB(is_archive=True)
+                    player_archive_list: list[PlayerArchive] = db.fetch_all_player_year_stats_from_archive(
+                        bref_id=baseball_reference_stats.baseball_ref_id,
+                        type_override=baseball_reference_stats.player_type_override
+                    ) or []
+                    db.close_connection()
+
+                    # FILTER TO YEARS IN STATS PERIOD
+                    stats_yearly_list = [
+                        NormalizedPlayerStats(primary_datasource=Datasource.BREF, year_id=str(d.year), **( d.stats | ({'year_ID': str(d.year)} if d.stats.get('year_ID', None) is None else {}) )) \
+                            for d in player_archive_list \
+                            if (d.year in baseball_reference_stats.stats_period.year_list or baseball_reference_stats.stats_period.is_full_career) \
+                                and d.stats is not None and len(d.stats) > 0
+                    ]
+                    if len(stats_yearly_list) > 0:
+                        # COMBINE STATS FROM EACH YEAR
+                        combined_stats = PlayerStatsNormalizer.combine_multi_year_stats(stats_yearly_list, stats_period=baseball_reference_stats.stats_period)
+                        stats = combined_stats.model_dump(
+                            exclude_none=True,
+                            exclude_unset=True,
+                            by_alias=True,
+                        )
+                        stats_period = baseball_reference_stats.stats_period
+                        stats_period.year_list = [int(y.year_id) for y in stats_yearly_list]
+                        stats_period.source = 'Archive'
+                    
+                # FETCH STATS THE OLD WAY
+                if not stats:
+                    stats = baseball_reference_stats.fetch_player_stats()
+
+                    # UPDATE STATS PERIOD BASED ON BREF STATS
+                    stats_period = baseball_reference_stats.stats_period
+                    stats['warnings'] = baseball_reference_stats.warnings
+                    scraper_load_time = baseball_reference_stats.load_time
+
+                # ALWAYS APPLY THESE
+                kwargs['player_type_override'] = baseball_reference_stats.player_type_override
+                kwargs['team_override'] = baseball_reference_stats.team_override
 
         # -----------------------------------
         # HIT MLB API FOR REALTIME STATS
@@ -122,7 +205,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
             stats=stats, 
             realtime_game_logs=player_mlb_api_stats.game_logs, 
             image=image,
-            warnings=baseball_reference_stats.warnings,
+            warnings=stats.get('warnings', []),
             **kwargs
         )
 
@@ -156,11 +239,11 @@ def generate_card(**kwargs) -> dict[str, Any]:
         additional_logs['error_for_user'] = None
 
         # ADD ANY OTHER CONTEXTUAL LOGGING
-        additional_logs['scraper_load_time'] = baseball_reference_stats.load_time
+        additional_logs['scraper_load_time'] = scraper_load_time
 
         # ADD CODE TO LOG CARD TO DB
-        if card_log_db:
-            card_log_db.log_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_logs)
+        if db_for_logs:
+            db_for_logs.log_custom_card_submission(card=card, user_inputs=kwargs, additional_attributes=additional_logs)
 
         # CONVERT CARD TO DICT AND RETURN IT
         final_card_payload = additional_logs
@@ -218,9 +301,9 @@ def generate_card(**kwargs) -> dict[str, Any]:
         print("---------------------------------")
 
         # ADD CODE TO LOG CARD TO DB
-        if card_log_db:
+        if db_for_logs:
             # LOG THE ERROR
-            card_log_db.log_card_submission(
+            db_for_logs.log_custom_card_submission(
                 card=card,  # NO FULL CARD WAS GENERATED DUE TO THE ERROR
                 user_inputs=kwargs,
                 additional_attributes={
@@ -440,3 +523,17 @@ def generate_random_player(**kwargs) -> PlayerArchive:
     # RETURN RANDOM PLAYER IF MATCH WAS FOUND
     if random_player:
         return random_player
+
+def _convert_to_seasons_list(input: list | str | int) -> list[str | int]:
+    """Convert input to a list of seasons."""
+    if isinstance(input, int):
+        return [input]
+    elif isinstance(input, str):
+        if input.lower() == 'career':
+            return ['career']
+        else:
+            return convert_year_string_to_list(input)
+    elif isinstance(input, list):
+        return input
+    else:
+        return []
