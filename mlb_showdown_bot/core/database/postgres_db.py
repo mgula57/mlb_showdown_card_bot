@@ -1340,11 +1340,11 @@ class PostgresDB:
                 print(f"  → Refreshed existing materialized view '{view_name}'.")
                 return True
 
-            # VIEW DOES NOT EXIST, CREATE IT
+            # VIEW DOES NOT EXIST, CREATE AND REFRESH IT
             cursor.execute(sql.SQL("""
                 CREATE MATERIALIZED VIEW {schema}.{view_name} AS (
                     {sql_logic}
-                );
+                ) WITH NO DATA;
             """).format(
                 schema=sql.Identifier(schema),
                 view_name=sql.Identifier(view_name),
@@ -1355,6 +1355,25 @@ class PostgresDB:
                 for index in indexes:
                     cursor.execute(index)
                     print(f"  → Created index for materialized view '{view_name}': {index}")
+
+            # REFRESH THE NEW VIEW
+            cursor.execute(sql.SQL("""
+                REFRESH MATERIALIZED VIEW {schema}.{view_name};
+            """).format(
+                schema=sql.Identifier(schema),
+                view_name=sql.Identifier(view_name)
+            ))
+            print(f"  → Refreshed materialized view '{view_name}'.")
+
+            # RUN ANALYZE
+            cursor.execute(sql.SQL("""
+                ANALYZE {schema}.{view_name};
+            """).format(
+                schema=sql.Identifier(schema),
+                view_name=sql.Identifier(view_name)
+            ))
+            print(f"  → Analyzed materialized view '{view_name}'.")
+
             return True
 
         # EXCEPT BLOCK
