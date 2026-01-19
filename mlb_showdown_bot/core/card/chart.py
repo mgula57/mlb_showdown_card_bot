@@ -272,7 +272,7 @@ class Chart(BaseModel):
     accuracy_breakdown: dict[Stat, ChartAccuracyBreakdown] = {}
     is_command_out_anomaly: bool = False
     chart_categories_adjusted: list[ChartCategory] = []
-    command_estimated: float = None
+    command_estimated: Optional[float] = None
     slot_values: dict[int, float] = {}
 
     # SPECIAL FLAGS

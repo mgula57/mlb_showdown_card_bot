@@ -35,7 +35,7 @@ def get_career_records(cursor, name: str) -> list[dict]:
             string_agg(DISTINCT award_summary, ',' ORDER BY award_summary) as award_summary,
             SUM(COALESCE(bwar, 0)) as career_bwar,
             MIN(year) as first_year, MAX(year) as last_year
-        FROM player_year_list
+        FROM player_search
         WHERE name LIKE LOWER(%s)
         GROUP BY name, bref_id
         ORDER BY career_bwar desc

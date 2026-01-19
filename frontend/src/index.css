@@ -4,6 +4,8 @@
     --primary: #000000;
     --secondary: #292929;
     --tertiary: #3c3c3c;
+    --quaternary: #5a5a5a;
+
 
     --showdown-blue: #1a3b5f;
     --showdown-red: #9a362f;
@@ -12,14 +14,18 @@
     --background-primary: #f3f7fa;
     --background-secondary: #ffffff;
     --background-tertiary: #e8ebed;
-
+    --background-quaternary: #dfdede;
     --divider: #e0e0e0;
+    --background-gradient: linear-gradient(to bottom right, rgb(216, 217, 220), rgb(255 255 255), rgb(226, 222, 222));
 
     --table-header: #dbdbdb;
     --table-banding: #eeecec;
 
     --warning: #F3CE32;
     --success: #4BB543;
+
+    --green: #287c22;
+    --red: #ca443d;
 
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 
@@ -29,14 +35,17 @@
     --primary: #ffffff;
     --secondary: #dfdfdf;
     --tertiary: #cfcfcf;
+    --quaternary: #b0b0b0;
 
     --showdown-blue: #4682e6;
     --showdown-red: #d04e47;
     --showdown-gray: #a0a0a5;
 
-    --background-primary: #2d2d32;
-    --background-secondary: #232526;
-    --background-tertiary: #3a3a3f;
+    --background-primary: #18191c;
+    --background-secondary: #202225;
+    --background-tertiary: #2f3136;
+    --background-quaternary: #36393f;
+    --background-gradient: linear-gradient(to bottom right, rgb(14, 14, 14), rgb(33, 33, 37), rgb(28 25 23));
 
     --divider: #444444;
 
@@ -45,6 +54,9 @@
 
     --warning: #e9de3f;
     --success: #4dc545;
+
+    --green: #5df452;
+    --red: #fb3232;
 }
 
 /* Custom Fonts */
@@ -68,6 +80,9 @@
     .bg-tertiary {
         background-color: var(--background-tertiary);
     }
+    .gradient-page {
+        background-image: var(--background-gradient);
+    }
 
     .text-primary {
         color: var(--primary);
@@ -75,6 +90,10 @@
 
     .text-secondary {
         color: var(--secondary);
+    }
+
+    .text-tertiary {
+        color: var(--tertiary);
     }
 
     .border-form-element {
@@ -117,6 +136,15 @@
     .scrollbar-hide {
         -ms-overflow-style: none;  /* Internet Explorer 10+ */
         scrollbar-width: none;  /* Firefox */
+    }
+
+    /* Redacted */
+    .redacted {
+        /* @apply bg-gray-300 text-transparent rounded select-none; */
+        background-color: var(--background-tertiary);
+        color: transparent;
+        border-radius: 0.50rem; /* rounded */
+        user-select: none;
     }
 
 }

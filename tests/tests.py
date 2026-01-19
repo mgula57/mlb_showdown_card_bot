@@ -35,7 +35,7 @@ def analyze_baseline_weights(set: Set, type: PlayerType,is_testing_current_basel
     if db.connection is None:
         raise Exception('No connection to Postgres DB')
     
-    player_stats_archive_list = db.fetch_all_stats_from_archive(year_list=[int(set.year)-1], exclude_records_with_stats=False)
+    player_season_stats_list = db.fetch_all_stats_from_archive(year_list=[int(set.year)-1], exclude_records_with_stats=False)
 
     # GET WOTC PLAYER CARDS
     file_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'mlb_showdown_bot', 'wotc_cards.json')
@@ -74,7 +74,7 @@ def analyze_baseline_weights(set: Set, type: PlayerType,is_testing_current_basel
 
         print('---{}/{}---'.format(current_index, num_combos), end='\r')
         set_accuracy = ShowdownSetAccuracy(set=set, 
-                                           real_stats=player_stats_archive_list,
+                                           real_stats=player_season_stats_list,
                                            wotc_cards=wotc_data, 
                                            command_control_combo=combo, 
                                            is_only_command_outs_accuracy=False,

@@ -35,13 +35,13 @@ class PlayerSubType(Enum):
 
     def stat_highlight_categories(self, type: StatHighlightsType) -> list[StatHighlightsCategory]:
         match self:
-            case PlayerSubType.STARTING_PITCHER | self.RELIEF_PITCHER:
+            case PlayerSubType.STARTING_PITCHER | PlayerSubType.RELIEF_PITCHER:
                 categories = [
-                    StatHighlightsCategory.G if self == self.RELIEF_PITCHER else StatHighlightsCategory.GS,
+                    StatHighlightsCategory.G if self == PlayerSubType.RELIEF_PITCHER else StatHighlightsCategory.GS,
                 ]
                 match type:
                     case StatHighlightsType.CLASSIC: categories += [
-                        StatHighlightsCategory.W if self == self.STARTING_PITCHER else StatHighlightsCategory.SV,
+                        StatHighlightsCategory.W if self == PlayerSubType.STARTING_PITCHER else StatHighlightsCategory.SV,
                         StatHighlightsCategory.ERA,
                         StatHighlightsCategory.WHIP,
                         StatHighlightsCategory.IP,

@@ -209,6 +209,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, setIsOpen, className, isMob
                 bg-secondary border-r-divider shadow-sm
                 transition-all duration-300 ease-in-out
                 flex flex-col
+                border-r-2 border-form-element
                 ${isOpen ? '' : 'items-center justify-center'}
             `}>
                 {/* Header Section: Logo and Toggle Button */}

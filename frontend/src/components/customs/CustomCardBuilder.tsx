@@ -604,6 +604,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 image_output_folder_path: "static/output",
                 show_historical_points: true,
                 season_trend_date_aggregation: 'WEEK',
+                // datasource: 'MLB_API',
             });
             
             // Handle Errors
@@ -1379,12 +1380,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 <section 
                     id="preview-section"
                     ref={previewSectionRef}
-                    className="
+                    className={`
                         w-full @2xl:flex-grow
                         pb-64 @2xl:pb-0
                         scroll-mt-12
                         @2xl:scroll-mt-0
-                    "
+                        gradient-page
+                    `}
                 >
                     <CardDetail 
                         showdownBotCardData={showdownBotCardData} 

@@ -11,6 +11,9 @@ def search_players():
     # USER QUERY
     query = request.args.get('q', '').strip()
 
+    # OPTIONS
+    exclude_multi_year = request.args.get('exclude_multi_year', 'false').lower() == 'true'
+
     # MINIMUM OF 2 CHARACTERS
     if len(query) < 2:
         return jsonify([])
@@ -30,8 +33,8 @@ def search_players():
         query_lower = query.lower()
         is_team_search = len(query) in [2, 3] and query_lower in [team.value.lower() for team in Team]
         is_year_query = query.isdigit() and len(query) == 4
-        is_career_query = query_lower in ['career', 'careers', 'all time', 'best']
-        is_year_range = '-' in query and len(query.split('-')) == 2
+        is_career_query = query_lower in ['career', 'careers', 'all time', 'best'] and not exclude_multi_year
+        is_year_range = '-' in query and len(query.split('-')) == 2 and not exclude_multi_year
         is_name_and_year = (query_lower.split(' ')[-1].isdigit() or query_lower.split(' ')[-1] == 'career') \
                              and len(query_lower.split(' ')) > 1
         
@@ -63,7 +66,7 @@ def search_players():
                     is_hof,
                     award_summary,
                     bwar
-                FROM player_year_list
+                FROM player_search
                 WHERE team = %s
                 ORDER BY COALESCE(bwar, 0) DESC, year DESC, name
                 LIMIT 30
@@ -100,7 +103,7 @@ def search_players():
                     MIN(year) as first_year,
                     MAX(year) as last_year,
                     COUNT(*) as seasons
-                FROM player_year_list
+                FROM player_search
                 WHERE bwar IS NOT NULL
                 GROUP BY name, bref_id
                 HAVING SUM(COALESCE(bwar, 0)) > 5
@@ -147,7 +150,7 @@ def search_players():
                         MAX(year) as last_year,
                         string_agg(DISTINCT award_summary, ',' ORDER BY award_summary) as award_summary,
                         SUM(COALESCE(bwar, 0)) as total_bwar
-                    FROM player_year_list
+                    FROM player_search
                     WHERE year BETWEEN %s AND %s
                         AND bwar IS NOT NULL
                     GROUP BY name, bref_id
@@ -210,7 +213,7 @@ def search_players():
                     is_hof,
                     award_summary,
                     bwar
-                FROM player_year_list
+                FROM player_search
                 WHERE year = %s
                 ORDER BY COALESCE(bwar, 0) DESC, name
                 LIMIT 30
@@ -249,7 +252,7 @@ def search_players():
                         is_hof,
                         award_summary,
                         bwar
-                    FROM player_year_list
+                    FROM player_search
                     WHERE name LIKE LOWER(%s) AND year = %s
                     ORDER BY COALESCE(bwar, 0) DESC, name
                     LIMIT 30
@@ -288,7 +291,7 @@ def search_players():
                         WHEN LOWER(name) LIKE LOWER(%s) THEN 3                 -- Contains
                         ELSE 4
                     END as match_rank
-                FROM player_year_list
+                FROM player_search
                 WHERE LOWER(name) LIKE LOWER(%s) 
                     AND team = %s
                 ORDER BY 
@@ -325,43 +328,45 @@ def search_players():
         # REGULAR NAME SEARCH
         # -------------------
         else:
-            exact_match_cursor = conn.cursor()
-            exact_match_cursor.execute("""
-                SELECT 
-                    name,
-                    bref_id,
-                    player_type_override,
-                    bool_or(is_hof) as is_hof,
-                    string_agg(DISTINCT team, ',' ORDER BY team) as team,
-                    string_agg(DISTINCT award_summary, ',' ORDER BY award_summary) as award_summary,
-                    SUM(COALESCE(bwar, 0)) as career_bwar,
-                    MIN(year) as first_year,
-                    MAX(year) as last_year
-                FROM player_year_list
-                WHERE name = LOWER(%s)
-                GROUP BY name, bref_id, player_type_override
-                ORDER BY SUM(COALESCE(bwar, 0)) DESC
-            """, (query,))
-            
-            exact_matches = exact_match_cursor.fetchall() or []
-            exact_match_cursor.close()
-            
             displays = []
-            for exact_match in exact_matches:
-                name, bref_id, player_type_override, is_hof, team, award_summary, career_bwar, first_year, last_year = exact_match
-                award_summary = summarize_awards(award_summary)
-                displays.append({
-                    'type': 'career',
-                    'name': name,
-                    'year': f"{int(first_year)}-{int(last_year)}",
-                    'year_display': f"Career ({int(first_year)}-{int(last_year)})",
-                    'bref_id': bref_id,
-                    'is_hof': is_hof,
-                    'award_summary': award_summary,
-                    'bwar': round(career_bwar, 1),
-                    'team': team,
-                    'player_type_override': player_type_override,
-                })
+
+            if not exclude_multi_year:
+                exact_match_cursor = conn.cursor()
+                exact_match_cursor.execute("""
+                    SELECT 
+                        name,
+                        bref_id,
+                        player_type_override,
+                        bool_or(is_hof) as is_hof,
+                        string_agg(DISTINCT team, ',' ORDER BY team) as team,
+                        string_agg(DISTINCT award_summary, ',' ORDER BY award_summary) as award_summary,
+                        SUM(COALESCE(bwar, 0)) as career_bwar,
+                        MIN(year) as first_year,
+                        MAX(year) as last_year
+                    FROM player_search
+                    WHERE name = LOWER(%s)
+                    GROUP BY name, bref_id, player_type_override
+                    ORDER BY SUM(COALESCE(bwar, 0)) DESC
+                """, (query,))
+                
+                exact_matches = exact_match_cursor.fetchall() or []
+                exact_match_cursor.close()
+            
+                for exact_match in exact_matches:
+                    name, bref_id, player_type_override, is_hof, team, award_summary, career_bwar, first_year, last_year = exact_match
+                    award_summary = summarize_awards(award_summary)
+                    displays.append({
+                        'type': 'career',
+                        'name': name,
+                        'year': f"{int(first_year)}-{int(last_year)}",
+                        'year_display': f"Career ({int(first_year)}-{int(last_year)})",
+                        'bref_id': bref_id,
+                        'is_hof': is_hof,
+                        'award_summary': award_summary,
+                        'bwar': round(career_bwar, 1),
+                        'team': team,
+                        'player_type_override': player_type_override,
+                    })
             
             # Then add individual year results
             cursor.execute("""
@@ -380,7 +385,7 @@ def search_players():
                         WHEN LOWER(name) LIKE LOWER(%s) THEN 3                 -- Contains
                         ELSE 4
                     END as match_rank
-                FROM player_year_list
+                FROM player_search
                 WHERE LOWER(name) LIKE LOWER(%s)
                 ORDER BY 
                     LOWER(name) = LOWER(%s) DESC, -- Exact match first

@@ -69,6 +69,8 @@ def build_custom_card():
 @cards_bp.route('/build_image_for_card', methods=["POST", "GET"])
 def build_image_for_card():
     """Generate image for existing card data"""
+    from ..core.database.postgres_db import PostgresDB
+
     try:
         payload = request.get_json()
         if not payload or 'card' not in payload:
@@ -82,6 +84,10 @@ def build_image_for_card():
         # PRODUCE IMAGE AND UPDATE DATASET
         card.generate_card_image()
         payload['card'] = card.as_json()
+
+        # LOGGING
+        db = PostgresDB(is_archive=True)
+        db.log_card_image_generation(card_id=card.id)
 
         return jsonify(payload)
 

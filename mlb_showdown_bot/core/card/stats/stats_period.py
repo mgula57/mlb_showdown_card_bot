@@ -121,6 +121,11 @@ class StatsPeriodDateAggregation(str, Enum):
             case StatsPeriodDateAggregation.MONTH:
                 return date(end_date.year, end_date.month, 1)
 
+class StatsPeriodYearType(str, Enum):
+    SINGLE_YEAR = "SINGLE_YEAR"
+    MULTI_YEAR = "MULTI_YEAR"
+    FULL_CAREER = "FULL_CAREER"
+
 
 class StatsPeriod(BaseModel):
 
@@ -130,6 +135,7 @@ class StatsPeriod(BaseModel):
 
     # MULTI-YEAR
     year_list: list[int] = []
+    year_type: StatsPeriodYearType = StatsPeriodYearType.SINGLE_YEAR
     is_full_career: bool = False
     is_multi_year: bool = False
 
@@ -147,6 +153,10 @@ class StatsPeriod(BaseModel):
     # FILLED IN SHOWDOWN BOT CLASS
     stats: Optional[dict[str, Any]] = None
 
+    # ADDITIONAL INFO
+    display_text: Optional[str] = None
+    disable_display_text_on_card: Optional[bool] = None
+
     def model_post_init(self, __context):
 
         # ADJUSTMENTS
@@ -156,8 +166,13 @@ class StatsPeriod(BaseModel):
         if self.year.upper() == 'CAREER':
             self.is_full_career = True
             self.is_multi_year = True
+            self.year_type = StatsPeriodYearType.FULL_CAREER
         elif self.year_list and len(self.year_list) > 1:
             self.is_multi_year = True
+            self.year_type = StatsPeriodYearType.MULTI_YEAR
+        else:
+            self.is_multi_year = False
+            self.year_type = StatsPeriodYearType.SINGLE_YEAR
 
         # VALIDATE ATTRIBUTES
         if not self.type.enable_date_range:
@@ -171,6 +186,8 @@ class StatsPeriod(BaseModel):
             self.split = self.split.strip()
             if len(self.split) == 0:
                 self.split = None
+
+        self.display_text = self._display_text()
         
 
     # ---------------------------------
@@ -303,6 +320,40 @@ class StatsPeriod(BaseModel):
         
         return False
 
+    @property
+    def first_year(self) -> Optional[int]:
+        """
+        Returns the first year in the stats period.
+        """
+        if len(self.year_list) > 0:
+            return self.year_list[0]
+        return None
+    
+    @property
+    def last_year(self) -> Optional[int]:
+        """
+        Returns the last year in the stats period.
+        """
+        if len(self.year_list) > 0:
+            return max(self.year_list)
+        return None
+
+    @property
+    def is_during_statcast_era(self) -> bool:
+        """
+        Returns True if the stats period is during the Statcast era (2015 and later).
+        """
+
+        if self.last_year is None:
+            return False
+        
+        return self.last_year >= 2015
+
+    @property
+    def year_list_as_strs(self) -> str:
+        """Returns the year list as a list of strings. Orders in ascending order."""
+        return [str(year) for year in sorted(self.year_list)]
+
     # ---------------------------------
     # METHODS
     # ---------------------------------
@@ -337,6 +388,7 @@ class StatsPeriod(BaseModel):
         self.split = None
 
         self._check_and_apply_current_season_adjustment()
+        self.display_text = self._display_text()
 
     def add_stats_from_game_logs(self, game_logs:list[dict[str, Any]], is_pitcher:bool, team_override:Team = None) -> None:
         """
@@ -357,6 +409,8 @@ class StatsPeriod(BaseModel):
         # ADD STATS TO DICTIONARY
         stats_as_lists: dict[str, list] = {}
         first_year = self.year_list[0]
+        last_year = self.year_list[-1]
+        is_multi_year = first_year != last_year
         for game_log_data in game_logs:
 
             # ------------------------
@@ -439,17 +493,54 @@ class StatsPeriod(BaseModel):
         if game_dates:
             first_game_date_str: str = str(game_dates[0]).upper().split(' (', 1)[0]
             last_game_date_str: str = str(game_dates[-1]).upper().split(' (', 1)[0]
-            aggregated_data['first_game_date'] = first_game_date_str
-            aggregated_data['last_game_date'] = last_game_date_str
 
             # UPDATE STATS PERIOD OBJECT WITH EXACT GAME DATES
             try:
                 self.start_date = datetime.strptime(f'{first_game_date_str} {first_year}', "%b %d %Y").date()
-                self.end_date = datetime.strptime(f'{last_game_date_str} {first_year}', "%b %d %Y").date()
+                self.end_date = datetime.strptime(f'{last_game_date_str} {last_year}', "%b %d %Y").date()
+
+                # FORMAT MULTI-YEAR DATE RANGES DIFFERENTLY
+                # EX: 6/3/00
+                if is_multi_year:
+                    first_game_date_str = self.start_date.strftime("%-m/%-d/%y")
+                    last_game_date_str = self.end_date.strftime("%-m/%-d/%y")
+
             except:
+                import traceback
+                
                 pass
+
+            aggregated_data['first_game_date'] = first_game_date_str
+            aggregated_data['last_game_date'] = last_game_date_str
 
         # FILL IN EMPTY CATEGORIES
         aggregated_data = fill_empty_stat_categories(stats_data=aggregated_data, is_pitcher=is_pitcher, is_game_logs=True)
         
         self.stats = aggregated_data
+        self.display_text = self._display_text()
+
+    def _display_text(self) -> str:
+        """
+        Generate summary text for the stats period. Displayed on the card image.
+        
+        Returns:
+            str: Summary text
+        """
+        text:str = None
+        match self.type:
+            case StatsPeriodType.POSTSEASON:
+                text = 'POSTSEASON'
+            case StatsPeriodType.DATE_RANGE:
+                if self.stats is None:
+                    return None
+                text_list = [self.stats.get('first_game_date', None), self.stats.get('last_game_date', None)]
+                text_list = [t for t in text_list if t]
+                game_1_comp = self.stats.get('first_game_date', 'g1').strip()
+                game_2_comp = self.stats.get('last_game_date', 'g2').strip()
+                is_single_game = game_1_comp == game_2_comp            
+                text = game_1_comp if is_single_game else ' - '.join(text_list)
+            case StatsPeriodType.SPLIT:
+                text = self.split.upper()
+            case StatsPeriodType.REGULAR_SEASON:
+                text = self.year
+        return text

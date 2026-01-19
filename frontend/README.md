@@ -34,7 +34,7 @@ Instead of traditional React Router component mounting/unmounting, the applicati
 ```tsx
 // Components remain mounted, visibility is toggled
 <div className={location.pathname === '/explore' ? 'block' : 'hidden'}>
-  <ShowdownCardExplore />
+  <Explore />
 </div>
 ```
 
