@@ -485,7 +485,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
     /** Loading state for initial data fetch */
     const [isLoading, setIsLoading] = useState(false);
     /** Currently selected card for detail view */
-    const [selectedCard, setSelectedCard] = useState<CardDatabaseRecord | null>(null);
+    const [selectedCardForModal, setSelectedCardForModal] = useState<CardDatabaseRecord | null>(null);
+    const [selectedCardForSidebar, setSelectedCardForSidebar] = useState<CardDatabaseRecord | null>(null);
+    const selectedCard = window.innerWidth >= 1000 ? selectedCardForSidebar : selectedCardForModal;
 
     // Pagination state management
     /** Current page number for infinite scroll */
@@ -679,16 +681,15 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
             // If we have a selected card and this is the first page (new data load),
             // check if the selected card still exists in the new results
-            if (selectedCard && pageNum === 1 && newCardData.length > 0) {
-                const cardStillExists = newCardData.find(card => card.id === selectedCard.id);
+            if (selectedCardForSidebar && pageNum === 1 && newCardData.length > 0) {
+                const cardStillExists = newCardData.find(card => card.id === selectedCardForSidebar.id);
                 if (cardStillExists) {
                     // Card exists in new results, update the selected card with new data
-                    setSelectedCard(cardStillExists);
+                    setSelectedCardForSidebar(cardStillExists);
                 } else {
                     // Card no longer exists, clear selection
-                    setSelectedCard(null);
+                    setSelectedCardForSidebar(null);
                     setShowPlayerDetailSidebar(false);
-                    setShowPlayerDetailModal(false);
                 }
             }
 
@@ -711,22 +712,30 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
     // Handle row selection
     const handleRowClick = (card: CardDatabaseRecord) => {
+        
+        const isLargeScreen = window.innerWidth >= 1000; // 2xl breakpoint
+        
         console.log("Card clicked:", card);
         if (card.id === selectedCard?.id) {
             // If clicking the same card, close the side menu (if applicable)
-            handleCloseModal();
-            setSelectedCard(null);
+            if (isLargeScreen) {
+                handleCloseSidebar();
+            } else {
+                handleCloseModal();
+            }
             return;
         }
-        setSelectedCard(card);
+        if (isLargeScreen) {
+            setSelectedCardForSidebar(card);
+        } else {
+            setSelectedCardForModal(card);
+        }
         
         // Check screen size and show appropriate UI
-        const isLargeScreen = window.innerWidth >= 1000; // 2xl breakpoint
         const isSidebarAlreadyOpen = showPlayerDetailSidebar;
         
         if (isLargeScreen) {
             setShowPlayerDetailSidebar(true);
-            setShowPlayerDetailModal(false);
             
             if (!isSidebarAlreadyOpen) {
                 // Auto-scroll to the selected card after the sidebar animation completes
@@ -743,15 +752,18 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
             }
         } else {
             setShowPlayerDetailModal(true);
-            setShowPlayerDetailSidebar(false);
         }
     };
 
     const handleCloseModal = () => {
         setShowPlayerDetailModal(false);
-        setShowPlayerDetailSidebar(false);
-        setSelectedCard(null);
+        setSelectedCardForModal(null);
     };
+
+    const handleCloseSidebar = () => {
+        setShowPlayerDetailSidebar(false);
+        setSelectedCardForSidebar(null);
+    }
 
     const handleOpenFilters = () => {
         setFiltersForEditing(filters);
@@ -1031,7 +1043,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         {/* Stick header with close button */}
                         <div className="py-8 h-12 flex items-center space-x-2 p-2 border-b border-form-element">
                             <button 
-                                onClick={handleCloseModal}>
+                                onClick={handleCloseSidebar}>
                                 <FaChevronCircleRight className="text-[var(--tertiary)] w-7 h-7" />
                             </button>
                             <h2 className="text-[var(--tertiary)] text-lg font-bold">Card Detail</h2>
@@ -1041,10 +1053,11 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         {/* Scrollable Content */}
                         <div className="flex-1 overflow-y-auto min-h-0">
                             <CardDetail
-                                showdownBotCardData={{ card: selectedCard?.card_data } as ShowdownBotCardAPIResponse}
-                                cardId={selectedCard?.card_id}
+                                showdownBotCardData={{ card: selectedCardForSidebar?.card_data } as ShowdownBotCardAPIResponse}
+                                cardId={selectedCardForSidebar?.card_id}
                                 hideTrendGraphs={true}
                                 context='explore'
+                                parent="sidebar"
                             />
                         </div>
                     </div>
@@ -1066,13 +1079,14 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
             )}
 
             {/* Player Detail Modal */}
-            <div className={showPlayerDetailModal && selectedCard ? '' : 'hidden pointer-events-none'}>
-                <Modal onClose={handleCloseModal} isVisible={showPlayerDetailModal && !!selectedCard}>
+            <div className={showPlayerDetailModal && selectedCardForModal ? '' : 'hidden pointer-events-none'}>
+                <Modal onClose={handleCloseModal} isVisible={showPlayerDetailModal && !!selectedCardForModal}>
                     <CardDetail
-                        showdownBotCardData={selectedCard ? { card: selectedCard.card_data } as ShowdownBotCardAPIResponse : undefined}
-                        cardId={selectedCard?.card_id}
+                        showdownBotCardData={selectedCardForModal ? { card: selectedCardForModal.card_data } as ShowdownBotCardAPIResponse : undefined}
+                        cardId={selectedCardForModal?.card_id}
                         hideTrendGraphs={true}
                         context='explore'
+                        parent="modal"
                     />
                 </Modal>
             </div>

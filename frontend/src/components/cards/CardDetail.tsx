@@ -49,6 +49,7 @@ type CardDetailProps = {
     isLoadingGameBoxscore?: boolean;
     /** Usage context: 'custom' for card builder, 'explore' for database browser */
     context?: 'custom' | 'explore' | 'home';
+    parent?: string;
 };
 
 /**
@@ -81,7 +82,7 @@ type CardDetailProps = {
  * />
  * ```
  */
-export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false, context='custom' }: CardDetailProps) {
+export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGameBoxscore, hideTrendGraphs=false, context='custom', parent }: CardDetailProps) {
 
     // =============================================================================
     // MARK: STATES
@@ -222,7 +223,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     const handleGenerateImage = (data: ShowdownBotCardAPIResponse) => {
         if (!data?.card || isGeneratingImage || context === 'custom') return;
         
-        console.log("Starting image generation...");
+        console.log("Starting image generation...", parent);
         setIsGeneratingImage(true);
         
         generateCardImage(data)
