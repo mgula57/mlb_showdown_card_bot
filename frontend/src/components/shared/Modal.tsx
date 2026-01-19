@@ -46,6 +46,8 @@ type ModalProps = {
     size?: 'sm' | 'md' | 'lg' | 'xl';
     /** If true, disables the close button in the header */
     disableCloseButton?: boolean;
+    /** Controls whether the modal is visible - for scroll lock management */
+    isVisible?: boolean;
 };
 
 /**
@@ -62,7 +64,7 @@ type ModalProps = {
  * @param props - Modal component props
  * @returns A full-screen modal dialog overlay
  */
-export function Modal({ children, onClose, title, size = 'lg', disableCloseButton = false }: ModalProps) {
+export function Modal({ children, onClose, title, size = 'lg', disableCloseButton = false, isVisible = true }: ModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
     const scrollYRef = useRef(0); // Stores scroll position for restoration
 
@@ -103,6 +105,9 @@ export function Modal({ children, onClose, title, size = 'lg', disableCloseButto
      * - Restores exact scroll position on cleanup
      */
     useEffect(() => {
+        // Only apply scroll lock when modal is visible
+        if (!isVisible) return;
+
         // Increment modal count and apply scroll lock if this is the first modal
         bodyScrollLockCount += 1;
         if (bodyScrollLockCount === 1) {
@@ -142,7 +147,7 @@ export function Modal({ children, onClose, title, size = 'lg', disableCloseButto
                 window.scrollTo(0, -y);
             }
         };
-    }, []);
+    }, [isVisible]);
 
     /** Responsive size classes for different modal sizes */
     const sizeClasses = {

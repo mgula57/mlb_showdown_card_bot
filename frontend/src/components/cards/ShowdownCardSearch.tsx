@@ -1066,16 +1066,16 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
             )}
 
             {/* Player Detail Modal */}
-            {showPlayerDetailModal && selectedCard && (
-                <Modal onClose={handleCloseModal}>
+            <div className={showPlayerDetailModal && selectedCard ? '' : 'hidden pointer-events-none'}>
+                <Modal onClose={handleCloseModal} isVisible={showPlayerDetailModal && !!selectedCard}>
                     <CardDetail
-                        showdownBotCardData={{ card: selectedCard?.card_data } as ShowdownBotCardAPIResponse}
+                        showdownBotCardData={selectedCard ? { card: selectedCard.card_data } as ShowdownBotCardAPIResponse : undefined}
                         cardId={selectedCard?.card_id}
                         hideTrendGraphs={true}
                         context='explore'
                     />
                 </Modal>
-            )}
+            </div>
 
             {/* MARK: Filters Modal */}
             {showFiltersModal && (
