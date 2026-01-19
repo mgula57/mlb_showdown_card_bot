@@ -122,15 +122,15 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
             if (!isSameCard) {
                 setInternalCardData(showdownBotCardData);
                 setInternalCardId(cardId);
-                
+
+                // Load image if necessary
+                const isDataWithoutImage = !showdownBotCardData.card?.image.output_file_name && showdownBotCardData.card;
+                if (isDataWithoutImage && !isGeneratingImage) {
+                    console.log("Generating image for new prop data...");
+                    handleGenerateImage(showdownBotCardData);
+                }            
+                return;
             }
-            // Load image if necessary
-            const isDataWithoutImage = !showdownBotCardData.card?.image.output_file_name && showdownBotCardData.card;
-            if (isDataWithoutImage && !isGeneratingImage) {
-                console.log("Generating image for new prop data...");
-                handleGenerateImage(showdownBotCardData);
-            }            
-            return;
         }
 
         // Case 2: No data but cardId provided - fetch it from DB

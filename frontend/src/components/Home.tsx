@@ -420,16 +420,16 @@ export default function Home() {
             </div>
 
             {/* Modal */}
-            {selectedModalCard && (
-                <Modal onClose={handleModalCardClose} >
-                    {/* Modal content goes here */}
-                    <CardDetail 
+            <div className={selectedModalCard ? '' : 'hidden pointer-events-none'}>
+                <Modal onClose={handleModalCardClose} isVisible={!!selectedModalCard}>
+                    <CardDetail
                         showdownBotCardData={{ card: selectedModalCard} as ShowdownBotCardAPIResponse} 
                         hideTrendGraphs={true}
-                        context="home" 
+                        context="home"
+                        parent='home'
                     />
                 </Modal>
-            )}
+            </div>
         </div>
     );
 }
