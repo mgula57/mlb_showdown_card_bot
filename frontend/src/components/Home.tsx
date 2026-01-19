@@ -371,7 +371,7 @@ export default function Home() {
                             <div className='space-y-3'>
                                 {popularCards.slice(0, 4).map((card, index) => (
                                     <div className="relative max-w-full">
-                                        <span className={`absolute text-[12px] right-0 top-[-6px] ${gradientBlueBg} text-white rounded-full px-2 py-1`}>{card.num_creations.toLocaleString()}</span>
+                                        <span className={`absolute text-[12px] right-[-8px] top-[-8px] ${gradientBlueBg} font-bold backdrop-blur-sm rounded-full px-2 py-1`}>{card.num_creations.toLocaleString()}</span>
                                         <CardItemFromCard key={index} card={card.card_data} className="max-w-full" onClick={() => setSelectedModalCard(card.card_data)} />
                                     </div>
                                 ))}

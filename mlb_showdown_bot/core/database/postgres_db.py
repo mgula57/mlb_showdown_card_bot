@@ -808,11 +808,11 @@ class PostgresDB:
                 filter_values += [chart_key]
 
             elif 'real_stats' in sort_by:
-                real_stats_key = sort_by.replace('real_stats_', '')
-                final_sort = sql.SQL("""case when length((card_data->'stats'->>%s)) = 0 then null else (card_data->'stats'->>%s)::float end {direction} NULLS LAST""").format(
+                real_stats_key = sort_by.replace('real_stats_', 'real_').lower()
+                final_sort = sql.SQL("""%s {direction} NULLS LAST""").format(
                     direction=sql.SQL(sort_direction)
                 )
-                filter_values += [real_stats_key, real_stats_key]
+                filter_values += [real_stats_key]
 
             else:
                 final_sort = sql.SQL("{field} {direction} NULLS LAST").format(
@@ -1551,13 +1551,16 @@ class PostgresDB:
                     SELECT jsonb_array_elements_text(dim_card.card_data->'icons')
                 ) as icons_list,
 
-                -- STATS
+                -- AWARDS / HIGHLIGHTS
                 CASE
                     WHEN stats->>'award_summary' = '' OR stats->>'award_summary' IS NULL 
                     THEN ARRAY[]::text[]
                     ELSE string_to_array(stats->>'award_summary', ',')
                 END as awards_list,
                 coalesce((stats->>'is_hof')::boolean, false) as is_hof,
+                card_data->'image'->'stat_highlights_list' as stat_highlights_list,
+
+                -- SMALL SAMPLE
                 case 
                     when ARRAY(SELECT jsonb_array_elements_text(dim_card.card_data->'positions_list')) && ARRAY['STARTER'] 
                         then player_season_stats.ip < 75 
@@ -1565,7 +1568,30 @@ class PostgresDB:
                         then player_season_stats.ip < 30 
                     else player_season_stats.pa < 250 
                 end as is_small_sample_size,
-                card_data->'image'->'stat_highlights_list' as stat_highlights_list,
+
+                -- REAL STATS
+                case when length((stats->>'PA')) = 0 then null else round((stats->>'PA')::float)::int end as real_pa,
+                case when length((stats->>'G')) = 0 then null else (stats->>'G')::int end as real_g,
+                case when length((stats->>'GS')) = 0 then null else (stats->>'GS')::int end as real_gs,
+                case when length((stats->>'bWAR')) = 0 then null else (stats->>'bWAR')::float end as real_bwar,
+                case when length((stats->>'dWAR')) = 0 then null else (stats->>'dWAR')::float end as real_dwar,
+                case when length((stats->>'batting_avg')) = 0 then null else (stats->>'batting_avg')::float end as real_batting_avg,
+                case when length((stats->>'onbase_perc')) = 0 then null else (stats->>'onbase_perc')::float end as real_onbase_perc,
+                case when length((stats->>'slugging_perc')) = 0 then null else (stats->>'slugging_perc')::float end as real_slugging_perc,
+                case when length((stats->>'onbase_plus_slugging')) = 0 then null else (stats->>'onbase_plus_slugging')::float end as real_onbase_plus_slugging,
+                case when length((stats->>'onbase_plus_slugging_plus')) = 0 then null else (stats->>'onbase_plus_slugging_plus')::float end as real_onbase_plus_slugging_plus,
+                case when length((stats->>'earned_run_avg')) = 0 then null else (stats->>'earned_run_avg')::float end as real_earned_run_avg,
+                case when length((stats->>'whip')) = 0 then null else (stats->>'whip')::float end as real_whip,
+                case when length((stats->>'H')) = 0 then null else (stats->>'H')::int end as real_h,
+                case when length((stats->>'1B')) = 0 then null else (stats->>'1B')::int end as real_1b,
+                case when length((stats->>'2B')) = 0 then null else (stats->>'2B')::int end as real_2b,
+                case when length((stats->>'3B')) = 0 then null else (stats->>'3B')::int end as real_3b,
+                case when length((stats->>'HR')) = 0 then null else (stats->>'HR')::int end as real_hr,
+                case when length((stats->>'SB')) = 0 then null else (stats->>'SB')::int end as real_sb,
+                case when length((stats->>'SO')) = 0 then null else (stats->>'SO')::int end as real_so,
+                case when length((stats->>'BB')) = 0 then null else (stats->>'BB')::int end as real_bb,
+                case when length((stats->>'W')) = 0 then null else (stats->>'W')::int end as real_w,
+                case when length((stats->>'SV')) = 0 then null else (stats->>'SV')::int end as real_sv,
                 
                 -- CHART
                 cast(dim_card.card_data->'chart'->>'command' as int) as command,
