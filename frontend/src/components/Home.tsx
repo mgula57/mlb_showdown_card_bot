@@ -112,7 +112,7 @@ export default function Home() {
     /** Simulated card lookup based on search query */
     const handlePlayerSelect = (selection: PlayerSearchSelection) => {
         // Simulate fetching a card based on the selected player and year
-        const cardId = `${selection.year}-${selection.bref_id}${selection.player_type_override ? `-${selection.player_type_override}` : ''}-${userShowdownSet}`;
+        const cardId = `${selection.year}-${selection.bref_id}${selection.player_type_override ? `-(${selection.player_type_override.toLowerCase()})` : ''}-${userShowdownSet}`;
         setIsLoadingSearchCard(true);
         fetchCardById(cardId, 'home-search').then(card => {
             setSelectedCard(card.card || null);
