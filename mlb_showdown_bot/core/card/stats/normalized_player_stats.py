@@ -104,7 +104,7 @@ class NormalizedPlayerStats(BaseModel):
     onbase_perc: float = 0.0
     slugging_perc: float = 0.0
     onbase_plus_slugging: float = 0.0
-    onbase_plus_slugging_plus: Optional[int] = None  # OPS+
+    onbase_plus_slugging_plus: Optional[int | float] = None  # OPS+
     
     # Advanced Ratios
     go_ao_ratio: Optional[float] = Field(None, alias='GO/AO')
@@ -781,7 +781,7 @@ class PlayerStatsNormalizer:
         }
         
         averaging_stats = {
-            'sprint_speed', 'go_ao_ratio', 'if_fb_ratio'  # Use aliases here too
+            'sprint_speed', 'go_ao_ratio', 'if_fb_ratio', 'onbase_plus_slugging_plus'  # Use aliases here too
         }
         
         max_stats = {
