@@ -16,16 +16,10 @@ spec/
 htmlcov/
 
 # Frontend source (only need dist in production)
-frontend/src/
-frontend/public/
-frontend/node_modules/
-frontend/.vite/
-frontend/package.json
-frontend/package-lock.json
-frontend/tsconfig*.json
-frontend/eslint.config.js
-frontend/vite.config.ts
+frontend/node_modules/.cache/
 frontend/dist/stats.html
+frontend/src/**/*.test.tsx
+frontend/src/**/*.spec.tsx
 
 # Python distribution packages (don't need in slug)
 dist/
