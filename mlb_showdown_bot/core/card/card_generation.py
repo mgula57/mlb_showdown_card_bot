@@ -149,7 +149,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
                     # FILTER TO YEARS IN STATS PERIOD
                     stats_yearly_list = [
-                        NormalizedPlayerStats(primary_datasource=Datasource.BREF, **d.stats) \
+                        NormalizedPlayerStats(primary_datasource=Datasource.BREF, year_id=str(d.year), **( d.stats | ({'year_ID': str(d.year)} if d.stats.get('year_ID', None) is None else {}) )) \
                             for d in player_archive_list \
                             if d.year in baseball_reference_stats.stats_period.year_list or baseball_reference_stats.stats_period.is_full_career
                     ]

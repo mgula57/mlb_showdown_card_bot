@@ -165,10 +165,21 @@ class NormalizedPlayerStats(BaseModel):
         """Ensures pos_season is always a string, defaults to empty string if None"""
         return str(value) if value is not None else None
     
-    @field_validator('dWAR', 'RBI', 'PA', mode='before')
+    @field_validator('dWAR', mode='before')
     def validate_dwar(cls, value) -> float:
         """Defaults dWAR to None if empty string"""
         return None if value is not None and str(value) == '' else value
+
+    @field_validator('PA', 'AB', mode='before')
+    def validate_counting_ints(cls, value) -> int:
+        """Defaults counting ints to None if empty string"""
+        if value is None:
+            return None
+        
+        if str(value) == '':
+            return None
+        
+        return int(value)
 
     @classmethod
     def expected_fields(cls) -> List[str]:
@@ -737,7 +748,7 @@ class PlayerStatsNormalizer:
             return stats_list[0]  # Nothing to combine
         
         # Use the first entry as base template - USE ALIASES IN OUTPUT
-        base_stats = stats_list[0]
+        base_stats = stats_list[-1]  # Use the most recent year as base
         combined_data = base_stats.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
         
         # Update metadata for multi-year
@@ -749,7 +760,7 @@ class PlayerStatsNormalizer:
         for stats in stats_list:
             if stats.team_id and stats.G:
                 team_games_played[stats.team_id] = team_games_played.get(stats.team_id, 0) + stats.G
-        combined_data['team_id'] = max(team_games_played, key=team_games_played.get) if team_games_played else None
+        combined_data['team_ID'] = max(team_games_played, key=team_games_played.get) if team_games_played else None
         
         # Define aggregation strategies - USE ALIASES for fields that have them
         counting_stats = {

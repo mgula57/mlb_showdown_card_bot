@@ -45,7 +45,7 @@ class PlayerStatsArchive:
         if publish_to_postgres:
             # CREATE DATABASE TABLE
             db = PostgresDB(is_archive=True)
-            db.create_stats_archive_table()
+            db.create_player_season_stats_table()
             db_cursor = db.connection.cursor()
 
         final_player_data_list = []
@@ -133,7 +133,7 @@ class PlayerStatsArchive:
                     updated_player_stats_list.append(player_stats)
                     if publish_to_postgres:
                         print(f" UPLOADING {player_stats.name:<30}", end="\r")
-                        db.upsert_stats_archive_row(
+                        db.upsert_player_season_stats_row(
                             cursor=db_cursor, 
                             data=player_stats.as_dict(convert_stats_to_json=True), 
                             conflict_strategy="update_all_exclude_stats"
@@ -238,7 +238,7 @@ class PlayerStatsArchive:
         if publish_to_postgres:
             # CREATE DATABASE TABLE
             db = PostgresDB(is_archive=True)
-            db.create_stats_archive_table()
+            db.create_player_season_stats_table()
             db_cursor = db.connection.cursor()
 
             # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
@@ -274,7 +274,7 @@ class PlayerStatsArchive:
                 print(f"  {index}/{total_players}: {player.name: <20} ({time_value} {time_unit} LEFT)")
                 player.scrape_stats_data()
                 if publish_to_postgres:
-                    db.upsert_stats_archive_row(cursor=db_cursor, data=player.as_dict(convert_stats_to_json=True), conflict_strategy="update_stats_only")
+                    db.upsert_player_season_stats_row(cursor=db_cursor, data=player.as_dict(convert_stats_to_json=True), conflict_strategy="update_stats_only")
                 if limit:
                     if index >= limit:
                         break
