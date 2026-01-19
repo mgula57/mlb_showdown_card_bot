@@ -1069,7 +1069,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
             {showPlayerDetailModal && selectedCard && (
                 <Modal onClose={handleCloseModal}>
                     <CardDetail
-                        cardId={selectedCard?.card_id || ""}
+                        showdownBotCardData={{ card: selectedCard?.card_data } as ShowdownBotCardAPIResponse}
+                        cardId={selectedCard?.card_id}
                         hideTrendGraphs={true}
                         context='explore'
                     />
