@@ -51,7 +51,7 @@ export default function Home() {
 
     // Styling
     const gradientBlueBg = isDark ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30' : 'bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300'
-    const cardOfDayPlaceholder = `/images/blank_players/blankplayer-${userShowdownSet}-${isDark ? 'dark' : 'light'}.png`;
+    const cardOfDayPlaceholder = `/images/blank_players/blankplayer-${userShowdownSet.toLowerCase()}-${isDark ? 'dark' : 'light'}.png`;
     const cardOfDayImageSrc = cardOfTheDay?.card_data.image.output_folder_path ? `${cardOfTheDay.card_data.image.output_folder_path}/${cardOfTheDay.card_data.image.output_file_name}` : cardOfDayPlaceholder;
 
     // Fetch total card count on mount
