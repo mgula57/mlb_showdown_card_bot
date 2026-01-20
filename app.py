@@ -1,5 +1,5 @@
 import os
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 from config import Config
@@ -55,7 +55,18 @@ def too_large(e):
         'error': 'File is too large',
         'error_for_user': 'The uploaded image is too large. Please use an image smaller than 16MB.'
     }), 413
-    
+
+@app.after_request
+def add_cache_headers(resp):
+    p = request.path
+
+    # Set icons rarely change -> cache aggressively
+    if p.startswith("/images/"):
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return resp
+
+    return resp
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react(path):

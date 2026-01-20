@@ -19,19 +19,30 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+// Images
+// Import images at the top of the file
+import set2000 from '/images/sets/set-2000.png';
+import set2001 from '/images/sets/set-2001.png';
+import setClassic from '/images/sets/set-classic.png';
+import set2002 from '/images/sets/set-2002.png';
+import set2003 from '/images/sets/set-2003.png';
+import set2004 from '/images/sets/set-2004.png';
+import set2005 from '/images/sets/set-2005.png';
+import setExpanded from '/images/sets/set-expanded.png';
+
 /**
  * Available MLB Showdown sets with their visual assets and styling
  * Each set includes value identifier, display label, image path, and optional text color
  */
 export const showdownSets: Array<{ value: string; label: string; image?: string | undefined; textColor?: string | undefined; }> = [
-    { value: "2000", label: "", textColor: "text-blue", image: "/images/sets/set-2000.png" },
-    { value: "2001", label: "", image: "/images/sets/set-2001.png" },
-    { value: "CLASSIC", label: "", image: "/images/sets/set-classic.png" },
-    { value: "2002", label: "", image: "/images/sets/set-2002.png" },
-    { value: "2003", label: "", image: "/images/sets/set-2003.png" },
-    { value: "2004", label: "", image: "/images/sets/set-2004.png" },
-    { value: "2005", label: "", image: "/images/sets/set-2005.png" },
-    { value: "EXPANDED", label: "", image: "/images/sets/set-expanded.png" },
+    { value: "2000", label: "", textColor: "text-blue", image: set2000 },
+    { value: "2001", label: "", image: set2001 },
+    { value: "CLASSIC", label: "", image: setClassic },
+    { value: "2002", label: "", image: set2002 },
+    { value: "2003", label: "", image: set2003 },
+    { value: "2004", label: "", image: set2004 },
+    { value: "2005", label: "", image: set2005 },
+    { value: "EXPANDED", label: "", image: setExpanded },
 ];
 
 /**

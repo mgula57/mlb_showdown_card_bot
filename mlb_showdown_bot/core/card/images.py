@@ -157,7 +157,7 @@ class PlayerImageComponent(str, Enum):
     
     @property
     def adjust_paste_coordinates_for_bordered(self) -> bool:
-        return self.name in ["NAME_CONTAINER_2000", "SILHOUETTE"]
+        return self.name in ["NAME_CONTAINER_2000"]
     
     @property
     def ignores_custom_crop(self) -> bool:
@@ -185,7 +185,6 @@ class PlayerImageComponent(str, Enum):
             "BLACK_CIRCLE",
             "TEAM_COLOR",
             "TEAM_LOGO",
-            "SILHOUETTE",
             "NAME_CONTAINER_2000",
             "DARKENER",
             "GOLD_FRAME",

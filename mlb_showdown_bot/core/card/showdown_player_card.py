@@ -2994,7 +2994,8 @@ class ShowdownPlayerCard(BaseModel):
 
         is_00_01_set = self.set.is_00_01        
         dark_mode_suffix = '-DARK' if self.image.is_dark_mode and self.set.is_showdown_bot else ''
-        default_image_path = self._template_img_path(f'Default Background - {self.set.template_year}{dark_mode_suffix}')
+        def_bg_template = 'OG' if self.set.is_00_01 else f"BALLPARK"
+        default_image_path = self._template_img_path(f'Default Background - {def_bg_template}{dark_mode_suffix}')
         
         # CHECK FOR CUSTOM LOCAL IMAGE ASSET (EX: NATIONALITY, ASG)
         custom_image_path: str = None
@@ -4867,7 +4868,7 @@ class ShowdownPlayerCard(BaseModel):
             # ADD SILHOUETTE IF NECESSARY
             non_empty_components = [typ for typ in self.image_component_ordered_list if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
             if len(non_empty_components) == 0:
-                img_components_dict[PlayerImageComponent.SILHOUETTE] = self._template_img_path(f'{self.set.template_year}-SIL-{self.player_classification}')
+                img_components_dict[PlayerImageComponent.SILHOUETTE] = self._template_img_path(f'SIL-{self.player_classification}')
             
             player_imgs = self._automated_player_image_layers(component_img_urls_dict=img_components_dict, file_service=file_service)
             if len(player_imgs) > 0:
@@ -4899,7 +4900,7 @@ class ShowdownPlayerCard(BaseModel):
             
             # ADD SILHOUETTE IF NECESSARY
             if img_component == PlayerImageComponent.SILHOUETTE and is_img_download_error:
-                component_img_urls_dict[PlayerImageComponent.SILHOUETTE] = self._template_img_path(f'{self.set.template_year}-SIL-{self.player_classification}')
+                component_img_urls_dict[PlayerImageComponent.SILHOUETTE] = self._template_img_path(f'SIL-{self.player_classification}')
             
             # CHECK FOR IMAGE TYPE
             img_url = component_img_urls_dict.get(img_component, None)

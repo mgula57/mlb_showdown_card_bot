@@ -147,6 +147,9 @@ interface FilterSelections {
     /** Cards with unusual statistical profiles */
     is_chart_outlier?: string[];
 
+    // Errata
+    is_errata?: string[];
+
     // Image attributes
     /** Lets user filter for cards with/without images */
     image_match_type?: string[];
@@ -217,6 +220,9 @@ const FILTER_AVAILABILITY: FilterAvailability = {
     expansion: [CardSource.WOTC],
     edition: [CardSource.WOTC],
     showdown_set: [CardSource.WOTC],
+
+    // Errata filtering - only for WOTC
+    is_errata: [CardSource.WOTC],
 };
 
 /**
@@ -1422,6 +1428,18 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
                                     />
                                 )}
+
+                                {isFilterAvailable('is_errata', source) && (
+                                    <MultiSelect
+                                        label="Errata?"
+                                        options={[
+                                            { value: 'true', label: 'Yes' },
+                                            { value: 'false', label: 'No' },
+                                        ]}
+                                        selections={filtersForEditing.is_errata ? filtersForEditing.is_errata.map(String) : []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_errata: values.length > 0 ? values : undefined })}
+                                    />
+                                )}
                 
                                 {SHOWDOWN_CHART_RANGE_FILTERS.map(def => (
                                     <RangeFilter
@@ -1430,6 +1448,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         {...bindRange(def.minKey, def.maxKey)}
                                     />
                                 ))}
+
+
                             </FormSection>
 
                             {isFilterAvailable('image_match_type', source) && (
