@@ -2,12 +2,12 @@
   "name": "mlb-showdown-card-bot",
   "version": "1.0.0",
   "scripts": {
-    "build": "cd frontend && npm install --production=false && npm run build",
-    "heroku-postbuild": "npm run build"
+    "build": "echo 'Build handled by heroku-postbuild'",
+    "heroku-postbuild": "cd frontend && npm install --production=false && npm run build"
   },
   "engines": {
-    "node": "18.x",
-    "npm": "9.x"
+    "node": "22.x",
+    "npm": "10.x"
   },
   "devDependencies": {
     "typescript": "~5.8.3"
