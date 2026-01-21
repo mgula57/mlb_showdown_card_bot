@@ -273,7 +273,7 @@ export const CardItem = ({
                 primaryColor={colorStylingPrimary.backgroundColor}
                 secondaryColor={colorStylingSecondary.backgroundColor}
                 team={cardTeam}
-                cellClassName="min-w-6 md:min-w-8 xl:min-w-10" 
+                cellClassName="min-w-6 md:min-w-8" 
             />
 
             {/* Bottom bar */}
