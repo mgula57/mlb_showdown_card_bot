@@ -180,6 +180,17 @@ class NormalizedPlayerStats(BaseModel):
             return None
         
         return int(value)
+    
+    @field_validator('SB', mode='before')
+    def validate_zeroed_out_stats(cls, value) -> int:
+        """Sets stats that are zero to None to indicate missing data"""
+        if value is None:
+            return 0
+        
+        if str(value) == '':
+            return 0
+        
+        return int(value)
 
     @classmethod
     def expected_fields(cls) -> List[str]:
