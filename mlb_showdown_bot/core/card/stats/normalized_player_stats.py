@@ -180,6 +180,17 @@ class NormalizedPlayerStats(BaseModel):
             return None
         
         return int(value)
+    
+    @field_validator('SB', mode='before')
+    def validate_zeroed_out_stats(cls, value) -> int:
+        """Sets stats that are zero to None to indicate missing data"""
+        if value is None:
+            return 0
+        
+        if str(value) == '':
+            return 0
+        
+        return int(value)
 
     @classmethod
     def expected_fields(cls) -> List[str]:
@@ -1025,7 +1036,8 @@ class PositionStats(BaseModel):
 class BaseGameLog(BaseModel):
     """Base game log model"""
     
-    date: str  # Keep as string to match your format
+    date: Optional[str] = None # e.g., "2024-04-01"
+    date_game: Optional[str] = None  # e.g., "Apr 1"
     team_ID: str
     player_game_span: str  # e.g., "CG", "GS-8", "CG(10)"
     game_decision: Optional[str] = None  # e.g., "W", "L", "SV", "HLD", etc.
@@ -1064,6 +1076,13 @@ class BaseGameLog(BaseModel):
                 return int(v)
             except ValueError:
                 return 0
+        return v
+    
+    @field_validator('date', mode='before')
+    def validate_date(cls, v, info):
+        """Validates date to ensure it's in YYYY-MM-DD format"""
+        if v is None:
+            print(f"Date is missing: {info.data.get('year_ID', {})}")
         return v
 
 class GameLog(BaseGameLog):
