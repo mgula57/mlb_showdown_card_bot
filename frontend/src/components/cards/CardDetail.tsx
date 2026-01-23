@@ -491,6 +491,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                         space-y-4
                         border-2 border-form-element
                         ${breakdownFirstRowHeight}
+                        ${isLoadingFromId ? 'blur-xs' : ''}
                     `}
                 >
                     <CustomSelect
@@ -505,9 +506,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                     />
 
                     {/* Breakdown Table */}
-                    <div className={`${isLoadingFromId ? 'blur-xs' : ''}`}>
-                        {renderBreakdownTable()}
-                    </div>
+                    {renderBreakdownTable()}
 
                 </div>
 
