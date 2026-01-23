@@ -5,6 +5,7 @@ from ..database.postgres_db import PostgresDB, ExploreDataRecord, ExploreDataRec
 from ..shared.player_position import Position
 from pydantic import BaseModel, Field
 from datetime import datetime
+from math import ceil
 
 # Table
 from prettytable import PrettyTable
@@ -69,6 +70,16 @@ class ShowdownBotSet(BaseModel):
         description="Ideal percentage of 10-50 point cards in the set (None to skip)"
     )
 
+    # Specific player IDs to include
+    manually_included_ids: Optional[List[str]] = Field(
+        None,
+        description="Specific player IDs to always include in the set"
+    )
+    manually_excluded_ids: Optional[List[str]] = Field(
+        None,
+        description="Specific player IDs to always exclude from the set"
+    )
+
     def build_set(self, show_team_breakdown: Optional[str] = None) -> List[ExploreDataRecord]:
         """Build a complete set based on configuration"""
         print(f"Building {self.set_size} card set for {', '.join(map(str, self.years))}...")
@@ -111,11 +122,15 @@ class ShowdownBotSet(BaseModel):
         qualified_players = []
         
         for player in all_players:
-            # Skip if no stats
-            if not player.card_data.stats or len(player.card_data.stats) == 0:
-                continue
             
             player_type = player.player_subtype  # Uses the property from ExploreDataRecord
+
+            if player.bref_id_w_type_override in (self.manually_included_ids or []):
+                qualified_players.append(player)
+                continue
+            
+            if player.bref_id_w_type_override in (self.manually_excluded_ids or []):
+                continue
             
             # Apply minimum thresholds based on player type
             if player_type == 'POSITION_PLAYER':
@@ -233,7 +248,7 @@ class ShowdownBotSet(BaseModel):
             return []
         
         # Sort players by quality (WAR, with special considerations)
-        players_with_priority = []
+        players_with_priority: List[Tuple[ShowdownBotSetPlayer, float]] = []
         for player in players:
             priority_score = self._calculate_priority_score(player)
             updated_player = ShowdownBotSetPlayer(
@@ -242,8 +257,8 @@ class ShowdownBotSet(BaseModel):
             )
             players_with_priority.append((updated_player, priority_score))
         
-        players_with_priority.sort(key=lambda x: x[1], reverse=True)
-        
+        players_with_priority.sort(key=lambda x: (x[0].bref_id_w_type_override in (self.manually_included_ids or []), x[1]), reverse=True)
+
         # Select top players up to target count
         selected = [p[0] for p in players_with_priority[:target_count]]
         
@@ -268,19 +283,19 @@ class ShowdownBotSet(BaseModel):
                 max_ip = 180 if is_sp else 70
 
                 # REMOVE GS IP FOR RELIEVERS
-                ip_gs = player.card_data.stats.get('IP/GS', None)
+                ip_gs = player.gs * 5
                 gs = player.gs or 0
                 if not is_sp and ip_gs and gs > 0:
                     ip -= (ip_gs * gs)
 
                 score += (ip / max_ip) * 5.0  # Up to 5 point bonus for full season
 
-                if player.card_data.primary_position == Position.CL:
+                if player.primary_position == Position.CL:
                     score += 1.0  # Small bonus for closers
         
         # Bonuses for special achievements
-        if player.card_data.stats:
-            award_summary = player.card_data.stats.get('award_summary', '')
+        if player.awards_list:
+            award_summary = ','.join(player.awards_list)
             
             # All-Star bonus
             if 'AS' in award_summary and self.include_all_stars:
@@ -304,14 +319,15 @@ class ShowdownBotSet(BaseModel):
     def _redistribute_unused_slots(self, player_pool: List[ExploreDataRecord], team_allocations: Dict[str, TeamAllocation], selected_players: List[ExploreDataRecord]) -> List[ExploreDataRecord]:
         """Redistribute unused slots when teams don't have enough qualified players
         
+        Prioritizes maintaining player type distribution (hitters/starters/relievers percentages).
+        
         If ideal_low_point_percentage is set:
-        - Calculates current % of 10-50 point cards by player type
-        - Determines how many 10-50 point cards needed per type to reach ideal %
-        - Fills with highest priority 10-50 point players first per type
-        - Then fills remaining slots with highest priority players
+        - First fills slots to reach target player type distribution
+        - Then balances low-point card percentages within each type
+        - Finally fills any remaining slots with highest priority players
         
         If ideal_low_point_percentage is None:
-        - Fills all slots with highest priority players regardless of points
+        - Fills slots to reach target player type distribution with highest priority players
         """
         
         # Calculate how many slots are unused
@@ -328,108 +344,124 @@ class ShowdownBotSet(BaseModel):
         unselected_players = [p for p in player_pool if p.id not in ids]
         print(f"Found {len(unselected_players)} unselected players for redistribution. There are {len(player_pool)} total qualified players.")
         
-        # If no ideal low point percentage, just fill with highest priority
-        if self.ideal_low_point_percentage is None:
-            unselected_with_priority = []
-            for player in unselected_players:
-                priority_score = self._calculate_priority_score(player)
-                unselected_with_priority.append((player, priority_score))
+        # Calculate current player type counts
+        current_hitters = len([p for p in selected_players if p.player_subtype == 'POSITION_PLAYER'])
+        current_starters = len([p for p in selected_players if p.player_subtype == 'STARTING_PITCHER'])
+        current_relievers = len([p for p in selected_players if p.player_subtype == 'RELIEF_PITCHER'])
+        
+        # Calculate target percentages for final set
+        target_hitters_pct = self.player_type_distribution.hitters_percentage
+        target_starters_pct = self.player_type_distribution.starters_percentage
+        target_relievers_pct = self.player_type_distribution.relievers_percentage
+        
+        # Calculate current percentages
+        current_hitters_pct = current_hitters / total_selected if total_selected > 0 else 0
+        current_starters_pct = current_starters / total_selected if total_selected > 0 else 0
+        current_relievers_pct = current_relievers / total_selected if total_selected > 0 else 0
+        
+        # Calculate deficits (how far below target each type is)
+        hitters_deficit = target_hitters_pct - current_hitters_pct
+        starters_deficit = target_starters_pct - current_starters_pct
+        relievers_deficit = target_relievers_pct - current_relievers_pct
+        
+        print(f"Current percentages - Hitters: {current_hitters_pct:.1%} (target {target_hitters_pct:.1%}), Starters: {current_starters_pct:.1%} (target {target_starters_pct:.1%}), Relievers: {current_relievers_pct:.1%} (target {target_relievers_pct:.1%})")
+        print(f"Deficits - Hitters: {hitters_deficit:+.1%}, Starters: {starters_deficit:+.1%}, Relievers: {relievers_deficit:+.1%}")
+        
+        # Distribute unused slots proportionally based on deficits
+        # Only allocate to types that are below target
+        total_deficit = max(0, hitters_deficit) + max(0, starters_deficit) + max(0, relievers_deficit)
+        
+        if total_deficit > 0:
+            # Allocate proportionally to deficits
+            hitters_allocation = round(unused_slots * (max(0, hitters_deficit) / total_deficit))
+            starters_allocation = round(unused_slots * (max(0, starters_deficit) / total_deficit))
+            relievers_allocation = unused_slots - hitters_allocation - starters_allocation
+        else:
+            # All types at or above target, distribute evenly by target percentages
+            hitters_allocation = round(unused_slots * target_hitters_pct)
+            starters_allocation = round(unused_slots * target_starters_pct)
+            relievers_allocation = unused_slots - hitters_allocation - starters_allocation
+        
+        print(f"Allocating unused slots - Hitters: {hitters_allocation}, Starters: {starters_allocation}, Relievers: {relievers_allocation}")
+        
+        # Separate unselected players by type and calculate priority scores
+        unselected_hitters = []
+        unselected_starters = []
+        unselected_relievers = []
+        
+        for player in unselected_players:
+            priority_score = self._calculate_priority_score(player)
+            player_with_score = ShowdownBotSetPlayer(**player.model_dump(), priority_score=priority_score)
             
-            unselected_with_priority.sort(key=lambda x: x[1], reverse=True)
-            additional_players = [ShowdownBotSetPlayer(**p[0].model_dump(), priority_score=p[1]) for p in unselected_with_priority[:unused_slots]]
+            if player.player_subtype == 'POSITION_PLAYER':
+                unselected_hitters.append(player_with_score)
+            elif player.player_subtype == 'STARTING_PITCHER':
+                unselected_starters.append(player_with_score)
+            elif player.player_subtype == 'RELIEF_PITCHER':
+                unselected_relievers.append(player_with_score)
+        
+        # Sort each type by priority
+        unselected_hitters.sort(key=lambda x: x.priority_score, reverse=True)
+        unselected_starters.sort(key=lambda x: x.priority_score, reverse=True)
+        unselected_relievers.sort(key=lambda x: x.priority_score, reverse=True)
+        
+        # If no ideal low point percentage, just fill with highest priority maintaining type distribution
+        if self.ideal_low_point_percentage is None:
+            print("No ideal low-point percentage set, filling proportionally by deficit.")
+            additional_players = []
+            additional_players.extend(unselected_hitters[:hitters_allocation])
+            additional_players.extend(unselected_starters[:starters_allocation])
+            additional_players.extend(unselected_relievers[:relievers_allocation])
+            
+            # If we still have slots (due to rounding or lack of players), fill with highest priority overall
+            slots_after_type_balance = unused_slots - len(additional_players)
+            if slots_after_type_balance > 0:
+                print(f"Filling {slots_after_type_balance} remaining slots with highest priority players (any type)")
+                # Get remaining unselected players
+                used_ids = set(p.id for p in additional_players)
+                remaining_hitters = [p for p in unselected_hitters[hitters_allocation:] if p.id not in used_ids]
+                remaining_starters = [p for p in unselected_starters[starters_allocation:] if p.id not in used_ids]
+                remaining_relievers = [p for p in unselected_relievers[relievers_allocation:] if p.id not in used_ids]
+                
+                all_remaining = remaining_hitters + remaining_starters + remaining_relievers
+                all_remaining.sort(key=lambda x: x.priority_score, reverse=True)
+                additional_players.extend(all_remaining[:slots_after_type_balance])
+            
             selected_players.extend(additional_players)
             return selected_players
         
-        # Calculate current low-point card percentages by player type
-        hitters_selected = [p for p in selected_players if p.player_subtype == 'POSITION_PLAYER']
-        starters_selected = [p for p in selected_players if p.player_subtype == 'STARTING_PITCHER']
-        relievers_selected = [p for p in selected_players if p.player_subtype == 'RELIEF_PITCHER']
-        
-        hitters_low_point = [p for p in hitters_selected if p.card_data and 10 <= p.card_data.points <= 50]
-        starters_low_point = [p for p in starters_selected if p.card_data and 10 <= p.card_data.points <= 50]
-        relievers_low_point = [p for p in relievers_selected if p.card_data and 10 <= p.card_data.points <= 50]
-        
-        # Calculate current percentages
-        hitters_low_pct = len(hitters_low_point) / len(hitters_selected) if hitters_selected else 0.0
-        starters_low_pct = len(starters_low_point) / len(starters_selected) if starters_selected else 0.0
-        relievers_low_pct = len(relievers_low_point) / len(relievers_selected) if relievers_selected else 0.0
-        
-        print(f"Current low-point percentages - Hitters: {hitters_low_pct:.1%}, Starters: {starters_low_pct:.1%}, Relievers: {relievers_low_pct:.1%}")
-        
-        # Determine how many low-point cards needed per type to reach ideal percentage
-        total_after_fill = total_selected + unused_slots
-        
-        # Calculate target counts based on player type distribution
-        target_hitters_total = round(total_after_fill * self.player_type_distribution.hitters_percentage)
-        target_starters_total = round(total_after_fill * self.player_type_distribution.starters_percentage)
-        target_relievers_total = total_after_fill - target_hitters_total - target_starters_total
-        
-        # Calculate how many low-point cards needed for each type
-        target_hitters_low_point = round(target_hitters_total * self.ideal_low_point_percentage)
-        target_starters_low_point = round(target_starters_total * self.ideal_low_point_percentage)
-        target_relievers_low_point = round(target_relievers_total * self.ideal_low_point_percentage)
-        
-        # Calculate how many more low-point cards we need
-        needed_hitters_low_point = max(0, target_hitters_low_point - len(hitters_low_point))
-        needed_starters_low_point = max(0, target_starters_low_point - len(starters_low_point))
-        needed_relievers_low_point = max(0, target_relievers_low_point - len(relievers_low_point))
-        
-        print(f"Target low-point cards - Hitters: {needed_hitters_low_point}, Starters: {needed_starters_low_point}, Relievers: {needed_relievers_low_point}")
-        
-        # Separate unselected players by type
-        unselected_hitters = [p for p in unselected_players if p.player_subtype == 'POSITION_PLAYER']
-        unselected_starters = [p for p in unselected_players if p.player_subtype == 'STARTING_PITCHER']
-        unselected_relievers = [p for p in unselected_players if p.player_subtype == 'RELIEF_PITCHER']
-        
-        # Separate by point range and calculate priority
-        def get_low_point_and_others(players) -> List[ShowdownBotSetPlayer]:
-            low_point = []
-            others = []
-            for player in players:
-                if player.card_data and 10 <= player.card_data.points <= 50:
-                    priority_score = self._calculate_priority_score(player)
-                    low_point.append(ShowdownBotSetPlayer(**player.model_dump(), priority_score=priority_score))
-                else:
-                    priority_score = self._calculate_priority_score(player)
-                    others.append(ShowdownBotSetPlayer(**player.model_dump(), priority_score=priority_score))
-            
-            low_point.sort(key=lambda x: x.priority_score, reverse=True)
-            others.sort(key=lambda x: x.priority_score, reverse=True)
-            return low_point, others
-        
-        hitters_low_point_pool, hitters_other_pool = get_low_point_and_others(unselected_hitters)
-        starters_low_point_pool, starters_other_pool = get_low_point_and_others(unselected_starters)
-        relievers_low_point_pool, relievers_other_pool = get_low_point_and_others(unselected_relievers)
-        
-        # Build the final additional players list
+        # If ideal low point percentage is set, balance low-point cards within each type
+        print(f"Ideal low-point percentage set to {self.ideal_low_point_percentage:.1%}, balancing within each player type.")
         additional_players = []
-        
-        # Add low-point players for each type
-        additional_players.extend([p for p in hitters_low_point_pool[:needed_hitters_low_point]])
-        additional_players.extend([p for p in starters_low_point_pool[:needed_starters_low_point]])
-        additional_players.extend([p for p in relievers_low_point_pool[:needed_relievers_low_point]])
-        
-        # Track which players we used
-        used_low_point_ids = set()
-        used_low_point_ids.update(p.id for p in hitters_low_point_pool[:needed_hitters_low_point])
-        used_low_point_ids.update(p.id for p in starters_low_point_pool[:needed_starters_low_point])
-        used_low_point_ids.update(p.id for p in relievers_low_point_pool[:needed_relievers_low_point])
-        
-        # Fill remaining slots with highest priority players (any point range)
-        remaining_slots = unused_slots - len(additional_players)
-        if remaining_slots > 0:
-            # Combine all remaining unselected players
-            remaining_hitters = [p for p in hitters_low_point_pool[needed_hitters_low_point:] if p.id not in used_low_point_ids] + hitters_other_pool
-            remaining_starters = [p for p in starters_low_point_pool[needed_starters_low_point:] if p.id not in used_low_point_ids] + starters_other_pool
-            remaining_relievers = [p for p in relievers_low_point_pool[needed_relievers_low_point:] if p.id not in used_low_point_ids] + relievers_other_pool
+        for unselected_list, allocation in [
+            (unselected_hitters, hitters_allocation),
+            (unselected_starters, starters_allocation),
+            (unselected_relievers, relievers_allocation)
+        ]:
+            if allocation <= 0:
+                continue
             
-            all_remaining = remaining_hitters + remaining_starters + remaining_relievers
-            all_remaining.sort(key=lambda x: x.priority_score, reverse=True)
+            # Calculate current low-point percentage in this type
+            current_type_players = [p for p in selected_players if p.player_subtype == unselected_list[0].player_subtype]
+            current_low_point_count = len([p for p in current_type_players if p.points is not None and p.points <= 50])
+            current_type_count = len(current_type_players)
+            current_low_point_pct = (current_low_point_count / current_type_count) if current_type_count > 0 else 0.0
             
-            additional_players.extend(all_remaining[:remaining_slots])
+            # Determine how many low-point cards to add
+            desired_low_point_count = ceil((current_type_count + allocation) * self.ideal_low_point_percentage)
+            low_point_needed = max(0, desired_low_point_count - current_low_point_count)
+            high_point_needed = allocation - low_point_needed
+            
+            print(f"For {unselected_list[0].player_subtype}, current low-point pct: {current_low_point_pct:.1%}, need {low_point_needed} low-point and {high_point_needed} high-point cards.")
+            
+            # Select low-point cards
+            low_point_candidates = [p for p in unselected_list if p.points is not None and p.points <= 50]
+            high_point_candidates = [p for p in unselected_list if p.points is None or p.points > 50]
+            
+            additional_players.extend(low_point_candidates[:low_point_needed])
+            additional_players.extend(high_point_candidates[:high_point_needed])
         
         selected_players.extend(additional_players)
-        
         return selected_players
     
     def _print_set_summary(self, selected_players: List[ShowdownBotSetPlayer], team_allocations: Dict[str, TeamAllocation], show_team_breakdown: Optional[str] = None):
@@ -468,20 +500,24 @@ class ShowdownBotSet(BaseModel):
 
         # Position breakdown
         position_counts: Dict[Position, int] = {}
-        position_10_pt_counts = {}
+        position_10_20_pt_counts = {}
+        positions_10_50_pt_counts = {}
         for player in selected_players:
-            position = player.card_data.primary_position
+            position = player.primary_position
             position_counts[position] = position_counts.get(position, 0) + 1
-            if player.card_data.points == 10:
-                print(f"Counting 10-pt card for position {position.name}: {player.name}")
-                position_10_pt_counts[position] = position_10_pt_counts.get(position, 0) + 1
+            if player.points <= 20:
+                print(f"Counting 10-20-pt card for position {position.name}: {player.name}")
+                position_10_20_pt_counts[position] = position_10_20_pt_counts.get(position, 0) + 1
+            if player.points <= 50:
+                positions_10_50_pt_counts[position] = positions_10_50_pt_counts.get(position, 0) + 1
 
         print(f"\nPosition Distribution:")
-        position_dist_table = PrettyTable(field_names=["Position", "Count", "Pct", "10-pt Cards"])
+        position_dist_table = PrettyTable(field_names=["Position", "Count", "Pct", "10-20-pt Cards", "10-50-pt Cards"])
         for pos in sorted(position_counts.keys(), key=lambda x: x.ordering_index or 0, reverse=True):
             count = position_counts[pos]
-            count_10 = position_10_pt_counts.get(pos, 0)
-            position_dist_table.add_row([pos.name, count, f"{(count/len(selected_players))*100:.1f}%", count_10])
+            count_10_20 = position_10_20_pt_counts.get(pos, 0)
+            count_10_50 = positions_10_50_pt_counts.get(pos, 0)
+            position_dist_table.add_row([pos.name, count, f"{(count/len(selected_players))*100:.1f}%", count_10_20, count_10_50])
         print(position_dist_table)
 
         print(f"Total Players Selected: {len(selected_players)} / {self.set_size}")
@@ -491,12 +527,12 @@ class ShowdownBotSet(BaseModel):
         print(f"\nPlayers Missing Exact Images: {len(top_players_missing_images)}")
         top_players_missing_images.sort(key=lambda p: getattr(p, "priority_score", 0) or 0, reverse=True)
         tbl_missing = PrettyTable()
-        tbl_missing.field_names = ["Name", "Score", "WAR", "Pos", "G", "GS", "ERA", "OPS", "Team", "Img"]
+        tbl_missing.field_names = ["Name", "Score", "WAR", "Pos", "G", "GS", "ERA", "OPS", "Team", "Img", "PTS"]
         for player in top_players_missing_images[:20]:
             tbl_missing.add_row([
-                player.name, f"{player.priority_score:.2f}" if player.priority_score is not None else "N/A", f"{player.war:.2f}" if player.war is not None else "N/A", 
-                player.card_data.primary_position.name.replace('_', ''), player.g, player.gs or '-', player.card_data.stats.get('earned_run_avg', '-') or "N/A", 
-                player.card_data.stats.get('onbase_plus_slugging', '-') or "N/A", player.team_id, player.image_match_type.value
+                player.name, f"{player.priority_score:.2f}" if player.priority_score is not None else "-", f"{player.war:.2f}" if player.war is not None else "N/A", 
+                player.primary_position.name.replace('_', ''), player.g, player.gs or '-', player.real_earned_run_avg or "-", 
+                player.real_onbase_plus_slugging or "-", player.team_id, player.image_match_type.value, player.points or "-"
             ])
         print(tbl_missing)
 
@@ -504,13 +540,13 @@ class ShowdownBotSet(BaseModel):
             print(f"\nDetailed Team Breakdown for {show_team_breakdown}:")
             team_players = [p for p in selected_players if p.team_id == show_team_breakdown]
             team_table = PrettyTable()
-            team_table.field_names = ["Name", "Score", "WAR", "Pos", "G", "GS", "ERA", "OPS", "Img"]
+            team_table.field_names = ["Name", "Score", "WAR", "Pos", "G", "GS", "ERA", "OPS", "Img", "PTS"]
             for player in team_players:
                 team_table.add_row([
-                    player.name, f"{player.priority_score:.2f}" if getattr(player, "priority_score", None) is not None else "N/A", 
-                    f"{player.war:.2f}" if player.war is not None else "N/A", player.card_data.primary_position.name.replace('_', ''), 
-                    player.g, player.gs or '-', player.card_data.stats.get('earned_run_avg', '-') or "N/A", 
-                    player.card_data.stats.get('onbase_plus_slugging', '-') or "N/A", player.image_match_type.value
+                    player.name, f"{player.priority_score:.2f}" if getattr(player, "priority_score", None) is not None else "-", 
+                    f"{player.war:.2f}" if player.war is not None else "N/A", player.primary_position.name.replace('_', ''), 
+                    player.g, player.gs or '-', player.real_earned_run_avg or "-", 
+                    player.real_onbase_plus_slugging or "-", player.image_match_type.value, player.points or "-"
                 ])
             print(team_table)
 
