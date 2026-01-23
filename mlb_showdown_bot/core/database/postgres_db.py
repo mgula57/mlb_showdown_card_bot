@@ -155,6 +155,13 @@ class ExploreDataRecord(BaseModel):
             return 'RELIEF_PITCHER'
     
     @property
+    def bref_id_w_type_override(self) -> str:
+        """Get bref ID with type override if applicable"""
+        if self.player_type_override:
+            return f"{self.bref_id}-{self.player_type_override}"
+        return self.bref_id
+
+    @property
     def primary_position(self) -> Optional[Position]:
         """Get primary position if available"""
         if self.positions_and_defense and len(self.positions_and_defense) > 0:
