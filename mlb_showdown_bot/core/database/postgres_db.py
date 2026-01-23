@@ -13,7 +13,7 @@ from typing import Optional, Any, Dict, List
 from enum import Enum
 
 # INTERNAL
-from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Set, StatsPeriodType, __version__
+from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Set, StatsPeriodType, __version__, Position
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
 
@@ -100,7 +100,7 @@ class ExploreDataRecord(BaseModel):
     team_override: Optional[str] = None
     
     # Card data
-    card_data: ShowdownPlayerCard = Field(description="Raw card data as stored")
+    card_data: Optional[ShowdownPlayerCard] = Field(None, description="Raw card data as stored") # ONLY FOR WOTC
     showdown_set: str = Field(description="Showdown set (e.g., '2001', 'CLASSIC')")
     showdown_bot_version: Optional[str] = Field(None, description="Version of showdown bot used")
     
@@ -112,7 +112,7 @@ class ExploreDataRecord(BaseModel):
     team: Optional[str] = Field(None, description="Team from team hierarchy")
     
     # Metadata
-    positions_and_defense: Optional[Dict[str, Any]] = Field(None, description="Position and defense ratings")
+    positions_and_defense: Optional[Dict[Position, int]] = Field(None, description="Position and defense ratings")
     positions_and_defense_string: Optional[str] = Field(None, description="Formatted positions string")
     ip: Optional[int] = Field(None, description="Innings pitched (card value)")
     speed: Optional[int] = Field(None, description="Speed rating")
@@ -121,6 +121,11 @@ class ExploreDataRecord(BaseModel):
     speed_full: Optional[str] = Field(None, description="Full speed designation (e.g., 'A(19)')")
     speed_or_ip: Optional[int] = Field(None, description="Speed for hitters, IP for pitchers")
     icons_list: List[str] = Field(default_factory=list, description="List of card icons")
+
+    # REAL STATS
+    real_bwar: Optional[float] = Field(None, description="Real bWAR")
+    real_onbase_plus_slugging: Optional[float] = Field(None, description="Real on-base plus slugging (OPS)")
+    real_earned_run_avg: Optional[float] = Field(None, description="Real earned run average (ERA)")
     
     # Awards and stats
     awards_list: List[str] = Field(default_factory=list, description="List of awards/achievements")
@@ -150,6 +155,20 @@ class ExploreDataRecord(BaseModel):
             return 'RELIEF_PITCHER'
     
     @property
+    def bref_id_w_type_override(self) -> str:
+        """Get bref ID with type override if applicable"""
+        if self.player_type_override:
+            return f"{self.bref_id}-{self.player_type_override}"
+        return self.bref_id
+
+    @property
+    def primary_position(self) -> Optional[Position]:
+        """Get primary position if available"""
+        if self.positions_and_defense and len(self.positions_and_defense) > 0:
+            return list(self.positions_and_defense.keys())[0]
+        return None
+
+    @property
     def is_multi_team(self) -> bool:
         """Whether player played for multiple teams"""
         return len(self.team_id_list) > 1
@@ -174,16 +193,7 @@ class ExploreDataRecord(BaseModel):
     @property
     def war(self) -> Optional[float]:
         """Get WAR from card data stats"""
-        if not self.card_data or not self.card_data.stats:
-            return None
-        
-        try:
-            war_value = self.card_data.stats.get('bWAR', None)
-            if war_value is not None:
-                return float(war_value)
-            return None
-        except (ValueError, TypeError):
-            return None
+        return self.real_bwar
     
     def get_position_defense_rating(self, position: str) -> Optional[int]:
         """Get defense rating for a specific position"""
@@ -192,28 +202,6 @@ class ExploreDataRecord(BaseModel):
         
         try:
             return int(self.positions_and_defense[position])
-        except (ValueError, TypeError):
-            return None
-    
-    def get_real_stat(self, stat_name: str) -> Optional[Any]:
-        """Get a real stat value from card data"""
-        if not self.card_data or 'stats' not in self.card_data:
-            return None
-        
-        stats = self.card_data['stats']
-        return stats.get(stat_name)
-    
-    def get_chart_value(self, outcome: str) -> Optional[float]:
-        """Get a specific chart outcome value"""
-        if not self.card_data or 'chart' not in self.card_data:
-            return None
-        
-        chart = self.card_data['chart']
-        if 'values' not in chart:
-            return None
-            
-        try:
-            return float(chart['values'].get(outcome, 0))
         except (ValueError, TypeError):
             return None
     
@@ -814,10 +802,10 @@ class PostgresDB:
 
             elif 'real_stats' in sort_by:
                 real_stats_key = sort_by.replace('real_stats_', 'real_').lower()
-                final_sort = sql.SQL("""%s {direction} NULLS LAST""").format(
+                final_sort = sql.SQL("""{field} {direction} NULLS LAST""").format(
+                    field=sql.Identifier(real_stats_key),
                     direction=sql.SQL(sort_direction)
                 )
-                filter_values += [real_stats_key]
 
             else:
                 final_sort = sql.SQL("{field} {direction} NULLS LAST").format(

@@ -266,7 +266,7 @@ export async function fetchCardOfTheDay(showdownSet: string): Promise<CardOfTheD
 // =============================================================================
 
 // Cache configuration
-const HIERARCHY_CACHE_KEY = 'teamHierarchy:v2';
+const HIERARCHY_CACHE_KEY = 'teamHierarchy:v3';
 const HIERARCHY_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
