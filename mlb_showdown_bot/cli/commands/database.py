@@ -11,6 +11,7 @@ app = typer.Typer()
 
 @app.command("run")
 def database_update(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
     years: str = typer.Option(None, "--years", "-y", help="Which year(s) to archive."),
     showdown_sets: str = typer.Option("CLASSIC,EXPANDED,2000,2001,2002,2003,2004,2005", "--showdown_sets", "-s", help="Showdown Set(s) to use, comma-separated."),
     publish_to_postgres: bool = typer.Option(False, "--publish_to_postgres", "-pg", help="Publish archived data to Postgres"),
@@ -32,6 +33,7 @@ def database_update(
     """Archive player stats to Postgres"""
 
     start_time = time.time()
+    is_production = env.lower() == "prod"
     
     try:
         year_list = convert_year_string_to_list(years) if years else []
@@ -76,17 +78,17 @@ def database_update(
             )
 
         if run_auto_image_suggestions:
-            db = PostgresDB(is_archive=True)
+            db = PostgresDB(is_archive=is_production)
             db.build_auto_image_table(refresh_explore=refresh_explore, drop_existing=drop_existing)
 
         if not run_player_cards and refresh_explore:
             print("Refreshing Explore materialized views...")
-            db = PostgresDB(is_archive=True)
+            db = PostgresDB(is_archive=is_production)
             db.refresh_explore_views(drop_existing=drop_existing)
 
         if refresh_trends:
             print("Refreshing Trending Cards data...")
-            db = PostgresDB(is_archive=True)
+            db = PostgresDB(is_archive=is_production)
             db.refresh_all_trends()
 
     except Exception as e:
@@ -119,11 +121,12 @@ def database_feature_status(
     feature_name: str = typer.Option(None, "--feature_name", "-f", help="Name of the feature to check status."),
     disable_feature: bool = typer.Option(False, "--disable", "-d", help="Is the feature disabled?"),
     message: str = typer.Option(None, "--message", "-m", help="Optional message for the status update."),
-    is_archive: bool = typer.Option(False, "--is_archive", "-arch", help="Use the archive database"),
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
 ):
     """Check status of database features"""
     print(f"Updating feature '{feature_name}' to disabled={disable_feature} with message='{message}'")
-    db = PostgresDB(is_archive=is_archive)
+    is_production = env.lower() == "prod"
+    db = PostgresDB(is_archive=is_production)
     db.update_feature_status(feature_name=feature_name, is_disabled=disable_feature, message=message)
     print("✅ Feature status updated.")
 
@@ -138,22 +141,26 @@ def store_fielding_stats_in_db():
     df = fg_api.fetch_fielding_stats(season=2025, position="LF", fangraphs_player_ids=[])
 
 @app.command("refresh_player_id_table")
-def refresh_player_id_table():
+def refresh_player_id_table(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in")
+):
     """Fetch player ID mapping data and refresh the player_id_master table in Postgres DB"""
     from ...core.ids.fetch_player_id_csv import fetch_player_id_csv
     from ...core.database.postgres_db import PostgresDB
+    is_production = env.lower() == "prod"
 
     print("Fetching player ID mapping data...")
     data = fetch_player_id_csv()
     print(f"Fetched {len(data)} player ID records.")
 
     print("Updating player_id_master table in Postgres DB...")
-    db = PostgresDB()
+    db = PostgresDB(is_archive=is_production)
     db.update_player_id_table(data)
     print("✅ player_id_master table refreshed.")
 
 @app.command("spotlight")
 def publish_spotlight_cards(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
     player_ids: str = typer.Option(..., "--player_ids", "-p", help="Comma-separated list of player IDs to spotlight."),
     message: str = typer.Option("Featured by the MLB Showdown Bot team", "--message", "-m", help="Message or reason for spotlighting the cards.")
 ):
@@ -161,29 +168,34 @@ def publish_spotlight_cards(
     parsed_player_ids = [pid.strip() for pid in player_ids.split(',') if pid.strip()]
     print(f"Publishing spotlight for player IDs: {parsed_player_ids} with message: '{message}'")
 
-    db = PostgresDB(is_archive=True)
+    is_production = env.lower() == "prod"
+    db = PostgresDB(is_archive=is_production)
     db.publish_new_spotlight(player_ids=parsed_player_ids, message=message)
     print("✅ Spotlight cards published.")
 
 @app.command("refresh_card_of_the_day")
-def refresh_card_of_the_day():
+def refresh_card_of_the_day(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+):
     """Refresh the Card of the Day in the database"""
     from ...core.database.postgres_db import PostgresDB
 
     print("Refreshing Card of the Day...")
-    db = PostgresDB(is_archive=True)
+    is_production = env.lower() == "prod"
+    db = PostgresDB(is_archive=is_production)
     db.refresh_card_of_the_day()
     print("✅ Card of the Day refreshed.")
 
 @app.command("build_logging_tables")
 def build_logging_tables(
-    is_archive: bool = typer.Option(False, "--is_archive", "-arch", help="Build logging tables in the archive database")
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in")
 ):
     """Build logging tables in the archive database"""
     from ...core.database.postgres_db import PostgresDB
 
     print("Building logging tables in the archive database...")
-    db = PostgresDB(is_archive=is_archive)
+    is_production = env.lower() == "prod"
+    db = PostgresDB(is_archive=is_production)
     db.build_logging_tables()
     print("✅ Logging tables built.")
 

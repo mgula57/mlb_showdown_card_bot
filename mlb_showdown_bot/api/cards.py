@@ -86,7 +86,7 @@ def build_image_for_card():
         payload['card'] = card.as_json()
 
         # LOGGING
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB()
         db.log_card_image_generation(card_id=card.id)
 
         return jsonify(payload)
