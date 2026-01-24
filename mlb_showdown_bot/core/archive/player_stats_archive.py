@@ -31,7 +31,7 @@ class PlayerStatsArchive:
 # PLAYER LIST GENERATION
 # ------------------------------------------------------------------------
 
-    def generate_player_list(self, delay_between_years:float = 2.5, publish_to_postgres:bool=False) -> None:
+    def generate_player_list(self, delay_between_years:float = 2.5, publish_to_postgres:bool=False, env: str = "dev") -> None:
         """Query baseball reference to get player list for each year requested.
         Stores final output to player_list class attribute as list of dictionaries.
 
@@ -44,7 +44,8 @@ class PlayerStatsArchive:
 
         if publish_to_postgres:
             # CREATE DATABASE TABLE
-            db = PostgresDB(is_archive=True)
+            is_prod = env.lower() == 'prod'
+            db = PostgresDB(is_archive=is_prod)
             db.create_player_season_stats_table()
             db_cursor = db.connection.cursor()
 
@@ -220,12 +221,13 @@ class PlayerStatsArchive:
     def is_player_list_empty(self) -> bool:
         return len(self.player_list) == 0
 
-    def scrape_stats_for_player_list(self, delay:float = 10.0, publish_to_postgres:bool=True, limit:int=None, exclude_records_with_stats:bool=True, modified_start_date:str = None, modified_end_date:str = None, player_id_list:list[str] = None) -> None:
+    def scrape_stats_for_player_list(self, delay:float = 10.0, publish_to_postgres:bool=True, env: str = "dev", limit:int=None, exclude_records_with_stats:bool=True, modified_start_date:str = None, modified_end_date:str = None, player_id_list:list[str] = None) -> None:
         """Using the class player_list array, iterrate through players and scrape bref data.
 
         Args:
             delay: Delay between each player's scrape.
             publish_to_postgres: Flag to publish data to postgres.
+            env: Environment to run in (dev, prod).
             limit: Limit for how many players can be run.
             exclude_records_with_stats: Flag to exclude records with stats.
             modified_start_date: Limit to only records modified after this date.
@@ -237,7 +239,8 @@ class PlayerStatsArchive:
 
         if publish_to_postgres:
             # CREATE DATABASE TABLE
-            db = PostgresDB(is_archive=True)
+            is_prod = env.lower() == 'prod'
+            db = PostgresDB(is_archive=is_prod)
             db.create_player_season_stats_table()
             db_cursor = db.connection.cursor()
 
@@ -332,7 +335,7 @@ class PlayerStatsArchive:
 # CONVERTING TO SHOWDOWN CARDS
 # ------------------------------------------------------------------------
 
-    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, refresh_explore: bool=True, sets: list[ShowdownSet] = None, ignore_minimums: bool = False) -> None:
+    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, env: str = "dev", refresh_explore: bool=True, sets: list[ShowdownSet] = None, ignore_minimums: bool = False) -> None:
         """Using the class player_list
         
         Args:
@@ -352,7 +355,8 @@ class PlayerStatsArchive:
         # FETCH PLAYER DATA FROM ARCHIVE
         if publish_to_postgres:
             # CREATE DATABASE TABLE
-            db = PostgresDB(is_archive=True)
+            is_prod = env.lower() == 'prod'
+            db = PostgresDB(is_archive=is_prod)
 
             # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
             if self.is_player_list_empty:

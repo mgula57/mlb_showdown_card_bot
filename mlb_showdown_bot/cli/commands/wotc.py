@@ -8,6 +8,7 @@ app = typer.Typer()
 
 @app.command("convert")
 def wotc_conversion(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run in (dev, prod)"),
     sets: str = typer.Option(None, "--sets", "-s", help="Which sets to convert, comma-separated."),
     upload_to_postgres: bool = typer.Option(False, "--upload_to_postgres", "-pg", help="Upload converted data to Postgres"),
     drop_existing: bool = typer.Option(False, "--drop_existing", "-d", help="Drop existing table before uploading new data")
@@ -18,7 +19,8 @@ def wotc_conversion(
 
     if upload_to_postgres:
         start_time = time.time()
-        db = PostgresDB(is_archive=True)
+        is_prod = env.lower() == 'prod'
+        db = PostgresDB(is_archive=is_prod)
         db.upload_wotc_card_data(wotc_card_data=list(wotc_set.cards.values()), drop_existing=drop_existing)
         end_time = time.time()
         print(f"✅ Uploaded WOTC data to Postgres in {end_time - start_time:.2f} seconds.")

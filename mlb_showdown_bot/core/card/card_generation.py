@@ -59,7 +59,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
     db_for_logs = kwargs.get('db_connection', None)
     if log_to_db:
         # CONNECT TO DB
-        db_for_logs = db_for_logs or PostgresDB(is_archive=False)
+        db_for_logs = db_for_logs or PostgresDB()
         if not db_for_logs.connection:
             db_for_logs = None
             print("Failed to connect to database for logging. Continuing without logging.")

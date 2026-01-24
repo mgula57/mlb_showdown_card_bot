@@ -10,7 +10,7 @@ card_db_bp = Blueprint('card_data', __name__)
 def fetch_card_list():
     """Fetch card data from the database"""
     try:
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB()
 
         # Get query parameters
         payload = request.get_json() or {}
@@ -28,7 +28,7 @@ def fetch_card_list():
 def fetch_team_data():
     """Fetch team data from the database"""
     try:
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB()
 
         team_data = db.fetch_team_data()
         db.close_connection()
@@ -42,7 +42,7 @@ def fetch_team_data():
 def fetch_card():
     """Fetch a single card by its ID"""
     try:
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB()
         id = request.args.get('id')
         source = request.args.get('src', 'unknown')
         card = db.fetch_single_card(id)
@@ -61,7 +61,7 @@ def fetch_card():
 def fetch_total_card_count():
     """Fetch the total count of cards in the database"""
     try:
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB()
         total_count = db.fetch_total_card_count()
         db.close_connection()
 
@@ -77,7 +77,7 @@ def fetch_trending_cards():
 
         payload = request.get_json() or {}
         showdown_set = payload.get('set')
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB()
         trending_cards = db.fetch_trending_cards(set=showdown_set)
         db.close_connection()
 
@@ -94,7 +94,7 @@ def fetch_popular_cards():
 
         payload = request.get_json() or {}
         showdown_set = payload.get('set')
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB()
         popular_cards = db.fetch_popular_cards(set=showdown_set)
         db.close_connection()
 
@@ -112,7 +112,7 @@ def fetch_spotlight_cards():
         payload = request.get_json() or {}
         showdown_set = payload.get('set')
         limit = payload.get('limit', 4)
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB()
         spotlight_cards = db.fetch_latest_spotlight_cards(set=showdown_set, limit=limit)
         db.close_connection()
 
@@ -128,7 +128,7 @@ def fetch_card_of_the_day():
     try:
         payload = request.get_json() or {}
         showdown_set = payload.get('set')
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB()
         card_of_the_day = db.fetch_card_of_the_day(set=showdown_set)
         db.close_connection()
 

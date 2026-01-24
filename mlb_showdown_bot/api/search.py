@@ -26,7 +26,7 @@ def search_players():
         from mlb_showdown_bot.core.database.postgres_db import PostgresDB
 
         # CONNECT TO DB
-        conn = PostgresDB(is_archive=True).connection # TODO: CHANGE BEFORE PROD
+        conn = PostgresDB().connection
         cursor = conn.cursor()
 
         # Check query type
