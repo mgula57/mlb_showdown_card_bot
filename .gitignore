@@ -53,6 +53,7 @@ mlb_showdown_sim/
 showdown-bot-app/
 **/cache_data/
 **/image_output/
+**/image_uploads/
 
 # FRONTEND
 frontend/node_modules/
