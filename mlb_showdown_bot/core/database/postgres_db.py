@@ -1892,6 +1892,7 @@ class PostgresDB:
         """
         db_cursor.execute(table_exists_query)
         table_exists = db_cursor.fetchone()[0]
+        truncate_or_drop_table_statement = None
         if table_exists:
             print("dim_auto_image table exists. It will be replaced with new data.")
         
@@ -1904,10 +1905,6 @@ class PostgresDB:
                 truncate_or_drop_table_statement = '''
                     TRUNCATE TABLE internal.dim_auto_image;
                 '''
-        else:
-            truncate_or_drop_table_statement = '''
-                -- Table does not exist, will be created.
-            '''
         create_table_statement = f'''
             CREATE TABLE IF NOT EXISTS internal.dim_auto_image(
                 year VARCHAR(20) NOT NULL,
@@ -1924,7 +1921,8 @@ class PostgresDB:
             ON internal.dim_auto_image (year, player_id, player_type_override, team_id, is_postseason);
         '''
         try:
-            db_cursor.execute(truncate_or_drop_table_statement)
+            if truncate_or_drop_table_statement:
+                db_cursor.execute(truncate_or_drop_table_statement)
             db_cursor.execute(create_table_statement)
             db_cursor.execute(index_statement)
         except Exception as e:
@@ -1977,7 +1975,7 @@ class PostgresDB:
 
     def build_logging_tables(self) -> None:
         """Create necessary logging tables if they do not exist."""
-        # self.create_custom_card_logging_table()
+        self.create_custom_card_logging_table()
         self.create_log_player_search_table()
         self.create_log_card_image_generation_table()
         self.create_log_card_id_lookup_table()
