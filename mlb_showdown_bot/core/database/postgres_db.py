@@ -921,7 +921,11 @@ class PostgresDB:
 
             # CREATE INDEXES
             cursor.execute("""
-                CREATE UNIQUE INDEX idx_dim_card_id ON internal.dim_card(id);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_card_id ON internal.dim_card(id);
+            """)
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_card_player_set_version 
+                ON internal.dim_card(player_id, showdown_set, version);
             """)
             print("  → Ensured dim_card indexes exist.")
 
@@ -2430,6 +2434,9 @@ class PostgresDB:
             print("ERROR: NO CONNECTION TO DB")
             return
         
+        # ENSURE TABLE IS ALREADY BUILT
+        self.create_dim_card_table()
+        
         cursor = self.connection.cursor()
         
         try:
@@ -2450,14 +2457,16 @@ class PostgresDB:
                     
                     # Clean up the data for JSON storage
                     id_fields = [field for field in [showdown.year, showdown.bref_id, f'({showdown.player_type_override.value})' if showdown.player_type_override else None] if field is not None]
-                    card_data['player_id'] = "-".join(id_fields).lower()
+                    player_id = "-".join(id_fields).lower()
+                    card_data['player_id'] = player_id
                     card_data['name'] = unidecode(card_data['name'])
+                    card_data['id'] = "-".join([player_id, showdown.set.value])
 
-                    batch_data.append((card_data['player_id'], showdown.set.value, showdown.version, card_data))
+                    batch_data.append((card_data['id'], card_data['player_id'], showdown.set.value, showdown.version, card_data))
 
                 # Insert batch
                 insert_query = """
-                    INSERT INTO internal.dim_card (player_id, showdown_set, version, card_data) 
+                    INSERT INTO internal.dim_card (id, player_id, showdown_set, version, card_data) 
                     VALUES %s
                     ON CONFLICT (player_id, showdown_set, version) 
                     DO UPDATE SET 
@@ -3059,10 +3068,51 @@ class PostgresDB:
             CREATE INDEX IF NOT EXISTS card_of_the_day_last_refreshed_idx
             ON public.card_of_the_day (last_refreshed DESC, showdown_set);
         '''
+        # CREATE A VIEW FOR THE SQL LOGIC
+        random_card_view = '''
+            CREATE OR REPLACE VIEW internal.dim_random_card as (
+                with 
+
+                selected_id as (
+
+                    select
+                        year || '-' || player_id as player_id
+                    from internal.dim_auto_image
+                    where 
+                        (year || '-' || player_id) not in (
+                            select player_id
+                            from public.card_of_the_day
+                            where card_date >= current_date - interval '90 day'
+                        ) and (year || '-' || player_id) in (
+                            select player_id from internal.dim_card
+                        )
+                    order by random()
+                    limit 1
+
+                ),
+
+                cards as (
+
+                    select 
+                        player_id,
+                        card_data,
+                        showdown_set,
+                        version,
+                        modified_date
+                    from internal.dim_card
+                    where player_id = (select * from selected_id)
+
+                )
+
+                select *
+                from cards
+            );
+        '''
         cursor = self.connection.cursor()
         try:
             cursor.execute(create_table_sql)
             cursor.execute(index_sql)
+            cursor.execute(random_card_view)
             self.connection.commit()
         except Exception as e:
             import traceback
@@ -3073,38 +3123,13 @@ class PostgresDB:
         
         # REFRESH LOGIC: Pick a random card from the dim_card table for today
         refresh_sql = '''
-            with 
-
-            selected_id as (
-
-                select
-                    year || '-' || player_id as player_id
-                from internal.dim_auto_image
-                where year || '-' || player_id not in (
-                    select player_id
-                    from public.card_of_the_day
-                    where card_date >= current_date - interval '90 day'
-                )
-                order by random()
-                limit 1
-
-            ),
-
-            cards as (
-
-                select 
-                    player_id,
-                    card_data,
-                    showdown_set,
-                    version,
-                    modified_date
-                from internal.dim_card
-                where player_id = (select * from selected_id)
-
-            )
-
-            select *
-            from cards
+            SELECT 
+                player_id,
+                card_data,
+                showdown_set,
+                version,
+                modified_date
+            FROM internal.dim_random_card;
         '''
         try:
             card_data = self.execute_query(query=refresh_sql)
@@ -3134,7 +3159,9 @@ class PostgresDB:
                     card['modified_date']
                 ))
             self.connection.commit()
-            print("✓ Card of the day refreshed.")
+            card_player_name = card_data[0]['card_data'].get('name', 'Unknown Player')
+            card_player_year = card_data[0]['card_data'].get('year', 'Unknown Year')
+            print(f"✓ Card of the day refreshed: {card_player_name} ({card_player_year})")
         except Exception as e:
             print(f"ERROR inserting card of the day: {e}")
             self.connection.rollback()
