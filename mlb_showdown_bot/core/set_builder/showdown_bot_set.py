@@ -10,6 +10,22 @@ from math import ceil
 # Table
 from prettytable import PrettyTable
 
+# ANSI color codes
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    END = '\033[0m'
+
+def color_image_match(image_match_type: ImageMatchType) -> str:
+    """Color code the image match type for terminal output"""
+    if image_match_type == ImageMatchType.EXACT:
+        return f"{Colors.GREEN}{image_match_type.value}{Colors.END}"
+    elif image_match_type == ImageMatchType.TEAM_MATCH:
+        return f"{Colors.YELLOW}{image_match_type.value}{Colors.END}"
+    else:  # NO_MATCH or YEAR_MATCH
+        return f"{Colors.RED}{image_match_type.value}{Colors.END}"
+
 class TeamAllocation(BaseModel):
     """How many players each team should get"""
     team_id: str
@@ -532,7 +548,7 @@ class ShowdownBotSet(BaseModel):
             tbl_missing.add_row([
                 player.name, f"{player.priority_score:.2f}" if player.priority_score is not None else "-", f"{player.war:.2f}" if player.war is not None else "N/A", 
                 player.primary_position.name.replace('_', ''), player.g, player.gs or '-', player.real_earned_run_avg or "-", 
-                player.real_onbase_plus_slugging or "-", player.team_id, player.image_match_type.value, player.points or "-"
+                player.real_onbase_plus_slugging or "-", player.team_id, color_image_match(player.image_match_type), player.points or "-"
             ])
         print(tbl_missing)
 
@@ -546,7 +562,7 @@ class ShowdownBotSet(BaseModel):
                     player.name, f"{player.priority_score:.2f}" if getattr(player, "priority_score", None) is not None else "-", 
                     f"{player.war:.2f}" if player.war is not None else "N/A", player.primary_position.name.replace('_', ''), 
                     player.g, player.gs or '-', player.real_earned_run_avg or "-", 
-                    player.real_onbase_plus_slugging or "-", player.image_match_type.value, player.points or "-"
+                    player.real_onbase_plus_slugging or "-", color_image_match(player.image_match_type), player.points or "-"
                 ])
             print(team_table)
 
