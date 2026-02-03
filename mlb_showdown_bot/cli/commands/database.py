@@ -22,6 +22,7 @@ def database_update(
     refresh_explore: bool = typer.Option(False, "--refresh_explore", "-exp", help="Refresh Explore materialized views"),
     refresh_trends: bool = typer.Option(False, "--refresh_trends", "-trends", help="Refresh trending cards data"),
     drop_existing: bool = typer.Option(False, "--drop_existing", "-drop", help="Drop existing materialized views before refreshing"),
+    is_full_refresh: bool = typer.Option(False, "--is_full_refresh", "-f", help="Is this a full refresh of player cards"),
     exclude_records_with_stats: bool = typer.Option(False, "--exclude_records_with_stats", "-ers", help="Exclude records that already have stats in the database when scraping player stats"),
     daily_mid_season_update: bool = typer.Option(False, "--daily_mid_season_update", "-dmsu", help="Run a daily mid-season update to catch stat changes"),
     modified_start_date: Optional[str] = typer.Option(None, "--modified_start_date", "-mod_s", help="Only include records modified after this date"),
@@ -84,7 +85,7 @@ def database_update(
         if not run_player_cards and refresh_explore:
             print("Refreshing Explore materialized views...")
             db = PostgresDB(is_archive=is_production)
-            db.refresh_explore_views(drop_existing=drop_existing)
+            db.refresh_explore_views(drop_existing=drop_existing, is_full_refresh=is_full_refresh)
 
         if refresh_trends:
             print("Refreshing Trending Cards data...")

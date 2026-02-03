@@ -852,7 +852,7 @@ class PostgresDB:
         data = self.execute_query(query)
         return data
 
-    def refresh_explore_views(self, drop_existing:bool=False) -> None:
+    def refresh_explore_views(self, drop_existing:bool=False, is_full_refresh:bool=False) -> None:
         """Refreshes all explore related materialized views.
 
         Views:
@@ -863,7 +863,8 @@ class PostgresDB:
             
         Args:
             drop_existing: If True, drop existing views before recreating them.
-            
+            is_full_refresh: If True, perform a full refresh of the views.
+
         Returns:
             None
         """
@@ -878,7 +879,7 @@ class PostgresDB:
         # REFRESH MATERIALIZED VIEWS
         if not self.build_player_search_view(drop_existing=drop_existing): return
         if not self.build_dim_team_years_view(drop_existing=drop_existing): return
-        if not self.build_card_bot_view(drop_existing=drop_existing): return
+        if not self.build_card_bot_view(drop_existing=drop_existing, full_refresh=is_full_refresh): return
         if not self.build_team_search_view(drop_existing=drop_existing): return
 
         self.connection.close()
@@ -1493,11 +1494,12 @@ class PostgresDB:
             drop_existing=drop_existing
         )
 
-    def build_card_bot_view(self, drop_existing:bool = False) -> None:
-        """Build or refresh the card_bot materialized view.
+    def build_card_bot_view(self, drop_existing:bool = False, full_refresh:bool = False) -> None:
+        """Build or refresh the card_bot incremental table.
         
         Args:
-            drop_existing: If True, drop the existing view before creating a new one.
+            drop_existing: If True, drop the existing table before creating a new one.
+            full_refresh: If True, reprocess all records regardless of modification dates.
         
         """
 
@@ -1521,6 +1523,10 @@ class PostgresDB:
                 player_season_stats.team_id_list,
                 player_season_stats.team_games_played_dict,
                 player_season_stats.team_override,
+                
+                -- SOURCE MODIFICATION TRACKING
+                player_season_stats.modified_date as stats_modified_date,
+                dim_card.modified_date as card_modified_date,
                 
                 ----- PARSED CARD ATTRIBUTES -----
 
@@ -1662,9 +1668,7 @@ class PostgresDB:
                 and player_season_stats.team_id = exact_img_match.team_id
                 and exact_img_match.is_postseason = FALSE
         '''
-        indexes = [
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_card_bot_card_set_version ON card_bot (id, showdown_set, showdown_bot_version);"
-        ]
+        
         # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
         if drop_existing:
             self.update_feature_status(
@@ -1673,33 +1677,369 @@ class PostgresDB:
                 is_disabled=True
             )
 
-        print("Building card_bot materialized view. This may take several minutes...")
+        print("Building card_bot table. This may take several minutes...")
 
         # SET TIMEOUT TO 30 MINUTES FOR LARGE REFRESHES
-        query = "SET statement_timeout = %s;"
-        timeout_ms = '30min'
         cursor = self.connection.cursor()
         try:
-            cursor.execute(query, (timeout_ms,))
+            cursor.execute("SET statement_timeout = %s;", ('30min',))
+            
+            # CREATE TABLE IF NOT EXISTS (first time setup)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS card_bot (
+                    id text NOT NULL,
+                    year integer,
+                    bref_id text,
+                    name text,
+                    player_type text,
+                    player_type_override text,
+                    is_two_way boolean,
+                    primary_positions text[],
+                    secondary_positions text[],
+                    g integer,
+                    gs integer,
+                    pa integer,
+                    real_ip numeric,
+                    lg_id text,
+                    team_id text,
+                    team_id_list text[],
+                    team_games_played_dict jsonb,
+                    team_override text,
+                    stats_modified_date timestamp,
+                    card_modified_date timestamp,
+                    card_id text,
+                    card_year text,
+                    showdown_set text,
+                    showdown_bot_version text,
+                    expansion text,
+                    edition text,
+                    set_number text,
+                    points integer,
+                    points_estimated integer,
+                    points_diff_estimated_vs_actual integer,
+                    nationality text,
+                    organization text,
+                    league text,
+                    team text,
+                    color_primary text,
+                    color_secondary text,
+                    positions_and_defense jsonb,
+                    positions_and_defense_string text,
+                    positions_list text[],
+                    ip integer,
+                    speed integer,
+                    hand text,
+                    speed_letter text,
+                    speed_full text,
+                    speed_or_ip integer,
+                    icons_list text[],
+                    awards_list text[],
+                    is_hof boolean,
+                    stat_highlights_list jsonb,
+                    is_small_sample_size boolean,
+                    real_pa integer,
+                    real_g integer,
+                    real_gs integer,
+                    real_bwar numeric,
+                    real_dwar numeric,
+                    real_batting_avg numeric,
+                    real_onbase_perc numeric,
+                    real_slugging_perc numeric,
+                    real_onbase_plus_slugging numeric,
+                    real_onbase_plus_slugging_plus numeric,
+                    real_earned_run_avg numeric,
+                    real_whip numeric,
+                    real_h integer,
+                    real_1b integer,
+                    real_2b integer,
+                    real_3b integer,
+                    real_hr integer,
+                    real_sb integer,
+                    real_so integer,
+                    real_bb integer,
+                    real_w integer,
+                    real_sv integer,
+                    command integer,
+                    outs integer,
+                    is_pitcher boolean,
+                    is_chart_outlier boolean,
+                    chart_ranges jsonb,
+                    chart_values jsonb,
+                    is_errata boolean,
+                    notes text,
+                    image_match_type text,
+                    image_ids jsonb,
+                    updated_at timestamp,
+                    PRIMARY KEY (id, showdown_set, showdown_bot_version)
+                );
+            """)
+            print("  → Ensured card_bot table exists.")
+            
+            # DROP AND RECREATE IF REQUESTED
+            if drop_existing:
+                cursor.execute("DROP TABLE IF EXISTS card_bot CASCADE;")
+                print("  → Dropped existing card_bot table.")
+                cursor.execute("""
+                    CREATE TABLE card_bot (
+                        id text NOT NULL,
+                        year integer,
+                        bref_id text,
+                        name text,
+                        player_type text,
+                        player_type_override text,
+                        is_two_way boolean,
+                        primary_positions text[],
+                        secondary_positions text[],
+                        g integer,
+                        gs integer,
+                        pa integer,
+                        real_ip numeric,
+                        lg_id text,
+                        team_id text,
+                        team_id_list text[],
+                        team_games_played_dict jsonb,
+                        team_override text,
+                        stats_modified_date timestamp,
+                        card_modified_date timestamp,
+                        card_id text,
+                        card_year text,
+                        showdown_set text,
+                        showdown_bot_version text,
+                        expansion text,
+                        edition text,
+                        set_number text,
+                        points integer,
+                        points_estimated integer,
+                        points_diff_estimated_vs_actual integer,
+                        nationality text,
+                        organization text,
+                        league text,
+                        team text,
+                        color_primary text,
+                        color_secondary text,
+                        positions_and_defense jsonb,
+                        positions_and_defense_string text,
+                        positions_list text[],
+                        ip integer,
+                        speed integer,
+                        hand text,
+                        speed_letter text,
+                        speed_full text,
+                        speed_or_ip integer,
+                        icons_list text[],
+                        awards_list text[],
+                        is_hof boolean,
+                        stat_highlights_list jsonb,
+                        is_small_sample_size boolean,
+                        real_pa integer,
+                        real_g integer,
+                        real_gs integer,
+                        real_bwar numeric,
+                        real_dwar numeric,
+                        real_batting_avg numeric,
+                        real_onbase_perc numeric,
+                        real_slugging_perc numeric,
+                        real_onbase_plus_slugging numeric,
+                        real_onbase_plus_slugging_plus numeric,
+                        real_earned_run_avg numeric,
+                        real_whip numeric,
+                        real_h integer,
+                        real_1b integer,
+                        real_2b integer,
+                        real_3b integer,
+                        real_hr integer,
+                        real_sb integer,
+                        real_so integer,
+                        real_bb integer,
+                        real_w integer,
+                        real_sv integer,
+                        command integer,
+                        outs integer,
+                        is_pitcher boolean,
+                        is_chart_outlier boolean,
+                        chart_ranges jsonb,
+                        chart_values jsonb,
+                        is_errata boolean,
+                        notes text,
+                        image_match_type text,
+                        image_ids jsonb,
+                        updated_at timestamp,
+                        PRIMARY KEY (id, showdown_set, showdown_bot_version)
+                    );
+                """)
+                print("  → Created new card_bot table.")
+            
+            # BUILD INCREMENTAL UPDATE QUERY
+            if full_refresh or drop_existing:
+                # Full refresh - process all records
+                where_clause = "WHERE TRUE"
+                print("  → Performing full refresh of all records.")
+            else:
+                # Incremental - only process changed records
+                # Get the last update timestamp from card_bot
+                cursor.execute("SELECT MAX(updated_at) FROM card_bot;")
+                result = cursor.fetchone()
+                last_update = result[0] if result and result[0] else '1900-01-01'
+                
+                where_clause = f"""
+                WHERE (
+                    player_season_stats.modified_date > '{last_update}'
+                    OR dim_card.modified_date > '{last_update}'
+                    OR EXISTS (
+                        SELECT 1 FROM internal.dim_auto_image dai
+                        WHERE dai.player_id = player_season_stats.bref_id
+                        AND dai.year = player_season_stats.year::text
+                        AND dai.created_date > '{last_update}'
+                    )
+                )
+                """
+                print(f"  → Performing incremental refresh for records modified after {last_update}.")
+            
+            # Build full query with WHERE clause
+            full_query = f"{sql_logic} {where_clause}"
+            
+            # UPSERT into card_bot
+            upsert_query = f"""
+                INSERT INTO card_bot
+                SELECT * FROM ({full_query}) as source_data
+                ON CONFLICT (id, showdown_set, showdown_bot_version) 
+                DO UPDATE SET
+                    year = EXCLUDED.year,
+                    bref_id = EXCLUDED.bref_id,
+                    name = EXCLUDED.name,
+                    player_type = EXCLUDED.player_type,
+                    player_type_override = EXCLUDED.player_type_override,
+                    is_two_way = EXCLUDED.is_two_way,
+                    primary_positions = EXCLUDED.primary_positions,
+                    secondary_positions = EXCLUDED.secondary_positions,
+                    g = EXCLUDED.g,
+                    gs = EXCLUDED.gs,
+                    pa = EXCLUDED.pa,
+                    real_ip = EXCLUDED.real_ip,
+                    lg_id = EXCLUDED.lg_id,
+                    team_id = EXCLUDED.team_id,
+                    team_id_list = EXCLUDED.team_id_list,
+                    team_games_played_dict = EXCLUDED.team_games_played_dict,
+                    team_override = EXCLUDED.team_override,
+                    stats_modified_date = EXCLUDED.stats_modified_date,
+                    card_modified_date = EXCLUDED.card_modified_date,
+                    card_id = EXCLUDED.card_id,
+                    card_year = EXCLUDED.card_year,
+                    showdown_set = EXCLUDED.showdown_set,
+                    showdown_bot_version = EXCLUDED.showdown_bot_version,
+                    expansion = EXCLUDED.expansion,
+                    edition = EXCLUDED.edition,
+                    set_number = EXCLUDED.set_number,
+                    points = EXCLUDED.points,
+                    points_estimated = EXCLUDED.points_estimated,
+                    points_diff_estimated_vs_actual = EXCLUDED.points_diff_estimated_vs_actual,
+                    nationality = EXCLUDED.nationality,
+                    organization = EXCLUDED.organization,
+                    league = EXCLUDED.league,
+                    team = EXCLUDED.team,
+                    color_primary = EXCLUDED.color_primary,
+                    color_secondary = EXCLUDED.color_secondary,
+                    positions_and_defense = EXCLUDED.positions_and_defense,
+                    positions_and_defense_string = EXCLUDED.positions_and_defense_string,
+                    positions_list = EXCLUDED.positions_list,
+                    ip = EXCLUDED.ip,
+                    speed = EXCLUDED.speed,
+                    hand = EXCLUDED.hand,
+                    speed_letter = EXCLUDED.speed_letter,
+                    speed_full = EXCLUDED.speed_full,
+                    speed_or_ip = EXCLUDED.speed_or_ip,
+                    icons_list = EXCLUDED.icons_list,
+                    awards_list = EXCLUDED.awards_list,
+                    is_hof = EXCLUDED.is_hof,
+                    stat_highlights_list = EXCLUDED.stat_highlights_list,
+                    is_small_sample_size = EXCLUDED.is_small_sample_size,
+                    real_pa = EXCLUDED.real_pa,
+                    real_g = EXCLUDED.real_g,
+                    real_gs = EXCLUDED.real_gs,
+                    real_bwar = EXCLUDED.real_bwar,
+                    real_dwar = EXCLUDED.real_dwar,
+                    real_batting_avg = EXCLUDED.real_batting_avg,
+                    real_onbase_perc = EXCLUDED.real_onbase_perc,
+                    real_slugging_perc = EXCLUDED.real_slugging_perc,
+                    real_onbase_plus_slugging = EXCLUDED.real_onbase_plus_slugging,
+                    real_onbase_plus_slugging_plus = EXCLUDED.real_onbase_plus_slugging_plus,
+                    real_earned_run_avg = EXCLUDED.real_earned_run_avg,
+                    real_whip = EXCLUDED.real_whip,
+                    real_h = EXCLUDED.real_h,
+                    real_1b = EXCLUDED.real_1b,
+                    real_2b = EXCLUDED.real_2b,
+                    real_3b = EXCLUDED.real_3b,
+                    real_hr = EXCLUDED.real_hr,
+                    real_sb = EXCLUDED.real_sb,
+                    real_so = EXCLUDED.real_so,
+                    real_bb = EXCLUDED.real_bb,
+                    real_w = EXCLUDED.real_w,
+                    real_sv = EXCLUDED.real_sv,
+                    command = EXCLUDED.command,
+                    outs = EXCLUDED.outs,
+                    is_pitcher = EXCLUDED.is_pitcher,
+                    is_chart_outlier = EXCLUDED.is_chart_outlier,
+                    chart_ranges = EXCLUDED.chart_ranges,
+                    chart_values = EXCLUDED.chart_values,
+                    is_errata = EXCLUDED.is_errata,
+                    notes = EXCLUDED.notes,
+                    image_match_type = EXCLUDED.image_match_type,
+                    image_ids = EXCLUDED.image_ids,
+                    updated_at = EXCLUDED.updated_at;
+            """
+            
+            cursor.execute(upsert_query)
+            rows_affected = cursor.rowcount
+            print(f"  → Processed {rows_affected} records.")
+            
+            # CREATE INDEXES IF NOT EXISTS
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_card_bot_card_set_version 
+                ON card_bot (id, showdown_set, showdown_bot_version);
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_card_bot_modified_dates 
+                ON card_bot (stats_modified_date, card_modified_date);
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_card_bot_updated_at 
+                ON card_bot (updated_at);
+            """)
+            print("  → Ensured indexes exist.")
+            
+            # RUN ANALYZE
+            cursor.execute("ANALYZE card_bot;")
+            print("  → Analyzed card_bot table.")
+            
+            self.connection.commit()
+            
+            # REMOVE STATUS MESSAGE IF SUCCESSFUL
+            if drop_existing:
+                self.update_feature_status(
+                    feature_name='explore',
+                    message=None,
+                    is_disabled=False
+                )
+            
+            return True
+            
         except Exception as e:
-            print(f"Error setting statement timeout: {e}")
-
-        status = self._build_materialized_view(
-            view_name='card_bot',
-            sql_logic=sql_logic,
-            indexes=indexes,
-            drop_existing=drop_existing
-        )
-
-        # REMOVE STATUS MESSAGE IF SUCCESSFUL
-        if drop_existing:
-            self.update_feature_status(
-                feature_name='explore',
-                message=None,
-                is_disabled=False
-            )
-
-        return status
+            print(f"Error building card_bot table: {e}")
+            traceback.print_exc()
+            self.connection.rollback()
+            
+            # REMOVE STATUS MESSAGE ON ERROR
+            if drop_existing:
+                self.update_feature_status(
+                    feature_name='explore',
+                    message=None,
+                    is_disabled=False
+                )
+            
+            return False
+        finally:
+            if cursor:
+                cursor.close()
 
     def build_team_search_view(self, drop_existing:bool = False) -> None:
         """Build or refresh the team_search materialized view. Used in the explore for filtering
@@ -1734,7 +2074,7 @@ class PostgresDB:
             view_name='team_search',
             sql_logic=sql_logic,
             indexes=[],
-            drop_existing=True # Always drop to capture new teams
+            drop_existing=drop_existing
         )
 
 # ------------------------------------------------------------------------
