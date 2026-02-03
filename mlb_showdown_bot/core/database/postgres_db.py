@@ -1889,7 +1889,7 @@ class PostgresDB:
                         SELECT 1 FROM internal.dim_auto_image dai
                         WHERE dai.player_id = player_season_stats.bref_id
                         AND dai.year = player_season_stats.year::text
-                        AND dai.created_date > '{last_update}'
+                        AND dai.image_modified_date > '{last_update}'
                     )
                 )
                 """
