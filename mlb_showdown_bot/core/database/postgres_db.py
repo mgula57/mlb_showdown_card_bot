@@ -7,7 +7,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 from psycopg2 import extensions, extras
 from psycopg2.extensions import AsIs
 from psycopg2 import sql
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Optional, Any, Dict, List
 from enum import Enum
@@ -2161,23 +2161,35 @@ class PostgresDB:
         )
         print(f"Fetched metadata for {len(image_metadata)} files from Google Drive.")
         
-        # TRANSFORM INTO DICT WITH {image_name: {BG: id, 'CUT': id }}
-        aggregated_images: dict[str, dict[str, str]] = {}
+        # TRANSFORM INTO DICT WITH {image_name: {image_ids: {BG/CUT}, modified_date: datetime }}
+        aggregated_images: dict[str, dict[str, Any]] = {}
         for item in image_metadata:
             image_name: str = item['name']
             if '-' not in image_name: continue
             image_id: str = item['id']
-            image_name_without_type = image_name.split('-', 1)[-1]  # Remove prefix before first '-'
-            updated_dict = aggregated_images.get(image_name_without_type, {})
-            if 'BG' in image_name:
-                updated_dict['BG'] = image_id
-            elif 'CUT' in image_name:
-                updated_dict['CUT'] = image_id
-            aggregated_images[image_name_without_type] = updated_dict
+            last_modified_date_str: str = item['modifiedTime']
+            created_date_str: str = item['createdTime']
 
+            # CHECK IF MODIFIED DATE IS AFTER 1970-01-01. IF SO USE THAT, ELSE USE CREATED DATE
+            modified_date = datetime.fromisoformat(last_modified_date_str.replace('Z', '+00:00'))
+            if modified_date.year <= 1970:
+                modified_date = datetime.fromisoformat(created_date_str.replace('Z', '+00:00'))
+
+            image_name_without_type = image_name.split('-', 1)[-1]  # Remove prefix before first '-'
+            updated_dict = aggregated_images.get(image_name_without_type, {'image_ids': {}, 'modified_date': None})
+            if 'BG' in image_name:
+                updated_dict['image_ids']['BG'] = image_id
+            elif 'CUT' in image_name:
+                updated_dict['image_ids']['CUT'] = image_id
+
+            if updated_dict['modified_date'] is None or modified_date > updated_dict['modified_date']:
+                updated_dict['modified_date'] = modified_date
+
+            aggregated_images[image_name_without_type] = updated_dict
+    
         # PARSE NAMES AND STORE AS CLASSES
         auto_image_entries: list[dict] = []
-        for image_name, image_ids in aggregated_images.items():
+        for image_name, image_data in aggregated_images.items():
 
             # PARSE NAME INTO COMPONENTS
             # EX: 2025-Raleigh-(raleica01)-(SEA).png
@@ -2185,7 +2197,13 @@ class PostgresDB:
             #   - team_id: SEA
             #   - player_id: raleica01
             #   - player_name: Raleigh
-            final_attributes: dict[str, any] = {'image_ids': image_ids}
+            #   - is_postseason: False
+            #   - player_type_override: None 
+            #   - modified_date: datetime
+            final_attributes: dict[str, any] = {
+                'image_ids': image_data.get('image_ids', {}),
+                'modified_date': image_data.get('modified_date')
+            }
             name_parts = image_name.rsplit('.', 1)[0].split('-')
             has_reached_first_parenthesis = False
             player_name = "" # ADDED TO IN MULTIPLE PARTS
@@ -2204,7 +2222,7 @@ class PostgresDB:
                     else:
                         player_name += f" {text}"
                     continue
-                
+
                 # PLAYER ID
                 if has_parenthesis and not has_reached_first_parenthesis:
                     final_attributes['player_name'] = player_name # STORE PLAYER NAME
@@ -2243,7 +2261,7 @@ class PostgresDB:
             # TRUNCATE THE EXISTING TABLE
             if drop_existing:
                 truncate_or_drop_table_statement = '''
-                    DROP TABLE IF EXISTS internal.dim_auto_image;
+                    DROP TABLE IF EXISTS internal.dim_auto_image CASCADE;
                 '''
             else:
                 truncate_or_drop_table_statement = '''
@@ -2258,6 +2276,7 @@ class PostgresDB:
                 player_type_override VARCHAR(10),
                 is_postseason BOOLEAN DEFAULT FALSE,
                 image_ids JSONB,
+                image_modified_date TIMESTAMP WITHOUT TIME ZONE,
                 created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
             );'''
         index_statement = '''
@@ -2275,11 +2294,10 @@ class PostgresDB:
         
         # INSERT OR UPDATE ROWS
         insert_statement = """
-            INSERT INTO internal.dim_auto_image (year, player_id, player_name, team_id, player_type_override, image_ids, is_postseason) 
+            INSERT INTO internal.dim_auto_image (year, player_id, player_name, team_id, player_type_override, image_ids, is_postseason, image_modified_date) 
             VALUES %s
         """
         insert_values = []
-
         for entry in auto_image_entries:
             player_id = entry.get('player_id')
             year = entry.get('year')
@@ -2287,6 +2305,9 @@ class PostgresDB:
             team_id = entry.get('team_id', None)
             image_ids = entry.get('image_ids', {})
             is_postseason = entry.get('is_postseason', False)
+            modified_date = entry.get('modified_date', None)
+            if isinstance(modified_date, datetime) and modified_date.tzinfo is not None:
+                modified_date = modified_date.astimezone(timezone.utc).replace(tzinfo=None)
             if not player_id or not year:
                 continue
             insert_values.append((
@@ -2296,7 +2317,8 @@ class PostgresDB:
                 team_id,
                 player_type_override,
                 image_ids,
-                is_postseason
+                is_postseason,
+                modified_date
             ))
         try:
             execute_values(db_cursor, insert_statement, insert_values)

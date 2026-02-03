@@ -45,7 +45,7 @@ def fetch_image_metadata(folder_id:str, retries:int = 3) -> list[dict]:
             request_params = {
                 'q': query, 
                 'pageSize': 1000, 
-                'fields': "nextPageToken, files(id, name)", 
+                'fields': "nextPageToken, files(id, name, modifiedTime, createdTime)", 
                 'orderBy': 'modifiedTime asc'
             }
             # Only include pageToken if it's not None
