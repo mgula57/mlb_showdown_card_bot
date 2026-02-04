@@ -16,8 +16,9 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { FaUserCircle, FaSignOutAlt, FaSpinner } from 'react-icons/fa';
+import { FaUserCircle, FaSignOutAlt, FaSpinner, FaCog } from 'react-icons/fa';
 import { useAuth } from './AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Props for AccountIcon component
@@ -41,6 +42,7 @@ interface AccountIconProps {
  */
 export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLoginClick }) => {
     const { user, signOut } = useAuth();
+    const navigate = useNavigate();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -141,6 +143,23 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
 
                     {/* Actions Section */}
                     <div className="py-1">
+                        <button
+                            onClick={() => {
+                                setIsDropdownOpen(false);
+                                navigate('/account');
+                            }}
+                            className="
+                                w-full px-4 py-2
+                                text-left text-sm text-secondary
+                                hover:bg-(--background-quaternary)
+                                cursor-pointer
+                                transition-colors duration-150
+                                flex items-center space-x-2
+                            "
+                        >
+                            <FaCog className="w-4 h-4" />
+                            <span>Account Settings</span>
+                        </button>
                         <button
                             onClick={handleSignOut}
                             disabled={isProcessing}

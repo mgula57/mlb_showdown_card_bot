@@ -32,6 +32,7 @@ import FormEnabler from './FormEnabler';
 import { PlayerSearchInput } from './PlayerSearchInput';
 import type { SelectOption } from '../shared/CustomSelect';
 import { useSiteSettings } from '../shared/SiteSettingsContext';
+import { ToastMessage } from '../shared/ToastMessage';
 
 import { CardDetail } from '../cards/CardDetail';
 
@@ -949,32 +950,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 @2xl:h-[calc(100dvh-3rem)]
             ">
                 {/* Loading Indicator */}
-                {loadingStatus && (
-                    <div
-                        className={`
-                            fixed top-15 right-5 z-50 rounded-xl px-4 py-3 text-sm
-                            text-black shadow-xl
-                            max-w-56
-                            ${isLoadingStatusExiting 
-                                ? 'slide-out' 
-                                : 'slide-in'
-                            }
-                        `}
-                        style={{
-                            backgroundColor: loadingStatus?.backgroundColor ? loadingStatus.backgroundColor : 'rgb(255, 193, 7)', // Default Amber
-                        }}
-                    >
-                        <button className="flex flex-col gap-1 items-center">
-                            <div className='flex items-center gap-1'>
-                                {loadingStatus?.icon}
-                                <b className='inline font-bold'>{loadingStatus?.message}</b>
-                            </div>
-                            {loadingStatus?.subMessage && (
-                                <span className='text-xs' style={{ textTransform: 'capitalize' }}>{loadingStatus?.subMessage}</span>
-                            )}
-                        </button>
-                    </div>
-                )}
+                <ToastMessage 
+                    loadingStatus={loadingStatus} 
+                    isExiting={isLoadingStatusExiting}
+                />
                 
 
                 {/* Form Inputs */}

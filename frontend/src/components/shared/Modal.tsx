@@ -164,7 +164,7 @@ export function Modal({ children, onClose, title, size = 'lg', disableCloseButto
     const closeButton = () => (
         <button
             onClick={onClose}
-            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-2xl cursor-pointer"
+            className="text-(--text-secondary) hover:text-(--text-primary) text-2xl cursor-pointer"
             aria-label="Close modal"
         >
             <FaXmark />
@@ -194,8 +194,8 @@ export function Modal({ children, onClose, title, size = 'lg', disableCloseButto
             >
                 {/* Conditional header with title and close button */}
                 {title ? (
-                    <div className="flex items-center justify-between p-3 border-b border-[var(--border-secondary)]">
-                        <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+                    <div className="flex items-center justify-between p-3 border-b border-(--border-secondary)">
+                        <h2 className="text-xl font-semibold text-(--text-primary)">
                             {title}
                         </h2>
                         {closeButton()}

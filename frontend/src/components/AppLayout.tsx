@@ -51,6 +51,10 @@ import { fetchFeatureStatuses, type FeatureStatus } from "../api/status/feature_
 import { FaExclamationCircle } from 'react-icons/fa';
 import { AccountIcon } from "./auth/AccountIcon";
 import { LoginModal } from "./auth/LoginModal";
+import { UsernamePrompt } from "./auth/UsernamePrompt";
+import { useAuth } from "./auth/AuthContext";
+import { LoadingStatusToast } from "../components/shared/LoadingStatusToast";
+import { FaCircleCheck } from 'react-icons/fa6';
 
 /**
  * Props for the AppLayout component
@@ -130,6 +134,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     // Modal state for login
     const [showLoginModal, setShowLoginModal] = useState(false);
     
+    // Login success toast state
+    const [loginSuccess, setLoginSuccess] = useState(false);
+    const [isLoginSuccessExiting, setIsLoginSuccessExiting] = useState(false);
+    
+    // Auth state
+    const { user, needsUsername, refreshProfile } = useAuth();
+    
     // Global site settings from context
     const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
 
@@ -180,6 +191,24 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     const handleWhatsNewClose = () => {
         setShowWhatsNewModal(false);
         markWhatsNewAsSeen();
+    };
+
+    /**
+     * Handles successful login
+     * Shows a success toast that auto-dismisses after 3 seconds
+     */
+    const handleLoginSuccess = () => {
+        setShowLoginModal(false);
+        setLoginSuccess(true);
+        setIsLoginSuccessExiting(false);
+        
+        // Auto-dismiss after 3 seconds
+        setTimeout(() => {
+            setIsLoginSuccessExiting(true);
+            setTimeout(() => {
+                setLoginSuccess(false);
+            }, 300); // Match animation duration
+        }, 3000);
     };
 
     /**
@@ -275,7 +304,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     </div>
 
                     {/* Right Section: Showdown Set Selector and Account Icon */}
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
                         <CustomSelect
                             className="font-showdown-set-italic w-20 text-xl"
                             buttonClassName="flex justify-center cursor-pointer select-none"
@@ -318,7 +347,28 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             {/* Login Modal - Global modal for authentication */}
             {showLoginModal && (
                 <LoginModal 
-                    onClose={() => setShowLoginModal(false)} 
+                    onClose={() => setShowLoginModal(false)}
+                    onSuccess={handleLoginSuccess}
+                />
+            )}
+            
+            {/* Login Success Toast */}
+            <LoadingStatusToast
+                loadingStatus={loginSuccess ? {
+                    message: 'Welcome back!',
+                    subMessage: 'Successfully logged in',
+                    icon: <FaCircleCheck className="w-5 h-5" />,
+                    backgroundColor: 'rgb(34, 197, 94)', // green-500
+                    removeAfterSeconds: 3
+                } : null}
+                isExiting={isLoginSuccessExiting}
+            />
+            
+            {/* Username Prompt - For OAuth users without username */}
+            {user && needsUsername && (
+                <UsernamePrompt 
+                    userId={user.id}
+                    onComplete={refreshProfile}
                 />
             )}
             

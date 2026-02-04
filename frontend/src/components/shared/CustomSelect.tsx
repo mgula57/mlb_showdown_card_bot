@@ -222,7 +222,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
      */
     const renderIcon = (icon: React.ReactNode) => {
         if (icon) {
-            return <span className="bg-secondary my-auto mr-2">{icon}</span>;
+            return <span className="bg-(--background-secondary) my-auto mr-2">{icon}</span>;
         }
         return null;
     };
@@ -262,10 +262,10 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                         ref={dropdownRef}
                         className={`
                             ${dropdownClassName}
-                            fixed z-[1000]
+                            fixed z-1000
                             left-0 transform
                             ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
-                            bg-primary rounded-xl shadow-lg
+                            bg-(--background-primary) rounded-xl shadow-lg
                             text-nowrap overflow-auto max-h-[60vh]
                         `}
                         style={{ left: menuPos.left, top: menuPos.top }}
@@ -275,8 +275,8 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                                 key={option.value}
                                 className={`
                                     ${className} px-2 py-2 
-                                    cursor-pointer hover:bg-[var(--background-secondary)]
-                                    border-b-1 border-[var(--background-tertiary)] last:border-b-0
+                                    cursor-pointer hover:bg-(--background-secondary)
+                                    border-b border-(--background-tertiary) last:border-b-0
                                     flex ${option.textColor || 'text-inherit'}
                                 `}
                                 onClick={() => handleOptionClick(option.value)}

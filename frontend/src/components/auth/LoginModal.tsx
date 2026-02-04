@@ -30,6 +30,8 @@ import { Modal } from '../shared/Modal';
 interface LoginModalProps {
     /** Callback to close the modal */
     onClose: () => void;
+    /** Callback triggered on successful login */
+    onSuccess?: () => void;
 }
 
 /**
@@ -41,14 +43,41 @@ interface LoginModalProps {
  * @param props - Component props
  * @returns Modal dialog for authentication
  */
-export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
-    const { signIn, signUp, signInWithProvider } = useAuth();
+export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onSuccess }) => {
+    const { signIn, signUp, signInWithProvider, checkUsernameAvailability } = useAuth();
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [username, setUsername] = useState('');
+    const [usernameError, setUsernameError] = useState<string | null>(null);
+    const [checkingUsername, setCheckingUsername] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    /**
+     * Handle username blur - check availability
+     */
+    const handleUsernameBlur = async () => {
+        if (!username || username.length < 3) {
+            setUsernameError('Username must be at least 3 characters');
+            return;
+        }
+        if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+            setUsernameError('Username can only contain letters, numbers, and underscores');
+            return;
+        }
+        
+        setCheckingUsername(true);
+        const isAvailable = await checkUsernameAvailability(username);
+        setCheckingUsername(false);
+        
+        if (!isAvailable) {
+            setUsernameError('Username is already taken');
+        } else {
+            setUsernameError(null);
+        }
+    };
 
     /**
      * Handle form submission
@@ -57,6 +86,33 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
         e.preventDefault();
         setError(null);
         setLoading(true);
+
+        // Validate username for sign up
+        if (isSignUp) {
+            if (!username || username.length < 3) {
+                setError('Username must be at least 3 characters');
+                setLoading(false);
+                return;
+            }
+            if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+                setError('Username can only contain letters, numbers, and underscores');
+                setLoading(false);
+                return;
+            }
+            if (usernameError) {
+                setError('Please fix username errors before continuing');
+                setLoading(false);
+                return;
+            }
+
+            // Final check for username availability
+            const isAvailable = await checkUsernameAvailability(username);
+            if (!isAvailable) {
+                setError('Username is already taken');
+                setLoading(false);
+                return;
+            }
+        }
 
         // Validate passwords match for sign up
         if (isSignUp && password !== confirmPassword) {
@@ -67,18 +123,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
 
         try {
             const result = isSignUp 
-                ? await signUp(email, password)
+                ? await signUp(email, password, username)
                 : await signIn(email, password);
 
             if (result.error) {
                 setError(result.error.message);
             } else {
-                // Success - close modal and reset form
-                onClose();
+                // Success - reset form, trigger callback, and close modal
                 setEmail('');
                 setPassword('');
                 setConfirmPassword('');
+                setUsername('');
+                setUsernameError(null);
                 setIsSignUp(false);
+                onSuccess?.();
             }
         } catch (err) {
             setError('An unexpected error occurred');
@@ -111,6 +169,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
         setError(null);
         setPassword('');
         setConfirmPassword('');
+        setUsername('');
+        setUsernameError(null);
     };
 
     return (
@@ -186,6 +246,58 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
                             placeholder="you@example.com"
                         />
                     </div>
+
+                    {/* Username Input (Sign Up only) */}
+                    {isSignUp && (
+                        <div>
+                            <label htmlFor="username" className="block text-sm font-medium text-secondary mb-1">
+                                Username 
+                            </label>
+                            <input
+                                id="username"
+                                type="text"
+                                value={username}
+                                onChange={(e) => {
+                                    setUsername(e.target.value);
+                                    setUsernameError(null);
+                                }}
+                                onBlur={handleUsernameBlur}
+                                required
+                                disabled={loading}
+                                minLength={3}
+                                pattern="[a-zA-Z0-9_]+"
+                                className={`
+                                    w-full px-3 py-2
+                                    bg-background-primary
+                                    border
+                                    rounded-lg
+                                    text-secondary
+                                    focus:outline-none focus:ring-2 focus:ring-accent
+                                    disabled:opacity-50 disabled:cursor-not-allowed
+                                    ${usernameError ? 'border-red-500' : 'border-form-element'}
+                                `}
+                                placeholder="e.g. brianjordangoat"
+                            />
+                            {checkingUsername && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Checking availability...
+                                </p>
+                            )}
+                            {usernameError && (
+                                <p className="text-xs text-red-500 mt-1">
+                                    {usernameError}
+                                </p>
+                            )}
+                            {!usernameError && username && !checkingUsername && (
+                                <p className="text-xs text-green-500 mt-1">
+                                    Username is available!
+                                </p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-1">
+                                Letters, numbers, and underscores only. Min 3 characters.
+                            </p>
+                        </div>
+                    )}
 
                     {/* Password Input */}
                     <div>

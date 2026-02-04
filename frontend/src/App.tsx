@@ -38,6 +38,7 @@ import { SiteSettingsProvider } from "./components/shared/SiteSettingsContext";
 import { AuthProvider } from "./components/auth/AuthContext";
 import Explore from "./components/explore/explore";
 import Home from "./components/Home";
+import AccountPage from "./components/account/AccountPage";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -108,6 +109,13 @@ const AppContent = () => {
             {mountedRoutes.has('/explore') && (
                 <div className={isActive('/explore') ? 'block' : 'hidden'}>
                     <Explore />
+                </div>
+            )}
+
+            {/* Account Page - Mount when first visited */}
+            {mountedRoutes.has('/account') && (
+                <div className={isActive('/account') ? 'block' : 'hidden'}>
+                    <AccountPage />
                 </div>
             )}
         </AppLayout>

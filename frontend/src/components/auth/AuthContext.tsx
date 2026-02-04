@@ -35,14 +35,20 @@ interface AuthContextType {
     session: Session | null;
     /** Whether auth state is being initialized */
     loading: boolean;
+    /** Whether user needs to set username (OAuth users) */
+    needsUsername: boolean;
     /** Sign in with email and password */
     signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
     /** Sign up with email and password */
-    signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+    signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
     /** Sign out the current user */
     signOut: () => Promise<void>;
+    /** Check if username is available */
+    checkUsernameAvailability: (username: string) => Promise<boolean>;
     /** Sign in with OAuth provider (Google, GitHub, etc.) */
     signInWithProvider: (provider: 'google') => Promise<{ error: Error | null }>;
+    /** Refresh username check (call after username is set) */
+    refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -79,6 +85,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
+    const [needsUsername, setNeedsUsername] = useState(false);
+
+    /**
+     * Check if user has a username in their profile
+     */
+    const checkUserProfile = async (userId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('username')
+                .eq('id', userId)
+                .single();
+
+            if (error || !data || !data.username) {
+                setNeedsUsername(true);
+            } else {
+                setNeedsUsername(false);
+            }
+        } catch (err) {
+            console.error('Error checking profile:', err);
+            setNeedsUsername(true);
+        }
+    };
+
+    /**
+     * Refresh profile check (call after username is set)
+     */
+    const refreshProfile = async () => {
+        if (user) {
+            await checkUserProfile(user.id);
+        }
+    };
 
     /**
      * Initialize auth state and listen for changes
@@ -88,6 +126,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
             setSession(session);
             setUser(session?.user ?? null);
+            if (session?.user) {
+                checkUserProfile(session.user.id);
+            }
             setLoading(false);
         });
 
@@ -97,6 +138,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
             setSession(session);
             setUser(session?.user ?? null);
+            if (session?.user) {
+                checkUserProfile(session.user.id);
+            } else {
+                setNeedsUsername(false);
+            }
             setLoading(false);
         });
 
@@ -121,11 +167,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     /**
      * Sign up with email and password
      */
-    const signUp = async (email: string, password: string) => {
+    const signUp = async (email: string, password: string, username: string) => {
         try {
             const { error } = await supabase.auth.signUp({
                 email,
                 password,
+                options: {
+                    data: {
+                        username: username,
+                    }
+                }
             });
             return { error: error as Error | null };
         } catch (error) {
@@ -157,14 +208,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
+    /**
+     * Check if username is available
+     */
+    const checkUsernameAvailability = async (username: string): Promise<boolean> => {
+        try {
+            const { data, error } = await supabase.rpc('is_username_available', {
+                username_to_check: username
+            });
+            if (error) throw error;
+            return data as boolean;
+        } catch (error) {
+            console.error('Error checking username:', error);
+            return false;
+        }
+    };
+
     const value = {
         user,
         session,
         loading,
+        needsUsername,
         signIn,
         signUp,
         signOut,
         signInWithProvider,
+        checkUsernameAvailability,
+        refreshProfile,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
