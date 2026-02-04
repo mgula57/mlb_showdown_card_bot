@@ -35,6 +35,7 @@ import { useState, useEffect } from "react";
 import AppLayout from "./components/AppLayout";
 import CustomCardBuilder from "./components/customs/CustomCardBuilder";
 import { SiteSettingsProvider } from "./components/shared/SiteSettingsContext";
+import { AuthProvider } from "./components/auth/AuthContext";
 import Explore from "./components/explore/explore";
 import Home from "./components/Home";
 
@@ -144,9 +145,11 @@ const AppContent = () => {
 function App() {
     return (
         <BrowserRouter>
-            <SiteSettingsProvider>
-                <AppContent />
-            </SiteSettingsProvider>
+            <AuthProvider>
+                <SiteSettingsProvider>
+                    <AppContent />
+                </SiteSettingsProvider>
+            </AuthProvider>
         </BrowserRouter>
     );
 }

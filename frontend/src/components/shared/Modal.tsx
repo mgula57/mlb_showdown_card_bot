@@ -180,7 +180,7 @@ export function Modal({ children, onClose, title, size = 'lg', disableCloseButto
             <div 
                 ref={modalRef}
                 className={`
-                    bg-[var(--background-primary)] 
+                    bg-(--background-primary) 
                     rounded-2xl
                     shadow-2xl 
                     w-full 
@@ -189,7 +189,7 @@ export function Modal({ children, onClose, title, size = 'lg', disableCloseButto
                     overflow-y-auto
                     cursor-default
                     relative
-                    border-1 border-form-element
+                    border border-form-element
                 `}
             >
                 {/* Conditional header with title and close button */}

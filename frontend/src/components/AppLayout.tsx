@@ -49,6 +49,8 @@ import { sideMenuItems } from "./side_menu/SideMenuItem";
 import { WhatsNewModal, hasSeenWhatsNew, markWhatsNewAsSeen } from "./side_menu/WhatsNewModal";
 import { fetchFeatureStatuses, type FeatureStatus } from "../api/status/feature_status";
 import { FaExclamationCircle } from 'react-icons/fa';
+import { AccountIcon } from "./auth/AccountIcon";
+import { LoginModal } from "./auth/LoginModal";
 
 /**
  * Props for the AppLayout component
@@ -124,6 +126,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     // Modal state for "What's New" feature announcements
     const [showWhatsNewModal, setShowWhatsNewModal] = useState(false);
+    
+    // Modal state for login
+    const [showLoginModal, setShowLoginModal] = useState(false);
     
     // Global site settings from context
     const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
@@ -269,15 +274,18 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                         )}
                     </div>
 
-                    {/* Right Section: Showdown Set Selector */}
-                    <CustomSelect
-                        className="font-showdown-set-italic w-20 text-xl"
-                        buttonClassName="flex justify-center cursor-pointer select-none"
-                        imageClassName="object-contain object-center"
-                        value={userShowdownSet}
-                        onChange={setUserShowdownSet}
-                        options={showdownSets}
-                    />
+                    {/* Right Section: Showdown Set Selector and Account Icon */}
+                    <div className="flex items-center space-x-3">
+                        <CustomSelect
+                            className="font-showdown-set-italic w-20 text-xl"
+                            buttonClassName="flex justify-center cursor-pointer select-none"
+                            imageClassName="object-contain object-center"
+                            value={userShowdownSet}
+                            onChange={setUserShowdownSet}
+                            options={showdownSets}
+                        />
+                        <AccountIcon onLoginClick={() => setShowLoginModal(true)} />
+                    </div>
                     
                 </header>
 
@@ -306,6 +314,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 isOpen={showWhatsNewModal} 
                 onClose={handleWhatsNewClose} 
             />
+            
+            {/* Login Modal - Global modal for authentication */}
+            {showLoginModal && (
+                <LoginModal 
+                    onClose={() => setShowLoginModal(false)} 
+                />
+            )}
             
         </div>
     );
