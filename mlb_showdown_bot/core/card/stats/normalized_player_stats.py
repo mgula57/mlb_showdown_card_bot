@@ -891,7 +891,8 @@ class PlayerStatsNormalizer:
         combined_positions: Dict[str, 'PositionStats'] = {}
 
         years_with_stat: Dict[str, list] = {}  # Track number of years with stats for deciding which to use
-        
+        metrics = ['tzr', 'drs', 'oaa', 'uzr',]
+
         for stats in stats_list:
             if not stats.positions:
                 continue
@@ -907,13 +908,15 @@ class PlayerStatsNormalizer:
                         oaa=pos_stats.oaa,
                         uzr=pos_stats.uzr
                     )
+                    for metric in metrics:
+                        if getattr(pos_stats, metric) is not None and stats.year_id not in years_with_stat.get(metric, []):
+                            years_with_stat[metric] = years_with_stat.get(metric, []) + [stats.year_id]
                 else:
                     # Sum games, average the metrics
                     existing = combined_positions[pos]
                     existing.g += pos_stats.g
                     
                     # ADD UP THE METRICS
-                    metrics = ['tzr', 'drs', 'oaa', 'uzr',]
                     for metric in metrics:
                         existing_val = getattr(existing, metric)
                         new_val = getattr(pos_stats, metric)
