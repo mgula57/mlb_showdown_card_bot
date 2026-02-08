@@ -46,6 +46,8 @@ from .points import Points, PointsMetric, PointsBreakdown
 
 from .trends.trends import TrendDatapoint
 
+from ..supabase import upload_to_supabase
+
 from ..version import __version__
 
 
@@ -131,6 +133,9 @@ class ShowdownPlayerCard(BaseModel):
     # SHOWING OUTPUT
     show_image: bool = False
     print_to_cli: bool = False
+
+    # ONLINE STORAGE
+    user_id: Optional[str] = None
 
 # ------------------------------------------------------------------------
 # POST INIT
@@ -261,8 +266,11 @@ class ShowdownPlayerCard(BaseModel):
         self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card)
         self.image.award_summary_list = self._generate_award_summary_list(award_summary=self.stats_for_card.get('award_summary', None))
 
-        if show_image or self.image.output_folder_path:
+        if show_image or self.image.output_folder_path or self.image.upload_to_supabase:
             self.generate_card_image(show=show_image)
+
+            if self.image.upload_to_supabase:
+                self.upload_image_to_supabase()
         
         if print_to_cli:
             self.print_player()
@@ -2453,7 +2461,7 @@ class ShowdownPlayerCard(BaseModel):
         print(f"Era: {self.era.value.title()}")
         print(f"Data Source: {self.stats_period.source}")
         if not self.image.source.type.is_empty:
-            print(f"Img Source: {self.image.source.type}")
+            print(f"Img Source: {self.image.source.type.value}")
 
         # ----- POSITION AND ICONS  ----- #
 
@@ -6282,6 +6290,39 @@ class ShowdownPlayerCard(BaseModel):
         # CALCULATE LOAD TIME
         end_time = datetime.now()
         self.load_time = round((end_time - start_time).total_seconds(),2)
+
+    def upload_image_to_supabase(self) -> None:
+        """Uploads current image to Supabase storage.
+
+        Args:
+          None
+
+        Returns:
+          None
+        """
+
+        if self.image.output_file_name is None:
+            print("Image output file name is not set. Skipping upload.")
+            return
+        
+        # UPLOAD IMAGE
+        if self.is_running_on_website:
+            img_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output', self.image.output_file_name)
+        else:
+            img_path = os.path.join(os.path.dirname(__file__), 'image_output', self.image.output_file_name)
+        
+        card_bucket = 'card_images'
+        card_folder_destination = f'users/{self.user_id}' if self.user_id else f'public/{self.set.name}'
+        full_path = f'{card_folder_destination}/{self.image.output_file_name}'
+
+        upload_result_data:dict = upload_to_supabase(
+            bucket_name=card_bucket,
+            file_path=img_path,
+            destination_path=full_path
+        )
+        self.image.storage_path = upload_result_data.get('path', None)
+
+        print("Image uploaded to Supabase storage with path: ", self.image.storage_path)
 
     def _clean_images_directory(self) -> None:
         """Removes all images from output folder that are not the current card. Leaves

@@ -550,6 +550,10 @@ class ShowdownImage(BaseModel):
     # AWARDS
     award_summary_list: Optional[list[str]] = None
 
+    # ONLINE STORAGE
+    upload_to_supabase: Optional[bool] = None
+    storage_path: Optional[str] = None
+
     def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:
 

@@ -69,6 +69,8 @@ def card_main(
     # DISPLAYING CARD
     print_to_cli: bool = typer.Option(True, "--print_to_cli", "-print", help="Show visual representation of card in the CLI"),
     show_image: bool = typer.Option(False, "--show_image", "-show", help="Optionally open the final Player Card Image upon completion"),
+    upload_to_supabase: bool = typer.Option(False, "--upload_to_supabase", "-sb", help="Optionally upload the generated card to Supabase Storage"),
+    user_id: Optional[str] = typer.Option(None, "--user_id", "-uid", help="Optionally specify a user ID for the Supabase storage path. If not provided, will default to using the set name for the storage path."),
 
     # RANDOM
     randomize: bool = typer.Option(False, "--randomize", "-rand", help="Generate a random player card"),

@@ -42,6 +42,7 @@ dependencies = [
     "python-dotenv>=0.9.9",
     "pytz",
     "simplejson>=3.17.6",
+    "supabase>=2.4.0",
     "termcolor>=2.0.1",
     "thefuzz>=0.22.1",
     "typer>=0.16.0",

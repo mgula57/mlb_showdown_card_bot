@@ -2410,7 +2410,9 @@ class PostgresDB:
                 user_inputs jsonb,
                 historical_season_trends jsonb,
                 version text,
-                in_season_trends jsonb
+                in_season_trends jsonb,
+                storage_path text,
+                user_id text
             );
         """
 
@@ -2585,6 +2587,8 @@ class PostgresDB:
                 'is_multi_colored': card.image.is_multi_colored if card.image else None,
                 'stat_highlights_type': card.image.stat_highlights_type.value if card.image else None,
                 'glow_multiplier': card.image.glow_multiplier if card.image else None,
+                'storage_path': card.image.storage_path if card.image else None,
+                'user_id': card.user_id if card.user_id else None
             }
         else:
             # NO CARD GENERATED
