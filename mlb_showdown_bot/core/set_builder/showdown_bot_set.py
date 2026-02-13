@@ -130,10 +130,10 @@ class ShowdownBotSet(BaseModel):
 
         # 5. Redistribute unused slots
         final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
-        final_players = self._sort_and_number_players(final_players)
         
         self._print_set_summary(final_players, team_allocations, show_team_breakdown)
 
+        final_players = self._sort_and_number_players(final_players)
         self.final_players = final_players
         
         return
@@ -640,6 +640,24 @@ class ShowdownBotSet(BaseModel):
             count_10_50 = positions_10_50_pt_counts.get(pos, 0)
             position_dist_table.add_row([pos.name, count, f"{(count/len(selected_players))*100:.1f}%", count_10_20, count_10_50])
         print(position_dist_table)
+
+        # SP POINTS DISTRIBUTION (50-POINT BUCKETS)
+        sp_point_buckets: Dict[int, int] = {}
+        for player in selected_players:
+            if player.primary_position != Position.SP:
+                continue
+            if player.points is None:
+                continue
+            bucket_start = int(player.points) // 50 * 50
+            sp_point_buckets[bucket_start] = sp_point_buckets.get(bucket_start, 0) + 1
+
+        if len(sp_point_buckets) > 0:
+            print("\nSP Points Distribution (50-pt buckets):")
+            sp_points_table = PrettyTable(field_names=["Points", "Count"])
+            for bucket_start in sorted(sp_point_buckets.keys()):
+                bucket_end = bucket_start + 49
+                sp_points_table.add_row([f"{bucket_start}-{bucket_end}", sp_point_buckets[bucket_start]])
+            print(sp_points_table)
 
         print(f"Total Players Selected: {len(selected_players)} / {self.set_size}")
 
