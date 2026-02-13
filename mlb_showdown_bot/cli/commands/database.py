@@ -54,7 +54,7 @@ def database_update(
             
         # UPDATE PLAYER LIST
         if run_player_list:
-            player_stats_archive = PlayerStatsArchive(years=year_list, is_snapshot=False)
+            player_stats_archive = PlayerStatsArchive(years=year_list, is_snapshot=False, player_ids=parsed_player_id_list)
             player_stats_archive.generate_player_list(delay_between_years=0.5, publish_to_postgres=publish_to_postgres)
             print(f"Total players found: {len(player_stats_archive.player_list)}")
 
@@ -75,7 +75,8 @@ def database_update(
                 publish_to_postgres=publish_to_postgres, 
                 refresh_explore=refresh_explore, 
                 sets=showdown_set_list,
-                ignore_minimums=ignore_minimums
+                ignore_minimums=ignore_minimums,
+                player_id_list=parsed_player_id_list
             )
 
         if run_auto_image_suggestions:

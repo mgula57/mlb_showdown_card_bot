@@ -19,13 +19,14 @@ class PlayerStatsArchive:
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, years:list[int], is_snapshot:bool = False) -> None:
+    def __init__(self, years:list[int], is_snapshot:bool = False, player_ids: list[str] = None) -> None:
         """"""
         self.years = years
         self.is_snapshot = is_snapshot
         self.historical_date = date.today().strftime('%Y-%m-%d') if is_snapshot else None # FORMAT WILL BE YYYY-MM-DD (EX: "2023-09-01")
         self.two_way_bref_ids = ['ohtansh01','sudhowi01','mercewi01','dunnja01','howelha01','hickmch01',]
         self.player_list: list[PlayerStats] = []
+        self.player_ids = player_ids
 
 # ------------------------------------------------------------------------
 # PLAYER LIST GENERATION
@@ -335,7 +336,7 @@ class PlayerStatsArchive:
 # CONVERTING TO SHOWDOWN CARDS
 # ------------------------------------------------------------------------
 
-    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, env: str = "dev", refresh_explore: bool=True, sets: list[ShowdownSet] = None, ignore_minimums: bool = False) -> None:
+    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, env: str = "dev", refresh_explore: bool=True, sets: list[ShowdownSet] = None, ignore_minimums: bool = False, player_id_list: list[str] = None) -> None:
         """Using the class player_list
         
         Args:
@@ -343,7 +344,7 @@ class PlayerStatsArchive:
             refresh_explore: Flag to refresh explore views after upload.
             sets: List of Showdown Sets to generate cards for. If None, generates for all sets.
             ignore_minimums: Flag to ignore minimum PA/IP when generating cards.
-
+            player_id_list: List of player IDs to generate cards for. If None, generates for all players.
         Returns:
             None
         """
@@ -360,7 +361,7 @@ class PlayerStatsArchive:
 
             # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
             if self.is_player_list_empty:
-                self.fill_player_stats_from_archive(db=db, ignore_minimums=ignore_minimums)
+                self.fill_player_stats_from_archive(db=db, ignore_minimums=ignore_minimums, player_id_list=player_id_list)
 
         print("CONVERTING TO SHOWDOWN CARDS...")
         showdown_cards: list[ShowdownPlayerCard] = []
