@@ -1,10 +1,12 @@
 from pprint import pprint
 from typing import List, Dict, Optional, Tuple
 import statistics
+import os
 
 from pydantic import BaseModel, Field
 from datetime import datetime
 from math import ceil
+from psycopg2 import sql
 
 # Table
 from prettytable import PrettyTable
@@ -135,6 +137,95 @@ class ShowdownBotSet(BaseModel):
         self.final_players = final_players
         
         return
+
+    def generate_showdown_cards_for_final_players(
+        self,
+        output_folder_path: str = None,
+        set_name: Optional[str] = None,
+        img_name_suffix: str = '',
+        show: bool = False
+    ) -> None:
+        """Generate card images for each item in final_players.
+
+        Args:
+            output_folder_path: Folder to export card images to.
+            set_name: Optional set name to trigger set-numbered filenames.
+            img_name_suffix: Optional suffix appended to image file names.
+            show: Whether to open images after creation.
+
+        Returns:
+            None
+        """
+
+        if not self.final_players or len(self.final_players) == 0:
+            return
+
+        if not output_folder_path:
+            # Set a default output path based on set name or timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_set_name = set_name or f"showdown_set_{timestamp}"
+            this_folder = os.path.dirname(os.path.abspath(__file__))
+            output_folder_path = os.path.join(this_folder, "output", default_set_name)
+
+        os.makedirs(output_folder_path, exist_ok=True)
+
+        player_pairs: List[Tuple[str, str]] = []
+        for player in self.final_players:
+            player_id = player.id
+            showdown_set = player.showdown_set
+            if not player_id or not showdown_set:
+                continue
+            player_pairs.append((player_id, showdown_set))
+
+        if len(player_pairs) == 0:
+            return
+
+        # Keep unique pairs while preserving order
+        unique_pairs = list(dict.fromkeys(player_pairs))
+
+        placeholders = ", ".join(["(%s, %s)"] * len(unique_pairs))
+        query_str = f"""
+            SELECT DISTINCT ON (d.player_id, d.showdown_set)
+                d.player_id,
+                d.showdown_set,
+                d.card_data
+            FROM internal.dim_card d
+            JOIN (VALUES {placeholders}) AS v(player_id, showdown_set)
+              ON d.player_id = v.player_id
+             AND d.showdown_set = v.showdown_set
+            ORDER BY d.player_id, d.showdown_set, d.modified_date DESC
+        """
+        filter_values = tuple([value for pair in unique_pairs for value in pair])
+
+        db = PostgresDB(is_archive=False)
+        raw_cards = db.execute_query(query=sql.SQL(query_str), filter_values=filter_values)
+
+        card_lookup: Dict[Tuple[str, str], ShowdownPlayerCard] = {}
+        for row in raw_cards:
+            card_data = row.get('card_data') or {}
+            try:
+                card_lookup[(row.get('player_id'), row.get('showdown_set'))] = ShowdownPlayerCard(**card_data)
+            except Exception:
+                continue
+
+        total_cards = len(self.final_players)
+        digits = max(1, len(str(total_cards)))
+
+        for player in self.final_players:
+            player_id = player.id
+            showdown_set = player.showdown_set
+            card = card_lookup.get((player_id, showdown_set))
+            if not card:
+                continue
+            set_number = player.set_number or 0
+            card.image.set_number = str(set_number).zfill(digits)
+            card.image.set_name = set_name or player.showdown_set
+            card.image.output_folder_path = output_folder_path
+            card.image.is_bordered = True
+            card.image.set_year = 2026
+            card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
+
+        return
     
     def _get_qualified_player_pool(self) -> List[ExploreDataRecord]:
         """Get all qualified players for the season"""
@@ -174,6 +265,7 @@ class ShowdownBotSet(BaseModel):
                     qualified_players.append(player)
         
         return qualified_players
+
     
     def _calculate_quality_thresholds(self, player_pool: List[ExploreDataRecord]):
         """Calculate WAR thresholds for quality tiers"""
