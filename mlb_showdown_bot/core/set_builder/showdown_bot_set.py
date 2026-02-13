@@ -1,14 +1,18 @@
 from pprint import pprint
 from typing import List, Dict, Optional, Tuple
 import statistics
-from ..database.postgres_db import PostgresDB, ExploreDataRecord, ExploreDataRecord, ImageMatchType
-from ..shared.player_position import Position
+
 from pydantic import BaseModel, Field
 from datetime import datetime
 from math import ceil
 
 # Table
 from prettytable import PrettyTable
+
+# SHOWDOWN BOT
+from ..database.postgres_db import PostgresDB, ExploreDataRecord, ExploreDataRecord, ImageMatchType
+from ..shared.player_position import Position
+from ..card.showdown_player_card import ShowdownPlayerCard
 
 # ANSI color codes
 class Colors:
@@ -54,6 +58,8 @@ class ShowdownBotSetPlayer(ExploreDataRecord):
     
     priority_score: float = 0.0  # Calculated priority score for selection
 
+    set_number: Optional[int] = None  # Assigned set number for the player
+
 
 class ShowdownBotSet(BaseModel):
     """Builds optimal MLB Showdown card sets based on real player stats"""
@@ -77,6 +83,9 @@ class ShowdownBotSet(BaseModel):
     # Special inclusions
     include_all_stars: bool = Field(True, description="Include All-Star players")
     include_award_winners: bool = Field(True, description="Include Award-winning players")
+
+    # Construction results
+    final_players: Optional[List[ShowdownBotSetPlayer]] = Field(None, description="Final list of players selected for the set")
     
     # 10-50 point card allocation
     ideal_low_point_percentage: Optional[float] = Field(
@@ -96,8 +105,9 @@ class ShowdownBotSet(BaseModel):
         description="Specific player IDs to always exclude from the set"
     )
 
-    def build_set(self, show_team_breakdown: Optional[str] = None) -> List[ExploreDataRecord]:
+    def build_set_player_list(self, show_team_breakdown: Optional[str] = None) -> None:
         """Build a complete set based on configuration"""
+        
         print(f"Building {self.set_size} card set for {', '.join(map(str, self.years))}...")
         
         # 1. Get player pool
@@ -118,15 +128,18 @@ class ShowdownBotSet(BaseModel):
 
         # 5. Redistribute unused slots
         final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
+        final_players = self._sort_and_number_players(final_players)
         
         self._print_set_summary(final_players, team_allocations, show_team_breakdown)
+
+        self.final_players = final_players
         
         return
     
     def _get_qualified_player_pool(self) -> List[ExploreDataRecord]:
         """Get all qualified players for the season"""
 
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB(is_archive=False)
         
         # Get all players from the season
         all_players = db.fetch_cards_bot(
@@ -332,7 +345,7 @@ class ShowdownBotSet(BaseModel):
         
         return score
     
-    def _redistribute_unused_slots(self, player_pool: List[ExploreDataRecord], team_allocations: Dict[str, TeamAllocation], selected_players: List[ExploreDataRecord]) -> List[ExploreDataRecord]:
+    def _redistribute_unused_slots(self, player_pool: List[ExploreDataRecord], team_allocations: Dict[str, TeamAllocation], selected_players: List[ExploreDataRecord]) -> List[ShowdownBotSetPlayer]:
         """Redistribute unused slots when teams don't have enough qualified players
         
         Prioritizes maintaining player type distribution (hitters/starters/relievers percentages).
@@ -539,7 +552,7 @@ class ShowdownBotSet(BaseModel):
         print(f"Total Players Selected: {len(selected_players)} / {self.set_size}")
 
         # MISSING IMAGES
-        top_players_missing_images = [p for p in selected_players if not p.image_match_type in (ImageMatchType.EXACT, ImageMatchType.TEAM_MATCH)]
+        top_players_missing_images = [p for p in selected_players if not p.image_match_type in (ImageMatchType.EXACT)]
         print(f"\nPlayers Missing Exact Images: {len(top_players_missing_images)}")
         top_players_missing_images.sort(key=lambda p: getattr(p, "priority_score", 0) or 0, reverse=True)
         tbl_missing = PrettyTable()
@@ -567,3 +580,28 @@ class ShowdownBotSet(BaseModel):
             print(team_table)
 
         print("="*60 + "\n")
+
+    def _sort_and_number_players(self, players: List[ShowdownBotSetPlayer]) -> List[ShowdownBotSetPlayer]:
+        """Sort players by team then last name, and assign set numbers."""
+
+        def last_name_key(full_name: str) -> str:
+            if not full_name:
+                return ""
+            parts = full_name.strip().replace(',', '').split()
+            if len(parts) == 0:
+                return ""
+            return parts[-1].lower()
+
+        sorted_players = sorted(
+            players,
+            key=lambda p: (
+                (p.team_id or "").lower(),
+                last_name_key(p.name),
+                (p.name or "").lower()
+            )
+        )
+
+        for index, player in enumerate(sorted_players, start=1):
+            player.set_number = index
+
+        return sorted_players

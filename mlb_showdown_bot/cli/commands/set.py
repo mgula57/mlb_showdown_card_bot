@@ -36,7 +36,7 @@ def set_builder(
             manually_included_ids=[pid.strip() for pid in manually_included_ids.split(',')] if manually_included_ids else None,
             manually_excluded_ids=[pid.strip() for pid in manually_excluded_ids.split(',')] if manually_excluded_ids else None
         )
-        showdown_bot_set.build_set(show_team_breakdown=team_breakdown)
+        showdown_bot_set.build_set_player_list(show_team_breakdown=team_breakdown)
 
     except Exception as e:
         # Full traceback
