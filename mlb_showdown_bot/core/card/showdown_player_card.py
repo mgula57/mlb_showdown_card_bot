@@ -2848,13 +2848,14 @@ class ShowdownPlayerCard(BaseModel):
 # CARD IMAGE COMPONENTS
 # ------------------------------------------------------------------------
 
-    def generate_card_image(self, show:bool=False, img_name_suffix:str='') -> None:
+    def generate_card_image(self, show:bool=False, img_name_prefix:str='', img_name_suffix:str='') -> None:
         """Generates a 1500/2100 (larger if bordered) card image mocking what a real MLB Showdown card
         would look like for the player output. Final image is dumped to mlb_showdown_bot/output folder.
 
         Args:
-          show: Boolean flag for whether to open the final image after creation.
-          img_name_suffix: Optional suffix added to the image name.
+            show: Boolean flag for whether to open the final image after creation.
+            img_name_prefix: Optional prefix added to the image name.
+            img_name_suffix: Optional suffix added to the image name.
 
         Returns:
           None
@@ -2868,7 +2869,7 @@ class ShowdownPlayerCard(BaseModel):
             # LOAD DIRECTLY FROM GOOGLE DRIVE
             response = requests.get(cached_img_link)
             card_image = Image.open(BytesIO(response.content))
-            self.save_image(image=card_image, start_time=start_time, show=show, disable_add_border=True)
+            self.save_image(image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix, disable_add_border=True)
             return
         
         # CHECK FOR SPECIAL EDITION
@@ -2987,7 +2988,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.error:
             print(self.name, self.year, self.image.error)
 
-        self.save_image(image=card_image, start_time=start_time, show=show, img_name_suffix=img_name_suffix)
+        self.save_image(image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix)
 
     def _background_image(self) -> Image.Image:
         """Loads background image for card. Either loads from upload, url, or default
@@ -6247,7 +6248,7 @@ class ShowdownPlayerCard(BaseModel):
 # EXPORTING
 # ------------------------------------------------------------------------
 
-    def save_image(self, image:Image.Image, start_time:datetime, show:bool=False, img_name_suffix:str='') -> None:
+    def save_image(self, image:Image.Image, start_time:datetime, show:bool=False, img_name_prefix:str='', img_name_suffix:str='') -> None:
         """Stores image in proper folder depending on the context of the run.
 
         Args:
@@ -6255,6 +6256,7 @@ class ShowdownPlayerCard(BaseModel):
           start_time: Datetime in which card image processing began.
           show: Boolean flag for whether to open the final image after creation.
           disable_add_border: Optional flag to skip border addition.
+          img_name_prefix: Optional prefix added to the image name.
           img_name_suffix: Optional suffix added to the image name.
 
         Returns:
@@ -6264,7 +6266,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.output_file_name is None:
             self.image.output_file_name = f'{self.name}-{str(datetime.now())}.png'
         if self.image.set_name:
-            self.image.output_file_name = f'{self.image.set_number} {self.name}{img_name_suffix}.png'            
+            self.image.output_file_name = f'{img_name_prefix}{self.image.set_number} {self.name}{img_name_suffix}.png'            
         
         if self.set.convert_final_image_to_rgb:
             image = image.convert('RGB')

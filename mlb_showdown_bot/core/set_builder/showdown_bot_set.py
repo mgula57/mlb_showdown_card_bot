@@ -2,6 +2,7 @@ from pprint import pprint
 from typing import List, Dict, Optional, Tuple
 import statistics
 import os
+import csv
 
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -14,7 +15,7 @@ from prettytable import PrettyTable
 # SHOWDOWN BOT
 from ..database.postgres_db import PostgresDB, ExploreDataRecord, ExploreDataRecord, ImageMatchType
 from ..shared.player_position import Position
-from ..card.showdown_player_card import ShowdownPlayerCard
+from ..card.showdown_player_card import ShowdownPlayerCard, Expansion, Edition, ImageParallel
 
 # ANSI color codes
 class Colors:
@@ -106,11 +107,144 @@ class ShowdownBotSet(BaseModel):
         None,
         description="Specific player IDs to always exclude from the set"
     )
+    csv_file_path: Optional[str] = Field(
+        None,
+        description="Path to CSV file with bref_id and year columns to load players from"
+    )
+    expansion_cards: Optional[List[ShowdownPlayerCard]] = Field(
+        None,
+        description="List of expansion cards loaded from CSV and database"
+    )
+
+    def _load_expansion_players_from_csv(self) -> List[Dict]:
+        """Load expansion players from CSV file in core/set_builder folder.
+        
+        CSV MUST have columns: bref_id, year
+        Additional columns (edition, etc.) are preserved and applied to cards.
+        
+        These are players from OTHER years to add as expansions.
+        Returns list of dicts with all CSV columns.
+        """
+        if not self.csv_file_path:
+            return []
+        
+        # Get the core/set_builder folder path
+        this_folder = os.path.dirname(os.path.abspath(__file__))
+        csv_full_path = os.path.join(this_folder, self.csv_file_path)
+        
+        if not os.path.exists(csv_full_path):
+            print(f"Warning: CSV file not found at {csv_full_path}")
+            return []
+        
+        expansion_players = []
+        try:
+            with open(csv_full_path, 'r') as csvfile:
+                reader = csv.DictReader(csvfile)
+                if reader.fieldnames is None or 'bref_id' not in reader.fieldnames or 'year' not in reader.fieldnames:
+                    print(f"Warning: CSV must have 'bref_id' and 'year' columns. Found columns: {reader.fieldnames}")
+                    return []
+                
+                for row in reader:
+                    bref_id = row.get('bref_id', '').strip()
+                    year_str = row.get('year', '').strip()
+                    
+                    if bref_id and year_str:
+                        try:
+                            year = int(year_str)
+                            # Store all row data for later use
+                            player_data = {
+                                'bref_id': bref_id,
+                                'year': str(year),
+                                'player_id': f"{year}-{bref_id}",  # Create a player_id for DB lookup
+                                # Include all other columns from CSV
+                                **{k: v.strip() if isinstance(v, str) else v for k, v in row.items() if k not in ['bref_id', 'year']}
+                            }
+                            expansion_players.append(player_data)
+                        except ValueError:
+                            print(f"Warning: Could not parse year '{year_str}' for player {bref_id}")
+            
+            print(f"Loaded {len(expansion_players)} expansion player(s) from {self.csv_file_path}")
+            if expansion_players and len(expansion_players[0]) > 3:
+                extra_cols = [k for k in expansion_players[0].keys() if k not in ['bref_id', 'year', 'player_id']]
+                print(f"  Additional columns found: {', '.join(extra_cols)}")
+        except Exception as e:
+            print(f"Error reading CSV file {csv_full_path}: {e}")
+        
+        return expansion_players
+
+    def _load_expansion_cards_from_db(self, expansion_players: List[Dict]) -> List[ShowdownPlayerCard]:
+        """Query database for expansion player cards and apply CSV attributes.
+        
+        Args:
+            expansion_players: List of dicts with 'bref_id' and 'year' keys, plus optional attributes
+            
+        Returns:
+            List of ShowdownPlayerCard objects with CSV attributes applied
+        """
+        if not expansion_players:
+            return []
+        
+        db = PostgresDB(is_archive=False)
+        expansion_cards: List[ShowdownPlayerCard] = []
+        
+        player_ids = [player['player_id'] for player in expansion_players]
+        filter_values = tuple(player_ids)
+        try:
+            query = sql.SQL("""
+                SELECT
+                    player_id,
+                    showdown_set,
+                    card_data
+                FROM internal.dim_card
+                WHERE player_id IN %s and showdown_set IN %s
+            """)
+            raw_cards = db.execute_query(query=query, filter_values=(filter_values, tuple(self.showdown_sets)))
+            
+            # Create a lookup map from player_id to CSV row data
+            csv_data_lookup = {player['player_id']: player for player in expansion_players}
+            
+            for row in raw_cards:
+                card_data = row.get('card_data') or {}
+                player_id = row.get('player_id')
+                
+                # Merge CSV attributes into card_data, giving precedence to CSV values
+                card = ShowdownPlayerCard(**card_data)
+                csv_attributes = csv_data_lookup.get(player_id, {})
+                for attr, value in csv_attributes.items():
+                    match attr:
+                        case "edition":
+                            try:
+                                value = Edition(value)
+                            except ValueError:
+                                print(f"Warning: Invalid edition '{value}' for player_id {player_id}")
+                        case "parallel":
+                            try:
+                                value = ImageParallel(value)
+                            except ValueError:
+                                print(f"Warning: Invalid parallel '{value}' for player_id {player_id}")
+                        case _:
+                            pass  # Keep as string or original type
+                    if hasattr(card, attr):
+                        setattr(card, attr, value)
+                    elif hasattr(card.image, attr):
+                        setattr(card.image, attr, value)
+                expansion_cards.append(card)
+        except Exception as e:
+            print(f"Error querying database for expansion players: {e}")
+
+        # SORT BY EDITION (IF IT EXISTS), THEN BY YEAR THEN BY BREF ID
+        expansion_cards.sort(key=lambda c: (
+            c.image.edition.value if c.image and c.image.edition else 'ZZZ',  # Sort by edition if it exists, otherwise put at end
+            c.image.set_year if c.image and c.image.set_year else 9999,  # Then sort by year if it exists
+            c.bref_id or ''  # Finally sort by bref_id
+        ))
+
+        return expansion_cards
 
     def build_set_player_list(self, show_team_breakdown: Optional[str] = None) -> None:
-        """Build a complete set based on configuration"""
+        """Build a complete set (base + expansions) based on configuration"""
         
-        print(f"Building {self.set_size} card set for {', '.join(map(str, self.years))}...")
+        print(f"Building {self.set_size} card base set for {', '.join(map(str, self.years))}...")
         
         # 1. Get player pool
         player_pool = self._get_qualified_player_pool()
@@ -134,6 +268,13 @@ class ShowdownBotSet(BaseModel):
         self._print_set_summary(final_players, team_allocations, show_team_breakdown)
 
         final_players = self._sort_and_number_players(final_players)
+        
+        # 6. Load and add expansion players from CSV (if provided)
+        expansion_player_tuples = self._load_expansion_players_from_csv()
+        if expansion_player_tuples:
+            expansion_cards = self._load_expansion_cards_from_db(expansion_player_tuples)
+            self.expansion_cards = expansion_cards
+        
         self.final_players = final_players
         
         return
@@ -224,6 +365,24 @@ class ShowdownBotSet(BaseModel):
             card.image.is_bordered = True
             card.image.set_year = 2026
             card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
+
+        # Expansion cards (if any)
+        if self.expansion_cards:
+            prior_edition = None
+            current_set_number = 1
+            for card in self.expansion_cards:
+                if not card.image:
+                    continue
+                if card.image.edition != prior_edition:
+                    current_set_number = 1  # Reset set number for new edition
+                card.image.set_number = f"{card.image.edition.value}{str(current_set_number).zfill(2)}"
+                card.image.output_folder_path = output_folder_path
+                card.image.is_bordered = True
+                card.image.set_year = 2026
+                card.image.set_name = f"{card.image.edition.value} Expansion"
+                card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
+                prior_edition = card.image.edition
+                current_set_number += 1
 
         return
     
@@ -641,10 +800,10 @@ class ShowdownBotSet(BaseModel):
             position_dist_table.add_row([pos.name, count, f"{(count/len(selected_players))*100:.1f}%", count_10_20, count_10_50])
         print(position_dist_table)
 
-        # SP POINTS DISTRIBUTION (50-POINT BUCKETS)
+        # RP/CL POINTS DISTRIBUTION (50-POINT BUCKETS)
         sp_point_buckets: Dict[int, int] = {}
         for player in selected_players:
-            if player.primary_position != Position.SP:
+            if player.primary_position not in (Position.RP, Position.CL):
                 continue
             if player.points is None:
                 continue
@@ -652,7 +811,7 @@ class ShowdownBotSet(BaseModel):
             sp_point_buckets[bucket_start] = sp_point_buckets.get(bucket_start, 0) + 1
 
         if len(sp_point_buckets) > 0:
-            print("\nSP Points Distribution (50-pt buckets):")
+            print("\nRP/CL Points Distribution (50-pt buckets):")
             sp_points_table = PrettyTable(field_names=["Points", "Count"])
             for bucket_start in sorted(sp_point_buckets.keys()):
                 bucket_end = bucket_start + 49

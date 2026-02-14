@@ -15,6 +15,7 @@ def set_builder(
     ideal_low_point_percentage: float = typer.Option(None, "--ideal_low_point_percentage", "-ilpp", help="Ideal percentage of low-point cards in the set."),
     manually_included_ids: str = typer.Option(None, "--manually_included_ids", "-inc", help="Specific player IDs to include in the set, comma-separated."),
     manually_excluded_ids: str = typer.Option(None, "--manually_excluded_ids", "-exc", help="Specific player IDs to exclude from the set, comma-separated."),
+    csv_file_path: str = typer.Option(None, "--csv_file", "-csv", help="Path to CSV file with bref_id and year columns (relative to core/set_builder folder)."),
     build_images: bool = typer.Option(False, "--build_images", "-img", help="Optionally build card images for the set after building."),
 ):
     """Archive player stats to Postgres"""
@@ -35,7 +36,8 @@ def set_builder(
             set_size=set_size,
             ideal_low_point_percentage=ideal_low_point_percentage,
             manually_included_ids=[pid.strip() for pid in manually_included_ids.split(',')] if manually_included_ids else None,
-            manually_excluded_ids=[pid.strip() for pid in manually_excluded_ids.split(',')] if manually_excluded_ids else None
+            manually_excluded_ids=[pid.strip() for pid in manually_excluded_ids.split(',')] if manually_excluded_ids else None,
+            csv_file_path=csv_file_path
         )
         showdown_bot_set.build_set_player_list(show_team_breakdown=team_breakdown)
         if build_images:
