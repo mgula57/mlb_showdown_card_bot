@@ -17,6 +17,7 @@ def set_builder(
     manually_excluded_ids: str = typer.Option(None, "--manually_excluded_ids", "-exc", help="Specific player IDs to exclude from the set, comma-separated."),
     csv_file_path: str = typer.Option(None, "--csv_file", "-csv", help="Path to CSV file with bref_id and year columns (relative to core/set_builder folder)."),
     build_images: bool = typer.Option(False, "--build_images", "-img", help="Optionally build card images for the set after building."),
+    export_data: bool = typer.Option(False, "--export_data", "-data", help="Optionally export card data to JSON after building the set.")
 ):
     """Archive player stats to Postgres"""
 
@@ -40,8 +41,11 @@ def set_builder(
             csv_file_path=csv_file_path
         )
         showdown_bot_set.build_set_player_list(show_team_breakdown=team_breakdown)
-        if build_images:
-            showdown_bot_set.generate_showdown_cards_for_final_players()
+        if build_images or export_data:
+            showdown_bot_set.generate_showdown_cards_for_final_players(
+                export_data=export_data,
+                skip_images=not build_images
+            )
 
     except Exception as e:
         # Full traceback

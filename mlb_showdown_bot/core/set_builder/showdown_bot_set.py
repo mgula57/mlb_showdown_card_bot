@@ -3,6 +3,7 @@ from typing import List, Dict, Optional, Tuple
 import statistics
 import os
 import csv
+import json
 
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -284,7 +285,9 @@ class ShowdownBotSet(BaseModel):
         output_folder_path: str = None,
         set_name: Optional[str] = None,
         img_name_suffix: str = '',
-        show: bool = False
+        show: bool = False,
+        skip_images: bool = False,
+        export_data: bool = False
     ) -> None:
         """Generate card images for each item in final_players.
 
@@ -293,6 +296,8 @@ class ShowdownBotSet(BaseModel):
             set_name: Optional set name to trigger set-numbered filenames.
             img_name_suffix: Optional suffix appended to image file names.
             show: Whether to open images after creation.
+            skip_images: Whether to skip image generation.
+            export_data: Whether to export player data to JSON file in output folder.
 
         Returns:
             None
@@ -306,7 +311,7 @@ class ShowdownBotSet(BaseModel):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             default_set_name = set_name or f"showdown_set_{timestamp}"
             this_folder = os.path.dirname(os.path.abspath(__file__))
-            output_folder_path = os.path.join(this_folder, "output", default_set_name, 'images')
+            output_folder_path = os.path.join(this_folder, "output", default_set_name)
 
         os.makedirs(output_folder_path, exist_ok=True)
 
@@ -349,6 +354,7 @@ class ShowdownBotSet(BaseModel):
             except Exception:
                 continue
 
+        all_cards: list[ShowdownPlayerCard] = []
         total_cards = len(self.final_players)
         digits = max(1, len(str(total_cards)))
 
@@ -361,10 +367,13 @@ class ShowdownBotSet(BaseModel):
             set_number = player.set_number or 0
             card.image.set_number = str(set_number).zfill(digits)
             card.image.set_name = set_name or player.showdown_set
-            card.image.output_folder_path = output_folder_path
+            card.image.output_folder_path = os.path.join(output_folder_path, "images")
             card.image.is_bordered = True
             card.image.set_year = 2026
-            card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
+            if not skip_images:
+                card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
+            
+            all_cards.append(card)
 
         # Expansion cards (if any)
         if self.expansion_cards:
@@ -376,13 +385,28 @@ class ShowdownBotSet(BaseModel):
                 if card.image.edition != prior_edition:
                     current_set_number = 1  # Reset set number for new edition
                 card.image.set_number = f"{card.image.edition.value}{str(current_set_number).zfill(2)}"
-                card.image.output_folder_path = output_folder_path
+                card.image.output_folder_path = os.path.join(output_folder_path, "images")
                 card.image.is_bordered = True
                 card.image.set_year = 2026
                 card.image.set_name = f"{card.image.edition.value} Expansion"
-                card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
+                if not skip_images:
+                    card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
+                all_cards.append(card)
                 prior_edition = card.image.edition
                 current_set_number += 1
+
+        # EXPORT TO JSON WHERE THE PLAYER ID IS THE KEY AND SHOWDOWN CARD IS THE VALUE
+        if export_data:
+            export_path = os.path.join(output_folder_path, "data", "card_data.json")
+            os.makedirs(os.path.dirname(export_path), exist_ok=True)
+            export_dict = {}
+            for card in all_cards:
+                if card.bref_id and card.set:
+                    key = card.id
+                    export_dict[key] = card.as_json()
+            with open(export_path, 'w') as f:
+                json.dump(export_dict, f, indent=4)
+            print(f"Exported card data to {export_path}")
 
         return
     
@@ -425,7 +449,6 @@ class ShowdownBotSet(BaseModel):
         
         return qualified_players
 
-    
     def _calculate_quality_thresholds(self, player_pool: List[ExploreDataRecord]):
         """Calculate WAR thresholds for quality tiers"""
         wars = [p.war for p in player_pool if p.war is not None and p.war > 0]
