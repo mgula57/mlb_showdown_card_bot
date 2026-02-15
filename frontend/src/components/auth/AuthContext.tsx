@@ -37,6 +37,10 @@ interface AuthContextType {
     loading: boolean;
     /** Whether user needs to set username (OAuth users) */
     needsUsername: boolean;
+    /** Username from profiles table */
+    username: string | null;
+    /** Update username in profiles table */
+    updateUsername: (username: string) => Promise<{ error: Error | null }>;
     /** Sign in with email and password */
     signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
     /** Sign up with email and password */
@@ -86,6 +90,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
     const [needsUsername, setNeedsUsername] = useState(false);
+    const [username, setUsername] = useState<string | null>(null);
 
     /**
      * Check if user has a username in their profile
@@ -100,12 +105,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             if (error || !data || !data.username) {
                 setNeedsUsername(true);
+                setUsername(null);
             } else {
                 setNeedsUsername(false);
+                setUsername(data.username);
             }
         } catch (err) {
             console.error('Error checking profile:', err);
             setNeedsUsername(true);
+            setUsername(null);
         }
     };
 
@@ -142,6 +150,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 checkUserProfile(session.user.id);
             } else {
                 setNeedsUsername(false);
+                setUsername(null);
             }
             setLoading(false);
         });
@@ -224,16 +233,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
+    /**
+     * Update username in profile
+     */
+    const updateUsername = async (newUsername: string) => {
+        if (!user) {
+            return { error: new Error('User not authenticated') };
+        }
+
+        try {
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ username: newUsername })
+                .eq('id', user.id);
+
+            if (updateError) {
+                return { error: updateError as Error };
+            }
+
+            setUsername(newUsername);
+            setNeedsUsername(false);
+            return { error: null };
+        } catch (error) {
+            return { error: error as Error };
+        }
+    };
+
     const value = {
         user,
         session,
         loading,
         needsUsername,
+        username,
         signIn,
         signUp,
         signOut,
         signInWithProvider,
         checkUsernameAvailability,
+        updateUsername,
         refreshProfile,
     };
 

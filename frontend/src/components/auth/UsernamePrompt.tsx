@@ -115,6 +115,7 @@ export const UsernamePrompt: React.FC<UsernamePromptProps> = ({ userId, onComple
             onClose={() => {}} // Cannot be dismissed
             size="sm" 
             title="Choose Your Username"
+            disableCloseButton={true}
         >
             <div className="p-6">
                 <p className="text-secondary mb-4">

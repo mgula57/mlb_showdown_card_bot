@@ -21,7 +21,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useSiteSettings, useTheme, showdownSets } from '../shared/SiteSettingsContext';
-import { FaEnvelope, FaClock, FaPalette, FaSignOutAlt, FaTrash, FaCog } from 'react-icons/fa';
+import { FaEnvelope, FaClock, FaPalette, FaSignOutAlt, FaTrash, FaCog, FaUser } from 'react-icons/fa';
 import CustomSelect from '../shared/CustomSelect';
 
 /**
@@ -36,11 +36,16 @@ import CustomSelect from '../shared/CustomSelect';
  * @returns Account page with user information and settings
  */
 const AccountPage: React.FC = () => {
-    const { user, signOut, loading } = useAuth();
+    const { user, signOut, loading, username, updateUsername, checkUsernameAvailability } = useAuth();
     const navigate = useNavigate();
     const { isDark, setTheme, theme } = useTheme();
     const { userShowdownSet, setUserShowdownSet } = useSiteSettings();
     const [isSigningOut, setIsSigningOut] = useState(false);
+    const [isEditingUsername, setIsEditingUsername] = useState(false);
+    const [newUsername, setNewUsername] = useState('');
+    const [usernameError, setUsernameError] = useState<string | null>(null);
+    const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+    const [isSavingUsername, setIsSavingUsername] = useState(false);
 
     // Redirect to home if not authenticated
     useEffect(() => {
@@ -48,6 +53,13 @@ const AccountPage: React.FC = () => {
             navigate('/');
         }
     }, [user, loading, navigate]);
+
+    useEffect(() => {
+        if (!isEditingUsername) {
+            setNewUsername(username ?? '');
+            setUsernameError(null);
+        }
+    }, [username, isEditingUsername]);
 
     // Loading state
     if (loading) {
@@ -97,6 +109,55 @@ const AccountPage: React.FC = () => {
         return email.substring(0, 2).toUpperCase();
     };
 
+    const validateUsername = (value: string) => {
+        if (value.length < 3) return 'Username must be at least 3 characters';
+        if (!/^[a-zA-Z0-9_]+$/.test(value)) {
+            return 'Username can only contain letters, numbers, and underscores';
+        }
+        return null;
+    };
+
+    const handleCheckUsername = async (value: string) => {
+        const validationError = validateUsername(value);
+        if (validationError) {
+            setUsernameError(validationError);
+            return false;
+        }
+
+        setIsCheckingUsername(true);
+        const isAvailable = await checkUsernameAvailability(value);
+        setIsCheckingUsername(false);
+
+        if (!isAvailable) {
+            setUsernameError('Username is already taken');
+            return false;
+        }
+
+        setUsernameError(null);
+        return true;
+    };
+
+    const handleSaveUsername = async () => {
+        if (newUsername === (username ?? '')) {
+            setIsEditingUsername(false);
+            return;
+        }
+
+        const isValid = await handleCheckUsername(newUsername);
+        if (!isValid) return;
+
+        setIsSavingUsername(true);
+        const { error } = await updateUsername(newUsername);
+        setIsSavingUsername(false);
+
+        if (error) {
+            setUsernameError('Failed to update username. Please try again.');
+            return;
+        }
+
+        setIsEditingUsername(false);
+    };
+
     return (
         <div className="min-h-screen bg-primary p-4 md:p-8">
             <div className="max-w-4xl mx-auto space-y-6">
@@ -126,6 +187,78 @@ const AccountPage: React.FC = () => {
                         {/* User Info */}
                         <div className="flex-1">                            
                             <div className="space-y-3">
+
+                                {/* Username */}
+                                <div className="flex items-start space-x-3">
+                                    <FaUser className="text-gray-500 shrink-0 mt-1" />
+                                    <div className="flex-1">
+                                        <div className="flex items-end gap-5">
+                                            <div>
+                                                <p className="text-sm text-gray-500">Username</p>
+                                                <p className="text-secondary font-medium">{username ?? 'Not set'}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsEditingUsername(true);
+                                                    setUsernameError(null);
+                                                }}
+                                                className="text-xs mb-1 text-tertiary hover:underline"
+                                            >
+                                                {username ? 'Change' : 'Set'}
+                                            </button>
+                                        </div>
+
+                                        {isEditingUsername && (
+                                            <div className="mt-2 space-y-2">
+                                                <input
+                                                    type="text"
+                                                    value={newUsername}
+                                                    onChange={(e) => {
+                                                        setNewUsername(e.target.value);
+                                                        setUsernameError(null);
+                                                    }}
+                                                    onBlur={() => handleCheckUsername(newUsername)}
+                                                    minLength={3}
+                                                    pattern="[a-zA-Z0-9_]+"
+                                                    className={`
+                                                        w-full px-3 py-2
+                                                        bg-background-primary
+                                                        border rounded-lg
+                                                        text-secondary
+                                                        focus:outline-none focus:ring-2 focus:ring-accent
+                                                        ${usernameError ? 'border-red-500' : 'border-form-element'}
+                                                    `}
+                                                    placeholder="e.g. brianjordangoat"
+                                                />
+                                                {isCheckingUsername && (
+                                                    <p className="text-xs text-gray-500">Checking availability...</p>
+                                                )}
+                                                {usernameError ? (
+                                                    <p className="text-xs text-red-500">{usernameError}</p>
+                                                ) : null}
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSaveUsername}
+                                                        disabled={isSavingUsername || isCheckingUsername}
+                                                        className="px-3 py-1.5 rounded-md bg-accent text-primary text-xs font-semibold disabled:opacity-50"
+                                                    >
+                                                        {isSavingUsername ? 'Saving...' : 'Save'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsEditingUsername(false)}
+                                                        className="px-3 py-1.5 rounded-md border border-form-element text-xs text-secondary"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
                                 {/* Email */}
                                 <div className="flex items-center space-x-3">
                                     <FaEnvelope className="text-gray-500 shrink-0" />

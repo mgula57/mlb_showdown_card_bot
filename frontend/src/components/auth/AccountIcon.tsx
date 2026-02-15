@@ -17,8 +17,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { FaUserCircle, FaSignOutAlt, FaSpinner, FaCog } from 'react-icons/fa';
+import { FaCircleCheck } from 'react-icons/fa6';
 import { useAuth } from './AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { LoadingStatusToast } from '../shared/LoadingStatusToast';
 
 /**
  * Props for AccountIcon component
@@ -41,10 +43,12 @@ interface AccountIconProps {
  * @returns Account icon with dropdown functionality
  */
 export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLoginClick }) => {
-    const { user, signOut } = useAuth();
+    const { user, signOut, username } = useAuth();
     const navigate = useNavigate();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [hasSignedOut, setHasSignedOut] = useState(false);
+    const [isSignOutExiting, setIsSignOutExiting] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     /**
@@ -85,14 +89,29 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
         await signOut();
         setIsProcessing(false);
         setIsDropdownOpen(false);
+
+        setHasSignedOut(true);
+
+        // Reset sign out toast after it exits
+        setTimeout(() => {
+            setIsSignOutExiting(true);
+            setTimeout(() => {
+                setHasSignedOut(false);
+            }, 300); // Match the toast exit animation duration
+        }, 3000); // Match the toast duration
     };
 
     /**
      * Get user initials for avatar
+     * Uses username or email to generate initials (e.g. "John Doe" -> "JD")
      */
     const getUserInitials = () => {
-        if (!user?.email) return '?';
-        return user.email.charAt(0).toUpperCase();
+        if (!user) return '';
+
+        const nameSource = username || user.email || '';
+        const nameParts = nameSource.split(/[@._-]/).filter(Boolean);
+        const initials = nameParts.map(part => part[0].toUpperCase()).join('');
+        return initials.slice(0, 2); // Limit to 2 characters
     };
 
     return (
@@ -122,6 +141,16 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
                 )}
             </button>
 
+            <LoadingStatusToast
+                loadingStatus={hasSignedOut ? {
+                    message: 'Logged Out!',
+                    icon: <FaCircleCheck className="w-5 h-5" />,
+                    backgroundColor: 'rgb(34, 197, 94)', // green-500
+                    removeAfterSeconds: 3
+                } : null}
+                isExiting={isSignOutExiting}
+            />
+
             {/* Dropdown Menu (only shown when logged in) */}
             {user && isDropdownOpen && (
                 <div className="
@@ -135,8 +164,7 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
                 ">
                     {/* User Info Section */}
                     <div className="px-4 py-3 border-b border-form-element">
-                        <p className="text-sm text-gray-500">Signed in as</p>
-                        <p className="text-sm font-semibold text-secondary truncate">
+                        <p className="text-sm text-secondary truncate">
                             {user.email}
                         </p>
                     </div>
