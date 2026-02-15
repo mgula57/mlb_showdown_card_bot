@@ -35,14 +35,16 @@ import { useSiteSettings } from '../shared/SiteSettingsContext';
 import { ToastMessage } from '../shared/ToastMessage';
 
 import { CardDetail } from '../cards/CardDetail';
+import { CardHistory } from '../cards/CardHistory';
 
 // API
 import { buildCustomCard, type ShowdownBotCardAPIResponse } from '../../api/showdownBotCard';
-
+import { fetchCustomCardLogs, type CustomCardLogRecord } from '../../api/card_db/cardDatabase';
 // Icons
 import { 
     FaTable, FaImage, FaLayerGroup, FaUser, FaBaseballBall, FaExclamationCircle, 
     FaChevronCircleRight, FaChevronCircleLeft, FaChevronCircleUp, FaChevronCircleDown,
+    FaClock
 } from 'react-icons/fa';
 import { FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck } from 'react-icons/fa6';
 
@@ -51,7 +53,7 @@ import { FaShuffle, FaXmark, FaRotateLeft, FaCircleCheck } from 'react-icons/fa6
 // ----------------------------------
 
 /** State for the custom card form */
-interface CustomCardFormState {
+export interface CustomCardFormState {
     // Name and Year
     name: string; // ex: "Mike Trout"
     player_id?: string | null; // ex: "troutmi01"
@@ -92,7 +94,7 @@ interface CustomCardFormState {
 }
 
 /** Default values for the custom card form */
-const FORM_DEFAULTS: CustomCardFormState = {
+export const FORM_DEFAULTS: CustomCardFormState = {
     name: "", 
     player_id: null,
     player_type_override: undefined,
@@ -183,6 +185,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [query, _] = useState("");
     const [isFormCollapsed, setIsFormCollapsed] = useState(false);
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+    const [cardHistory, setCardHistory] = useState<CustomCardLogRecord[]>([]);
     const previewSectionRef = useRef<HTMLDivElement>(null);
 
     // Loading Status
@@ -370,6 +374,14 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
         }));
     };
 
+    // Helper function to toggle history section
+    const toggleHistory = () => {
+        setIsHistoryOpen(prev => !prev);
+        if (!isHistoryOpen) {
+            reloadCardHistory();
+        }
+    };
+
     const getSectionSummary = (sectionName: string) => {
         const summaries: SelectOption[] = [];
 
@@ -486,7 +498,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                 case "chart version": prefix = "CHART "; break;
                                 case "real stats": prefix = "SHOW "; suffix = " STATS"; break;
                             }
-                            return <span className={`${item.borderColor || 'text-[var(--tertiary)]'}`}>{prefix}{value}{suffix}</span>;
+                            return <span className={`${item.borderColor || 'text-(--tertiary)'}`}>{prefix}{value}{suffix}</span>;
                         })()}
                     </div>
                 ))}
@@ -892,6 +904,19 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     }, [form]);
 
     // ---------------------------------
+    // MARK: Load History
+    // ---------------------------------
+    const reloadCardHistory = async () => {
+        try {
+            const history = await fetchCustomCardLogs();
+            setCardHistory(history);
+        } catch (error) {
+            console.error("Failed to load card history:", error);
+        }
+    };
+
+
+    // ---------------------------------
     // MARK: Render SubComponents
     // ---------------------------------
 
@@ -954,11 +979,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     loadingStatus={loadingStatus} 
                     isExiting={isLoadingStatusExiting}
                 />
-                
 
                 {/* Form Inputs */}
                 <section className={`
-                    ${isFormCollapsed ? 'w-auto' : 'w-full @2xl:w-84 @2xl:flex-shrink-0'}
+                    ${isFormCollapsed ? 'w-auto' : 'w-full @2xl:w-84 @2xl:shrink-0'}
                     border-b-2 @2xl:border-r border-form-element
                     bg-background-secondary
                     flex flex-col 
@@ -966,68 +990,91 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     ${animationTw}
                 `}>
 
+                    {/* Header */}
+                    <div className={`flex items-center justify-between p-2 ${isFormCollapsed ? 'px-2' : 'px-4'}`}>
+                        
+                        {/* Reset and collapse buttons */}
+                        <div className='flex gap-1 items-center'>
+
+                            <h2 className={`mr-2 font-bold text-(--primary) ${isFormCollapsed ? 'hidden' : 'block'}`}>
+                                Card Settings
+                            </h2>
+
+                            {/* Reset and shuffle buttons */}
+                            <div className={`flex items-center gap-1 text-xl ${isFormCollapsed ? 'hidden' : 'flex'}`}>
+                                <button
+                                    type="button"
+                                    className={`
+                                        text-xl p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                    `}
+                                    title="Reset Form"
+                                    onClick={handleReset}
+                                >
+                                    <FaRotateLeft />
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className={`
+                                        text-xl p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                    `}
+                                    title='Shuffle'
+                                    onClick={handleShuffle}
+                                >
+                                    <FaShuffle />
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <button
+                            className={`
+                                text-lg p-2 rounded-lg hover:bg-(--background-tertiary) transition-colors cursor-pointer
+                                ${isFormCollapsed ? 'flex flex-row-reverse @2xl:flex-col items-center gap-2 @2xl:gap-3 px-4 w-full justify-center ' : ''}
+                            `}
+                            title='Collapse/Expand Form'
+                            onClick={() => setIsFormCollapsed(!isFormCollapsed)}
+                        >
+                            {isFormCollapsed ? (
+                                <>
+                                    <FaChevronCircleDown className="@2xl:hidden" />
+                                    <FaChevronCircleRight className="hidden @2xl:block" />
+                                </>
+                            ) : (
+                                <>
+                                    <FaChevronCircleUp className="@2xl:hidden" />
+                                    <FaChevronCircleLeft className="hidden @2xl:block" />
+                                </>
+                            )}
+                            {isFormCollapsed && (
+                                <>
+                                    {/* Normal horizontal text for small screens */}
+                                    <span className="text-nowrap font-semibold text-(--tertiary) @2xl:hidden">
+                                        Card Settings
+                                    </span>
+                                    {/* Vertical text for large screens */}
+                                    <span 
+                                        className='text-nowrap font-semibold text-(--tertiary) hidden @2xl:block'
+                                        style={{ 
+                                            writingMode: 'vertical-lr',
+                                            textOrientation: 'sideways',
+                                        }}
+                                    >
+                                        Card Settings
+                                    </span>
+                                </>
+                            )}
+                            
+                        </button>
+                    </div>
+
                     {/* Scrollable area */}
-                    <div className={`flex-1 pt-4 ${animationTw} ${isFormCollapsed ? 'px-1' : 'px-4'}
+                    <div className={`flex-1 ${animationTw} ${isFormCollapsed ? 'px-1' : 'px-4'}
                         overflow-visible @2xl:overflow-y-auto 
                     `}>
 
                         {/* Search and Form Inputs */}
-                        <div className={`flex-col flex gap-4 ${animationTw} ${isFormCollapsed ? 'pb-2' : 'pb-6'} @2xl:pb-96 justify-center`}>
-
-                            {/* Search Box and Collapse Button */}
-                            <div className='flex col-span-full gap-2 mb-0'>
-                                <PlayerSearchInput
-                                    label=""
-                                    value={query}
-                                    className={`${isFormCollapsed ? 'hidden' : 'block w-full'} ${animationTw}`}
-                                    onChange={(selection) => setForm({ 
-                                        ...form, 
-                                        name: selection.name, 
-                                        year: selection.year,
-                                        player_id: selection.bref_id,
-                                        player_type_override: selection.player_type_override,
-                                    })}
-                                />
-
-                                <button
-                                    className={`
-                                        text-xl p-2 rounded-lg hover:bg-[var(--background-tertiary)] transition-colors 
-                                        ${isFormCollapsed ? 'flex flex-row-reverse @2xl:flex-col items-center gap-2 @2xl:gap-3 px-4 w-full justify-center ' : ''}
-                                    `}
-                                    onClick={() => setIsFormCollapsed(!isFormCollapsed)}
-                                >
-                                    {isFormCollapsed ? (
-                                        <>
-                                            <FaChevronCircleDown className="@2xl:hidden" />
-                                            <FaChevronCircleRight className="hidden @2xl:block" />
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FaChevronCircleUp className="@2xl:hidden" />
-                                            <FaChevronCircleLeft className="hidden @2xl:block" />
-                                        </>
-                                    )}
-                                    {isFormCollapsed && (
-                                        <>
-                                            {/* Normal horizontal text for small screens */}
-                                            <span className="text-nowrap text-md font-semibold text-[var(--tertiary)] @2xl:hidden">
-                                                Card Settings
-                                            </span>
-                                            {/* Vertical text for large screens */}
-                                            <span 
-                                                className='text-nowrap text-md font-semibold text-[var(--tertiary)] hidden @2xl:block'
-                                                style={{ 
-                                                    writingMode: 'vertical-lr',
-                                                    textOrientation: 'sideways',
-                                                }}
-                                            >
-                                                Card Settings
-                                            </span>
-                                        </>
-                                    )}
-                                    
-                                </button>
-                            </div>
+                        <div className={`flex-col flex gap-4 ${animationTw} ${isFormCollapsed ? 'pb-0' : 'pb-6'} @2xl:pb-96 justify-center`}>
 
                             {/* Content with slide animation */}
                             <div className={`
@@ -1040,6 +1087,18 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                                 {!isFormCollapsed && (
                                     <>
+                                        <PlayerSearchInput
+                                            label=""
+                                            value={query}
+                                            className={`flex-1 ${animationTw}`}
+                                            onChange={(selection) => setForm({ 
+                                                ...form, 
+                                                name: selection.name, 
+                                                year: selection.year,
+                                                player_id: selection.bref_id,
+                                                player_type_override: selection.player_type_override,
+                                            })}
+                                        />
                                         {/* Display Error (If Applicable) */}
                                         {errorMessage && (
                                             <div className='w-full border-3 bg-red-500/10 text-red-500 border-red-500 rounded-xl p-2'>
@@ -1286,7 +1345,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                             ${isFormCollapsed ? '@2xl:hidden' : ''}
                         `}>
 
-                            <div className="flex flex-row-reverse sm:flex-col gap-2">
+                            <div className="flex flex-row-reverse gap-2">
                                 {/* Build Card */}
                                 <button
                                     type="button"
@@ -1295,10 +1354,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         flex items-center justify-center
                                         w-full rounded-xl py-4
                                         text-white
-                                        bg-[var(--showdown-blue)]
+                                        bg-(--showdown-blue)
                                         ${disableBuildButton
                                             ? 'cursor-not-allowed opacity-25'
-                                            : 'hover:bg-[var(--showdown-blue)]/50 cursor-pointer'
+                                            : 'hover:bg-(--showdown-blue)/50 cursor-pointer'
                                         }
                                         font-black
                                     `}
@@ -1308,44 +1367,21 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     Build Card
                                 </button>
 
-                                <div className="flex flex-row gap-2 sm:h-10 font-black text-sm">
-                                    
-                                    {/* Shuffle Button */}
-                                    <button
-                                        type="button"
-                                        className={`
-                                            flex items-center justify-center
-                                            w-1/2
-                                            rounded-xl
-                                            bg-yellow-500
-                                            ${isProcessingCard
-                                                ? 'cursor-not-allowed opacity-25'
-                                                : 'hover:bg-yellow-500/50 cursor-pointer'
-                                            }
-                                        `}
-                                        onClick={handleShuffle}
-                                    >
-                                        <FaShuffle className="sm:mr-1 w-10 sm:w-auto" />
-                                        <div className='hidden sm:inline'>Shuffle</div>
-                                    </button>
-
-                                    {/* Reset Button */}
-                                    <button
-                                        type="button"
-                                        className="
-                                            flex items-center justify-center
-                                            w-1/2
-                                            rounded-xl
-                                            text-white
-                                            bg-[var(--tertiary)]/50 hover:bg-[var(--tertiary)]
-                                            cursor-pointer
-                                        "
-                                        onClick={handleReset}
-                                    >
-                                        <FaRotateLeft className="sm:mr-1 w-10 sm:w-auto" />
-                                        <div className='hidden sm:inline'>Reset</div>
-                                    </button>
-                                </div>
+                                {/* History Icon/Button */}
+                                <button
+                                    type="button"
+                                    onClick={toggleHistory}
+                                    title="Toggle History"
+                                    className={`
+                                        flex items-center justify-center text-xl
+                                        rounded-xl px-4
+                                        border-2 border-form-element hover:bg-(--background-tertiary) transition-colors
+                                        cursor-pointer
+                                        font-bold
+                                    `}
+                                >
+                                    <FaClock />
+                                </button>
 
                             </div>
 
@@ -1360,20 +1396,52 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     id="preview-section"
                     ref={previewSectionRef}
                     className={`
-                        w-full @2xl:flex-grow
+                        w-full @2xl:grow
                         pb-64 @2xl:pb-0
                         scroll-mt-12
                         @2xl:scroll-mt-0
                         gradient-page
                     `}
                 >
-                    <CardDetail 
-                        showdownBotCardData={showdownBotCardData} 
-                        isLoading={isProcessingCard} 
-                        isLoadingGameBoxscore={isLoadingGameBoxscore}
-                    />
-                </section>
-                
+                    <div className="flex flex-col @2xl:flex-row h-full">
+                        <div className="flex-1 min-w-0">
+                            <CardDetail 
+                                showdownBotCardData={showdownBotCardData} 
+                                isLoading={isProcessingCard} 
+                                isLoadingGameBoxscore={isLoadingGameBoxscore}
+                            />
+                        </div>
+
+                        {isHistoryOpen && (
+                            <div 
+                                className="
+                                    hidden @6xl:block @6xl:w-64 shrink-0 
+                                    bg-(--background-secondary) rounded-lg 
+                                    border-2 border-form-element
+                                    m-4 py-4 ml-2
+                                    overflow-hidden
+                                "
+                            >
+                                <h2 className="flex px-4 justify-between items-center font-bold text-lg mb-2 text-(--primary)">
+                                    
+                                    <div className='flex gap-1.5 items-center'>
+                                        <FaClock />
+                                        <span>History </span>
+                                    </div>
+
+                                    <button 
+                                        className="text-secondary p-1 rounded-lg hover:bg-(--background-tertiary) transition-colors" 
+                                        title='Close History'
+                                        onClick={toggleHistory}
+                                    >
+                                        <FaXmark />
+                                    </button>
+                                </h2>
+                                <CardHistory history={cardHistory} />
+                            </div>
+                        )}
+                    </div>
+                </section>                    
             </div>
         </div>
     );

@@ -5,6 +5,7 @@
 
 import { type ShowdownBotCard } from '../showdownBotCard';
 import { type CardSource } from '../../types/cardSource';
+import { type CustomCardFormState } from "../../components/customs/CustomCardBuilder";
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -362,3 +363,56 @@ export const fetchTeamHierarchy = async (): Promise<TeamHierarchyRecord[]> => {
         return [];
     }
 };
+
+// =============================================================================
+// MARK: - CUSTOM CARD LOGS
+// =============================================================================
+
+/**
+ * Fetches historical logs of custom card creations for a user:
+ * 
+ * - Shows past custom cards created by the user
+ * - Useful for allowing users to view past creations
+ * - Returns array of card records with creation metadata
+ * 
+ * @param userId - Unique identifier for the user
+ * @returns Promise resolving to array of card records with creation logs
+ * @throws Error if API request fails
+ * 
+ * @example
+ * ```typescript
+ * const logs = await fetchCustomCardLogs('user-123');
+ * logs.forEach(log => {
+ *   console.log(`Created card ${log.card_id} on ${log.created_at}`);
+ *  }`);
+ * });
+ * ```
+ */
+
+export type CustomCardLogRecord = CardDatabaseRecord & {
+    id: string; // Unique identifier for the log entry
+    name: string; // Name of the player
+    year: string; // Year of the card
+    set: string; // Showdown set
+    user_id?: string; // ID of the user who created the card
+    created_on: string; // Timestamp of when the custom card was created
+    error_for_user?: string | null; // Error message if card creation failed
+    user_inputs?: CustomCardFormState | null; // Original user inputs for the card creation, if available
+};
+
+export async function fetchCustomCardLogs(userId?: string): Promise<CustomCardLogRecord[]> {
+    const res = await fetch(`${API_BASE}/cards/customs/history`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user_id: userId }),
+    });
+    if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    const response = await res.json();
+    const data: CustomCardLogRecord[] = response.custom_card_history || [];
+    console.log('Fetched custom card logs:', data);
+    return data;
+}

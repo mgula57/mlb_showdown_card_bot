@@ -2706,6 +2706,55 @@ class PostgresDB:
             self.connection.rollback()
             return None
 
+    def fetch_custom_card_history(self, user_ids: Optional[list[str]] = None, limit: int = 20, offset: int = 0) -> list[dict]:
+        """
+        Fetch custom card submission history from the log_custom_card_bot table.
+
+        Args:
+            user_ids: Optional list of user IDs to filter by.
+            limit: Maximum number of records to return.
+            offset: Number of records to skip.
+        Returns:
+            List of custom card submission records.
+        """
+
+        if not self.connection:
+            print("No database connection available for fetching custom card history.")
+            return []
+        
+        sql = """
+            SELECT id, name, year, set, created_on, user_id, user_inputs, error_for_user
+            FROM internal.log_custom_card_bot
+        """
+        params = []
+        if user_ids:
+            sql += " WHERE user_id = ANY(%s)"
+            params.append(user_ids)
+        sql += " ORDER BY created_on DESC LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+        
+        try:
+            with self.connection.cursor() as cur:
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+                history = []
+                for row in rows:
+                    history.append({
+                        'id': row[0],
+                        'name': row[1],
+                        'year': row[2],
+                        'set': row[3],
+                        'created_on': row[4].isoformat(),
+                        'user_id': row[5],
+                        'user_inputs': row[6],
+                        'error_for_user': row[7]
+                    })
+                return history
+        except Exception as error:
+            traceback.print_exc()
+            print(f"Error fetching custom card history from DB: {error}")
+            return []
+
 # ------------------------------------------------------------------------
 # PLAYER SEASON STATS
 # ------------------------------------------------------------------------

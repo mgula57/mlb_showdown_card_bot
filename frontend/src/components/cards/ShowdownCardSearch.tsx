@@ -600,7 +600,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
         const timeoutId = setTimeout(() => {
             getCardsData();
-        }, 100); // Small delay to prevent rapid successive calls
+        }, 200); // Small delay to prevent rapid successive calls
 
         return () => clearTimeout(timeoutId);
     }, [userShowdownSet, filters, debouncedSearchText]);
