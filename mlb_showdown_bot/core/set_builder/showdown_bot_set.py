@@ -265,7 +265,7 @@ class ShowdownBotSet(BaseModel):
         # 5. Redistribute unused slots
         final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
         
-        self._print_set_summary(final_players, team_allocations, show_team_breakdown)
+        self._print_set_summary(final_players, team_allocations, show_team_breakdown, player_pool)
 
         final_players = self._sort_and_number_players(final_players)
         
@@ -537,10 +537,13 @@ class ShowdownBotSet(BaseModel):
             )
             players_with_priority.append((updated_player, priority_score))
         
+        num_players_manually_included = len([p for p in players if p.bref_id_w_type_override in (self.manually_included_ids or [])])
+        cap = max(target_count, num_players_manually_included)
+
         players_with_priority.sort(key=lambda x: (x[0].bref_id_w_type_override in (self.manually_included_ids or []), x[1]), reverse=True)
 
         # Select top players up to target count
-        selected = [p[0] for p in players_with_priority[:target_count]]
+        selected = [p[0] for p in players_with_priority[:cap]]
         
         return selected
     
@@ -744,7 +747,13 @@ class ShowdownBotSet(BaseModel):
         selected_players.extend(additional_players)
         return selected_players
     
-    def _print_set_summary(self, selected_players: List[ShowdownBotSetPlayer], team_allocations: Dict[str, TeamAllocation], show_team_breakdown: Optional[str] = None):
+    def _print_set_summary(
+        self,
+        selected_players: List[ShowdownBotSetPlayer],
+        team_allocations: Dict[str, TeamAllocation],
+        show_team_breakdown: Optional[str] = None,
+        player_pool: Optional[List[ShowdownBotSetPlayer]] = None
+    ):
         """Print summary of the generated set"""
         
         print("\n" + "="*60)
@@ -834,6 +843,33 @@ class ShowdownBotSet(BaseModel):
             ])
         print(tbl_missing)
 
+        # HIGHEST WAR PLAYERS NOT SELECTED
+        if player_pool:
+            selected_ids = {p.id for p in selected_players if p.id}
+            unselected_players = [p for p in player_pool if p.id not in selected_ids]
+            unselected_players.sort(
+                key=lambda p: p.war if p.war is not None else -9999,
+                reverse=True
+            )
+
+            top_unselected = unselected_players[:20]
+            print(f"\nHighest WAR Players Not Selected: {len(unselected_players)} total")
+            unselected_table = PrettyTable()
+            unselected_table.field_names = ["Name", "WAR", "Pos", "G", "GS", "ERA", "OPS", "Team", "PTS"]
+            for player in top_unselected:
+                unselected_table.add_row([
+                    player.name,
+                    f"{player.war:.2f}" if player.war is not None else "N/A",
+                    player.primary_position.name.replace('_', ''),
+                    player.g,
+                    player.gs or '-',
+                    player.real_earned_run_avg or "-",
+                    player.real_onbase_plus_slugging or "-",
+                    player.team_id,
+                    player.points or "-"
+                ])
+            print(unselected_table)
+
         if show_team_breakdown:
             print(f"\nDetailed Team Breakdown for {show_team_breakdown}:")
             team_players = [p for p in selected_players if p.team_id == show_team_breakdown]
@@ -865,6 +901,7 @@ class ShowdownBotSet(BaseModel):
             players,
             key=lambda p: (
                 (p.team_id or "").lower(),
+                (p.bref_id_w_type_override or "").lower(),
                 last_name_key(p.name),
                 (p.name or "").lower()
             )
