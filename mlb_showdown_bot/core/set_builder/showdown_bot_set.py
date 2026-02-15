@@ -306,7 +306,7 @@ class ShowdownBotSet(BaseModel):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             default_set_name = set_name or f"showdown_set_{timestamp}"
             this_folder = os.path.dirname(os.path.abspath(__file__))
-            output_folder_path = os.path.join(this_folder, "output", default_set_name)
+            output_folder_path = os.path.join(this_folder, "output", default_set_name, 'images')
 
         os.makedirs(output_folder_path, exist_ok=True)
 
