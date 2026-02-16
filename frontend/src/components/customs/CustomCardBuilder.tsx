@@ -24,7 +24,8 @@
 // MARK: - Imports
 // ----------------------------------
 
-import { useEffect, useState, useRef } from 'react';
+import { useAuth } from '../auth/AuthContext';
+import { useEffect, useState, useRef, use } from 'react';
 import FormInput from './FormInput';
 import FormSection from './FormSection';
 import FormDropdown from './FormDropdown';
@@ -91,6 +92,9 @@ export interface CustomCardFormState {
     era?: string; // e.g. "Dynamic"
     is_variable_speed_00_01?: boolean; // Whether to use variable speed for 00-01
 
+    // Added in post-processing, not user inputs
+    randomize?: boolean; // Tags if user randomly generated the card
+    name_original?: string; // Original name inputted by user
 }
 
 /** Default values for the custom card form */
@@ -188,6 +192,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [cardHistory, setCardHistory] = useState<CustomCardLogRecord[]>([]);
     const previewSectionRef = useRef<HTMLDivElement>(null);
+
+    // User Context
+    const { user } = useAuth();
 
     // Loading Status
     const [loadingStatus, setLoadingStatus] = useState<loadingStatusContent | null>(null);
@@ -618,6 +625,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 show_historical_points: true,
                 season_trend_date_aggregation: 'WEEK',
                 // datasource: 'MLB_API',
+                user_id: user?.id,
             });
             
             // Handle Errors
@@ -632,12 +640,13 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                     backgroundColor: "rgb(255, 155, 155)", // Red
                     removeAfterSeconds: 5,
                 });
+                reloadCardHistory(); // Reload history to show failed attempt
                 return;
             }
 
             // Retrieve response, set state
             setShowdownBotCardData(cardData);
-            
+            reloadCardHistory(); // Reload history to show successful attempt
             console.log("Card built successfully:", cardData);
             console.log(currentSubMessage);
 
@@ -908,7 +917,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     // ---------------------------------
     const reloadCardHistory = async () => {
         try {
-            const history = await fetchCustomCardLogs();
+            const history = await fetchCustomCardLogs(user?.id);
             setCardHistory(history);
         } catch (error) {
             console.error("Failed to load card history:", error);

@@ -57,6 +57,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
     # SETUP LOGGING
     log_to_db = kwargs.get('store_in_logs', False)
     db_for_logs = kwargs.get('db_connection', None)
+    user_id = kwargs.get('user_id', None)
     if log_to_db:
         # CONNECT TO DB
         db_for_logs = db_for_logs or PostgresDB()
@@ -67,6 +68,10 @@ def generate_card(**kwargs) -> dict[str, Any]:
         db_for_logs = None
 
     try:
+
+        # LOG ORIGINAL NAME
+        # WE LOG THIS BEFORE ANY PROCESSING BECAUSE WE WANT TO CAPTURE EXACTLY WHAT THE USER INPUT, EVEN IF IT CAUSED AN ERROR LATER ON
+        kwargs['name_original'] = kwargs.get('name', None)
 
         # ADD RANDOM PLAYER ID AND YEAR IF NEEDED
         if kwargs.get('randomize', False):
@@ -313,7 +318,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     'in_season_trends': None,
                     'latest_game_box_score': None,
                     'scraper_load_time': None,
-                    'version': ''
+                    'version': '',
+                    'user_id': user_id,
                 }
             )
 

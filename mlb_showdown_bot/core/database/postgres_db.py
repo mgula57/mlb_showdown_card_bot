@@ -2601,6 +2601,7 @@ class PostgresDB:
                 'name': user_inputs.get('name', None),
                 'year': user_inputs.get('year', None),
                 'set': user_inputs.get('set', None),
+                'user_id': user_inputs.get('user_id', None)
             }
 
         # ADD ADDITIONAL ATTRIBUTES

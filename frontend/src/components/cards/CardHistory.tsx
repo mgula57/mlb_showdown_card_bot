@@ -1,7 +1,8 @@
 import { type CustomCardLogRecord } from "../../api/card_db/cardDatabase";
-import { FaCircleCheck, FaCircleXmark } from "react-icons/fa6";
+import { FaCircleCheck, FaCircleXmark, FaShuffle } from "react-icons/fa6";
 import { imageForSet } from "../shared/SiteSettingsContext";
 import type { CustomCardFormState } from "../customs/CustomCardBuilder";
+import { titleCase } from "../../functions/text";
 
 type CardHistoryProps = {
     history?: CustomCardLogRecord[];
@@ -16,8 +17,13 @@ export const CardHistory = ({ history }: CardHistoryProps) => {
         let currentGroup: { record: CustomCardLogRecord; timestamps: Array<{ created_on: string; error_for_user?: string | null, user_inputs?: CustomCardFormState | null }> } | null = null;
         
         history.forEach((record) => {
-            const key = `${record.name}-${record.year}-${record.set}-${record.user_inputs?.expansion !== undefined ? record.user_inputs.expansion : 'BS'}-${record.user_inputs?.set_number !== undefined ? record.user_inputs.set_number : '0'}`;
-            const currentKey = currentGroup ? `${currentGroup.record.name}-${currentGroup.record.year}-${currentGroup.record.set}-${currentGroup.record.user_inputs?.expansion !== undefined ? currentGroup.record.user_inputs.expansion : 'BS'}-${currentGroup.record.user_inputs?.set_number !== undefined ? currentGroup.record.user_inputs.set_number : '0'}` : null;
+            const expansion = record.user_inputs?.expansion !== undefined ? record.user_inputs.expansion : 'BS';
+            const set_number = record.user_inputs?.set_number !== undefined ? record.user_inputs.set_number : '0';
+            const key = `${record.name}-${record.year}-${record.set}-${expansion}-${set_number}`;
+            
+            const currentExpansion = currentGroup?.record.user_inputs?.expansion !== undefined ? currentGroup.record.user_inputs.expansion : 'BS';
+            const currentSetNumber = currentGroup?.record.user_inputs?.set_number !== undefined ? currentGroup.record.user_inputs.set_number : '0';
+            const currentKey = currentGroup ? `${currentGroup.record.name}-${currentGroup.record.year}-${currentGroup.record.set}-${currentExpansion}-${currentSetNumber}` : null;
             
             if (key === currentKey) {
                 // Same card, add to current group
@@ -69,7 +75,7 @@ export const CardHistory = ({ history }: CardHistoryProps) => {
 
                                     {/* Player name and year */}
                                     <div className="flex items-center gap-1.5 text-nowrap overflow-x-clip">
-                                        <span className="text-md font-medium">{group.record.name}</span>
+                                        <span className="text-md font-medium">{group.record.user_inputs?.name_original ? titleCase(group.record.user_inputs.name_original) : group.record.name}</span>
                                         <span className="text-xs text-tertiary">{group.record.year}</span>
                                     </div>
 
@@ -86,17 +92,24 @@ export const CardHistory = ({ history }: CardHistoryProps) => {
                                                 key={idx}
                                                 className={`text-[11px] flex justify-between items-center gap-1 overflow-x-clip ${timestamp.error_for_user ? 'text-(--red)' : 'text-(--green)'}`}
                                             >
-                                                
-                                                <span className="text-nowrap flex items-center gap-1">
+                                                <span className="text-nowrap flex items-center gap-1" title={timestamp.error_for_user ?? ''}>
                                                     {timestamp.error_for_user ? <FaCircleXmark /> : <FaCircleCheck />}
                                                     {formatTimeUTC(timestamp.created_on)}
                                                 </span>
 
-                                                {timestamp.user_inputs && timestamp.user_inputs?.chart_version !== '1' && (
-                                                    <span className="text-xs text-secondary">
-                                                        v{timestamp.user_inputs?.chart_version}
-                                                    </span>
-                                                )}
+                                                <div className="flex items-center gap-1.5">
+                                                    {timestamp.user_inputs && timestamp.user_inputs?.chart_version !== '1' && (
+                                                        <span className="text-xs text-secondary">
+                                                            v{timestamp.user_inputs?.chart_version}
+                                                        </span>
+                                                    )}
+
+                                                    {timestamp.user_inputs && timestamp.user_inputs.randomize && (
+                                                        <span className="text-xs text-secondary flex items-center gap-0.5">
+                                                            <FaShuffle />
+                                                        </span>
+                                                    )}
+                                                </div>                                                
                                             </div>
                                         ))}
                                     </div>
