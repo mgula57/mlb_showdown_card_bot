@@ -216,9 +216,8 @@ const AccountPage: React.FC = () => {
                                                     value={newUsername}
                                                     onChange={(e) => {
                                                         setNewUsername(e.target.value);
-                                                        setUsernameError(null);
+                                                        handleCheckUsername(e.target.value);
                                                     }}
-                                                    onBlur={() => handleCheckUsername(newUsername)}
                                                     minLength={3}
                                                     pattern="[a-zA-Z0-9_]+"
                                                     className={`
@@ -234,9 +233,9 @@ const AccountPage: React.FC = () => {
                                                 {isCheckingUsername && (
                                                     <p className="text-xs text-gray-500">Checking availability...</p>
                                                 )}
-                                                {usernameError ? (
+                                                {usernameError && !isCheckingUsername ? (
                                                     <p className="text-xs text-red-500">{usernameError}</p>
-                                                ) : null}
+                                                ) : (!usernameError && !isCheckingUsername ? (<p className="text-xs text-green-500">Username is available!</p>) : null)}
                                                 <div className="flex items-center gap-2">
                                                     <button
                                                         type="button"
