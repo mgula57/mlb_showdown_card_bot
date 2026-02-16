@@ -2419,11 +2419,16 @@ class PostgresDB:
         index_sql = """
             CREATE UNIQUE INDEX IF NOT EXISTS log_custom_card_bot_id_idx ON internal.log_custom_card_bot(id int4_ops);
         """
+        user_id_index_sql = """
+            CREATE INDEX IF NOT EXISTS log_custom_card_bot_user_id
+            ON internal.log_custom_card_bot (user_id);
+        """
         try:
             with self.connection.cursor() as cur:
                 cur.execute(schema_check_sql)
                 cur.execute(create_table_sql)
                 cur.execute(index_sql)
+                cur.execute(user_id_index_sql)
                 self.connection.commit()
         except Exception as error:
             traceback.print_exc()
