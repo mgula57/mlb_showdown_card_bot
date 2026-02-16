@@ -67,8 +67,8 @@ export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
     };
 
     return (
-        <div className="h-full">
-            <ul className="list-inside space-y-4 overflow-y-scroll h-full pb-20 px-4">
+        <div className="h-full pb-20">
+            <ul className="list-inside space-y-4  px-4">
                 {!history || history.length === 0 ? (
                     <li className="py-4">
                         {user ? "No history available." : "No history available. Login to start tracking your cards."}

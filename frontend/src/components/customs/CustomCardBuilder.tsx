@@ -1479,16 +1479,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         {isHistoryOpen && (
                             <div 
                                 className="
-                                    fixed @2xl:absolute left-0 bottom-0 @6xl:relative @6xl:left-auto @6xl:bottom-auto
+                                    fixed @2xl:absolute left-0 bottom-0 z-21 @6xl:relative @6xl:left-auto @6xl:bottom-auto
                                     w-full shrink-0 @2xl:w-84 @2xl:shrink-0 @6xl:block @6xl:w-64 
                                     max-h-[50dvh] @6xl:max-h-none
-                                    rounded-t-xl bg-primary/85 backdrop-blur
+                                    rounded-t-xl backdrop-blur bg-secondary
                                     border-2 border-form-element
                                     @6xl:m-4 @6xl:ml-2 
                                     overflow-x-hidden
                                 "
                             >
-                                <h2 className="sticky top-0 flex p-4 justify-between items-center font-bold text-lg mb-2 text-(--primary) bg-primary/95 backdrop-blur">
+                                <h2 className="sticky top-0 flex p-4 justify-between items-center font-bold text-lg mb-2 text-(--primary) bg-background-secondary/95 backdrop-blur">
                                     
                                     <div className='flex gap-1.5 items-center'>
                                         <FaClock />
@@ -1502,9 +1502,8 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     >
                                         <FaXmark />
                                     </button>
-                                </h2>
-                                <p className="px-4 text-[11px] text-secondary pb-2">Click a timestamp to select a previous card configuration.</p>
 
+                                </h2>
                                 <CardHistory history={cardHistory} onSelectCard={handleSelectHistoryCard} />
                             </div>
                         )}
