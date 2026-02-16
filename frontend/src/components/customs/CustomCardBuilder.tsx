@@ -107,22 +107,26 @@ export const FORM_DEFAULTS: CustomCardFormState = {
     start_date: null, 
     end_date: null, 
     split: null,
+
     expansion: "BS", 
     set_number: null, 
     edition: "NONE",
+    add_one_to_set_year: false, 
+    show_year_text: false,
+
     image_source: "AUTO", 
     image_parallel: "NONE", 
     image_coloring: "PRIMARY", 
     image_glow_multiplier: "1",
     image_url: null, 
     image_upload: null,
+
     is_bordered: false, 
     is_dark_mode: false, 
     hide_team_logo: false,
     stat_highlights_type: "NONE", 
     nickname_index: "NONE", 
-    add_one_to_set_year: false, 
-    show_year_text: false,
+    
     chart_version: "1", 
     era: "DYNAMIC", 
     is_variable_speed_00_01: false
@@ -189,7 +193,17 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [query, _] = useState("");
     const [isFormCollapsed, setIsFormCollapsed] = useState(false);
-    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+    const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(() => {
+        try {
+            const saved = localStorage.getItem('customCardHistoryOpen');
+            if (saved) {
+                return JSON.parse(saved);
+            }
+        } catch (error) {
+            console.warn('Failed to load history open state:', error);
+        }
+        return false;
+    });
     const [cardHistory, setCardHistory] = useState<CustomCardLogRecord[]>([]);
     const previewSectionRef = useRef<HTMLDivElement>(null);
 
@@ -372,6 +386,15 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             console.warn('Failed to save section states:', error);
         }
     }, [sectionStates]);
+
+    // Save history open state to localStorage when it changes
+    useEffect(() => {
+        try {
+            localStorage.setItem('customCardHistoryOpen', JSON.stringify(isHistoryOpen));
+        } catch (error) {
+            console.warn('Failed to save history open state:', error);
+        }
+    }, [isHistoryOpen]);
 
     // Helper function to toggle section state
     const toggleSection = (sectionName: string) => {
@@ -916,6 +939,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
     // MARK: Load History
     // ---------------------------------
     const reloadCardHistory = async () => {
+        if (!user) return;
         try {
             const history = await fetchCustomCardLogs(user?.id);
             setCardHistory(history);
@@ -923,6 +947,36 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             console.error("Failed to load card history:", error);
         }
     };
+
+    const handleSelectHistoryCard = (userInputs: CustomCardFormState) => {
+        
+
+        // If name_original is present, replace "name" with "name_original" to preserve original name in form
+        if (userInputs.name_original) {
+            userInputs.name = userInputs.name_original;
+        }
+        // Merge in default values for any missing fields to ensure form is fully populated
+        userInputs = { ...FORM_DEFAULTS, ...userInputs };
+        
+        // Remove `randomize` and `name_original` from the form state as they are not actual form fields
+        delete userInputs.randomize;
+        delete userInputs.name_original;
+
+        // Remove all keys that arent in CustomCardFormState to prevent errors and ensure only form fields are set
+        const allowedKeys = Object.keys(FORM_DEFAULTS);
+        userInputs = Object.fromEntries(
+            Object.entries(userInputs).filter(([key]) => allowedKeys.includes(key))
+        ) as CustomCardFormState;
+
+        setForm(userInputs);
+    };
+
+    // Load history when user is available if history panel was previously open
+    useEffect(() => {
+        if (isHistoryOpen && user) {
+            reloadCardHistory();
+        }
+    }, [user]); // Run when user becomes available
 
 
     // ---------------------------------
@@ -1346,7 +1400,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         {/* Make sticky at bottom */}
                         <footer className={`
                             fixed bottom-0 left-0 right-0 z-20
-                            -mx-4 px-10 py-3 @xl:p-6
+                            -mx-4 px-10 py-3 @2xl:p-6
                             @2xl:sticky @2xl:bottom-0 @2xl:left-auto @2xl:right-auto @2xl:z-auto
                             bg-background-secondary/95 backdrop-blur
                             border-t border-form-element
@@ -1384,9 +1438,10 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     className={`
                                         flex items-center justify-center text-xl
                                         rounded-xl px-4
-                                        border-2 border-form-element hover:bg-(--background-tertiary) transition-colors
+                                        hover:bg-(--background-tertiary) transition-colors
                                         cursor-pointer
                                         font-bold
+                                        ${isHistoryOpen ? 'border-2 border-(--warning)' : 'border-2 border-form-element '}
                                     `}
                                 >
                                     <FaClock />
@@ -1424,14 +1479,16 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                         {isHistoryOpen && (
                             <div 
                                 className="
-                                    hidden @6xl:block @6xl:w-64 shrink-0 
-                                    bg-(--background-secondary) rounded-lg 
+                                    fixed @2xl:absolute left-0 bottom-0 @6xl:relative @6xl:left-auto @6xl:bottom-auto
+                                    w-full shrink-0 @2xl:w-84 @2xl:shrink-0 @6xl:block @6xl:w-64 
+                                    max-h-[50dvh] @6xl:max-h-none
+                                    rounded-t-xl bg-primary/85 backdrop-blur
                                     border-2 border-form-element
-                                    m-4 py-4 ml-2
-                                    overflow-hidden
+                                    @6xl:m-4 @6xl:ml-2 
+                                    overflow-x-hidden
                                 "
                             >
-                                <h2 className="flex px-4 justify-between items-center font-bold text-lg mb-2 text-(--primary)">
+                                <h2 className="sticky top-0 flex p-4 justify-between items-center font-bold text-lg mb-2 text-(--primary) bg-primary/95 backdrop-blur">
                                     
                                     <div className='flex gap-1.5 items-center'>
                                         <FaClock />
@@ -1446,7 +1503,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                         <FaXmark />
                                     </button>
                                 </h2>
-                                <CardHistory history={cardHistory} />
+                                <p className="px-4 text-[11px] text-secondary pb-2">Click a timestamp to select a previous card configuration.</p>
+
+                                <CardHistory history={cardHistory} onSelectCard={handleSelectHistoryCard} />
                             </div>
                         )}
                     </div>

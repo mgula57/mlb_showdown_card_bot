@@ -3,12 +3,16 @@ import { FaCircleCheck, FaCircleXmark, FaShuffle } from "react-icons/fa6";
 import { imageForSet } from "../shared/SiteSettingsContext";
 import type { CustomCardFormState } from "../customs/CustomCardBuilder";
 import { titleCase } from "../../functions/text";
+import { useAuth } from "../auth/AuthContext";
 
 type CardHistoryProps = {
     history?: CustomCardLogRecord[];
+    onSelectCard?: (userInputs: CustomCardFormState) => void;
 };
 
-export const CardHistory = ({ history }: CardHistoryProps) => {
+export const CardHistory = ({ history, onSelectCard }: CardHistoryProps) => {
+    const { user } = useAuth();
+
     // Group only consecutive records with the same card (name + year + set)
     const groupConsecutiveRecords = () => {
         if (!history || history.length === 0) return [];
@@ -66,7 +70,9 @@ export const CardHistory = ({ history }: CardHistoryProps) => {
         <div className="h-full">
             <ul className="list-inside space-y-4 overflow-y-scroll h-full pb-20 px-4">
                 {!history || history.length === 0 ? (
-                    <li>No history available.</li>
+                    <li className="py-4">
+                        {user ? "No history available." : "No history available. Login to start tracking your cards."}
+                    </li>
                 ) : (
                     <>
                         {groupedArray.map((group, index) => (
@@ -88,9 +94,13 @@ export const CardHistory = ({ history }: CardHistoryProps) => {
                                     {/* Timestamps and statuses */}
                                     <div className="flex flex-col gap-1 mt-1">
                                         {group.timestamps.map((timestamp, idx) => (
-                                            <div
+                                            <button
                                                 key={idx}
-                                                className={`text-[11px] flex justify-between items-center gap-1 overflow-x-clip ${timestamp.error_for_user ? 'text-(--red)' : 'text-(--green)'}`}
+                                                onClick={() => timestamp.user_inputs && onSelectCard?.(timestamp.user_inputs)}
+                                                disabled={!timestamp.user_inputs}
+                                                className={`text-[11px] flex justify-between items-center gap-1 overflow-x-clip w-full text-left rounded px-1 py-0.5 transition-colors ${
+                                                    timestamp.user_inputs ? 'hover:bg-(--background-tertiary) cursor-pointer' : 'cursor-default'
+                                                } ${timestamp.error_for_user ? 'text-(--red)' : 'text-(--green)'}`}
                                             >
                                                 <span className="text-nowrap flex items-center gap-1" title={timestamp.error_for_user ?? ''}>
                                                     {timestamp.error_for_user ? <FaCircleXmark /> : <FaCircleCheck />}
@@ -110,7 +120,7 @@ export const CardHistory = ({ history }: CardHistoryProps) => {
                                                         </span>
                                                     )}
                                                 </div>                                                
-                                            </div>
+                                            </button>
                                         ))}
                                     </div>
                                     

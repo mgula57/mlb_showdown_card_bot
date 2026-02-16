@@ -164,7 +164,10 @@ export const AccountIcon: React.FC<AccountIconProps> = ({ className = '', onLogi
                 ">
                     {/* User Info Section */}
                     <div className="px-4 py-3 border-b border-form-element">
-                        <p className="text-sm text-secondary truncate">
+                        <p className="text-md font-bold text-primary truncate">
+                            {username}
+                        </p>
+                        <p className="text-[11px] text-secondary truncate">
                             {user.email}
                         </p>
                     </div>
