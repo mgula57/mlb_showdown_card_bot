@@ -3070,6 +3070,8 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.is_bordered and not has_border_already:
             # USE WHITE OR BLACK
             border_color = colors.BLACK if self.image.is_dark_mode else colors.WHITE
+            if self.image.special_edition == SpecialEdition.NATIONALITY and self.nationality and self.nationality != Nationality.NONE:
+                border_color = self.nationality.primary_color
             image_border = Image.new('RGBA', self.set.card_size_bordered, color=border_color)
             image_border.paste(background_image.convert("RGBA"),(self.set.card_border_padding,self.set.card_border_padding),background_image.convert("RGBA"))
             background_image = image_border

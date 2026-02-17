@@ -24,6 +24,7 @@ class Nationality(Enum):
     CN = 'CN'
     CZ = 'CZ'
     IS = 'IS'
+    BR = 'BR'
     NONE = 'NONE'
 
     @classmethod
@@ -145,6 +146,10 @@ class Nationality(Enum):
             case 'IS': return [
                 (1, 55, 183, 255), # BLUE
             ]
+            case 'BR': return [
+                (0, 148, 64, 255), # GREEN
+                (255, 203, 0, 255), # YELLOW
+            ]
             case _: return [
                 (0, 0, 0, 0), # BLACK
             ]
@@ -174,6 +179,7 @@ class Nationality(Enum):
             case 'CN': return 'RED'
             case 'CZ': return 'RED'
             case 'IS': return 'BLUE'
+            case 'BR': return 'YELLOW'
             case _: return 'BLUE'
 
     @property
