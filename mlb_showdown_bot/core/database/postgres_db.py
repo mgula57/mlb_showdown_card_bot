@@ -14,6 +14,7 @@ from enum import Enum
 
 # INTERNAL
 from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Set, StatsPeriodType, __version__, Position
+from ..card.stats.normalized_player_stats import Datasource
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
 
@@ -269,7 +270,7 @@ class PostgresDB:
         
         Args:
           query: psycopg2 SQL object
-          filter_value: Tuple of value(s) to filter by
+          filter_values: Tuple of value(s) to filter by
         
         Returns:
           List of column: row_value dictionaries. If no results or no connection, empty dict will be returned.
@@ -885,6 +886,62 @@ class PostgresDB:
         self.connection.close()
 
 # ------------------------------------------------------------------------
+# FETCHING FROM CARD DIM TABLE
+# ------------------------------------------------------------------------
+
+    def fetch_cards_for_player_ids(self, player_ids: list[str], showdown_set: str, source:Datasource = Datasource.BREF) -> dict[str, ShowdownPlayerCard]:
+        """Fetch card data for a list of player IDs from the dim_card table."""
+        
+        if self.connection is None:
+            print("No database connection available for fetching cards for player IDs.")
+            return {}
+        
+        try:
+            match source:
+                # For bref no need for extra join 
+                case Datasource.BREF:
+                    query = sql.SQL("""
+                        SELECT 
+                            input.player_id,
+                            dim_card.card_data
+                        FROM VALUES (SELECT unnest(%s) AS player_id) AS input
+                        LEFT JOIN internal.dim_card ON dim_card.player_id = input.player_id AND dim_card.showdown_set = %s
+                    """)
+                    results = self.execute_query(query=query, filter_values=(player_ids, showdown_set))
+                case Datasource.MLB_API:
+                    # For MLB API we need to do an extra join to `dim_player_id_map` to get the corresponding bref_id for each player_id
+                    split_year_and_mlb_id = [(int(player_id.split("-", 1)[0]), int(player_id.split("-", 1)[1])) for player_id in player_ids]
+                    years, mlb_api_ids = zip(*split_year_and_mlb_id)
+                    years = list(years)
+                    mlb_api_ids = list(mlb_api_ids)
+                    query = sql.SQL("""
+                        SELECT
+                            (input.year::text || '-' || input.mlb_id::text) AS player_id,
+                            dim_card.card_data
+                        FROM unnest(%s::int[], %s::int[]) AS input(mlb_id, year)
+                        LEFT JOIN internal.dim_player_id_map ON dim_player_id_map.mlb_id = input.mlb_id
+                        LEFT JOIN internal.dim_card 
+                            ON dim_card.player_id = (input.year::text || '-' || dim_player_id_map.bref_id)
+                            AND dim_card.showdown_set = %s
+                    """)
+                    results = self.execute_query(query=query, filter_values=(mlb_api_ids, years, showdown_set))
+
+            cards_by_player_id = {}
+            for row in results:
+                player_id = row['player_id']
+                card_data = row['card_data']
+                card = None
+                if card_data is not None:
+                    card = ShowdownPlayerCard(**card_data)
+                cards_by_player_id[player_id] = card
+            return cards_by_player_id
+                    
+        except Exception as e:
+            print("Error fetching cards for player IDs:", e)
+            traceback.print_exc()
+            return {}
+
+# ------------------------------------------------------------------------
 # CARD DATA UPLOADS (BOT AND WOTC)
 # ------------------------------------------------------------------------
 
@@ -1258,7 +1315,32 @@ class PostgresDB:
             if cursor:
                 cursor.close()
 
-
+    def fetch_mlb_ids_from_bref_ids(self, bref_ids: List[str]) -> Optional[dict[str, int]]:
+        """Fetch the MLB ID corresponding to a given bref_id from the dim_player_id_map table."""
+        
+        if self.connection is None:
+            print("No database connection available for fetching MLB IDs from bref_ids.")
+            return None
+        
+        try:
+            cursor = self.connection.cursor(cursor_factory=RealDictCursor)
+            query = sql.SQL("""
+                SELECT bref_id, mlb_id
+                FROM internal.dim_player_id_map
+                WHERE bref_id = ANY(%s)
+            """)
+            cursor.execute(query, (bref_ids,))
+            results = cursor.fetchall()
+            return {row['bref_id']: row['mlb_id'] for row in results}
+                    
+        except Exception as e:
+            print("Error fetching MLB IDs from bref_ids:", e)
+            traceback.print_exc()
+            return None
+        finally:
+            if cursor:
+                cursor.close()
+        
 # ------------------------------------------------------------------------
 # MATERIALIZED VIEWS
 # ------------------------------------------------------------------------

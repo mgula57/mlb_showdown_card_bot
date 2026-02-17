@@ -1,8 +1,8 @@
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Optional
 
-from .division import Division
-from .league import League
+from ..leagues.division import Division
+from ..leagues.league import League
 
 class Team(BaseModel):
     id: int

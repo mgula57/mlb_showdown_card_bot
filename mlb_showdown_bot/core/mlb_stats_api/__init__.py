@@ -2,6 +2,7 @@
 
 from .clients.teams_client import TeamsClient
 from .clients.people_client import PeopleClient
+from .clients.leagues_client import LeaguesClient
 from .models.person import Player
 from typing import Optional
 from pprint import pprint
@@ -16,6 +17,7 @@ class MLBStatsAPI:
     """MLB Stats API client for all operations"""
     
     def __init__(self, **config):
+        self.leagues = LeaguesClient(**config)
         self.people = PeopleClient(**config)
         self.teams = TeamsClient(**config)
 
