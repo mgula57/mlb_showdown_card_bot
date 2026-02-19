@@ -416,7 +416,7 @@ const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
 // =============================================================================
 
 /** localStorage key for persisting filter selections across sessions */
-const FILTERS_STORAGE_KEY = 'exploreFilters:v1.01';
+const FILTERS_STORAGE_KEY = 'exploreFilters:v1.02';
 
 /**
  * Removes empty/null/undefined values from filter objects
@@ -1309,6 +1309,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         { value: 'SS', label: 'SS' },
                                         { value: 'LF/RF', label: 'LF/RF' },
                                         { value: 'CF', label: 'CF' },
+                                        { value: 'IF', label: 'IF' },
+                                        { value: 'OF', label: 'OF' },
                                         { value: 'DH', label: 'DH' },
                                         { value: 'STARTER', label: 'SP' },
                                         { value: 'RELIEVER', label: 'RP' },
