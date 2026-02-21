@@ -25,6 +25,21 @@ export default function Seasons() {
     const [leagues, setLeagues] = useState<League[]>([]);
     const [standings, setStandings] = useState<{ [leagueAbbreviation: string]: Standings[] }>({});
 
+    const [leagueGroups, setLeagueGroups] = useState<string[]>([]);
+    const [selectedLeagueGroup, setSelectedLeagueGroup] = useState<string | null>(null);
+    const leagueGroupMappings: { [key: string]: string[] } = {
+        "Regular Season": ["AL", "NL"],
+        "Spring Training": ["CL", "GL"],
+    };
+
+    const getLeagueGroupForLeague = (league: League): string | null => {
+        const leagueAbbreviation = league.abbreviation ?? "";
+        const matchedGroup = Object.entries(leagueGroupMappings).find(([, abbreviations]) =>
+            abbreviations.includes(leagueAbbreviation)
+        );
+        return matchedGroup?.[0] ?? null;
+    };
+
     const [activeTab, setActiveTab] = useState<string>("standings");
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
@@ -118,8 +133,30 @@ export default function Seasons() {
         }
         
         try {
+            
             const leaguesData = await fetchSeasonLeagues(selectedSeason, selectedSport);
             console.log(`Fetched leagues for season ${selectedSeason.season_id}:`, leaguesData);
+
+            const uniqueLeagueGroups = Array.from(
+                new Set(
+                    leaguesData
+                        .map((league) => getLeagueGroupForLeague(league))
+                        .filter((group): group is string => group !== null)
+                )
+            );
+            console.log("Unique league groups identified:", uniqueLeagueGroups);
+            setLeagueGroups(uniqueLeagueGroups);
+
+            setSelectedLeagueGroup((prevGroup) => {
+                if (uniqueLeagueGroups.length <= 1) {
+                    return null;
+                }
+                if (prevGroup && uniqueLeagueGroups.includes(prevGroup)) {
+                    return prevGroup;
+                }
+                return uniqueLeagueGroups[0] ?? null;
+            });
+
             setLeagues(leaguesData);
             
         } catch (error) {
@@ -136,8 +173,18 @@ export default function Seasons() {
             return;
         }
 
+        const shouldFilterByLeagueGroup = leagueGroups.length > 1 && selectedLeagueGroup !== null;
+        const leaguesToQuery = shouldFilterByLeagueGroup
+            ? leagues.filter((league) => getLeagueGroupForLeague(league) === selectedLeagueGroup)
+            : leagues;
+
+        if (leaguesToQuery.length === 0) {
+            setStandings({});
+            return;
+        }
+
         try {
-            const standingsData = await fetchSeasonStandings(selectedSeason, leagues);
+            const standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery);
             console.log(`Fetched standings for season ${selectedSeason.season_id}:`, standingsData);
             setStandings(standingsData);
         } catch (error) {
@@ -168,10 +215,10 @@ export default function Seasons() {
             return;
         }
         loadStandings();
-    }, [selectedSeason, leagues]);
+    }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup]);
 
     return (
-        <div className="w-full h-screen overflow-y-auto bg-(--background-primary)">
+        <div className="w-full bg-(--background-primary)">
             <div className="max-w-6xl mx-auto p-6">
                 {/* Header with Season Dropdown */}
                 <div className="mb-4 flex items-end justify-between">
@@ -192,6 +239,13 @@ export default function Seasons() {
                                 onChange={(value) => setSelectedSport(sports.find(sport => sport.id.toString() === value) || null)}
                                 options={sportOptions}
                             />
+                            {leagueGroups.length > 1 && (
+                                <CustomSelect
+                                    value={selectedLeagueGroup || ""}
+                                    onChange={(value) => setSelectedLeagueGroup(value || null)}
+                                    options={leagueGroups.map(group => ({ value: group, label: group }))}
+                                />
+                            )}
                         </div>
                     </div>
                 </div>
