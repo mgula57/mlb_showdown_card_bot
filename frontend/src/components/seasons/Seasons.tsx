@@ -16,6 +16,31 @@ import {
 import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad } from "react-icons/fa6";
 
 export default function Seasons() {
+    const STORAGE_KEYS = {
+        seasonId: "seasons.selectedSeasonId",
+        sportId: "seasons.selectedSportId",
+        leagueGroup: "seasons.selectedLeagueGroup",
+        activeTab: "seasons.activeTab",
+    };
+
+    const getStoredValue = (key: string): string | null => {
+        if (typeof window === "undefined") {
+            return null;
+        }
+        return window.localStorage.getItem(key);
+    };
+
+    const setStoredValue = (key: string, value: string | null) => {
+        if (typeof window === "undefined") {
+            return;
+        }
+        if (value === null || value === "") {
+            window.localStorage.removeItem(key);
+            return;
+        }
+        window.localStorage.setItem(key, value);
+    };
+
     const [seasons, setSeasons] = useState<Season[]>([]);
     const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
     
@@ -23,10 +48,9 @@ export default function Seasons() {
     const [selectedSport, setSelectedSport] = useState<Sport | null>(null);
 
     const [leagues, setLeagues] = useState<League[]>([]);
-    const [standings, setStandings] = useState<{ [leagueAbbreviation: string]: Standings[] }>({});
 
     const [leagueGroups, setLeagueGroups] = useState<string[]>([]);
-    const [selectedLeagueGroup, setSelectedLeagueGroup] = useState<string | null>(null);
+    const [selectedLeagueGroup, setSelectedLeagueGroup] = useState<string | null>(() => getStoredValue(STORAGE_KEYS.leagueGroup));
     const leagueGroupMappings: { [key: string]: string[] } = {
         "Regular Season": ["AL", "NL"],
         "Spring Training": ["CL", "GL"],
@@ -40,7 +64,9 @@ export default function Seasons() {
         return matchedGroup?.[0] ?? null;
     };
 
-    const [activeTab, setActiveTab] = useState<string>("standings");
+    const [standings, setStandings] = useState<{ [leagueAbbreviation: string]: Standings[] }>({});
+
+    const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "standings");
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
 
@@ -89,9 +115,18 @@ export default function Seasons() {
             setSeasons(normalizedSeasons);
             hasLoadedSeasonsRef.current = true;
             console.log("Fetched seasons:", normalizedSeasons);
-            if (!selectedSeason && normalizedSeasons.length > 0) {
-                console.log("Setting initial season to:", normalizedSeasons[0]);
-                setSelectedSeason(normalizedSeasons[0]);
+            if (normalizedSeasons.length > 0) {
+                const storedSeasonId = getStoredValue(STORAGE_KEYS.seasonId);
+                const seasonFromStorage = storedSeasonId
+                    ? normalizedSeasons.find((season) => season.season_id.toString() === storedSeasonId)
+                    : null;
+
+                setSelectedSeason((previousSeason) => {
+                    if (previousSeason && normalizedSeasons.some((season) => season.season_id === previousSeason.season_id)) {
+                        return previousSeason;
+                    }
+                    return seasonFromStorage ?? normalizedSeasons[0];
+                });
             }
         } catch (error) {
             console.error("Error fetching seasons:", error);
@@ -110,18 +145,17 @@ export default function Seasons() {
             console.log(`Fetched sports for season ${selectedSeason.season_id}:`, sportsData);
             setSports(sportsData);
 
-            // Check if the currently selected sport is still valid for the new season
-            if (selectedSport) {
-                const sportStillValid = sportsData.some(sport => sport.id === selectedSport.id);
-                if (!sportStillValid) {
-                    // Choose the first sport as the new default if the current one is no longer valid
-                    setSelectedSport(sportsData.length > 0 ? sportsData[0] : null);
+            const storedSportId = getStoredValue(STORAGE_KEYS.sportId);
+            const sportFromStorage = storedSportId
+                ? sportsData.find((sport) => sport.id.toString() === storedSportId)
+                : null;
+
+            setSelectedSport((previousSport) => {
+                if (previousSport && sportsData.some((sport) => sport.id === previousSport.id)) {
+                    return previousSport;
                 }
-            } else {
-                // If no sport is currently selected, set the first one as default
-                console.log("Setting initial sport to:", sportsData[0]);
-                setSelectedSport(sportsData.length > 0 ? sportsData[0] : null);
-            }
+                return sportFromStorage ?? (sportsData.length > 0 ? sportsData[0] : null);
+            });
         } catch (error) {
             console.error(`Error fetching sports for season ${selectedSeason.season_id}:`, error);
         }
@@ -202,6 +236,28 @@ export default function Seasons() {
         }
         loadSports();
     }, [selectedSeason]);
+
+    useEffect(() => {
+        setStoredValue(STORAGE_KEYS.seasonId, selectedSeason?.season_id?.toString() ?? null);
+    }, [selectedSeason]);
+
+    useEffect(() => {
+        setStoredValue(STORAGE_KEYS.sportId, selectedSport?.id?.toString() ?? null);
+    }, [selectedSport]);
+
+    useEffect(() => {
+        setStoredValue(STORAGE_KEYS.activeTab, activeTab);
+    }, [activeTab]);
+
+    useEffect(() => {
+        setStoredValue(STORAGE_KEYS.leagueGroup, selectedLeagueGroup);
+    }, [selectedLeagueGroup]);
+
+    useEffect(() => {
+        if (!tabs.some((tab) => tab.id === activeTab)) {
+            setActiveTab("standings");
+        }
+    }, [tabs, activeTab]);
 
     useEffect(() => {
         if (selectedSeason === null || selectedSeason.season_id === undefined || selectedSport === null || selectedSport.id === undefined) {
