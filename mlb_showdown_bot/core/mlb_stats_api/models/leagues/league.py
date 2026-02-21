@@ -27,6 +27,22 @@ class SeasonDateInfo(BaseModel):
     class Config:
         populate_by_name = True
 
+    @property
+    def is_currently_spring(self) -> bool:
+        """Determine if the current date is within the spring training period for this season"""
+        from datetime import datetime
+        
+        if self.spring_start_date and self.spring_end_date:
+            try:
+                spring_start = datetime.strptime(self.spring_start_date, "%Y-%m-%d").date()
+                spring_end = datetime.strptime(self.spring_end_date, "%Y-%m-%d").date()
+                today = datetime.today().date()
+                return spring_start <= today <= spring_end
+            except ValueError:
+                # If date parsing fails, assume not in spring
+                return False
+        return False
+
 class League(BaseModel):
     """Complete league model with all MLB Stats API fields"""
     
@@ -57,3 +73,30 @@ class League(BaseModel):
     
     class Config:
         populate_by_name = True
+
+    @property
+    def is_spring_league(self) -> bool:
+        """Determine if this league is a spring training league based on its abbreviation"""
+        return self.abbreviation in ['GL', 'CL']
+    
+    @property
+    def has_showdown_cards(self) -> bool:
+        """Whether there are Showdown Cards able to be pulled for this league"""
+        # For simplicity, we'll say that any active league in the regular season or later should have showdown cards
+        return self.abbreviation in [
+            'AL',
+            'NL',
+            'WBC', # DOESN'T ACTUALLY HAVE SHOWDOWN CARDS YET BUT LIKELY WILL IN THE FUTURE
+            'NNL',
+            'NN2',
+            'ECL',
+            'NAL',
+            'AA',
+            'NSL',
+            'PL',
+            'UA',
+            'EWL',
+            'ANL',
+            'FL',
+        ]
+

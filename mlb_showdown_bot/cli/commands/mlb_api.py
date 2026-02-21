@@ -121,3 +121,27 @@ def roster(
             ])
         print(table)
         
+
+@app.command("teams")
+def teams(
+    sport_id: int = typer.Option(1, "--sport_id", "-sp", help="MLB sport ID. Default is 1 (Major League Baseball)."),
+    season: int = typer.Option(None, "--season", "-s", help="Season year to filter teams by."),
+    active: bool = typer.Option(False, "--active", "-a", help="Whether to only include active teams."),
+):
+    """Fetch teams from MLB Stats API"""
+
+    mlb_api = MLBStatsAPI()
+    teams = mlb_api.teams.get_teams(sport_id=sport_id, season=season, onlyActive=active)
+    print(f"Teams for sport ID {sport_id} and season {season}:")
+    table = PrettyTable()
+    table.field_names = ["Team ID", "Team Name", "Abbreviation", "League", "Division", "League ID"]
+    for team in teams:
+        table.add_row([
+            team.id,
+            team.name,
+            team.abbreviation,
+            team.league.name if team.league else '-',
+            team.division.name if team.division else '-',
+            team.league.id if team.league else '-',
+        ])
+    print(table)

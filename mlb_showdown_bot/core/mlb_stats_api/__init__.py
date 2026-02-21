@@ -3,6 +3,8 @@
 from .clients.teams_client import TeamsClient
 from .clients.people_client import PeopleClient
 from .clients.leagues_client import LeaguesClient
+from .clients.seasons_client import SeasonsClient
+from .clients.sports_client import SportsClient
 from .models.person import Player
 from typing import Optional
 from pprint import pprint
@@ -20,6 +22,12 @@ class MLBStatsAPI:
         self.leagues = LeaguesClient(**config)
         self.people = PeopleClient(**config)
         self.teams = TeamsClient(**config)
+        self.seasons = SeasonsClient(**config)
+        self.sports = SportsClient(**config)
+
+    # -------------------------
+    # PLAYER SEARCH + BUILD
+    # -------------------------
 
     def build_full_player_from_search(self, search_name: str, stats_period: StatsPeriod) -> Player:
 
@@ -35,6 +43,7 @@ class MLBStatsAPI:
         player = self.people.get_player(player_id=player_search_results[0].id, stats_period=stats_period)
 
         return player
+    
 
 __all__ = [
     'MLBStatsAPI', 

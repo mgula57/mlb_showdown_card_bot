@@ -175,7 +175,7 @@ export default function Home() {
                         <Link to="/customs" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow hover:bg-neutral-200 transition ${isDark ? 'bg-white text-black' : 'bg-black text-white'}`}>
                             Build your Own <FaChevronRight />
                         </Link>
-                        <Link to="/explore" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
+                        <Link to="/cards" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
                             Explore Cards <FaChevronRight />
                         </Link>
                     </div>
@@ -342,12 +342,12 @@ export default function Home() {
                 
             </div>
 
-            {/* Explore Section */}
+            {/* Cards Section */}
             <div className="max-w-7xl mx-auto py-6 border-t border-form-element">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Explore</h2>
-                    <Link to="/explore" className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
-                        Open Explore <FaChevronRight />
+                    <h2 className="text-2xl font-bold">Cards</h2>
+                    <Link to="/cards" className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
+                        Explore Cards <FaChevronRight />
                     </Link>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -7,6 +7,26 @@ class TeamsClient(BaseMLBClient):
     """Client for team related endpoints - inherits all base functionality"""
 
     # -------------------------
+    # TEAMS LIST
+    # -------------------------
+    def get_teams(self, sport_id: int = 1, season: int = None, onlyActive: bool = False) -> list[Team]:
+        """Get list of teams for a given sport and season"""
+
+        params = {'sportId': sport_id}
+        if season:
+            params['season'] = season
+        if onlyActive:
+            params['activeStatus'] = 'Y'
+        try:
+            data = self._make_request('teams', params=params)
+            teams_data = data.get('teams', [])
+            return [Team(**team) for team in teams_data]
+        except Exception as e:
+            if "404" in str(e):
+                raise Exception(f"Teams not found for sportId {sport_id} and season {season}")
+            raise
+
+    # -------------------------
     # TEAM ENDPOINTS
     # -------------------------
     def get_team(self, team_id: int) -> Team:

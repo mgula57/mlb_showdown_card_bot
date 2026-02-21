@@ -1,5 +1,5 @@
 /**
- * @fileoverview Explore - Advanced card database browser and filter system
+ * @fileoverview Cards - Advanced card database browser and filter system
  * 
  * This component provides a comprehensive interface for exploring the MLB Showdown card database
  * with advanced filtering, sorting, and team hierarchy navigation capabilities.
@@ -7,11 +7,11 @@
 
 import { useState } from "react";
 import * as Tabs from '@radix-ui/react-tabs';
-import ShowdownBotSearch from "../cards/ShowdownCardSearch";
+import ShowdownBotSearch from "./ShowdownCardSearch";
 import { CardSource, isValidCardSource } from '../../types/cardSource';
 import { FaRobot } from "react-icons/fa6";
 
-export default function Explore() {
+export default function Cards() {
 
     // State - Initialize from localStorage or default to BOT
     const [tab, setTab] = useState<CardSource>(() => {
@@ -33,7 +33,7 @@ export default function Explore() {
         }
     };
 
-    // Explore Component Layout
+    // Cards Component Layout
     return (
         <Tabs.Root value={tab} onValueChange={handleTabChange}>
             {/* Tab Selection */}
@@ -49,7 +49,7 @@ export default function Explore() {
                                data-[state=inactive]:hover:bg-[var(--divider)]"
                 >
                     <FaRobot />
-                    BOT Cards
+                    BOT
                 </Tabs.Trigger>
                 <Tabs.Trigger 
                     value={CardSource.WOTC}
@@ -62,7 +62,7 @@ export default function Explore() {
                                data-[state=inactive]:hover:bg-[var(--divider)]"
                 >
                     <div className="text-[9px] bg-secondary px-1 rounded-sm shrink-0">OG</div>
-                    WOTC Cards
+                    WOTC
                 </Tabs.Trigger>
             </Tabs.List>
 
