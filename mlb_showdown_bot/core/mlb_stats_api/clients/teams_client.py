@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 from ..base_client import BaseMLBClient
 from ..models.teams.team import Team
 from ..models.teams.roster import Roster, RosterTypeEnum
@@ -86,18 +87,25 @@ class TeamsClient(BaseMLBClient):
     # ROSTER ENDPOINTS
     # -------------------------
 
-    def get_team_roster(self, team_id: int, roster_type: RosterTypeEnum = RosterTypeEnum.ACTIVE) -> Roster:
+    def get_team_roster(self, team_id: int, season: str = None, date: str = None, roster_type: RosterTypeEnum = RosterTypeEnum.ACTIVE) -> Roster:
         """Get team roster by team ID and roster type
         
         Args:
             team_id: MLB team ID
+            season: Season year to filter the roster by.
+            date: Specific date to filter the roster by. Format should be YYYY-MM-DD.
             roster_type: Roster type to filter the results (e.g. active, 40Man, fullSeason, etc.)
         
         Returns:
             Roster object with roster details
         """
         try:
-            data = self._make_request(f'teams/{team_id}/roster', params={'rosterType': roster_type})
+            params = {'rosterType': roster_type}
+            if season:
+                params['season'] = season
+            if date:
+                params['date'] = date
+            data = self._make_request(f'teams/{team_id}/roster', params=params)
             if not data.get('roster'):
                 raise Exception(f"Roster for team {team_id} not found")
             return Roster(**data)

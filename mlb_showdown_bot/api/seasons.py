@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta, timezone
+import pprint
 from flask import Blueprint, jsonify, request
 from typing import List
 
-from ..core.mlb_stats_api import MLBStatsAPI
+from ..core.mlb_stats_api import MLBStatsAPI, RosterTypeEnum
 from ..core.mlb_stats_api.models.leagues.league import League
 from ..core.mlb_stats_api.models.leagues.standings import StandingsType
+from ..core.database.postgres_db import PostgresDB, Set as ShowdownSet
 
 seasons_bp = Blueprint('seasons', __name__)
 
@@ -81,6 +83,40 @@ def fetch_standings(season_id: str, league_id: str):
         standings = _mlb_stats_api.leagues.get_standings(season=season_id, league_id=league_id, standings_type=standings_type)
         standings_data = [standing.model_dump() for standing in standings]
         return jsonify({'standings': standings_data}), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
+
+@seasons_bp.route('/seasons/<season_id>/teams/<team_id>/roster', methods=["GET"])
+def fetch_roster(season_id: str, team_id: str):
+    """Fetch single roster for a given season and team"""
+    try:        
+        if not season_id or not team_id:
+            return jsonify({'error': 'Missing required parameters: season and team'}), 400
+        
+        roster_type_str = request.args.get('roster_type', 'active')  # Default to active roster
+        try:
+            roster_type = RosterTypeEnum(roster_type_str)
+        except ValueError:
+            return jsonify({'error': f'Invalid roster_type: {roster_type_str}. Valid options are: {[rt.value for rt in RosterTypeEnum]}'}), 400
+        
+        showdown_set = request.args.get('showdown_set', '2000')  # Optional showdown set parameter for pulling card data
+        try:
+            showdown_set_enum = ShowdownSet(showdown_set)
+        except ValueError:
+            return jsonify({'error': f'Invalid showdown_set: {showdown_set}. Valid options are: {[s.value for s in ShowdownSet]}'}), 400
+        
+        sport_id = request.args.get('sport_id', 1)  # Optional sport_id parameter for pulling card data, default to MLB
+
+        roster = _mlb_stats_api.teams.get_team_roster(team_id=team_id, season=season_id, roster_type=roster_type)
+        db = PostgresDB()
+        roster = db.add_showdown_cards_to_mlb_api_roster(roster=roster, showdown_set=showdown_set_enum.value, season=season_id, sport_id=sport_id)
+        roster_data = roster.model_dump(mode='json', exclude_none=True) if roster else None
+
+        return jsonify({'roster': roster_data}), 200
 
     except Exception as e:
         import traceback

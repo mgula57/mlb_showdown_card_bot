@@ -9,9 +9,11 @@ import { useState, useEffect, useRef } from "react";
 import * as Tabs from '@radix-ui/react-tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import { 
-    fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings,
-    type Season, type Sport, type League, type Standings
+    fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchTeamRoster,
+    type Season, type Sport, type League, type Standings, type Team, type Roster
 } from '../../api/mlbAPI';
+import { useSiteSettings } from "../shared/SiteSettingsContext";
+import TeamRoster from "../teams/TeamRoster";
 
 import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad } from "react-icons/fa6";
 
@@ -41,6 +43,8 @@ export default function Seasons() {
         window.localStorage.setItem(key, value);
     };
 
+    const { userShowdownSet } = useSiteSettings();
+
     const [seasons, setSeasons] = useState<Season[]>([]);
     const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
     
@@ -48,6 +52,11 @@ export default function Seasons() {
     const [selectedSport, setSelectedSport] = useState<Sport | null>(null);
 
     const [leagues, setLeagues] = useState<League[]>([]);
+
+    const [teams, setTeams] = useState<Team[]>([]);
+    const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+
+    const [selectedRoster, setSelectedRoster] = useState<Roster | null>(null);
 
     const [leagueGroups, setLeagueGroups] = useState<string[]>([]);
     const [selectedLeagueGroup, setSelectedLeagueGroup] = useState<string | null>(() => getStoredValue(STORAGE_KEYS.leagueGroup));
@@ -217,15 +226,53 @@ export default function Seasons() {
             return;
         }
 
+        var standingsData: { [leagueAbbreviation: string]: Standings[] } = {};
         try {
-            const standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery);
+            standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery);
             console.log(`Fetched standings for season ${selectedSeason.season_id}:`, standingsData);
             setStandings(standingsData);
         } catch (error) {
             console.error(`Error fetching standings for season ${selectedSeason.season_id}:`, error);
         }
+
+        // Populate Teams for Teams Tab
+        const allTeams: Team[] = [];
+        Object.values(standingsData).forEach((leagueStandings) => {
+            leagueStandings.forEach((standing) => {
+                standing.team_records?.forEach((record) => {
+                    allTeams.push(record.team);
+                });
+            });
+        });
+        allTeams.sort((a, b) => (a.abbreviation || "").localeCompare(b.abbreviation || ""));
+        // Check if currently selected team still exists in the new data, otherwise set to first value
+        setSelectedTeam((prevTeam) => {
+            if (prevTeam && allTeams.some((team) => (`${team.id}-${team.season}` === `${prevTeam.id}-${prevTeam.season}`))) {
+                return prevTeam;
+            }
+            return allTeams[0] || null;
+        });
+        console.log("All teams extracted from standings:", allTeams);
+        setTeams(allTeams);
     };
 
+    const loadTeamRoster = async (team: Team) => {
+        if (!selectedSeason || !selectedSport || !team) {
+            return;
+        }
+
+        try {
+            const rosterData = await fetchTeamRoster(selectedSeason, team.id, "active", userShowdownSet, selectedSport.id);
+            console.log(`Fetched roster for team ${team.name} in season ${selectedSeason.season_id}:`, rosterData);
+            setSelectedRoster(rosterData);
+        } catch (error) {
+            console.error(`Error fetching roster for team ${team.name} in season ${selectedSeason.season_id}:`, error);
+        }
+    };
+
+    // ************************
+    // Effects
+    // ************************
     useEffect(() => {
         loadSeasons();
     }, []);
@@ -272,6 +319,13 @@ export default function Seasons() {
         }
         loadStandings();
     }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup]);
+
+    useEffect(() => {
+        if (selectedTeam === null || selectedTeam.id === undefined) {
+            return;
+        }
+        loadTeamRoster(selectedTeam);
+    }, [selectedTeam, userShowdownSet]);
 
     return (
         <div className="w-full bg-(--background-primary)">
@@ -386,9 +440,36 @@ export default function Seasons() {
                                 forceMount
                             >
                                 <div className="mt-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        
+                                    <div className="w-64 max-w-full">
+                                        <CustomSelect
+                                            value={selectedTeam?.id?.toString() || ""}
+                                            onChange={(value) => setSelectedTeam(teams.find(team => team.id.toString() === value) || null)}
+                                            options={teams.map(team => ({ value: team.id.toString(), label: team.abbreviation || team.name }))}
+                                        />
                                     </div>
+                                    {selectedTeam && (
+                                        <div className="mt-4">
+                                            <div>
+                                                <h2 className="text-xl font-semibold text-(--text-primary)">
+                                                    {selectedTeam.name}
+                                                </h2>
+                                                <p className="text-sm text-(--text-secondary)">
+                                                    {selectedTeam.abbreviation || "N/A"} • {selectedTeam.season?.toString() || selectedSeason?.season_id || "N/A"}
+                                                </p>
+                                            </div>
+
+                                            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                                <div className="text-(--text-secondary)">
+                                                    <span className="font-semibold">League:</span> {selectedTeam.league?.name || selectedTeam.league?.abbreviation || "N/A"}
+                                                </div>
+                                                <div className="text-(--text-secondary)">
+                                                    <span className="font-semibold">Division:</span> {selectedTeam.division?.name_short || selectedTeam.division?.name || "N/A"}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <TeamRoster roster={selectedRoster} />
+  
                                 </div>
                             </Tabs.Content>
 

@@ -1,10 +1,10 @@
 """MLB Stats API - Sync-only implementation for all use cases"""
 
-from .clients.teams_client import TeamsClient
+from .clients.teams_client import TeamsClient, Roster, RosterTypeEnum
 from .clients.people_client import PeopleClient
 from .clients.leagues_client import LeaguesClient
 from .clients.seasons_client import SeasonsClient
-from .clients.sports_client import SportsClient
+from .clients.sports_client import SportsClient, SportEnum
 from .models.person import Player
 from typing import Optional
 from pprint import pprint
@@ -49,4 +49,7 @@ __all__ = [
     'MLBStatsAPI', 
     'Player',
     'Team',
+    'Roster',
+    'RosterTypeEnum',
+    'SportEnum',
 ]

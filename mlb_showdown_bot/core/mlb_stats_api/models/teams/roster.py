@@ -4,7 +4,7 @@ from enum import Enum
 
 from ..leagues.division import Division
 from ..leagues.league import League
-from ..person import Person
+from ..person import Person, PlayerWithShowdownCard
 from ..position import Position
 from ..generic import EnumGeneric
 
@@ -20,11 +20,11 @@ class RosterTypeEnum(str, Enum):
     COACH = "coach"
 
 class RosterSlot(BaseModel):
-    person: Person = Field(..., alias='person')
+    person: PlayerWithShowdownCard = Field(..., alias='person')
     position: Position = Field(..., alias='position')
     status: Optional[EnumGeneric] = Field(None, alias='status')
     jersey_number: Optional[str] = Field(None, alias='jerseyNumber')
-    parentTeamId: Optional[int] = Field(None, alias='parentTeamId')
+    parent_team_id: Optional[int] = Field(None, alias='parentTeamId')
 
 
 class Roster(BaseModel):

@@ -930,7 +930,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         {/* Sorting Summary */}
                         {selectedSortOption && (
                             <button
-                                className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                className="flex items-center bg-(--background-secondary) rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
                                 onClick={() => setFilters((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
                             >
                                 <div className="flex flex-row gap-1 items-center">

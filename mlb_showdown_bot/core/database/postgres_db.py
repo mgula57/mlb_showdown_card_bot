@@ -17,6 +17,7 @@ from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Er
 from ..card.stats.normalized_player_stats import Datasource
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
+from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum
 
 
 # ----------------------------------------------------------------
@@ -896,6 +897,13 @@ class PostgresDB:
             print("No database connection available for fetching cards for player IDs.")
             return {}
         
+        if type(source) == str:
+            try:
+                source = Datasource(source.lower())
+            except ValueError:
+                print(f"Invalid source '{source}' provided. Defaulting to 'bref'.")
+                source = Datasource.BREF
+        
         try:
             match source:
                 # For bref no need for extra join 
@@ -940,6 +948,73 @@ class PostgresDB:
             print("Error fetching cards for player IDs:", e)
             traceback.print_exc()
             return {}
+
+    def add_showdown_cards_to_mlb_api_roster(self, roster: Roster, showdown_set: Set, season: int, sport_id: int) -> Roster:
+        """Fetch card data for a list of MLB API roster data from the dim_card table."""
+        
+        if self.connection is None:
+            print("No database connection available for fetching cards for MLB API roster.")
+            return roster
+        
+        # Validations
+        if type(showdown_set) == str:
+            try:
+                showdown_set = Set(showdown_set)
+            except ValueError:
+                print(f"Invalid showdown set '{showdown_set}' provided. Defaulting to '2000'.")
+                showdown_set = Set._2000
+        
+        if type(season) == str:
+            try:
+                season = int(season)
+            except ValueError:
+                print(f"Invalid season '{season}' provided. No Showdown card data will be added to roster.")
+                return roster
+            
+        if type(sport_id) in [str, int]:
+            try:
+                sport_id = int(sport_id)
+                sport_id = SportEnum(sport_id)
+            except ValueError:
+                print(f"Invalid sport_id '{sport_id}' provided. No Showdown card data will be added to roster.")
+                return roster
+
+        try:
+            # In certain scenarios, use prior season's showdown set for card data (ex: WBC in early 2024 before 2024 season)
+            # Cases:
+            #   - For MLB Sport, use prior season's stats until May 1st
+            #   - For International Sport, use prior season's stats
+            year = season
+
+            if sport_id == SportEnum.INTERNATIONAL:
+                year = season - 1
+            elif sport_id == SportEnum.MLB:
+                current_date = datetime.now().date()
+                if current_date < datetime(season, 5, 1).date():
+                    year = season - 1
+
+            print("\nPulling showdown card data for players in roster...")
+            mlb_player_ids = [f"{year}-{slot.person.id}" for slot in roster.roster]
+            showdown_card_data = self.fetch_cards_for_player_ids(player_ids=mlb_player_ids, showdown_set=showdown_set, source=Datasource.MLB_API)
+
+            if len(showdown_card_data) == 0:
+                print("No showdown card data found for MLB API roster.")
+                return roster
+            
+            # ADD CARD DATA TO ROSTER
+            for roster_slot in roster.roster:
+                player_id = roster_slot.person.id
+                card = showdown_card_data.get(f"{year}-{player_id}")
+                if card:
+                    roster_slot.person.showdown_card_data = card
+                    roster_slot.person.points = card.points
+
+            return roster
+        
+        except Exception as e:
+            print("Error fetching cards for MLB API roster:", e)
+            traceback.print_exc()
+            return roster
 
 # ------------------------------------------------------------------------
 # CARD DATA UPLOADS (BOT AND WOTC)
@@ -1067,7 +1142,7 @@ class PostgresDB:
                     created_date timestamp without time zone DEFAULT now(),
                     modified_date timestamp without time zone DEFAULT now()
                 );
-                """
+            """
             )
             print("  → Ensured card_wotc table exists.")
 
@@ -1206,7 +1281,7 @@ class PostgresDB:
 
 # -------------------------------------------------------------------------
 # IDS
-# ------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 
     def update_player_id_table(self, data: List[dict]) -> None:
         """Update the player_id_master table with new data. Load is always rip and replace.

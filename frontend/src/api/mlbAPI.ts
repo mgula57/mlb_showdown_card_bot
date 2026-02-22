@@ -9,6 +9,8 @@
  * @version 4.0
  */
 
+import { type ShowdownBotCard } from "./showdownBotCard";
+
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
 // ***************************
@@ -58,6 +60,15 @@ export const fetchSeasonStandings = async (season: Season, leagues: League[]): P
     return Object.fromEntries(standingsEntries);
 }
 
+export const fetchTeamRoster = async (season: Season, teamId: number, rosterType: string, showdownSet: string, sportId: number): Promise<Roster> => {
+    const response = await fetch(`${API_BASE}/seasons/${season.season_id}/teams/${teamId}/roster?roster_type=${rosterType}&showdown_set=${showdownSet}&sport_id=${sportId}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch roster for season ${season.season_id} and team ${teamId}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.roster as Roster;
+}
+
 // ***************************
 // Models
 // ***************************
@@ -94,10 +105,16 @@ export interface Division {
 
 export interface Team {
     id: number;
+
     name: string;
     abbreviation?: string;
+    team_code?: string;
+
+    season?: number | string;
     division?: Division;
     league?: League;
+
+    active?: boolean;
 }
 
 export interface Record {
@@ -121,4 +138,40 @@ export interface Standings {
     division?: Division;
     league?: League;
     team_records?: TeamRecords[];
+}
+
+export interface Roster {
+
+    roster_type: 'active' | '40Man' | 'fullSeason' | 'fullRoster' | 'gameday' | 'depthChart';
+    team_id?: number;
+    roster?: RosterSlot[];
+}
+
+export interface RosterSlot {
+    person: Player;
+    position: {
+        code?: string;
+        name?: string;
+        type?: string;
+        abbreviation?: string;
+        description?: string;
+    };
+    status?: string | {
+        code?: string;
+        description?: string;
+    };
+    jersey_number?: string;
+    parent_team_id?: number;
+}
+
+export interface Player {
+
+    id: number;
+    full_name: string;
+    first_name?: string;
+    last_name?: string;
+
+    // Optional Showdown Card Data
+    points?: number;
+    showdown_card_data?: ShowdownBotCard;
 }

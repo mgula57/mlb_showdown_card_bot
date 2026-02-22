@@ -3,13 +3,14 @@ from pprint import pprint
 from prettytable import PrettyTable
 
 from ...core.mlb_stats_api import MLBStatsAPI
-from ...core.card.stats.normalized_player_stats import Datasource
 from ...core.database.postgres_db import PostgresDB
 from ...core.mlb_stats_api.models.leagues.league import SportEnum
 from ...core.mlb_stats_api.models.teams.team import Team
-from ...core.mlb_stats_api.models.teams.roster import Roster, RosterTypeEnum
+from ...core.mlb_stats_api.models.teams.roster import RosterTypeEnum
 
 app = typer.Typer()
+
+_mlb_api = MLBStatsAPI()
 
 @app.command("free_agents")
 def free_agents(
@@ -18,8 +19,7 @@ def free_agents(
     """Fetch free agent players for a given season from MLB Stats API"""
     print(f"Fetching free agents for season {season}...")
     
-    mlb_api = MLBStatsAPI()
-    free_agents_list = mlb_api.people.get_free_agents(season=season)
+    free_agents_list = _mlb_api.people.get_free_agents(season=season)
     
     print(f"Found {len(free_agents_list)} free agents for season {season}:")
     table = PrettyTable()
@@ -44,14 +44,13 @@ def season(
 ):
     """Fetch season info from MLB Stats API"""
 
-    mlb_api = MLBStatsAPI()
     is_mlb = sport_id == SportEnum.MLB
 
     abbreviations = [abbr.strip() for abbr in abbreviations.split(',')] if abbreviations else None
     if abbreviations is None and is_mlb:
         abbreviations = ['AL', 'NL']  # Default to AL and NL for MLB if no abbreviations provided
     
-    leagues = mlb_api.leagues.get_leagues(seasons=[season], sport_id=sport_id, abbreviations=abbreviations)
+    leagues = _mlb_api.leagues.get_leagues(seasons=[season], sport_id=sport_id, abbreviations=abbreviations)
     
 @app.command("roster")
 def roster(
@@ -65,8 +64,6 @@ def roster(
 ):
     """Fetch team roster from MLB Stats API"""
 
-    mlb_api = MLBStatsAPI()
-
     try:
         roster_type_enum = RosterTypeEnum(roster_type)
     except ValueError:
@@ -75,42 +72,24 @@ def roster(
 
     # Search for team is abbreviation provided
     if not team_id and abbreviation:
-        team: Team = mlb_api.teams.find_team_for_abbreviation(abbreviation=abbreviation, sport_id=sport_id, season=season)
+        team: Team = _mlb_api.teams.find_team_for_abbreviation(abbreviation=abbreviation, sport_id=sport_id, season=season)
         team_id = team.id
 
     # Fetch roster for team ID
-    roster = mlb_api.teams.get_team_roster(team_id=team_id, roster_type=roster_type_enum)
+    roster = _mlb_api.teams.get_team_roster(team_id=team_id, season=season, roster_type=roster_type_enum)
     print(f"Roster for team ID {team_id} ({roster.roster_type}):")
     
     # Get showdown card data for players in roster if option enabled
     if pull_showdown_card_data and roster.roster and len(roster.roster) > 0:
-        if not showdown_set:
-            print("Showdown set is required to pull card data. Please provide a showdown set using the --showdown_set option.")
-            return
-        
-        if not season:
-            print("Season year is required to pull card data. Please provide a season year using the --season option.")
-            return
-        
-
-        # If WBC season, use prior season's showdown set for card data
-        year = season
-        if sport_id == SportEnum.INTERNATIONAL:
-            year = season - 1
-
-        print("\nPulling showdown card data for players in roster...")
-        mlb_player_ids = [f"{year}-{slot.person.id}" for slot in roster.roster]
+        # Initialize database connection
         db = PostgresDB()
-
-        showdown_card_data = db.fetch_cards_for_player_ids(player_ids=mlb_player_ids, showdown_set=showdown_set, source=Datasource.MLB_API)
-        if len(showdown_card_data) == 0:
-            print("No showdown card data found for players in roster.")
+        roster = db.add_showdown_cards_to_mlb_api_roster(roster=roster, showdown_set=showdown_set, season=season, sport_id=sport_id)
         
         # CREATE TABLE
         table = PrettyTable()
         table.field_names = ["Player", "Position", "Set", "Year", "MLB Team", "PTS"]
         for roster_slot in roster.roster:
-            card = showdown_card_data.get(f"{year}-{roster_slot.person.id}")
+            card = roster_slot.person.showdown_card_data
             table.add_row([
                 roster_slot.person.full_name,
                 card.positions_and_defense_string if card else roster_slot.position.abbreviation,
@@ -130,8 +109,7 @@ def teams(
 ):
     """Fetch teams from MLB Stats API"""
 
-    mlb_api = MLBStatsAPI()
-    teams = mlb_api.teams.get_teams(sport_id=sport_id, season=season, onlyActive=active)
+    teams = _mlb_api.teams.get_teams(sport_id=sport_id, season=season, onlyActive=active)
     print(f"Teams for sport ID {sport_id} and season {season}:")
     table = PrettyTable()
     table.field_names = ["Team ID", "Team Name", "Abbreviation", "League", "Division", "League ID"]
