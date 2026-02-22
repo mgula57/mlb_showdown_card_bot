@@ -124,9 +124,10 @@ type TeamRosterPositionTableProps = {
     position: string;
     slots: RosterSlot[];
     className?: string;
+    tableClassName?: string;
 };
 
-export default function TeamRosterPositionTable({ position, slots, className }: TeamRosterPositionTableProps) {
+export default function TeamRosterPositionTable({ position, slots, className, tableClassName }: TeamRosterPositionTableProps) {
 
     const [selectedSlot, setSelectedSlot] = useState<RosterSlot | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -158,14 +159,14 @@ export default function TeamRosterPositionTable({ position, slots, className }: 
     );
 
     return (
-        <section className="bg-(--background-secondary) rounded-lg border border-(--divider) overflow-hidden">
-            <h3 className="px-4 py-2 text-sm font-semibold uppercase text-(--text-secondary) bg-(--background-quaternary)">
+        <section className={`overflow-hidden ${className || ""}`}>
+            <h3 className="px-4 py-2 text-sm font-semibold uppercase text-(--text-secondary)">
                 {position}
             </h3>
             <BasicDataTable 
                 data={sortedSlots}
                 columns={showdownCardColumns}
-                className={className || "rounded-none border-0"}
+                className={tableClassName || "rounded-none border-0"}
                 onRowClick={handleRowClick}
             />
 
