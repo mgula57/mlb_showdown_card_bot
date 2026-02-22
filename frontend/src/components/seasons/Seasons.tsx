@@ -262,7 +262,8 @@ export default function Seasons() {
         }
 
         try {
-            const rosterData = await fetchTeamRoster(selectedSeason, team.id, "active", userShowdownSet, selectedSport.id);
+            const rosterType = "active";
+            const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, userShowdownSet, selectedSport.id);
             console.log(`Fetched roster for team ${team.name} in season ${selectedSeason.season_id}:`, rosterData);
             setSelectedRoster(rosterData);
         } catch (error) {

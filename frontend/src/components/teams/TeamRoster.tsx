@@ -25,7 +25,7 @@ const getPositionLabel = (slot: RosterSlot): string => {
     if (typeof slot.position === "string") {
         return slot.position;
     }
-    return slot.position.abbreviation || slot.position.code || slot.position.name || slot.position.description || "Unknown";
+    return slot.position.type || slot.position.abbreviation || slot.position.code || slot.position.name || "Unknown";
 };
 
 export default function TeamRoster({ roster }: TeamRosterProps) {
