@@ -551,7 +551,12 @@ export default function Seasons() {
                                         />
                                     </div>
                                     {selectedTeam && (
-                                        <div className="mt-4 border-t border-(--divider) pt-4">
+                                        <div
+                                            className="mt-4 rounded-lg border border-(--divider) p-4"
+                                            style={{
+                                                backgroundImage: `linear-gradient(120deg, color-mix(in srgb, ${selectedTeam.primary_color || "var(--background-primary)"} 12%, transparent) 0%, color-mix(in srgb, ${(selectedTeam.secondary_color || selectedTeam.primary_color || "var(--background-primary)")} 10%, transparent) 100%)`,
+                                            }}
+                                        >
                                             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4 items-start">
                                                 <div>
                                                     <h2 className="text-xl font-semibold text-(--text-primary)">
@@ -579,7 +584,7 @@ export default function Seasons() {
                                                         {teamShowdownPointsTotal.toLocaleString()}
                                                     </p>
                                                     <p className="text-xs text-(--text-secondary)">
-                                                        {teamAvgPointsPerPlayer > 0 ? `Avg ${teamAvgPointsPerPlayer.toFixed(1)} / Player` : "No player points"}
+                                                        {teamAvgPointsPerPlayer > 0 ? `Avg ${teamAvgPointsPerPlayer.toFixed(0)} / Player` : "No player points"}
                                                     </p>
                                                     <p className="text-xs text-(--text-tertiary)">
                                                         {teamPlayersWithShowdownCards} player{teamPlayersWithShowdownCards === 1 ? "" : "s"} with cards

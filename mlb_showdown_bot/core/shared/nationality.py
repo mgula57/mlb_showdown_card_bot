@@ -185,3 +185,32 @@ class Nationality(Enum):
     @property
     def logo_size_multiplier(self) -> float:
         return 1.25
+    
+    @property
+    def three_letter_mlb_api_code(self) -> str:
+        match self:
+            case Nationality.US: return 'USA'
+            case Nationality.DO: return 'DOM'
+            case Nationality.VE: return 'VEN'
+            case Nationality.CU: return 'CUB'
+            case Nationality.CA: return 'CAN'
+            case Nationality.MX: return 'MEX'
+            case Nationality.PR: return 'PUR'
+            case Nationality.PA: return 'PAN'
+            case Nationality.JP: return 'JPN'
+            case Nationality.GB: return 'GBR'
+            case Nationality.DE: return 'DEU'
+            case Nationality.AU: return 'AUS'
+            case Nationality.CO: return 'COL'
+            case Nationality.KR: return 'KOR'
+            case Nationality.CW: return 'CUW'
+            case Nationality.TW: return 'TPE'
+            case Nationality.NI: return 'NCA'
+            case Nationality.NL: return 'NED'
+            case Nationality.IT: return 'ITA'
+            case Nationality.CN: return 'CHN'
+            case Nationality.CZ: return 'CZE'
+            case Nationality.IS: return 'ISR'
+            case Nationality.BR: return 'BRA'
+            case _: return 'UNK'
+            

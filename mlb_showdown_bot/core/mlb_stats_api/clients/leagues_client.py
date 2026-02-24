@@ -1,7 +1,7 @@
 
 from pprint import pprint
 from ..base_client import BaseMLBClient
-from ..models.leagues.league import League
+from ..models.leagues.league import League, SportEnum
 from ..models.leagues.standings import StandingsType, Standings
 from typing import Optional, List
 
@@ -76,7 +76,10 @@ class LeaguesClient(BaseMLBClient):
             for standing in standings:
                 if standing.team_records:
                     for team_record in standing.team_records:
-                        team_record.team.load_colors_from_showdown_team()
+                        if standing.league.sport.id == SportEnum.INTERNATIONAL.value:
+                            team_record.team.load_color_from_country()
+                        else:
+                            team_record.team.load_colors_from_showdown_team()
             
             return standings
         except Exception as e:
