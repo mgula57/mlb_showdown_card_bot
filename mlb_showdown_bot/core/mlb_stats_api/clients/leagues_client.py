@@ -68,9 +68,17 @@ class LeaguesClient(BaseMLBClient):
         }
         try:
             data = self._make_request(f'standings', params=params)
-            standings = data.get('records', [])
+            standings_raw = data.get('records', [])
 
-            return [Standings(**record) for record in standings]
+            standings = [Standings(**record) for record in standings_raw]
+
+            # Add primary and secondary colors to each team in the standings based on the ShowdownTeam enum
+            for standing in standings:
+                if standing.team_records:
+                    for team_record in standing.team_records:
+                        team_record.team.load_colors_from_showdown_team()
+            
+            return standings
         except Exception as e:
             if "404" in str(e):
                 raise Exception(f"Standings for season {season} not found")

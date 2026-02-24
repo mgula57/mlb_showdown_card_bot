@@ -4,7 +4,7 @@ from enum import Enum
 
 from .league import League
 from .division import Division
-from ..teams.team import Team
+from ..teams.team import TeamWithColors
 
 
 class StandingsType(str, Enum):
@@ -31,7 +31,7 @@ class Record(BaseModel):
 
 
 class TeamRecords(BaseModel):
-    team: Team
+    team: TeamWithColors
     season: Optional[int] = None
 
     league_record: Optional[Record] = Field(None, alias='leagueRecord')

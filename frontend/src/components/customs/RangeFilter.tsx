@@ -26,6 +26,10 @@ type Props = {
     onMaxChange: (n?: number) => void;
     /** Optional CSS class names for styling */
     className?: string;
+    /** Disable min input */
+    minDisabled?: boolean;
+    /** Disable max input */
+    maxDisabled?: boolean;
 };
 
 /**
@@ -61,7 +65,9 @@ export default function RangeFilter({
     maxValue,
     onMinChange,
     onMaxChange,
-    className
+    className,
+    minDisabled = false,
+    maxDisabled = false
 }: Props) {
     /**
      * Convert string input to number with validation
@@ -77,8 +83,12 @@ export default function RangeFilter({
      * Resets the range filter to empty state
      */
     const clear = () => {
-        onMinChange(undefined);
-        onMaxChange(undefined);
+        if (!minDisabled) {
+            onMinChange(undefined);
+        }
+        if (!maxDisabled) {
+            onMaxChange(undefined);
+        }
     };
 
     return (
@@ -87,7 +97,7 @@ export default function RangeFilter({
             <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-secondary">{label}</label>
                 {/* Clear button - only shown when values are set */}
-                {(minValue !== undefined || maxValue !== undefined) && (
+                {(minValue !== undefined || maxValue !== undefined) && !(minDisabled && maxDisabled) && (
                     <button
                         type="button"
                         onClick={clear}
@@ -109,6 +119,7 @@ export default function RangeFilter({
                         placeholder="Min"
                         value={minValue?.toString() || ""}
                         onChange={(v) => onMinChange(toNum(v || undefined))}
+                        disabled={minDisabled}
                     />
                 </div>
                 <div className="flex-1">
@@ -119,6 +130,7 @@ export default function RangeFilter({
                         placeholder="Max"
                         value={maxValue?.toString() || ""}
                         onChange={(v) => onMaxChange(toNum(v || undefined))}
+                        disabled={maxDisabled}
                     />
                 </div>
             </div>

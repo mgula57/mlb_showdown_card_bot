@@ -14,8 +14,11 @@ import {
 } from '../../api/mlbAPI';
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import TeamRoster from "../teams/TeamRoster";
+import SidebarPanel, { type SidebarSection } from "../shared/SidebarPanel";
 
-import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad } from "react-icons/fa6";
+import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaChevronDown } from "react-icons/fa6";
+
+import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 
 export default function Seasons() {
     const STORAGE_KEYS = {
@@ -76,6 +79,7 @@ export default function Seasons() {
     const [standings, setStandings] = useState<{ [leagueAbbreviation: string]: Standings[] }>({});
 
     const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "standings");
+    const [isTeamsNavOpen, setIsTeamsNavOpen] = useState<boolean>(true);
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
 
@@ -308,6 +312,12 @@ export default function Seasons() {
     }, [tabs, activeTab]);
 
     useEffect(() => {
+        if (activeTab === "teams") {
+            setIsTeamsNavOpen(true);
+        }
+    }, [activeTab]);
+
+    useEffect(() => {
         if (selectedSeason === null || selectedSeason.season_id === undefined || selectedSport === null || selectedSport.id === undefined) {
             return;
         }
@@ -328,62 +338,137 @@ export default function Seasons() {
         loadTeamRoster(selectedTeam);
     }, [selectedTeam, userShowdownSet]);
 
-    return (
-        <div className="w-full bg-(--background-primary)">
-            <div className="max-w-6xl mx-auto p-6">
-                {/* Header with Season Dropdown */}
-                <div className="mb-4 flex items-end justify-between">
-                    <div>
-                        <h1 className="text-4xl font-bold text-(--text-primary) mb-2">
-                            MLB Seasons
-                        </h1>
+    const selectedTeamKey = selectedTeam ? `${selectedTeam.id}-${selectedTeam.season}` : null;
+    const standingsEntries = Object.entries(standings);
 
-                        {/* Season Dropdown */}
-                        <div className="flex gap-x-2 mr-4">
-                            <CustomSelect
-                                value={selectedSeason?.season_id.toString() || "2026"}
-                                onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
-                                options={seasonOptions}
-                            />
-                            <CustomSelect
-                                value={selectedSport?.id?.toString() || ""}
-                                onChange={(value) => setSelectedSport(sports.find(sport => sport.id.toString() === value) || null)}
-                                options={sportOptions}
-                            />
-                            {leagueGroups.length > 1 && (
-                                <CustomSelect
-                                    value={selectedLeagueGroup || ""}
-                                    onChange={(value) => setSelectedLeagueGroup(value || null)}
-                                    options={leagueGroups.map(group => ({ value: group, label: group }))}
-                                />
-                            )}
-                        </div>
-                    </div>
+    const sidebarSections: SidebarSection[] = [
+        {
+            id: "context",
+            title: "Context",
+            collapsible: false,
+            content: (
+                <div className="space-y-2">
+                    <CustomSelect
+                        value={selectedSeason?.season_id.toString() || "2026"}
+                        onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
+                        options={seasonOptions}
+                    />
+                    <CustomSelect
+                        value={selectedSport?.id?.toString() || ""}
+                        onChange={(value) => setSelectedSport(sports.find(sport => sport.id.toString() === value) || null)}
+                        options={sportOptions}
+                    />
+                    {leagueGroups.length > 1 && (
+                        <CustomSelect
+                            value={selectedLeagueGroup || ""}
+                            onChange={(value) => setSelectedLeagueGroup(value || null)}
+                            options={leagueGroups.map(group => ({ value: group, label: group }))}
+                        />
+                    )}
                 </div>
-
-                {selectedSeason && (
-                    <>
-                        {/* Tabs */}
-                        <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
-                            {/* Tab List */}
-                            <Tabs.List className="flex px-3 border-b-2 pt-2 pb-1 border-form-element gap-x-2 h-12">
-                                {tabs.map(tab => (
+            ),
+        },
+        {
+            id: "navigation",
+            title: "Navigation",
+            collapsible: false,
+            content: (
+                <Tabs.List className="flex flex-col gap-1">
+                    {tabs.map(tab => {
+                        const isTeamsTab = tab.id === "teams";
+                        return (
+                            <div key={tab.id} className="space-y-1">
+                                <div className="flex items-center gap-1">
                                     <Tabs.Trigger
-                                        key={tab.id}
                                         value={tab.id}
-                                        className="relative flex gap-x-1 items-center px-4 py-3 text-sm rounded-lg
-                                                   data-[state=active]:bg-(--background-quaternary) 
-                                                   data-[state=active]:font-bold 
-                                                   data-[state=active]:text-(--showdown-blue)
-                                                   data-[state=inactive]:text-tertiary 
-                                                   data-[state=inactive]:font-medium 
+                                        className="relative flex flex-1 gap-x-2 items-center justify-start px-3 py-2.5 text-sm rounded-lg
+                                                   data-[state=active]:bg-(--background-quaternary)
+                                                   data-[state=active]:font-bold
+                                                   data-[state=active]:text-(--showdown-red)
+                                                   data-[state=inactive]:text-tertiary
+                                                   data-[state=inactive]:font-medium
                                                    data-[state=inactive]:hover:bg-(--divider)"
                                     >
                                         <span className="text-(--text-secondary)">{tab.icon}</span>
                                         {tab.label}
                                     </Tabs.Trigger>
-                                ))}
-                            </Tabs.List>
+
+                                    {isTeamsTab && (
+                                        <button
+                                            type="button"
+                                            aria-label={isTeamsNavOpen ? "Collapse teams list" : "Expand teams list"}
+                                            onClick={(event) => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                setIsTeamsNavOpen((previous) => !previous);
+                                            }}
+                                            className="p-2 rounded-md text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                        >
+                                            <FaChevronDown className={`h-3.5 w-3.5 transition-transform ${isTeamsNavOpen ? "rotate-180" : ""}`} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {isTeamsTab && isTeamsNavOpen && (
+                                    <div className="ml-3 pl-2 border-l border-(--divider)">
+                                        {teams.length === 0 ? (
+                                            <div className="px-2 py-1 text-xs text-(--text-secondary)">No teams available.</div>
+                                        ) : (
+                                            <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+                                                {teams.map((team) => {
+                                                    const teamKey = `${team.id}-${team.season}`;
+                                                    const isSelected = selectedTeamKey === teamKey && activeTab === "teams";
+                                                    return (
+                                                        <button
+                                                            key={teamKey}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedTeam(team);
+                                                                setActiveTab("teams");
+                                                            }}
+                                                            className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors ${
+                                                                isSelected
+                                                                    ? "bg-(--background-quaternary) font-semibold"
+                                                                    : "text-(--text-primary) hover:bg-(--divider)"
+                                                            }`}
+                                                            style={{
+                                                                backgroundColor: isSelected ? team.primary_color || "var(--background-quaternary)" : "transparent",
+                                                            }}
+                                                        >
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className="truncate">{team.abbreviation || team.name}</span>
+                                                                <span className="text-[10px] text-(--text-secondary)">{team.season || selectedSeason?.season_id}</span>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </Tabs.List>
+            ),
+        },
+    ];
+
+    return (
+        <div className="w-full bg-(--background-primary)">
+            <div className="max-w-full mx-6 lg:mx-auto py-6 sm:py-8 lg:py-0 lg:h-[calc(100dvh-3rem)] lg:overflow-hidden">
+                {selectedSeason && (
+                    <>
+                        <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="lg:h-full lg:min-h-0">
+                            <div className="grid grid-cols-1 lg:grid-cols-[18.5rem_minmax(0,1fr)] gap-y-5 lg:h-full lg:min-h-0 lg:overflow-hidden">
+                                <SidebarPanel
+                                    title="MLB Seasons"
+                                    subtitle="Browse season standings, teams, and players with Showdown context"
+                                    sections={sidebarSections}
+                                    className="p-2 order-1 lg:p-6 lg:sticky lg:top-0 lg:self-start lg:h-full lg:min-h-0 lg:overflow-y-auto"
+                                />
+
+                                <div className="min-w-0 order-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:p-6">
 
                             {/* Standings Tab */}
                             <Tabs.Content
@@ -391,43 +476,50 @@ export default function Seasons() {
                                 className="focus:outline-none data-[state=inactive]:hidden"
                                 forceMount
                             >
-                                <div className="mt-6">
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                        {Object.entries(standings).map(([leagueAbbreviation, leagueStandings]) => (
-                                            <div key={leagueAbbreviation} className="bg-(--background-secondary) rounded-lg overflow-hidden border border-(--divider)">
-                                                <h2 className="text-xl font-semibold text-(--text-primary) bg-(--background-quaternary) px-4 py-2">
+                                <div className="sm:mt-0">
+                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                                        {standingsEntries.map(([leagueAbbreviation, leagueStandings]) => (
+                                            <div key={leagueAbbreviation} className="bg-(--background-secondary) rounded-xl overflow-hidden border border-(--divider)">
+                                                <h2 className="text-lg sm:text-xl font-semibold text-(--text-primary) bg-(--background-quaternary) px-4 py-2">
                                                     {leagueAbbreviation}
                                                 </h2>
 
-                                                {leagueStandings.map((leagueStanding, index) => (
-                                                    <div key={index} className="border-t border-(--divider)">
-                                                        {leagueStanding.division && (
-                                                            <h3 className="px-4 py-2 text-sm font-semibold uppercase text-(--text-secondary)">
-                                                                {leagueStanding?.division?.name_short || leagueStanding?.division?.name}
-                                                            </h3>
-                                                        )}
-                                                        <table className="w-full text-left">
-                                                            <thead>
-                                                                <tr className="text-(--text-secondary) text-sm uppercase">
-                                                                    <th className="px-4 py-2">Team</th>
-                                                                    <th className="px-4 py-2">Wins</th>
-                                                                    <th className="px-4 py-2">Losses</th>
-                                                                    <th className="px-4 py-2">Win %</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {leagueStanding.team_records?.map((record) => (
-                                                                    <tr key={record.team.id} className="border-t border-(--divider)">
-                                                                        <td className="px-4 py-2">{record.team.abbreviation}</td>
-                                                                        <td className="px-4 py-2">{record.league_record.wins}</td>
-                                                                        <td className="px-4 py-2">{record.league_record.losses}</td>
-                                                                        <td className="px-4 py-2">{record.league_record.percentage || '-'}</td>
+                                                <div className={standingsEntries.length === 1 ? "xl:grid xl:grid-cols-2" : ""}>
+                                                    {leagueStandings.map((leagueStanding, index) => (
+                                                        <div key={index} className="border-t border-(--divider) last:pb-1">
+                                                            {leagueStanding.division && (
+                                                                <h3 className="px-4 py-2.5 text-xs sm:text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                                    {leagueStanding?.division?.name_short || leagueStanding?.division?.name}
+                                                                </h3>
+                                                            )}
+                                                            <table className="w-full text-left">
+                                                                <thead>
+                                                                    <tr className="text-(--text-secondary) text-xs sm:text-sm uppercase">
+                                                                        <th className="px-4 py-2.5">Team</th>
+                                                                        <th className="px-4 py-2.5">Wins</th>
+                                                                        <th className="px-4 py-2.5">Losses</th>
+                                                                        <th className="px-4 py-2.5">Win %</th>
                                                                     </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                ))}
+                                                                </thead>
+                                                                <tbody>
+                                                                    {leagueStanding.team_records?.map((record) => (
+                                                                        <tr key={record.team.id} className="border-t border-(--divider) hover:bg-(--background-quaternary)">
+                                                                            <td 
+                                                                                className="px-4 py-2.5"
+                                                                                style={{ backgroundColor: record.team.primary_color }}
+                                                                            >
+                                                                                {record.team.abbreviation}
+                                                                            </td>
+                                                                            <td className="px-4 py-2.5">{record.league_record.wins}</td>
+                                                                            <td className="px-4 py-2.5">{record.league_record.losses}</td>
+                                                                            <td className="px-4 py-2.5">{record.league_record.percentage || '-'}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -440,8 +532,9 @@ export default function Seasons() {
                                 className="focus:outline-none data-[state=inactive]:hidden"
                                 forceMount
                             >
-                                <div className="mt-6">
-                                    <div className="w-64 max-w-full">
+                                <div className="mt-5 space-y-4">
+                                    <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-4">
+                                    <div className="w-full sm:w-80 max-w-full">
                                         <CustomSelect
                                             value={selectedTeam?.id?.toString() || ""}
                                             onChange={(value) => setSelectedTeam(teams.find(team => team.id.toString() === value) || null)}
@@ -449,7 +542,7 @@ export default function Seasons() {
                                         />
                                     </div>
                                     {selectedTeam && (
-                                        <div className="mt-4">
+                                        <div className="mt-4 rounded-lg bg-(--background-quaternary) p-4">
                                             <div>
                                                 <h2 className="text-xl font-semibold text-(--text-primary)">
                                                     {selectedTeam.name}
@@ -469,6 +562,7 @@ export default function Seasons() {
                                             </div>
                                         </div>
                                     )}
+                                    </div>
                                     <TeamRoster roster={selectedRoster} />
   
                                 </div>
@@ -478,13 +572,23 @@ export default function Seasons() {
                             <Tabs.Content
                                 value="players"
                                 className="focus:outline-none data-[state=inactive]:hidden"
-                                forceMount
                             >
-                                <div className="mt-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        
+                                {seasons.length === 0 || sports.length === 0 || !selectedSeason || !selectedSeason.season_id ? (
+                                    <div className="mt-5 rounded-xl border border-(--divider) bg-(--background-secondary) p-4 text-sm text-(--text-secondary)">
+                                        No season or sport data available for player search.
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className="mt-5 rounded-xl border border-(--divider) bg-(--background-secondary) p-3 sm:p-4">
+                                        <ShowdownCardSearch
+                                            source="BOT"
+                                            defaultFilters={{
+                                                min_year: Number(selectedSeason.season_id),
+                                                max_year: Number(selectedSeason.season_id),
+                                            }}
+                                            disableLocalStorage={true}
+                                        />
+                                    </div>
+                                )}
                             </Tabs.Content>
 
                             {/* Games Tab - Only for ongoing seasons */}
@@ -494,8 +598,8 @@ export default function Seasons() {
                                     className="focus:outline-none data-[state=inactive]:hidden"
                                     forceMount
                                 >
-                                    <div className="mt-6">
-                                        <div className="bg-(--background-secondary) rounded-lg p-8 border border-(--divider) border-dashed text-center">
+                                    <div className="mt-5">
+                                        <div className="bg-(--background-secondary) rounded-xl p-8 border border-(--divider) border-dashed text-center">
                                             <p className="text-(--text-secondary)">
                                                 Game data coming soon
                                             </p>
@@ -503,6 +607,9 @@ export default function Seasons() {
                                     </div>
                                 </Tabs.Content>
                             )}
+                                </div>
+
+                            </div>
                         </Tabs.Root>
                     </>
                 )}

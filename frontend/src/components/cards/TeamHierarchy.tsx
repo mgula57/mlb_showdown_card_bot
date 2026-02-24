@@ -27,6 +27,12 @@ interface TeamHierarchyProps {
     onLeagueChange: (values: string[]) => void;
     /** Handler for team selection changes */
     onTeamChange: (values: string[]) => void;
+    /** Disable organization selector */
+    disableOrganization?: boolean;
+    /** Disable league selector */
+    disableLeague?: boolean;
+    /** Disable team selector */
+    disableTeam?: boolean;
 }
 
 /**
@@ -70,6 +76,9 @@ export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
     onOrganizationChange,
     onLeagueChange,
     onTeamChange,
+    disableOrganization = false,
+    disableLeague = false,
+    disableTeam = false,
 }) => {
     /**
      * Generate organization options from hierarchy data
@@ -190,6 +199,7 @@ export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
                 options={organizationOptions}
                 selections={selectedOrganizations}
                 onChange={handleOrganizationChange}
+                disabled={disableOrganization}
             />
 
             <MultiSelect
@@ -197,6 +207,7 @@ export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
                 options={leagueOptions}
                 selections={selectedLeagues}
                 onChange={handleLeagueChange}
+                disabled={disableLeague}
             />
 
             <MultiSelect
@@ -204,6 +215,7 @@ export const TeamHierarchy: React.FC<TeamHierarchyProps> = ({
                 options={teamOptions}
                 selections={selectedTeams}
                 onChange={onTeamChange}
+                disabled={disableTeam}
             />
         </>
     );

@@ -74,6 +74,8 @@ type CustomSelectProps = {
     dropdownClassName?: string;
     /** Optional text to display after the selected value */
     suffix?: string;
+    /** Whether the select is disabled */
+    disabled?: boolean;
 };
 
 /**
@@ -90,7 +92,7 @@ type CustomSelectProps = {
  * @param props - Component props
  * @returns A customizable select dropdown component
  */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "" }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false }) => {
 
     // State management for dropdown behavior and positioning
     /** Controls whether the dropdown menu is visible */
@@ -106,11 +108,13 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
 
     /** Toggles dropdown visibility when the select button is clicked */
     const handleToggle = () => {
+        if (disabled) return;
         setIsOpen(!isOpen);
     };
 
     /** Handles option selection and closes the dropdown */
     const handleOptionClick = (optionValue: string) => {
+        if (disabled) return;
         onChange(optionValue);
         setIsOpen(false);
     };
@@ -245,6 +249,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                     cursor-pointer
                 `}
                 onClick={handleToggle}
+                disabled={disabled}
             >
                 <div className="flex overflow-clip">
                     { renderImage(options.find(option => option.value === value)?.image) }
@@ -256,7 +261,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
             </button>
 
             {/* Dropdown menu popup */}
-            {isOpen && typeof document !== 'undefined' && (
+            {isOpen && !disabled && typeof document !== 'undefined' && (
                 createPortal(
                     <div 
                         ref={dropdownRef}

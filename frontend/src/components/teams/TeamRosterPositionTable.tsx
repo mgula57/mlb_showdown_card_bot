@@ -13,6 +13,10 @@ const h = createColumnHelper<RosterSlot>();
 
 /** Create a column helper that tells tanstack the format of the data*/
 const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
+    h.accessor((slot) => slot.position.abbreviation || "-", {
+        id: "position",
+        header: "Pos",
+    }),
     h.accessor((slot) => slot.person.showdown_card_data?.name || slot.person.full_name || "-", {
         id: "name",
         header: "Name",
@@ -59,7 +63,7 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
         );
     }, {
         id: "positions_and_defense_string",
-        header: "Pos"
+        header: "Def"
     }),
 
     h.accessor((slot) => slot.person.showdown_card_data?.chart?.command, {

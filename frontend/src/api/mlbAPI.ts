@@ -115,6 +115,9 @@ export interface Team {
     league?: League;
 
     active?: boolean;
+
+    primary_color?: string;
+    secondary_color?: string;
 }
 
 export interface Record {

@@ -23,6 +23,8 @@ type FormDropdownProps = {
     onChange: (value: string) => void;
     /** Optional CSS class names for additional styling */
     className?: string;
+    /** Whether this dropdown is disabled */
+    disabled?: boolean;
 };
 
 /**
@@ -52,7 +54,7 @@ type FormDropdownProps = {
  * @param className - Additional styling classes
  * @returns Labeled dropdown form component
  */
-const FormDropdown = ({ label, options, selectedOption, onChange, className="" }: FormDropdownProps) => {
+const FormDropdown = ({ label, options, selectedOption, onChange, className="", disabled = false }: FormDropdownProps) => {
     return (
         <div className={className}>
             {/* Form label with consistent styling */}
@@ -63,6 +65,7 @@ const FormDropdown = ({ label, options, selectedOption, onChange, className="" }
                 value={selectedOption}
                 onChange={onChange}
                 options={options}
+                disabled={disabled}
             />
         </div>
     );
