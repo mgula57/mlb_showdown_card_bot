@@ -8,6 +8,7 @@ import { Modal } from "../shared/Modal";
 import CardChart from "../cards/card_elements/CardChart";
 import CardCommand from "../cards/card_elements/CardCommand";
 import { imageForSet } from "../shared/SiteSettingsContext";
+import { getContrastColor } from "../shared/Color";
 
 const h = createColumnHelper<RosterSlot>();
 
@@ -25,13 +26,32 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
             const name = getValue();
             const year = card?.year || "-";
             const team = card?.team || "-";
+            const secondaryColor = (['NYM', 'SDP'].includes(team) ? card?.image.color_secondary : card?.image.color_primary) || "#000000";
             return (
                 <div className="flex flex-col gap-0 max-w-28 sm:max-w-40">
                     <div className="font-extrabold text-nowrap sm:text-nowrap overflow-x-scroll">
                         {name}
                     </div>
-                    <div className="italic text-[11px]">
-                        {year} {team}
+                    <div className="flex flex-row italic text-[11px] gap-1">
+                        {year} {team} 
+                        {card?.icons && (
+                            <>
+                                {card.icons.map((icon, index) => (
+                                    <div 
+                                        key={index} 
+                                        className="
+                                            text-[9px] flex w-4 h-4 
+                                            items-center font-bold justify-center 
+                                            rounded-full tracking-tight shrink-0
+                                            border border-(--divider)
+                                        " 
+                                        style={{ backgroundColor: secondaryColor, color: getContrastColor(secondaryColor) }}
+                                    >
+                                        {icon}
+                                    </div>
+                                ))}
+                            </>
+                        )}
                     </div>
                 </div>
             )

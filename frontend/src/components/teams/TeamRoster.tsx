@@ -15,10 +15,13 @@ const getTopPlayerLimit = (width: number): number => {
     if (width < 640) {
         return 3;
     }
-    if (width < 1024) {
+    if (width < 1280) {
         return 4;
     }
-    return 6;
+    if (width < 1536) {
+        return 6;
+    }
+    return 8;
 };
 
 const getPositionLabel = (slot: RosterSlot): string => {
@@ -32,7 +35,7 @@ export default function TeamRoster({ roster }: TeamRosterProps) {
     const rosterSlots = roster?.roster ?? [];
     const [topPlayerLimit, setTopPlayerLimit] = useState<number>(() => {
         if (typeof window === "undefined") {
-            return 6;
+            return 3; // Default for server-side rendering
         }
         return getTopPlayerLimit(window.innerWidth);
     });

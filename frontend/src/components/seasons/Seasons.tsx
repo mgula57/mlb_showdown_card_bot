@@ -340,14 +340,23 @@ export default function Seasons() {
 
     const selectedTeamKey = selectedTeam ? `${selectedTeam.id}-${selectedTeam.season}` : null;
     const standingsEntries = Object.entries(standings);
+    const teamRosterSlots = selectedRoster?.roster ?? [];
+    const teamShowdownPointsTotal = teamRosterSlots.reduce((total, slot) => {
+        const playerPoints = slot.person.showdown_card_data?.points ?? slot.person.points ?? 0;
+        return total + playerPoints;
+    }, 0);
+    const teamPlayersWithShowdownCards = teamRosterSlots.filter((slot) =>
+        slot.person.showdown_card_data?.points !== undefined || slot.person.points !== undefined
+    ).length;
+    const teamAvgPointsPerPlayer = teamPlayersWithShowdownCards > 0 ? teamShowdownPointsTotal / teamPlayersWithShowdownCards : 0;
 
     const sidebarSections: SidebarSection[] = [
         {
             id: "context",
-            title: "Context",
+            title: "Season/League",
             collapsible: false,
             content: (
-                <div className="space-y-2">
+                <div className="space-y-2 pb-2">
                     <CustomSelect
                         value={selectedSeason?.season_id.toString() || "2026"}
                         onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
@@ -532,7 +541,7 @@ export default function Seasons() {
                                 className="focus:outline-none data-[state=inactive]:hidden"
                                 forceMount
                             >
-                                <div className="mt-5 space-y-4">
+                                <div className="space-y-4">
                                     <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-4">
                                     <div className="w-full sm:w-80 max-w-full">
                                         <CustomSelect
@@ -542,22 +551,39 @@ export default function Seasons() {
                                         />
                                     </div>
                                     {selectedTeam && (
-                                        <div className="mt-4 rounded-lg bg-(--background-quaternary) p-4">
-                                            <div>
-                                                <h2 className="text-xl font-semibold text-(--text-primary)">
-                                                    {selectedTeam.name}
-                                                </h2>
-                                                <p className="text-sm text-(--text-secondary)">
-                                                    {selectedTeam.abbreviation || "N/A"} • {selectedTeam.season?.toString() || selectedSeason?.season_id || "N/A"}
-                                                </p>
-                                            </div>
+                                        <div className="mt-4 border-t border-(--divider) pt-4">
+                                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4 items-start">
+                                                <div>
+                                                    <h2 className="text-xl font-semibold text-(--text-primary)">
+                                                        {selectedTeam.name}
+                                                    </h2>
+                                                    <p className="text-sm text-(--text-secondary)">
+                                                        {selectedTeam.abbreviation || "N/A"} • {selectedTeam.season?.toString() || selectedSeason?.season_id || "N/A"}
+                                                    </p>
 
-                                            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                                                <div className="text-(--text-secondary)">
-                                                    <span className="font-semibold">League:</span> {selectedTeam.league?.name || selectedTeam.league?.abbreviation || "N/A"}
+                                                    <div className="mt-3 gap-2 text-sm">
+                                                        <div className="text-(--text-secondary)">
+                                                            <span className="font-semibold">League:</span> {selectedTeam.league?.name || selectedTeam.league?.abbreviation || "N/A"}
+                                                        </div>
+                                                        <div className="text-(--text-secondary)">
+                                                            <span className="font-semibold">Division:</span> {selectedTeam.division?.name || selectedTeam.division?.name || "N/A"}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="text-(--text-secondary)">
-                                                    <span className="font-semibold">Division:</span> {selectedTeam.division?.name_short || selectedTeam.division?.name || "N/A"}
+
+                                                <div className="rounded-lg border border-(--divider) px-4 py-3 min-w-44">
+                                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                        Total PTS
+                                                    </p>
+                                                    <p className="mt-1 text-2xl font-bold text-(--text-primary)">
+                                                        {teamShowdownPointsTotal.toLocaleString()}
+                                                    </p>
+                                                    <p className="text-xs text-(--text-secondary)">
+                                                        {teamAvgPointsPerPlayer > 0 ? `Avg ${teamAvgPointsPerPlayer.toFixed(1)} / Player` : "No player points"}
+                                                    </p>
+                                                    <p className="text-xs text-(--text-tertiary)">
+                                                        {teamPlayersWithShowdownCards} player{teamPlayersWithShowdownCards === 1 ? "" : "s"} with cards
+                                                    </p>
                                                 </div>
                                             </div>
                                         </div>
