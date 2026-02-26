@@ -25,6 +25,8 @@ class Nationality(Enum):
     CZ = 'CZ'
     IS = 'IS'
     BR = 'BR'
+    ES = 'ES'
+    ZA = 'ZA'
     NONE = 'NONE'
 
     @classmethod
@@ -150,6 +152,15 @@ class Nationality(Enum):
                 (0, 148, 64, 255), # GREEN
                 (255, 203, 0, 255), # YELLOW
             ]
+            case 'ES': return [
+                (173, 21, 25, 255), # RED
+                (250, 189, 0, 255), # YELLOW
+            ]
+            case 'ZA': return [
+                (224, 60, 49, 255), # RED
+                (0, 119, 73, 255), # GREEN
+                (0, 20, 137, 255), # BLUE
+            ]
             case _: return [
                 (0, 0, 0, 0), # BLACK
             ]
@@ -180,37 +191,70 @@ class Nationality(Enum):
             case 'CZ': return 'RED'
             case 'IS': return 'BLUE'
             case 'BR': return 'YELLOW'
+            case 'ES': return 'RED'
+            case 'ZA': return 'BLUE'
             case _: return 'BLUE'
 
     @property
     def logo_size_multiplier(self) -> float:
         return 1.25
     
-    @property
-    def three_letter_mlb_api_code(self) -> str:
-        match self:
-            case Nationality.US: return 'USA'
-            case Nationality.DO: return 'DOM'
-            case Nationality.VE: return 'VEN'
-            case Nationality.CU: return 'CUB'
-            case Nationality.CA: return 'CAN'
-            case Nationality.MX: return 'MEX'
-            case Nationality.PR: return 'PUR'
-            case Nationality.PA: return 'PAN'
-            case Nationality.JP: return 'JPN'
-            case Nationality.GB: return 'GBR'
-            case Nationality.DE: return 'DEU'
-            case Nationality.AU: return 'AUS'
-            case Nationality.CO: return 'COL'
-            case Nationality.KR: return 'KOR'
-            case Nationality.CW: return 'CUW'
-            case Nationality.TW: return 'TPE'
-            case Nationality.NI: return 'NCA'
-            case Nationality.NL: return 'NED'
-            case Nationality.IT: return 'ITA'
-            case Nationality.CN: return 'CHN'
-            case Nationality.CZ: return 'CZE'
-            case Nationality.IS: return 'ISR'
-            case Nationality.BR: return 'BRA'
-            case _: return 'UNK'
             
+class WBCTeam(Enum):
+    AUS = "AUS"
+    BRA = "BRA"
+    CAN = "CAN"
+    CHN = "CHN"
+    COL = "COL"
+    CUB = "CUB"
+    CZE = "CZE"
+    DOM = "DOM"
+    ESP = "ESP"
+    GBR = "GBR"
+    ISR = "ISR"
+    ITA = "ITA"
+    JPN = "JPN"
+    KOR = "KOR"
+    MEX = "MEX"
+    NCA = "NCA"
+    NED = "NED"
+    PAN = "PAN"
+    PUR = "PUR"
+    RSA = "RSA"
+    TPE = "TPE"
+    USA = "USA"
+    VEN = "VEN"
+
+    NONE = 'NONE'
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls.NONE
+
+    @property
+    def nationality(self) -> Nationality:
+        match self:
+            case WBCTeam.AUS: return Nationality.AU
+            case WBCTeam.BRA: return Nationality.BR
+            case WBCTeam.CAN: return Nationality.CA
+            case WBCTeam.CHN: return Nationality.CN
+            case WBCTeam.COL: return Nationality.CO
+            case WBCTeam.CUB: return Nationality.CU
+            case WBCTeam.CZE: return Nationality.CZ
+            case WBCTeam.DOM: return Nationality.DO
+            case WBCTeam.ESP: return Nationality.ES
+            case WBCTeam.GBR: return Nationality.GB
+            case WBCTeam.ISR: return Nationality.IS
+            case WBCTeam.ITA: return Nationality.IT
+            case WBCTeam.JPN: return Nationality.JP
+            case WBCTeam.KOR: return Nationality.KR
+            case WBCTeam.MEX: return Nationality.MX
+            case WBCTeam.NCA: return Nationality.NI
+            case WBCTeam.NED: return Nationality.NL
+            case WBCTeam.PAN: return Nationality.PA
+            case WBCTeam.PUR: return Nationality.PR
+            case WBCTeam.RSA: return Nationality.ZA
+            case WBCTeam.TPE: return Nationality.TW
+            case WBCTeam.USA: return Nationality.US
+            case WBCTeam.VEN: return Nationality.VE
+            case _: return Nationality.NONE

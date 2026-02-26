@@ -5,7 +5,7 @@ from ..leagues.division import Division
 from ..leagues.league import League
 
 from ....shared.team import Team as ShowdownTeam
-from ....shared.nationality import Nationality
+from ....shared.nationality import WBCTeam
 
 class Team(BaseModel):
     id: int
@@ -50,13 +50,14 @@ class TeamWithColors(Team):
             print(f"Warning: Cannot load colors for team {self.name} - no abbreviation provided to determine country code.")
             return
         
-        nationality_match = next((nat for nat in Nationality if nat.three_letter_mlb_api_code == self.abbreviation), None)
+        wbc_team = WBCTeam(self.abbreviation.upper())
 
-        if nationality_match:
+        if wbc_team and wbc_team != WBCTeam.NONE:
+            nationality_match = wbc_team.nationality
             
             self.primary_color = f"rgb({nationality_match.primary_color[0]}, {nationality_match.primary_color[1]}, {nationality_match.primary_color[2]})"
             self.secondary_color = f"rgb({nationality_match.secondary_color[0]}, {nationality_match.secondary_color[1]}, {nationality_match.secondary_color[2]})"
             if nationality_match.colors and len(nationality_match.colors) > 2:
                 self.tertiary_color = f"rgb({nationality_match.colors[2][0]}, {nationality_match.colors[2][1]}, {nationality_match.colors[2][2]})"
         else:
-            print(f"Warning: Could not load colors for team {self.name} with abbreviation {self.abbreviation} - no matching ShowdownTeam or Nationality found.")
+            print(f"Warning: Could not load colors for team {self.name} with abbreviation {self.abbreviation} - no matching WBCTeam or Nationality found.")
