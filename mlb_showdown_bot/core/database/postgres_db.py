@@ -3745,3 +3745,75 @@ class PostgresDB:
             self.connection.rollback()
         finally:
             cursor.close()
+
+# ------------------------------------------------------------------------
+# MLB STATS API
+# ------------------------------------------------------------------------
+
+    def store_wbc_player_history(self, wbc_players: list[dict]) -> None:
+        """Store WBC player list by year in the database. Used for reference when users create WBC cards.
+        
+        Args:
+            wbc_players: List of dictionaries containing WBC player information. Each dictionary is a row in the DB.
+        
+        Returns:
+            None
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return
+        
+        print(f"Storing {len(wbc_players)} WBC players in the database...")
+        cursor = self.connection.cursor()
+
+        # CREATE TABLE IF NOT EXISTS
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS internal.wbc_player_history (
+                id VARCHAR(255) PRIMARY KEY,
+                player_id VARCHAR(50),
+                full_name VARCHAR(255),
+                team VARCHAR(50),
+                season INT,
+                modified_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+        '''
+        index_sql = '''
+            CREATE INDEX IF NOT EXISTS idx_wbc_player_history_player_season
+            ON internal.wbc_player_history (player_id, season);
+        '''
+        try:
+            cursor.execute(create_table_sql)
+            cursor.execute(index_sql)
+            self.connection.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR creating wbc_players table: {e}")
+            return
+
+        # UPSERT PLAYERS
+        upsert_sql = '''
+            INSERT INTO internal.wbc_player_history (id, player_id, full_name, team, season, modified_date)
+            VALUES (%s, %s, %s, %s, %s, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+                full_name = EXCLUDED.full_name,
+                team = EXCLUDED.team,
+                season = EXCLUDED.season,
+                modified_date = NOW()
+        '''
+        try:
+            for player in wbc_players:
+                cursor.execute(upsert_sql, (
+                    f"{player['player_id']}-{player['season']}",
+                    player['player_id'],
+                    player['full_name'],
+                    player['team'],
+                    player['season']
+                ))
+            self.connection.commit()
+            print(f"✓ Successfully stored {len(wbc_players)} WBC players in the database.")
+        except Exception as e:
+            print(f"ERROR upserting WBC players: {e}")
+            self.connection.rollback()
+        finally:
+            cursor.close()

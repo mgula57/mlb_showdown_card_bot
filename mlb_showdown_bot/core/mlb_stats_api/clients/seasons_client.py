@@ -7,10 +7,14 @@ from typing import Optional, List
 class SeasonsClient(BaseMLBClient):
     """Client for season related endpoints - inherits all base functionality"""
 
-    def get_seasons(self, sport_id: int = 1) -> List[Season]:
+    def get_seasons(self, sport_id: int = 1, league_id: Optional[int] = None, season: Optional[int] = None) -> List[Season]:
         """Get list of seasons for a given sport"""
 
         params = {'sportId': sport_id}
+        if league_id:
+            params['leagueId'] = league_id
+        if season:
+            params['season'] = season
         try:
             data = self._make_request('seasons/all', params=params)
             seasons_data = data.get('seasons', [])

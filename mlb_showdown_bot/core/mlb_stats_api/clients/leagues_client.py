@@ -49,6 +49,25 @@ class LeaguesClient(BaseMLBClient):
             raise
 
 
+    def get_league(self, abbreviation: str, sport_id: int = 1, season: Optional[int] = None) -> League:
+        """Get league information by abbreviation
+        
+        Args:
+            abbreviation: League abbreviation (e.g. AL, NL, etc.)
+            sport_id: MLB sport ID. Default is 1 (Major League Baseball)
+            season: Optional season to filter the league data
+
+        Returns:
+            League object with league details
+        """
+
+        leagues = self.get_leagues(abbreviations=[abbreviation], sport_id=sport_id, season=season)
+        if not leagues or len(leagues) == 0:
+            raise Exception(f"League with abbreviation {abbreviation} not found")
+        
+        return leagues[0]
+
+
     def get_standings(self, season: str, league_id: int, standings_type: Optional[StandingsType] = StandingsType.BY_DIVISION) -> List[Standings]:
         """Get league standings by league ID and season
         

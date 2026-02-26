@@ -10,12 +10,14 @@ class TeamsClient(BaseMLBClient):
     # -------------------------
     # TEAMS LIST
     # -------------------------
-    def get_teams(self, sport_id: int = 1, season: int = None, onlyActive: bool = False) -> list[Team]:
+    def get_teams(self, sport_id: int = 1, season: int = None, league_id: int = None, onlyActive: bool = False) -> list[Team]:
         """Get list of teams for a given sport and season"""
 
         params = {'sportId': sport_id}
         if season:
             params['season'] = season
+        if league_id:
+            params['leagueId'] = league_id
         if onlyActive:
             params['activeStatus'] = 'Y'
         try:

@@ -10,7 +10,7 @@ from ...core.mlb_stats_api.models.teams.roster import RosterTypeEnum
 
 app = typer.Typer()
 
-_mlb_api = MLBStatsAPI()
+_mlb_api = MLBStatsAPI(use_persistent_cache=True)
 
 @app.command("free_agents")
 def free_agents(
@@ -123,3 +123,15 @@ def teams(
             team.league.id if team.league else '-',
         ])
     print(table)
+
+@app.command("store_wbc_player_history")
+def store_wbc_player_history():
+    """Fetch all WBC players by year and store in database"""
+
+    wbc_players = _mlb_api.fetch_wbc_players_by_year()
+    print(f"Fetched {len(wbc_players)} WBC players across all years.")
+    
+    # Initialize database connection
+    db = PostgresDB()
+    db.store_wbc_player_history(wbc_players)
+    print("WBC players stored in database successfully.")
