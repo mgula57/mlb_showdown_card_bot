@@ -7,6 +7,7 @@ import json
 
 # INTERNAL
 from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team, Edition
+from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
 from .utils.shared_functions import convert_to_date, convert_year_string_to_list
