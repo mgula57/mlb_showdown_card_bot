@@ -659,6 +659,7 @@ Use Editions to add style variety to your cards. There are currently 6 different
 4. [All-Star Game](#all-star-game)
 5. [Rookie Season](#rookie-season)
 6. [Holiday](#holiday)
+7. [WBC] (#wbc)
 
 ### **Cooperstown Collection**
 
@@ -829,6 +830,16 @@ Rookie Season replaces a player's team logo with a custom rookie season icon.
 ![Image](./docs/images/RM-HolidayPlayers.png)
 
 The Holiday theme adds a simple Christmas Tree inspired border to any card. This includes user uploaded photos, automated images, and silhouettes. 
+
+### **WBC**
+
+WBC Cards use the player's prior year stats. Note it will only work using:
+
+- The year before the WBC
+- The year of the WBC
+- Combo of the year before and current year
+
+For example if you were looking to do a David Wright ...
 
 ### **Postseason**
 
@@ -1015,17 +1026,7 @@ Tips for uploading your own custom images:
  - If image uploads fail, wait a few seconds and try again. Sometimes larger image will take 5-10 seconds to upload.
  - For 2000/2001, cut out the player image for best results. Add an outer glow to match the original sets. The team background will be added automatically.
 
-----
-## Showdown Explorer
 
-The Showdown Explorer tool leverages the power of the Showdown Library to provide the user with the ability to discover and explore cards from 1900-Present.
-
-_In depth walkthroughs and guides will be linked here in a future update._
-
-----
-
-
----
 
 ## 🛠️ Development & Local Setup
 

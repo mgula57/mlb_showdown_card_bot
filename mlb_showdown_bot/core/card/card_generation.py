@@ -6,7 +6,7 @@ import traceback
 import json
 
 # INTERNAL
-from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team
+from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team, Edition
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
 from .utils.shared_functions import convert_to_date, convert_year_string_to_list
@@ -200,7 +200,24 @@ def generate_card(**kwargs) -> dict[str, Any]:
                                 is_disabled=kwargs.get('disable_realtime', False)
                             )
         player_mlb_api_stats.populate_all_player_data()
-        
+
+        # IF WBC CARD, WE HAVE TO CHECK THE DB FOR WHAT TEAM THEY WERE ON:
+        edition_str = kwargs.get('edition', None)
+        edition = Edition(edition_str) if edition_str else None
+        if edition and edition == Edition.WBC:
+            db = PostgresDB()
+            wbc_team_info = db.fetch_wbc_team_for_player(bref_id=baseball_reference_stats.baseball_ref_id, year=stats_period.year_int)
+            if wbc_team_info:
+                wbc_team_abbreviation, wbc_team_year = wbc_team_info
+                kwargs['wbc_team'] = wbc_team_abbreviation
+                kwargs['wbc_year'] = wbc_team_year
+            else:
+                # Remove edition and warn user
+                kwargs.pop('edition', None)
+                stats['warnings'] = stats.get('warnings', []) + ["Could not find WBC team for this player in the database. Double check the player was a part of a WBC roster in the year provided or following year."]
+
+        # kwargs['wbc_team'] = 'CAN'
+        # kwargs['wbc_year'] = 2017
 
         # PROCESS CARD
         image_source = ImageSource(**kwargs)

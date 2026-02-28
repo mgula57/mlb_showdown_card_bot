@@ -27,7 +27,7 @@ from typing import Any, Optional, Union
 from ..shared.team import Team
 from ..shared.icon import Icon
 from ..shared.player_position import PositionSlot, PositionSlotParent
-from ..shared.nationality import Nationality
+from ..shared.nationality import Nationality, WBCTeam
 from ..shared.speed import Speed, SpeedLetter
 from ..shared.hand import Hand
 
@@ -77,6 +77,8 @@ class ShowdownPlayerCard(BaseModel):
     # OVERRIDES
     player_type_override: Optional[PlayerType] = None
     team_override: Optional[Team] = None
+    wbc_team: Optional[WBCTeam] = None
+    wbc_year: Optional[int] = None
 
     # OPTIONALS
     version: str = __version__
@@ -2873,7 +2875,13 @@ class ShowdownPlayerCard(BaseModel):
             return
         
         # CHECK FOR SPECIAL EDITION
-        self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=str(self.stats_period.last_year or self.year), is_04_05=self.set.is_04_05)
+        self.image.update_special_edition(
+            has_nationality=self.nationality.is_populated, 
+            has_wbc_info=self.wbc_team and self.wbc_team != WBCTeam.NONE and self.wbc_year and self.image.edition == Edition.WBC,
+            enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, 
+            year=str(self.stats_period.last_year or self.year), 
+            is_04_05=self.set.is_04_05
+        )
         
         # BACKGROUND IMAGE
         card_image = self._background_image()
@@ -2909,13 +2917,14 @@ class ShowdownPlayerCard(BaseModel):
         is_2000_logo_override = self.image.edition.has_additional_logo_00_01 \
                                     and self.set == Set._2000 \
                                     and self.image.special_edition not in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
-        disable_team_logo = self.image.hide_team_logo or is_2000_logo_override
+        is_logo_handled_by_different_component = self.image.special_edition == SpecialEdition.WBC and self.set.is_00_01
+        disable_team_logo = self.image.hide_team_logo or is_2000_logo_override or is_logo_handled_by_different_component
         if not disable_team_logo:
             team_logo, team_logo_coords = self._team_logo_image()
             card_image.paste(team_logo, self._coordinates_adjusted_for_bordering(team_logo_coords), team_logo)
 
-        # 00/01 ADDITIONAL LOGO
-        card_image = self._add_additional_logos_00_01(image=card_image)
+        # ADDITIONAL LOGO
+        card_image = self._add_additional_logo(image=card_image)
 
         # METADATA
         metadata_image, color = self._metadata_image()
@@ -3012,6 +3021,12 @@ class ShowdownPlayerCard(BaseModel):
         match self.image.special_edition:
             case SpecialEdition.NATIONALITY:
                 custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality.value}.png")
+            case SpecialEdition.WBC:
+                wbc_specific_nationality = os.path.join(os.path.dirname(__file__), 'countries', 'wbc', 'backgrounds', f"{self.wbc_team.nationality.value}.png")
+                if os.path.exists(wbc_specific_nationality):
+                    custom_image_path = wbc_specific_nationality
+                else:
+                    custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.wbc_team.nationality.value}.png")
             case SpecialEdition.ASG_2023 | SpecialEdition.ASG_2025:
                 custom_image_path = self._card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
             case SpecialEdition.ASG_2024:
@@ -3072,6 +3087,8 @@ class ShowdownPlayerCard(BaseModel):
             border_color = colors.BLACK if self.image.is_dark_mode else colors.WHITE
             if self.image.special_edition == SpecialEdition.NATIONALITY and self.nationality and self.nationality != Nationality.NONE:
                 border_color = self.nationality.primary_color
+            if self.image.special_edition == SpecialEdition.WBC and self.wbc_team:
+                border_color = self.wbc_team.nationality.primary_color
             image_border = Image.new('RGBA', self.set.card_size_bordered, color=border_color)
             image_border.paste(background_image.convert("RGBA"),(self.set.card_border_padding,self.set.card_border_padding),background_image.convert("RGBA"))
             background_image = image_border
@@ -3089,19 +3106,23 @@ class ShowdownPlayerCard(BaseModel):
         """
         
         is_2001_set = self.set == Set._2001
+        is_wbc_special_edition = (self.set.is_00_01 and self.image.special_edition == SpecialEdition.WBC)
+
         image_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
         team_override = self.team_override_for_images
         background_color = (60,60,60,255) if self.image.is_dark_mode else self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
         team_colors = [self._team_color_rgbs(is_secondary_color=is_secondary, team_override=team_override) for is_secondary in [False, True]]
-        team_background_image = self._gradient_img(size=image_size, colors=team_colors) if self.image.is_multi_colored else Image.new('RGB', image_size, color=background_color)
+        team_background_image = self._gradient_img(size=image_size, colors=team_colors) if self.image.is_multi_colored or is_wbc_special_edition else Image.new('RGB', image_size, color=background_color)
         
         # ADD 2001 SET ADDITIONS
-        if is_2001_set:
-            # BLACK OVERLAY
-            color_overlay_image = Image.new('RGBA', image_size, color=colors.BLACK)
-            opacity_rgb = int(255 * 0.25)
-            color_overlay_image.putalpha(opacity_rgb)
-            team_background_image.paste(color_overlay_image, (0,0), color_overlay_image)
+        if is_2001_set or is_wbc_special_edition:
+
+            if not is_wbc_special_edition:
+                # BLACK OVERLAY
+                color_overlay_image = Image.new('RGBA', image_size, color=colors.BLACK)
+                opacity_rgb = int(255 * 0.25)
+                color_overlay_image.putalpha(opacity_rgb)
+                team_background_image.paste(color_overlay_image, (0,0), color_overlay_image)
 
             # ADD LINES
             line_colors = ['BLACK','WHITE']
@@ -3204,6 +3225,10 @@ class ShowdownPlayerCard(BaseModel):
                     logo_size_multiplier = self.nationality.logo_size_multiplier
                     if self.set.is_showdown_bot:
                         logo_paste_coordinates = (logo_paste_coordinates[0] - 35, logo_paste_coordinates[1] + 10)
+                if self.image.special_edition == SpecialEdition.WBC:
+                    logo_name = f'{self.wbc_team.value}{self.wbc_team.logo_extension(self.wbc_year)}.png'
+                    team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'wbc', 'team_logos', logo_name)
+                    logo_size_multiplier = self.wbc_team.logo_size_multiplier
 
             team_logo = Image.open(team_logo_path).convert("RGBA")
             size_adjusted = tuple(int(v * logo_size_multiplier) for v in logo_size)
@@ -3287,10 +3312,21 @@ class ShowdownPlayerCard(BaseModel):
 
         # OVERRIDE IF ROOKIE SEASON/POSTSEASON
         if is_edition_static_logo and not is_00_01:
-            component = TemplateImageComponent.ROOKIE_SEASON if self.image.edition == Edition.ROOKIE_SEASON else TemplateImageComponent.POSTSEASON
-            team_logo = self._rookie_season_image() if self.image.edition == Edition.ROOKIE_SEASON else self._postseason_image()
-            team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.set == Set._2002 else team_logo
-            logo_paste_coordinates = self.set.template_component_paste_coordinates(component)
+            component = None
+            team_logo = None
+            match self.image.edition:
+                case Edition.ROOKIE_SEASON:
+                    component = TemplateImageComponent.ROOKIE_SEASON
+                    team_logo = self._rookie_season_image()
+                case Edition.POSTSEASON:
+                    component = TemplateImageComponent.POSTSEASON
+                    team_logo = self._postseason_image()
+                case Edition.WBC:
+                    component = TemplateImageComponent.WBC
+            if component:
+                team_logo = self._rookie_season_image() if self.image.edition == Edition.ROOKIE_SEASON else self._postseason_image()
+                team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.set == Set._2002 else team_logo
+                logo_paste_coordinates = self.set.template_component_paste_coordinates(component)
 
         return team_logo, adjusted_paste_coords(logo_paste_coordinates)
 
@@ -3305,6 +3341,24 @@ class ShowdownPlayerCard(BaseModel):
             PIL Image object with edited team logo.
             Coordinates to paste logo.
         """
+
+        if self.image.special_edition == SpecialEdition.WBC and self.wbc_team and self.wbc_year:
+            wbc_logo_image, _ = self._team_logo_image(
+                ignore_dynamic_elements=True, 
+                force_use_alternate=True, 
+                rotation=18,
+                size=(600, 600)
+            )
+            # Apply opacity
+            opacity = 0.30
+            wbc_logo_image_copy = wbc_logo_image.copy()
+            wbc_logo_image_copy.putalpha(int(255 * opacity))
+            wbc_logo_image.paste(wbc_logo_image_copy, wbc_logo_image)
+
+            default_image_size = self.set.card_size
+            paste_location = self._coordinates_adjusted_for_bordering((-40, -70))
+            return wbc_logo_image, paste_location
+            
 
         # DEFINE TEAM TO USE
         team = team_override if team_override else self.team
@@ -3363,8 +3417,9 @@ class ShowdownPlayerCard(BaseModel):
             team_color_name = self.team.color_name(year=self.median_year, is_secondary=self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
             if self.image.edition.template_color_0405:
                 edition_extension = f'-{self.image.edition.template_color_0405}'
-            elif self.image.special_edition == SpecialEdition.NATIONALITY:
-                edition_extension = f'-{self.nationality.template_color}'
+            elif self.image.special_edition == SpecialEdition.NATIONALITY or self.image.special_edition == SpecialEdition.WBC:
+                nationality = self.wbc_team.nationality if self.image.special_edition == SpecialEdition.WBC else self.nationality
+                edition_extension = f'-{nationality.template_color}'
             elif self.image.special_edition == SpecialEdition.ASG_2024:
                 edition_extension = f'-GRAY-DARK'
             elif self.image.special_edition == SpecialEdition.ASG_2025:
@@ -3417,12 +3472,15 @@ class ShowdownPlayerCard(BaseModel):
             # DEFINE COLOR(S) FOR CHART CONTAINER
             team_override = self.team_override_for_images
             fill_color = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
-            is_multi_colored = self.image.is_multi_colored or ( self.image.special_edition == SpecialEdition.NATIONALITY and len(self.nationality.colors) > 1 )
+            is_multi_colored = self.image.is_multi_colored \
+                or ( self.image.special_edition == SpecialEdition.NATIONALITY and len(self.nationality.colors) > 1 ) \
+                or ( self.image.special_edition == SpecialEdition.WBC and len(self.wbc_team.nationality.colors) > 1 )
 
             if is_multi_colored:
                 # GRADIENT
                 team_colors = [self._team_color_rgbs(is_secondary_color=is_secondary, team_override=team_override) for is_secondary in [True, False]]
                 team_colors = self.nationality.colors if self.image.special_edition == SpecialEdition.NATIONALITY else team_colors
+                team_colors = self.wbc_team.nationality.colors if self.image.special_edition == SpecialEdition.WBC else team_colors
                 gradient_img_width = self.player_sub_type.nationality_chart_gradient_img_width
                 gradient_img_rect = self._gradient_img(size=(gradient_img_width, 190), colors=team_colors)
                 container_img_black.paste(gradient_img_rect, self._coordinates_adjusted_for_bordering(coordinates=(70, 1780), is_forced=True), gradient_img_rect)
@@ -3711,7 +3769,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return final_text, name_color
 
-    def _player_name_special_edition_text_image(self, first:str, last:str | Image.Image) -> tuple[Image.Image, str]:
+    def _player_name_special_edition_text_image(self, first:str, last:str) -> tuple[Image.Image, str]:
         """Updates player name image and color for 
 
         Args:
@@ -3729,6 +3787,40 @@ class ShowdownPlayerCard(BaseModel):
             return None, None
         
         match self.image.special_edition:
+
+            case SpecialEdition.WBC:
+                # FOR WBC, USE CUSTOM FONT AND ADD THE COUNTRY FLAG NEXT TO THE NAME
+                name_font_path = self._font_path('WBC-Font', extension='otf')
+                flag_and_name_img = Image.new('RGBA', (950, 250))
+
+                # LOAD AND PASTE TEAM LOGO
+                team_logo = self._team_logo_image(ignore_dynamic_elements=True)[0]
+                team_logo = team_logo.resize((225,225), Image.Resampling.LANCZOS)
+                flag_and_name_img.paste(team_logo, (0, 0), team_logo)
+
+                for name_part in tuple([first, last]):
+                    
+                    # NAME LENGTH HANDLING                    
+                    font_size = int( (185 if name_part == last else 100) )
+                    new_name_font, name_length_multiplier = self._fit_font_to_width(
+                        text=name_part,
+                        font_path=name_font_path,
+                        base_size=font_size,
+                        max_width=700,
+                        min_scale=0.4,
+                    )
+                    
+                    text = self._text_image(text=name_part, size=(700, 250), font=new_name_font, fill="#ffffff")
+                    paste_location = (235, 0) if name_part == first else (235, int( 55 + (75 * (1-name_length_multiplier)) ))
+                    flag_and_name_img.paste(text, paste_location, text)
+
+                # ADD DROP SHADOW
+                name_text_img = self._add_drop_shadow(image=flag_and_name_img)
+                name_color = name_text_img
+
+                # Return 
+                return name_text_img, name_color
+            
             
             # USE TEXAS FONT FOR ASG 2024
             case SpecialEdition.ASG_2024 | SpecialEdition.ASG_2025:
@@ -3738,20 +3830,20 @@ class ShowdownPlayerCard(BaseModel):
                 name_text_img = Image.new('RGBA', (font_frame_width, 300))
                 for name_part in tuple([first, last]):
 
-                    # IF 2025, USE TITLE CASE AND MOVE DOWM TEXT
+                    # IF 2025, USE TITLE CASE AND MOVE DOWN TEXT
                     name_part_formatted = name_part
                     if self.image.special_edition == SpecialEdition.ASG_2025:
                         name_part_formatted = name_part_formatted.title()
 
                     # NAME LENGTH HANDLING                    
                     font_size = int( (145 if name_part == last else 80) )
-                    name_font = ImageFont.truetype(name_font_path, size=font_size)
-
-                    # ESIMATE FONT SIZING
-                    text_width, _ = self._estimate_text_size(name_part, name_font)
-                    name_length_multiplier = max( 1 - ( max( text_width - font_frame_width, 0) / font_frame_width ), 0.4)
-                    new_font_size = int( font_size * name_length_multiplier )
-                    new_name_font = ImageFont.truetype(name_font_path, size=new_font_size)
+                    new_name_font, name_length_multiplier = self._fit_font_to_width(
+                        text=name_part,
+                        font_path=name_font_path,
+                        base_size=font_size,
+                        max_width=font_frame_width,
+                        min_scale=0.4,
+                    )
                     
                     text = self._text_image(text=name_part, size=(font_frame_width, 200), font=new_name_font, fill="#ffffff")
                     paste_location = (5, 0) if name_part == first else (5, int( 75 + (30 * (1-name_length_multiplier)) ))
@@ -4422,6 +4514,33 @@ class ShowdownPlayerCard(BaseModel):
 
         return postseason_logo_image
 
+    def _wbc_image(self) -> Image.Image:
+        """Identifies year and creates image for optional WBC edition logo.
+
+        Args:
+          None
+        
+        Returns:
+            PIL image object for WBC logo + year.
+        """
+
+        if not self.wbc_year:
+            return None
+
+        # SEARCH IN WBC FOLDER FOR UNIQUE YEARS
+        # CREATE A DICT OF YEAR: WBC YEAR, ALSO ADDING THE PREVIOUS YEAR AS AN OPTION FOR EACH IN CASE OF OFF-BY-ONE YEARS (EX: 2006 LOGO USED FOR 2005 CARD)
+        wbc_logo_folder_path = os.path.join(os.path.dirname(__file__), 'countries', 'wbc', 'tournament_logos')
+        
+        # LOAD LOGO BASED ON WBC YEAR
+        wbc_logo_image = Image.open(os.path.join(wbc_logo_folder_path, f'WBC-{self.wbc_year}.png'))
+        logo_size = self.set.template_component_size(TemplateImageComponent.WBC)
+        wbc_logo_image = wbc_logo_image.resize(logo_size, Image.Resampling.LANCZOS)
+
+        # ADD DROP SHADOW TO MAKE LOGO POP AGAINST BACKGROUND
+        wbc_logo_image = self._add_drop_shadow(image=wbc_logo_image, blur_radius=10)
+
+        return wbc_logo_image
+         
     def _add_icons_to_image(self, player_image:Image.Image) -> Image.Image:
         """Add icon images (if player has icons) to existing player_image object.
            Only for >= 2003 sets.
@@ -4493,7 +4612,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return icon_img
         
-    def _add_additional_logos_00_01(self, image:Image.Image) -> Image.Image:
+    def _add_additional_logo(self, image:Image.Image) -> Image.Image:
         """Add CC/RS/SS/PS logo to existing player_image object.
            Only for 2000/2001 sets.
 
@@ -4503,13 +4622,31 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           Updated PIL Image with logos added above the chart.
         """
+
+        # ADD LOGO FOR 02+ SETS FOR WBC
+        if not self.set.is_00_01 and self.image.special_edition == SpecialEdition.WBC:
+            wbc_logo = self._wbc_image()
+            if wbc_logo:
+                paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.WBC)
+                image.paste(wbc_logo, self._coordinates_adjusted_for_bordering(paste_coordinates), wbc_logo)
+            return image
         
         # ONLY FOR 00/01 SETS
         if not self.set.is_00_01:
             return image
         
         # DEFINE COORDINATES, START WITH ROOKIE SEASON DESTINATION AND EDIT FOR OTHERS
-        template_component = TemplateImageComponent.POSTSEASON if self.image.edition == Edition.POSTSEASON else TemplateImageComponent.ROOKIE_SEASON
+        match self.image.edition:
+            case Edition.ROOKIE_SEASON:
+                template_component = TemplateImageComponent.ROOKIE_SEASON
+            case Edition.POSTSEASON:
+                template_component = TemplateImageComponent.POSTSEASON
+            case Edition.WBC:
+                template_component = TemplateImageComponent.WBC
+            case _:
+                # USE ROOKIE SEASON AS DEFAULT FOR OTHER EDITIONS
+                template_component = TemplateImageComponent.ROOKIE_SEASON
+        
         paste_coordinates = self.set.template_component_paste_coordinates(template_component)
         if self.image.edition != Edition.ROOKIE_SEASON and self.set == Set._2001:
             # MOVE LOGO TO THE RIGHT
@@ -4541,6 +4678,10 @@ class ShowdownPlayerCard(BaseModel):
             case Edition.POSTSEASON:
                 ps_logo = self._postseason_image()
                 image.paste(ps_logo, self._coordinates_adjusted_for_bordering(paste_coordinates), ps_logo)
+            case Edition.WBC:
+                wbc_logo = self._wbc_image()
+                if wbc_logo:
+                    image.paste(wbc_logo, self._coordinates_adjusted_for_bordering(paste_coordinates), wbc_logo)
             case _:
                 return image
             
@@ -5315,6 +5456,8 @@ class ShowdownPlayerCard(BaseModel):
 
         # CHECK THAT THERE ARE MATCHES IN EACH COMPONENT
         num_matches_per_component = [len(matches) for _, matches in component_player_file_matches_dict.items()]
+        if len(num_matches_per_component) == 0:
+            return components_dict
         if min(num_matches_per_component) < 1:
             return components_dict
 
@@ -5407,6 +5550,11 @@ class ShowdownPlayerCard(BaseModel):
             for _ in range(0,4):
                 additional_substring_filters.append(f'({self.nationality.value})') # ADDS NATIONALITY THREE TIMES TO GIVE IT 3X IMPORTANCE
         
+        if self.image.special_edition == SpecialEdition.WBC and self.wbc_team and self.wbc_year:
+            additional_substring_filters.append(f'{self.wbc_year}') 
+            for _ in range(0,4):
+                additional_substring_filters.append(f'(WBC_{self.wbc_team.value})') # ADDS TEAM FOUR TIMES TO GIVE IT 4X IMPORTANCE FOR WBC CARDS
+        
         # PERIOD TYPE
         if self.stats_period.type.player_image_search_term: 
             additional_substring_filters.append(self.stats_period.type.player_image_search_term)
@@ -5498,6 +5646,23 @@ class ShowdownPlayerCard(BaseModel):
             if self.set == Set._2000:
                 components_dict.pop(PlayerImageComponent.NAME_CONTAINER_2000, None)
 
+            return components_dict
+
+        # WBC/NATIONALITY SPECIAL EDITIONS
+        is_wbc = self.image.special_edition == SpecialEdition.WBC and self.wbc_team and self.wbc_year
+        if is_wbc or self.image.special_edition == SpecialEdition.NATIONALITY:
+            components_dict = { c:v for c, v in special_components_for_context.items() if not c not in [PlayerImageComponent.NAME_CONTAINER_2000, PlayerImageComponent.BACKGROUND] }
+            components_dict.update({
+                PlayerImageComponent.GLOW: None,
+            })
+            if not self.set.is_00_01:
+                if is_wbc:
+                    wbc_specific_nationality = os.path.join(os.path.dirname(__file__), 'countries', 'wbc', 'backgrounds', f"{self.wbc_team.nationality.value}.png")
+                    if os.path.exists(wbc_specific_nationality): custom_image_path = wbc_specific_nationality
+                    else: custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.wbc_team.nationality.value}.png")
+                else:
+                    custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality.value}.png")
+                components_dict[PlayerImageComponent.CUSTOM_BACKGROUND] = custom_image_path
             return components_dict
 
         if self.image.special_edition == SpecialEdition.ASG_LINES:
@@ -5655,6 +5820,9 @@ class ShowdownPlayerCard(BaseModel):
         # NATIONALITY COLOR
         if self.image.special_edition == SpecialEdition.NATIONALITY and not ignore_team_overrides:
             return self.nationality.secondary_color if is_secondary_color else self.nationality.primary_color
+        
+        if self.image.special_edition == SpecialEdition.WBC and self.wbc_team and not ignore_team_overrides:
+            return self.wbc_team.secondary_color if is_secondary_color else self.wbc_team.primary_color
         
         # SPECIAL EDITION COLOR
         special_edition_color = self.image.special_edition.color(league=self.league)
@@ -5831,6 +5999,45 @@ class ShowdownPlayerCard(BaseModel):
         
         return text_width, text_height
 
+    def _fit_font_to_width(self, text:str, font_path:str, base_size:int, max_width:int, min_scale:float=0.4) -> tuple[ImageFont.ImageFont, float]:
+        """Find the largest font size that fits inside a max width.
+
+        Args:
+            text: Text to size.
+            font_path: Path to the font file.
+            base_size: Starting/preferred font size.
+            max_width: Maximum text width in pixels.
+            min_scale: Minimum font scale relative to base_size.
+
+        Returns:
+            Tuple containing:
+            - Best-fit font object.
+            - Applied size multiplier relative to base_size.
+        """
+
+        safe_base_size = max(1, int(base_size))
+        min_size = max(1, int(safe_base_size * min_scale))
+
+        low = min_size
+        high = safe_base_size
+        best_size = min_size
+
+        while low <= high:
+            mid = (low + high) // 2
+            test_font = ImageFont.truetype(font_path, size=mid)
+            text_width, _ = self._estimate_text_size(text, test_font)
+
+            if text_width <= max_width:
+                best_size = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        best_font = ImageFont.truetype(font_path, size=best_size)
+        size_multiplier = best_size / safe_base_size
+
+        return best_font, size_multiplier
+
     def _round_corners(self, image:Image.Image, radius:int) -> Image.Image:
         """Round corners of a given image to a certain radius.
 
@@ -5954,12 +6161,13 @@ class ShowdownPlayerCard(BaseModel):
 
         return colored_img
 
-    def _gradient_img(self, size:tuple[int,int], colors:list[tuple[int,int,int,int]]) -> Image.Image:
+    def _gradient_img(self, size:tuple[int,int], colors:list[tuple[int,int,int,int]], type:str='DIAGONAL') -> Image.Image:
         """Create PIL Image with a horizontal gradient of 2 colors
 
         Args:
           size: Tuple of x and y sizing of output
           colors: List of colors to use. Order determines left -> right.
+          type: Type of gradient to produce. Options are 'LINEAR' or 'DIAGONAL' (optional, default is 'LINEAR')
 
         Returns:
             PIL image with color gradient
@@ -5970,20 +6178,42 @@ class ShowdownPlayerCard(BaseModel):
         num_iterations = len(colors) - 1
         w, h = (int(size[0] / num_iterations), size[1])
 
-        for index in range(0, num_iterations):
-            # GRADIENT
-            color1 = colors[index]
-            color2 = colors[index + 1]
-            
-            gradient = np.zeros((h,w,3), np.uint8)
-            
-            # FILL R, G AND B CHANNELS WITH LINEAR GRADIENT BETWEEN TWO COLORS
-            gradient[:,:,0] = np.linspace(color1[0], color2[0], w, dtype=np.uint8)
-            gradient[:,:,1] = np.linspace(color1[1], color2[1], w, dtype=np.uint8)
-            gradient[:,:,2] = np.linspace(color1[2], color2[2], w, dtype=np.uint8)
+        match type:
+            case 'DIAGONAL':
+                full_w = size[0]
 
-            sub_image = Image.fromarray(gradient).convert("RGBA")
-            final_image.paste(sub_image, (int(index * w),0))
+                x = np.linspace(-1, 1, full_w)
+                y = np.linspace(-1, 1, h)
+                xx, yy = np.meshgrid(x, y)
+
+                # Diagonal blend: combines x and y so corners are opposite colors
+                # Negate y so top-right = +1 (color[-1]), bottom-left = +1 as well
+                blend = (xx - yy) / 2  # range roughly -1 to 1 diagonally
+                blend = (blend - blend.min()) / (blend.max() - blend.min())  # normalize 0 to 1
+
+                gradient = np.zeros((h, full_w, 3), np.float32)
+                for c in range(3):
+                    color_values = np.array([col[c] for col in colors], dtype=np.float32)
+                    gradient[:, :, c] = np.interp(blend, np.linspace(0, 1, len(colors)), color_values)
+
+                # # Optional subtle vignette to darken edges slightly
+                dist = np.sqrt(xx**2 + yy**2)
+                dark = np.clip(1 - dist * 0.05, 0.95, 1.0)
+                gradient = (gradient * dark[:, :, np.newaxis]).clip(0, 255).astype(np.uint8)
+
+                final_image = Image.fromarray(gradient).convert("RGBA")
+
+            case 'LINEAR':
+                # Original linear behavior
+                for index in range(num_iterations):
+                    color1 = colors[index]
+                    color2 = colors[index + 1]
+                    gradient = np.zeros((h, w, 3), np.uint8)
+                    gradient[:, :, 0] = np.linspace(color1[0], color2[0], w, dtype=np.uint8)
+                    gradient[:, :, 1] = np.linspace(color1[1], color2[1], w, dtype=np.uint8)
+                    gradient[:, :, 2] = np.linspace(color1[2], color2[2], w, dtype=np.uint8)
+                    sub_image = Image.fromarray(gradient).convert("RGBA")
+                    final_image.paste(sub_image, (int(index * w), 0))
 
         return final_image
 

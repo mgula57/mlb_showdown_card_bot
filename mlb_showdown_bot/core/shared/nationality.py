@@ -258,3 +258,59 @@ class WBCTeam(Enum):
             case WBCTeam.USA: return Nationality.US
             case WBCTeam.VEN: return Nationality.VE
             case _: return Nationality.NONE
+
+    @property
+    def logo_size_multiplier(self) -> float:
+        return 1.00
+
+    @property
+    def colors(self) -> list[tuple[int,int,int,int]]:
+        """Override colors for WBC teams that differ from their nationality's typical colors, to better match their WBC branding"""
+        match self:
+            case WBCTeam.AUS: return [
+                (0, 72, 58, 255), # GREEN
+                (255, 188, 44, 255), # YELLOW
+            ]
+            case WBCTeam.BRA: return [
+                (255, 223, 1, 255), # YELLOW
+                (1, 84, 158, 255), # BLUE
+            ]
+            case _: 
+                return self.nationality.colors
+
+    @property
+    def primary_color(self) -> tuple[int,int,int,int]:
+        if len(self.colors) == 0:
+            return (0,0,0,0)
+        
+        return self.colors[0]
+    
+    @property
+    def secondary_color(self) -> tuple[int,int,int,int]:
+        num_colors = len(self.colors)
+
+        match num_colors:
+            case 0: return (0,0,0,0)
+            case 1: return self.primary_color
+            case _: return self.colors[1]
+
+    def logo_extension(self, wbc_year: int) -> str:
+        """Adds `-` and an index for the few teams that had multiple logos across different WBC years"""
+        try:
+            wbc_year = int(wbc_year)
+        except:
+            return ""
+        
+        match self:
+            case WBCTeam.CHN:
+                if wbc_year <= 2017:
+                    return "-1"
+            case WBCTeam.JPN:
+                if wbc_year <= 2013:
+                    return "-1"
+            case WBCTeam.KOR:
+                if wbc_year <= 2017:
+                    return "-1"
+        
+        return ""
+    

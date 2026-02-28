@@ -3817,3 +3817,43 @@ class PostgresDB:
             self.connection.rollback()
         finally:
             cursor.close()
+
+    def fetch_wbc_team_for_player(self, bref_id:str, year:int) -> Optional[tuple[str, int]]:
+        """Look for the season in the wbc_player_history table, and return the team they were on that season. 
+        This is used for WBC card generation to determine what team to show on the card.
+        
+        Args:
+            bref_id: The player's Baseball Reference ID to look up.
+            year: The season (year) to look up.
+
+        Returns:
+            A tuple containing the team abbreviation and season year if found, or None if not found or if there's an error.
+        """
+        
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return None
+        
+        cursor = self.connection.cursor()
+        query_sql = '''
+            SELECT team, season
+            FROM internal.wbc_player_history as wbc
+            JOIN internal.dim_player_id_map as bref_lookup
+                ON wbc.player_id::text = bref_lookup.mlb_id::text
+            WHERE bref_lookup.bref_id = %s AND 
+            (wbc.season = %s OR (wbc.season - 1) = %s)
+            ORDER BY wbc.modified_date DESC, wbc.season
+            LIMIT 1;
+        '''
+        try:
+            cursor.execute(query_sql, (bref_id, year, year))
+            result = cursor.fetchone()
+            if result:
+                return result
+            else:
+                return None
+        except Exception as e:
+            print(f"ERROR fetching WBC team for player {bref_id} in season {year}: {e}")
+            return None
+        finally:
+            cursor.close()
