@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import command modules
-from .commands import card, auto_image, database, set, wotc, mlb_api, test
+from .commands import card, auto_image, database, set, wotc, mlb_api, test, stats
 
 app = typer.Typer(
     help="MLB Showdown Bot - Create custom MLB Showdown cards",
@@ -19,6 +19,7 @@ app.add_typer(set.app, name="set", help="Build custom Showdown Bot sets")
 app.add_typer(wotc.app, name="wotc", help="Convert WOTC player cards to Showdown Bot format")
 app.add_typer(mlb_api.app, name="mlb_api", help="Interact with the MLB Stats API")
 app.add_typer(test.app, name="test", help="Run card generation tests for various players and sets")
+app.add_typer(stats.app, name="stats", help="View derived league and replacement-level stats")
 
 if __name__ == "__main__":
     app()
