@@ -438,10 +438,13 @@ export default function Seasons() {
                                                             className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors ${
                                                                 isSelected
                                                                     ? "bg-(--background-quaternary) font-semibold"
-                                                                    : "text-(--text-primary) hover:bg-(--divider)"
+                                                                        : "text-(--text-primary) hover:bg-(--divider) hover:text-(--team-hover-color)"
                                                             }`}
                                                             style={{
-                                                                backgroundColor: isSelected ? team.primary_color || "var(--background-quaternary)" : "transparent",
+                                                                ["--team-hover-color" as string]: team.primary_color || "var(--text-primary)",
+                                                                backgroundColor: isSelected ? team.primary_color || "var(--background-quaternary)" : "",
+                                                                color: isSelected ? "white" : undefined,
+                                                            
                                                             }}
                                                         >
                                                             <div className="flex items-center justify-between gap-2">
@@ -486,14 +489,17 @@ export default function Seasons() {
                                 forceMount
                             >
                                 <div className="sm:mt-0">
-                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                                    <div className={`
+                                        grid grid-cols-1 ${standingsEntries.length > 1 ? "xl:grid-cols-2" : ""} 
+                                        gap-5`
+                                    }>
                                         {standingsEntries.map(([leagueAbbreviation, leagueStandings]) => (
                                             <div key={leagueAbbreviation} className="bg-(--background-secondary) rounded-xl overflow-hidden border border-(--divider)">
                                                 <h2 className="text-lg sm:text-xl font-semibold text-(--text-primary) bg-(--background-quaternary) px-4 py-2">
                                                     {leagueAbbreviation}
                                                 </h2>
 
-                                                <div className={standingsEntries.length === 1 ? "xl:grid xl:grid-cols-2" : ""}>
+                                                <div className={leagueStandings.length > 1 ? "xl:grid xl:grid-cols-2" : ""}>
                                                     {leagueStandings.map((leagueStanding, index) => (
                                                         <div key={index} className="border-t border-(--divider) last:pb-1">
                                                             {leagueStanding.division && (

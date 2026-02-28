@@ -19,6 +19,14 @@ class SportsClient(BaseMLBClient):
             data = self._make_request('sports', params=params)
             sports_data = data.get('sports', [])
             sports_objects = [Sport(**sport) for sport in sports_data if sport.get('id', -1) in [x.value for x in SportEnum]]
+
+            # CHANGE NAME OF `INT` TO WBC
+            for sport in sports_objects:
+                print(sport.name)
+                if sport.abbreviation == "INT":
+                    sport.abbreviation = "WBC"
+                    sport.name = "World Baseball Classic"
+
             sports_objects.sort(key=lambda s: s.sort_order, reverse=False)
             return sports_objects
         except Exception as e:
