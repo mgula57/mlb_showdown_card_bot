@@ -15,8 +15,11 @@ import {
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import TeamRoster from "../teams/TeamRoster";
 import SidebarPanel, { type SidebarSection } from "../shared/SidebarPanel";
+import ReactCountryFlag from "react-country-flag";
+import { countryCodeForTeam } from "../../functions/flags";
+import StandingsTab from "./Standings";
 
-import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaChevronDown } from "react-icons/fa6";
+import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaChevronDown, FaBaseball } from "react-icons/fa6";
 
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 
@@ -61,6 +64,8 @@ export default function Seasons() {
 
     const [selectedRoster, setSelectedRoster] = useState<Roster | null>(null);
 
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+
     const [leagueGroups, setLeagueGroups] = useState<string[]>([]);
     const [selectedLeagueGroup, setSelectedLeagueGroup] = useState<string | null>(() => getStoredValue(STORAGE_KEYS.leagueGroup));
     const leagueGroupMappings: { [key: string]: string[] } = {
@@ -82,6 +87,19 @@ export default function Seasons() {
     const [isTeamsNavOpen, setIsTeamsNavOpen] = useState<boolean>(true);
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
+    const pendingRequestsRef = useRef(0);
+
+    const beginLoading = () => {
+        pendingRequestsRef.current += 1;
+        setIsLoading(true);
+    };
+
+    const endLoading = () => {
+        pendingRequestsRef.current = Math.max(0, pendingRequestsRef.current - 1);
+        if (pendingRequestsRef.current === 0) {
+            setIsLoading(false);
+        }
+    };
 
     const isMidSeason = (season: Season) => {
         const today = new Date();
@@ -121,6 +139,7 @@ export default function Seasons() {
         }
 
         isLoadingSeasonsRef.current = true;
+        beginLoading();
         try {
             const seasonsData = await fetchSeasons();
             console.log("Raw seasons data from API:", seasonsData);
@@ -145,6 +164,7 @@ export default function Seasons() {
             console.error("Error fetching seasons:", error);
         } finally {
             isLoadingSeasonsRef.current = false;
+            endLoading();
         }
     };
 
@@ -153,6 +173,7 @@ export default function Seasons() {
             return;
         }
 
+        beginLoading();
         try {
             const sportsData = await fetchSeasonSports(selectedSeason);
             console.log(`Fetched sports for season ${selectedSeason.season_id}:`, sportsData);
@@ -171,6 +192,8 @@ export default function Seasons() {
             });
         } catch (error) {
             console.error(`Error fetching sports for season ${selectedSeason.season_id}:`, error);
+        } finally {
+            endLoading();
         }
     };
 
@@ -179,6 +202,7 @@ export default function Seasons() {
             return;
         }
         
+        beginLoading();
         try {
             
             const leaguesData = await fetchSeasonLeagues(selectedSeason, selectedSport);
@@ -208,6 +232,8 @@ export default function Seasons() {
             
         } catch (error) {
             console.error(`Error fetching leagues for season ${selectedSeason.season_id}:`, error);
+        } finally {
+            endLoading();
         }
     };
 
@@ -231,12 +257,15 @@ export default function Seasons() {
         }
 
         var standingsData: { [leagueAbbreviation: string]: Standings[] } = {};
+        beginLoading();
         try {
             standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery);
             console.log(`Fetched standings for season ${selectedSeason.season_id}:`, standingsData);
             setStandings(standingsData);
         } catch (error) {
             console.error(`Error fetching standings for season ${selectedSeason.season_id}:`, error);
+        } finally {
+            endLoading();
         }
 
         // Populate Teams for Teams Tab
@@ -265,6 +294,7 @@ export default function Seasons() {
             return;
         }
 
+        beginLoading();
         try {
             const rosterType = "active";
             const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, userShowdownSet, selectedSport.id);
@@ -272,6 +302,8 @@ export default function Seasons() {
             setSelectedRoster(rosterData);
         } catch (error) {
             console.error(`Error fetching roster for team ${team.name} in season ${selectedSeason.season_id}:`, error);
+        } finally {
+            endLoading();
         }
     };
 
@@ -346,9 +378,9 @@ export default function Seasons() {
         return total + playerPoints;
     }, 0);
     const teamPlayersWithShowdownCards = teamRosterSlots.filter((slot) =>
-        slot.person.showdown_card_data?.points !== undefined || slot.person.points !== undefined
+        (slot.person.showdown_card_data?.points !== undefined || slot.person.points !== undefined) && slot.person.showdown_card_data?.stats_period?.type !== "REPLACEMENT"
     ).length;
-    const teamAvgPointsPerPlayer = teamPlayersWithShowdownCards > 0 ? teamShowdownPointsTotal / teamPlayersWithShowdownCards : 0;
+    const teamAvgPointsPerPlayer = teamRosterSlots.length > 0 ? teamShowdownPointsTotal / teamRosterSlots.length : 0;
 
     const sidebarSections: SidebarSection[] = [
         {
@@ -427,6 +459,7 @@ export default function Seasons() {
                                                 {teams.map((team) => {
                                                     const teamKey = `${team.id}-${team.season}`;
                                                     const isSelected = selectedTeamKey === teamKey && activeTab === "teams";
+                                                    const isoCountryCode = countryCodeForTeam(selectedSport?.id || 0, team.abbreviation || team.name);
                                                     return (
                                                         <button
                                                             key={teamKey}
@@ -448,7 +481,21 @@ export default function Seasons() {
                                                             }}
                                                         >
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span className="truncate">{team.abbreviation || team.name}</span>
+                                                                <div className="flex gap-1 items-center">
+                                                                    {selectedSport?.id === 51 && isoCountryCode && (
+                                                                        <ReactCountryFlag
+                                                                            countryCode={isoCountryCode}
+                                                                            svg
+                                                                            style={{
+                                                                                width: '1em',
+                                                                                height: '1em',
+                                                                                marginRight: '0.25em',
+                                                                            }}
+                                                                        />
+                                                                    )}
+                                                                    <span className="truncate">{team.abbreviation || team.name}</span>
+                                                                </div>
+                                                                
                                                                 <span className="text-[10px] text-(--text-secondary)">{team.season || selectedSeason?.season_id}</span>
                                                             </div>
                                                         </button>
@@ -482,168 +529,121 @@ export default function Seasons() {
 
                                 <div className="min-w-0 order-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:p-6">
 
-                            {/* Standings Tab */}
-                            <Tabs.Content
-                                value="standings"
-                                className="focus:outline-none data-[state=inactive]:hidden"
-                                forceMount
-                            >
-                                <div className="sm:mt-0">
-                                    <div className={`
-                                        grid grid-cols-1 ${standingsEntries.length > 1 ? "xl:grid-cols-2" : ""} 
-                                        gap-5`
-                                    }>
-                                        {standingsEntries.map(([leagueAbbreviation, leagueStandings]) => (
-                                            <div key={leagueAbbreviation} className="bg-(--background-secondary) rounded-xl overflow-hidden border border-(--divider)">
-                                                <h2 className="text-lg sm:text-xl font-semibold text-(--text-primary) bg-(--background-quaternary) px-4 py-2">
-                                                    {leagueAbbreviation}
-                                                </h2>
+                            		<Tabs.Content
+                                        value="standings"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                        forceMount
+                                    >
+                                        <StandingsTab standingsEntries={standingsEntries} selectedSportId={selectedSport?.id} />
+                                    </Tabs.Content>
 
-                                                <div className={leagueStandings.length > 1 ? "xl:grid xl:grid-cols-2" : ""}>
-                                                    {leagueStandings.map((leagueStanding, index) => (
-                                                        <div key={index} className="border-t border-(--divider) last:pb-1">
-                                                            {leagueStanding.division && (
-                                                                <h3 className="px-4 py-2.5 text-xs sm:text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
-                                                                    {leagueStanding?.division?.name_short || leagueStanding?.division?.name}
-                                                                </h3>
-                                                            )}
-                                                            <table className="w-full text-left">
-                                                                <thead>
-                                                                    <tr className="text-(--text-secondary) text-xs sm:text-sm uppercase">
-                                                                        <th className="px-4 py-2.5">Team</th>
-                                                                        <th className="px-4 py-2.5">Wins</th>
-                                                                        <th className="px-4 py-2.5">Losses</th>
-                                                                        <th className="px-4 py-2.5">Win %</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {leagueStanding.team_records?.map((record) => (
-                                                                        <tr key={record.team.id} className="border-t border-(--divider) hover:bg-(--background-quaternary)">
-                                                                            <td 
-                                                                                className="px-4 py-2.5"
-                                                                                style={{ backgroundColor: record.team.primary_color }}
-                                                                            >
-                                                                                {record.team.abbreviation}
-                                                                            </td>
-                                                                            <td className="px-4 py-2.5">{record.league_record.wins}</td>
-                                                                            <td className="px-4 py-2.5">{record.league_record.losses}</td>
-                                                                            <td className="px-4 py-2.5">{record.league_record.percentage || '-'}</td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
+                                    {/* Teams Tab */}
+                                    <Tabs.Content
+                                        value="teams"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                        forceMount
+                                    >
+                                        <div className="space-y-4">
+                        
+                                            {selectedTeam && (
+                                                <div
+                                                    className="rounded-lg border border-(--divider) p-4"
+                                                    style={{
+                                                        backgroundImage: `linear-gradient(120deg, color-mix(in srgb, ${selectedTeam.primary_color || "var(--background-primary)"} 12%, transparent) 0%, color-mix(in srgb, ${(selectedTeam.secondary_color || selectedTeam.primary_color || "var(--background-primary)")} 12%, transparent) 100%)`,
+                                                    }}
+                                                >
+                                                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4 items-start">
+                                                        <div>
+                                                            
+                                                            <h2 className="flex gap-2 text-xl font-semibold text-(--text-primary)">
+                                                                {selectedSport?.id === 51 && countryCodeForTeam(selectedSport.id, selectedTeam.abbreviation || selectedTeam.name) && (
+                                                                    <ReactCountryFlag
+                                                                        countryCode={countryCodeForTeam(selectedSport.id, selectedTeam.abbreviation || selectedTeam.name) || ""}
+                                                                        svg
+                                                                        style={{
+                                                                            width: '1.5em',
+                                                                            height: '1.5em',
+                                                                            marginBottom: '-0.25em',
+                                                                        }}
+                                                                    />
+                                                                )}
+                                                                {selectedTeam.name}
+                                                            </h2>
+                                                            <p className="text-sm text-(--text-secondary)">
+                                                                {selectedTeam.abbreviation || "N/A"} • {selectedTeam.season?.toString() || selectedSeason?.season_id || "N/A"}
+                                                            </p>
+
+                                                            <div className="mt-3 gap-2 text-sm">
+                                                                <div className="text-(--text-secondary)">
+                                                                    <span className="font-semibold">League:</span> {selectedTeam.league?.name || selectedTeam.league?.abbreviation || "N/A"}
+                                                                </div>
+                                                                <div className="text-(--text-secondary)">
+                                                                    <span className="font-semibold">Division:</span> {selectedTeam.division?.name || selectedTeam.division?.name || "N/A"}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </Tabs.Content>
 
-                            {/* Teams Tab */}
-                            <Tabs.Content
-                                value="teams"
-                                className="focus:outline-none data-[state=inactive]:hidden"
-                                forceMount
-                            >
-                                <div className="space-y-4">
-                                    <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-4">
-                                    <div className="w-full sm:w-80 max-w-full">
-                                        <CustomSelect
-                                            value={selectedTeam?.id?.toString() || ""}
-                                            onChange={(value) => setSelectedTeam(teams.find(team => team.id.toString() === value) || null)}
-                                            options={teams.map(team => ({ value: team.id.toString(), label: team.abbreviation || team.name }))}
-                                        />
-                                    </div>
-                                    {selectedTeam && (
-                                        <div
-                                            className="mt-4 rounded-lg border border-(--divider) p-4"
-                                            style={{
-                                                backgroundImage: `linear-gradient(120deg, color-mix(in srgb, ${selectedTeam.primary_color || "var(--background-primary)"} 12%, transparent) 0%, color-mix(in srgb, ${(selectedTeam.secondary_color || selectedTeam.primary_color || "var(--background-primary)")} 10%, transparent) 100%)`,
-                                            }}
-                                        >
-                                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4 items-start">
-                                                <div>
-                                                    <h2 className="text-xl font-semibold text-(--text-primary)">
-                                                        {selectedTeam.name}
-                                                    </h2>
-                                                    <p className="text-sm text-(--text-secondary)">
-                                                        {selectedTeam.abbreviation || "N/A"} • {selectedTeam.season?.toString() || selectedSeason?.season_id || "N/A"}
-                                                    </p>
-
-                                                    <div className="mt-3 gap-2 text-sm">
-                                                        <div className="text-(--text-secondary)">
-                                                            <span className="font-semibold">League:</span> {selectedTeam.league?.name || selectedTeam.league?.abbreviation || "N/A"}
-                                                        </div>
-                                                        <div className="text-(--text-secondary)">
-                                                            <span className="font-semibold">Division:</span> {selectedTeam.division?.name || selectedTeam.division?.name || "N/A"}
+                                                        <div className="rounded-lg border border-(--divider) px-4 py-3 min-w-44">
+                                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-(--text-secondary)">
+                                                                Total PTS
+                                                            </p>
+                                                            <p className="mt-1 text-2xl font-bold text-(--text-primary)">
+                                                                {teamShowdownPointsTotal.toLocaleString()}
+                                                            </p>
+                                                            <p className="text-xs text-(--text-secondary)">
+                                                                {teamAvgPointsPerPlayer > 0 ? `Avg ${teamAvgPointsPerPlayer.toFixed(0)} / Player` : "No player points"}
+                                                            </p>
+                                                            <p className="text-xs text-(--text-tertiary)">
+                                                                {teamPlayersWithShowdownCards} player{teamPlayersWithShowdownCards === 1 ? "" : "s"} with cards
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 </div>
+                                            )}
+                                            <TeamRoster roster={selectedRoster} />
+        
+                                        </div>
+                                    </Tabs.Content>
 
-                                                <div className="rounded-lg border border-(--divider) px-4 py-3 min-w-44">
-                                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-(--text-secondary)">
-                                                        Total PTS
-                                                    </p>
-                                                    <p className="mt-1 text-2xl font-bold text-(--text-primary)">
-                                                        {teamShowdownPointsTotal.toLocaleString()}
-                                                    </p>
-                                                    <p className="text-xs text-(--text-secondary)">
-                                                        {teamAvgPointsPerPlayer > 0 ? `Avg ${teamAvgPointsPerPlayer.toFixed(0)} / Player` : "No player points"}
-                                                    </p>
-                                                    <p className="text-xs text-(--text-tertiary)">
-                                                        {teamPlayersWithShowdownCards} player{teamPlayersWithShowdownCards === 1 ? "" : "s"} with cards
+                                    {/* Players Tab */}
+                                    <Tabs.Content
+                                        value="players"
+                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                    >
+                                        {seasons.length === 0 || sports.length === 0 || !selectedSeason || !selectedSeason.season_id ? (
+                                            <div className="mt-5 rounded-xl border border-(--divider) bg-(--background-secondary) p-4 text-sm text-(--text-secondary)">
+                                                No season or sport data available for player search.
+                                            </div>
+                                        ) : (
+                                            <div className="mt-5 rounded-xl border border-(--divider) bg-(--background-secondary) p-3 sm:p-4">
+                                                <ShowdownCardSearch
+                                                    source="BOT"
+                                                    defaultFilters={{
+                                                        min_year: Number(selectedSeason.season_id),
+                                                        max_year: Number(selectedSeason.season_id),
+                                                    }}
+                                                    disableLocalStorage={true}
+                                                />
+                                            </div>
+                                        )}
+                                    </Tabs.Content>
+
+                                    {/* Games Tab - Only for ongoing seasons */}
+                                    {selectedSeason && isMidSeason(selectedSeason) && (
+                                        <Tabs.Content
+                                            value="games"
+                                            className="focus:outline-none data-[state=inactive]:hidden"
+                                            forceMount
+                                        >
+                                            <div className="mt-5">
+                                                <div className="bg-(--background-secondary) rounded-xl p-8 border border-(--divider) border-dashed text-center">
+                                                    <p className="text-(--text-secondary)">
+                                                        Game data coming soon
                                                     </p>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </Tabs.Content>
                                     )}
-                                    </div>
-                                    <TeamRoster roster={selectedRoster} />
-  
-                                </div>
-                            </Tabs.Content>
-
-                            {/* Players Tab */}
-                            <Tabs.Content
-                                value="players"
-                                className="focus:outline-none data-[state=inactive]:hidden"
-                            >
-                                {seasons.length === 0 || sports.length === 0 || !selectedSeason || !selectedSeason.season_id ? (
-                                    <div className="mt-5 rounded-xl border border-(--divider) bg-(--background-secondary) p-4 text-sm text-(--text-secondary)">
-                                        No season or sport data available for player search.
-                                    </div>
-                                ) : (
-                                    <div className="mt-5 rounded-xl border border-(--divider) bg-(--background-secondary) p-3 sm:p-4">
-                                        <ShowdownCardSearch
-                                            source="BOT"
-                                            defaultFilters={{
-                                                min_year: Number(selectedSeason.season_id),
-                                                max_year: Number(selectedSeason.season_id),
-                                            }}
-                                            disableLocalStorage={true}
-                                        />
-                                    </div>
-                                )}
-                            </Tabs.Content>
-
-                            {/* Games Tab - Only for ongoing seasons */}
-                            {selectedSeason && isMidSeason(selectedSeason) && (
-                                <Tabs.Content
-                                    value="games"
-                                    className="focus:outline-none data-[state=inactive]:hidden"
-                                    forceMount
-                                >
-                                    <div className="mt-5">
-                                        <div className="bg-(--background-secondary) rounded-xl p-8 border border-(--divider) border-dashed text-center">
-                                            <p className="text-(--text-secondary)">
-                                                Game data coming soon
-                                            </p>
-                                        </div>
-                                    </div>
-                                </Tabs.Content>
-                            )}
                                 </div>
 
                             </div>
@@ -651,6 +651,26 @@ export default function Seasons() {
                     </>
                 )}
             </div>
+
+            {isLoading && (
+                <div className="
+                    fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+                    bg-(--primary)/10 backdrop-blur 
+                    p-4 rounded-2xl
+                    flex items-center space-x-2
+                ">
+                    <FaBaseball
+                        className="
+                            text-3xl
+                            animate-bounce
+                        "
+                        style={{
+                            animationDuration: '0.7s',
+                            animationIterationCount: 'infinite'
+                        }}
+                    />
+                </div>
+            )}
         </div>
     );
 }

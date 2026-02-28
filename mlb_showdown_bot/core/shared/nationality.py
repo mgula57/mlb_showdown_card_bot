@@ -169,7 +169,7 @@ class Nationality(Enum):
     def template_color(self) -> str:
         match self.value:
             case 'US': return 'RED'
-            case 'DO': return 'RED'
+            case 'DO': return 'BLUE'
             case 'VE': return 'YELLOW'
             case 'CU': return 'BLUE'
             case 'CA': return 'RED'

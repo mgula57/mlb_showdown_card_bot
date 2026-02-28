@@ -27,7 +27,7 @@ class Record(BaseModel):
     wins: int
     losses: int
     ties: Optional[int] = None
-    percentage: Optional[str] = None
+    percentage: Optional[str] = Field(None, alias='pct')
 
 
 class TeamRecords(BaseModel):

@@ -92,7 +92,7 @@ def convert_replacement_stats_to_pa_basis(stats: dict[str, Any], pa_basis: float
 
 def get_replacement_hitting_avgs(
     year: int,
-    runs_below_avg: float = 20.0,
+    runs_below_avg: float = 30.0,
     weights: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Build replacement-level batting environment from league averages.
@@ -101,7 +101,7 @@ def get_replacement_hitting_avgs(
         target_run_rate = league_run_rate - (runs_below_avg / 600)
 
     Examples:
-        - WAR-style baseline: runs_below_avg=20 over 600 PA
+        - WAR-style baseline: runs_below_avg=30 over 600 PA
         - To convert output to another PA basis, use convert_replacement_stats_to_pa_basis(...)
     """
     if year not in MLB_SEASON_AVGS:
@@ -186,7 +186,7 @@ def get_replacement_hitting_avgs(
 
 
 def build_replacement_hitting_table(
-    runs_below_avg: float = 20.0,
+    runs_below_avg: float = 30.0,
     weights: dict[str, float] | None = None,
 ) -> dict[int, dict[str, Any]]:
     """Build replacement-level table for all seasons in MLB_SEASON_AVGS."""
@@ -202,7 +202,7 @@ def build_replacement_hitting_table(
 
 def get_replacement_pitching_avgs(
     year: int,
-    runs_above_avg: float = 20.0,
+    runs_above_avg: float = 30.0,
     weights: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Build replacement-level pitching environment from league averages.
@@ -308,7 +308,7 @@ def get_replacement_pitching_avgs(
 
 
 def build_replacement_pitching_table(
-    runs_above_avg: float = 20.0,
+    runs_above_avg: float = 30.0,
     weights: dict[str, float] | None = None,
 ) -> dict[int, dict[str, Any]]:
     """Build replacement-level pitching table for all seasons in MLB_SEASON_AVGS."""
@@ -326,8 +326,8 @@ def build_replacement_level_stats_for_card(
     year: int,
     player_type: PlayerType,
     positions: list[Position] | None = None,
-    runs_below_avg: float = 20.0,
-    pa_basis: float = 400.0,
+    runs_below_avg: float = 30.0,
+    pa_basis: float = 600.0,
     weights: dict[str, float] | None = None,
     original_stats: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -358,11 +358,11 @@ def build_replacement_level_stats_for_card(
     card_stats["team_ID"] = card_stats.get("team_ID") or "MLB"
     card_stats["lg_ID"] = card_stats.get("lg_ID") or "MLB"
     card_stats["PA"] = card_stats.get("PA") or pa_basis
-    card_stats["G"] = 162 * (pa_basis / 650)  # Scale games based on PA basis (assuming 650 PA ~ full season)
+    card_stats["G"] = int(162 * (pa_basis / 650))  # Scale games based on PA basis (assuming 650 PA ~ full season)
     if player_type == PlayerType.PITCHER:
-        card_stats["GS"] = 30 * (pa_basis / 650) if subtype == PlayerSubType.STARTING_PITCHER else 0
+        card_stats["GS"] = int(30 * (pa_basis / 650)) if subtype == PlayerSubType.STARTING_PITCHER else 0
         card_stats["SV"] = 0
-        card_stats["IP"] = (180 if subtype == PlayerSubType.STARTING_PITCHER else 65) * (pa_basis / 650)
+        card_stats["IP"] = float(int((180 if subtype == PlayerSubType.STARTING_PITCHER else 65) * (pa_basis / 650)))
         card_stats["IP/GS"] = 5 if subtype == PlayerSubType.STARTING_PITCHER else 0
     card_stats["hand"] = card_stats.get("hand") or "Right"
     card_stats["hand_throw"] = card_stats.get("hand_throw") or "Right"
@@ -371,7 +371,6 @@ def build_replacement_level_stats_for_card(
         {"P": {"g": card_stats["G"]}} if player_type == PlayerType.PITCHER 
         else ( {"DH": {"g": card_stats["G"]}} if positions is None else {pos.value: {"g": card_stats["G"], 'drs': -12 * (pa_basis / 650)} for pos in positions} )
     )
-    card_stats['datasource'] = "replacement_level"
 
     card_stats["batting_avg"] = card_stats.get("batting_avg") if card_stats.get("batting_avg") is not None else card_stats.get("BA", 0)
     card_stats["onbase_perc"] = card_stats.get("onbase_perc") if card_stats.get("onbase_perc") is not None else card_stats.get("OBP", 0)

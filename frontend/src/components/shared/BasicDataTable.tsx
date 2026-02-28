@@ -92,7 +92,7 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
     });
 
     return (
-        <div className={`overflow-scroll rounded-lg border-2 border-[var(--background-tertiary)] ${className} text-sm`}>
+        <div className={`overflow-scroll rounded-lg border-2 border-(--background-tertiary) ${className} text-sm`}>
             <table className="min-w-full">
                 {/* Table Header with sortable columns */}
                 <thead className="bg-table-header">
@@ -132,7 +132,7 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
                             <tr 
                                 key={r.id} 
                                 className={`
-                                    odd:bg-[var(--table-banding)]
+                                    odd:bg-(--table-banding)
                                     ${onRowClick ? 'cursor-pointer' : ''}
                                 `}
                                 onClick={() => onRowClick?.(r.original)}

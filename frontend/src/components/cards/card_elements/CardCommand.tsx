@@ -1,5 +1,5 @@
 import { useTheme } from "../../shared/SiteSettingsContext";
-
+import { darkenIfLowContrastOnWhite } from "../../../functions/colors";
 /**
  * Props for the CardCommand component
  */
@@ -43,6 +43,7 @@ export default function CardCommand({ isPitcher, primaryColor, secondaryColor, c
     const color = (['NYM', 'SDP'].includes(team || 'N/A') 
         ? secondaryColor 
         : primaryColor) || 'rgb(0, 0, 0)';
+    const colorAdjusted = darkenIfLowContrastOnWhite(color);
 
     /**
      * Gets the appropriate background image based on player type and theme
@@ -73,7 +74,7 @@ export default function CardCommand({ isPitcher, primaryColor, secondaryColor, c
                     drop-shadow-lg
                 `}
                 style={{ 
-                    color: color,
+                    color: colorAdjusted,
                 }}
             >
                 {command}

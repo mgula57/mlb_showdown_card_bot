@@ -1,4 +1,4 @@
-import type { ShowdownBotCard } from "../../api/showdownBotCard";
+import type { ShowdownBotCard, StatsPeriod } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import CardChart from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
@@ -17,6 +17,7 @@ type CardItemProps = {
     cardName?: string;
     cardYear?: string;
     cardTeam?: string;
+    cardStatsPeriod?: StatsPeriod;
 
     // Set
     cardSet?: string;
@@ -93,7 +94,7 @@ type CardItemProps = {
  * ```
  */
 export const CardItem = ({ 
-    cardId, cardTeam, cardName, cardYear, 
+    cardId, cardTeam, cardName, cardYear, cardStatsPeriod,
     cardCommand, cardIsPitcher,
     cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual,
     cardSpeed, cardHand, cardIp, cardPositionsAndDefenseString,
@@ -198,8 +199,8 @@ export const CardItem = ({
                                     text-[9px] flex
                                     items-center font-bold justify-center
                                     rounded-lg tracking-tight shrink-0
-                                    border-1 border-white/30 px-1
-                                    bg-[var(--red)] text-white
+                                    border border-white/30 px-1
+                                    bg-(--red) text-white
                                     " 
                                 title="Errata Card"
                             >
@@ -302,11 +303,19 @@ export const CardItem = ({
                             ))}
                         </div>
                     )}
-                    {cardStatHighlightsList?.map((stat, index) => (
-                        <div key={index} className="">
-                            {stat}
+                    {cardStatsPeriod?.type === 'REPLACEMENT' ? (
+                        <div className="font-semibold italic text-(--text-secondary)">
+                            No Card Found - Showing Replacement Level Stats
                         </div>
-                    ))}
+                    ) : (
+                        <>
+                        {cardStatHighlightsList?.map((stat, index) => (
+                            <div key={index} className="">
+                                {stat}
+                            </div>
+                        ))}
+                        </>
+                    )}
                 </div>
 
                 {/* Set and Expansion */}
@@ -314,7 +323,7 @@ export const CardItem = ({
                     className="
                         flex flex-row justify-end items-center gap-x-1
                         text-[9px] text-nowrap tracking-tight text-primary
-                        bg-[var(--background-tertiary)]
+                        bg-(--background-tertiary)
                         px-1 rounded-md font-bold shadow-md
                     "
                     style={{
@@ -362,18 +371,19 @@ type CardItemFromCardProps = {
 
 export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardItemFromCardProps) => {
 
-    const primaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+    const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
                             : card?.image.color_primary) || 'rgb(0, 0, 0)';
-    const secondaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+    const secondaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_primary 
                             : card?.image.color_secondary) || 'rgb(0, 0, 0)';
     return (
         <CardItem
             cardId={card === undefined || card === null ? undefined : `${card.bref_id}-${card.stats_period.year}-${card.set}`}
-            cardTeam={card?.team}
+            cardTeam={card?.wbc_team || card?.team}
             cardName={card?.name}
-            cardYear={card?.stats_period.year}
+            cardYear={card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period.year)}
+            cardStatsPeriod={card?.stats_period}
             cardCommand={card?.chart.command}
             cardOuts={card?.chart.outs}
             cardIsPitcher={card?.chart.is_pitcher}

@@ -3,7 +3,7 @@ import { type RosterSlot } from "../../api/mlbAPI";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import { BasicDataTable } from "../shared/BasicDataTable";
 import { CardDetail } from "../cards/CardDetail";
-import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { Modal } from "../shared/Modal";
 import CardChart from "../cards/card_elements/CardChart";
 import CardCommand from "../cards/card_elements/CardCommand";
@@ -26,21 +26,22 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
             const name = getValue();
             const year = card?.year || "-";
             const team = card?.team || "-";
-            const secondaryColor = (['NYM', 'SDP'].includes(team) ? card?.image.color_secondary : card?.image.color_primary) || "#000000";
+            const secondaryColor = (['NYM', 'SDP'].includes(team) && card?.image.edition !== 'WBC' ? card?.image.color_secondary : card?.image.color_primary) || "#000000";
+            const isReplacement = card?.stats_period?.type === "REPLACEMENT";
             return (
                 <div className="flex flex-col gap-0 max-w-28 sm:max-w-40">
                     <div className="font-extrabold text-nowrap sm:text-nowrap overflow-x-scroll">
                         {name}
                     </div>
                     <div className="flex flex-row italic text-[11px] gap-1">
-                        {year} {team} 
+                        {isReplacement ? "Replacement Player" : `${year} ${team}`}
                         {card?.icons && (
                             <>
                                 {card.icons.map((icon, index) => (
                                     <div 
                                         key={index} 
                                         className="
-                                            text-[9px] flex w-4 h-4 
+                                            text-[8px] flex w-4 h-4 
                                             items-center font-bold justify-center 
                                             rounded-full tracking-tight shrink-0
                                             border border-(--divider)
@@ -100,7 +101,7 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
                     primaryColor={card.image.color_primary}
                     secondaryColor={card.image.color_secondary}
                     command={card.chart.command}
-                    team={card.team}
+                    team={card.wbc_team || card.team}
                     className="w-10 h-10"
                 />
             );
@@ -120,7 +121,9 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
                     showdownSet={card.set}
                     primaryColor={card.image.color_primary}
                     secondaryColor={card.image.color_secondary}
-                    team={card.team}
+                    team={card.wbc_team || card.team}
+                    cellClassName="min-w-8 max-w-11"
+                    className="max-w-xl"
                 />
             );
         },
@@ -153,34 +156,26 @@ type TeamRosterPositionTableProps = {
 
 export default function TeamRosterPositionTable({ position, slots, className, tableClassName }: TeamRosterPositionTableProps) {
 
-    const [selectedSlot, setSelectedSlot] = useState<RosterSlot | null>(null);
+    const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const handleRowClick = (slot: RosterSlot) => {
         if (!slot.person.showdown_card_data) {
             return;
         }
-        setSelectedSlot(slot);
+        setSelectedCard(slot.person.showdown_card_data);
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setSelectedSlot(null);
+        setSelectedCard(null);
     };
-
-    const selectedCard = selectedSlot?.person.showdown_card_data || null;
-    const selectedCardData: ShowdownBotCardAPIResponse | null = selectedCard
-        ? {
-            card: selectedCard,
-            error: null,
-            error_for_user: null,
-        }
-        : null;
 
     const sortedSlots = [...slots].sort((a, b) =>
         (a.person.full_name || "").localeCompare(b.person.full_name || "")
     );
+    const initialSorting = position === 'PITCHER' ? [{id: "positions_and_defense_string", desc: false}, { id: "points", desc: true }] : [{ id: "points", desc: true }];
 
     return (
         <section className={`overflow-hidden ${className || ""}`}>
@@ -190,17 +185,21 @@ export default function TeamRosterPositionTable({ position, slots, className, ta
             <BasicDataTable 
                 data={sortedSlots}
                 columns={showdownCardColumns}
+                initialSorting={initialSorting}
                 className={tableClassName || "rounded-none border-0"}
                 onRowClick={handleRowClick}
             />
 
-            {isModalOpen && selectedCard && selectedCardData && (
-                <Modal onClose={handleCloseModal} title={`${selectedCard.name} (${selectedCard.year})`}>
-                    <CardDetail 
-                        showdownBotCardData={selectedCardData}
+            <div className={isModalOpen ? '' : 'hidden pointer-events-none'}>
+                <Modal onClose={handleCloseModal} isVisible={!!selectedCard}>
+                    <CardDetail
+                        showdownBotCardData={{ card: selectedCard } as ShowdownBotCardAPIResponse} 
+                        hideTrendGraphs={true}
+                        context="home"
+                        parent='home'
                     />
                 </Modal>
-            )}
+            </div>
         </section>
     );
 }

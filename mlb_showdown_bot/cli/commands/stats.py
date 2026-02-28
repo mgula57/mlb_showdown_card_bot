@@ -8,7 +8,7 @@ from ...core.data.replacement_season_averages import (
     build_replacement_level_stats_for_card,
     Position,
 )
-from ...core.card.showdown_player_card import ShowdownPlayerCard
+from ...core.card.showdown_player_card import ShowdownPlayerCard, StatsPeriodType
 from ...core.card.stats.stats_period import StatsPeriod
 
 app = typer.Typer()
@@ -34,7 +34,7 @@ def _print_replacement_card(stats: dict, season_year: int, role: str, pa: float,
         year=str(season_year),
         set=card_set,
         era="DYNAMIC",
-        stats_period=StatsPeriod(year=str(season_year)),
+        stats_period=StatsPeriod(year=str(season_year), type=StatsPeriodType.REPLACEMENT),
         stats=card_stats,
         print_to_cli=True,
     )

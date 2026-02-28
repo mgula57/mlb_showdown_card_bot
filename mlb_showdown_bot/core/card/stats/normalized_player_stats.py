@@ -17,8 +17,6 @@ class Datasource(str, Enum):
     BREF = "bref"
     FANGRAPHS = "fangraphs"
 
-    REPLACEMENT_LEVEL = "replacement_level"
-
     @classmethod
     def _missing_(cls, value):
         if isinstance(value, str):

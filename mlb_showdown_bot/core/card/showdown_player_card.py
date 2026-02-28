@@ -2965,7 +2965,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # SPLIT/DATE RANGE
         if self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
-            split_image = self._date_range_or_split_image()
+            split_image = self._stats_period_type_text_img()
             paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.SPLIT, is_multi_year=self.stats_period.is_multi_year, is_full_career=self.stats_period.is_full_career)
             card_image.paste(split_image, self._coordinates_adjusted_for_bordering(paste_coordinates), split_image)
 
@@ -4813,7 +4813,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return year_img
 
-    def _date_range_or_split_image(self) -> Image.Image:
+    def _stats_period_type_text_img(self) -> Image.Image:
         """ Date Range or Split text image for partial year cards. Rounded rectangle with text.
 
         Args: 

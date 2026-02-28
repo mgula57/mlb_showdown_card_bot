@@ -26,6 +26,10 @@ class RosterSlot(BaseModel):
     jersey_number: Optional[str] = Field(None, alias='jerseyNumber')
     parent_team_id: Optional[int] = Field(None, alias='parentTeamId')
 
+    @property
+    def is_pitcher(self) -> bool:
+        return self.position.abbreviation in ['P', 'SP', 'RP']
+
 
 class Roster(BaseModel):
 

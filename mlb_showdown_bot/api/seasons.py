@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import pprint
 from flask import Blueprint, jsonify, request
-from typing import List
+from typing import List, Optional
 
 from ..core.mlb_stats_api import MLBStatsAPI, RosterTypeEnum
 from ..core.mlb_stats_api.models.leagues.league import League
@@ -110,10 +110,11 @@ def fetch_roster(season_id: str, team_id: str):
             return jsonify({'error': f'Invalid showdown_set: {showdown_set}. Valid options are: {[s.value for s in ShowdownSet]}'}), 400
         
         sport_id = request.args.get('sport_id', 1)  # Optional sport_id parameter for pulling card data, default to MLB
+        team_abbr = request.args.get('team_abbr', None)  # Optional team abbreviation for pulling card data, e.g. NYY for New York Yankees
 
         roster = _mlb_stats_api.teams.get_team_roster(team_id=team_id, season=season_id, roster_type=roster_type)
         db = PostgresDB()
-        roster = db.add_showdown_cards_to_mlb_api_roster(roster=roster, showdown_set=showdown_set_enum.value, season=season_id, sport_id=sport_id)
+        roster = db.add_showdown_cards_to_mlb_api_roster(roster=roster, showdown_set=showdown_set_enum.value, season=season_id, sport_id=sport_id, team_abbr=team_abbr)
         roster_data = roster.model_dump(mode='json', exclude_none=True) if roster else None
 
         return jsonify({'roster': roster_data}), 200

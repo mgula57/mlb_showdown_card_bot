@@ -48,7 +48,7 @@ type CardDetailProps = {
     /** Loading state for live game data */
     isLoadingGameBoxscore?: boolean;
     /** Usage context: 'custom' for card builder, 'explore' for database browser */
-    context?: 'custom' | 'explore' | 'home';
+    context?: 'custom' | 'explore' | 'home' | 'season' | 'roster';
     parent?: string;
 };
 
@@ -253,7 +253,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     };
 
     const teamGlowColor = activeCardData?.card?.image ? (
-        ( ['NYM', 'SDP', 'NYY'].includes(activeCardData?.card?.team || '') && isDark )
+        ( ['NYM', 'SDP', 'NYY'].includes(activeCardData?.card?.team || '') && isDark && !activeCardData.card.wbc_team)
             ? enhanceColorVisibility(activeCardData?.card?.image?.color_secondary) 
             : enhanceColorVisibility(activeCardData?.card?.image?.color_primary)
     ) : 'rgb(0, 0, 0)';
@@ -332,7 +332,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
 
             {/* Warnings */}
             {activeCardData?.card?.warnings && activeCardData.card.warnings.length > 0 && (
-                <div className="bg-[var(--warning)]/5 border-2 border-[var(--warning)] text-[var(--warning)] p-2 rounded-md">
+                <div className="bg-(--warning)/5 border-2 border-(--warning) text-(--warning) p-2 rounded-md">
                     <h4 className="font-semibold">Warnings</h4>
                     <ul className="list-disc list-inside">
                         {activeCardData.card.warnings.map((warning, index) => (
@@ -393,8 +393,8 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
             {/* Notes */}
             {activeCardData?.card?.notes && (
                 <div className="
-                    bg-secondary/50
-                    border-2 border-form-element
+                    bg-(--secondary)/50
+                    border-2 border-(--form-element)
                     rounded-lg
                     p-3
                     text-xs

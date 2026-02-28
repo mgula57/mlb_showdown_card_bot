@@ -180,6 +180,7 @@ class MLBStatsAPI:
                         player_info = {
                             'player_id': player.person.id,
                             'full_name': player.person.full_name,
+                            'team_id': team.id,
                             'team': team.abbreviation,
                             'season': season,
                         }
@@ -205,7 +206,7 @@ class MLBStatsAPI:
                         team.abbreviation or "N/A",
                         0,
                         "ERROR",
-                        last_source,
+                        last_source
                     ])
                 finally:
                     season_progress[season]["players_added"] = season_players_added

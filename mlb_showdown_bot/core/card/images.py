@@ -2,6 +2,8 @@ from enum import Enum
 from pydantic import BaseModel, ValidationInfo, field_validator
 from typing import Optional
 
+from ...core.shared.nationality import WBCTeam
+
 # INTERNAL
 from .stats.stat_highlights import StatHighlightsType, StatHighlightsCategory
 
@@ -600,7 +602,17 @@ class ShowdownImage(BaseModel):
             if self.parallel == ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
                 self.special_edition = SpecialEdition.TEAM_COLOR_BLAST_DARK
                 return 
-            
+
+    def apply_wbc_team_theming(self, wbc_team: WBCTeam, wbc_year: int) -> None:
+        """Apply WBC team theming to the image based on the WBC team and year."""
+        if wbc_team and wbc_year:
+            self.edition = Edition.WBC
+            self.special_edition = SpecialEdition.WBC
+            primary_color_tuple = wbc_team.primary_color
+            self.color_primary = f"rgb({primary_color_tuple[0]}, {primary_color_tuple[1]}, {primary_color_tuple[2]})"
+            secondary_color_tuple = wbc_team.secondary_color
+            self.color_secondary = f"rgb({secondary_color_tuple[0]}, {secondary_color_tuple[1]}, {secondary_color_tuple[2]})"
+
     @field_validator('nickname_index', mode='before')
     def clean_nickname_index(cls, nickname_index:int) -> int:
         if nickname_index is None:

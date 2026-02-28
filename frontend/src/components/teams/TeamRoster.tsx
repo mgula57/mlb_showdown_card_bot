@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 import { type Roster, type RosterSlot } from "../../api/mlbAPI";
 import { CardItemFromCard } from "../cards/CardItem";
 import TeamRosterPositionTable from "./TeamRosterPositionTable";
-
+import { Modal } from "../shared/Modal";
+import { CardDetail } from "../cards/CardDetail";
+import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 interface TeamRosterProps {
     roster: Roster | null;
 }
@@ -39,6 +41,21 @@ export default function TeamRoster({ roster }: TeamRosterProps) {
         }
         return getTopPlayerLimit(window.innerWidth);
     });
+    const [selectedCard, setSelectedCard] = useState<ShowdownBotCard | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleRowClick = (slot: RosterSlot) => {
+        if (!slot.person.showdown_card_data) {
+            return;
+        }
+        setSelectedCard(slot.person.showdown_card_data);
+        setIsModalOpen(true);
+    }
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setSelectedCard(null);
+    };
 
     useEffect(() => {
         const handleResize = () => {
@@ -67,9 +84,11 @@ export default function TeamRoster({ roster }: TeamRosterProps) {
         return groups;
     }, {});
 
-    const orderedPositions = Object.keys(groupedByPosition).sort((a, b) => a.localeCompare(b));
+    const orderedPositions = Object.keys(groupedByPosition)
+        .sort((a, b) => a.localeCompare(b));
     const topPlayers = [...rosterSlots]
         .filter((slot) => slot.person.showdown_card_data)
+        .sort((a, b) => (b.person.showdown_card_data?.stats_period.type === "REPLACEMENT" ? -1 : 0) - (a.person.showdown_card_data?.stats_period?.type === "REPLACEMENT" ? -1 : 0))
         .sort((a, b) => (b.person.showdown_card_data?.points || 0) - (a.person.showdown_card_data?.points || 0))
         .slice(0, topPlayerLimit);
 
@@ -90,6 +109,7 @@ export default function TeamRoster({ roster }: TeamRosterProps) {
                                     key={slot.person.id}
                                     card={card}
                                     className="w-full"
+                                    onClick={() => handleRowClick(slot)}
                                 />
                             );
                         })}
@@ -112,6 +132,17 @@ export default function TeamRoster({ roster }: TeamRosterProps) {
                         />
                     );
                 })}
+            </div>
+
+            <div className={isModalOpen ? '' : 'hidden pointer-events-none'}>
+                <Modal onClose={handleCloseModal} isVisible={!!selectedCard}>
+                    <CardDetail
+                        showdownBotCardData={{ card: selectedCard } as ShowdownBotCardAPIResponse} 
+                        hideTrendGraphs={true}
+                        context="home"
+                        parent='home'
+                    />
+                </Modal>
             </div>
         </div>
     );

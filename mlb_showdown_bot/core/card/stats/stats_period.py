@@ -16,6 +16,9 @@ class StatsPeriodType(str, Enum):
     POSTSEASON = "POST"
     SPLIT = "SPLIT"
 
+    PROJECTED = "PROJECTED"
+    REPLACEMENT = "REPLACEMENT"
+
     @property
     def uses_game_logs(self) -> bool:
         return self in [StatsPeriodType.DATE_RANGE, StatsPeriodType.POSTSEASON]
@@ -543,4 +546,8 @@ class StatsPeriod(BaseModel):
                 text = self.split.upper()
             case StatsPeriodType.REGULAR_SEASON:
                 text = self.year
+            case StatsPeriodType.PROJECTED:
+                text = f"PROJECTED"
+            case StatsPeriodType.REPLACEMENT:
+                text = f"REPLACEMENT"
         return text

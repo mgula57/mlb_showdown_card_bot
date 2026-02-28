@@ -13,8 +13,9 @@ from typing import Optional, Any, Dict, List
 from enum import Enum
 
 # INTERNAL
-from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Set, StatsPeriodType, __version__, Position
+from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, SpecialEdition, Set, StatsPeriod, StatsPeriodType, __version__, Position, WBCTeam, StatHighlightsType
 from ..card.stats.normalized_player_stats import Datasource
+from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
 from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum
@@ -949,7 +950,7 @@ class PostgresDB:
             traceback.print_exc()
             return {}
 
-    def add_showdown_cards_to_mlb_api_roster(self, roster: Roster, showdown_set: Set, season: int, sport_id: int) -> Roster:
+    def add_showdown_cards_to_mlb_api_roster(self, roster: Roster, showdown_set: Set, season: int, sport_id: int, team_abbr: Optional[str] = None) -> Roster:
         """Fetch card data for a list of MLB API roster data from the dim_card table."""
         
         if self.connection is None:
@@ -985,13 +986,13 @@ class PostgresDB:
             #   - For MLB Sport, use prior season's stats until May 1st
             #   - For International Sport, use prior season's stats
             year = season
-
-            if sport_id == SportEnum.INTERNATIONAL:
-                year = season - 1
-            elif sport_id == SportEnum.MLB:
-                current_date = datetime.now().date()
-                if current_date < datetime(season, 5, 1).date():
+            match sport_id:
+                case SportEnum.INTERNATIONAL:
                     year = season - 1
+                case SportEnum.MLB:
+                    current_date = datetime.now().date()
+                    if current_date < datetime(season, 5, 1).date():
+                        year = season - 1
 
             print("\nPulling showdown card data for players in roster...")
             mlb_player_ids = [f"{year}-{slot.person.id}" for slot in roster.roster]
@@ -1001,13 +1002,73 @@ class PostgresDB:
                 print("No showdown card data found for MLB API roster.")
                 return roster
             
+            # TEAM LOOKUP FOR WBC - MAP TEAM ID TO TEAM NAME FOR BETTER CARD DATA MATCHING
+            player_team_lookup_wbc: dict[str, str] = {}
+            if sport_id == SportEnum.INTERNATIONAL:
+                player_team_lookup_wbc = self.fetch_wbc_player_ids_and_team(year=season) or {}
+
+            # LOAD REPLACEMENT LEVEL STATS IN CASE THERE IS NOT A CARD FOR THE PLAYER 
+            replacement_stat_baselines = {
+                'HITTER': get_replacement_hitting_avgs(year=year),
+                'PITCHER': get_replacement_pitching_avgs(year=year)
+            }
+
             # ADD CARD DATA TO ROSTER
             for roster_slot in roster.roster:
                 player_id = roster_slot.person.id
                 card = showdown_card_data.get(f"{year}-{player_id}")
+
+                # Adjustments for the sport ID:
+                # If WBC, add the player's team name from the team lookup
+                wbc_team: WBCTeam = None
+                wbc_year: int = None
+                if sport_id == SportEnum.INTERNATIONAL:
+                    wbc_team_str = player_team_lookup_wbc.get(str(player_id), None)
+                    try: wbc_team = WBCTeam(wbc_team_str) if wbc_team_str else None
+                    except ValueError: wbc_team = None
+                    if wbc_team:
+                        wbc_year = season
+
+                # If no card, fill in with replacement player data based on limited info from the roster slot
                 if card:
-                    roster_slot.person.showdown_card_data = card
-                    roster_slot.person.points = card.points
+                    # Update WBC Info if international player with team lookup data available
+                    if wbc_team:
+                        card.wbc_team = wbc_team
+                        card.wbc_year = wbc_year
+                        card.image.apply_wbc_team_theming(wbc_team, wbc_year)
+                else:
+                    
+                    player_type = "PITCHER" if roster_slot.is_pitcher else "HITTER"
+                    try: showdown_position = Position(roster_slot.position.abbreviation.upper())
+                    except: showdown_position = None
+                    replacement_stat_baseline = replacement_stat_baselines.get(player_type, {}).copy()
+                    replacement_stats = build_replacement_level_stats_for_card(year=year, player_type=player_type, positions=[showdown_position], original_stats=replacement_stat_baseline)
+                    replacement_stats['name'] = roster_slot.person.full_name
+                    replacement_stats['team'] = 'MLB'
+                    
+                    card = ShowdownPlayerCard(
+                        name=roster_slot.person.full_name,
+                        year=str(year),
+                        set=showdown_set,
+                        wbc_team=wbc_team,
+                        wbc_year=wbc_year,
+                        image={
+                            "edition": Edition.WBC if wbc_team else Edition.NONE,
+                            "special_edition": SpecialEdition.WBC,
+                        },
+                        era="DYNAMIC",
+                        stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REPLACEMENT),
+                        stats=replacement_stats,
+                    )
+                    card.warnings.append(f"This player does not have a {year} Showdown card. A replacement level card has been generated based on their position.")
+
+                # POST PROCESSING APPLIED TO ALL CARDS (BOTH REAL AND REPLACEMENT)
+                if wbc_team:
+                    card.image.add_one_to_set_year = True
+                    card.image.stat_highlights_type = StatHighlightsType.NONE
+
+                roster_slot.person.showdown_card_data = card
+                roster_slot.person.points = card.points
 
             return roster
         
@@ -3768,10 +3829,11 @@ class PostgresDB:
 
         # CREATE TABLE IF NOT EXISTS
         create_table_sql = '''
-            CREATE TABLE IF NOT EXISTS internal.wbc_player_history (
+            CREATE TABLE IF NOT EXISTS internal.dim_wbc_player_history (
                 id VARCHAR(255) PRIMARY KEY,
                 player_id VARCHAR(50),
                 full_name VARCHAR(255),
+                team_id VARCHAR(50),
                 team VARCHAR(50),
                 season INT,
                 modified_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
@@ -3779,7 +3841,7 @@ class PostgresDB:
         '''
         index_sql = '''
             CREATE INDEX IF NOT EXISTS idx_wbc_player_history_player_season
-            ON internal.wbc_player_history (player_id, season);
+            ON internal.dim_wbc_player_history (player_id, season);
         '''
         try:
             cursor.execute(create_table_sql)
@@ -3793,10 +3855,11 @@ class PostgresDB:
 
         # UPSERT PLAYERS
         upsert_sql = '''
-            INSERT INTO internal.wbc_player_history (id, player_id, full_name, team, season, modified_date)
-            VALUES (%s, %s, %s, %s, %s, NOW())
+            INSERT INTO internal.dim_wbc_player_history (id, player_id, full_name, team_id, team, season, modified_date)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
             ON CONFLICT (id) DO UPDATE SET
                 full_name = EXCLUDED.full_name,
+                team_id = EXCLUDED.team_id,
                 team = EXCLUDED.team,
                 season = EXCLUDED.season,
                 modified_date = NOW()
@@ -3807,6 +3870,7 @@ class PostgresDB:
                     f"{player['player_id']}-{player['season']}",
                     player['player_id'],
                     player['full_name'],
+                    player['team_id'],
                     player['team'],
                     player['season']
                 ))
@@ -3815,6 +3879,37 @@ class PostgresDB:
         except Exception as e:
             print(f"ERROR upserting WBC players: {e}")
             self.connection.rollback()
+        finally:
+            cursor.close()
+
+    def fetch_wbc_player_ids_and_team(self, year:int) -> Optional[dict[str, str]]:
+        """Fetch WBC player IDs and their teams for a given season. Used to assign WBC Teams to players.
+
+        Args:
+            year: The WBC season (year) to look up.
+        
+        Returns:
+            A dictionary mapping player IDs to their team abbreviations for the specified season, or None if there's an error.
+        """
+
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return None
+        
+        cursor = self.connection.cursor()
+        query_sql = '''
+            SELECT player_id, team
+            FROM internal.dim_wbc_player_history
+            WHERE season = %s
+        '''
+        try:
+            cursor.execute(query_sql, (year,))
+            results = cursor.fetchall()
+            player_team_map = {row[0]: row[1] for row in results}
+            return player_team_map
+        except Exception as e:
+            print(f"ERROR fetching WBC player IDs and teams for season {year}: {e}")
+            return None
         finally:
             cursor.close()
 
@@ -3837,7 +3932,7 @@ class PostgresDB:
         cursor = self.connection.cursor()
         query_sql = '''
             SELECT team, season
-            FROM internal.wbc_player_history as wbc
+            FROM internal.dim_wbc_player_history as wbc
             JOIN internal.dim_player_id_map as bref_lookup
                 ON wbc.player_id::text = bref_lookup.mlb_id::text
             WHERE bref_lookup.bref_id = %s AND 
@@ -3857,3 +3952,4 @@ class PostgresDB:
             return None
         finally:
             cursor.close()
+    

@@ -300,6 +300,10 @@ export type ShowdownBotCard = {
     /** Team abbreviation */
     team: string;
 
+    /* Overrides */
+    wbc_team?: string | null;
+    wbc_year?: number | null;
+
     // Baseball Reference integration
     /** Baseball Reference player ID */
     bref_id: string;
@@ -422,7 +426,7 @@ export type ShowdownBotCardImage = {
 // MARK: - STATS
 // =============================================================================
 
-type StatsPeriodType = "REGULAR" | "DATES" | "POST" | "SPLIT";
+type StatsPeriodType = "REGULAR" | "DATES" | "POST" | "SPLIT" | "PROJECTED" | "REPLACEMENT";
 
 export type StatsPeriod = {
     /** Type of stats period (e.g., "REGULAR", "DATES") */
