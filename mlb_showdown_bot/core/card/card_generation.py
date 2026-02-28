@@ -216,9 +216,6 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 kwargs.pop('edition', None)
                 stats['warnings'] = stats.get('warnings', []) + ["Could not find WBC team for this player in the database. Double check the player was a part of a WBC roster in the year provided or following year."]
 
-        # kwargs['wbc_team'] = 'CAN'
-        # kwargs['wbc_year'] = 2017
-
         # PROCESS CARD
         image_source = ImageSource(**kwargs)
         image = ShowdownImage(source=image_source, **kwargs)

@@ -275,6 +275,14 @@ class WBCTeam(Enum):
                 (255, 223, 1, 255), # YELLOW
                 (1, 84, 158, 255), # BLUE
             ]
+            case WBCTeam.ITA: return [
+                (8, 94, 153, 255), # BLUE
+                (239, 73, 66, 255), # RED
+            ]
+            case WBCTeam.NED: return [
+                (244, 124, 49, 255), # ORANGE
+                (0, 0, 0, 255), # BLACK
+            ]
             case _: 
                 return self.nationality.colors
 

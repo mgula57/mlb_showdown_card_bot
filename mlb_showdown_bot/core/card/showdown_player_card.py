@@ -3791,7 +3791,7 @@ class ShowdownPlayerCard(BaseModel):
             case SpecialEdition.WBC:
                 # FOR WBC, USE CUSTOM FONT AND ADD THE COUNTRY FLAG NEXT TO THE NAME
                 name_font_path = self._font_path('WBC-Font', extension='otf')
-                flag_and_name_img = Image.new('RGBA', (950, 250))
+                flag_and_name_img = Image.new('RGBA', (1000, 250))
 
                 # LOAD AND PASTE TEAM LOGO
                 team_logo = self._team_logo_image(ignore_dynamic_elements=True)[0]
@@ -3811,7 +3811,7 @@ class ShowdownPlayerCard(BaseModel):
                     )
                     
                     text = self._text_image(text=name_part, size=(700, 250), font=new_name_font, fill="#ffffff")
-                    paste_location = (235, 0) if name_part == first else (235, int( 55 + (75 * (1-name_length_multiplier)) ))
+                    paste_location = (255, 0) if name_part == first else (255, int( 55 + (75 * (1-name_length_multiplier)) ))
                     flag_and_name_img.paste(text, paste_location, text)
 
                 # ADD DROP SHADOW
@@ -5651,7 +5651,7 @@ class ShowdownPlayerCard(BaseModel):
         # WBC/NATIONALITY SPECIAL EDITIONS
         is_wbc = self.image.special_edition == SpecialEdition.WBC and self.wbc_team and self.wbc_year
         if is_wbc or self.image.special_edition == SpecialEdition.NATIONALITY:
-            components_dict = { c:v for c, v in special_components_for_context.items() if not c not in [PlayerImageComponent.NAME_CONTAINER_2000, PlayerImageComponent.BACKGROUND] }
+            components_dict = { c:v for c, v in special_components_for_context.items() if c not in [PlayerImageComponent.NAME_CONTAINER_2000, PlayerImageComponent.BACKGROUND] }
             components_dict.update({
                 PlayerImageComponent.GLOW: None,
             })
