@@ -421,15 +421,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     const selectedTeamKey = selectedTeam ? `${selectedTeam.id}-${selectedTeam.season}` : null;
     const standingsEntries = Object.entries(standings);
-    const teamRosterSlots = selectedRoster?.roster ?? [];
-    const teamShowdownPointsTotal = teamRosterSlots.reduce((total, slot) => {
-        const playerPoints = slot.person.showdown_card_data?.points ?? slot.person.points ?? 0;
-        return total + playerPoints;
-    }, 0);
-    const teamPlayersWithShowdownCards = teamRosterSlots.filter((slot) =>
-        (slot.person.showdown_card_data?.points !== undefined || slot.person.points !== undefined) && slot.person.showdown_card_data?.stats_period?.type !== "REPLACEMENT"
-    ).length;
-    const teamAvgPointsPerPlayer = teamRosterSlots.length > 0 ? teamShowdownPointsTotal / teamRosterSlots.length : 0;
 
     const sidebarSections: SidebarSection[] = [
         {
@@ -596,67 +587,14 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="teams"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                         forceMount
-                                    >
-                                        <div className="space-y-4">
-                        
+                                    >                                        
                                             {selectedTeam && (
-                                                <div
-                                                    className="rounded-lg border border-(--divider) p-4"
-                                                    style={{
-                                                        backgroundImage: `linear-gradient(120deg, color-mix(in srgb, ${selectedTeam.primary_color || "var(--background-primary)"} 12%, transparent) 0%, color-mix(in srgb, ${(selectedTeam.secondary_color || selectedTeam.primary_color || "var(--background-primary)")} 12%, transparent) 100%)`,
-                                                    }}
-                                                >
-                                                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4 items-start">
-                                                        <div>
-                                                            
-                                                            <h2 className="flex gap-2 text-xl font-semibold text-(--text-primary)">
-                                                                {selectedSport?.id === 51 && countryCodeForTeam(selectedSport.id, selectedTeam.abbreviation || selectedTeam.name) && (
-                                                                    <ReactCountryFlag
-                                                                        countryCode={countryCodeForTeam(selectedSport.id, selectedTeam.abbreviation || selectedTeam.name) || ""}
-                                                                        svg
-                                                                        style={{
-                                                                            width: '1.5em',
-                                                                            height: '1.5em',
-                                                                            marginBottom: '-0.25em',
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                                {selectedTeam.name}
-                                                            </h2>
-                                                            <p className="text-sm text-(--text-secondary)">
-                                                                {selectedTeam.abbreviation || "N/A"} • {selectedTeam.season?.toString() || selectedSeason?.season_id || "N/A"}
-                                                            </p>
-
-                                                            <div className="mt-3 gap-2 text-sm">
-                                                                <div className="text-(--text-secondary)">
-                                                                    <span className="font-semibold">League:</span> {selectedTeam.league?.name || selectedTeam.league?.abbreviation || "N/A"}
-                                                                </div>
-                                                                <div className="text-(--text-secondary)">
-                                                                    <span className="font-semibold">Division:</span> {selectedTeam.division?.name || selectedTeam.division?.name || "N/A"}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="rounded-lg border border-(--divider) px-4 py-3 min-w-44">
-                                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-(--text-secondary)">
-                                                                Total PTS
-                                                            </p>
-                                                            <p className="mt-1 text-2xl font-bold text-(--text-primary)">
-                                                                {teamShowdownPointsTotal.toLocaleString()}
-                                                            </p>
-                                                            <p className="text-xs text-(--text-secondary)">
-                                                                {teamAvgPointsPerPlayer > 0 ? `Avg ${teamAvgPointsPerPlayer.toFixed(0)} / Player` : "No player points"}
-                                                            </p>
-                                                            <p className="text-xs text-(--text-tertiary)">
-                                                                {teamPlayersWithShowdownCards} player{teamPlayersWithShowdownCards === 1 ? "" : "s"} with cards
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                <TeamRoster 
+                                                    team={selectedTeam}
+                                                    sportId={selectedSport?.id || null}
+                                                    roster={selectedRoster}
+                                                />
                                             )}
-                                            <TeamRoster roster={selectedRoster} />
-        
-                                        </div>
                                     </Tabs.Content>
 
                                     {/* Players Tab */}
@@ -669,7 +607,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 No season or sport data available for player search.
                                             </div>
                                         ) : (
-                                            <div className="mt-5 rounded-xl border border-(--divider) bg-(--background-secondary) p-3 sm:p-4">
+                                            <div className="">
                                                 <ShowdownCardSearch
                                                     source="BOT"
                                                     defaultFilters={{
