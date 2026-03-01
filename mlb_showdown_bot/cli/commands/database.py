@@ -1,3 +1,4 @@
+from firebase_admin import db
 import typer
 from typing import Optional
 from datetime import datetime, timedelta, timezone
@@ -6,6 +7,7 @@ import time
 # Import business logic
 from ...core.archive.player_stats_archive import PlayerStatsArchive, PostgresDB
 from ...core.card.utils.shared_functions import convert_year_string_to_list
+from ...core.card.stats.stats_period import StatsPeriod
 
 app = typer.Typer()
 
@@ -140,7 +142,24 @@ def store_fielding_stats_in_db():
 
     print("Fetching fielding stats from Fangraphs...")
     fg_api = FangraphsAPIClient()
-    df = fg_api.fetch_fielding_stats(season=2025, position="LF", fangraphs_player_ids=[])
+    df = fg_api.fetch_leaderboard_stats(season=2025, position="LF", fangraphs_player_ids=[])
+
+@app.command("store_leaderboard_stats_fangraphs")
+def store_leaderboard_stats_fangraphs(
+    league: str = typer.Option("NPB", "--league", "-l", help="League to fetch stats for (e.g., MLB, NPB, KBO)"),
+    season: int = typer.Option(2025, "--season", "-s", help="Season year to fetch NPB stats for"),
+    types: str = typer.Option("bat,pit", "--types", "-t", help="Comma-separated list of stat types to fetch (e.g., 'bat,pit')"),
+):
+    """Fetch NPB data from Fangraphs and store in Postgres DB"""
+    from ...core.fangraphs.client import FangraphsAPIClient
+    from ...core.archive.player_stats_archive import PostgresDB
+    
+    print(f"Fetching {league} stats from Fangraphs...")
+    db = PostgresDB()
+    fg_api = FangraphsAPIClient()
+    for type in types.split(","):
+        data = fg_api.fetch_leaderboard_stats(stats_period=StatsPeriod(year=season), stat_type=type, league=league, fangraphs_player_ids=[])  
+        db.store_league_fangraphs_leaderboard_stats(league=league, stat_type=type, data=data)
 
 @app.command("refresh_player_id_table")
 def refresh_player_id_table(
