@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import ReactCountryFlag from "react-country-flag";
 
 import { type Standings } from '../../api/mlbAPI';
@@ -12,6 +13,41 @@ type StandingsProps = {
 
 export default function Standings({ standingsEntries, selectedSportId }: StandingsProps) {
 	const { isDark } = useTheme();
+	const [compactCells, setCompactCells] = useState<Record<string, boolean>>({});
+	const observersRef = useRef<Map<string, ResizeObserver>>(new Map());
+
+	useEffect(() => {
+		return () => {
+			observersRef.current.forEach((observer) => observer.disconnect());
+			observersRef.current.clear();
+		};
+	}, []);
+
+	const setCellRef = (cellId: string) => (node: HTMLDivElement | null) => {
+		const existingObserver = observersRef.current.get(cellId);
+		if (existingObserver) {
+			existingObserver.disconnect();
+			observersRef.current.delete(cellId);
+		}
+
+		if (!node) {
+			return;
+		}
+
+		const observer = new ResizeObserver(([entry]) => {
+			const cellWidth = entry.contentRect.width;
+			const isCompact = cellWidth < 380;
+			setCompactCells((prev) => {
+				if (prev[cellId] === isCompact) {
+					return prev;
+				}
+				return { ...prev, [cellId]: isCompact };
+			});
+		});
+
+		observer.observe(node);
+		observersRef.current.set(cellId, observer);
+	};
 
 	return (
 			<div className="sm:mt-0">
@@ -27,19 +63,26 @@ export default function Standings({ standingsEntries, selectedSportId }: Standin
 
 							<div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
 								{leagueStandings.map((leagueStanding, index) => (
-									<div key={index} className="border-t border-(--divider) last:pb-1">
+									<div
+										key={index}
+										ref={setCellRef(`${leagueAbbreviation}-${index}`)}
+										className="border-t border-(--divider) last:pb-1"
+									>
 										{leagueStanding.division && (
 											<h3 className="px-4 py-2.5 text-xs sm:text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">
 												{leagueStanding?.division?.name_short || leagueStanding?.division?.name}
 											</h3>
 										)}
+										{(() => {
+											const isCompact = compactCells[`${leagueAbbreviation}-${index}`] ?? false;
+											return (
 										<table className="w-full text-left">
 											<thead>
 												<tr className="text-(--text-secondary) text-xs sm:text-sm uppercase">
 													<th className="px-4 py-2.5">Team</th>
-													<th className="px-4 py-2.5">Wins</th>
-													<th className="px-4 py-2.5">Losses</th>
-													<th className="px-4 py-2.5">Win %</th>
+													<th className="px-4 py-2.5">{isCompact ? 'W' : 'Wins'}</th>
+													<th className="px-4 py-2.5">{isCompact ? 'L' : 'Losses'}</th>
+													<th className="px-4 py-2.5">{isCompact ? 'Pct' : 'Win %'}</th>
 												</tr>
 											</thead>
 											<tbody>
@@ -49,7 +92,7 @@ export default function Standings({ standingsEntries, selectedSportId }: Standin
 													return (
 														<tr key={record.team.id} className="border-t border-(--divider) ">
 															<td
-																className="px-4 py-2.5"
+																className="px-4 py-2.5 flex"
 																style={{
 																	backgroundColor: `color-mix(in srgb, ${record.team.primary_color || "var(--background-quaternary)"} ${darkeningMultiplier}, black)`,
 																	color: getContrastColor(record.team.primary_color || "var(--background-quaternary)"),
@@ -78,6 +121,8 @@ export default function Standings({ standingsEntries, selectedSportId }: Standin
 												})}
 											</tbody>
 										</table>
+											);
+										})()}
 									</div>
 								))}
 							</div>
