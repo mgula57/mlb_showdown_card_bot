@@ -23,12 +23,20 @@ import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaChevronDown, 
 
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 
-export default function Seasons() {
+type SeasonsProps = {
+    type: 'mlb' | 'wbc';
+    title: string;
+    subtitle?: string;
+    staticSports?: Sport[]; // Optional prop to provide static sports data
+    staticSeasons?: Season[]; // Optional prop to provide static seasons data
+};
+
+export default function Seasons({ type, title, subtitle, staticSports, staticSeasons }: SeasonsProps) {
     const STORAGE_KEYS = {
-        seasonId: "seasons.selectedSeasonId",
-        sportId: "seasons.selectedSportId",
-        leagueGroup: "seasons.selectedLeagueGroup",
-        activeTab: "seasons.activeTab",
+        seasonId: `${type}.seasons.selectedSeasonId`,
+        sportId: `${type}.seasons.selectedSportId`,
+        leagueGroup: `${type}.seasons.selectedLeagueGroup`,
+        activeTab: `${type}.seasons.activeTab`,
     };
 
     const getStoredValue = (key: string): string | null => {
@@ -50,11 +58,13 @@ export default function Seasons() {
     };
 
     const { userShowdownSet } = useSiteSettings();
+    const hasStaticSeasons = staticSeasons !== undefined;
+    const hasStaticSports = staticSports !== undefined;
 
-    const [seasons, setSeasons] = useState<Season[]>([]);
+    const [seasons, setSeasons] = useState<Season[]>(staticSeasons || []);
     const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
     
-    const [sports, setSports] = useState<Sport[]>([]);
+    const [sports, setSports] = useState<Sport[]>(staticSports || []);
     const [selectedSport, setSelectedSport] = useState<Sport | null>(null);
 
     const [leagues, setLeagues] = useState<League[]>([]);
@@ -134,6 +144,27 @@ export default function Seasons() {
     // ************************
 
     const loadSeasons = async () => {
+        if (hasStaticSeasons) {
+            const normalizedSeasons = staticSeasons ?? [];
+            setSeasons(normalizedSeasons);
+            hasLoadedSeasonsRef.current = true;
+
+            if (normalizedSeasons.length > 0) {
+                const storedSeasonId = getStoredValue(STORAGE_KEYS.seasonId);
+                const seasonFromStorage = storedSeasonId
+                    ? normalizedSeasons.find((season) => season.season_id.toString() === storedSeasonId)
+                    : null;
+
+                setSelectedSeason((previousSeason) => {
+                    if (previousSeason && normalizedSeasons.some((season) => season.season_id === previousSeason.season_id)) {
+                        return previousSeason;
+                    }
+                    return seasonFromStorage ?? normalizedSeasons[0];
+                });
+            }
+            return;
+        }
+
         if (hasLoadedSeasonsRef.current || isLoadingSeasonsRef.current) {
             return;
         }
@@ -170,6 +201,24 @@ export default function Seasons() {
 
     const loadSports = async () => {
         if (!selectedSeason) {
+            return;
+        }
+
+        if (hasStaticSports) {
+            const staticSportsData = staticSports ?? [];
+            setSports(staticSportsData);
+
+            const storedSportId = getStoredValue(STORAGE_KEYS.sportId);
+            const sportFromStorage = storedSportId
+                ? staticSportsData.find((sport) => sport.id.toString() === storedSportId)
+                : null;
+
+            setSelectedSport((previousSport) => {
+                if (previousSport && staticSportsData.some((sport) => sport.id === previousSport.id)) {
+                    return previousSport;
+                }
+                return sportFromStorage ?? (staticSportsData.length > 0 ? staticSportsData[0] : null);
+            });
             return;
         }
 
@@ -387,18 +436,23 @@ export default function Seasons() {
             id: "context",
             title: "Season/League",
             collapsible: false,
+            isHidden: hasStaticSeasons && seasonOptions.length <= 1 && hasStaticSports && sportOptions.length <= 1 && leagueGroups.length <= 1,
             content: (
                 <div className="space-y-2 pb-2">
-                    <CustomSelect
-                        value={selectedSeason?.season_id.toString() || "2026"}
-                        onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
-                        options={seasonOptions}
-                    />
-                    <CustomSelect
-                        value={selectedSport?.id?.toString() || ""}
-                        onChange={(value) => setSelectedSport(sports.find(sport => sport.id.toString() === value) || null)}
-                        options={sportOptions}
-                    />
+                    {!(hasStaticSeasons && seasonOptions.length <= 1) && (
+                        <CustomSelect
+                            value={selectedSeason?.season_id.toString() || "2026"}
+                            onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
+                            options={seasonOptions}
+                        />
+                    )}
+                    {!(hasStaticSports && sportOptions.length <= 1) && (
+                        <CustomSelect
+                            value={selectedSport?.id?.toString() || ""}
+                            onChange={(value) => setSelectedSport(sports.find(sport => sport.id.toString() === value) || null)}
+                            options={sportOptions}
+                        />
+                    )}
                     {leagueGroups.length > 1 && (
                         <CustomSelect
                             value={selectedLeagueGroup || ""}
@@ -455,7 +509,7 @@ export default function Seasons() {
                                         {teams.length === 0 ? (
                                             <div className="px-2 py-1 text-xs text-(--text-secondary)">No teams available.</div>
                                         ) : (
-                                            <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+                                            <div className="max-h-64 sm:max-h-128 overflow-y-auto space-y-1 pr-1">
                                                 {teams.map((team) => {
                                                     const teamKey = `${team.id}-${team.season}`;
                                                     const isSelected = selectedTeamKey === teamKey && activeTab === "teams";
@@ -521,8 +575,8 @@ export default function Seasons() {
                         <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="lg:h-full lg:min-h-0">
                             <div className="grid grid-cols-1 lg:grid-cols-[18.5rem_minmax(0,1fr)] gap-y-5 lg:h-full lg:min-h-0 lg:overflow-hidden">
                                 <SidebarPanel
-                                    title="MLB Seasons"
-                                    subtitle="Browse season standings, teams, and players with Showdown context"
+                                    title={title}
+                                    subtitle={subtitle}
                                     sections={sidebarSections}
                                     className="p-2 order-1 lg:p-6 lg:sticky lg:top-0 lg:self-start lg:h-full lg:min-h-0 lg:overflow-y-auto"
                                 />

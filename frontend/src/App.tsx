@@ -139,7 +139,28 @@ const AppContent = () => {
             {/* Seasons - Mount when first visited */}
             {mountedRoutes.has('/seasons') && (
                 <div className={isActive('/seasons') ? 'block' : 'hidden'}>
-                    <Seasons />
+                    <Seasons 
+                        type="mlb" 
+                        title="MLB Seasons" 
+                        subtitle="Browse season standings, teams, and players with Showdown context"
+                    />
+                </div>
+            )}
+
+            {/* WBC - Mount when first visited */}
+            {mountedRoutes.has('/wbc') && (
+                <div className={isActive('/wbc') ? 'block' : 'hidden'}>
+                    <Seasons
+                        type="wbc"
+                        title="WBC"
+                        subtitle="Browse World Baseball Classic standings, teams, and players"
+                        staticSeasons={[
+                            { regular_season_start_date: "2026-03-25", season_end_date: "2026-10-31", season_id: "2026" },
+                        ]}
+                        staticSports={[
+                            { abbreviation: "WBC", active_status: true, code: "int", id: 51, link: "/api/v1/sports/51", name: "World Baseball Classic", sort_order: 3501 }
+                        ]}
+                    />
                 </div>
             )}
         </AppLayout>

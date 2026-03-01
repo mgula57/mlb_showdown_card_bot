@@ -154,7 +154,7 @@ export const CardItem = ({
             <div className="flex items-center">
                 EST: {estPoints}
                 {diffPoints !== 0 && (
-                    <span className={`ml-0.5 text-[8px] ${diffPoints > 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
+                    <span className={`ml-0.5 text-[8px] ${diffPoints > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
                         {differenceSign}
                         {absoluteDifference}
                     </span>
@@ -336,7 +336,7 @@ export const CardItem = ({
                     {cardExpansion && ['TD', 'PR'].includes(cardExpansion) && (
                         <img 
                             src={`/images/card/expansion-${cardExpansion.toLowerCase()}.png`} 
-                            className="inline-block w-5 h-4 object-contain object-center flex-shrink-0"
+                            className="inline-block w-5 h-4 object-contain object-center shrink-0"
                             alt="Expansion"
                         />
                     )}

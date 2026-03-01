@@ -7,6 +7,7 @@ export type SidebarSection = {
     content: ReactNode;
     collapsible?: boolean;
     defaultOpen?: boolean;
+    isHidden?: boolean;
 };
 
 type SidebarPanelProps = {
@@ -14,9 +15,10 @@ type SidebarPanelProps = {
     subtitle?: string;
     sections: SidebarSection[];
     className?: string;
+    isHidden?: boolean;
 };
 
-export default function SidebarPanel({ title, subtitle, sections, className = "" }: SidebarPanelProps) {
+export default function SidebarPanel({ title, subtitle, sections, className = ""}: SidebarPanelProps) {
     return (
         <aside className={`w-full ${className}`}>
             <div className="rounded-2xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
@@ -32,7 +34,7 @@ export default function SidebarPanel({ title, subtitle, sections, className = ""
 
                         if (!isCollapsible) {
                             return (
-                                <section key={section.id} className="pb-1 border-b border-(--divider) last:border-b-0 last:pb-0">
+                                <section key={section.id} className={`pb-1 border-b border-(--divider) last:border-b-0 last:pb-0 ${section.isHidden ? "hidden" : ""}`}>
                                     <div className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-(--text-secondary)">
                                         {section.title}
                                     </div>
@@ -44,7 +46,7 @@ export default function SidebarPanel({ title, subtitle, sections, className = ""
                         return (
                             <details
                                 key={section.id}
-                                className="group pb-2 border-b border-(--divider) last:border-b-0 last:pb-0"
+                                className={`group pb-2 border-b border-(--divider) last:border-b-0 last:pb-0 ${section.isHidden ? "hidden" : ""}`}
                                 open={isOpen}
                             >
                                 <summary className="list-none flex items-center justify-between px-1 pb-2 cursor-pointer">
