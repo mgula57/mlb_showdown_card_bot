@@ -93,10 +93,6 @@ class PeopleClient(BaseMLBClient):
 
             player_object = Player(**player_data)
             
-            # EXPORT TO JSON
-            with open(f'/Users/matthewgula/Desktop/player_{player_object.full_name}.json', 'w') as f:
-                json.dump(player_data, f, indent=4)
-            
             return player_object
         except Exception as e:
             if "404" in str(e):

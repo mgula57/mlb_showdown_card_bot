@@ -607,7 +607,7 @@ class ShowdownImage(BaseModel):
         """Apply WBC team theming to the image based on the WBC team and year."""
         if type(wbc_team) == str:
             wbc_team = WBCTeam(wbc_team)
-            
+
         if wbc_team and wbc_year:
             self.edition = Edition.WBC
             self.special_edition = SpecialEdition.WBC

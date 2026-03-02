@@ -16,8 +16,11 @@ type CardItemProps = {
     // Name and Year
     cardName?: string;
     cardYear?: string;
-    cardTeam?: string;
     cardStatsPeriod?: StatsPeriod;
+
+    // Team and League
+    cardTeam?: string;
+    cardLeague?: string;
 
     // Set
     cardSet?: string;
@@ -44,6 +47,7 @@ type CardItemProps = {
     cardIcons?: string[];
     cardAwardList?: string[];
     cardStatHighlightsList?: string[];
+    cardStatSource?: string;
 
     // Image
     cardEdition?: string;
@@ -102,7 +106,7 @@ export const CardItem = ({
     cardPrimaryColor, cardSecondaryColor, cardEdition,
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
-    cardChartRanges,
+    cardChartRanges, cardStatSource, cardLeague,
     onClick, className, isSelected 
 }: CardItemProps) => {
 
@@ -283,6 +287,13 @@ export const CardItem = ({
                 {/* Statistical highlights ribbon */}
                 <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
                     
+                    {/* On WBC Cards, show the Stat Source */}
+                    {cardLeague && cardEdition === 'WBC' && (
+                        <div className="font-semibold italic text-(--text-secondary)">
+                            {cardLeague}
+                        </div>
+                    )}
+
                     {/* AWARDS: NEW WAY */}
                     {cardAwardList && cardAwardList.length > 0 && (
                         <div className="font-semibold underline">
@@ -381,6 +392,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardI
         <CardItem
             cardId={card === undefined || card === null ? undefined : `${card.bref_id}-${card.stats_period.year}-${card.set}`}
             cardTeam={card?.wbc_team || card?.team}
+            cardLeague={card?.league || undefined}
             cardName={card?.name}
             cardYear={card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period.year)}
             cardStatsPeriod={card?.stats_period}
@@ -429,17 +441,17 @@ type CardItemFromCardDatabaseRecordProps = {
 };
 
 export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected }: CardItemFromCardDatabaseRecordProps) => {
-    const primaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+    const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_secondary
                             : card?.color_primary) || 'rgb(0, 0, 0)';
-    const secondaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+    const secondaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_primary 
                             : card?.color_secondary) || 'rgb(0, 0, 0)';
     
     return (
         <CardItem
             cardId={card?.card_id}
-            cardTeam={card?.team}
+            cardTeam={card?.wbc_team || card?.team}
             cardName={card?.name}
             cardYear={card?.card_year}
             cardCommand={card?.command}
@@ -463,6 +475,8 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardIcons={card?.icons_list || []}
             cardAwardList={card?.awards_list || []}
             cardStatHighlightsList={card?.stat_highlights_list || []}
+            cardStatSource={card?.stat_source || undefined}
+            cardLeague={card?.league || undefined}
             cardChartRanges={card?.chart_ranges || {}}
             onClick={onClick}
             className={className}

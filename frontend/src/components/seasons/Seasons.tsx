@@ -71,6 +71,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     const [teams, setTeams] = useState<Team[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+    const hasLoadedTeams = teams.length > 0;
 
     const [selectedRoster, setSelectedRoster] = useState<Roster | null>(null);
 
@@ -346,7 +347,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         beginLoading();
         try {
             const rosterType = "active";
-            const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, userShowdownSet, selectedSport.id);
+            const rosterData = await fetchTeamRoster(selectedSeason, team.id, rosterType, userShowdownSet, selectedSport.id, team.abbreviation || team.name);
             console.log(`Fetched roster for team ${team.name} in season ${selectedSeason.season_id}:`, rosterData);
             setSelectedRoster(rosterData);
         } catch (error) {
@@ -421,6 +422,19 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     const selectedTeamKey = selectedTeam ? `${selectedTeam.id}-${selectedTeam.season}` : null;
     const standingsEntries = Object.entries(standings);
+
+    const handleStandingsTeamSelect = (team: Team) => {
+        const matchedTeam = teams.find((existingTeam) => {
+            const sameId = existingTeam.id === team.id;
+            const sameSeason = `${existingTeam.season ?? ""}` === `${team.season ?? ""}`;
+            return sameId && sameSeason;
+        })
+            ?? teams.find((existingTeam) => existingTeam.id === team.id)
+            ?? team;
+
+        setSelectedTeam(matchedTeam);
+        setActiveTab("teams");
+    };
 
     const sidebarSections: SidebarSection[] = [
         {
@@ -577,16 +591,20 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     {/* Standings Tab */}
                             		<Tabs.Content
                                         value="standings"
-                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                        className="focus:outline-none data-[state=inactive]:hidden sm:pt-6 sm:pr-6"
                                         forceMount
                                     >
-                                        <StandingsTab standingsEntries={standingsEntries} selectedSportId={selectedSport?.id} />
+                                        <StandingsTab
+                                            standingsEntries={standingsEntries}
+                                            selectedSportId={selectedSport?.id}
+                                            onTeamSelect={handleStandingsTeamSelect}
+                                        />
                                     </Tabs.Content>
 
                                     {/* Teams Tab */}
                                     <Tabs.Content
                                         value="teams"
-                                        className="focus:outline-none data-[state=inactive]:hidden"
+                                        className="focus:outline-none data-[state=inactive]:hidden sm:pt-6 sm:pr-6"
                                         forceMount
                                     >                                        
                                             {selectedTeam && (
@@ -602,16 +620,18 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     <Tabs.Content
                                         value="players"
                                         className="focus:outline-none data-[state=inactive]:hidden"
-                                        forceMount
                                     >
-                                        <ShowdownCardSearch
-                                            source="WBC"
-                                            defaultFilters={{
-                                                min_year: Number(selectedSeason.season_id) - 1,
-                                                max_year: Number(selectedSeason.season_id) - 1,
-                                            }}
-                                            disableLocalStorage={true}
-                                        />
+                                        {hasLoadedTeams && (
+                                            <ShowdownCardSearch
+                                                source="WBC"
+                                                verticalOffset="12"
+                                                defaultFilters={{
+                                                    min_year: Number(selectedSeason.season_id) - 1,
+                                                    max_year: Number(selectedSeason.season_id) - 1,
+                                                }}
+                                                disableLocalStorage={true}
+                                            />
+                                        )}
                                     </Tabs.Content>
 
                                     {/* Games Tab - Only for ongoing seasons */}
@@ -638,7 +658,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                 )}
             </div>
 
-            {isLoading && (
+            {isLoading && activeTab !== "players" && (
                 <div className="
                     fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
                     bg-(--primary)/10 backdrop-blur 

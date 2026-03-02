@@ -52,6 +52,8 @@ type ShowdownCardSearchProps = {
     showdownCards?: CardDatabaseRecord[] | null;
     /** Additional CSS classes */
     className?: string;
+    /** Vertical offset of the content that lives above */
+    verticalOffset?: string;
     /** Source of the card data */
     source: CardSource;
     /** Optional default filters merged on top of source defaults */
@@ -492,8 +494,9 @@ const getInitialFilters = (source: CardSource, defaultFilters: Partial<FilterSel
  * @param className - Additional CSS classes for the container
  * @param source - Source of the card data (CardSource enum)
  * @param disableLocalStorage - Optionally disable storing and loading from local storage
+ * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='24', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -900,7 +903,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
 
     const renderResetButton = (targets: String[]) => {
         return (
-            <button onClick={() => resetFilters(targets)} className="text-[var(--background-primary)] font-bold flex items-center bg-[var(--showdown-gray)] rounded-full px-2 gap-1 py-1 cursor-pointer">
+            <button onClick={() => resetFilters(targets)} className="text-(--background-primary) font-bold flex items-center bg-(--showdown-gray) rounded-full px-2 gap-1 py-1 cursor-pointer">
                 <FaArrowRotateRight />
                 <span className="text-sm">Reset</span>
             </button>
@@ -912,10 +915,10 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
         <div
             className={`
                 flex flex-col ${className}
-                md:h-[calc(100vh-theme(spacing.24))]                            /* fallback */
-                md:supports-[height:100dvh]:h-[calc(100dvh-theme(spacing.24))]  /* prefer dvh */
-                md:overflow-y-auto                                              /* scroller on desktop */
-                md:min-h-0                                                      /* allow child to size for overflow */
+                md:h-[calc(100vh-(--spacing(${verticalOffset})))]                                /* fallback */
+                md:supports-[height:100dvh]:h-[calc(100dvh-(--spacing(${verticalOffset})))]      /* prefer dvh */
+                md:overflow-y-auto                                                              /* scroller on desktop */
+                md:min-h-0                                                                      /* allow child to size for overflow */
             `}
         >
 
@@ -1066,7 +1069,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
 
                     {/* No results found message */}
                     {warningMessage && (
-                        <div className="flex justify-center p-6 text-secondary bg-[var(--primary)]/10 rounded-xl m-10">
+                        <div className="flex justify-center p-6 text-secondary bg-(--primary)/10 rounded-xl m-10">
                             <span className="text-sm">{warningMessage}</span>
                         </div>
                     )}
@@ -1090,7 +1093,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
                 
                 {/* Right Sidebar with Slide Animation */}
                 <div className={`
-                    fixed right-0 top-24 bottom-0 w-96 z-30
+                    fixed right-0 top-${verticalOffset} bottom-0 w-96 z-30
                     bg-primary border-l-2 border-form-element 
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
@@ -1105,9 +1108,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
                         <div className="py-8 h-12 flex items-center space-x-2 p-2 border-b border-form-element">
                             <button 
                                 onClick={handleCloseSidebar}>
-                                <FaChevronCircleRight className="text-[var(--tertiary)] w-7 h-7" />
+                                <FaChevronCircleRight className="text-(--tertiary) w-7 h-7" />
                             </button>
-                            <h2 className="text-[var(--tertiary)] text-lg font-bold">Card Detail</h2>
+                            <h2 className="text-(--tertiary) text-lg font-bold">Card Detail</h2>
                         </div>
                         
 
@@ -1131,7 +1134,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
             {isLoading && (
                 <div className="
                     fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-                    bg-[var(--primary)]/10 backdrop-blur 
+                    bg-(--primary)/10 backdrop-blur 
                     p-4 rounded-2xl
                     flex items-center space-x-2
                 ">
@@ -1170,7 +1173,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
                             <div className="flex items-center gap-2">
                                 <h2 className="text-xl font-bold">Filter Options</h2>
 
-                                <div className="absolute text-sm flex gap-x-6 right-0 p-4 text-[var(--background-primary)]">
+                                <div className="absolute text-sm flex gap-x-6 right-0 p-4 text-(--background-primary)">
                                     {/* Reset button */}
                                     {renderResetButton(['editing'])}
 
@@ -1178,7 +1181,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
                                     {hasFiltersChanged ? (
                                         <button
                                             onClick={handleFilterApply}
-                                            className="bg-[var(--success)] rounded-full flex items-center px-2 gap-1 py-1 cursor-pointer"
+                                            className="bg-(--success) rounded-full flex items-center px-2 gap-1 py-1 cursor-pointer"
                                         >
                                             <FaCheck />
                                             <span className="font-bold">Apply</span>
@@ -1186,7 +1189,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
                                     ) : (
                                         <button
                                             onClick={handleFilterApply}
-                                            className="bg-[var(--warning)] rounded-full flex items-center px-3 gap-1 py-1 cursor-pointer"
+                                            className="bg-(--warning) rounded-full flex items-center px-3 gap-1 py-1 cursor-pointer"
                                         >
                                             <FaXmark />
                                             <span className="font-bold">Exit</span>
@@ -1200,7 +1203,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
 
                                 {selectedSortOptionForEditing && (
                                     <button
-                                        className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                        className="flex items-center bg-(--background-secondary) rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
                                         disabled={isFilterLocked('sort_direction')}
                                         onClick={() => setFiltersForEditing((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
                                     >
@@ -1216,8 +1219,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
 
                                 {Object.entries(filtersWithoutSortingForEditing)
                                     .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
+                                    .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
                                     .map(([key, value]) => (
-                                        <div key={key} className={`flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1`}>
+                                        <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
                                             <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
                                             {!isFilterLocked(key as keyof FilterSelections) && (
                                                 <button onClick={() => setFiltersForEditing((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">

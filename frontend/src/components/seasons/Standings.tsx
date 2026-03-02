@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactCountryFlag from "react-country-flag";
 
-import { type Standings } from '../../api/mlbAPI';
+import { type Standings, type Team } from '../../api/mlbAPI';
 import { countryCodeForTeam } from "../../functions/flags";
 import { getContrastColor } from "../shared/Color";
 import { useTheme } from "../shared/SiteSettingsContext";
@@ -9,9 +9,10 @@ import { useTheme } from "../shared/SiteSettingsContext";
 type StandingsProps = {
 	standingsEntries: [string, Standings[]][];
 	selectedSportId?: number;
+	onTeamSelect?: (team: Team) => void;
 };
 
-export default function Standings({ standingsEntries, selectedSportId }: StandingsProps) {
+export default function Standings({ standingsEntries, selectedSportId, onTeamSelect }: StandingsProps) {
 	const { isDark } = useTheme();
 	const [compactCells, setCompactCells] = useState<Record<string, boolean>>({});
 	const observersRef = useRef<Map<string, ResizeObserver>>(new Map());
@@ -90,13 +91,15 @@ export default function Standings({ standingsEntries, selectedSportId }: Standin
 													const isoCountryCode = countryCodeForTeam(selectedSportId || 0, record.team.abbreviation || record.team.name);
 													const darkeningMultiplier = isDark ? '70%' : '90%';
 													return (
-														<tr key={record.team.id} className="border-t border-(--divider) ">
+														<tr key={record.team.id} className="border-t border-(--divider)">
 															<td
-																className="px-4 py-2.5 flex"
+																className="px-4 py-2.5 flex cursor-pointer"
+																onClick={() => onTeamSelect?.(record.team)}
 																style={{
 																	backgroundColor: `color-mix(in srgb, ${record.team.primary_color || "var(--background-quaternary)"} ${darkeningMultiplier}, black)`,
 																	color: getContrastColor(record.team.primary_color || "var(--background-quaternary)"),
 																}}
+																title="View team roster"
 															>
 																{isoCountryCode && (
 																	<span className="mr-2">

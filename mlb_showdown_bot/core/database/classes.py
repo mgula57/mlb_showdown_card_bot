@@ -13,6 +13,7 @@ class WbcShowdownCardRecord(BaseModel):
     # From WBC roster data
     wbc_season: int
     wbc_team: WBCTeam
+    wbc_team_id: Optional[int] = None
     position: str # This is the position the player played in the WBC, which may differ from their MLB position
     name: str
     mlb_id: int

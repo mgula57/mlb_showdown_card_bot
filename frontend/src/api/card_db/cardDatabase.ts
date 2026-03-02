@@ -21,7 +21,8 @@ export type CardDatabaseRecord = {
     // From Stats Archive
     id: string;  // Composite key: {year}-{bref_id}-{(player_type_override)},
     year: number | string;
-    bref_id: string;
+    bref_id?: string;
+    mlb_id?: string;
     name: string;
     player_type: string;
     player_type_override: string;
@@ -82,6 +83,7 @@ export type CardDatabaseRecord = {
     is_hof: boolean;
     is_small_sample_size: boolean;
     stat_highlights_list: any; // JSON array
+    stat_source?: string | null;
 
     // Chart
     command: number;
@@ -94,6 +96,10 @@ export type CardDatabaseRecord = {
     // Card Misc
     is_errata: boolean;
     notes?: string | null;
+
+    // WBC
+    wbc_season?: number | null;
+    wbc_team?: string | null;
 
     // Auto Images
     image_match_type: 'exact' | 'team match' | 'year match' | 'no match';

@@ -272,6 +272,7 @@ def store_wbc_data(
                     set=record.showdown_set,
                     wbc_team=record.wbc_team,
                     wbc_year=record.wbc_season,
+                    league=player_stats.league,
                     image={
                         "edition": Edition.WBC if record.wbc_team else Edition.NONE,
                         "special_edition": SpecialEdition.WBC,
@@ -280,7 +281,7 @@ def store_wbc_data(
                     stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REGULAR_SEASON),
                     stats=stats,
                 )
-                record.card_data.warnings.append(f"This card is populated from the player's performance in the {player_stats.league} league, not MLB, since this player does not have a card in the specified showdown sets for the year before the WBC season. Stats may not be directly comparable to MLB performance.")
+                record.card_data.warnings.append(f"This card is populated from the player's performance in the {player_stats.league} league, not MLB. Stats may not be directly comparable to MLB performance.")
                 record.stat_source = player_stats.league
                 roster_progress_rows[record_index]["processed"] = "✅"
                 roster_progress_rows[record_index]["stat_source"] = record.stat_source
@@ -301,6 +302,7 @@ def store_wbc_data(
                     set=record.showdown_set,
                     wbc_team=record.wbc_team,
                     wbc_year=record.wbc_season,
+                    league="MILB",
                     image={
                         "edition": Edition.WBC if record.wbc_team else Edition.NONE,
                         "special_edition": SpecialEdition.WBC,
@@ -309,7 +311,7 @@ def store_wbc_data(
                     stats_period=stats_period,
                     stats=stats,
                 )
-                record.card_data.warnings.append(f"This card is populated from the player's performance in the minor leagues, not MLB, since this player does not have a card in the specified showdown sets for the year before the WBC season. Stats may not be directly comparable to MLB performance.")
+                record.card_data.warnings.append(f"This card is populated from the player's performance in the minor leagues, not MLB. Stats may not be directly comparable to MLB performance.")
                 record.stat_source = "MILB"
                 roster_progress_rows[record_index]["processed"] = "✅"
                 roster_progress_rows[record_index]["stat_source"] = record.stat_source

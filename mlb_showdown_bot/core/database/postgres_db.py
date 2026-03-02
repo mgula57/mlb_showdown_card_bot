@@ -12,8 +12,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, Any, Dict, List
 from enum import Enum
 
-from mlb_showdown_bot.cli.commands import card
-
 # MODELS
 from .classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord
 
@@ -643,32 +641,8 @@ class PostgresDB:
                     """)
                 case 'wbc':
                     query = sql.SQL("""
-                        with
-
-                        wbc_rosters as (
-                            select
-                                wbc.player_id as mlb_api_id,
-                                bref_ids.bref_id,
-                                wbc.team as wbc_team,
-                                wbc.season as wbc_season,
-                                (wbc.season - 1)::text || '-' || bref_ids.bref_id as card_id
-                            from internal.dim_wbc_roster_history as wbc 
-                            join internal.dim_player_id_map as bref_ids 
-                                on wbc.player_id::int = bref_ids.mlb_id
-                        ),
-
-                        cards as (
-                            select 
-                                wbc_rosters.wbc_team,
-                                wbc_rosters.wbc_season,
-                                card.*
-                            from wbc_rosters
-                            join public.card_bot as card
-                                on wbc_rosters.card_id = card.id
-                        )
-
                         select *
-                        from cards
+                        from card_wbc
                         where true
                     """)
 
@@ -934,7 +908,7 @@ class PostgresDB:
 # FETCHING FROM CARD DIM TABLE
 # ------------------------------------------------------------------------
 
-    def fetch_cards_for_player_ids(self, player_ids: list[str], showdown_set: str, source:Datasource = Datasource.BREF) -> dict[str, ShowdownPlayerCard]:
+    def fetch_cards_for_player_ids(self, player_ids: list[str], showdown_set: str, source:Datasource = Datasource.BREF, sport: str = None) -> dict[str, ShowdownPlayerCard]:
         """Fetch card data for a list of player IDs from the dim_card table."""
         
         if self.connection is None:
@@ -1029,26 +1003,21 @@ class PostgresDB:
             #   - For MLB Sport, use prior season's stats until May 1st
             #   - For International Sport, use prior season's stats
             year = season
+            showdown_card_data: dict[str, ShowdownPlayerCard] = {}
             match sport_id:
                 case SportEnum.INTERNATIONAL:
                     year = season - 1
+                    showdown_card_data = self.fetch_wbc_roster_cards(showdown_set=showdown_set, wbc_season=season, wbc_team_id=roster.team_id)
                 case SportEnum.MLB:
                     current_date = datetime.now().date()
                     if current_date < datetime(season, 5, 1).date():
                         year = season - 1
-
-            print("\nPulling showdown card data for players in roster...")
-            mlb_player_ids = [f"{year}-{slot.person.id}" for slot in roster.roster]
-            showdown_card_data = self.fetch_cards_for_player_ids(player_ids=mlb_player_ids, showdown_set=showdown_set, source=Datasource.MLB_API)
+                    mlb_player_ids = [f"{year}-{slot.person.id}" for slot in roster.roster]
+                    showdown_card_data = self.fetch_cards_for_player_ids(player_ids=mlb_player_ids, showdown_set=showdown_set, source=Datasource.MLB_API)
 
             if len(showdown_card_data) == 0:
                 print("No showdown card data found for MLB API roster.")
                 return roster
-            
-            # TEAM LOOKUP FOR WBC - MAP TEAM ID TO TEAM NAME FOR BETTER CARD DATA MATCHING
-            player_team_lookup_wbc: dict[str, str] = {}
-            if sport_id == SportEnum.INTERNATIONAL:
-                player_team_lookup_wbc = self.fetch_wbc_player_ids_and_team(year=season) or {}
 
             # LOAD REPLACEMENT LEVEL STATS IN CASE THERE IS NOT A CARD FOR THE PLAYER 
             replacement_stat_baselines = {
@@ -1061,26 +1030,17 @@ class PostgresDB:
                 player_id = roster_slot.person.id
                 card = showdown_card_data.get(f"{year}-{player_id}")
 
-                # Adjustments for the sport ID:
-                # If WBC, add the player's team name from the team lookup
-                wbc_team: WBCTeam = None
-                wbc_year: int = None
-                if sport_id == SportEnum.INTERNATIONAL:
-                    wbc_team_str = player_team_lookup_wbc.get(str(player_id), None)
-                    try: wbc_team = WBCTeam(wbc_team_str) if wbc_team_str else None
-                    except ValueError: wbc_team = None
-                    if wbc_team:
+                if team_abbr and sport_id == SportEnum.INTERNATIONAL:
+                    wbc_team: WBCTeam = None
+                    wbc_year: int = None
+                    try:
+                        wbc_team = WBCTeam(team_abbr)
                         wbc_year = season
+                    except:
+                        print(f"Invalid WBC team abbreviation '{team_abbr}' provided. No WBC team data will be added to cards.")
 
                 # If no card, fill in with replacement player data based on limited info from the roster slot
-                if card:
-                    # Update WBC Info if international player with team lookup data available
-                    if wbc_team:
-                        card.wbc_team = wbc_team
-                        card.wbc_year = wbc_year
-                        card.image.apply_wbc_team_theming(wbc_team, wbc_year)
-                else:
-                    
+                if card is None:
                     player_type = "PITCHER" if roster_slot.is_pitcher else "HITTER"
                     try: showdown_position = Position(roster_slot.position.abbreviation.upper())
                     except: showdown_position = None
@@ -1106,7 +1066,7 @@ class PostgresDB:
                     card.warnings.append(f"This player does not have a {year} Showdown card. A replacement level card has been generated based on their position.")
 
                 # POST PROCESSING APPLIED TO ALL CARDS (BOTH REAL AND REPLACEMENT)
-                if wbc_team:
+                if sport_id == SportEnum.INTERNATIONAL:
                     card.image.add_one_to_set_year = True
                     card.image.stat_highlights_type = StatHighlightsType.NONE
 
@@ -3946,6 +3906,7 @@ class PostgresDB:
                 position VARCHAR(50),
                 wbc_season INT,
                 wbc_team VARCHAR(50),
+                wbc_team_id INT,
                 
                 -- SHOWDOWN DATA
                 showdown_set VARCHAR(50),
@@ -3959,9 +3920,10 @@ class PostgresDB:
                 -- SET
                 expansion character varying(20),
                 edition character varying(20),
-                year character varying(15),
+                year INT,
                 
                 -- POSITIONS
+                is_pitcher boolean,
                 player_type character varying(50),
                 player_type_override character varying(50),
 
@@ -3991,7 +3953,10 @@ class PostgresDB:
                 speed_full character varying(20),
                 speed_or_ip integer,
                 icons_list text[],
+
+                -- STATS AND AWARDS
                 awards_list text[],
+                stat_highlights_list jsonb,
 
                 -- CHART
                 command integer,
@@ -3999,6 +3964,10 @@ class PostgresDB:
                 is_chart_outlier boolean,
                 chart_values jsonb,
                 chart_ranges jsonb,
+
+                -- STYLE
+                color_primary character varying(20),
+                color_secondary character varying(20),
 
                 modified_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
             );
@@ -4023,7 +3992,8 @@ class PostgresDB:
         # Upsert WBC cards
         upsert_sql = '''
             INSERT INTO public.card_wbc (
-                id, name, position, wbc_season, wbc_team, showdown_set, showdown_bot_version, card_data,
+                id, name, position, wbc_season, wbc_team, wbc_team_id, 
+                showdown_set, showdown_bot_version, card_data,
                 bref_id, mlb_id, expansion, edition, year, player_type, player_type_override,
                 g, gs, pa, real_ip, lg_id, team_id,
                 points, organization, league, team,
@@ -4031,10 +4001,13 @@ class PostgresDB:
                 ip, speed, hand, speed_letter, speed_full, speed_or_ip,
                 icons_list, awards_list,
                 command, outs, is_chart_outlier, chart_values, chart_ranges,
-                stat_source, modified_date
+                stat_source, card_id, 
+                color_primary, color_secondary, stat_highlights_list, is_pitcher,
+                modified_date
             )
             VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, 
+                %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
@@ -4042,13 +4015,16 @@ class PostgresDB:
                 %s, %s, %s, %s, %s, %s,
                 %s, %s,
                 %s, %s, %s, %s, %s,
-                %s, NOW()
+                %s, %s, 
+                %s, %s, %s, %s,
+                NOW()
             )
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 position = EXCLUDED.position,
                 wbc_season = EXCLUDED.wbc_season,
                 wbc_team = EXCLUDED.wbc_team,
+                wbc_team_id = EXCLUDED.wbc_team_id,
                 showdown_set = EXCLUDED.showdown_set,
                 showdown_bot_version = EXCLUDED.showdown_bot_version,
                 card_data = EXCLUDED.card_data,
@@ -4086,7 +4062,12 @@ class PostgresDB:
                 chart_values = EXCLUDED.chart_values,
                 chart_ranges = EXCLUDED.chart_ranges,
                 modified_date = NOW(),
-                stat_source = EXCLUDED.stat_source
+                stat_source = EXCLUDED.stat_source,
+                card_id = EXCLUDED.card_id,
+                color_primary = EXCLUDED.color_primary,
+                color_secondary = EXCLUDED.color_secondary,
+                stat_highlights_list = EXCLUDED.stat_highlights_list,
+                is_pitcher = EXCLUDED.is_pitcher
         '''
         try:
             cursor = self.connection.cursor()
@@ -4097,6 +4078,7 @@ class PostgresDB:
                     roster_slot.position,
                     roster_slot.wbc_season,
                     roster_slot.wbc_team.value,
+                    roster_slot.wbc_team_id,
                     roster_slot.showdown_set.value,
                     roster_slot.card_data.version,
                     json.dumps(roster_slot.card_data.as_json()),
@@ -4104,7 +4086,7 @@ class PostgresDB:
                     roster_slot.mlb_id,
                     roster_slot.card_data.image.expansion,
                     roster_slot.card_data.image.edition,
-                    roster_slot.card_data.year,
+                    roster_slot.card_data.stats_period.year_int,
                     roster_slot.card_data.player_type.value if roster_slot.card_data.player_type else None,
                     roster_slot.card_data.player_type_override.value if roster_slot.card_data.player_type_override else None,
                     roster_slot.card_data.stats.get('G', 0),
@@ -4114,7 +4096,7 @@ class PostgresDB:
                     roster_slot.card_data.stats.get('lg_ID', None),
                     roster_slot.card_data.stats.get('team', None),
                     roster_slot.card_data.points,
-                    'WBC',
+                    roster_slot.stat_source,
                     roster_slot.card_data.league,
                     roster_slot.card_data.team,
                     json.dumps(roster_slot.card_data.positions_and_defense_for_visuals),
@@ -4133,7 +4115,12 @@ class PostgresDB:
                     roster_slot.card_data.chart.is_command_out_anomaly if roster_slot.card_data.chart else False,
                     json.dumps(roster_slot.card_data.chart.values if roster_slot.card_data.chart else {}),
                     json.dumps(roster_slot.card_data.chart.ranges if roster_slot.card_data.chart else {}),
-                    roster_slot.stat_source
+                    roster_slot.stat_source,
+                    f"{roster_slot.wbc_season}-{roster_slot.mlb_id}-{roster_slot.showdown_set.value}",
+                    roster_slot.card_data.image.color_primary,
+                    roster_slot.card_data.image.color_secondary,
+                    json.dumps(roster_slot.card_data.image.stat_highlights_list),
+                    roster_slot.card_data.chart.is_pitcher if roster_slot.card_data.chart else roster_slot.card_data.is_pitcher
                 ))
             self.connection.commit()
             print(f"✓ Successfully upserted {len(wbc_rosters)} WBC cards into the database.")
@@ -4145,6 +4132,49 @@ class PostgresDB:
         finally:
             cursor.close()
 
+    def fetch_wbc_roster_cards(self, wbc_season:int, wbc_team_id:int, showdown_set:str) -> dict[str, ShowdownPlayerCard]:
+        """Fetch WBC roster cards for a given season and team. Used to display WBC rosters on the frontend.
+
+        Args:
+            wbc_season: The WBC season (year) to look up.
+            wbc_team_id: The WBC team ID to look up.
+            showdown_set: The showdown set to filter the cards by (e.g. '2000', '2001', 'CLASSIC').
+
+        Returns:
+            A dictionary mapping player IDs to their ShowdownPlayerCard data for the specified season and team
+        """
+        
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return {}
+        
+        query_sql = '''
+            SELECT 
+                year::text || '-' || mlb_id::text as player_id,
+                card_data
+            FROM public.card_wbc
+            WHERE wbc_season = %s AND wbc_team_id = %s AND showdown_set = %s
+        '''
+        try:
+            results = self.execute_query(query=query_sql, filter_values=(wbc_season, wbc_team_id, showdown_set))
+            card_dict: dict[str, ShowdownPlayerCard] = {}
+            for row in results:
+                player_id = row['player_id']
+                card_data_json = row['card_data']
+                if card_data_json is not None:
+                    try:
+                        card_data = ShowdownPlayerCard(**card_data_json)
+                        card_dict[player_id] = card_data
+                    except Exception as e:
+                        print(f"ERROR parsing card data for player ID {player_id}: {e}")
+                        continue
+            return card_dict
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR fetching WBC roster cards for season {wbc_season} and team {wbc_team_id}: {e}")
+            return {}
+                
     def fetch_wbc_player_ids_and_team(self, year:int) -> Optional[dict[str, str]]:
         """Fetch WBC player IDs and their teams for a given season. Used to assign WBC Teams to players.
 
@@ -4244,6 +4274,7 @@ class PostgresDB:
                     bref_ids.bref_id,
                     wbc.team as wbc_team,
                     wbc.season as wbc_season,
+                    wbc.team_id as wbc_team_id,
                     wbc.position,
                     wbc.full_name as name,
                     v.showdown_set,

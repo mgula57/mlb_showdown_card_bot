@@ -299,6 +299,7 @@ export type ShowdownBotCard = {
     
     /** Team abbreviation */
     team: string;
+    league?: string | null;
 
     /* Overrides */
     wbc_team?: string | null;

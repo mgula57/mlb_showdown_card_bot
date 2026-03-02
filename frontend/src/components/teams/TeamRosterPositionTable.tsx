@@ -25,8 +25,10 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
             const card = row.original.person.showdown_card_data;
             const name = getValue();
             const year = card?.year || "-";
-            const team = card?.team || "-";
-            const secondaryColor = (['NYM', 'SDP'].includes(team) && card?.image.edition !== 'WBC' ? card?.image.color_secondary : card?.image.color_primary) || "#000000";
+            const isWbc = card?.image.edition === 'WBC';
+            const useLeague = isWbc && card.league && !['AL', 'NL', 'MLB'].includes(card.league);
+            const team = (useLeague ? card?.league : card?.team) || "-";
+            const secondaryColor = (['NYM', 'SDP'].includes(team) && !isWbc ? card?.image.color_secondary : card?.image.color_primary) || "#000000";
             const isReplacement = card?.stats_period?.type === "REPLACEMENT";
             return (
                 <div className="flex flex-col gap-0 max-w-28 sm:max-w-40">
@@ -34,7 +36,7 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
                         {name}
                     </div>
                     <div className="flex flex-row italic text-[11px] gap-1">
-                        {isReplacement ? "Replacement Player" : `${year} ${team}`}
+                        {isReplacement ? "-" : `${year} ${team}`}
                         {card?.icons && (
                             <>
                                 {card.icons.map((icon, index) => (
