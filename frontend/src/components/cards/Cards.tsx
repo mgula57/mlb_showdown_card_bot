@@ -41,12 +41,12 @@ export default function Cards() {
                 <Tabs.Trigger 
                     value={CardSource.BOT}
                     className="relative flex gap-x-1 items-center px-4 py-3 text-sm rounded-lg
-                               data-[state=active]:bg-[var(--background-quaternary)] 
+                               data-[state=active]:bg-(--background-quaternary)
                                data-[state=active]:font-bold 
-                               data-[state=active]:text-[var(--showdown-blue)]
+                               data-[state=active]:text-(--showdown-blue)
                                data-[state=inactive]:text-tertiary 
                                data-[state=inactive]:font-medium 
-                               data-[state=inactive]:hover:bg-[var(--divider)]"
+                               data-[state=inactive]:hover:bg-(--divider)"
                 >
                     <FaRobot />
                     BOT
@@ -54,12 +54,12 @@ export default function Cards() {
                 <Tabs.Trigger 
                     value={CardSource.WOTC}
                     className="relative flex gap-x-1 items-center px-4 py-3 text-sm rounded-lg
-                               data-[state=active]:bg-[var(--background-quaternary)] 
+                               data-[state=active]:bg-(--background-quaternary) 
                                data-[state=active]:font-bold 
-                               data-[state=active]:text-[var(--showdown-blue)]
+                               data-[state=active]:text-(--showdown-blue)
                                data-[state=inactive]:text-tertiary 
                                data-[state=inactive]:font-medium 
-                               data-[state=inactive]:hover:bg-[var(--divider)]"
+                               data-[state=inactive]:hover:bg-(--divider)"
                 >
                     <div className="text-[9px] bg-secondary px-1 rounded-sm shrink-0">OG</div>
                     WOTC

@@ -560,7 +560,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     return (
         <div className="w-full bg-(--background-primary)">
-            <div className="max-w-full mx-6 lg:mx-auto py-6 sm:py-8 lg:py-0 lg:h-[calc(100dvh-3rem)] lg:overflow-hidden">
+            <div className="max-w-full mx-6 lg:mx-auto py-6 sm:py-0 lg:h-[calc(100dvh-3rem)] lg:overflow-hidden">
                 {selectedSeason && (
                     <>
                         <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="lg:h-full lg:min-h-0">
@@ -572,8 +572,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     className="p-2 order-1 lg:p-6 lg:sticky lg:top-0 lg:self-start lg:h-full lg:min-h-0 lg:overflow-y-auto"
                                 />
 
-                                <div className="min-w-0 order-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:p-6">
+                                <div className="min-w-0 order-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
 
+                                    {/* Standings Tab */}
                             		<Tabs.Content
                                         value="standings"
                                         className="focus:outline-none data-[state=inactive]:hidden"
@@ -601,23 +602,16 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     <Tabs.Content
                                         value="players"
                                         className="focus:outline-none data-[state=inactive]:hidden"
+                                        forceMount
                                     >
-                                        {seasons.length === 0 || sports.length === 0 || !selectedSeason || !selectedSeason.season_id ? (
-                                            <div className="mt-5 rounded-xl border border-(--divider) bg-(--background-secondary) p-4 text-sm text-(--text-secondary)">
-                                                No season or sport data available for player search.
-                                            </div>
-                                        ) : (
-                                            <div className="">
-                                                <ShowdownCardSearch
-                                                    source="BOT"
-                                                    defaultFilters={{
-                                                        min_year: Number(selectedSeason.season_id),
-                                                        max_year: Number(selectedSeason.season_id),
-                                                    }}
-                                                    disableLocalStorage={true}
-                                                />
-                                            </div>
-                                        )}
+                                        <ShowdownCardSearch
+                                            source="WBC"
+                                            defaultFilters={{
+                                                min_year: Number(selectedSeason.season_id) - 1,
+                                                max_year: Number(selectedSeason.season_id) - 1,
+                                            }}
+                                            disableLocalStorage={true}
+                                        />
                                     </Tabs.Content>
 
                                     {/* Games Tab - Only for ongoing seasons */}

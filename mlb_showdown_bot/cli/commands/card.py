@@ -43,7 +43,8 @@ def card_main(
     start_date: Optional[str] = typer.Option(None, "--start_date", "-start", help="Optional Start Date for stats. Only available post-1900."),
     end_date: Optional[str] = typer.Option(None, "--end_date", "-end", help="Optional End Date for stats. Only available post-1900."),
     split_name: Optional[str] = typer.Option(None, "--split_name", "-spl", help="Create a card using the splits page on baseball reference"),
-    
+    league: str = typer.Option("MLB", "--league", "-lg", help="League to pull stats from, either MLB or MILB"),
+
     # CHART
     co_override: Optional[str] = typer.Option(None, "--co_override", "-co", help="Manually select a command/out combination"),
     variable_spd: bool = typer.Option(False, "--variable_spd", "-vs", help="Optionally toggle variable speed (2000 + 2001 sets only)"),

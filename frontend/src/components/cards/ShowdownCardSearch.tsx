@@ -187,6 +187,11 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
                 sort_by: "points",
                 sort_direction: "desc",
             };
+        case CardSource.WBC:
+            return {
+                sort_by: "points",
+                sort_direction: "desc",
+            };
         default:
             return baseDefaults;
     }
@@ -703,6 +708,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
             );
             const data = await fetchCardData(source, cleanedFilters);
 
+            console.log("Fetched cards data:", { source, filters: cleanedFilters, data });
+
             let newCardData;
             if (append && showdownCards) {
                 newCardData = [...showdownCards, ...data];
@@ -936,9 +943,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
                             onClick={handleOpenFilters}
                             className="
                                 px-3 h-11
-                                rounded-xl bg-[var(--background-secondary)] border-2 border-form-element 
+                                rounded-xl bg-(--background-secondary) border-2 border-form-element 
                                 flex items-center gap-2
-                                hover:bg-[var(--background-secondary-hover)]
+                                hover:bg-(--background-secondary-hover)
                             ">
                             <FaFilter className="text-primary" />
                             <span className="hidden sm:inline">Filter</span>
@@ -954,8 +961,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
                             hover:bg-(--background-secondary-hover)
                             hidden lg:flex
                         `}>
-                        <FaChevronCircleLeft className="text-[var(--tertiary)] w-7 h-7" />
-                        <span className="text-[var(--tertiary)] text-lg font-bold">Card Detail</span>
+                        <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
+                        <span className="text-(--tertiary) text-lg font-bold">Card Detail</span>
                     </button>
 
                 </div>
@@ -985,8 +992,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
                         {/* The last element should add lots of padding */}
                         {Object.entries(filtersWithoutSorting)
                             .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
+                            .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
                             .map(([key, value]) => (
-                                <div key={key} className={`flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1`}>
+                                <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
                                     <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
                                     {!isFilterLocked(key as keyof FilterSelections) && (
                                         <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
@@ -1038,6 +1046,13 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT,
                                     />
                                 )}
                                 {source === CardSource.BOT && (
+                                    <CardItemFromCardDatabaseRecord
+                                        card={cardRecord}
+                                        onClick={() => handleRowClick(cardRecord)}
+                                        isSelected={selectedCard?.id === cardRecord.id}
+                                    />
+                                )}
+                                {source === CardSource.WBC && (
                                     <CardItemFromCardDatabaseRecord
                                         card={cardRecord}
                                         onClick={() => handleRowClick(cardRecord)}

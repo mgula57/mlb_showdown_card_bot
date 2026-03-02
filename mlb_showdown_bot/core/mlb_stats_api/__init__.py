@@ -6,6 +6,7 @@ from .clients.leagues_client import LeaguesClient
 from .clients.seasons_client import SeasonsClient
 from .clients.sports_client import SportsClient, SportEnum
 from .models.person import Player
+from .models.leagues.league import LeagueListEnum
 from typing import Optional
 import logging
 import time
@@ -53,7 +54,7 @@ class MLBStatsAPI:
     # PLAYER SEARCH + BUILD
     # -------------------------
 
-    def build_full_player_from_search(self, search_name: str, stats_period: StatsPeriod) -> Player:
+    def build_full_player_from_search(self, search_name: str, stats_period: StatsPeriod, league:str='MLB') -> Player:
 
         # Search for the player by name
         player_search_results = self.people.search_players(name=search_name)
@@ -64,7 +65,11 @@ class MLBStatsAPI:
             return None
 
         # Fetch full player details using the player ID
-        player = self.people.get_player(player_id=player_search_results[0].id, stats_period=stats_period)
+        league_list = None
+        match league.upper():
+            case 'MILB':
+                league_list = LeagueListEnum.MILB_FULL
+        player = self.people.get_player(player_id=player_search_results[0].id, stats_period=stats_period, league_list=league_list)
 
         return player
     
@@ -73,7 +78,7 @@ class MLBStatsAPI:
     # HISTORICAL ROSTER FETCHING
     # -------------------------
 
-    def fetch_wbc_players_by_year(self) -> list[dict]:
+    def fetch_wbc_players_by_year(self, seasons: list[int] = None) -> list[dict]:
         """Fetches all players who participated in the WBC for a given year"""
         
         # Get the WBC league
@@ -86,6 +91,8 @@ class MLBStatsAPI:
         # Get each season for the WBC
         current_year = datetime.now().year
         wbc_seasons = [2006, 2009, 2013, 2017, 2023, 2026] + ( [] if current_year < 2029 else list(range(2029, current_year + 1, 3))) # Add future seasons every 3 years until current year
+        if seasons:
+            wbc_seasons = [season for season in wbc_seasons if season in seasons]
         all_players: list[dict] = []
 
         season_progress: dict[int, dict[str, int | str]] = {
@@ -180,6 +187,7 @@ class MLBStatsAPI:
                         player_info = {
                             'player_id': player.person.id,
                             'full_name': player.person.full_name,
+                            'position': player.position.abbreviation if player.position else "N/A",
                             'team_id': team.id,
                             'team': team.abbreviation,
                             'season': season,

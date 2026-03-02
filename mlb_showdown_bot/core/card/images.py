@@ -605,6 +605,9 @@ class ShowdownImage(BaseModel):
 
     def apply_wbc_team_theming(self, wbc_team: WBCTeam, wbc_year: int) -> None:
         """Apply WBC team theming to the image based on the WBC team and year."""
+        if type(wbc_team) == str:
+            wbc_team = WBCTeam(wbc_team)
+            
         if wbc_team and wbc_year:
             self.edition = Edition.WBC
             self.special_edition = SpecialEdition.WBC

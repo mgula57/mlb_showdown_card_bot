@@ -2,14 +2,24 @@ from firebase_admin import db
 import typer
 from typing import Optional
 from datetime import datetime, timedelta, timezone
+import unidecode
 import time
+from prettytable import PrettyTable
+
+from ...core.mlb_stats_api import MLBStatsAPI
+from ...core.mlb_stats_api.models.leagues.league import LeagueListEnum
 
 # Import business logic
 from ...core.archive.player_stats_archive import PlayerStatsArchive, PostgresDB
+from ...core.database.classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord
 from ...core.card.utils.shared_functions import convert_year_string_to_list
-from ...core.card.stats.stats_period import StatsPeriod
+from ...core.card.showdown_player_card import Edition, SpecialEdition, StatsPeriod, WBCTeam, Position, ShowdownPlayerCard, PlayerType, StatsPeriodType
+from ...core.data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
+from ...core.card.stats.normalized_player_stats import NormalizedPlayerStats, PlayerStatsNormalizer
 
 app = typer.Typer()
+
+_mlb_api = MLBStatsAPI(use_persistent_cache=True)
 
 @app.command("run")
 def database_update(
@@ -134,6 +144,9 @@ def database_feature_status(
     db.update_feature_status(feature_name=feature_name, is_disabled=disable_feature, message=message)
     print("✅ Feature status updated.")
 
+# -------------------------------
+# MARK: - Fangraphs
+# -------------------------------
 @app.command("store_fielding_stats")
 def store_fielding_stats_in_db():
     """Fetch fielding stats from Fangraphs and store in Postgres DB"""
@@ -160,6 +173,195 @@ def store_leaderboard_stats_fangraphs(
     for type in types.split(","):
         data = fg_api.fetch_leaderboard_stats(stats_period=StatsPeriod(year=season), stat_type=type, league=league, fangraphs_player_ids=[])  
         db.store_league_fangraphs_leaderboard_stats(league=league, stat_type=type, data=data)
+
+# -------------------------------
+# MARK: - WBC
+# -------------------------------
+@app.command("store_wbc_data")
+def store_wbc_data(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    run_rosters: bool = typer.Option(False, "--run_rosters", "-r", help="Whether to fetch and store WBC roster data"),
+    run_cards: bool = typer.Option(False, "--run_cards", "-c", help="Whether to generate showdown cards for WBC players after storing data"),
+    seasons: str = typer.Option(None, "--seasons", "-s", help="Which WBC season(s) to include when fetching card data, comma-separated (e.g. '2006,2009,2013'). If not provided, will include all seasons."),
+    sets: str = typer.Option("CLASSIC,EXPANDED,2000,2001,2002,2003,2004,2005", "--showdown_sets", "-cs", help="Showdown Set(s) to use when fetching card data, comma-separated.")
+):
+    """Fetch all WBC players by year and store in database"""
+    db = PostgresDB(is_archive=env.lower() == "prod")
+    seasons_list = convert_year_string_to_list(seasons) if seasons else None
+    showdown_sets_list = [s.strip() for s in sets.split(",")] if sets else None
+    
+    if run_rosters:
+        print("Fetching WBC roster data and storing in database...")
+        wbc_players = _mlb_api.fetch_wbc_players_by_year(seasons=seasons_list)
+        print(f"Fetched {len(wbc_players)} WBC players across all years.")
+        
+        # Initialize database connection
+        db.store_wbc_roster_history(wbc_players)
+        print("WBC roster history stored in database successfully.")
+
+    if run_cards:
+        print("Generating showdown cards for WBC players...")
+        wbc_rosters = db.fetch_wbc_rosters_and_mlb_card_matches(seasons=seasons_list, showdown_sets=showdown_sets_list)
+
+        missing_cards = len([record for record in wbc_rosters if record.card_data is None])
+        total_records = len(wbc_rosters)
+        print(f"Found {total_records} WBC roster records with {missing_cards} missing card matches based on the specified seasons and showdown sets.")
+
+        if total_records == 0:
+            print("No WBC roster records found for the specified seasons and showdown sets. Please check your filters and try again.")
+            return
+        
+        # Get stats for other leagues for players missing card matches to try to fill in gaps
+        all_fangraph_stats: list[FangraphsLeaderboardRecord] = []
+        for league in ["NPB", "KBO"]:
+            for stat_type in ["bat", "pit"]:
+                stats = db.fetch_league_fangraphs_leaderboard_stats(league=league, stat_type=stat_type, seasons=[season - 1 for season in seasons_list] if seasons_list else None) # Fetch stats for the season before the WBC season(s) to try to fill in gaps for players who may have played in those leagues before or after the WBC
+                all_fangraph_stats.extend(stats)
+        
+        # Replacement stats
+        replacement_stat_baselines = {
+            'HITTER': get_replacement_hitting_avgs(year=2025), # TODO: Make this dynamic based on the WBC season(s) being processed, but for now just use 2025 as a baseline since it's the most recent season and should be somewhat representative of current player performance levels
+            'PITCHER': get_replacement_pitching_avgs(year=2025)
+        }
+
+        # Iterate through cards and adjust or fill in card data as needed, then store in database
+        roster_progress_rows: list[dict] = [
+            {
+                "name": record.name,
+                "wbc_season": record.wbc_season,
+                "showdown_set": record.showdown_set.value,
+                "processed": "⬜",
+                "stat_source": "PENDING",
+            }
+            for record in wbc_rosters
+        ]
+
+        for record_index, record in enumerate(wbc_rosters):
+
+            year = record.wbc_season - 1
+
+            # Wipe card if games played was < 3
+            if record.card_data and record.card_data.stats.get('G', 0) < 3:
+                record.card_data = None
+
+            # Card Exists from MLB Season - Update theming
+            if record.card_data:
+                # Adjust card settings to add WBC edition and theming
+                record.card_data.wbc_team = record.wbc_team
+                record.card_data.wbc_year = record.wbc_season
+                record.card_data.image.apply_wbc_team_theming(record.wbc_team, record.wbc_season)
+                record.stat_source = "MLB"
+                roster_progress_rows[record_index]["processed"] = "✅"
+                roster_progress_rows[record_index]["stat_source"] = record.stat_source
+                continue
+
+            # ----------------------
+            # 1. NPB and KBO
+            # ----------------------
+            player_stats = next((
+                stats for stats in all_fangraph_stats 
+                if stats.name_safe_for_matching == record.name_safe_for_matching and stats.player_type_for_matching == record.player_type_for_matching \
+                    and stats.is_pitcher_stat_type == (record.player_type_for_matching.is_pitcher) and stats.season == year
+            ), None)
+            if player_stats:
+                normalized_player_stats = PlayerStatsNormalizer.from_fangraphs_leaderboard_data(player_stats.stats, mlb_id=record.mlb_id)
+                stats = normalized_player_stats.as_dict()
+                record.card_data = ShowdownPlayerCard(
+                    name=record.name_safe_for_matching.title(), # Use the name from the WBC roster
+                    year=str(year),
+                    set=record.showdown_set,
+                    wbc_team=record.wbc_team,
+                    wbc_year=record.wbc_season,
+                    image={
+                        "edition": Edition.WBC if record.wbc_team else Edition.NONE,
+                        "special_edition": SpecialEdition.WBC,
+                    },
+                    era="DYNAMIC",
+                    stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REGULAR_SEASON),
+                    stats=stats,
+                )
+                record.card_data.warnings.append(f"This card is populated from the player's performance in the {player_stats.league} league, not MLB, since this player does not have a card in the specified showdown sets for the year before the WBC season. Stats may not be directly comparable to MLB performance.")
+                record.stat_source = player_stats.league
+                roster_progress_rows[record_index]["processed"] = "✅"
+                roster_progress_rows[record_index]["stat_source"] = record.stat_source
+                continue
+
+            # ----------------------
+            # 2. Minor Leagues
+            # ----------------------
+            stats_period = StatsPeriod(year=str(year), type=StatsPeriodType.REGULAR_SEASON)
+            mlb_stats_player = _mlb_api.people.get_player(record.mlb_id, stats_period=stats_period, include_stats=True, league_list=LeagueListEnum.MILB_FULL)
+            if mlb_stats_player and mlb_stats_player.stats:
+                print(f"Found minor league stats for WBC player {record.name} (BREF ID: {record.bref_id}), which may help fill in gaps for card data.")
+                normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=mlb_stats_player, stats_period=stats_period)
+                stats = normalized_player_stats.as_dict()
+                record.card_data = ShowdownPlayerCard(
+                    name=record.name_safe_for_matching.title(), # Use the name from the WBC roster
+                    year=str(year),
+                    set=record.showdown_set,
+                    wbc_team=record.wbc_team,
+                    wbc_year=record.wbc_season,
+                    image={
+                        "edition": Edition.WBC if record.wbc_team else Edition.NONE,
+                        "special_edition": SpecialEdition.WBC,
+                    },
+                    era="DYNAMIC",
+                    stats_period=stats_period,
+                    stats=stats,
+                )
+                record.card_data.warnings.append(f"This card is populated from the player's performance in the minor leagues, not MLB, since this player does not have a card in the specified showdown sets for the year before the WBC season. Stats may not be directly comparable to MLB performance.")
+                record.stat_source = "MILB"
+                roster_progress_rows[record_index]["processed"] = "✅"
+                roster_progress_rows[record_index]["stat_source"] = record.stat_source
+                continue
+
+            # ----------------------
+            # Last: Fill with replacement card data
+            # ----------------------
+            
+            try: showdown_position = Position(record.position.upper())
+            except: showdown_position = None
+            replacement_stat_baseline = replacement_stat_baselines.get(record.player_type_for_matching.name, {}).copy()
+            replacement_stats = build_replacement_level_stats_for_card(year=year, player_type=record.player_type_for_matching, positions=[showdown_position], original_stats=replacement_stat_baseline)
+            replacement_stats['name'] = record.name
+            replacement_stats['team'] = 'MLB'
+            record.card_data = ShowdownPlayerCard(
+                name=record.name_safe_for_matching.title(), # Use the name from the WBC roster, but convert it to title case for better display on the card
+                year=str(record.wbc_season - 1),
+                set=record.showdown_set,
+                wbc_team=record.wbc_team,
+                wbc_year=record.wbc_season,
+                image={
+                    "edition": Edition.WBC if record.wbc_team else Edition.NONE,
+                    "special_edition": SpecialEdition.WBC,
+                },
+                era="DYNAMIC",
+                stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REPLACEMENT),
+                stats=replacement_stats,
+            )
+            record.card_data.warnings.append(f"This player does not have a {year} Showdown card. A replacement level card has been generated based on their position.")
+            record.stat_source = "REPLACEMENT"
+            roster_progress_rows[record_index]["processed"] = "✅"
+            roster_progress_rows[record_index]["stat_source"] = record.stat_source
+            continue
+
+        progress_table = PrettyTable()
+        progress_table.field_names = ["Player", "WBC Season", "Set", "Looped", "Stat Source"]
+        for row in roster_progress_rows:
+            progress_table.add_row([
+                row["name"],
+                row["wbc_season"],
+                row["showdown_set"],
+                row["processed"],
+                row["stat_source"],
+            ])
+
+        print("\nWBC Roster Processing Summary")
+        print(progress_table)
+                
+        # Store updated records in database
+        db.build_wbc_card_table(wbc_rosters)
+        print("Showdown cards for WBC players stored in database successfully.")
 
 @app.command("refresh_player_id_table")
 def refresh_player_id_table(

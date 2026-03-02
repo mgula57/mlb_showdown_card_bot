@@ -85,7 +85,6 @@ class Player(Person):
                         final_list.append(split)
 
         if not final_list or len(final_list) == 0:
-            print(f"No stats found for group type: {group_type}, type: {type}, seasons: {seasons}")
             return None
         
         return final_list

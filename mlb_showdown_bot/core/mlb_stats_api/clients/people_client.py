@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from ..base_client import BaseMLBClient
 from ..models.person import Player, FreeAgent, StatTypeEnum
+from ..models.leagues.league import LeagueListEnum
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
 import json
 
@@ -26,13 +27,14 @@ class PeopleClient(BaseMLBClient):
         data = self._make_request('people/search', params)
         return [Player(**player_data) for player_data in data.get('people', [])]
 
-    def get_player(self, player_id: int, stats_period: StatsPeriod = None, include_stats: bool = True) -> Player:
+    def get_player(self, player_id: int, stats_period: StatsPeriod = None, include_stats: bool = True, league_list: Optional[LeagueListEnum] = None) -> Player:
         """Get player information by ID
 
         Args:
             player_id: MLB player ID
             stats_period: Optional StatsPeriod object for context-specific data
             include_stats: Whether to include basic stats in the response
+            league_list: Optional LeagueListEnum for specifying league context
         
         Returns:
             Person object with player details
@@ -50,7 +52,10 @@ class PeopleClient(BaseMLBClient):
                 'team(league)',
             ])
             
+            is_non_mlb = league_list and 'milb' in league_list.value.lower()
             types: list[StatTypeEnum] = [
+            
+            ] if is_non_mlb else [
                 StatTypeEnum.SABERMETRICS,
                 StatTypeEnum.RANKINGS_BY_YEAR,
             ]
@@ -58,7 +63,10 @@ class PeopleClient(BaseMLBClient):
                 match stats_period.year_type:
                     case StatsPeriodYearType.SINGLE_YEAR:
                         seasons = [stats_period.year_int]
-                        types.extend([StatTypeEnum.STATS_SINGLE_SEASON, StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED, StatTypeEnum.GAME_LOG])
+                        if is_non_mlb:
+                            types.extend([StatTypeEnum.STATS_SINGLE_SEASON])
+                        else:
+                            types.extend([StatTypeEnum.STATS_SINGLE_SEASON, StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED, StatTypeEnum.GAME_LOG])
                     case StatsPeriodYearType.FULL_CAREER:
                         types.extend([StatTypeEnum.CAREER, StatTypeEnum.CAREER_ADVANCED])
                     case StatsPeriodYearType.MULTI_YEAR:
@@ -69,7 +77,8 @@ class PeopleClient(BaseMLBClient):
             combined_types = ",".join([t.value for t in types])
             seasons_list_str = ",".join([str(season) for season in seasons])
             seasons_hydration = f",seasons=[{seasons_list_str}]" if len(seasons) > 0 else ""
-            hydrations.append(f'stats(group=[hitting,fielding,pitching],type=[{combined_types}],team(league){seasons_hydration})')
+            league_list_hydration = f",leagueListId={league_list.value}" if league_list else ""
+            hydrations.append(f'stats(group=[hitting,fielding,pitching],type=[{combined_types}],team(league){seasons_hydration}{league_list_hydration})')
 
             params['hydrate'] = ','.join(hydrations)
             if len(seasons) > 0:

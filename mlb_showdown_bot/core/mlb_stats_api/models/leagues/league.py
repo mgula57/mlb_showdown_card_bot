@@ -11,6 +11,33 @@ class SportEnum(int, Enum):
     MLB = 1
     INTERNATIONAL = 51
 
+class LeagueListEnum(str, Enum):
+    MILB_FULL = "milb_full"
+    MILB_SHORT = "milb_short"
+    MILB_COMPLEX = "milb_complex"
+    MILB_ALL = "milb_all"
+    MILB_ALL_NOMEX = "milb_all_nomex"
+    MILB_ALL_DOMESTIC = "milb_all_domestic"
+    MILB_NONCOMP = "milb_noncomp"
+    MILB_NONCOMP_NOMEX = "milb_noncomp_nomex"
+    MILB_DOMCOMP = "milb_domcomp"
+    MILB_INTCOMP = "milb_intcomp"
+    WIN_NOABL = "win_noabl"
+    WIN_CARIBBEAN = "win_caribbean"
+    WIN_ALL = "win_all"
+    ABL = "abl"
+    MEX_ALL = "mex_all"
+    MLB = "mlb"
+    MLB_HIST = "mlb_hist"
+    MLB_MILB = "mlb_milb"
+    MLB_MILB_HIST = "mlb_milb_hist"
+    MLB_MILB_WIN = "mlb_milb_win"
+    BASEBALL_ALL = "baseball_all"
+    MLB_SPRING = "mlb_spring"
+    MLB_AL_NL = "mlb_al_nl"
+    MLB_NEGRO = "mlb_negro"
+    NEGRO_ALL = "negro_all"
+
 class SeasonDateInfo(BaseModel):
     """Season date information for league"""
     game_level_gameday_type: Optional[str] = Field(None, alias='gameLevelGamedayType')

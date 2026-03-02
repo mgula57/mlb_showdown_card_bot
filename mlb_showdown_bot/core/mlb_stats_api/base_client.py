@@ -79,7 +79,6 @@ class BaseMLBClient(BaseModel):
         for attempt in range(self.max_retries):
             try:
                 data = self._execute_request(endpoint, params)
-                
                 # Cache successful response
                 if use_cache:
                     self._cache_response(cache_key, data)
@@ -111,7 +110,6 @@ class BaseMLBClient(BaseModel):
         """Execute the actual HTTP request"""
         url = f"{self.base_url}/{endpoint}"
         
-        logger.debug(f"Making request to {url} with params {params}")
         http_client = self.session if self.session is not None else requests
         response = http_client.get(url, params=params, headers=self.headers, timeout=self.timeout)
 

@@ -109,7 +109,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 # PULL FROM MLB API
                 # NORMALIZE FORMAT
                 mlb_stats_api = MLBStatsAPI_V2()
-                player_data = mlb_stats_api.build_full_player_from_search(search_name=kwargs.get('name', ''), stats_period=stats_period)
+                league = kwargs.get('league', 'MLB')
+                player_data = mlb_stats_api.build_full_player_from_search(search_name=kwargs.get('name', ''), stats_period=stats_period, league=league)
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
 
                 # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS
@@ -125,17 +126,13 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     position_stats = [PositionStats.from_fangraphs_fielding_stats(pos_stats) for pos_stats in fielding_stats_list]
                     normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
 
-                if stats_period.is_during_statcast_era:
+                if stats_period.is_during_statcast_era and normalized_player_stats.type == PlayerType.HITTER:
                     statcast_api_client = StatcastAPIClient()
                     sprint_speed_data = statcast_api_client.fetch_sprint_speed_for_player(stats_period=stats_period, player_id=player_data.id)
-                    normalized_player_stats.sprint_speed = sprint_speed_data.sprint_speed
+                    normalized_player_stats.sprint_speed = sprint_speed_data.sprint_speed if sprint_speed_data else None
 
                 # TODO: EVENTUALLY PASS INTO SHOWDOWN PLAYER CARD AS CLASS
-                stats = normalized_player_stats.model_dump(
-                    exclude_none=True, 
-                    exclude_unset=True, 
-                    by_alias=True
-                )
+                stats = normalized_player_stats.as_dict()
                 stats_period.source = 'MLB Stats API'
                 scraper_load_time = (datetime.now() - start_time).total_seconds()
 
@@ -163,11 +160,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     if len(stats_yearly_list) > 0:
                         # COMBINE STATS FROM EACH YEAR
                         combined_stats = PlayerStatsNormalizer.combine_multi_year_stats(stats_yearly_list, stats_period=baseball_reference_stats.stats_period)
-                        stats = combined_stats.model_dump(
-                            exclude_none=True,
-                            exclude_unset=True,
-                            by_alias=True,
-                        )
+                        stats = combined_stats.as_dict()
                         stats_period = baseball_reference_stats.stats_period
                         stats_period.year_list = [int(y.year_id) for y in stats_yearly_list]
                         stats_period.source = 'Archive'

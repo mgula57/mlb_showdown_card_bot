@@ -9,7 +9,9 @@ export const CardSource = {
     /** Showdown Bot generated cards */
     BOT: 'BOT',
     /** Original WOTC cards */
-    WOTC: 'WOTC'
+    WOTC: 'WOTC',
+    /** World Baseball Classic cards */
+    WBC: 'WBC'
 } as const;
 
 /**
@@ -27,7 +29,8 @@ export type CardSourceType = CardSource;
  */
 export const CardSourceLabels = {
     [CardSource.BOT]: 'Showdown Bot Cards',
-    [CardSource.WOTC]: 'WOTC Cards'
+    [CardSource.WOTC]: 'WOTC Cards',
+    [CardSource.WBC]: 'WBC Cards'
 } as const;
 
 /**
