@@ -162,9 +162,13 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
                             <tr 
                                 key={r.id} 
                                 className={`
-                                    ${r.index % 2 === 0 ? 'bg-(--table-banding)' : 'bg-(--background-secondary)'}
                                     ${onRowClick ? 'cursor-pointer' : ''}
                                 `}
+                                style={{
+                                    backgroundColor: r.index % 2 === 0
+                                        ? 'var(--table-banding, var(--background-secondary))'
+                                        : 'var(--background-secondary)',
+                                }}
                                 onClick={() => onRowClick?.(r.original)}
                             >
                                 {/* Render each cell in the row */}

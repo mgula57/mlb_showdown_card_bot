@@ -43,10 +43,10 @@ export const fetchSeasonLeagues = async (season: Season, sport: Sport): Promise<
     return data.leagues as League[];
 }
 
-export const fetchSeasonStandings = async (season: Season, leagues: League[]): Promise<{ [leagueAbbreviation: string]: Standings[] }> => {
+export const fetchSeasonStandings = async (season: Season, leagues: League[], showdownSet?: string): Promise<{ [leagueAbbreviation: string]: Standings[] }> => {
     const standingsEntries = await Promise.all(
         leagues.map(async (league) => {
-            const response = await fetch(`${API_BASE}/seasons/${season.season_id}/leagues/${league.id}/standings`);
+            const response = await fetch(`${API_BASE}/seasons/${season.season_id}/leagues/${league.id}/standings${showdownSet ? `?showdown_set=${showdownSet}` : ''}`);
             if (!response.ok) {
                 throw new Error(`Failed to fetch standings for season ${season.season_id} and league ${league.id}: ${response.statusText}`);
             }

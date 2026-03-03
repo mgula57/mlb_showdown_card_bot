@@ -309,7 +309,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         var standingsData: { [leagueAbbreviation: string]: Standings[] } = {};
         beginLoading();
         try {
-            standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery);
+            standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet);
             console.log(`Fetched standings for season ${selectedSeason.season_id}:`, standingsData);
             setStandings(standingsData);
         } catch (error) {

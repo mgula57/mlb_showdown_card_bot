@@ -179,7 +179,7 @@ export default function TeamRoster({ team, sportId, roster }: TeamRosterProps) {
                     {topPlayers.length === 0 ? (
                         <div className="px-4 py-3 text-sm text-(--text-secondary)">No showdown card data available.</div>
                     ) : (
-                        <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2">
+                        <div className="p-3 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-2">
                             {topPlayers.map((slot) => {
                                 const card = slot.person.showdown_card_data;
                                 return (

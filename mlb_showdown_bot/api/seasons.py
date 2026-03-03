@@ -78,11 +78,15 @@ def fetch_standings(season_id: str, league_id: str):
         if not season_id or not league_id:
             return jsonify({'error': 'Missing required parameters: season and league'}), 400
         
+        # Showdown Set is passed in for PTS context
+        showdown_set = request.args.get('showdown_set', None)  # Default to 2000
+        
         # IF LEAGUE ID IS CL OR GL, USE SPRING_TRAINING STANDINGS TYPE, OTHERWISE USE BY_DIVISION
         standings_type = StandingsType.SPRING_TRAINING if str(league_id) in ['114', '115'] else StandingsType.BY_DIVISION
         standings = _mlb_stats_api.leagues.get_standings(season=season_id, league_id=league_id, standings_type=standings_type)
-        db = PostgresDB()
-        standings = db.add_points_to_mlb_api_standings(standings, showdown_set='2000')
+        if showdown_set:
+            db = PostgresDB()
+            standings = db.add_points_to_mlb_api_standings(standings, showdown_set=showdown_set)
 
         standings_data = [standing.model_dump() for standing in standings]
         return jsonify({'standings': standings_data}), 200
