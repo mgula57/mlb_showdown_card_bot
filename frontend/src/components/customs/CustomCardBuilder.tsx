@@ -1431,8 +1431,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     Build Card
                                 </button>
 
+                                {/* TODO: Enable after login system is complete */}
                                 {/* History Icon/Button */}
-                                <button
+                                {/* <button
                                     type="button"
                                     onClick={toggleHistory}
                                     title="Toggle History"
@@ -1446,7 +1447,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                     `}
                                 >
                                     <FaClock />
-                                </button>
+                                </button> */}
 
                             </div>
 
