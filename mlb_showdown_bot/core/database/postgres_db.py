@@ -1905,18 +1905,24 @@ class PostgresDB:
                         and i.year = player_season_stats.year::text
                         and i.team_id = player_season_stats.team_id
                         and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
+                        and not i.is_postseason
+                        and not i.is_wbc
                     ) then 'exact'
                     when exists (
                         select 1 from internal.dim_auto_image i
                         where i.player_id = player_season_stats.bref_id
                         and i.team_id = player_season_stats.team_id
                         and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
+                        and not i.is_postseason
+                        and not i.is_wbc
                     ) then 'team match'
                     when exists (
                         select 1 from internal.dim_auto_image i
                         where i.player_id = player_season_stats.bref_id
                         and i.year = player_season_stats.year::text
                         and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
+                        and not i.is_postseason
+                        and not i.is_wbc
                     ) then 'year match'
                     else 'no match'
                 end as image_match_type,
@@ -1937,6 +1943,7 @@ class PostgresDB:
                 and coalesce(player_season_stats.player_type_override, 'n/a') = coalesce(exact_img_match.player_type_override, 'n/a')
                 and player_season_stats.team_id = exact_img_match.team_id
                 and exact_img_match.is_postseason = FALSE
+                and exact_img_match.is_wbc = FALSE
         '''
         
         # SHOOT MESSAGE TO USER WHILE THE VIEW IS REBUILDING (IF DROPPED)
@@ -2468,11 +2475,13 @@ class PostgresDB:
             #   - player_id: raleica01
             #   - player_name: Raleigh
             #   - is_postseason: False
+            #   - is_wbc: False
             #   - player_type_override: None 
             #   - modified_date: datetime
             final_attributes: dict[str, any] = {
                 'image_ids': image_data.get('image_ids', {}),
-                'modified_date': image_data.get('modified_date')
+                'modified_date': image_data.get('modified_date'),
+                'is_wbc': '(WBC_' in image_name
             }
             name_parts = image_name.rsplit('.', 1)[0].split('-')
             has_reached_first_parenthesis = False
@@ -2545,13 +2554,14 @@ class PostgresDB:
                 team_id VARCHAR(10),
                 player_type_override VARCHAR(10),
                 is_postseason BOOLEAN DEFAULT FALSE,
+                is_wbc BOOLEAN DEFAULT FALSE,
                 image_ids JSONB,
                 image_modified_date TIMESTAMP WITHOUT TIME ZONE,
                 created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
             );'''
         index_statement = '''
             CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_auto_image
-            ON internal.dim_auto_image (year, player_id, player_type_override, team_id, is_postseason);
+            ON internal.dim_auto_image (year, player_id, player_type_override, team_id, is_postseason, is_wbc);
         '''
         try:
             if truncate_or_drop_table_statement:
@@ -2564,7 +2574,7 @@ class PostgresDB:
         
         # INSERT OR UPDATE ROWS
         insert_statement = """
-            INSERT INTO internal.dim_auto_image (year, player_id, player_name, team_id, player_type_override, image_ids, is_postseason, image_modified_date) 
+            INSERT INTO internal.dim_auto_image (year, player_id, player_name, team_id, player_type_override, image_ids, is_postseason, is_wbc, image_modified_date) 
             VALUES %s
         """
         insert_values = []
@@ -2575,6 +2585,7 @@ class PostgresDB:
             team_id = entry.get('team_id', None)
             image_ids = entry.get('image_ids', {})
             is_postseason = entry.get('is_postseason', False)
+            is_wbc = entry.get('is_wbc', False)
             modified_date = entry.get('modified_date', None)
             if isinstance(modified_date, datetime) and modified_date.tzinfo is not None:
                 modified_date = modified_date.astimezone(timezone.utc).replace(tzinfo=None)
@@ -2588,6 +2599,7 @@ class PostgresDB:
                 player_type_override,
                 image_ids,
                 is_postseason,
+                is_wbc,
                 modified_date
             ))
         try:
