@@ -16,15 +16,19 @@ type SidebarPanelProps = {
     sections: SidebarSection[];
     className?: string;
     isHidden?: boolean;
+    headerAction?: ReactNode;
 };
 
-export default function SidebarPanel({ title, subtitle, sections, className = ""}: SidebarPanelProps) {
+export default function SidebarPanel({ title, subtitle, sections, className = "", headerAction }: SidebarPanelProps) {
     return (
         <aside className={`w-full ${className}`}>
             <div className="rounded-2xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
-                <div className="px-4 py-4 border-b border-(--divider)">
-                    <h2 className="text-lg font-bold text-(--text-primary)">{title}</h2>
-                    {subtitle && <p className="mt-1 text-xs text-(--text-secondary)">{subtitle}</p>}
+                <div className="px-4 py-4 border-b border-(--divider) flex items-start justify-between gap-2">
+                    <div>
+                        <h2 className="text-lg font-bold text-(--text-primary)">{title}</h2>
+                        {subtitle && <p className="mt-1 text-xs text-(--text-secondary)">{subtitle}</p>}
+                    </div>
+                    {headerAction && <div className="shrink-0">{headerAction}</div>}
                 </div>
 
                 <div className="p-3 space-y-3">

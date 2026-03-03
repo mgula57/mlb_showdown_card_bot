@@ -19,7 +19,7 @@ import ReactCountryFlag from "react-country-flag";
 import { countryCodeForTeam } from "../../functions/flags";
 import StandingsTab from "./Standings";
 
-import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaChevronDown, FaBaseball } from "react-icons/fa6";
+import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft } from "react-icons/fa6";
 
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 
@@ -37,6 +37,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         sportId: `${type}.seasons.selectedSportId`,
         leagueGroup: `${type}.seasons.selectedLeagueGroup`,
         activeTab: `${type}.seasons.activeTab`,
+        sidebarCollapsed: `${type}.seasons.sidebarCollapsed`,
     };
 
     const getStoredValue = (key: string): string | null => {
@@ -95,6 +96,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [standings, setStandings] = useState<{ [leagueAbbreviation: string]: Standings[] }>({});
 
     const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "standings");
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => getStoredValue(STORAGE_KEYS.sidebarCollapsed) === "true");
     const [isTeamsNavOpen, setIsTeamsNavOpen] = useState<boolean>(true);
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
@@ -384,6 +386,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }, [activeTab]);
 
     useEffect(() => {
+        setStoredValue(STORAGE_KEYS.sidebarCollapsed, isSidebarCollapsed ? "true" : "false");
+    }, [isSidebarCollapsed]);
+
+    useEffect(() => {
         setStoredValue(STORAGE_KEYS.leagueGroup, selectedLeagueGroup);
     }, [selectedLeagueGroup]);
 
@@ -578,13 +584,47 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                 {selectedSeason && (
                     <>
                         <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="lg:h-full lg:min-h-0">
-                            <div className="grid grid-cols-1 lg:grid-cols-[18.5rem_minmax(0,1fr)] gap-y-5 lg:h-full lg:min-h-0 lg:overflow-hidden">
-                                <SidebarPanel
-                                    title={title}
-                                    subtitle={subtitle}
-                                    sections={sidebarSections}
-                                    className="p-2 order-1 lg:p-6 lg:sticky lg:top-0 lg:self-start lg:h-full lg:min-h-0 lg:overflow-y-auto"
-                                />
+                            <div className={`grid grid-cols-1 ${isSidebarCollapsed ? 'lg:grid-cols-[3.25rem_minmax(0,1fr)]' : 'lg:grid-cols-[18.5rem_minmax(0,1fr)]'} transition-[grid-template-columns] duration-300 ease-in-out gap-y-5 lg:h-full lg:min-h-0 lg:overflow-hidden`}>
+                                <div className={`order-1 lg:h-full lg:min-h-0 overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${isSidebarCollapsed ? 'max-h-16' : 'max-h-480'} lg:max-h-480`}>
+                                    {isSidebarCollapsed ? (
+                                        <aside className="w-full p-2 lg:pt-6 lg:sticky lg:top-0 lg:self-start lg:min-h-0">
+                                            <div className="rounded-2xl border border-(--divider) bg-(--background-secondary) overflow-hidden lg:h-full">
+                                                <div className="px-2 py-2 lg:py-3 flex items-center justify-center lg:items-start lg:justify-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsSidebarCollapsed(false)}
+                                                        className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer flex items-center justify-center gap-2"
+                                                        aria-label="Expand sidebar panel"
+                                                        title="Expand sidebar panel"
+                                                    >
+                                                        <FaChevronRight className="h-3.5 w-3.5" />
+                                                        <span className="lg:hidden text-xs font-semibold uppercase tracking-wide">
+                                                            Show WBC Navigation
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </aside>
+                                    ) : (
+                                        <SidebarPanel
+                                            title={title}
+                                            subtitle={subtitle}
+                                            sections={sidebarSections}
+                                            className="p-2 lg:p-6 lg:sticky lg:top-0 lg:self-start lg:h-full lg:min-h-0 lg:overflow-y-auto"
+                                            headerAction={(
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsSidebarCollapsed(true)}
+                                                    className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                                    aria-label="Collapse sidebar panel"
+                                                    title="Collapse sidebar panel"
+                                                >
+                                                    <FaChevronLeft className="h-3.5 w-3.5" />
+                                                </button>
+                                            )}
+                                        />
+                                    )}
+                                </div>
 
                                 <div className="min-w-0 order-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
 
