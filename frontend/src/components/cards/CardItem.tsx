@@ -47,7 +47,6 @@ type CardItemProps = {
     cardIcons?: string[];
     cardAwardList?: string[];
     cardStatHighlightsList?: string[];
-    cardStatSource?: string;
 
     // Image
     cardEdition?: string;
@@ -106,7 +105,7 @@ export const CardItem = ({
     cardPrimaryColor, cardSecondaryColor, cardEdition,
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
-    cardChartRanges, cardStatSource, cardLeague,
+    cardChartRanges, cardLeague,
     onClick, className, isSelected 
 }: CardItemProps) => {
 
@@ -288,11 +287,14 @@ export const CardItem = ({
                 <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
                     
                     {/* On WBC Cards, show the Stat Source */}
-                    {cardLeague && cardEdition === 'WBC' && (
-                        <div className="font-semibold italic text-(--text-secondary)">
-                            {cardLeague}
-                        </div>
-                    )}
+                    {cardLeague && cardEdition === 'WBC' && (() => {
+                        const leagueGrouped = ['AL', 'NL'].includes(cardLeague) ? 'MLB' : cardLeague;
+                        return (
+                            <div className="font-semibold italic text-(--text-secondary)">
+                                {leagueGrouped}
+                            </div>
+                        )
+                    })()}
 
                     {/* AWARDS: NEW WAY */}
                     {cardAwardList && cardAwardList.length > 0 && (
@@ -475,7 +477,6 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardIcons={card?.icons_list || []}
             cardAwardList={card?.awards_list || []}
             cardStatHighlightsList={card?.stat_highlights_list || []}
-            cardStatSource={card?.stat_source || undefined}
             cardLeague={card?.league || undefined}
             cardChartRanges={card?.chart_ranges || {}}
             onClick={onClick}
