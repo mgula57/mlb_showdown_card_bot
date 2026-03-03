@@ -13,7 +13,7 @@ from ...core.mlb_stats_api.models.leagues.league import LeagueListEnum
 from ...core.archive.player_stats_archive import PlayerStatsArchive, PostgresDB
 from ...core.database.classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord
 from ...core.card.utils.shared_functions import convert_year_string_to_list
-from ...core.card.showdown_player_card import Edition, SpecialEdition, StatsPeriod, WBCTeam, Position, ShowdownPlayerCard, PlayerType, StatsPeriodType, Hand
+from ...core.card.showdown_player_card import Edition, SpecialEdition, StatsPeriod, WBCTeam, Position, ShowdownPlayerCard, PlayerType, StatsPeriodType, Hand, StatHighlightsType
 from ...core.data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ...core.card.stats.normalized_player_stats import NormalizedPlayerStats, PlayerStatsNormalizer
 
@@ -295,6 +295,7 @@ def store_wbc_data(
                     image={
                         "edition": Edition.WBC if record.wbc_team else Edition.NONE,
                         "special_edition": SpecialEdition.WBC,
+                        "stat_highlights_type": StatHighlightsType.ALL
                     },
                     era="DYNAMIC",
                     stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REGULAR_SEASON),
@@ -325,6 +326,7 @@ def store_wbc_data(
                     image={
                         "edition": Edition.WBC if record.wbc_team else Edition.NONE,
                         "special_edition": SpecialEdition.WBC,
+                        "stat_highlights_type": StatHighlightsType.ALL
                     },
                     era="DYNAMIC",
                     stats_period=stats_period,
