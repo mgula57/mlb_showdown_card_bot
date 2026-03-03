@@ -99,6 +99,13 @@ class PeopleClient(BaseMLBClient):
                 raise Exception(f"Player {player_id} not found")
             raise
 
+    def get_players(self, player_ids: List[int]) -> List[Player]:
+        """Get multiple players by their IDs"""
+        params = {
+            'personIds': ",".join([str(pid) for pid in player_ids]),
+        }
+        data = self._make_request('people', params)
+        return [Player(**player_data) for player_data in data.get('people', [])]
 
     # -----------------------
     # FREE AGENTS

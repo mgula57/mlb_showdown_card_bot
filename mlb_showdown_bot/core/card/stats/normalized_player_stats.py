@@ -6,6 +6,7 @@ from pprint import pprint
 from ...mlb_stats_api.models.person import Position, Player as MLBStatsApi_Player, StatGroupEnum, StatTypeEnum, StatSplit
 from ...fangraphs.models import FieldingStats, LeaderboardStats
 from ...shared.player_position import PlayerType
+from ...shared.hand import Hand
 from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
 
@@ -54,8 +55,8 @@ class NormalizedPlayerStats(BaseModel):
     # Player Type & Physical
     type: PlayerType  # "Hitter" or "Pitcher"
     player_type_override: Optional[PlayerType] = None  # Manually override player type if needed
-    hand: Optional[str] = None  # "Left", "Right", "Both"
-    hand_throw: Optional[str] = None  # "Left", "Right"
+    hand: Optional[Hand] = None  # "Left", "Right", "Both"
+    hand_throw: Optional[Hand] = None  # "Left", "Right"
     
     # Career Context
     years_played: Optional[List[str]] = None
@@ -301,7 +302,7 @@ class PlayerStatsNormalizer:
         return normalized_stats
 
     @staticmethod
-    def from_fangraphs_leaderboard_data(fg_data: LeaderboardStats, mlb_id: Optional[int] = None) -> NormalizedPlayerStats:
+    def from_fangraphs_leaderboard_data(fg_data: LeaderboardStats, mlb_id: Optional[int] = None, hand: Optional[Hand] = None, hand_throw: Optional[Hand] = None) -> NormalizedPlayerStats:
         """Normalizes stats from a Fangraphs leaderboard record"""
         # Implementation would extract and map fields from record to NormalizedPlayerStats
         # This is a placeholder for the actual normalization logic
@@ -317,8 +318,8 @@ class PlayerStatsNormalizer:
             'team_ID': 'MLB',  # Fangraphs doesn't always provide team info in leaderboard data, so default to MLB
             'lg_ID': fg_data.league,
             'type': player_type.value,
-            'hand': Hand.RIGHT.value,  # Fangraphs doesn't provide handedness in leaderboard data, so default to Right
-            'hand_throw': Hand.RIGHT.value,  # Fangraphs doesn't provide throwing hand in leaderboard data, so default to Right
+            'hand': hand.value if hand else Hand.RIGHT.value,  # Fangraphs doesn't provide handedness in leaderboard data, so default to Right
+            'hand_throw': hand_throw.value if hand_throw else Hand.RIGHT.value,  # Fangraphs doesn't provide throwing hand in leaderboard data, so default to Right
             
             # Required stats
             **PlayerStatsNormalizer._extract_standard_stats_from_fangraphs_leaderboard(fg_data),

@@ -122,7 +122,7 @@ export default function Standings({ standingsEntries, selectedSportId, onTeamSel
 															<td className="px-4 py-2.5">{record.league_record.losses}</td>
 															<td className="px-4 py-2.5">{record.league_record.percentage || '-'}</td>
 															{record.showdown_points !== undefined && (
-																<td className="px-4 py-2.5">{record.showdown_points}</td>
+																<td className="px-4 py-2.5">{record.showdown_points.toLocaleString()}</td>
 															)}
 														</tr>
 													);

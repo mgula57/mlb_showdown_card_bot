@@ -13,7 +13,7 @@ from ...core.mlb_stats_api.models.leagues.league import LeagueListEnum
 from ...core.archive.player_stats_archive import PlayerStatsArchive, PostgresDB
 from ...core.database.classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord
 from ...core.card.utils.shared_functions import convert_year_string_to_list
-from ...core.card.showdown_player_card import Edition, SpecialEdition, StatsPeriod, WBCTeam, Position, ShowdownPlayerCard, PlayerType, StatsPeriodType
+from ...core.card.showdown_player_card import Edition, SpecialEdition, StatsPeriod, WBCTeam, Position, ShowdownPlayerCard, PlayerType, StatsPeriodType, Hand
 from ...core.data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ...core.card.stats.normalized_player_stats import NormalizedPlayerStats, PlayerStatsNormalizer
 
@@ -183,7 +183,8 @@ def store_wbc_data(
     run_rosters: bool = typer.Option(False, "--run_rosters", "-r", help="Whether to fetch and store WBC roster data"),
     run_cards: bool = typer.Option(False, "--run_cards", "-c", help="Whether to generate showdown cards for WBC players after storing data"),
     seasons: str = typer.Option(None, "--seasons", "-s", help="Which WBC season(s) to include when fetching card data, comma-separated (e.g. '2006,2009,2013'). If not provided, will include all seasons."),
-    sets: str = typer.Option("CLASSIC,EXPANDED,2000,2001,2002,2003,2004,2005", "--showdown_sets", "-cs", help="Showdown Set(s) to use when fetching card data, comma-separated.")
+    sets: str = typer.Option("CLASSIC,EXPANDED,2000,2001,2002,2003,2004,2005", "--showdown_sets", "-cs", help="Showdown Set(s) to use when fetching card data, comma-separated."),
+    teams: str = typer.Option(None, "--teams", "-t", help="Which WBC teams to include when fetching card data, comma-separated (e.g. 'JPN,USA,DOM'). If not provided, will include all teams. Only applies to card generation, not roster fetching. Rosters will be fetched for all teams in the specified season(s) regardless of this filter.")
 ):
     """Fetch all WBC players by year and store in database"""
     db = PostgresDB(is_archive=env.lower() == "prod")
@@ -203,6 +204,9 @@ def store_wbc_data(
         print("Generating showdown cards for WBC players...")
         wbc_rosters = db.fetch_wbc_rosters_and_mlb_card_matches(seasons=seasons_list, showdown_sets=showdown_sets_list)
 
+        # Apply team filter if specified (after fetching roster data to ensure we have all players for the season(s) regardless of team, but before processing cards to limit which players we generate cards for)
+        wbc_rosters = [record for record in wbc_rosters if not teams or record.wbc_team.value in teams.split(",")]
+
         missing_cards = len([record for record in wbc_rosters if record.card_data is None])
         total_records = len(wbc_rosters)
         print(f"Found {total_records} WBC roster records with {missing_cards} missing card matches based on the specified seasons and showdown sets.")
@@ -210,6 +214,11 @@ def store_wbc_data(
         if total_records == 0:
             print("No WBC roster records found for the specified seasons and showdown sets. Please check your filters and try again.")
             return
+        
+        # Get MLB API Metadata for all missing players
+        # Used to extract handedness
+        missing_player_ids = list(set([record.mlb_id for record in wbc_rosters if record.card_data is None]))
+        non_mlb_player_metadata = _mlb_api.people.get_players(missing_player_ids)
         
         # Get stats for other leagues for players missing card matches to try to fill in gaps
         all_fangraph_stats: list[FangraphsLeaderboardRecord] = []
@@ -264,7 +273,17 @@ def store_wbc_data(
                     and stats.is_pitcher_stat_type == (record.player_type_for_matching.is_pitcher) and stats.season == year
             ), None)
             if player_stats:
-                normalized_player_stats = PlayerStatsNormalizer.from_fangraphs_leaderboard_data(player_stats.stats, mlb_id=record.mlb_id)
+                # Get player's handedness from MLB API metadata
+                mlb_metadata = next((metadata for metadata in non_mlb_player_metadata if metadata.id == record.mlb_id), None)
+                hand: Optional[Hand] = None
+                hand_throw: Optional[Hand] = None
+                if mlb_metadata:
+                    if mlb_metadata.bat_side:
+                        hand = Hand(mlb_metadata.bat_side.description)
+                    if mlb_metadata.pitch_hand:
+                        hand_throw = Hand(mlb_metadata.pitch_hand.description)
+
+                normalized_player_stats = PlayerStatsNormalizer.from_fangraphs_leaderboard_data(player_stats.stats, mlb_id=record.mlb_id, hand=hand, hand_throw=hand_throw)
                 stats = normalized_player_stats.as_dict()
                 record.card_data = ShowdownPlayerCard(
                     name=record.name_safe_for_matching.title(), # Use the name from the WBC roster
