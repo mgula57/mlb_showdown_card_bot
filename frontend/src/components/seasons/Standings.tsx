@@ -85,7 +85,7 @@ export default function Standings({ standingsEntries, selectedSportId, onTeamSel
 													<th className="px-4 py-2.5">{isCompact ? 'L' : 'Losses'}</th>
 													<th className="px-4 py-2.5">{isCompact ? 'Pct' : 'Win %'}</th>
 													{leagueStanding.team_records?.[0]?.showdown_points !== undefined && (
-														<th className="px-4 py-2.5">{isCompact ? 'Pts' : 'Showdown Points'}</th>
+														<th className="px-4 py-2.5">{isCompact ? 'Pts' : 'Points'}</th>
 													)}
 												</tr>
 											</thead>

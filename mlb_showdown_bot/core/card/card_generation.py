@@ -208,7 +208,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
             else:
                 # Remove edition and warn user
                 kwargs.pop('edition', None)
-                stats['warnings'] = stats.get('warnings', []) + ["Could not find WBC team for this player in the database. Double check the player was a part of a WBC roster in the year provided or following year."]
+                stats['warnings'] = stats.get('warnings', []) + ["Could not find WBC team for this player in the database. Double check the player was a part of a WBC roster in the year provided or following year. Note that non-MLB WBC players are only available for 2025/2026."]
 
         # PROCESS CARD
         image_source = ImageSource(**kwargs)

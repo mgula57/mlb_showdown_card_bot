@@ -14,10 +14,6 @@ const h = createColumnHelper<RosterSlot>();
 
 /** Create a column helper that tells tanstack the format of the data*/
 const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
-    h.accessor((slot) => slot.position.abbreviation || "-", {
-        id: "position",
-        header: "Pos",
-    }),
     h.accessor((slot) => slot.person.showdown_card_data?.name || slot.person.full_name || "-", {
         id: "name",
         header: "Name",
@@ -70,8 +66,27 @@ const showdownCardColumns: ColumnDef<RosterSlot, any>[] = [
     h.accessor((slot) => slot.person.showdown_card_data?.points ?? "-", {
         id: "points",
         header: "PTS",
+    }),
+    h.accessor((slot) => slot.person.showdown_card_data?.speed.speed ?? "-", {
+        id: "speed_or_ip",
+        header: "SPD/IP",
         meta: {
             className: "hidden sm:table-cell",
+        },
+        cell: ({ row, getValue }) => {
+            
+            const card = row.original.person.showdown_card_data;
+            const isPitcher = card?.chart.is_pitcher;
+
+            if (isPitcher) {
+                const inningsPitched = card?.ip || "-";
+                return `${inningsPitched} IP`;
+            } else {
+                const speed = getValue();
+                const speedLetter = card?.speed?.letter || "";
+                const fullSpeed = `${speedLetter}(${speed})`;
+                return fullSpeed;
+            }
         }
     }),
     
@@ -188,6 +203,7 @@ export default function TeamRosterPositionTable({ position, slots, className, ta
                 data={sortedSlots}
                 columns={showdownCardColumns}
                 initialSorting={initialSorting}
+                initialColumnPinning={{ left: ['name'] }}
                 className={tableClassName || "rounded-none border-0"}
                 onRowClick={handleRowClick}
             />
