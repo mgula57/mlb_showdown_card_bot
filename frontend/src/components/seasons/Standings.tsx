@@ -84,17 +84,19 @@ export default function Standings({ standingsEntries, selectedSportId, onTeamSel
 													<th className="px-4 py-2.5">{isCompact ? 'W' : 'Wins'}</th>
 													<th className="px-4 py-2.5">{isCompact ? 'L' : 'Losses'}</th>
 													<th className="px-4 py-2.5">{isCompact ? 'Pct' : 'Win %'}</th>
+													{leagueStanding.team_records?.[0]?.showdown_points !== undefined && (
+														<th className="px-4 py-2.5">{isCompact ? 'Pts' : 'Showdown Points'}</th>
+													)}
 												</tr>
 											</thead>
 											<tbody>
 												{leagueStanding.team_records?.map((record) => {
 													const isoCountryCode = countryCodeForTeam(selectedSportId || 0, record.team.abbreviation || record.team.name);
-													const darkeningMultiplier = isDark ? '70%' : '90%';
+													const darkeningMultiplier = isDark ? '70%' : '95%';
 													return (
-														<tr key={record.team.id} className="border-t border-(--divider)">
+														<tr key={record.team.id} onClick={() => onTeamSelect?.(record.team)} className="border-t border-(--divider) hover:bg-(--divider) cursor-pointer">
 															<td
-																className="px-4 py-2.5 flex cursor-pointer"
-																onClick={() => onTeamSelect?.(record.team)}
+																className="px-4 py-2.5 flex"
 																style={{
 																	backgroundColor: `color-mix(in srgb, ${record.team.primary_color || "var(--background-quaternary)"} ${darkeningMultiplier}, black)`,
 																	color: getContrastColor(record.team.primary_color || "var(--background-quaternary)"),
@@ -119,6 +121,9 @@ export default function Standings({ standingsEntries, selectedSportId, onTeamSel
 															<td className="px-4 py-2.5">{record.league_record.wins}</td>
 															<td className="px-4 py-2.5">{record.league_record.losses}</td>
 															<td className="px-4 py-2.5">{record.league_record.percentage || '-'}</td>
+															{record.showdown_points !== undefined && (
+																<td className="px-4 py-2.5">{record.showdown_points}</td>
+															)}
 														</tr>
 													);
 												})}

@@ -133,6 +133,9 @@ export interface TeamRecords {
     season: number;
 
     league_record: Record;
+    
+    // Optional Showdown Card Data
+    showdown_points?: number;
 }
 
 export interface Standings {

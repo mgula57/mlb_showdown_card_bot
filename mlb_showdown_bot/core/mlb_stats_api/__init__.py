@@ -2,7 +2,7 @@
 
 from .clients.teams_client import TeamsClient, Team, Roster, RosterTypeEnum
 from .clients.people_client import PeopleClient
-from .clients.leagues_client import LeaguesClient
+from .clients.leagues_client import LeaguesClient, Standings
 from .clients.seasons_client import SeasonsClient
 from .clients.sports_client import SportsClient, SportEnum
 from .models.person import Player
@@ -237,4 +237,5 @@ __all__ = [
     'Roster',
     'RosterTypeEnum',
     'SportEnum',
+    'Standings',
 ]

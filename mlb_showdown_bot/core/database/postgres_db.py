@@ -21,7 +21,7 @@ from ..card.stats.normalized_player_stats import Datasource
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
-from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum
+from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum, Standings
 
 
 # ----------------------------------------------------------------
@@ -905,7 +905,7 @@ class PostgresDB:
         self.connection.close()
 
 # ------------------------------------------------------------------------
-# FETCHING FROM CARD DIM TABLE
+# FETCHING FROM CARD TABLES
 # ------------------------------------------------------------------------
 
     def fetch_cards_for_player_ids(self, player_ids: list[str], showdown_set: str, source:Datasource = Datasource.BREF, sport: str = None) -> dict[str, ShowdownPlayerCard]:
@@ -1079,6 +1079,55 @@ class PostgresDB:
             print("Error fetching cards for MLB API roster:", e)
             traceback.print_exc()
             return roster
+
+    def add_points_to_mlb_api_standings(self, standings: List[Standings], showdown_set: str) -> List[Standings]:
+        """Fetch aggregated points data per team from the proper table.
+        
+        Args:
+            standings: List of Standings objects to add points data to.
+            showdown_set: Showdown set to filter card data by (ex: '2000', '2001', etc.)
+        
+        Returns:
+            List of Standings objects with points data added to each team.
+        """
+
+        if self.connection is None:
+            print("No database connection available for fetching points for MLB API standings.")
+            return standings
+        
+        try:
+            for standing in standings:
+                match standing.league.abbreviation:
+                    case 'WBC':
+                        query = sql.SQL("""
+                            SELECT 
+                                wbc_team_id AS team_id,
+                                SUM(points) AS total_points
+                            FROM card_wbc
+                            WHERE wbc_team_id IS NOT NULL and wbc_season = %s and showdown_set = %s
+                            GROUP BY wbc_team_id
+                    """)
+                    case _:
+                        print("Standings league is not WBC, no points data to fetch.")
+                        continue
+                
+                results = self.execute_query(query=query, filter_values=(int(standing.league.season), showdown_set))
+
+                points_by_team_id = {row['team_id']: row['total_points'] for row in results}
+
+                for record in standing.team_records:
+                    record.showdown_points = points_by_team_id.get(record.team.id, 0)
+
+                # If there have not been games played yet, sort by points
+                if all(record.league_record.wins == 0 and record.league_record.losses == 0 for record in standing.team_records):
+                    standing.team_records.sort(key=lambda r: r.showdown_points, reverse=True)
+
+            return standings
+        
+        except Exception as e:
+            print("Error fetching points for MLB API standings:", e)
+            traceback.print_exc()
+            return standings
 
 # ------------------------------------------------------------------------
 # CARD DATA UPLOADS (BOT AND WOTC)

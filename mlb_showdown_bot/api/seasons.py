@@ -81,6 +81,9 @@ def fetch_standings(season_id: str, league_id: str):
         # IF LEAGUE ID IS CL OR GL, USE SPRING_TRAINING STANDINGS TYPE, OTHERWISE USE BY_DIVISION
         standings_type = StandingsType.SPRING_TRAINING if str(league_id) in ['114', '115'] else StandingsType.BY_DIVISION
         standings = _mlb_stats_api.leagues.get_standings(season=season_id, league_id=league_id, standings_type=standings_type)
+        db = PostgresDB()
+        standings = db.add_points_to_mlb_api_standings(standings, showdown_set='2000')
+
         standings_data = [standing.model_dump() for standing in standings]
         return jsonify({'standings': standings_data}), 200
 

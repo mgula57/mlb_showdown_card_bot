@@ -36,6 +36,8 @@ class TeamRecords(BaseModel):
 
     league_record: Optional[Record] = Field(None, alias='leagueRecord')
 
+    showdown_points: Optional[int] = None
+
 
 class Standings(BaseModel):
     """Model for standings data returned by the MLB Stats API"""
