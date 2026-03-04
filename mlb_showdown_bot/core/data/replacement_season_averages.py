@@ -4,67 +4,10 @@ from typing import Any
 from ..shared.player_position import PlayerType, Position, PlayerSubType
 
 from .mlb_season_averages import MLB_SEASON_AVGS
-
-# -----------------------------------
-# MARK: - REPLACEMENT-LEVEL WEIGHTS
-# -----------------------------------
-DEFAULT_LINEAR_WEIGHTS: dict[str, float] = {
-    "BB": 0.69,
-    "HBP": 0.72,
-    "1B": 0.88,
-    "2B": 1.25,
-    "3B": 1.60,
-    "HR": 2.05,
-}
-
-REPLACEMENT_RUN_GAP_PA_BASIS = 600.0
-
-COUNTING_STATS_TO_SCALE_FOR_PA_BASIS: tuple[str, ...] = (
-    "1B",
-    "2B",
-    "3B",
-    "AB",
-    "BB",
-    "BIP",
-    "CS",
-    "GDP",
-    "H",
-    "HBP",
-    "HR",
-    "IBB",
-    "R",
-    "RBI",
-    "SB",
-    "SF",
-    "SH",
-    "SO",
-    "TB",
+from .helpers_and_weights import (
+    DEFAULT_LINEAR_WEIGHTS, COUNTING_STATS_TO_SCALE_FOR_PA_BASIS, REPLACEMENT_RUN_GAP_PA_BASIS,
+    num, round_if_float, scale_counting_stats_to_pa_basis,
 )
-
-# -----------------------------------
-# MARK: - HELPER FUNCTIONS
-# -----------------------------------
-def _num(value: Any, default: float = 0.0) -> float:
-    """Convert value to float if it's a number, otherwise return default."""
-    return float(value) if isinstance(value, (int, float)) else default
-
-def _round_if_float(value: Any, digits: int = 3) -> Any:
-    """Round value to specified digits if it's a float, otherwise return as is."""
-    return round(value, digits) if isinstance(value, float) else value
-
-
-def _scale_counting_stats_to_pa_basis(stat_line: dict[str, Any], source_pa: float, target_pa: float) -> None:
-    """Scale counting stats so returned values represent totals for target_pa."""
-    if source_pa <= 0 or target_pa <= 0:
-        return
-
-    scale_factor = target_pa / source_pa
-    for stat in COUNTING_STATS_TO_SCALE_FOR_PA_BASIS:
-        if isinstance(stat_line.get(stat), (int, float)):
-            stat_line[stat] = _num(stat_line[stat]) * scale_factor
-
-    stat_line["PA"] = target_pa
-
 
 def convert_replacement_stats_to_pa_basis(stats: dict[str, Any], pa_basis: float) -> dict[str, Any]:
     """Convert replacement stat line to a target PA basis.
@@ -76,12 +19,12 @@ def convert_replacement_stats_to_pa_basis(stats: dict[str, Any], pa_basis: float
         raise ValueError("pa_basis must be > 0")
 
     converted_stats = deepcopy(stats)
-    source_pa = _num(converted_stats.get("PA"), default=REPLACEMENT_RUN_GAP_PA_BASIS)
-    _scale_counting_stats_to_pa_basis(stat_line=converted_stats, source_pa=source_pa, target_pa=pa_basis)
+    source_pa = num(converted_stats.get("PA"), default=REPLACEMENT_RUN_GAP_PA_BASIS)
+    scale_counting_stats_to_pa_basis(stat_line=converted_stats, source_pa=source_pa, target_pa=pa_basis)
     converted_stats["_converted_pa_basis"] = pa_basis
 
     for key, value in list(converted_stats.items()):
-        converted_stats[key] = _round_if_float(value)
+        converted_stats[key] = round_if_float(value)
 
     return converted_stats
 
@@ -110,17 +53,17 @@ def get_replacement_hitting_avgs(
     stat_line = deepcopy(MLB_SEASON_AVGS[year])
     linear_weights = weights or DEFAULT_LINEAR_WEIGHTS
 
-    pa = _num(stat_line.get("PA"))
+    pa = num(stat_line.get("PA"))
     if pa <= 0:
         raise ValueError(f"Invalid PA value for year {year}")
 
     rates = {
-        "BB": _num(stat_line.get("BB")) / pa,
-        "HBP": _num(stat_line.get("HBP")) / pa,
-        "1B": _num(stat_line.get("1B")) / pa,
-        "2B": _num(stat_line.get("2B")) / pa,
-        "3B": _num(stat_line.get("3B")) / pa,
-        "HR": _num(stat_line.get("HR")) / pa,
+        "BB": num(stat_line.get("BB")) / pa,
+        "HBP": num(stat_line.get("HBP")) / pa,
+        "1B": num(stat_line.get("1B")) / pa,
+        "2B": num(stat_line.get("2B")) / pa,
+        "3B": num(stat_line.get("3B")) / pa,
+        "HR": num(stat_line.get("HR")) / pa,
     }
 
     league_run_rate = sum(rates[key] * linear_weights[key] for key in ("BB", "HBP", "1B", "2B", "3B", "HR"))
@@ -136,17 +79,17 @@ def get_replacement_hitting_avgs(
 
     for stat in ("1B", "2B", "3B", "HR"):
         if isinstance(stat_line.get(stat), (int, float)):
-            stat_line[stat] = _num(stat_line[stat]) * hit_scale
+            stat_line[stat] = num(stat_line[stat]) * hit_scale
 
-    ab = _num(stat_line.get("AB"))
-    bb = _num(stat_line.get("BB"))
-    hbp = _num(stat_line.get("HBP"))
-    sf = _num(stat_line.get("SF"))
+    ab = num(stat_line.get("AB"))
+    bb = num(stat_line.get("BB"))
+    hbp = num(stat_line.get("HBP"))
+    sf = num(stat_line.get("SF"))
 
-    one_b = _num(stat_line.get("1B"))
-    two_b = _num(stat_line.get("2B"))
-    three_b = _num(stat_line.get("3B"))
-    hr = _num(stat_line.get("HR"))
+    one_b = num(stat_line.get("1B"))
+    two_b = num(stat_line.get("2B"))
+    three_b = num(stat_line.get("3B"))
+    hr = num(stat_line.get("HR"))
 
     hits = one_b + two_b + three_b + hr
     total_bases = one_b + (2 * two_b) + (3 * three_b) + (4 * hr)
@@ -163,26 +106,28 @@ def get_replacement_hitting_avgs(
         stat_line["OBP"] = (hits + bb + hbp) / obp_denom
 
     if isinstance(stat_line.get("OBP"), (int, float)) and isinstance(stat_line.get("SLG"), (int, float)):
-        stat_line["OPS"] = _num(stat_line["OBP"]) + _num(stat_line["SLG"])
+        stat_line["OPS"] = num(stat_line["OBP"]) + num(stat_line["SLG"])
 
     ratio = (target_run_rate / league_run_rate) if league_run_rate > 0 else 0.0
     base_line = MLB_SEASON_AVGS[year]
     if isinstance(base_line.get("R/G"), (int, float)):
-        stat_line["R/G"] = _num(base_line.get("R/G")) * ratio
+        stat_line["R/G"] = num(base_line.get("R/G")) * ratio
         stat_line["R"] = stat_line["R/G"]
     if isinstance(base_line.get("RBI"), (int, float)):
-        stat_line["RBI"] = _num(base_line.get("RBI")) * ratio
+        stat_line["RBI"] = num(base_line.get("RBI")) * ratio
 
-    _scale_counting_stats_to_pa_basis(stat_line=stat_line, source_pa=pa, target_pa=REPLACEMENT_RUN_GAP_PA_BASIS)
+    scale_counting_stats_to_pa_basis(stat_line=stat_line, source_pa=pa, target_pa=REPLACEMENT_RUN_GAP_PA_BASIS)
 
     stat_line["_replacement_runs_below_avg"] = runs_below_avg
     stat_line["_replacement_pa_basis"] = REPLACEMENT_RUN_GAP_PA_BASIS
     stat_line["_replacement_hit_scale"] = hit_scale
 
     for key, value in list(stat_line.items()):
-        stat_line[key] = _round_if_float(value)
+        stat_line[key] = round_if_float(value)
 
     return stat_line
+
+
 
 
 def build_replacement_hitting_table(
@@ -216,17 +161,17 @@ def get_replacement_pitching_avgs(
     stat_line = deepcopy(MLB_SEASON_AVGS[year])
     linear_weights = weights or DEFAULT_LINEAR_WEIGHTS
 
-    pa = _num(stat_line.get("PA"))
+    pa = num(stat_line.get("PA"))
     if pa <= 0:
         raise ValueError(f"Invalid PA value for year {year}")
 
     rates = {
-        "BB": _num(stat_line.get("BB")) / pa,
-        "HBP": _num(stat_line.get("HBP")) / pa,
-        "1B": _num(stat_line.get("1B")) / pa,
-        "2B": _num(stat_line.get("2B")) / pa,
-        "3B": _num(stat_line.get("3B")) / pa,
-        "HR": _num(stat_line.get("HR")) / pa,
+        "BB": num(stat_line.get("BB")) / pa,
+        "HBP": num(stat_line.get("HBP")) / pa,
+        "1B": num(stat_line.get("1B")) / pa,
+        "2B": num(stat_line.get("2B")) / pa,
+        "3B": num(stat_line.get("3B")) / pa,
+        "HR": num(stat_line.get("HR")) / pa,
     }
 
     league_run_rate = sum(rates[key] * linear_weights[key] for key in ("BB", "HBP", "1B", "2B", "3B", "HR"))
@@ -242,30 +187,30 @@ def get_replacement_pitching_avgs(
 
     for stat in ("1B", "2B", "3B", "HR"):
         if isinstance(stat_line.get(stat), (int, float)):
-            stat_line[stat] = _num(stat_line[stat]) * hit_scale
+            stat_line[stat] = num(stat_line[stat]) * hit_scale
 
     base_line = MLB_SEASON_AVGS[year]
 
     if isinstance(stat_line.get("SO"), (int, float)) and hit_scale > 0:
-        stat_line["SO"] = _num(base_line.get("SO")) / hit_scale
+        stat_line["SO"] = num(base_line.get("SO")) / hit_scale
 
     if isinstance(stat_line.get("SO9"), (int, float)) and hit_scale > 0:
-        stat_line["SO9"] = _num(base_line.get("SO9")) / hit_scale
+        stat_line["SO9"] = num(base_line.get("SO9")) / hit_scale
 
-    one_b = _num(stat_line.get("1B"))
-    two_b = _num(stat_line.get("2B"))
-    three_b = _num(stat_line.get("3B"))
-    hr = _num(stat_line.get("HR"))
+    one_b = num(stat_line.get("1B"))
+    two_b = num(stat_line.get("2B"))
+    three_b = num(stat_line.get("3B"))
+    hr = num(stat_line.get("HR"))
     hits = one_b + two_b + three_b + hr
     total_bases = one_b + (2 * two_b) + (3 * three_b) + (4 * hr)
 
     stat_line["H"] = hits
     stat_line["TB"] = total_bases
 
-    ab = _num(stat_line.get("AB"))
-    bb = _num(stat_line.get("BB"))
-    hbp = _num(stat_line.get("HBP"))
-    sf = _num(stat_line.get("SF"))
+    ab = num(stat_line.get("AB"))
+    bb = num(stat_line.get("BB"))
+    hbp = num(stat_line.get("HBP"))
+    sf = num(stat_line.get("SF"))
 
     if ab > 0:
         stat_line["BA"] = hits / ab
@@ -276,33 +221,33 @@ def get_replacement_pitching_avgs(
         stat_line["OBP"] = (hits + bb + hbp) / obp_denom
 
     if isinstance(stat_line.get("OBP"), (int, float)) and isinstance(stat_line.get("SLG"), (int, float)):
-        stat_line["OPS"] = _num(stat_line["OBP"]) + _num(stat_line["SLG"])
+        stat_line["OPS"] = num(stat_line["OBP"]) + num(stat_line["SLG"])
 
     ratio = (target_run_rate / league_run_rate) if league_run_rate > 0 else 1.0
     if isinstance(base_line.get("ERA"), (int, float)):
-        stat_line["ERA"] = _num(base_line.get("ERA")) * ratio
+        stat_line["ERA"] = num(base_line.get("ERA")) * ratio
 
     if isinstance(base_line.get("WHIP"), (int, float)):
-        stat_line["WHIP"] = _num(base_line.get("WHIP")) * ratio
+        stat_line["WHIP"] = num(base_line.get("WHIP")) * ratio
 
     # MAKE GO/AO RATIOS FAVOR AO MORE
     if isinstance(base_line.get("GO/AO"), (int, float)):
-        base_go_ao = _num(base_line.get("GO/AO"))
+        base_go_ao = num(base_line.get("GO/AO"))
         adjusted_go_ao = base_go_ao * (0.65)  # Shift towards more fly balls for worse pitchers
         stat_line["GO/AO"] = adjusted_go_ao
 
     if isinstance(base_line.get("R/G"), (int, float)):
-        stat_line["R/G"] = _num(base_line.get("R/G")) * ratio
+        stat_line["R/G"] = num(base_line.get("R/G")) * ratio
         stat_line["R"] = stat_line["R/G"]
 
-    _scale_counting_stats_to_pa_basis(stat_line=stat_line, source_pa=pa, target_pa=REPLACEMENT_RUN_GAP_PA_BASIS)
+    scale_counting_stats_to_pa_basis(stat_line=stat_line, source_pa=pa, target_pa=REPLACEMENT_RUN_GAP_PA_BASIS)
 
     stat_line["_replacement_runs_above_avg"] = runs_above_avg
     stat_line["_replacement_pa_basis"] = REPLACEMENT_RUN_GAP_PA_BASIS
     stat_line["_replacement_hit_scale"] = hit_scale
 
     for key, value in list(stat_line.items()):
-        stat_line[key] = _round_if_float(value)
+        stat_line[key] = round_if_float(value)
 
     return stat_line
 
@@ -356,7 +301,7 @@ def build_replacement_level_stats_for_card(
     card_stats["type"] = player_type.value
     card_stats["year_ID"] = str(year)
     card_stats["team_ID"] = card_stats.get("team_ID") or "MLB"
-    card_stats["lg_ID"] = card_stats.get("lg_ID") or "MLB"
+    card_stats["lg_ID"] = card_stats.get("lg_ID") or "N/A"
     card_stats["PA"] = card_stats.get("PA") or pa_basis
     card_stats["G"] = int(162 * (pa_basis / 650))  # Scale games based on PA basis (assuming 650 PA ~ full season)
     if player_type == PlayerType.PITCHER:

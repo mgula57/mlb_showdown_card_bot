@@ -59,6 +59,7 @@ type CardItemProps = {
     // Misc
     cardIsErrata?: boolean;
     cardNotes?: string;
+    cardIsStatsEstimate?: boolean;
 
     /** Click handler for card selection */
     onClick?: () => void | undefined;
@@ -101,7 +102,7 @@ export const CardItem = ({
     cardCommand, cardIsPitcher,
     cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual,
     cardSpeed, cardHand, cardIp, cardPositionsAndDefenseString,
-    cardIsErrata, cardNotes,
+    cardIsErrata, cardNotes, cardIsStatsEstimate,
     cardPrimaryColor, cardSecondaryColor, cardEdition,
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
@@ -128,6 +129,9 @@ export const CardItem = ({
         backgroundColor: secondaryColor, 
         color: getContrastColor(secondaryColor) 
     };
+
+    // Determine whether the stats have been estimated
+    const isStatsEstimate = cardIsStatsEstimate || (cardLeague && cardEdition === 'WBC' && !['AL', 'NL', 'MLB'].includes(cardLeague)); // WBC cards for MLB players are often estimates
     
     // Dynamic border styling based on selection state and theme
     const borderSettings = isSelected 
@@ -318,10 +322,13 @@ export const CardItem = ({
                     )}
                     {cardStatsPeriod?.type === 'REPLACEMENT' ? (
                         <div className="font-semibold italic text-(--text-secondary)">
-                            No Card Found - Showing Replacement Level Stats
+                            Showing Replacement Level Stats
                         </div>
                     ) : (
                         <>
+                        {isStatsEstimate && (
+                            <span>**</span>
+                        )}
                         {cardStatHighlightsList?.map((stat, index) => (
                             <div key={index} className="">
                                 {stat}
@@ -410,6 +417,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardI
             cardPositionsAndDefenseString={card?.positions_and_defense_string || undefined}
             cardIsErrata={card?.is_errata || false}
             cardNotes={card?.notes || undefined}
+            cardIsStatsEstimate={card?.is_stats_estimate || false}
             cardPrimaryColor={primaryColor}
             cardSecondaryColor={secondaryColor}
             cardEdition={card?.image.edition || undefined}

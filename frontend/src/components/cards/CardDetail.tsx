@@ -271,7 +271,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
 
                         {/* Footnote */}
                         <div className='flex flex-col text-xs leading-tight space-y-2'>
-                            <i>* Indicates a Bot estimated value, real stat unavailable (ex: 1800's, Negro Leagues, PU/FB/GB)</i>
+                            <i>* Indicates a Bot estimated value, real stat unavailable or adjusted (ex: 1800's, Negro Leagues, KBO/NPB, PU/FB/GB)</i>
                             <i>** Chart category was adjusted in post-processing to increase accuracy</i>
                         </div>
 

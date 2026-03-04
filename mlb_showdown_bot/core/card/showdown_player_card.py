@@ -48,6 +48,8 @@ from .trends.trends import TrendDatapoint
 
 from ..supabase import upload_to_supabase
 
+from ..data.stat_reduction import nerf_stats_by_run_value
+
 from ..version import __version__
 
 
@@ -91,6 +93,7 @@ class ShowdownPlayerCard(BaseModel):
     commands_excluded: Optional[list[int]] = []
     is_variable_speed_00_01: bool = False
     is_wotc: bool = False
+    nerf_by_run_value: Optional[float] = None
     
     # ENVIRONMENT
     build_on_init: bool = True
@@ -224,7 +227,17 @@ class ShowdownPlayerCard(BaseModel):
             self.stats_period.stats = full_stats_copy
             stats_period_team = self.stats_period.stats.get('team_ID', None)
             if stats_period_team:
-                self.team = Team(stats_period_team)            
+                self.team = Team(stats_period_team)
+        
+        # IF STATS ARE NERFED
+        if self.nerf_by_run_value:
+            self.stats_period.stats = nerf_stats_by_run_value(
+                stats=self.stats,
+                runs_below_avg=self.nerf_by_run_value,
+                is_pitcher=self.is_pitcher,
+            )
+            self.is_stats_estimate = True
+            self.warnings.append(f"Stats have been nerfed by a run value of {self.nerf_by_run_value}. The purpose is to normalize stats for players coming from different leagues (e.g. KBO, NPB, MINORS) to create a more accurate card against MLB pitching/hitting.")
 
         # UPDATE IMAGE COLORS
         self.image.color_primary = self._team_color_rgb_str()
@@ -265,7 +278,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # STATS DISPLAYED ON FRONTEND
         self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
-        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card)
+        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card if not self.nerf_by_run_value else self.stats)
         self.image.award_summary_list = self._generate_award_summary_list(award_summary=self.stats_for_card.get('award_summary', None))
 
         if show_image or self.image.output_folder_path or self.image.upload_to_supabase:
@@ -2063,7 +2076,7 @@ class ShowdownPlayerCard(BaseModel):
                     position = list(self.positions_and_defense.keys())[0].value
                     if position == Position.LFRF.value:
                         position = 'OF'
-                    position_defense = self.stats_for_card.get('positions', {}).get(position, {}).get(key, None)
+                    position_defense = stats.get('positions', {}).get(position, {}).get(key, None)
                     if position_defense is None:
                         continue
 
@@ -2103,7 +2116,7 @@ class ShowdownPlayerCard(BaseModel):
                 # APPLY PERCENTILE IN ORDER TO RANK
                 # EX: PLAYER WITH 30 HR / 650 PA (PERCENTILE 100% IS 20)
                 #     30 / 20 = 1.5x RATING
-                denominator = (self.stats_for_card.get('PA', 650) / 650) if category.is_pa_metric else 1.0
+                denominator = (stats.get('PA', 650) / 650) if category.is_pa_metric else 1.0
                 is_reversed = category.is_lower_better
                 stat_per_650 = float(stat) / denominator
                 rating = round((cutoff_for_positive_sort_rating / stat_per_650) if is_reversed else (stat_per_650 / cutoff_for_positive_sort_rating), 3)

@@ -249,8 +249,9 @@ def store_wbc_data(
 
             year = record.wbc_season - 1
 
-            # Wipe card if games played was < 3
-            if record.card_data and record.card_data.stats.get('G', 0) < 3:
+            # Wipe card if games played was < 8 if position player, 3 is pitcher
+            cutoff = 3 if record.player_type_for_matching.is_pitcher else 8
+            if record.card_data and record.card_data.stats.get('G', 0) < cutoff:
                 record.card_data = None
 
             # Card Exists from MLB Season - Update theming
@@ -300,8 +301,8 @@ def store_wbc_data(
                     era="DYNAMIC",
                     stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REGULAR_SEASON),
                     stats=stats,
+                    nerf_by_run_value=20 if player_stats.league == "NPB" else 25, # APPLY A NERF
                 )
-                record.card_data.warnings.append(f"This card is populated from the player's performance in the {player_stats.league} league, not MLB. Stats may not be directly comparable to MLB performance.")
                 record.stat_source = player_stats.league
                 roster_progress_rows[record_index]["processed"] = "✅"
                 roster_progress_rows[record_index]["stat_source"] = record.stat_source
@@ -331,8 +332,8 @@ def store_wbc_data(
                     era="DYNAMIC",
                     stats_period=stats_period,
                     stats=stats,
+                    nerf_by_run_value=25
                 )
-                record.card_data.warnings.append(f"This card is populated from the player's performance in the minor leagues, not MLB. Stats may not be directly comparable to MLB performance.")
                 record.stat_source = "MILB"
                 roster_progress_rows[record_index]["processed"] = "✅"
                 roster_progress_rows[record_index]["stat_source"] = record.stat_source
@@ -362,7 +363,7 @@ def store_wbc_data(
                 stats_period=StatsPeriod(year=str(year), type=StatsPeriodType.REPLACEMENT),
                 stats=replacement_stats,
             )
-            record.card_data.warnings.append(f"This player does not have a {year} Showdown card. A replacement level card has been generated based on their position.")
+            record.card_data.warnings.append(f"This player did not have enough stats in MLB, KBO, NPB, or MILB to generate a full card. A replacement level card has been generated based on their position.")
             record.stat_source = "REPLACEMENT"
             roster_progress_rows[record_index]["processed"] = "✅"
             roster_progress_rows[record_index]["stat_source"] = record.stat_source
