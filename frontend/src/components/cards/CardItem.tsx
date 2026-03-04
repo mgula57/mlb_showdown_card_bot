@@ -113,8 +113,8 @@ export const CardItem = ({
     const { isDark } = useTheme();
     const isRedacted = cardId === null || cardId === undefined;
     
-    // Team-specific color handling for better contrast (NYM, SDP use secondary first)
-    const primaryColor = (['NYM', 'SDP'].includes(cardTeam || 'N/A') 
+    // Team-specific color handling for better contrast (NYM, SDP, JPN use secondary first)
+    const primaryColor = (['NYM', 'SDP', 'JPN'].includes(cardTeam || 'N/A') 
         ? cardSecondaryColor
         : cardPrimaryColor) || 'rgb(0, 0, 0)';
     const colorStylingPrimary = { 
@@ -122,7 +122,7 @@ export const CardItem = ({
         color: getContrastColor(primaryColor) 
     };
     
-    const secondaryColor = (['NYM', 'SDP'].includes(cardTeam || 'N/A') 
+    const secondaryColor = (['NYM', 'SDP', 'JPN'].includes(cardTeam || 'N/A') 
         ? cardPrimaryColor
         : cardSecondaryColor) || 'rgb(0, 0, 0)';
     const colorStylingSecondary = { 
