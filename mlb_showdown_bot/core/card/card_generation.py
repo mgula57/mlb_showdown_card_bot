@@ -27,6 +27,24 @@ def clean_kwargs(kwargs: dict) -> dict:
         kwargs = {k.replace(replacement, ''): v for k, v in kwargs.items()}
     return kwargs
 
+def check_for_preprocessed_card(**kwargs) -> ShowdownPlayerCard:
+    """Check if a card with the given parameters has already been generated and stored in the database. If so, return that card instead of generating a new one."""
+    
+    showdown_set = kwargs.get('set', None)
+    name = kwargs.get('name', None)
+    year = kwargs.get('year', None)
+    if not name or not showdown_set or not year:
+        return None
+
+    edition_raw = kwargs.get('edition', None)
+    is_wbc = Edition(edition_raw) == Edition.WBC if edition_raw else False
+
+    if is_wbc and str(year) in ['2025', '2026']:
+        db = PostgresDB()
+        return db.wbc_card_search(name, showdown_set, wbc_season=2026, exclude_mlb_players=True) # HARD CODE 2026 FOR NOW SINCE 2025 WBC NON-MLB CARDS ARE NOT AVAILABLE
+
+    return None
+
 def generate_card(**kwargs) -> dict[str, Any]:
     """
     Responsible for processing Showdown Bot Player Cards across API, CLI, and Web App.
@@ -100,6 +118,32 @@ def generate_card(**kwargs) -> dict[str, Any]:
         stats_period = StatsPeriod(type=stats_period_type, **kwargs)
         stats: dict[str: any] = None
 
+        # CHECK FOR YEAR IN THE FUTURE AND WBC
+        edition_raw = kwargs.get('edition', None)
+        edition = Edition(edition_raw) if edition_raw else None
+        if edition == Edition.WBC and stats_period.year_int and stats_period.year_int == 2026 and datetime.now().month < 4:
+            kwargs['year'] = '2025' # TEMPORARY FIX TO ALLOW WBC 2025 NON-MLB CARDS TO BE GENERATED BEFORE THE 2025 SEASON STARTS. WILL BE REMOVED ONCE 2025 WBC CARDS ARE AVAILABLE.
+            stats_period = StatsPeriod(type=stats_period_type, **kwargs)
+
+        # CHECK FOR PRE-PROCESSED CARD IN DB
+        preprocessed_card = check_for_preprocessed_card(**kwargs)
+        if preprocessed_card:
+            
+            # RESET IMAGE SETTINGS TO WHAT USER INPUTTED
+            image_source = ImageSource(**kwargs)
+            image = ShowdownImage(source=image_source, **kwargs)
+            preprocessed_card.image = image
+            preprocessed_card.generate_card_image()
+
+            additional_logs['error'] = None
+            additional_logs['error_for_user'] = None
+            if db_for_logs: db_for_logs.log_custom_card_submission(card=preprocessed_card, user_inputs=kwargs, additional_attributes=additional_logs)
+
+            final_card_payload = additional_logs
+            final_card_payload['card'] = preprocessed_card.as_json()
+
+            return final_card_payload # STOP PROCESSING
+
         expected_source = Datasource(kwargs.get('datasource', 'BREF'))
         scraper_load_time = None
         match expected_source:
@@ -117,7 +161,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 # GRAB FROM FANGRAPHS IF AVAILABLE
                 if player_data.fangraphs_id:
                     fangraphs_api = FangraphsAPIClient()
-                    fielding_stats_list = fangraphs_api.fetch_fielding_stats(
+                    fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
+                        stat_type="fld",
                         stats_period=stats_period,
                         position="all",
                         fangraphs_player_ids=[str(player_data.fangraphs_id)],
@@ -302,8 +347,12 @@ def generate_card(**kwargs) -> dict[str, Any]:
         elif is_error_cannot_find_bref_page:
             # TRY TO GIVE CONTEXT INTO WHY A BASEBALL REFERENCE PAGE WAS NOT FOUND FOR THE NAME/YEAR
             error_for_user = "Player/year not found on Baseball Reference. "
+            edition_raw = kwargs.get('edition', None)
+            edition = edition_raw if edition_raw and type(edition_raw) == Edition else Edition(edition_raw)
             if is_user_year_before_player_career_start:
                 error_for_user += year_range_error_message
+            elif edition == Edition.WBC:
+                error_for_user += "For non-MLB WBC players, customs are only available for 2025/2026. For MLB WBC players, double check the player was a part of a WBC roster in the year provided or following year."
             else:
                 error_for_user += "If looking for a rookie try using their bref id as the name (ex: 'ramirjo01')"
         elif is_user_year_before_player_career_start:

@@ -1,4 +1,5 @@
 from enum import Enum
+from .color import color_name
 
 class Nationality(Enum):
 
@@ -322,3 +323,7 @@ class WBCTeam(Enum):
         
         return ""
     
+    def color_name(self, is_secondary: bool = False) -> str:
+        """Returns the name of the primary or secondary color for this team, based on the RGB values. Uses the `color_name` function to determine closest color name."""
+        color_tuple = self.secondary_color if is_secondary else self.primary_color
+        return color_name(color_tuple)

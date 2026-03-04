@@ -3428,6 +3428,9 @@ class ShowdownPlayerCard(BaseModel):
             edition_extension = ''
             default_template_color = self.player_type.template_color_04_05
             team_color_name = self.team.color_name(year=self.median_year, is_secondary=self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
+            if self.image.special_edition == SpecialEdition.WBC and self.wbc_team:
+                team_color_name = self.wbc_team.color_name(is_secondary=self.image.use_secondary_color)
+
             if self.image.edition.template_color_0405:
                 edition_extension = f'-{self.image.edition.template_color_0405}'
             elif self.image.special_edition == SpecialEdition.NATIONALITY or self.image.special_edition == SpecialEdition.WBC:
@@ -5664,7 +5667,7 @@ class ShowdownPlayerCard(BaseModel):
         # WBC/NATIONALITY SPECIAL EDITIONS
         is_wbc = self.image.special_edition == SpecialEdition.WBC and self.wbc_team and self.wbc_year
         if is_wbc or self.image.special_edition == SpecialEdition.NATIONALITY:
-            components_dict = { c:v for c, v in special_components_for_context.items() if c not in [PlayerImageComponent.NAME_CONTAINER_2000, PlayerImageComponent.BACKGROUND] }
+            components_dict = { c:v for c, v in special_components_for_context.items() if c not in [PlayerImageComponent.NAME_CONTAINER_2000, PlayerImageComponent.BACKGROUND, PlayerImageComponent.SHADOW] }
             components_dict.update({
                 PlayerImageComponent.GLOW: None,
             })
@@ -5789,6 +5792,12 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           String with full image path.
         """
+
+        if self.image.special_edition == SpecialEdition.WBC and self.wbc_team and self.wbc_year:
+            logo_name = f'{self.wbc_team.value}{self.wbc_team.logo_extension(self.wbc_year)}.png'
+            wbc_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'wbc', 'team_logos', logo_name)
+            if os.path.exists(wbc_logo_path):
+                return wbc_logo_path
 
         alternate_substring = '-A'
         is_alternate = alternate_substring in name

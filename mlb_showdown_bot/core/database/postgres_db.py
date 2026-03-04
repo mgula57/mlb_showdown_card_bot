@@ -4148,8 +4148,8 @@ class PostgresDB:
                     roster_slot.card_data.image.expansion,
                     roster_slot.card_data.image.edition,
                     roster_slot.card_data.stats_period.year_int,
-                    roster_slot.card_data.player_type.value if roster_slot.card_data.player_type else None,
-                    roster_slot.card_data.player_type_override.value if roster_slot.card_data.player_type_override else None,
+                    roster_slot.card_data.player_type.value.upper() if roster_slot.card_data.player_type else None,
+                    roster_slot.card_data.player_type_override.value.upper() if roster_slot.card_data.player_type_override else None,
                     roster_slot.card_data.stats.get('G', 0),
                     roster_slot.card_data.stats.get('GS', 0),
                     roster_slot.card_data.stats.get('PA', 0),
@@ -4377,6 +4377,54 @@ class PostgresDB:
         except Exception as e:
             print(f"ERROR fetching WBC card data: {e}")
             return []
+
+    def wbc_card_search(self, name:str, set: str, wbc_season: int, exclude_mlb_players: bool = True) -> Optional[ShowdownPlayerCard]:
+        """Search for WBC cards based on various input parameters. Used for WBC card generation and reference.
+
+        Args:
+            name: The player's name to search for (can be full name or partial).
+            set: The showdown set to filter the cards by (e.g. '2000', '2001', 'CLASSIC').
+            wbc_season: The WBC season (year) to filter the cards by.
+
+        Returns:
+            A ShowdownPlayerCard instance containing the card data for the first matching WBC card, or None if no matching card is found or if there's an error.
+        """
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return None
+        
+        query_sql = '''
+            SELECT 
+                card_data
+            FROM public.card_wbc
+            WHERE true
+                AND name ILIKE %s
+                AND showdown_set = %s
+                AND wbc_season = %s
+        '''
+        if exclude_mlb_players:
+            query_sql += " AND stat_source != 'MLB'"
+        query_sql += " LIMIT 1;"
+        try:
+            filter_values = (
+                f"%{unidecode(name)}%",
+                set,
+                wbc_season
+            )
+            results = self.execute_query(query=query_sql, filter_values=filter_values)
+            if results and len(results) > 0:
+                card_data_json = results[0]['card_data']
+                if card_data_json is not None:
+                    try:
+                        card_data = ShowdownPlayerCard(**card_data_json)
+                        return card_data
+                    except Exception as e:
+                        print(f"ERROR parsing WBC card data: {e}")
+                        return None
+            return None
+        except Exception as e:
+            print(f"ERROR searching for WBC cards with name {name} and set {set}: {e}")
+            return None
 
 # -----------------------------------------------------------------------
 # NPB AND KBO DATA

@@ -1008,7 +1008,7 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
                         ))}
 
                         {/* Add Blank element with width of 32 */}
-                        <div className="flex-shrink-0 w-16"></div>
+                        <div className="shrink-0 w-16"></div>
                     </div>
 
                     {/* Reset Button */}
