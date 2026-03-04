@@ -19,7 +19,7 @@ import ReactCountryFlag from "react-country-flag";
 import { countryCodeForTeam } from "../../functions/flags";
 import StandingsTab from "./Standings";
 
-import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft } from "react-icons/fa6";
+import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaEarthAmericas, FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft } from "react-icons/fa6";
 
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 
@@ -134,6 +134,16 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             value: sport.id.toString(),
             label: sport.abbreviation || ""
         }));
+
+    const teamOptions: SelectOption[] = teams
+        .map((team) => {
+            const teamKey = `${team.id}-${team.season}`;
+            const teamLabel = `${team.abbreviation || team.name}${team.season ? ` (${team.season})` : ""}`;
+            return {
+                value: teamKey,
+                label: teamLabel,
+            };
+        });
 
     const tabs = [
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
@@ -490,7 +500,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="relative flex flex-1 gap-x-2 items-center justify-start px-3 py-2.5 text-sm rounded-lg
                                                    data-[state=active]:bg-(--background-quaternary)
                                                    data-[state=active]:font-bold
-                                                   data-[state=active]:text-(--showdown-red)
+                                                   data-[state=active]:text-(--showdown-blue)
                                                    data-[state=inactive]:text-tertiary
                                                    data-[state=inactive]:font-medium
                                                    data-[state=inactive]:hover:bg-(--divider)"
@@ -585,7 +595,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     <>
                         <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="lg:h-full lg:min-h-0">
                             <div className={`grid grid-cols-1 ${isSidebarCollapsed ? 'lg:grid-cols-[3.25rem_minmax(0,1fr)]' : 'lg:grid-cols-[18.5rem_minmax(0,1fr)]'} transition-[grid-template-columns] duration-300 ease-in-out gap-y-5 lg:h-full lg:min-h-0 lg:overflow-hidden`}>
-                                <div className={`order-1 lg:h-full lg:min-h-0 overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${isSidebarCollapsed ? 'max-h-16' : 'max-h-480'} lg:max-h-480`}>
+                                <div className={`hidden lg:block order-1 lg:h-full lg:min-h-0 overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${isSidebarCollapsed ? 'max-h-16' : 'max-h-480'} lg:max-h-480`}>
                                     {isSidebarCollapsed ? (
                                         <aside className="w-full p-2 lg:pt-6 lg:sticky lg:top-0 lg:self-start lg:min-h-0">
                                             <div className="rounded-2xl border border-(--divider) bg-(--background-secondary) overflow-hidden lg:h-full">
@@ -627,6 +637,68 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                 </div>
 
                                 <div className="min-w-0 order-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
+                                    <div className="lg:hidden mb-4 rounded-2xl space-y-4">
+                                        <div className="space-y-2">
+                                            {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
+                                                <div className="font-bold text-2xl">
+                                                    <FaEarthAmericas className="inline-block mr-2" />
+                                                    {title}
+                                                </div>
+                                            )}
+                                            {!(hasStaticSeasons && seasonOptions.length <= 1) && (
+                                                <CustomSelect
+                                                    value={selectedSeason?.season_id.toString() || "2026"}
+                                                    onChange={(value) => setSelectedSeason(seasons.find(season => season.season_id === value) || null)}
+                                                    options={seasonOptions}
+                                                />
+                                            )}
+                                            {!(hasStaticSports && sportOptions.length <= 1) && (
+                                                <CustomSelect
+                                                    value={selectedSport?.id?.toString() || ""}
+                                                    onChange={(value) => setSelectedSport(sports.find(sport => sport.id.toString() === value) || null)}
+                                                    options={sportOptions}
+                                                />
+                                            )}
+                                            {leagueGroups.length > 1 && (
+                                                <CustomSelect
+                                                    value={selectedLeagueGroup || ""}
+                                                    onChange={(value) => setSelectedLeagueGroup(value || null)}
+                                                    options={leagueGroups.map(group => ({ value: group, label: group }))}
+                                                />
+                                            )}
+                                        </div>
+
+                                        <Tabs.List
+                                            className="grid gap-1 rounded-lg bg-(--background-tertiary) p-1"
+                                            style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+                                        >
+                                            {tabs.map((tab) => (
+                                                <Tabs.Trigger
+                                                    key={tab.id}
+                                                    value={tab.id}
+                                                    className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs rounded-md
+                                                               data-[state=active]:bg-(--background-quaternary)
+                                                               data-[state=active]:font-bold
+                                                               data-[state=active]:text-(--showdown-blue)
+                                                               data-[state=inactive]:text-tertiary"
+                                                >
+                                                    <span className="text-(--text-secondary)">{tab.icon}</span>
+                                                    <span>{tab.label}</span>
+                                                </Tabs.Trigger>
+                                            ))}
+                                        </Tabs.List>
+
+                                        {activeTab === "teams" && (
+                                            <CustomSelect
+                                                value={selectedTeamKey ?? ""}
+                                                onChange={(value) => {
+                                                    const team = teams.find((candidate) => `${candidate.id}-${candidate.season}` === value) ?? null;
+                                                    setSelectedTeam(team);
+                                                }}
+                                                options={teamOptions}
+                                            />
+                                        )}
+                                    </div>
 
                                     {/* Standings Tab */}
                             		<Tabs.Content
