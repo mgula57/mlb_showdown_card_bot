@@ -133,7 +133,9 @@ def generate_card(**kwargs) -> dict[str, Any]:
             image_source = ImageSource(**kwargs)
             image = ShowdownImage(source=image_source, **kwargs)
             preprocessed_card.image = image
-            preprocessed_card.generate_card_image()
+            preprocessed_card.generate_card_image(show=kwargs.get('show_image', False))
+
+            if kwargs.get('print_to_cli', False): preprocessed_card.print_player()
 
             additional_logs['error'] = None
             additional_logs['error_for_user'] = None

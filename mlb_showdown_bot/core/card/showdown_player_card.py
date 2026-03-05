@@ -69,6 +69,7 @@ class ShowdownPlayerCard(BaseModel):
     # DERIVED
     bref_id: str = ''
     bref_url: str = ''
+    mlb_id: Optional[int] = None
     league: str | None = 'MLB'
     team: Team | None = Team.MLB
     nationality: Nationality | None = Nationality.NONE
@@ -5027,11 +5028,11 @@ class ShowdownPlayerCard(BaseModel):
 
                 if local_folder_path:
                     # USE LOCAL FOLDER AS DIRECTORY
-                    img_components_dict = self._query_local_drive_for_auto_images(folder_path=local_folder_path, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
+                    img_components_dict = self._query_local_drive_for_auto_images(folder_path=local_folder_path, components_dict=img_components_dict, bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
                 else:
                     # USE FIREBASE AS DIRECTORY
                     folder_id = self.set.player_image_gdrive_folder_id
-                    file_service, img_components_dict = self._query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
+                    file_service, img_components_dict = self._query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
             
             # ADD SILHOUETTE IF NECESSARY
             non_empty_components = [typ for typ in self.image_component_ordered_list if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
@@ -5344,13 +5345,14 @@ class ShowdownPlayerCard(BaseModel):
 
         return image
 
-    def _query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int = None) -> dict[PlayerImageComponent, str]:
+    def _query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None) -> dict[PlayerImageComponent, str]:
         """Attempts to query local drive for a player image, if it does not exist use siloutte background.
 
         Args:
           folder_path: Path to folder where images are stored.
           components_dict: Dict of all the image types to included in the image.
           bref_id: Unique ID for the player.
+          mlb_id: Unique MLB ID for the player.
           year: Year(s) of card.
 
         Returns:
@@ -5367,12 +5369,12 @@ class ShowdownPlayerCard(BaseModel):
             return components_dict
 
         # SEARCH FILES FOR BREF ID MATCHES
-        file_matches_bref_id = [{'id': os.path.join(folder_path, f), 'name': f } for f in files if f'({bref_id})' in f]
+        file_matches_bref_id = [{'id': os.path.join(folder_path, f), 'name': f } for f in files if (f'({bref_id})' in f or (mlb_id and str(mlb_id) in f))]
         file_matches_metadata_dict = self._img_file_matches_dict(files_metadata=file_matches_bref_id, components_dict=components_dict, bref_id=bref_id, year=year)
         
         return file_matches_metadata_dict
 
-    def _query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int = None) -> tuple:
+    def _query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None) -> tuple:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -5380,6 +5382,7 @@ class ShowdownPlayerCard(BaseModel):
           folder_id: Unique ID for folder in drive (found in URL)
           components_dict: Dict of all the image types to included in the image.
           bref_id: Unique ID for the player.
+          mlb_id: Unique MLB ID for the player.
           additional_substring_search_list: List of strings to filter down results in case of multiple results.
           year: Year(s) of card.
 
@@ -5415,7 +5418,10 @@ class ShowdownPlayerCard(BaseModel):
         while True and failure_number < 3:
             try:
                 bref_id_cleaned = bref_id.replace("'",'')
-                query = f"parents = '{folder_id}' and name contains '({bref_id_cleaned})'"
+                query = f"parents = '{folder_id}' and (name contains '({bref_id_cleaned})'"
+                if mlb_id:
+                    query += f" or name contains '({mlb_id})'"
+                query += ")"
                 file_service = service.files()
                 response = file_service.list(q=query,pageSize=1000,pageToken=page_token).execute()
                 new_files_list = response.get('files')
@@ -5458,7 +5464,8 @@ class ShowdownPlayerCard(BaseModel):
             file_name = img_file[file_name_key]
             num_components_in_filename = len([c for c in components_dict.keys() if f'{c.source_name}-' in file_name])
             bref_id = bref_id.replace("'",'')
-            if bref_id in file_name and num_components_in_filename > 0:
+            mlb_id = str(self.mlb_id) if self.mlb_id else 'N/A'
+            if (bref_id in file_name or mlb_id in file_name) and num_components_in_filename > 0:
                 component_name = file_name.split('-')[0].upper()
                 component = PlayerImageComponent(component_name)
                 current_files_for_component = component_player_file_matches_dict.get(component, [])
@@ -5471,6 +5478,8 @@ class ShowdownPlayerCard(BaseModel):
                 component_player_file_matches_dict[component] = current_files_for_component
 
         # CHECK THAT THERE ARE MATCHES IN EACH COMPONENT
+        print(f"Matches found for {self.name} ({self.year}):")
+        print(component_player_file_matches_dict)
         num_matches_per_component = [len(matches) for _, matches in component_player_file_matches_dict.items()]
         if len(num_matches_per_component) == 0:
             return components_dict
@@ -5532,6 +5541,10 @@ class ShowdownPlayerCard(BaseModel):
 
         # IF POSTSEASON IMAGE BUT NOT POSTSEASON CARD, REDUCE ACCURACY
         if '(POST)' in img_name and self.stats_period.type != StatsPeriodType.POSTSEASON:
+            match_score -= 2
+
+        # IF WBC IMAGE BUT NOT WBC CARD, REDUCE ACCURACY
+        if '(WBC_' in img_name and self.image.special_edition != SpecialEdition.WBC:
             match_score -= 2
 
         return match_score

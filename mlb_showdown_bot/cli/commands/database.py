@@ -259,6 +259,7 @@ def store_wbc_data(
                 # Adjust card settings to add WBC edition and theming
                 record.card_data.wbc_team = record.wbc_team
                 record.card_data.wbc_year = record.wbc_season
+                record.card_data.mlb_id = record.mlb_id
                 record.card_data.image.apply_wbc_team_theming(record.wbc_team, record.wbc_season)
                 record.stat_source = "MLB"
                 roster_progress_rows[record_index]["processed"] = "✅"
@@ -290,6 +291,7 @@ def store_wbc_data(
                     name=record.name_safe_for_matching.title(), # Use the name from the WBC roster
                     year=str(year),
                     set=record.showdown_set,
+                    mlb_id=record.mlb_id,
                     wbc_team=record.wbc_team,
                     wbc_year=record.wbc_season,
                     league=player_stats.league,
@@ -321,6 +323,7 @@ def store_wbc_data(
                     name=record.name_safe_for_matching.title(), # Use the name from the WBC roster
                     year=str(year),
                     set=record.showdown_set,
+                    mlb_id=record.mlb_id,
                     wbc_team=record.wbc_team,
                     wbc_year=record.wbc_season,
                     league="MILB",
@@ -353,6 +356,7 @@ def store_wbc_data(
                 name=record.name_safe_for_matching.title(), # Use the name from the WBC roster, but convert it to title case for better display on the card
                 year=str(record.wbc_season - 1),
                 set=record.showdown_set,
+                mlb_id=record.mlb_id,
                 wbc_team=record.wbc_team,
                 wbc_year=record.wbc_season,
                 image={
