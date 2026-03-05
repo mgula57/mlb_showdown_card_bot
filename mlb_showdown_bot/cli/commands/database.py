@@ -159,6 +159,7 @@ def store_fielding_stats_in_db():
 
 @app.command("store_leaderboard_stats_fangraphs")
 def store_leaderboard_stats_fangraphs(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
     league: str = typer.Option("NPB", "--league", "-l", help="League to fetch stats for (e.g., MLB, NPB, KBO)"),
     season: int = typer.Option(2025, "--season", "-s", help="Season year to fetch NPB stats for"),
     types: str = typer.Option("bat,pit", "--types", "-t", help="Comma-separated list of stat types to fetch (e.g., 'bat,pit')"),
@@ -168,7 +169,7 @@ def store_leaderboard_stats_fangraphs(
     from ...core.archive.player_stats_archive import PostgresDB
     
     print(f"Fetching {league} stats from Fangraphs...")
-    db = PostgresDB()
+    db = PostgresDB(is_archive=env.lower() == "prod")
     fg_api = FangraphsAPIClient()
     for type in types.split(","):
         data = fg_api.fetch_leaderboard_stats(stats_period=StatsPeriod(year=season), stat_type=type, league=league, fangraphs_player_ids=[])  

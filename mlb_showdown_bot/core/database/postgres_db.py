@@ -3981,6 +3981,7 @@ class PostgresDB:
                 showdown_set VARCHAR(50),
                 showdown_bot_version character varying(10),
                 card_data JSONB,
+                card_id VARCHAR(255),
 
                 -- IDS
                 bref_id character varying(10),
