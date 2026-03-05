@@ -164,6 +164,10 @@ interface FilterSelections {
     showdown_set?: string[];
     expansion?: string[];
     edition?: string[];
+
+    // WBC
+    wbc_team?: string[];
+    pro_league?: string[];
 }
 
 /**
@@ -226,6 +230,8 @@ const FILTER_AVAILABILITY: FilterAvailability = {
     // Organization/League filtering might not make sense for WOTC
     organization: [CardSource.BOT],
     league: [CardSource.BOT],
+    wbc_team: [CardSource.WBC],
+    pro_league: [CardSource.WBC],
 
     // Expansion and edition filters - only for WOTC
     expansion: [CardSource.WOTC],
@@ -1353,6 +1359,52 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
                                         selections={filtersForEditing.is_multi_team}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_multi_team: values })}
                                         disabled={isFilterLocked('is_multi_team')}
+                                    />
+                                )}
+
+                                {isFilterAvailable('wbc_team', source) && (
+                                    <MultiSelect
+                                        label="WBC Team"
+                                        options={[
+                                            { value: 'AUS', label: 'AUS' },
+                                            { value: 'BRA', label: 'BRA' },
+                                            { value: 'CAN', label: 'CAN' },
+                                            { value: 'COL', label: 'COL' },
+                                            { value: 'CUB', label: 'CUB' },
+                                            { value: 'CZE', label: 'CZE' },
+                                            { value: 'DOM', label: 'DOM' },
+                                            { value: 'GBR', label: 'GBR' },
+                                            { value: 'ISR', label: 'ISR' },
+                                            { value: 'ITA', label: 'ITA' },
+                                            { value: 'JPN', label: 'JPN' },
+                                            { value: 'KOR', label: 'KOR' },
+                                            { value: 'MEX', label: 'MEX' },
+                                            { value: 'NCA', label: 'NCA' },
+                                            { value: 'NED', label: 'NED' },
+                                            { value: 'PAN', label: 'PAN' },
+                                            { value: 'PUR', label: 'PUR' },
+                                            { value: 'TPE', label: 'TPE' },
+                                            { value: 'USA', label: 'USA' },
+                                            { value: 'VEN', label: 'VEN' },
+                                        ]}
+                                        selections={filtersForEditing.wbc_team || []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, wbc_team: values })}
+                                        disabled={isFilterLocked('wbc_team')}
+                                    />
+                                )}
+
+                                {isFilterAvailable('pro_league', source) && (
+                                    <MultiSelect
+                                        label="Pro League"
+                                        options={[
+                                            { value: 'MLB', label: 'MLB' },
+                                            { value: 'NPB', label: 'NPB' },
+                                            { value: 'KBO', label: 'KBO' },
+                                            { value: 'MILB', label: 'MiLB' },
+                                        ]}
+                                        selections={filtersForEditing.pro_league || []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, pro_league: values })}
+                                        disabled={isFilterLocked('pro_league')}
                                     />
                                 )}
 

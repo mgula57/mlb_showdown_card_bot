@@ -758,6 +758,14 @@ class PostgresDB:
                                     filter_clauses.append(sql.SQL("is_hof = TRUE"))
                                 elif value == ['false']:
                                     filter_clauses.append(sql.SQL("is_hof IS NOT TRUE"))
+                            case 'pro_league':
+                                # Use the 'league' field for filtering since 'pro_league_list' is only used for WBC and would be empty for other sources
+                                placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(value))
+                                filter_clauses.append(sql.SQL("{field} IN ({placeholders})").format(
+                                    field=sql.Identifier("league"),
+                                    placeholders=placeholders
+                                ))
+                                filter_values.extend(value)
                                 
                             case _:
                                 # Regular IN clause for non-array fields
