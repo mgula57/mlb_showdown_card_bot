@@ -659,7 +659,7 @@ Use Editions to add style variety to your cards. There are currently 6 different
 4. [All-Star Game](#all-star-game)
 5. [Rookie Season](#rookie-season)
 6. [Holiday](#holiday)
-7. [WBC] (#wbc)
+7. [WBC](#wbc)
 
 ### **Cooperstown Collection**
 
@@ -833,13 +833,23 @@ The Holiday theme adds a simple Christmas Tree inspired border to any card. This
 
 ### **WBC**
 
-WBC Cards use the player's prior year stats. Note it will only work using:
+![Image](./docs/images/RM-WBC.png)
+
+Adds a WBC theme to your cards for players who participated in the tournament. You can apply it to any MLB player from:
 
 - The year before the WBC
 - The year of the WBC
-- Combo of the year before and current year
+- A combination of the year before and the current year
 
-For example if you were looking to do a David Wright ...
+For the 2026 WBC, you can also make cards for players in NPB, KBO, or the Minors. There are a few limitations:
+
+- No defensive stats are available. The bot assigns average defense at each position where players are listed on Fangraphs and MLB.com.
+- To create a level playing field with MLB players, KBO, NPB, and MiLB cards are slightly nerfed by reducing their stat lines by a "run value":
+  - NPB: -20 Run Value
+  - KBO: -25 Run Value
+  - MiLB: -25 Run Value
+- If a WBC player is not part of MLB, NPB, KBO, or MiLB, they are given replacement-level card stats.
+
 
 ### **Postseason**
 

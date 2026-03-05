@@ -6,6 +6,7 @@
  * labeling and layout, commonly used throughout the card customization interface.
  */
 
+import { type ReactNode } from "react";
 import { type SelectOption } from "../shared/CustomSelect";
 import CustomSelect from "../shared/CustomSelect";
 
@@ -14,7 +15,7 @@ import CustomSelect from "../shared/CustomSelect";
  */
 type FormDropdownProps = {
     /** Display label for the dropdown field */
-    label: string;
+    label: ReactNode;
     /** Array of selectable options with display and value properties */
     options: SelectOption[];
     /** Currently selected option value */
@@ -58,7 +59,7 @@ const FormDropdown = ({ label, options, selectedOption, onChange, className="", 
     return (
         <div className={className}>
             {/* Form label with consistent styling */}
-            <label className="text-sm font-medium text-secondary">{label}</label>
+            <label className="text-sm font-medium text-secondary block">{label}</label>
 
             {/* Dropdown selection component */}
             <CustomSelect
