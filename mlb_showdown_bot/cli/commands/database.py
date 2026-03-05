@@ -218,7 +218,7 @@ def store_wbc_data(
         # Get MLB API Metadata for all missing players
         # Used to extract handedness
         missing_player_ids = list(set([record.mlb_id for record in wbc_rosters if record.card_data is None]))
-        non_mlb_player_metadata = _mlb_api.people.get_players(missing_player_ids)
+        non_mlb_player_metadata = _mlb_api.people.get_players(missing_player_ids) if missing_player_ids else []
         
         # Get stats for other leagues for players missing card matches to try to fill in gaps
         all_fangraph_stats: list[FangraphsLeaderboardRecord] = []
