@@ -18,6 +18,7 @@ import CardCommand from "../cards/card_elements/CardCommand";
 import { CardItemFromCardDatabaseRecord } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
+import { getContrastColor } from "../shared/Color";
 
 type CardMap = Record<number, CardDatabaseRecord>;
 
@@ -405,7 +406,7 @@ function LiveSituation({ linescore, isRefreshing, cardMap, onCardSelect }: { lin
                     )}
                 </div>
 
-                <div className="text-xs text-yellow-500 italic">
+                <div className="text-xs text-yellow-600 italic">
                     Updates every 30s
                 </div>
             </div>
@@ -765,7 +766,8 @@ function PointsBadge({ points, bg_color }: { points: number, bg_color?: string |
     return (
         <span 
             className="inline-flex items-center justify-center min-w-5 px-1 py-0.5 rounded-full text-[10px] font-bold leading-none"
-            style={{ backgroundColor: bg_color ?? 'var(--text-secondary)/15' }}    
+            style={
+                { backgroundColor: bg_color ?? 'var(--text-secondary)/15', color: getContrastColor(bg_color ?? 'var(--text-secondary)/15') }}    
         >
             {points}
         </span>

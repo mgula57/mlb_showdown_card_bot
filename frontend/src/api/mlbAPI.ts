@@ -91,22 +91,22 @@ const getDateInTimeZone = (timeZone: string): string => {
 };
 
 export const fetchSchedule = async (sportId: number, season: Season, date?: string, league?: League, showdownSet?: string): Promise<Schedule> => {
-    const url = new URL(`${API_BASE}/schedule?season=${season.season_id}&sport_id=${sportId}`);
+    var url = `${API_BASE}/schedule?season=${season.season_id}&sport_id=${sportId}`;
     const userTimeZone = getUserTimeZone();
-    url.searchParams.append('tz_name', userTimeZone);
+    url += `&tz_name=${encodeURIComponent(userTimeZone)}`;
     if (date) {
-        url.searchParams.append('date', date);
+        url += `&date=${encodeURIComponent(date)}`;
     }
     if (league) {
-        url.searchParams.append('league_id', league.id.toString());
+        url += `&league_id=${encodeURIComponent(league.id.toString())}`;
     }
     if (showdownSet) {
-        url.searchParams.append('showdown_set', showdownSet);
+        url += `&showdown_set=${encodeURIComponent(showdownSet)}`;
     }
-    url.searchParams.append('include_probable_pitchers', 'true');
-    url.searchParams.append('include_linescore', 'true');
-    url.searchParams.append('include_decisions', 'true');
-    const response = await fetch(url.toString());
+    url += `&include_probable_pitchers=true`;
+    url += `&include_linescore=true`;
+    url += `&include_decisions=true`;
+    const response = await fetch(url);
     if (!response.ok) {
         throw new Error(`Failed to fetch games for season ${season.season_id}: ${response.statusText}`);
     }
