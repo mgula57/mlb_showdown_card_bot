@@ -27,7 +27,7 @@ export default function SidebarPanel({ title, subtitle, sections, className = ""
                     <div>
                         <h2 className="flex text-lg font-bold text-(--text-primary) items-center">
                             {title}
-                            <span className="ml-2 text-xs font-semibold bg-amber-500 rounded-md px-2">BETA</span>
+                            <span className="ml-2 text-xs font-semibold bg-red-500 text-white rounded-md px-2">BETA</span>
                         </h2>
                         {subtitle && <p className="mt-1 text-xs text-(--text-secondary)">{subtitle}</p>}
                     </div>

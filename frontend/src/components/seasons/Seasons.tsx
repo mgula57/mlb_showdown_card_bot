@@ -143,7 +143,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     const [standings, setStandings] = useState<{ [leagueAbbreviation: string]: Standings[] }>({});
 
-    const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "standings");
+    const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "schedule");
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => getStoredValue(STORAGE_KEYS.sidebarCollapsed) === "true");
     const [starredTeamKeys, setStarredTeamKeys] = useState<string[]>(() => {
         const stored = getStoredValue(STORAGE_KEYS.starredTeams);
@@ -858,7 +858,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 <div className="flex items-center font-bold text-2xl">
                                                     <FaEarthAmericas className="inline-block mr-2" />
                                                     {title}
-                                                    <span className="ml-2 text-xs font-semibold bg-amber-500 rounded-md px-2">BETA</span>
+                                                    <span className="ml-2 text-xs font-semibold bg-red-500 rounded-md px-2">BETA</span>
                                                 </div>
                                             )}
                                             {!(hasStaticSeasons && seasonOptions.length <= 1) && (
