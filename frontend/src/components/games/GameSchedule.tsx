@@ -50,6 +50,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId }:
                     const awayScore = game.teams?.away?.score;
                     const homeScore = game.teams?.home?.score;
                     const isFinal = game.status?.coded_game_state === 'F' || game.status?.status_code === 'F';
+                    const hasStarted = game.status?.coded_game_state === 'F' || game.status?.coded_game_state === 'I' || game.status?.coded_game_state === 'P' || game.status?.coded_game_state === 'L' || game.status?.coded_game_state === 'M' || game.status?.coded_game_state === 'D';
 
                     const awayCountryCode = countryCodeForTeam(sportId || 0, awayAbbr);
                     const homeCountryCode = countryCodeForTeam(sportId || 0, homeAbbr);
@@ -70,7 +71,15 @@ export default function GameSchedule({ games, dateLabel, description, sportId }:
                             </div>
 
                             <div className="py-2 text-md font-extrabold text-(--text-primary)">
-                                {isFinal ? "FINAL" : formatGameTime(game.game_date)}
+                                {isFinal && (
+                                    <><span>FINAL</span></>
+                                )}
+                                {!isFinal && hasStarted && (
+                                    <span>{game.status?.detailed_state}</span>
+                                )}
+                                {!isFinal && !hasStarted && (
+                                    <span>{formatGameTime(game.game_date)}</span>
+                                )}
                             </div>
 
                             <div className="border-t border-(--divider)" />
@@ -86,7 +95,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId }:
                                             <span className="text-[11px] font-semibold text-(--text-secondary)">{awayRecord.wins ?? 0} - {awayRecord.losses ?? 0}</span>
                                         )}
                                     </div>
-                                    {isFinal && awayScore != null && (
+                                    {hasStarted && awayScore != null && (
                                         <span className="text-lg font-black text-(--text-primary)">{awayScore}</span>
                                     )}
                                 </div>
@@ -101,7 +110,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId }:
                                             <span className="text-[12px] font-semibold text-(--text-secondary)">{homeRecord.wins ?? 0} - {homeRecord.losses ?? 0}</span>
                                         )}
                                     </div>
-                                    {isFinal && homeScore != null && (
+                                    {hasStarted && homeScore != null && (
                                         <span className="text-lg font-black text-(--text-primary)">{homeScore}</span>
                                     )}
                                 </div>
@@ -110,14 +119,14 @@ export default function GameSchedule({ games, dateLabel, description, sportId }:
                             {(awayPitcherCard || homePitcherCard) && (
                                 <>
                                     <div className="border-t border-(--divider) my-2" />
-                                    <div className="flex justify-between">
+                                    <div className="flex justify-between items-center">
                                         <div className="flex gap-1 items-center">
                                             {sportId === 51 && awayCountryCode && (
                                                 <ReactCountryFlag countryCode={awayCountryCode} svg style={{ width: '1.0em', height: '1.0em' }} />
                                             )}
                                             <span className="text-sm font-black text-(--text-primary)">{awayAbbr}</span>
                                         </div>
-                                        vs
+                                        <span className="text-[10px]">Probables</span>
                                         <div className="flex gap-1 items-center">
                                             {sportId === 51 && homeCountryCode && (
                                                 <ReactCountryFlag countryCode={homeCountryCode} svg style={{ width: '1.0em', height: '1.0em' }} />

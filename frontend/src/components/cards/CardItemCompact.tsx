@@ -22,6 +22,7 @@ export const CardItemCompact = ({
     const { isDark } = useTheme();
     const containerRef = useRef<HTMLButtonElement | null>(null);
     const [hidePoints, setHidePoints] = useState(false);
+    const [showExtraDetails, setShowExtraDetails] = useState(false);
 
     const primaryColor = (['NYM', 'SDP', 'JPN'].includes(card?.team || 'N/A')
         ? card?.color_secondary
@@ -74,6 +75,7 @@ export const CardItemCompact = ({
         const updateHidePoints = () => {
             const width = element.getBoundingClientRect().width || element.clientWidth;
             setHidePoints(width < 100);
+            setShowExtraDetails(width >= 180);
         };
 
         updateHidePoints();
@@ -145,6 +147,12 @@ export const CardItemCompact = ({
                     )}
                 </div>
             </div>
+
+            {showExtraDetails && (
+                <div className="shrink-0 max-w-30 text-right text-[12px] font-bold text-(--text-tertiary) truncate">
+                    {card?.positions_and_defense_string || (card?.is_pitcher ? `IP ${card?.ip ?? 0}` : 'No position data')}
+                </div>
+            )}
         </button>
     );
 };
