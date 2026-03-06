@@ -308,6 +308,7 @@ export type ShowdownBotCard = {
     // Baseball Reference integration
     /** Baseball Reference player ID */
     bref_id: string;
+    mlb_id?: number | null;
     
     /** Full Baseball Reference player URL */
     bref_url: string;
@@ -379,6 +380,21 @@ export type ShowdownBotCard = {
     notes?: string | null;
 };
 
+export type ShowdownBotCardCompact = {
+    id: string;
+    name: string;
+    year: string | number;
+    set: string;
+    points: number;
+    command: number;
+    is_pitcher: boolean;
+    color_primary: string | null;
+    color_secondary: string | null;
+    team: string | null;
+    positions_and_defense_string: string | null;
+    ip: number | null;
+
+}
 // =============================================================================
 // MARK: - CARD IMAGE & VISUAL TYPES
 // =============================================================================

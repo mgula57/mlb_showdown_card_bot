@@ -9,7 +9,7 @@
  * @version 4.0
  */
 
-import { type ShowdownBotCard } from "./showdownBotCard";
+import { type ShowdownBotCard, type ShowdownBotCardCompact } from "./showdownBotCard";
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -67,6 +67,54 @@ export const fetchTeamRoster = async (season: Season, teamId: number, rosterType
     }
     const data = await response.json();
     return data.roster as Roster;
+}
+
+const getUserTimeZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
+
+const getDateInTimeZone = (timeZone: string): string => {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+
+    if (!year || !month || !day) {
+        return new Date().toISOString().split('T')[0];
+    }
+
+    return `${year}-${month}-${day}`;
+};
+
+export const fetchSchedule = async (sportId: number, season: Season, date?: string, league?: League, showdownSet?: string): Promise<Schedule> => {
+    const url = new URL(`${API_BASE}/schedule?season=${season.season_id}&sport_id=${sportId}`);
+    const userTimeZone = getUserTimeZone();
+    url.searchParams.append('tz_name', userTimeZone);
+    if (date) {
+        url.searchParams.append('date', date);
+    }
+    if (league) {
+        url.searchParams.append('league_id', league.id.toString());
+    }
+    if (showdownSet) {
+        url.searchParams.append('showdown_set', showdownSet);
+    }
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+        throw new Error(`Failed to fetch games for season ${season.season_id}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.schedule as Schedule;
+}
+
+export const fetchTodaysSchedule = async (sportId: number, season: Season, league?: League, showdownSet?: string): Promise<Schedule> => {
+    const userTimeZone = getUserTimeZone();
+    const today = getDateInTimeZone(userTimeZone);
+    return fetchSchedule(sportId, season, today, league, showdownSet);
 }
 
 // ***************************
@@ -146,6 +194,113 @@ export interface Standings {
     team_records?: TeamRecords[];
 }
 
+export type GameType =
+    | 'S' // Spring Training
+    | 'R' // Regular Season
+    | 'F' // Wild Card
+    | 'D' // Division Series
+    | 'L' // League Championship Series
+    | 'W' // World Series
+    | 'C' // Championship
+    | 'N' // Nineteenth Century Series
+    | 'P' // Playoffs
+    | 'A' // All-Star Game
+    | 'I' // Intrasquad
+    | 'E'; // Exhibition
+
+export interface GameStatus {
+    abstract_game_state?: string;
+    coded_game_state?: string;
+    detailed_state?: string;
+    status_code?: string;
+    start_time_tbd?: boolean;
+    abstract_game_code?: string;
+}
+
+export interface GameLeagueRecord {
+    wins?: number;
+    losses?: number;
+    pct?: string;
+}
+
+export interface GameTeamLine {
+    team?: Team;
+    league_record?: GameLeagueRecord;
+    score?: number;
+    is_winner?: boolean;
+    split_squad?: boolean;
+    series_number?: number;
+
+    probable_pitcher?: {
+        id?: number;
+        full_name?: string;
+        link?: string;
+
+        card?: ShowdownBotCardCompact;
+    }
+}
+
+export interface GameTeams {
+    away?: GameTeamLine;
+    home?: GameTeamLine;
+}
+
+export interface GameVenue {
+    id: number;
+    name?: string;
+    link?: string;
+}
+
+export interface GameContent {
+    link?: string;
+}
+
+export interface GameScheduled {
+    game_pk: number;
+    game_guid?: string;
+    link?: string;
+    game_type?: GameType;
+    season?: string;
+    game_date?: string;
+    official_date?: string;
+
+    status?: GameStatus;
+    teams?: GameTeams;
+    venue?: GameVenue;
+    content?: GameContent;
+
+    is_tie?: boolean;
+    game_number?: number;
+    public_facing?: boolean;
+    double_header?: string;
+    gameday_type?: string;
+    tiebreaker?: string;
+    calendar_event_id?: string;
+    season_display?: string;
+    day_night?: string;
+    description?: string;
+    scheduled_innings?: number;
+    reverse_home_away_status?: boolean;
+    inning_break_length?: number;
+    games_in_series?: number;
+    series_game_number?: number;
+    series_description?: string;
+    record_source?: string;
+    if_necessary?: string;
+    if_necessary_description?: string;
+}
+
+export interface Schedule {
+    total_items?: number;
+    total_events?: number;
+    total_games?: number;
+    total_games_in_progress?: number;
+
+    date?: string;
+    dates?: Schedule[];
+    games?: GameScheduled[];
+}
+
 export interface Roster {
 
     roster_type: 'active' | '40Man' | 'fullSeason' | 'fullRoster' | 'gameday' | 'depthChart';
@@ -181,3 +336,4 @@ export interface Player {
     points?: number;
     showdown_card_data?: ShowdownBotCard;
 }
+

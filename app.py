@@ -27,12 +27,14 @@ from mlb_showdown_bot.api.search import search_bp
 from mlb_showdown_bot.api.card_db import card_db_bp
 from mlb_showdown_bot.api.feature_status import feature_status_bp
 from mlb_showdown_bot.api.seasons import seasons_bp
+from mlb_showdown_bot.api.schedule import schedule_bp
 
 app.register_blueprint(cards_bp, url_prefix='/api')
 app.register_blueprint(search_bp, url_prefix='/api')
 app.register_blueprint(card_db_bp, url_prefix='/api')
 app.register_blueprint(feature_status_bp, url_prefix='/api')
 app.register_blueprint(seasons_bp, url_prefix='/api')
+app.register_blueprint(schedule_bp, url_prefix='/api')
 
 @app.route('/static/output/<path:filename>')
 def serve_output_files(filename):

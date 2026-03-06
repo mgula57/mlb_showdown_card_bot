@@ -1,5 +1,6 @@
 import json
 import os
+from pprint import pprint
 import psycopg2
 import traceback
 from unidecode import unidecode
@@ -13,7 +14,7 @@ from typing import Optional, Any, Dict, List
 from enum import Enum
 
 # MODELS
-from .classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord
+from .classes import WbcShowdownCardRecord, FangraphsLeaderboardRecord, ShowdownBotCardCompact
 
 # INTERNAL
 from ..card.showdown_player_card import ShowdownPlayerCard, Team, PlayerType, Era, Edition, Expansion, SpecialEdition, Set, StatsPeriod, StatsPeriodType, __version__, Position, WBCTeam, StatHighlightsType
@@ -21,7 +22,7 @@ from ..card.stats.normalized_player_stats import Datasource
 from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs, build_replacement_level_stats_for_card
 from ..card.utils.shared_functions import convert_year_string_to_list
 from ..shared.google_drive import fetch_image_metadata
-from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum, Standings
+from ..mlb_stats_api import Player, Roster, RosterTypeEnum, SportEnum, Standings, Schedule
 
 
 # ----------------------------------------------------------------
@@ -605,6 +606,42 @@ class PostgresDB:
             return None
         
         return ShowdownPlayerCard(**raw_data[0].get('card_data'))
+
+    def fetch_compact_cards_by_mlb_id(self, mlb_ids: List[int], is_wbc: bool = False, season: int = None, showdown_set: str = "2000") -> Dict[int, ShowdownBotCardCompact]:
+        """Fetch all explore data from the database for a given MLB ID."""
+        
+        # Change info for source
+        source_table = "card_wbc" if is_wbc else "card_bot"
+        year_field = "year" if not is_wbc else "wbc_season"
+        team_field = "wbc_team" if is_wbc else "team"
+        
+        year = season if is_wbc else str(season)
+        query = sql.SQL("""
+            SELECT 
+                mlb_id,
+                id,
+                name,
+                {year_field}::text as year,
+                showdown_set as set,
+                points,
+                command,
+                is_pitcher,
+                color_primary,
+                color_secondary,
+                {team_field} as team,
+                positions_and_defense_string,
+                ip
+            FROM {source_table}
+            WHERE 
+                mlb_id IN %s
+                AND showdown_set = %s
+                AND {year_field} = %s
+        """).format(source_table=sql.Identifier(source_table), year_field=sql.Identifier(year_field), team_field=sql.Identifier(team_field))
+        raw_data = self.execute_query(query=query, filter_values=(tuple(mlb_ids), showdown_set, year))
+        if raw_data is None:
+            return {}
+
+        return {row['mlb_id']: ShowdownBotCardCompact(**row) for row in raw_data }
 
     def fetch_cards_bot(self, filters: dict = {}) -> list[ExploreDataRecord]:
         """Fetch all explore data from the database with support for lists and min/max filtering."""
@@ -4564,3 +4601,63 @@ class PostgresDB:
             return []
         finally:
             cursor.close()
+
+# -----------------------------------------------------------------------
+# MLB API ADDITIONS
+# -----------------------------------------------------------------------
+
+    def add_probable_pitchers_to_game_schedule(self, schedule: Schedule, showdown_set: str, is_wbc: bool, season: int) -> Schedule:
+        """Fetch the probable pitcher cards for a given game, if they exist in the database. Used to display probable pitcher cards on the frontend game schedule.
+
+        Args:
+            game_scheduled: A GameScheduled instance containing information about the scheduled game, including the game ID.
+            showdown_set: The showdown set to filter the cards by (e.g. '2000', '2001', 'CLASSIC').
+            is_wbc: A boolean indicating whether the game is part of the World Baseball Classic (WBC).
+            season: The season (year) of the game schedule, used to filter the cards by season.
+
+        Returns:
+            A Schedule instance with probable pitcher cards added, or the original Schedule if no data is found or if there's an error.
+        """
+
+        # Get unique IDs for all pitchers in all games
+        pitcher_ids: set[int] = set()
+        for date in schedule.dates:
+            if not date.games:
+                continue
+            for game in date.games:
+                if not game.teams:
+                    continue
+                for team in [game.teams.away, game.teams.home]:
+                    if team.probable_pitcher and team.probable_pitcher.id:
+                        pitcher_ids.add(team.probable_pitcher.id)
+
+        if not pitcher_ids:
+            print("No probable pitchers found in the schedule.")
+            return schedule
+
+        # Fetch cards for all probable pitchers in the schedule
+        card_dict = self.fetch_compact_cards_by_mlb_id(
+            mlb_ids=list(pitcher_ids), 
+            showdown_set=showdown_set, 
+            is_wbc=is_wbc, 
+            season=season
+        )
+        if not card_dict:
+            print("No probable pitcher cards found in the database.")
+            return schedule
+        
+        # Add card data to the schedule
+        for date in schedule.dates:
+            if not date.games:
+                continue
+            for game in date.games:
+                if not game.teams:
+                    continue
+                for team in [game.teams.away, game.teams.home]:
+                    if team.probable_pitcher and team.probable_pitcher.id:
+                        pitcher_card = card_dict.get(team.probable_pitcher.id)
+                        if pitcher_card:
+                            team.probable_pitcher.card = pitcher_card
+        
+        return schedule
+        

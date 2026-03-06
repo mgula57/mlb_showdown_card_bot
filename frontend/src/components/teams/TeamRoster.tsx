@@ -11,6 +11,7 @@ import { CardItemFromCard } from "../cards/CardItem";
 import TeamRosterPositionTable from "./TeamRosterPositionTable";
 import { Modal } from "../shared/Modal";
 import { CardDetail } from "../cards/CardDetail";
+import { FaRegStar, FaStar } from "react-icons/fa6";
 
 import { countryCodeForTeam } from "../../functions/flags";
 import ReactCountryFlag from "react-country-flag";
@@ -20,6 +21,8 @@ interface TeamRosterProps {
     team: Team;
     sportId: number | null;
     roster: Roster | null;
+    isStarred?: boolean;
+    onToggleStar?: () => void;
 }
 
 const getTopPlayerLimit = (width: number): number => {
@@ -42,7 +45,7 @@ const getPositionLabel = (slot: RosterSlot): string => {
     return slot.position.type || slot.position.abbreviation || slot.position.code || slot.position.name || "Unknown";
 };
 
-export default function TeamRoster({ team, sportId, roster }: TeamRosterProps) {
+export default function TeamRoster({ team, sportId, roster, isStarred = false, onToggleStar }: TeamRosterProps) {
     const rosterSlots = roster?.roster ?? [];
     const [topPlayerLimit, setTopPlayerLimit] = useState<number>(() => {
         if (typeof window === "undefined") {
@@ -139,9 +142,26 @@ export default function TeamRoster({ team, sportId, roster }: TeamRosterProps) {
                             )}
                             {team.name}
                         </h2>
-                        <p className="text-sm text-(--text-secondary)">
-                            {team.abbreviation || "N/A"} • {team.season?.toString() || team?.season || "N/A"}
-                        </p>
+                        <div className="mt-1 flex items-center gap-2 text-sm text-(--text-secondary)">
+                            <p>
+                                {team.abbreviation || "N/A"} • {team.season?.toString() || team?.season || "N/A"}
+                            </p>
+                            {onToggleStar && (
+                                <button
+                                    type="button"
+                                    onClick={onToggleStar}
+                                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold hover:bg-(--divider)"
+                                    aria-label={isStarred ? `Unstar ${team.abbreviation || team.name}` : `Star ${team.abbreviation || team.name}`}
+                                >
+                                    {isStarred ? (
+                                        <FaStar className="h-3.5 w-3.5 text-yellow-300" />
+                                    ) : (
+                                        <FaRegStar className="h-3.5 w-3.5" />
+                                    )}
+                                    {isStarred ? "Starred" : "Star"}
+                                </button>
+                            )}
+                        </div>
 
                         <div className="mt-3 gap-2 text-sm">
                             <div className="text-(--text-secondary)">

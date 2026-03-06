@@ -7,10 +7,12 @@ from ...core.database.postgres_db import PostgresDB
 from ...core.mlb_stats_api.models.leagues.league import SportEnum
 from ...core.mlb_stats_api.models.teams.team import Team
 from ...core.mlb_stats_api.models.teams.roster import RosterTypeEnum
+from ...core.mlb_stats_api.models.games.schedule import Schedule
 
 app = typer.Typer()
 
 _mlb_api = MLBStatsAPI(use_persistent_cache=True)
+_mlb_api_no_cache = MLBStatsAPI(use_persistent_cache=False)
 
 @app.command("free_agents")
 def free_agents(
@@ -34,7 +36,6 @@ def free_agents(
             fa.sort_order if fa.sort_order is not None else 9999
         ])
     print(table)
-
 
 @app.command("season")
 def season(
@@ -100,7 +101,6 @@ def roster(
             ])
         print(table)
         
-
 @app.command("teams")
 def teams(
     sport_id: int = typer.Option(1, "--sport_id", "-sp", help="MLB sport ID. Default is 1 (Major League Baseball)."),
@@ -123,3 +123,57 @@ def teams(
             team.league.id if team.league else '-',
         ])
     print(table)
+
+@app.command("schedule")
+def schedule(
+    sport_id: int = typer.Option(1, "--sport_id", "-sp", help="MLB sport ID. Default is 1 (Major League Baseball)."),
+    season: int = typer.Option(None, "--season", "-s", help="Season year to filter schedule by."),
+    date: str = typer.Option(None, "--date", "-d", help="Specific date to filter schedule by (YYYY-MM-DD)."),
+    league_id: int = typer.Option(None, "--league_id", "-l", help="League ID to filter schedule by."),
+):
+    """Fetch game schedule from MLB Stats API"""
+
+    schedule = _mlb_api_no_cache.games.get_schedule(sport_id=sport_id, season=season, date=date, league_id=league_id)
+    print(f"Schedule for season {season}, date {date}, league ID {league_id}:")
+    table = PrettyTable()
+    table.field_names = ["Game PK", "Date", "Home Team", "Away Team", "Venue"]
+    if schedule.dates:
+        for day in schedule.dates:
+            if day.games:
+                for game in day.games:
+                    table.add_row([
+                        game.game_pk,
+                        game.game_date,
+                        game.teams.home.team.name if game.teams and game.teams.home and game.teams.home.team else '-',
+                        game.teams.away.team.name if game.teams and game.teams.away and game.teams.away.team else '-',
+                        game.venue.name if game.venue else '-',
+                    ])
+    print(table)
+
+@app.command("cards")
+def cards(
+    mlb_ids: str = typer.Option(..., "--mlb_ids", "-ids", help="Comma-separated list of MLB player IDs to fetch showdown card data for."),
+    is_wbc: bool = typer.Option(False, "--wbc", "-wbc", help="Whether the player IDs are for WBC players (defaults to MLB players)."),
+    season: int = typer.Option(None, "--season", "-s", help="Season year to filter showdown cards by (required if --wbc is enabled)."),
+    showdown_set: str = typer.Option("2000", "--showdown_set", "-ss", help="Showdown set to pull card data for."),
+):
+    """Fetch showdown card data for all players in a given season's rosters"""
+
+    # Initialize database connection
+    db = PostgresDB()
+    mlb_id_list = [int(id.strip()) for id in mlb_ids.split(',')]
+    cards_data = db.fetch_cards_by_mlb_id(mlb_ids=mlb_id_list, is_wbc=is_wbc, season=season, showdown_set=showdown_set)
+    table = PrettyTable()
+    table.field_names = ["MLB ID", "Player Name", "Team", "Position", "Card Year", "Card Set", "PTS"]
+    for card in cards_data.values():
+        table.add_row([
+            card.mlb_id,
+            card.name,
+            card.team,
+            card.positions_and_defense_string,
+            card.year,
+            card.set.value,
+            card.points
+        ])
+    print(table)
+    

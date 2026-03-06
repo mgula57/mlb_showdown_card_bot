@@ -7,6 +7,28 @@ from ..card.sets import Set
 from ..card.showdown_player_card import ShowdownPlayerCard, PlayerType, WBCTeam
 from ..fangraphs.models import LeaderboardStats
 
+# -------------------------------
+# FANGRAPHS DATA MODELS
+# -------------------------------
+
+class ShowdownBotCardCompact(BaseModel):
+    """A compact version of the Showdown card data model, which only includes the fields we need
+    for a small item in the frontend"""
+    
+    id: str
+    name: str
+    year: str
+    set: Set
+    points: int
+    command: int
+    is_pitcher: bool
+    color_primary: Optional[str] = None
+    color_secondary: Optional[str] = None
+    team: Optional[str] = None
+    position_and_defense: Optional[str] = None
+    ip: Optional[int] = None
+    
+
 class WbcShowdownCardRecord(BaseModel):
     """Data model representing a WBC roster entry along with its corresponding Showdown card data (if available)"""
     

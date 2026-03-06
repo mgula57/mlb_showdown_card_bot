@@ -4,13 +4,14 @@
  * Displays real MLB season results with Showdown context including
  * player cards, team points, and performance analytics.
  */
-
 import { useState, useEffect, useRef } from "react";
 import * as Tabs from '@radix-ui/react-tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
-import { 
+import {
     fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchTeamRoster,
-    type Season, type Sport, type League, type Standings, type Team, type Roster
+    fetchTodaysSchedule,
+    type Season, type Sport, type League, type Standings, type Team, type Roster,
+    type Schedule
 } from '../../api/mlbAPI';
 import { useSiteSettings } from "../shared/SiteSettingsContext";
 import TeamRoster from "../teams/TeamRoster";
@@ -19,9 +20,31 @@ import ReactCountryFlag from "react-country-flag";
 import { countryCodeForTeam } from "../../functions/flags";
 import StandingsTab from "./Standings";
 
-import { FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaEarthAmericas, FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft } from "react-icons/fa6";
+import {
+    FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaEarthAmericas,
+    FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
+    FaStar, FaRegStar
+} from "react-icons/fa6";
 
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
+import GameSchedule from "../games/GameSchedule";
+
+const formatScheduleDate = (date?: string): string => {
+    if (!date) {
+        return "Today's Games";
+    }
+
+    const parsedDate = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(parsedDate.getTime())) {
+        return "Today's Games";
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+    }).format(parsedDate);
+};
 
 type SeasonsProps = {
     type: 'mlb' | 'wbc';
@@ -38,6 +61,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         leagueGroup: `${type}.seasons.selectedLeagueGroup`,
         activeTab: `${type}.seasons.activeTab`,
         sidebarCollapsed: `${type}.seasons.sidebarCollapsed`,
+        starredTeams: `${type}.seasons.starredTeams`,
     };
 
     const getStoredValue = (key: string): string | null => {
@@ -76,6 +100,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     const [selectedRoster, setSelectedRoster] = useState<Roster | null>(null);
 
+    const [todaysSchedule, setTodaysSchedule] = useState<Schedule | null>(null);
+
     const [isLoading, setIsLoading] = useState<boolean>(false);
 
     const [leagueGroups, setLeagueGroups] = useState<string[]>([]);
@@ -97,6 +123,19 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "standings");
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => getStoredValue(STORAGE_KEYS.sidebarCollapsed) === "true");
+    const [starredTeamKeys, setStarredTeamKeys] = useState<string[]>(() => {
+        const stored = getStoredValue(STORAGE_KEYS.starredTeams);
+        if (!stored) {
+            return [];
+        }
+
+        try {
+            const parsed = JSON.parse(stored);
+            return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
+        } catch {
+            return [];
+        }
+    });
     const [isTeamsNavOpen, setIsTeamsNavOpen] = useState<boolean>(true);
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
@@ -138,12 +177,32 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const teamOptions: SelectOption[] = teams
         .map((team) => {
             const teamKey = `${team.id}-${team.season}`;
-            const teamLabel = `${team.abbreviation || team.name}${team.season ? ` (${team.season})` : ""}`;
+            const isStarred = starredTeamKeys.includes(teamKey);
+            const teamLabel = `${isStarred ? '★ ' : ''}${team.abbreviation || team.name}${team.season ? ` (${team.season})` : ""}`;
             return {
                 value: teamKey,
                 label: teamLabel,
             };
+        })
+        .sort((a, b) => {
+            const aStarred = starredTeamKeys.includes(a.value);
+            const bStarred = starredTeamKeys.includes(b.value);
+            if (aStarred !== bStarred) {
+                return aStarred ? -1 : 1;
+            }
+            return a.label.localeCompare(b.label);
         });
+
+    const sortedTeams = [...teams].sort((a, b) => {
+        const aKey = `${a.id}-${a.season}`;
+        const bKey = `${b.id}-${b.season}`;
+        const aStarred = starredTeamKeys.includes(aKey);
+        const bStarred = starredTeamKeys.includes(bKey);
+        if (aStarred !== bStarred) {
+            return aStarred ? -1 : 1;
+        }
+        return (a.abbreviation || a.name || "").localeCompare(b.abbreviation || b.name || "");
+    });
 
     const tabs = [
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
@@ -345,7 +404,16 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             if (prevTeam && allTeams.some((team) => (`${team.id}-${team.season}` === `${prevTeam.id}-${prevTeam.season}`))) {
                 return prevTeam;
             }
-            return allTeams[0] || null;
+            return allTeams.sort(
+                // Sort by starred first, then alphabetically by abbreviation
+                (a, b) => {
+                    const aStarred = starredTeamKeys.includes(`${a.id}-${a.season}`);
+                    const bStarred = starredTeamKeys.includes(`${b.id}-${b.season}`);
+                    if (aStarred && !bStarred) return -1;
+                    if (!aStarred && bStarred) return 1;
+                    return (a.abbreviation || "").localeCompare(b.abbreviation || "");
+                }
+            )[0] || null;
         });
         console.log("All teams extracted from standings:", allTeams);
         setTeams(allTeams);
@@ -364,6 +432,36 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             setSelectedRoster(rosterData);
         } catch (error) {
             console.error(`Error fetching roster for team ${team.name} in season ${selectedSeason.season_id}:`, error);
+        } finally {
+            endLoading();
+        }
+    };
+
+    const loadSchedule = async () => {
+        if (!selectedSeason || leagues.length === 0) {
+            setTodaysSchedule(null);
+            return;
+        }
+
+        const shouldFilterByLeagueGroup = leagueGroups.length > 1 && selectedLeagueGroup !== null;
+        const leaguesToQuery = shouldFilterByLeagueGroup
+            ? leagues.filter((league) => getLeagueGroupForLeague(league) === selectedLeagueGroup)
+            : leagues;
+
+        if (leaguesToQuery.length === 0) {
+            setTodaysSchedule(null);
+            return;
+        }
+
+        beginLoading();
+        try {
+            const leagueIdFilter = leaguesToQuery.length > 1 ? leaguesToQuery[0] : undefined;
+            const scheduleData = await fetchTodaysSchedule(selectedSport?.id || 1, selectedSeason, leagueIdFilter, userShowdownSet);
+            console.log(`Fetched schedule for season ${selectedSeason.season_id}:`, scheduleData);
+            setTodaysSchedule(scheduleData);
+        } catch (error) {
+            console.error(`Error fetching schedule for season ${selectedSeason.season_id}:`, error);
+            setTodaysSchedule(null);
         } finally {
             endLoading();
         }
@@ -400,6 +498,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }, [isSidebarCollapsed]);
 
     useEffect(() => {
+        setStoredValue(STORAGE_KEYS.starredTeams, JSON.stringify(starredTeamKeys));
+    }, [starredTeamKeys]);
+
+    useEffect(() => {
         setStoredValue(STORAGE_KEYS.leagueGroup, selectedLeagueGroup);
     }, [selectedLeagueGroup]);
 
@@ -430,6 +532,13 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup]);
 
     useEffect(() => {
+        if (selectedSeason === null || selectedSeason.season_id === undefined || leagues.length === 0) {
+            return;
+        }
+        loadSchedule();
+    }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup]);
+
+    useEffect(() => {
         if (selectedTeam === null || selectedTeam.id === undefined) {
             return;
         }
@@ -437,7 +546,12 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }, [selectedTeam, userShowdownSet]);
 
     const selectedTeamKey = selectedTeam ? `${selectedTeam.id}-${selectedTeam.season}` : null;
+    const isSelectedTeamStarred = selectedTeamKey ? starredTeamKeys.includes(selectedTeamKey) : false;
     const standingsEntries = Object.entries(standings);
+    const scheduleDates = todaysSchedule?.dates ?? [];
+    const todaysGames = scheduleDates.flatMap((scheduleDate) => scheduleDate.games ?? []);
+    const scheduleDateLabel = formatScheduleDate(scheduleDates[0]?.date);
+    const scheduleDescription = todaysGames[0]?.series_description || todaysGames[0]?.description || "";
 
     const handleStandingsTeamSelect = (team: Team) => {
         const matchedTeam = teams.find((existingTeam) => {
@@ -450,6 +564,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
         setSelectedTeam(matchedTeam);
         setActiveTab("teams");
+    };
+
+    const toggleStarTeam = (team: Team) => {
+        const teamKey = `${team.id}-${team.season}`;
+        setStarredTeamKeys((previous) => (
+            previous.includes(teamKey)
+                ? previous.filter((key) => key !== teamKey)
+                : [...previous, teamKey]
+        ));
     };
 
     const sidebarSections: SidebarSection[] = [
@@ -531,9 +654,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             <div className="px-2 py-1 text-xs text-(--text-secondary)">No teams available.</div>
                                         ) : (
                                             <div className="max-h-64 sm:max-h-128 overflow-y-auto space-y-1 pr-1">
-                                                {teams.map((team) => {
+                                                {sortedTeams.map((team) => {
                                                     const teamKey = `${team.id}-${team.season}`;
                                                     const isSelected = selectedTeamKey === teamKey && activeTab === "teams";
+                                                    const isStarred = starredTeamKeys.includes(teamKey);
                                                     const isoCountryCode = countryCodeForTeam(selectedSport?.id || 0, team.abbreviation || team.name);
                                                     return (
                                                         <button
@@ -571,7 +695,29 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                                     <span className="truncate">{team.abbreviation || team.name}</span>
                                                                 </div>
                                                                 
-                                                                <span className="text-[10px] text-(--text-secondary)">{team.season || selectedSeason?.season_id}</span>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span
+                                                                        role="button"
+                                                                        tabIndex={0}
+                                                                        aria-label={isStarred ? `Unstar ${team.abbreviation || team.name}` : `Star ${team.abbreviation || team.name}`}
+                                                                        onClick={(event) => {
+                                                                            event.preventDefault();
+                                                                            event.stopPropagation();
+                                                                            toggleStarTeam(team);
+                                                                        }}
+                                                                        onKeyDown={(event) => {
+                                                                            if (event.key === "Enter" || event.key === " ") {
+                                                                                event.preventDefault();
+                                                                                event.stopPropagation();
+                                                                                toggleStarTeam(team);
+                                                                            }
+                                                                        }}
+                                                                        className={`text-sm leading-none cursor-pointer ${isStarred ? 'text-yellow-300' : 'text-(--quaternary) hover:text-yellow-300'}`}
+                                                                    >
+                                                                        {isStarred ? <FaStar className="h-3.5 w-3.5" /> : <FaRegStar className="h-3.5 w-3.5" />}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-(--text-secondary)">{team.season || selectedSeason?.season_id}</span>
+                                                                </div>
                                                             </div>
                                                         </button>
                                                     );
@@ -706,11 +852,21 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden sm:pt-6 sm:pr-6"
                                         forceMount
                                     >
-                                        <StandingsTab
-                                            standingsEntries={standingsEntries}
-                                            selectedSportId={selectedSport?.id}
-                                            onTeamSelect={handleStandingsTeamSelect}
-                                        />
+                                        <div className="space-y-8 pb-24">
+                                            <GameSchedule
+                                                games={todaysGames}
+                                                dateLabel={scheduleDateLabel}
+                                                description={scheduleDescription}
+                                                sportId={selectedSport?.id}
+                                            />
+
+                                            <StandingsTab
+                                                standingsEntries={standingsEntries}
+                                                selectedSportId={selectedSport?.id}
+                                                onTeamSelect={handleStandingsTeamSelect}
+                                            />
+                                            
+                                        </div>
                                     </Tabs.Content>
 
                                     {/* Teams Tab */}
@@ -724,6 +880,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     team={selectedTeam}
                                                     sportId={selectedSport?.id || null}
                                                     roster={selectedRoster}
+                                                    isStarred={isSelectedTeamStarred}
+                                                    onToggleStar={() => toggleStarTeam(selectedTeam)}
                                                 />
                                             )}
                                     </Tabs.Content>

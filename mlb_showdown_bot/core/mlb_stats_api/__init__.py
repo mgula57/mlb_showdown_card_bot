@@ -5,6 +5,7 @@ from .clients.people_client import PeopleClient
 from .clients.leagues_client import LeaguesClient, Standings
 from .clients.seasons_client import SeasonsClient
 from .clients.sports_client import SportsClient, SportEnum
+from .clients.games_client import GamesClient, Schedule
 from .models.person import Player
 from .models.leagues.league import LeagueListEnum
 from typing import Optional
@@ -49,7 +50,7 @@ class MLBStatsAPI:
         self.teams = TeamsClient(**config)
         self.seasons = SeasonsClient(**config)
         self.sports = SportsClient(**config)
-
+        self.games = GamesClient(**config)
     # -------------------------
     # PLAYER SEARCH + BUILD
     # -------------------------
@@ -238,4 +239,5 @@ __all__ = [
     'RosterTypeEnum',
     'SportEnum',
     'Standings',
+    'Schedule'
 ]

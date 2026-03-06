@@ -10,7 +10,7 @@ from ..core.database.postgres_db import PostgresDB, Set as ShowdownSet
 
 seasons_bp = Blueprint('seasons', __name__)
 
-SEASONS_CACHE_TTL = timedelta(days=1)
+SEASONS_CACHE_TTL = timedelta(hours=1)
 _mlb_stats_api = MLBStatsAPI(cache_ttl=int(SEASONS_CACHE_TTL.total_seconds()))
 
 @seasons_bp.route('/seasons/list', methods=["GET"])
