@@ -28,6 +28,7 @@ import {
 
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 import GameSchedule from "../games/GameSchedule";
+import GameDetail from "../games/GameDetail";
 
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
@@ -121,6 +122,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         const now = new Date();
         return new Date(now.getFullYear(), now.getMonth(), now.getDate());
     });
+    const [selectedGamePk, setSelectedGamePk] = useState<number | null>(null);
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -853,9 +855,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     <div className="lg:hidden mb-4 rounded-2xl space-y-4">
                                         <div className="space-y-2">
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
-                                                <div className="font-bold text-2xl">
+                                                <div className="flex items-center font-bold text-2xl">
                                                     <FaEarthAmericas className="inline-block mr-2" />
                                                     {title}
+                                                    <span className="ml-2 text-xs font-semibold bg-amber-500 rounded-md px-2">BETA</span>
                                                 </div>
                                             )}
                                             {!(hasStaticSeasons && seasonOptions.length <= 1) && (
@@ -919,7 +922,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden sm:pt-6 sm:pr-6"
                                         forceMount
                                     >
-                                        <div className="space-y-8 pb-24">
+                                        <div className="space-y-2 pb-24">
+                                            <div className="font-black text-yellow-600 py-1">
+                                                NOTE: WBC Standings are currently stale on MLB's API. They should be fixing it soon, but in the meantime you can see a team's pool play record in the schedule.
+                                            </div>
                                             <StandingsTab
                                                 standingsEntries={standingsEntries}
                                                 selectedSportId={selectedSport?.id}
@@ -935,7 +941,16 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden sm:pt-6 sm:pr-6"
                                         forceMount
                                     >
-                                        <div className="mt-5 space-y-5 sm:pr-6">
+                                        {selectedGamePk !== null ? (
+                                            <GameDetail
+                                                gamePk={selectedGamePk}
+                                                sportId={selectedSport?.id}
+                                                season={selectedSeason?.season_id ? parseInt(selectedSeason.season_id) : undefined}
+                                                showdownSet={userShowdownSet}
+                                                onBack={() => setSelectedGamePk(null)}
+                                            />
+                                        ) : (
+                                        <div className="space-y-5 sm:pr-6">
                                                 <div className="rounded-xl border border-(--divider) bg-(--background-secondary) px-4 py-3">
                                                     <div className="flex items-center justify-between">
                                                         <button
@@ -980,8 +995,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     dateLabel={gamesTabDateLabel}
                                                     description={gamesTabDescription}
                                                     sportId={selectedSport?.id}
+                                                    onGameSelect={(gamePk) => setSelectedGamePk(gamePk)}
                                                 />
                                             </div>
+                                        )}
                                     </Tabs.Content>
 
                                     {/* Teams Tab */}

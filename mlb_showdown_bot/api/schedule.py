@@ -39,7 +39,7 @@ def fetch_schedule():
             db = PostgresDB()
             showdown_set = request.args.get('showdown_set', default='2000', type=str)
             is_wbc = sport_id == SportEnum.INTERNATIONAL.value # SPORT_ID 51
-            schedule = db.add_probable_pitchers_to_game_schedule(
+            schedule = db.add_player_cards_to_game_schedule(
                 schedule, 
                 showdown_set=showdown_set, 
                 is_wbc=is_wbc,
@@ -49,6 +49,18 @@ def fetch_schedule():
         schedule_data = schedule.model_dump() if schedule else None
         return jsonify({'schedule': schedule_data}), 200
 
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@schedule_bp.route('/game/<int:game_pk>/boxscore', methods=["GET"])
+def fetch_game_boxscore(game_pk: int):
+    """Fetch full boxscore for a single game."""
+    try:
+        boxscore = _mlb_stats_api.games.get_game_boxscore(game_pk)
+        return jsonify(boxscore), 200
     except Exception as e:
         import traceback
         traceback.print_exc()

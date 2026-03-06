@@ -102,6 +102,8 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     const { isDark } = useTheme();
     const { userShowdownSet } = useSiteSettings();
 
+    console.log("CardDetail: Rendered with internalCardId =", internalCardId, "and cardId prop =", cardId);
+
     /**
      * Sync internal state with prop changes
      * Ensures component reflects updates from parent while maintaining ability
@@ -114,7 +116,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
             const isSameCard = 
                 context !== 'custom' &&
                 (
-                    internalCardData?.card?.bref_id === showdownBotCardData?.card?.bref_id &&
+                    (internalCardData?.card?.bref_id || internalCardData?.card?.mlb_id) === (showdownBotCardData?.card?.bref_id || showdownBotCardData?.card?.mlb_id) &&
                     internalCardData?.card?.year === showdownBotCardData?.card?.year &&
                     internalCardData?.card?.set === showdownBotCardData?.card?.set
                 );
@@ -124,6 +126,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                 setInternalCardId(cardId);
 
                 // Load image if necessary
+                console.log("Image Output Filename:", showdownBotCardData.card);
                 const isDataWithoutImage = !showdownBotCardData.card?.image.output_file_name && showdownBotCardData.card;
                 if (isDataWithoutImage && !isGeneratingImage) {
                     console.log("Generating image for new prop data...");

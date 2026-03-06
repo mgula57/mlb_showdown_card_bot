@@ -643,6 +643,31 @@ class PostgresDB:
 
         return {row['mlb_id']: ShowdownBotCardCompact(**row) for row in raw_data }
 
+    def fetch_full_cards_by_mlb_id(self, mlb_ids: List[int], is_wbc: bool = False, season: int = None, showdown_set: str = "2000") -> Dict[int, dict]:
+        """Fetch full card rows (all columns) keyed by MLB ID."""
+
+        source_table = "card_wbc" if is_wbc else "card_bot"
+        year_field = "wbc_season" if is_wbc else "year"
+        year = season if is_wbc else str(season)
+
+        query = sql.SQL("""
+            SELECT *
+            FROM {source_table}
+            WHERE
+                mlb_id IN %s
+                AND showdown_set = %s
+                AND {year_field} = %s
+        """).format(
+            source_table=sql.Identifier(source_table),
+            year_field=sql.Identifier(year_field),
+        )
+
+        raw_data = self.execute_query(query=query, filter_values=(tuple(mlb_ids), showdown_set, year))
+        if raw_data is None:
+            return {}
+
+        return {row['mlb_id']: row for row in raw_data}
+
     def fetch_cards_bot(self, filters: dict = {}) -> list[ExploreDataRecord]:
         """Fetch all explore data from the database with support for lists and min/max filtering."""
 
@@ -4606,8 +4631,8 @@ class PostgresDB:
 # MLB API ADDITIONS
 # -----------------------------------------------------------------------
 
-    def add_probable_pitchers_to_game_schedule(self, schedule: Schedule, showdown_set: str, is_wbc: bool, season: int) -> Schedule:
-        """Fetch the probable pitcher cards for a given game, if they exist in the database. Used to display probable pitcher cards on the frontend game schedule.
+    def add_player_cards_to_game_schedule(self, schedule: Schedule, showdown_set: str, is_wbc: bool, season: int) -> Schedule:
+        """Attach showdown cards to key schedule game players based on game state.
 
         Args:
             game_scheduled: A GameScheduled instance containing information about the scheduled game, including the game ID.
@@ -4616,48 +4641,95 @@ class PostgresDB:
             season: The season (year) of the game schedule, used to filter the cards by season.
 
         Returns:
-            A Schedule instance with probable pitcher cards added, or the original Schedule if no data is found or if there's an error.
+            A Schedule instance with state-aware card data added, or the original Schedule if no data is found or if there's an error.
         """
 
-        # Get unique IDs for all pitchers in all games
-        pitcher_ids: set[int] = set()
+        # Get unique MLB IDs for the players we need cards for, based on game state.
+        # Final (F): winning + losing pitchers
+        # Not started (P/S): probable pitchers
+        # In progress/other: current batter + current pitcher
+        player_ids: set[int] = set()
         for date in schedule.dates:
             if not date.games:
                 continue
             for game in date.games:
-                if not game.teams:
-                    continue
-                for team in [game.teams.away, game.teams.home]:
-                    if team.probable_pitcher and team.probable_pitcher.id:
-                        pitcher_ids.add(team.probable_pitcher.id)
+                game_state = game.status.coded_game_state if game.status else None
 
-        if not pitcher_ids:
-            print("No probable pitchers found in the schedule.")
+                if game_state == 'F':
+                    if game.decisions:
+                        if game.decisions.winner and game.decisions.winner.id:
+                            player_ids.add(game.decisions.winner.id)
+                        if game.decisions.loser and game.decisions.loser.id:
+                            player_ids.add(game.decisions.loser.id)
+                    continue
+
+                if game_state in ['P', 'S']:
+                    if not game.teams:
+                        continue
+                    for team in [game.teams.away, game.teams.home]:
+                        if team.probable_pitcher and team.probable_pitcher.id:
+                            player_ids.add(team.probable_pitcher.id)
+                    continue
+
+                if game.linescore:
+                    if game.linescore.offense and game.linescore.offense.batter and game.linescore.offense.batter.id:
+                        player_ids.add(game.linescore.offense.batter.id)
+                    if game.linescore.defense and game.linescore.defense.pitcher and game.linescore.defense.pitcher.id:
+                        player_ids.add(game.linescore.defense.pitcher.id)
+
+        if not player_ids:
+            print("No eligible game-state players found in the schedule.")
             return schedule
 
-        # Fetch cards for all probable pitchers in the schedule
+        # Fetch cards for all targeted players in the schedule
         card_dict = self.fetch_compact_cards_by_mlb_id(
-            mlb_ids=list(pitcher_ids), 
+            mlb_ids=list(player_ids), 
             showdown_set=showdown_set, 
             is_wbc=is_wbc, 
             season=season
         )
         if not card_dict:
-            print("No probable pitcher cards found in the database.")
+            print("No player cards found in the database for schedule enrichment.")
             return schedule
         
-        # Add card data to the schedule
+        # Add card data to the schedule based on game state
         for date in schedule.dates:
             if not date.games:
                 continue
             for game in date.games:
-                if not game.teams:
+                game_state = game.status.coded_game_state if game.status else None
+
+                if game_state == 'F':
+                    if game.decisions:
+                        if game.decisions.winner and game.decisions.winner.id:
+                            winner_card = card_dict.get(game.decisions.winner.id)
+                            if winner_card:
+                                game.decisions.winner.card = winner_card
+                        if game.decisions.loser and game.decisions.loser.id:
+                            loser_card = card_dict.get(game.decisions.loser.id)
+                            if loser_card:
+                                game.decisions.loser.card = loser_card
                     continue
-                for team in [game.teams.away, game.teams.home]:
-                    if team.probable_pitcher and team.probable_pitcher.id:
-                        pitcher_card = card_dict.get(team.probable_pitcher.id)
+
+                if game_state in ['P', 'S']:
+                    if not game.teams:
+                        continue
+                    for team in [game.teams.away, game.teams.home]:
+                        if team.probable_pitcher and team.probable_pitcher.id:
+                            pitcher_card = card_dict.get(team.probable_pitcher.id)
+                            if pitcher_card:
+                                team.probable_pitcher.card = pitcher_card
+                    continue
+
+                if game.linescore:
+                    if game.linescore.offense and game.linescore.offense.batter and game.linescore.offense.batter.id:
+                        batter_card = card_dict.get(game.linescore.offense.batter.id)
+                        if batter_card:
+                            game.linescore.offense.batter.card = batter_card
+                    if game.linescore.defense and game.linescore.defense.pitcher and game.linescore.defense.pitcher.id:
+                        pitcher_card = card_dict.get(game.linescore.defense.pitcher.id)
                         if pitcher_card:
-                            team.probable_pitcher.card = pitcher_card
+                            game.linescore.defense.pitcher.card = pitcher_card
         
         return schedule
         

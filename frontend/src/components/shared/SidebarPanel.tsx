@@ -25,7 +25,10 @@ export default function SidebarPanel({ title, subtitle, sections, className = ""
             <div className="rounded-2xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
                 <div className="px-4 py-4 border-b border-(--divider) flex items-start justify-between gap-2">
                     <div>
-                        <h2 className="text-lg font-bold text-(--text-primary)">{title}</h2>
+                        <h2 className="flex text-lg font-bold text-(--text-primary) items-center">
+                            {title}
+                            <span className="ml-2 text-xs font-semibold bg-amber-500 rounded-md px-2">BETA</span>
+                        </h2>
                         {subtitle && <p className="mt-1 text-xs text-(--text-secondary)">{subtitle}</p>}
                     </div>
                     {headerAction && <div className="shrink-0">{headerAction}</div>}

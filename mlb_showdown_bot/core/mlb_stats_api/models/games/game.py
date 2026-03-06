@@ -77,6 +77,8 @@ class GameDecisionPitcher(BaseModel):
     full_name: Optional[str] = Field(None, alias='fullName')
     link: Optional[str] = None
 
+    card: Optional[ShowdownBotCardCompact] = Field(None, alias='card')
+
 
 class GameDecisions(BaseModel):
     """Winning/losing/save pitcher details for a completed game."""

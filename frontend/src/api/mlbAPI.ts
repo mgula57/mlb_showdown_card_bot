@@ -120,6 +120,14 @@ export const fetchTodaysSchedule = async (sportId: number, season: Season, leagu
     return fetchSchedule(sportId, season, today, league, showdownSet);
 }
 
+export const fetchGameBoxscore = async (gamePk: number): Promise<GameBoxscoreDetail> => {
+    const response = await fetch(`${API_BASE}/game/${gamePk}/boxscore`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch boxscore for game ${gamePk}: ${response.statusText}`);
+    }
+    return (await response.json()) as GameBoxscoreDetail;
+}
+
 // ***************************
 // Models
 // ***************************
@@ -281,6 +289,7 @@ export interface GameLinescorePerson {
     id?: number;
     full_name?: string;
     link?: string;
+    card?: ShowdownBotCardCompact;
 }
 
 export interface GameLinescoreTeamRef {
@@ -328,6 +337,7 @@ export interface GameDecisionPitcher {
     id?: number;
     full_name?: string;
     link?: string;
+    card?: ShowdownBotCardCompact;
 }
 
 export interface GameDecisions {
@@ -418,5 +428,204 @@ export interface Player {
     // Optional Showdown Card Data
     points?: number;
     showdown_card_data?: ShowdownBotCard;
+}
+
+// ***************************
+// Game Boxscore Detail Types
+// ***************************
+
+export interface BoxscoreBattingStats {
+    summary?: string;
+    at_bats: number;
+    runs: number;
+    hits: number;
+    rbi: number;
+    base_on_balls: number;
+    strike_outs: number;
+    home_runs: number;
+    stolen_bases: number;
+    left_on_base: number;
+}
+
+export interface BoxscoreBattingSeasonStats {
+    avg: string;
+    obp: string;
+    ops: string;
+}
+
+export interface BoxscoreBatter {
+    id: number;
+    name: string;
+    jersey_number: string;
+    position: string;
+    batting_order: string;
+    is_substitute: boolean;
+    is_in_lineup: boolean;
+    stats: BoxscoreBattingStats;
+    season_stats: BoxscoreBattingSeasonStats;
+}
+
+export interface BoxscorePitchingStats {
+    summary?: string;
+    note?: string;
+    innings_pitched: string;
+    hits: number;
+    runs: number;
+    earned_runs: number;
+    base_on_balls: number;
+    strike_outs: number;
+    home_runs: number;
+    pitches_thrown: number;
+    strikes: number;
+    batters_faced: number;
+}
+
+export interface BoxscorePitchingSeasonStats {
+    era: string;
+    wins: number;
+    losses: number;
+}
+
+export interface BoxscorePitcher {
+    id: number;
+    name: string;
+    jersey_number: string;
+    stats: BoxscorePitchingStats;
+    season_stats: BoxscorePitchingSeasonStats;
+}
+
+export interface BoxscoreBattingTotals {
+    at_bats: number;
+    runs: number;
+    hits: number;
+    rbi: number;
+    base_on_balls: number;
+    strike_outs: number;
+    home_runs: number;
+    stolen_bases: number;
+    left_on_base: number;
+    avg: string;
+    ops: string;
+}
+
+export interface BoxscorePitchingTotals {
+    innings_pitched: string;
+    hits: number;
+    runs: number;
+    earned_runs: number;
+    base_on_balls: number;
+    strike_outs: number;
+    home_runs: number;
+    pitches_thrown: number;
+    strikes: number;
+    era: string;
+}
+
+export interface BoxscoreInfoField {
+    label: string;
+    value: string;
+}
+
+export interface BoxscoreInfoSection {
+    title: string;
+    fieldList: BoxscoreInfoField[];
+}
+
+export interface BoxscoreTeamRecord {
+    wins?: number;
+    losses?: number;
+    pct?: string;
+}
+
+export interface BoxscoreTeamInfo {
+    id: number;
+    name: string;
+    abbreviation: string;
+    record?: BoxscoreTeamRecord;
+}
+
+export interface BoxscoreTeamData {
+    team: BoxscoreTeamInfo;
+    batting: BoxscoreBatter[];
+    pitching: BoxscorePitcher[];
+    batting_totals: BoxscoreBattingTotals;
+    pitching_totals: BoxscorePitchingTotals;
+    info: BoxscoreInfoSection[];
+    note: string;
+}
+
+export interface BoxscoreLinescoreInning {
+    num: number;
+    ordinal_num?: string;
+    away: { runs?: number };
+    home: { runs?: number };
+}
+
+export interface BoxscoreLinescoreTeamTotals {
+    runs: number;
+    hits: number;
+    errors: number;
+}
+
+export interface BoxscoreLinescoreTeams {
+    away: BoxscoreLinescoreTeamTotals;
+    home: BoxscoreLinescoreTeamTotals;
+}
+
+export interface BoxscoreLinescoreOffense {
+    batter?: string;
+    batter_id?: number;
+    on_deck?: string;
+    first?: string;
+    second?: string;
+    third?: string;
+}
+
+export interface BoxscoreLinescoreDefense {
+    pitcher?: string;
+    pitcher_id?: number;
+}
+
+export interface BoxscoreLinescore {
+    current_inning?: number;
+    current_inning_ordinal?: string;
+    inning_state?: string;
+    inning_half?: string;
+    is_top_inning?: boolean;
+    scheduled_innings?: number;
+    outs?: number;
+    balls?: number;
+    strikes?: number;
+    offense?: BoxscoreLinescoreOffense;
+    defense?: BoxscoreLinescoreDefense;
+    innings: BoxscoreLinescoreInning[];
+    teams: BoxscoreLinescoreTeams;
+}
+
+export interface BoxscoreDecisionPerson {
+    id: number;
+    full_name: string;
+    link?: string;
+}
+
+export interface BoxscoreDecisions {
+    winner?: BoxscoreDecisionPerson;
+    loser?: BoxscoreDecisionPerson;
+    save?: BoxscoreDecisionPerson;
+}
+
+export interface GameBoxscoreDetail {
+    game_pk: number;
+    status: GameStatus;
+    datetime: {
+        date_time?: string;
+        official_date?: string;
+    };
+    teams: {
+        away: BoxscoreTeamData;
+        home: BoxscoreTeamData;
+    };
+    linescore: BoxscoreLinescore;
+    decisions: BoxscoreDecisions;
 }
 
