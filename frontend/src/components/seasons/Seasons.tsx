@@ -9,7 +9,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import {
     fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchTeamRoster,
-    fetchTodaysSchedule,
+    fetchTodaysSchedule, fetchSchedule,
     type Season, type Sport, type League, type Standings, type Team, type Roster,
     type Schedule
 } from '../../api/mlbAPI';
@@ -44,6 +44,21 @@ const formatScheduleDate = (date?: string): string => {
         month: 'short',
         day: 'numeric',
     }).format(parsedDate);
+};
+
+const formatDateForApi = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const isSameCalendarDay = (a: Date, b: Date): boolean => {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+};
+
+const formatGamesHeaderDate = (date: Date): string => {
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date).toUpperCase();
 };
 
 type SeasonsProps = {
@@ -101,6 +116,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [selectedRoster, setSelectedRoster] = useState<Roster | null>(null);
 
     const [todaysSchedule, setTodaysSchedule] = useState<Schedule | null>(null);
+    const [gamesSchedule, setGamesSchedule] = useState<Schedule | null>(null);
+    const [gamesDate, setGamesDate] = useState<Date>(() => {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    });
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -468,6 +488,36 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
     };
 
+    const loadGamesSchedule = async () => {
+        if (!selectedSeason || leagues.length === 0) {
+            setGamesSchedule(null);
+            return;
+        }
+
+        const shouldFilterByLeagueGroup = leagueGroups.length > 1 && selectedLeagueGroup !== null;
+        const leaguesToQuery = shouldFilterByLeagueGroup
+            ? leagues.filter((league) => getLeagueGroupForLeague(league) === selectedLeagueGroup)
+            : leagues;
+
+        if (leaguesToQuery.length === 0) {
+            setGamesSchedule(null);
+            return;
+        }
+
+        beginLoading();
+        try {
+            const leagueIdFilter = leaguesToQuery.length > 1 ? leaguesToQuery[0] : undefined;
+            const selectedDate = formatDateForApi(gamesDate);
+            const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leagueIdFilter, userShowdownSet);
+            setGamesSchedule(scheduleData);
+        } catch (error) {
+            console.error(`Error fetching games schedule for season ${selectedSeason.season_id}:`, error);
+            setGamesSchedule(null);
+        } finally {
+            endLoading();
+        }
+    };
+
     // ************************
     // Effects
     // ************************
@@ -540,6 +590,13 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup, userShowdownSet]);
 
     useEffect(() => {
+        if (selectedSeason === null || selectedSeason.season_id === undefined || leagues.length === 0) {
+            return;
+        }
+        loadGamesSchedule();
+    }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup, userShowdownSet, gamesDate]);
+
+    useEffect(() => {
         if (selectedTeam === null || selectedTeam.id === undefined) {
             return;
         }
@@ -553,6 +610,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const todaysGames = scheduleDates.flatMap((scheduleDate) => scheduleDate.games ?? []);
     const scheduleDateLabel = formatScheduleDate(scheduleDates[0]?.date);
     const scheduleDescription = todaysGames[0]?.series_description || todaysGames[0]?.description || "";
+
+    const gamesScheduleDates = gamesSchedule?.dates ?? [];
+    const gamesTabGames = gamesScheduleDates.flatMap((scheduleDate) => scheduleDate.games ?? []);
+    const gamesTabDateLabel = formatScheduleDate(gamesScheduleDates[0]?.date || formatDateForApi(gamesDate));
+    const gamesTabDescription = gamesTabGames[0]?.series_description || gamesTabGames[0]?.description || "";
+    const today = new Date();
+    const isGamesDateToday = isSameCalendarDay(gamesDate, today);
+    const gamesHeaderTopText = isGamesDateToday ? "TODAY" : new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(gamesDate).toUpperCase();
+    const gamesHeaderBottomText = formatGamesHeaderDate(gamesDate);
 
     const handleStandingsTeamSelect = (team: Team) => {
         const matchedTeam = teams.find((existingTeam) => {
@@ -869,12 +935,53 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         className="focus:outline-none data-[state=inactive]:hidden sm:pt-6 sm:pr-6"
                                         forceMount
                                     >
-                                        <GameSchedule
-                                            games={todaysGames}
-                                            dateLabel={scheduleDateLabel}
-                                            description={scheduleDescription}
-                                            sportId={selectedSport?.id}
-                                        />
+                                        <div className="mt-5 space-y-5 sm:pr-6">
+                                                <div className="rounded-xl border border-(--divider) bg-(--background-secondary) px-4 py-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setGamesDate((previous) => {
+                                                                    const next = new Date(previous);
+                                                                    next.setDate(next.getDate() - 1);
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                                            aria-label="Previous date"
+                                                        >
+                                                            <FaChevronLeft className="h-5 w-5" />
+                                                        </button>
+
+                                                        <div className="text-center leading-tight">
+                                                            <div className="text-sm font-extrabold tracking-wide text-(--text-secondary)">{gamesHeaderTopText}</div>
+                                                            <div className="text-xl font-black text-(--text-primary)">{gamesHeaderBottomText}</div>
+                                                        </div>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setGamesDate((previous) => {
+                                                                    const next = new Date(previous);
+                                                                    next.setDate(next.getDate() + 1);
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                                            aria-label="Next date"
+                                                        >
+                                                            <FaChevronRight className="h-5 w-5" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <GameSchedule
+                                                    games={gamesTabGames}
+                                                    dateLabel={gamesTabDateLabel}
+                                                    description={gamesTabDescription}
+                                                    sportId={selectedSport?.id}
+                                                />
+                                            </div>
                                     </Tabs.Content>
 
                                     {/* Teams Tab */}
@@ -912,22 +1019,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         )}
                                     </Tabs.Content>
 
-                                    {/* Games Tab - Only for ongoing seasons */}
-                                    {selectedSeason && isMidSeason(selectedSeason) && (
-                                        <Tabs.Content
-                                            value="games"
-                                            className="focus:outline-none data-[state=inactive]:hidden"
-                                            forceMount
-                                        >
-                                            <div className="mt-5">
-                                                <div className="bg-(--background-secondary) rounded-xl p-8 border border-(--divider) border-dashed text-center">
-                                                    <p className="text-(--text-secondary)">
-                                                        Game data coming soon
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </Tabs.Content>
-                                    )}
                                 </div>
 
                             </div>
