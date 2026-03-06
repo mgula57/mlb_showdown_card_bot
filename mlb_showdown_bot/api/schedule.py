@@ -19,7 +19,9 @@ def fetch_schedule():
         league_id = request.args.get('league_id', default=None, type=int)
         date = request.args.get('date', default=None, type=str)
         tz_name = request.args.get('tz_name', default='America/New_York', type=str)
-        probable_pitchers = request.args.get('includeProbablePitchers', default='true', type=str).lower() == 'true'
+        probable_pitchers = request.args.get('include_probable_pitchers', default='true', type=str).lower() == 'true'
+        include_linescore = request.args.get('include_linescore', default='false', type=str).lower() == 'true'
+        include_decisions = request.args.get('include_decisions', default='false', type=str).lower() == 'true'
 
         schedule = _mlb_stats_api.games.get_schedule(
             sport_id=sport_id,
@@ -28,6 +30,8 @@ def fetch_schedule():
             date=date,
             includeProbablePitchers=probable_pitchers,
             tz_name=tz_name,
+            include_linescore=include_linescore,
+            include_decisions=include_decisions,
         )
         
         # ADD PROBABLE PITCHERS TO SCHEDULE RESPONSE

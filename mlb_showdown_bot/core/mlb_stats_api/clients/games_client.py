@@ -70,6 +70,8 @@ class GamesClient(BaseMLBClient):
         includeProbablePitchers: bool = False,
         tz_name: str = "America/New_York",
         use_date_window: bool = True,
+        include_linescore: bool = False,
+        include_decisions: bool = False,
     ) -> Schedule:
         """Get schedule for a local day (US-safe by default), with optional probable pitchers."""
         params = {"sportId": sport_id}
@@ -91,6 +93,10 @@ class GamesClient(BaseMLBClient):
         params["hydrate"] = "team"
         if includeProbablePitchers:
             params["hydrate"] += ",probablePitcher(note)"
+        if include_linescore:
+            params["hydrate"] += ",linescore"
+        if include_decisions:
+            params["hydrate"] += ",decisions"
 
         response = self._make_request("/schedule", params=params)
 

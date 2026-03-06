@@ -103,6 +103,9 @@ export const fetchSchedule = async (sportId: number, season: Season, date?: stri
     if (showdownSet) {
         url.searchParams.append('showdown_set', showdownSet);
     }
+    url.searchParams.append('include_probable_pitchers', 'true');
+    url.searchParams.append('include_linescore', 'true');
+    url.searchParams.append('include_decisions', 'true');
     const response = await fetch(url.toString());
     if (!response.ok) {
         throw new Error(`Failed to fetch games for season ${season.season_id}: ${response.statusText}`);
@@ -255,6 +258,84 @@ export interface GameContent {
     link?: string;
 }
 
+export interface GameLinescoreStatLine {
+    runs?: number;
+    hits?: number;
+    errors?: number;
+    left_on_base?: number;
+}
+
+export interface GameLinescoreInning {
+    num?: number;
+    ordinal_num?: string;
+    home?: GameLinescoreStatLine;
+    away?: GameLinescoreStatLine;
+}
+
+export interface GameLinescoreTeams {
+    home?: GameLinescoreStatLine;
+    away?: GameLinescoreStatLine;
+}
+
+export interface GameLinescorePerson {
+    id?: number;
+    full_name?: string;
+    link?: string;
+}
+
+export interface GameLinescoreTeamRef {
+    id?: number;
+    name?: string;
+    link?: string;
+}
+
+export interface GameLinescoreAlignment {
+    pitcher?: GameLinescorePerson;
+    catcher?: GameLinescorePerson;
+    first?: GameLinescorePerson;
+    second?: GameLinescorePerson;
+    third?: GameLinescorePerson;
+    shortstop?: GameLinescorePerson;
+    left?: GameLinescorePerson;
+    center?: GameLinescorePerson;
+    right?: GameLinescorePerson;
+    batter?: GameLinescorePerson;
+    on_deck?: GameLinescorePerson;
+    in_hole?: GameLinescorePerson;
+    batting_order?: number;
+    team?: GameLinescoreTeamRef;
+}
+
+export interface GameLinescore {
+    current_inning?: number;
+    current_inning_ordinal?: string;
+    inning_state?: string;
+    inning_half?: string;
+    is_top_inning?: boolean;
+    scheduled_innings?: number;
+
+    innings?: GameLinescoreInning[];
+    teams?: GameLinescoreTeams;
+    defense?: GameLinescoreAlignment;
+    offense?: GameLinescoreAlignment;
+
+    balls?: number;
+    strikes?: number;
+    outs?: number;
+}
+
+export interface GameDecisionPitcher {
+    id?: number;
+    full_name?: string;
+    link?: string;
+}
+
+export interface GameDecisions {
+    winner?: GameDecisionPitcher;
+    loser?: GameDecisionPitcher;
+    save?: GameDecisionPitcher;
+}
+
 export interface GameScheduled {
     game_pk: number;
     game_guid?: string;
@@ -268,6 +349,8 @@ export interface GameScheduled {
     teams?: GameTeams;
     venue?: GameVenue;
     content?: GameContent;
+    linescore?: GameLinescore;
+    decisions?: GameDecisions;
 
     is_tie?: boolean;
     game_number?: number;

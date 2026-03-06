@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from .enums import GameType
+from .game_linescore import GameLinescore
 
 from ..teams.team import Team
 from ....database.classes import ShowdownBotCardCompact
@@ -68,6 +69,22 @@ class GameContent(BaseModel):
 
     link: Optional[str] = None
 
+
+class GameDecisionPitcher(BaseModel):
+    """Pitcher information for game decisions (winner/loser/save)."""
+
+    id: Optional[int] = None
+    full_name: Optional[str] = Field(None, alias='fullName')
+    link: Optional[str] = None
+
+
+class GameDecisions(BaseModel):
+    """Winning/losing/save pitcher details for a completed game."""
+
+    winner: Optional[GameDecisionPitcher] = None
+    loser: Optional[GameDecisionPitcher] = None
+    save: Optional[GameDecisionPitcher] = None
+
 class GameScheduled(BaseModel):
     """Model for top level game scheduled information from MLB Stats API"""
 
@@ -83,6 +100,8 @@ class GameScheduled(BaseModel):
     teams: Optional[GameTeams] = None
     venue: Optional[GameVenue] = None
     content: Optional[GameContent] = None
+    linescore: Optional[GameLinescore] = None
+    decisions: Optional[GameDecisions] = None
 
     is_tie: Optional[bool] = Field(None, alias='isTie')
     game_number: Optional[int] = Field(None, alias='gameNumber')

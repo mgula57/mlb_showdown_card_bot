@@ -21,7 +21,7 @@ import { countryCodeForTeam } from "../../functions/flags";
 import StandingsTab from "./Standings";
 
 import {
-    FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaEarthAmericas,
+    FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
     FaStar, FaRegStar
 } from "react-icons/fa6";
@@ -205,6 +205,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     });
 
     const tabs = [
+        { id: "schedule", label: "Schedule", icon: <FaCalendarDays /> },
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         { id: "players", label: "Players", icon: <FaUserGroup /> },
@@ -536,7 +537,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             return;
         }
         loadSchedule();
-    }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup]);
+    }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup, userShowdownSet]);
 
     useEffect(() => {
         if (selectedTeam === null || selectedTeam.id === undefined) {
@@ -853,13 +854,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         forceMount
                                     >
                                         <div className="space-y-8 pb-24">
-                                            <GameSchedule
-                                                games={todaysGames}
-                                                dateLabel={scheduleDateLabel}
-                                                description={scheduleDescription}
-                                                sportId={selectedSport?.id}
-                                            />
-
                                             <StandingsTab
                                                 standingsEntries={standingsEntries}
                                                 selectedSportId={selectedSport?.id}
@@ -867,6 +861,20 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             />
                                             
                                         </div>
+                                    </Tabs.Content>
+
+                                    {/* Schedule Tab - Only for ongoing seasons */}
+                                    <Tabs.Content
+                                        value="schedule"
+                                        className="focus:outline-none data-[state=inactive]:hidden sm:pt-6 sm:pr-6"
+                                        forceMount
+                                    >
+                                        <GameSchedule
+                                            games={todaysGames}
+                                            dateLabel={scheduleDateLabel}
+                                            description={scheduleDescription}
+                                            sportId={selectedSport?.id}
+                                        />
                                     </Tabs.Content>
 
                                     {/* Teams Tab */}
