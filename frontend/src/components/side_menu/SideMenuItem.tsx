@@ -31,7 +31,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { type SideMenuItem as SideMenuItemType } from "../../types/SideMenuItem";
-import { FaAddressCard, FaCompass, FaHome } from "react-icons/fa";
+import { FaAddressCard, FaCalendar, FaGlobeAmericas, FaHome, FaLayerGroup } from "react-icons/fa";
 
 /**
  * Props for the SideMenuItem component
@@ -77,7 +77,7 @@ export const SideMenuItem: React.FC<SideMenuItemProps> = ({ item, isSideMenuOpen
             onClick={() => onClick(item)}
             className={`
                 flex items-center h-4 py-6 rounded-md w-full
-                hover:bg-[var(--background-tertiary)] cursor-pointer
+                hover:bg-(--background-tertiary) cursor-pointer
                 ${isSideMenuOpen ? 'justify-start pl-4' : 'justify-center'}
                 ${isSelected ? 'bg-tertiary' : ''}
             `}
@@ -122,8 +122,13 @@ export const sideMenuItems: SideMenuItemType[] = [
         path: "/customs"
     },
     {
-        text: "Explore",
-        icon: FaCompass,      // Compass icon representing exploration/discovery
-        path: "/explore"
+        text: "Cards",
+        icon: FaLayerGroup,      // Compass icon representing exploration/discovery
+        path: "/cards"
+    },
+    {
+        text: "WBC",
+        icon: FaGlobeAmericas,
+        path: "/wbc"
     },
 ];

@@ -1,14 +1,38 @@
 from pprint import pprint
 from typing import List, Dict, Optional, Tuple
 import statistics
-from ..database.postgres_db import PostgresDB, ExploreDataRecord, ExploreDataRecord, ImageMatchType
-from ..shared.player_position import Position
+import os
+import csv
+import json
+
 from pydantic import BaseModel, Field
 from datetime import datetime
 from math import ceil
+from psycopg2 import sql
 
 # Table
 from prettytable import PrettyTable
+
+# SHOWDOWN BOT
+from ..database.postgres_db import PostgresDB, ExploreDataRecord, ExploreDataRecord, ImageMatchType
+from ..shared.player_position import Position
+from ..card.showdown_player_card import ShowdownPlayerCard, Expansion, Edition, ImageParallel
+
+# ANSI color codes
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    END = '\033[0m'
+
+def color_image_match(image_match_type: ImageMatchType) -> str:
+    """Color code the image match type for terminal output"""
+    if image_match_type == ImageMatchType.EXACT:
+        return f"{Colors.GREEN}{image_match_type.value}{Colors.END}"
+    elif image_match_type == ImageMatchType.TEAM_MATCH:
+        return f"{Colors.YELLOW}{image_match_type.value}{Colors.END}"
+    else:  # NO_MATCH or YEAR_MATCH
+        return f"{Colors.RED}{image_match_type.value}{Colors.END}"
 
 class TeamAllocation(BaseModel):
     """How many players each team should get"""
@@ -38,6 +62,8 @@ class ShowdownBotSetPlayer(ExploreDataRecord):
     
     priority_score: float = 0.0  # Calculated priority score for selection
 
+    set_number: Optional[int] = None  # Assigned set number for the player
+
 
 class ShowdownBotSet(BaseModel):
     """Builds optimal MLB Showdown card sets based on real player stats"""
@@ -61,6 +87,9 @@ class ShowdownBotSet(BaseModel):
     # Special inclusions
     include_all_stars: bool = Field(True, description="Include All-Star players")
     include_award_winners: bool = Field(True, description="Include Award-winning players")
+
+    # Construction results
+    final_players: Optional[List[ShowdownBotSetPlayer]] = Field(None, description="Final list of players selected for the set")
     
     # 10-50 point card allocation
     ideal_low_point_percentage: Optional[float] = Field(
@@ -79,10 +108,144 @@ class ShowdownBotSet(BaseModel):
         None,
         description="Specific player IDs to always exclude from the set"
     )
+    csv_file_path: Optional[str] = Field(
+        None,
+        description="Path to CSV file with bref_id and year columns to load players from"
+    )
+    expansion_cards: Optional[List[ShowdownPlayerCard]] = Field(
+        None,
+        description="List of expansion cards loaded from CSV and database"
+    )
 
-    def build_set(self, show_team_breakdown: Optional[str] = None) -> List[ExploreDataRecord]:
-        """Build a complete set based on configuration"""
-        print(f"Building {self.set_size} card set for {', '.join(map(str, self.years))}...")
+    def _load_expansion_players_from_csv(self) -> List[Dict]:
+        """Load expansion players from CSV file in core/set_builder folder.
+        
+        CSV MUST have columns: bref_id, year
+        Additional columns (edition, etc.) are preserved and applied to cards.
+        
+        These are players from OTHER years to add as expansions.
+        Returns list of dicts with all CSV columns.
+        """
+        if not self.csv_file_path:
+            return []
+        
+        # Get the core/set_builder folder path
+        this_folder = os.path.dirname(os.path.abspath(__file__))
+        csv_full_path = os.path.join(this_folder, self.csv_file_path)
+        
+        if not os.path.exists(csv_full_path):
+            print(f"Warning: CSV file not found at {csv_full_path}")
+            return []
+        
+        expansion_players = []
+        try:
+            with open(csv_full_path, 'r') as csvfile:
+                reader = csv.DictReader(csvfile)
+                if reader.fieldnames is None or 'bref_id' not in reader.fieldnames or 'year' not in reader.fieldnames:
+                    print(f"Warning: CSV must have 'bref_id' and 'year' columns. Found columns: {reader.fieldnames}")
+                    return []
+                
+                for row in reader:
+                    bref_id = row.get('bref_id', '').strip()
+                    year_str = row.get('year', '').strip()
+                    
+                    if bref_id and year_str:
+                        try:
+                            year = int(year_str)
+                            # Store all row data for later use
+                            player_data = {
+                                'bref_id': bref_id,
+                                'year': str(year),
+                                'player_id': f"{year}-{bref_id}",  # Create a player_id for DB lookup
+                                # Include all other columns from CSV
+                                **{k: v.strip() if isinstance(v, str) else v for k, v in row.items() if k not in ['bref_id', 'year']}
+                            }
+                            expansion_players.append(player_data)
+                        except ValueError:
+                            print(f"Warning: Could not parse year '{year_str}' for player {bref_id}")
+            
+            print(f"Loaded {len(expansion_players)} expansion player(s) from {self.csv_file_path}")
+            if expansion_players and len(expansion_players[0]) > 3:
+                extra_cols = [k for k in expansion_players[0].keys() if k not in ['bref_id', 'year', 'player_id']]
+                print(f"  Additional columns found: {', '.join(extra_cols)}")
+        except Exception as e:
+            print(f"Error reading CSV file {csv_full_path}: {e}")
+        
+        return expansion_players
+
+    def _load_expansion_cards_from_db(self, expansion_players: List[Dict]) -> List[ShowdownPlayerCard]:
+        """Query database for expansion player cards and apply CSV attributes.
+        
+        Args:
+            expansion_players: List of dicts with 'bref_id' and 'year' keys, plus optional attributes
+            
+        Returns:
+            List of ShowdownPlayerCard objects with CSV attributes applied
+        """
+        if not expansion_players:
+            return []
+        
+        db = PostgresDB(is_archive=False)
+        expansion_cards: List[ShowdownPlayerCard] = []
+        
+        player_ids = [player['player_id'] for player in expansion_players]
+        filter_values = tuple(player_ids)
+        try:
+            query = sql.SQL("""
+                SELECT
+                    player_id,
+                    showdown_set,
+                    card_data
+                FROM internal.dim_card
+                WHERE player_id IN %s and showdown_set IN %s
+            """)
+            raw_cards = db.execute_query(query=query, filter_values=(filter_values, tuple(self.showdown_sets)))
+            
+            # Create a lookup map from player_id to CSV row data
+            csv_data_lookup = {player['player_id']: player for player in expansion_players}
+            
+            for row in raw_cards:
+                card_data = row.get('card_data') or {}
+                player_id = row.get('player_id')
+                
+                # Merge CSV attributes into card_data, giving precedence to CSV values
+                card = ShowdownPlayerCard(**card_data)
+                csv_attributes = csv_data_lookup.get(player_id, {})
+                for attr, value in csv_attributes.items():
+                    match attr:
+                        case "edition":
+                            try:
+                                value = Edition(value)
+                            except ValueError:
+                                print(f"Warning: Invalid edition '{value}' for player_id {player_id}")
+                        case "parallel":
+                            try:
+                                value = ImageParallel(value)
+                            except ValueError:
+                                print(f"Warning: Invalid parallel '{value}' for player_id {player_id}")
+                        case _:
+                            pass  # Keep as string or original type
+                    if hasattr(card, attr):
+                        setattr(card, attr, value)
+                    elif hasattr(card.image, attr):
+                        setattr(card.image, attr, value)
+                expansion_cards.append(card)
+        except Exception as e:
+            print(f"Error querying database for expansion players: {e}")
+
+        # SORT BY EDITION (IF IT EXISTS), THEN BY YEAR THEN BY BREF ID
+        expansion_cards.sort(key=lambda c: (
+            c.image.edition.value if c.image and c.image.edition else 'ZZZ',  # Sort by edition if it exists, otherwise put at end
+            c.image.set_year if c.image and c.image.set_year else 9999,  # Then sort by year if it exists
+            c.bref_id or ''  # Finally sort by bref_id
+        ))
+
+        return expansion_cards
+
+    def build_set_player_list(self, show_team_breakdown: Optional[str] = None) -> None:
+        """Build a complete set (base + expansions) based on configuration"""
+        
+        print(f"Building {self.set_size} card base set for {', '.join(map(str, self.years))}...")
         
         # 1. Get player pool
         player_pool = self._get_qualified_player_pool()
@@ -103,14 +266,154 @@ class ShowdownBotSet(BaseModel):
         # 5. Redistribute unused slots
         final_players = self._redistribute_unused_slots(player_pool, team_allocations, selected_players)
         
-        self._print_set_summary(final_players, team_allocations, show_team_breakdown)
+        self._print_set_summary(final_players, team_allocations, show_team_breakdown, player_pool)
+
+        final_players = self._sort_and_number_players(final_players)
         
+        # 6. Load and add expansion players from CSV (if provided)
+        expansion_player_tuples = self._load_expansion_players_from_csv()
+        if expansion_player_tuples:
+            expansion_cards = self._load_expansion_cards_from_db(expansion_player_tuples)
+            self.expansion_cards = expansion_cards
+        
+        self.final_players = final_players
+        
+        return
+
+    def generate_showdown_cards_for_final_players(
+        self,
+        output_folder_path: str = None,
+        set_name: Optional[str] = None,
+        img_name_suffix: str = '',
+        show: bool = False,
+        skip_images: bool = False,
+        export_data: bool = False
+    ) -> None:
+        """Generate card images for each item in final_players.
+
+        Args:
+            output_folder_path: Folder to export card images to.
+            set_name: Optional set name to trigger set-numbered filenames.
+            img_name_suffix: Optional suffix appended to image file names.
+            show: Whether to open images after creation.
+            skip_images: Whether to skip image generation.
+            export_data: Whether to export player data to JSON file in output folder.
+
+        Returns:
+            None
+        """
+
+        if not self.final_players or len(self.final_players) == 0:
+            return
+
+        if not output_folder_path:
+            # Set a default output path based on set name or timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_set_name = set_name or f"showdown_set_{timestamp}"
+            this_folder = os.path.dirname(os.path.abspath(__file__))
+            output_folder_path = os.path.join(this_folder, "output", default_set_name)
+
+        os.makedirs(output_folder_path, exist_ok=True)
+
+        player_pairs: List[Tuple[str, str]] = []
+        for player in self.final_players:
+            player_id = player.id
+            showdown_set = player.showdown_set
+            if not player_id or not showdown_set:
+                continue
+            player_pairs.append((player_id, showdown_set))
+
+        if len(player_pairs) == 0:
+            return
+
+        # Keep unique pairs while preserving order
+        unique_pairs = list(dict.fromkeys(player_pairs))
+
+        placeholders = ", ".join(["(%s, %s)"] * len(unique_pairs))
+        query_str = f"""
+            SELECT DISTINCT ON (d.player_id, d.showdown_set)
+                d.player_id,
+                d.showdown_set,
+                d.card_data
+            FROM internal.dim_card d
+            JOIN (VALUES {placeholders}) AS v(player_id, showdown_set)
+              ON d.player_id = v.player_id
+             AND d.showdown_set = v.showdown_set
+            ORDER BY d.player_id, d.showdown_set, d.modified_date DESC
+        """
+        filter_values = tuple([value for pair in unique_pairs for value in pair])
+
+        db = PostgresDB(is_archive=False)
+        raw_cards = db.execute_query(query=sql.SQL(query_str), filter_values=filter_values)
+
+        card_lookup: Dict[Tuple[str, str], ShowdownPlayerCard] = {}
+        for row in raw_cards:
+            card_data = row.get('card_data') or {}
+            try:
+                card_lookup[(row.get('player_id'), row.get('showdown_set'))] = ShowdownPlayerCard(**card_data)
+            except Exception:
+                continue
+
+        all_cards: list[ShowdownPlayerCard] = []
+        total_cards = len(self.final_players)
+        digits = max(1, len(str(total_cards)))
+
+        for player in self.final_players:
+            player_id = player.id
+            showdown_set = player.showdown_set
+            card = card_lookup.get((player_id, showdown_set))
+            if not card:
+                continue
+            set_number = player.set_number or 0
+            card.image.set_number = str(set_number).zfill(digits)
+            card.image.set_name = set_name or player.showdown_set
+            card.image.output_folder_path = os.path.join(output_folder_path, "images")
+            card.image.is_bordered = True
+            card.image.set_year = 2026
+            if not skip_images:
+                card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
+            
+            all_cards.append(card)
+
+        # Expansion cards (if any)
+        if self.expansion_cards:
+            prior_edition = None
+            current_set_number = 1
+            for card in self.expansion_cards:
+                if not card.image:
+                    continue
+                if card.image.edition != prior_edition:
+                    current_set_number = 1  # Reset set number for new edition
+                card.image.set_number = f"{card.image.edition.value}{str(current_set_number).zfill(2)}"
+                card.image.output_folder_path = os.path.join(output_folder_path, "images")
+                card.image.is_bordered = True
+                card.image.set_year = 2026
+                card.image.set_name = f"{card.image.edition.value} Expansion"
+                if not skip_images:
+                    card.generate_card_image(show=show, img_name_suffix=img_name_suffix)
+                all_cards.append(card)
+                prior_edition = card.image.edition
+                current_set_number += 1
+
+        # EXPORT TO JSON WHERE THE PLAYER ID IS THE KEY AND SHOWDOWN CARD IS THE VALUE
+        if export_data:
+            export_path = os.path.join(output_folder_path, "data", "card_data.json")
+            os.makedirs(os.path.dirname(export_path), exist_ok=True)
+            export_dict = {}
+            for card in all_cards:
+                if card.bref_id and card.set:
+                    key = card.id
+                    export_dict[key] = card.as_json()
+            with open(export_path, 'w') as f:
+                json.dump(export_dict, f, indent=4)
+            print(f"Exported card data to {export_path}")
+
         return
     
     def _get_qualified_player_pool(self) -> List[ExploreDataRecord]:
         """Get all qualified players for the season"""
 
-        db = PostgresDB(is_archive=True)
+        db = PostgresDB(is_archive=False)
         
         # Get all players from the season
         all_players = db.fetch_cards_bot(
@@ -145,7 +448,7 @@ class ShowdownBotSet(BaseModel):
                     qualified_players.append(player)
         
         return qualified_players
-    
+
     def _calculate_quality_thresholds(self, player_pool: List[ExploreDataRecord]):
         """Calculate WAR thresholds for quality tiers"""
         wars = [p.war for p in player_pool if p.war is not None and p.war > 0]
@@ -257,10 +560,13 @@ class ShowdownBotSet(BaseModel):
             )
             players_with_priority.append((updated_player, priority_score))
         
+        num_players_manually_included = len([p for p in players if p.bref_id_w_type_override in (self.manually_included_ids or [])])
+        cap = max(target_count, num_players_manually_included)
+
         players_with_priority.sort(key=lambda x: (x[0].bref_id_w_type_override in (self.manually_included_ids or []), x[1]), reverse=True)
 
         # Select top players up to target count
-        selected = [p[0] for p in players_with_priority[:target_count]]
+        selected = [p[0] for p in players_with_priority[:cap]]
         
         return selected
     
@@ -316,7 +622,7 @@ class ShowdownBotSet(BaseModel):
         
         return score
     
-    def _redistribute_unused_slots(self, player_pool: List[ExploreDataRecord], team_allocations: Dict[str, TeamAllocation], selected_players: List[ExploreDataRecord]) -> List[ExploreDataRecord]:
+    def _redistribute_unused_slots(self, player_pool: List[ExploreDataRecord], team_allocations: Dict[str, TeamAllocation], selected_players: List[ExploreDataRecord]) -> List[ShowdownBotSetPlayer]:
         """Redistribute unused slots when teams don't have enough qualified players
         
         Prioritizes maintaining player type distribution (hitters/starters/relievers percentages).
@@ -464,7 +770,13 @@ class ShowdownBotSet(BaseModel):
         selected_players.extend(additional_players)
         return selected_players
     
-    def _print_set_summary(self, selected_players: List[ShowdownBotSetPlayer], team_allocations: Dict[str, TeamAllocation], show_team_breakdown: Optional[str] = None):
+    def _print_set_summary(
+        self,
+        selected_players: List[ShowdownBotSetPlayer],
+        team_allocations: Dict[str, TeamAllocation],
+        show_team_breakdown: Optional[str] = None,
+        player_pool: Optional[List[ShowdownBotSetPlayer]] = None
+    ):
         """Print summary of the generated set"""
         
         print("\n" + "="*60)
@@ -520,10 +832,28 @@ class ShowdownBotSet(BaseModel):
             position_dist_table.add_row([pos.name, count, f"{(count/len(selected_players))*100:.1f}%", count_10_20, count_10_50])
         print(position_dist_table)
 
+        # RP/CL POINTS DISTRIBUTION (50-POINT BUCKETS)
+        sp_point_buckets: Dict[int, int] = {}
+        for player in selected_players:
+            if player.primary_position not in (Position.RP, Position.CL):
+                continue
+            if player.points is None:
+                continue
+            bucket_start = int(player.points) // 50 * 50
+            sp_point_buckets[bucket_start] = sp_point_buckets.get(bucket_start, 0) + 1
+
+        if len(sp_point_buckets) > 0:
+            print("\nRP/CL Points Distribution (50-pt buckets):")
+            sp_points_table = PrettyTable(field_names=["Points", "Count"])
+            for bucket_start in sorted(sp_point_buckets.keys()):
+                bucket_end = bucket_start + 49
+                sp_points_table.add_row([f"{bucket_start}-{bucket_end}", sp_point_buckets[bucket_start]])
+            print(sp_points_table)
+
         print(f"Total Players Selected: {len(selected_players)} / {self.set_size}")
 
         # MISSING IMAGES
-        top_players_missing_images = [p for p in selected_players if not p.image_match_type in (ImageMatchType.EXACT, ImageMatchType.TEAM_MATCH)]
+        top_players_missing_images = [p for p in selected_players if not p.image_match_type in (ImageMatchType.EXACT)]
         print(f"\nPlayers Missing Exact Images: {len(top_players_missing_images)}")
         top_players_missing_images.sort(key=lambda p: getattr(p, "priority_score", 0) or 0, reverse=True)
         tbl_missing = PrettyTable()
@@ -532,9 +862,36 @@ class ShowdownBotSet(BaseModel):
             tbl_missing.add_row([
                 player.name, f"{player.priority_score:.2f}" if player.priority_score is not None else "-", f"{player.war:.2f}" if player.war is not None else "N/A", 
                 player.primary_position.name.replace('_', ''), player.g, player.gs or '-', player.real_earned_run_avg or "-", 
-                player.real_onbase_plus_slugging or "-", player.team_id, player.image_match_type.value, player.points or "-"
+                player.real_onbase_plus_slugging or "-", player.team_id, color_image_match(player.image_match_type), player.points or "-"
             ])
         print(tbl_missing)
+
+        # HIGHEST WAR PLAYERS NOT SELECTED
+        if player_pool:
+            selected_ids = {p.id for p in selected_players if p.id}
+            unselected_players = [p for p in player_pool if p.id not in selected_ids]
+            unselected_players.sort(
+                key=lambda p: p.war if p.war is not None else -9999,
+                reverse=True
+            )
+
+            top_unselected = unselected_players[:20]
+            print(f"\nHighest WAR Players Not Selected: {len(unselected_players)} total")
+            unselected_table = PrettyTable()
+            unselected_table.field_names = ["Name", "WAR", "Pos", "G", "GS", "ERA", "OPS", "Team", "PTS"]
+            for player in top_unselected:
+                unselected_table.add_row([
+                    player.name,
+                    f"{player.war:.2f}" if player.war is not None else "N/A",
+                    player.primary_position.name.replace('_', ''),
+                    player.g,
+                    player.gs or '-',
+                    player.real_earned_run_avg or "-",
+                    player.real_onbase_plus_slugging or "-",
+                    player.team_id,
+                    player.points or "-"
+                ])
+            print(unselected_table)
 
         if show_team_breakdown:
             print(f"\nDetailed Team Breakdown for {show_team_breakdown}:")
@@ -546,8 +903,34 @@ class ShowdownBotSet(BaseModel):
                     player.name, f"{player.priority_score:.2f}" if getattr(player, "priority_score", None) is not None else "-", 
                     f"{player.war:.2f}" if player.war is not None else "N/A", player.primary_position.name.replace('_', ''), 
                     player.g, player.gs or '-', player.real_earned_run_avg or "-", 
-                    player.real_onbase_plus_slugging or "-", player.image_match_type.value, player.points or "-"
+                    player.real_onbase_plus_slugging or "-", color_image_match(player.image_match_type), player.points or "-"
                 ])
             print(team_table)
 
         print("="*60 + "\n")
+
+    def _sort_and_number_players(self, players: List[ShowdownBotSetPlayer]) -> List[ShowdownBotSetPlayer]:
+        """Sort players by team then last name, and assign set numbers."""
+
+        def last_name_key(full_name: str) -> str:
+            if not full_name:
+                return ""
+            parts = full_name.strip().replace(',', '').split()
+            if len(parts) == 0:
+                return ""
+            return parts[-1].lower()
+
+        sorted_players = sorted(
+            players,
+            key=lambda p: (
+                (p.team_id or "").lower(),
+                (p.bref_id_w_type_override or "").lower(),
+                last_name_key(p.name),
+                (p.name or "").lower()
+            )
+        )
+
+        for index, player in enumerate(sorted_players, start=1):
+            player.set_number = index
+
+        return sorted_players

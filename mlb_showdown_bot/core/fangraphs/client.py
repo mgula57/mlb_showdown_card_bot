@@ -26,7 +26,12 @@ class FangraphsAPIClient:
         try:
             response = self.session.get(url, params=params, timeout=self.timeout)
             response.raise_for_status()
-            return response.json().get("data", [])
+            response_data = response.json()
+            if type(response_data) == dict and 'data' in response_data:
+                return response_data['data']
+            elif type(response_data) == list:
+                return response_data
+            
         except requests.RequestException as e:
             raise FanGraphsError(f"API request failed: {e}")
     
@@ -36,10 +41,13 @@ class FangraphsAPIClient:
     # -------------------
 
 
-    def fetch_fielding_stats(self, stats_period: StatsPeriod, position: str = "all", fangraphs_player_ids: list[str] = None) -> list[FieldingStats]:
+    def fetch_leaderboard_stats(self, stats_period: StatsPeriod, stat_type: str = "fld", league='MLB', position: str = "all", fangraphs_player_ids: list[str] = None) -> list[dict]:
         """Fetch fielding stats from Fangraphs
         
         Args:
+            stats_period: StatsPeriod object defining the time frame.
+            stat_type: Type of stats to fetch (e.g., "fld", "bat", "pit").
+            league: League to fetch stats for (e.g., "MLB", "NPB", "KBO").
             season: Year of the season to fetch stats for.
             position: Position to filter by (e.g., "C", "1B", "2B"). Use "all" for all positions.
             fangraphs_player_ids: List of Fangraphs player IDs to fetch stats for.
@@ -54,22 +62,49 @@ class FangraphsAPIClient:
 
         params = {
             "pos": position_str,
-            "stats": "fld",
-            "lg": "all",
+            "stats": stat_type,
             "qual": "0",
-            "type": "1",                             # GETS ADVANCED FIELDING STATS
-            "season1": str(stats_period.first_year), # START YEAR
+            "type": "0",
             "season": str(stats_period.last_year),   # END YEAR
-            "month": "0",
             "ind": "0",
             "team": "0",
-            "rost": "0",
-            "players": ids_str,
             "pageitems": "2000",
             "pagenum": "1",
-            "sortdir": "default",
-            "sortstat": "DRS",
         }
-        data = self._request("leaders/major-league/data", params)
 
-        return [FieldingStats(**item) for item in data]
+        # LEAGUE SETTINGS
+        match league.lower():
+            case 'mlb':
+                params.update({
+                    "lg": "all",
+                })
+                request_url_league_path = 'major-league'
+            case 'npb':
+                params.update({
+                    "lg": "", # EMPTY STRING FOR NPB, LEAGUE IS IN REQUEST URL
+                })
+                request_url_league_path = 'international/npb'
+            case 'kbo':
+                params.update({
+                    "lg": "", # EMPTY STRING FOR KBO, LEAGUE IS IN REQUEST URL
+                })
+                request_url_league_path = 'international/kbo'
+            case _:
+                raise ValueError(f"Invalid league: {league}. Valid options are: MLB, NPB, KBO.")
+
+        # STATS TYPE SETTINGS
+        match stat_type.lower():
+            case 'fld':
+                params.update({
+                    "season1": str(stats_period.first_year), # START YEAR
+                    "sortstat": "DRS",
+                    "sortdir": "desc",
+                    "month": "0",
+                    "rost": "0",
+                    "players": ids_str,
+                    "type": "1",                             # GETS ADVANCED FIELDING STATS
+                })
+
+        data = self._request(f"leaders/{request_url_league_path}/data", params)
+
+        return data

@@ -19,19 +19,20 @@ class PlayerStatsArchive:
 # INIT
 # ------------------------------------------------------------------------
 
-    def __init__(self, years:list[int], is_snapshot:bool = False) -> None:
+    def __init__(self, years:list[int], is_snapshot:bool = False, player_ids: list[str] = None) -> None:
         """"""
         self.years = years
         self.is_snapshot = is_snapshot
         self.historical_date = date.today().strftime('%Y-%m-%d') if is_snapshot else None # FORMAT WILL BE YYYY-MM-DD (EX: "2023-09-01")
         self.two_way_bref_ids = ['ohtansh01','sudhowi01','mercewi01','dunnja01','howelha01','hickmch01',]
         self.player_list: list[PlayerStats] = []
+        self.player_ids = player_ids
 
 # ------------------------------------------------------------------------
 # PLAYER LIST GENERATION
 # ------------------------------------------------------------------------
 
-    def generate_player_list(self, delay_between_years:float = 2.5, publish_to_postgres:bool=False) -> None:
+    def generate_player_list(self, delay_between_years:float = 2.5, publish_to_postgres:bool=False, env: str = "dev") -> None:
         """Query baseball reference to get player list for each year requested.
         Stores final output to player_list class attribute as list of dictionaries.
 
@@ -44,7 +45,8 @@ class PlayerStatsArchive:
 
         if publish_to_postgres:
             # CREATE DATABASE TABLE
-            db = PostgresDB(is_archive=True)
+            is_prod = env.lower() == 'prod'
+            db = PostgresDB(is_archive=is_prod)
             db.create_player_season_stats_table()
             db_cursor = db.connection.cursor()
 
@@ -220,12 +222,13 @@ class PlayerStatsArchive:
     def is_player_list_empty(self) -> bool:
         return len(self.player_list) == 0
 
-    def scrape_stats_for_player_list(self, delay:float = 10.0, publish_to_postgres:bool=True, limit:int=None, exclude_records_with_stats:bool=True, modified_start_date:str = None, modified_end_date:str = None, player_id_list:list[str] = None) -> None:
+    def scrape_stats_for_player_list(self, delay:float = 10.0, publish_to_postgres:bool=True, env: str = "dev", limit:int=None, exclude_records_with_stats:bool=True, modified_start_date:str = None, modified_end_date:str = None, player_id_list:list[str] = None) -> None:
         """Using the class player_list array, iterrate through players and scrape bref data.
 
         Args:
             delay: Delay between each player's scrape.
             publish_to_postgres: Flag to publish data to postgres.
+            env: Environment to run in (dev, prod).
             limit: Limit for how many players can be run.
             exclude_records_with_stats: Flag to exclude records with stats.
             modified_start_date: Limit to only records modified after this date.
@@ -237,7 +240,8 @@ class PlayerStatsArchive:
 
         if publish_to_postgres:
             # CREATE DATABASE TABLE
-            db = PostgresDB(is_archive=True)
+            is_prod = env.lower() == 'prod'
+            db = PostgresDB(is_archive=is_prod)
             db.create_player_season_stats_table()
             db_cursor = db.connection.cursor()
 
@@ -332,7 +336,7 @@ class PlayerStatsArchive:
 # CONVERTING TO SHOWDOWN CARDS
 # ------------------------------------------------------------------------
 
-    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, refresh_explore: bool=True, sets: list[ShowdownSet] = None, ignore_minimums: bool = False) -> None:
+    def generate_showdown_player_cards(self, publish_to_postgres:bool=True, env: str = "dev", refresh_explore: bool=True, sets: list[ShowdownSet] = None, ignore_minimums: bool = False, player_id_list: list[str] = None) -> None:
         """Using the class player_list
         
         Args:
@@ -340,7 +344,7 @@ class PlayerStatsArchive:
             refresh_explore: Flag to refresh explore views after upload.
             sets: List of Showdown Sets to generate cards for. If None, generates for all sets.
             ignore_minimums: Flag to ignore minimum PA/IP when generating cards.
-
+            player_id_list: List of player IDs to generate cards for. If None, generates for all players.
         Returns:
             None
         """
@@ -352,11 +356,12 @@ class PlayerStatsArchive:
         # FETCH PLAYER DATA FROM ARCHIVE
         if publish_to_postgres:
             # CREATE DATABASE TABLE
-            db = PostgresDB(is_archive=True)
+            is_prod = env.lower() == 'prod'
+            db = PostgresDB(is_archive=is_prod)
 
             # POPULATE PLAYER STATS LIST FROM THE DATABASE IF IT'S EMPTY
             if self.is_player_list_empty:
-                self.fill_player_stats_from_archive(db=db, ignore_minimums=ignore_minimums)
+                self.fill_player_stats_from_archive(db=db, ignore_minimums=ignore_minimums, player_id_list=player_id_list)
 
         print("CONVERTING TO SHOWDOWN CARDS...")
         showdown_cards: list[ShowdownPlayerCard] = []

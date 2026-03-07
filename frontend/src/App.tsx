@@ -30,13 +30,16 @@
  * @component
  */
 
-import { BrowserRouter, useLocation } from "react-router-dom";
+import { BrowserRouter, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import AppLayout from "./components/AppLayout";
 import CustomCardBuilder from "./components/customs/CustomCardBuilder";
 import { SiteSettingsProvider } from "./components/shared/SiteSettingsContext";
-import Explore from "./components/explore/explore";
+import { AuthProvider } from "./components/auth/AuthContext";
+import Cards from "./components/cards/Cards";
 import Home from "./components/Home";
+import AccountPage from "./components/account/AccountPage";
+import Seasons from "./components/seasons/Seasons";
 
 /**
  * Inner application content component that handles route-based visibility
@@ -67,22 +70,38 @@ import Home from "./components/Home";
  */
 const AppContent = () => {
     const location = useLocation();
+    const navigate = useNavigate();
+
+    const normalizePath = (path: string) => {
+        if (path === '/home') return '/';
+        if (path === '/explore') return '/cards';
+        return path;
+    };
     
     // Initialize with current route only (don't mount home unless user is on home)
     const [mountedRoutes, setMountedRoutes] = useState<Set<string>>(() => {
-        const initialPath = location.pathname === '/home' ? '/' : location.pathname;
+        const initialPath = normalizePath(location.pathname);
         return new Set([initialPath]);
     });
 
     // Track which routes have been visited to enable lazy mounting
     useEffect(() => {
-        const currentPath = location.pathname === '/home' ? '/' : location.pathname;
+        const currentPath = normalizePath(location.pathname);
         setMountedRoutes(prev => new Set([...prev, currentPath]));
     }, [location.pathname]);
+
+    useEffect(() => {
+        if (location.pathname === '/explore') {
+            navigate('/cards', { replace: true });
+        }
+    }, [location.pathname, navigate]);
 
     const isActive = (path: string) => {
         if (path === '/') {
             return location.pathname === '/' || location.pathname === '/home';
+        }
+        if (path === '/cards') {
+            return location.pathname === '/cards' || location.pathname === '/explore';
         }
         return location.pathname === path;
     };
@@ -103,10 +122,45 @@ const AppContent = () => {
                 </div>
             )}
 
-            {/* Card Explorer - Mount when first visited */}
-            {mountedRoutes.has('/explore') && (
-                <div className={isActive('/explore') ? 'block' : 'hidden'}>
-                    <Explore />
+            {/* Cards - Mount when first visited */}
+            {mountedRoutes.has('/cards') && (
+                <div className={isActive('/cards') ? 'block' : 'hidden'}>
+                    <Cards />
+                </div>
+            )}
+
+            {/* Account Page - Mount when first visited */}
+            {mountedRoutes.has('/account') && (
+                <div className={isActive('/account') ? 'block' : 'hidden'}>
+                    <AccountPage />
+                </div>
+            )}
+
+            {/* Seasons - Mount when first visited */}
+            {mountedRoutes.has('/seasons') && (
+                <div className={isActive('/seasons') ? 'block' : 'hidden'}>
+                    <Seasons 
+                        type="mlb" 
+                        title="MLB Seasons" 
+                        subtitle="Browse season standings, teams, and players with Showdown context"
+                    />
+                </div>
+            )}
+
+            {/* WBC - Mount when first visited */}
+            {mountedRoutes.has('/wbc') && (
+                <div className={isActive('/wbc') ? 'block' : 'hidden'}>
+                    <Seasons
+                        type="wbc"
+                        title="WBC"
+                        subtitle="Browse World Baseball Classic standings, teams, and players"
+                        staticSeasons={[
+                            { regular_season_start_date: "2026-03-25", season_end_date: "2026-10-31", season_id: "2026" },
+                        ]}
+                        staticSports={[
+                            { abbreviation: "WBC", active_status: true, code: "int", id: 51, link: "/api/v1/sports/51", name: "World Baseball Classic", sort_order: 3501 }
+                        ]}
+                    />
                 </div>
             )}
         </AppLayout>
@@ -144,9 +198,11 @@ const AppContent = () => {
 function App() {
     return (
         <BrowserRouter>
-            <SiteSettingsProvider>
-                <AppContent />
-            </SiteSettingsProvider>
+            <AuthProvider>
+                <SiteSettingsProvider>
+                    <AppContent />
+                </SiteSettingsProvider>
+            </AuthProvider>
         </BrowserRouter>
     );
 }

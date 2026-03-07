@@ -163,7 +163,8 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
 
     # CHECK FOR PA
     current_categories = stats_data.keys()
-    if 'PA' not in current_categories:
+    
+    if stats_data.get('PA', None) is None:
         stats_data['is_stats_estimate'] = True
         bf = stats_data.get('batters_faced', 0)
         is_bf_above_than_hits_and_bb = bf > ( stats_data.get('H', 0) + stats_data.get('BB', 0) ) # ACCOUNTS FOR BLANK BF ON PARTIAL SEASONS
@@ -174,6 +175,10 @@ def fill_empty_stat_categories(stats_data:dict, is_pitcher:bool, is_game_logs:bo
         # ESTIMATE PA AGAINST
         else:
             stats_data['PA'] = int(round(stats_data.get('IP', 0) * 4.25)) # NEED TO ESTIMATE PA BASED ON AVG PA PER INNING
+
+    if stats_data.get('AB', None) is None:
+        stats_data['is_stats_estimate'] = True
+        stats_data['AB'] = max(0, stats_data.get('PA', 0) - (stats_data.get('BB', 0) or 0) - (stats_data.get('HBP', 0) or 0) - (stats_data.get('SF', 0) or 0))
 
     # PITCHER GAME LOGS DO NOT HAVE SH, SO DERIVE FROM PA
     if is_game_logs and is_pitcher and 'SH' not in current_categories:

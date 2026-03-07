@@ -2,6 +2,8 @@ from enum import Enum
 from pydantic import BaseModel, ValidationInfo, field_validator
 from typing import Optional
 
+from ...core.shared.nationality import WBCTeam
+
 # INTERNAL
 from .stats.stat_highlights import StatHighlightsType, StatHighlightsCategory
 
@@ -19,6 +21,7 @@ class Edition(str, Enum):
     NATIONALITY = "NAT"
     POSTSEASON = "POST"
     PROMO = "PM"
+    WBC = "WBC"
 
     @classmethod
     def _missing_(cls, _):
@@ -61,7 +64,7 @@ class Edition(str, Enum):
 
     @property
     def has_additional_logo_00_01(self) -> bool:
-        return self in [Edition.COOPERSTOWN_COLLECTION, Edition.ALL_STAR_GAME, Edition.SUPER_SEASON, Edition.ROOKIE_SEASON, Edition.POSTSEASON]
+        return self in [Edition.COOPERSTOWN_COLLECTION, Edition.ALL_STAR_GAME, Edition.SUPER_SEASON, Edition.ROOKIE_SEASON, Edition.POSTSEASON, Edition.WBC]
 
 # ---------------------------------------
 # MARK: EXPANSION
@@ -271,6 +274,7 @@ class SpecialEdition(str, Enum):
     SUPER_SEASON = "SS"
     TEAM_COLOR_BLAST_DARK = "TCBD"
     NATIONALITY = "NATIONALITY"
+    WBC = "WBC"
     POSTSEASON = "POSTSEASON"
     NONE = "NONE"
 
@@ -287,7 +291,7 @@ class SpecialEdition(str, Enum):
             
     @property
     def hide_2000_player_name(self) -> bool:
-        return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
+        return self in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025, SpecialEdition.WBC]
 
     @property
     def ignore_edition_based_team_logo(self) -> bool:
@@ -445,6 +449,7 @@ class TemplateImageComponent(Enum):
     POSTSEASON = "postseason"
     POSTSEASON_YEAR_TEXT = "postseason_year_text"
     POSTSEASON_YEAR_TEXT_BOX = "postseason_year_text_box"
+    WBC = "wbc"
     EXPANSION = "expansion"
     COMMAND = "command"
     STYLE = "style"
@@ -550,7 +555,11 @@ class ShowdownImage(BaseModel):
     # AWARDS
     award_summary_list: Optional[list[str]] = None
 
-    def update_special_edition(self, has_nationality: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
+    # ONLINE STORAGE
+    upload_to_supabase: Optional[bool] = None
+    storage_path: Optional[str] = None
+
+    def update_special_edition(self, has_nationality: bool = False, has_wbc_info: bool = False, enable_cooperstown_special_edition: bool = False, year:str = None, is_04_05: bool = False) -> None:
         if self.special_edition == SpecialEdition.NONE:
 
             if self.edition == Edition.ALL_STAR_GAME and year == '2023':
@@ -585,11 +594,28 @@ class ShowdownImage(BaseModel):
             if self.edition == Edition.NATIONALITY and has_nationality:
                 self.special_edition = SpecialEdition.NATIONALITY
                 return 
+        
+            if self.edition == Edition.WBC and has_wbc_info:
+                self.special_edition = SpecialEdition.WBC
+                return
 
             if self.parallel == ImageParallel.TEAM_COLOR_BLAST and self.is_dark_mode:
                 self.special_edition = SpecialEdition.TEAM_COLOR_BLAST_DARK
                 return 
-            
+
+    def apply_wbc_team_theming(self, wbc_team: WBCTeam, wbc_year: int) -> None:
+        """Apply WBC team theming to the image based on the WBC team and year."""
+        if type(wbc_team) == str:
+            wbc_team = WBCTeam(wbc_team)
+
+        if wbc_team and wbc_year:
+            self.edition = Edition.WBC
+            self.special_edition = SpecialEdition.WBC
+            primary_color_tuple = wbc_team.primary_color
+            self.color_primary = f"rgb({primary_color_tuple[0]}, {primary_color_tuple[1]}, {primary_color_tuple[2]})"
+            secondary_color_tuple = wbc_team.secondary_color
+            self.color_secondary = f"rgb({secondary_color_tuple[0]}, {secondary_color_tuple[1]}, {secondary_color_tuple[2]})"
+
     @field_validator('nickname_index', mode='before')
     def clean_nickname_index(cls, nickname_index:int) -> int:
         if nickname_index is None:

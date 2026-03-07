@@ -22,6 +22,9 @@ class BaseMLBClient(BaseModel):
     cache_ttl: int = 300  # 5 minutes default
     max_retries: int = 3
     headers: Dict[str, str] = {}
+    session: Any = None
+    last_response_from_cache: Optional[bool] = None
+    last_response_cache_layer: str = "UNKNOWN"
 
     # Instance variables for rate limiting and caching
     _cache: Dict[str, Dict[str, Any]] = {}
@@ -65,6 +68,8 @@ class BaseMLBClient(BaseModel):
         # Check cache first
         if use_cache and self._is_cache_valid(cache_key):
             print(f"Cache hit for {endpoint}")
+            self.last_response_from_cache = True
+            self.last_response_cache_layer = "MEMORY"
             return self._cache[cache_key]['data']
         
         # Enforce rate limiting
@@ -74,7 +79,6 @@ class BaseMLBClient(BaseModel):
         for attempt in range(self.max_retries):
             try:
                 data = self._execute_request(endpoint, params)
-                
                 # Cache successful response
                 if use_cache:
                     self._cache_response(cache_key, data)
@@ -106,8 +110,13 @@ class BaseMLBClient(BaseModel):
         """Execute the actual HTTP request"""
         url = f"{self.base_url}/{endpoint}"
         
-        logger.debug(f"Making request to {url} with params {params}")
-        response = requests.get(url, params=params, headers=self.headers, timeout=self.timeout)
+        http_client = self.session if self.session is not None else requests
+        response = http_client.get(url, params=params, headers=self.headers, timeout=self.timeout)
+
+        from_cache = bool(getattr(response, "from_cache", False))
+        self.last_response_from_cache = from_cache
+        self.last_response_cache_layer = "REQUESTS_CACHE" if from_cache else "LIVE"
+
         response.raise_for_status()
         return response.json()
     

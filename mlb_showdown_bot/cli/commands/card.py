@@ -43,7 +43,8 @@ def card_main(
     start_date: Optional[str] = typer.Option(None, "--start_date", "-start", help="Optional Start Date for stats. Only available post-1900."),
     end_date: Optional[str] = typer.Option(None, "--end_date", "-end", help="Optional End Date for stats. Only available post-1900."),
     split_name: Optional[str] = typer.Option(None, "--split_name", "-spl", help="Create a card using the splits page on baseball reference"),
-    
+    league: str = typer.Option("MLB", "--league", "-lg", help="League to pull stats from, either MLB or MILB"),
+
     # CHART
     co_override: Optional[str] = typer.Option(None, "--co_override", "-co", help="Manually select a command/out combination"),
     variable_spd: bool = typer.Option(False, "--variable_spd", "-vs", help="Optionally toggle variable speed (2000 + 2001 sets only)"),
@@ -69,6 +70,8 @@ def card_main(
     # DISPLAYING CARD
     print_to_cli: bool = typer.Option(True, "--print_to_cli", "-print", help="Show visual representation of card in the CLI"),
     show_image: bool = typer.Option(False, "--show_image", "-show", help="Optionally open the final Player Card Image upon completion"),
+    upload_to_supabase: bool = typer.Option(False, "--upload_to_supabase", "-sb", help="Optionally upload the generated card to Supabase Storage"),
+    user_id: Optional[str] = typer.Option(None, "--user_id", "-uid", help="Optionally specify a user ID for the Supabase storage path. If not provided, will default to using the set name for the storage path."),
 
     # RANDOM
     randomize: bool = typer.Option(False, "--randomize", "-rand", help="Generate a random player card"),

@@ -27,7 +27,7 @@ from typing import Any, Optional, Union
 from ..shared.team import Team
 from ..shared.icon import Icon
 from ..shared.player_position import PositionSlot, PositionSlotParent
-from ..shared.nationality import Nationality
+from ..shared.nationality import Nationality, WBCTeam
 from ..shared.speed import Speed, SpeedLetter
 from ..shared.hand import Hand
 
@@ -45,6 +45,10 @@ from .images import ImageSource, ImageSourceType, SpecialEdition, Edition, Expan
 from .points import Points, PointsMetric, PointsBreakdown
 
 from .trends.trends import TrendDatapoint
+
+from ..supabase import upload_to_supabase
+
+from ..data.stat_reduction import nerf_stats_by_run_value
 
 from ..version import __version__
 
@@ -65,6 +69,7 @@ class ShowdownPlayerCard(BaseModel):
     # DERIVED
     bref_id: str = ''
     bref_url: str = ''
+    mlb_id: Optional[int] = None
     league: str | None = 'MLB'
     team: Team | None = Team.MLB
     nationality: Nationality | None = Nationality.NONE
@@ -75,6 +80,8 @@ class ShowdownPlayerCard(BaseModel):
     # OVERRIDES
     player_type_override: Optional[PlayerType] = None
     team_override: Optional[Team] = None
+    wbc_team: Optional[WBCTeam] = None
+    wbc_year: Optional[int] = None
 
     # OPTIONALS
     version: str = __version__
@@ -87,6 +94,7 @@ class ShowdownPlayerCard(BaseModel):
     commands_excluded: Optional[list[int]] = []
     is_variable_speed_00_01: bool = False
     is_wotc: bool = False
+    nerf_by_run_value: Optional[float] = None
     
     # ENVIRONMENT
     build_on_init: bool = True
@@ -131,6 +139,9 @@ class ShowdownPlayerCard(BaseModel):
     # SHOWING OUTPUT
     show_image: bool = False
     print_to_cli: bool = False
+
+    # ONLINE STORAGE
+    user_id: Optional[str] = None
 
 # ------------------------------------------------------------------------
 # POST INIT
@@ -217,7 +228,17 @@ class ShowdownPlayerCard(BaseModel):
             self.stats_period.stats = full_stats_copy
             stats_period_team = self.stats_period.stats.get('team_ID', None)
             if stats_period_team:
-                self.team = Team(stats_period_team)            
+                self.team = Team(stats_period_team)
+        
+        # IF STATS ARE NERFED
+        if self.nerf_by_run_value:
+            self.stats_period.stats = nerf_stats_by_run_value(
+                stats=self.stats,
+                runs_below_avg=self.nerf_by_run_value,
+                is_pitcher=self.is_pitcher,
+            )
+            self.is_stats_estimate = True
+            self.warnings.append(f"Stats have been nerfed by a run value of {self.nerf_by_run_value}. The purpose is to normalize stats for players coming from different leagues (e.g. KBO, NPB, MINORS) to create a more accurate card against MLB pitching/hitting.")
 
         # UPDATE IMAGE COLORS
         self.image.color_primary = self._team_color_rgb_str()
@@ -258,11 +279,14 @@ class ShowdownPlayerCard(BaseModel):
 
         # STATS DISPLAYED ON FRONTEND
         self.real_vs_projected_stats = self._calculate_real_vs_projected_stats()
-        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card)
+        self.image.stat_highlights_list = self._generate_stat_highlights_list(stats=self.stats_for_card if not self.nerf_by_run_value else self.stats)
         self.image.award_summary_list = self._generate_award_summary_list(award_summary=self.stats_for_card.get('award_summary', None))
 
-        if show_image or self.image.output_folder_path:
+        if show_image or self.image.output_folder_path or self.image.upload_to_supabase:
             self.generate_card_image(show=show_image)
+
+            if self.image.upload_to_supabase:
+                self.upload_image_to_supabase()
         
         if print_to_cli:
             self.print_player()
@@ -2053,7 +2077,7 @@ class ShowdownPlayerCard(BaseModel):
                     position = list(self.positions_and_defense.keys())[0].value
                     if position == Position.LFRF.value:
                         position = 'OF'
-                    position_defense = self.stats_for_card.get('positions', {}).get(position, {}).get(key, None)
+                    position_defense = stats.get('positions', {}).get(position, {}).get(key, None)
                     if position_defense is None:
                         continue
 
@@ -2093,7 +2117,7 @@ class ShowdownPlayerCard(BaseModel):
                 # APPLY PERCENTILE IN ORDER TO RANK
                 # EX: PLAYER WITH 30 HR / 650 PA (PERCENTILE 100% IS 20)
                 #     30 / 20 = 1.5x RATING
-                denominator = (self.stats_for_card.get('PA', 650) / 650) if category.is_pa_metric else 1.0
+                denominator = (stats.get('PA', 650) / 650) if category.is_pa_metric else 1.0
                 is_reversed = category.is_lower_better
                 stat_per_650 = float(stat) / denominator
                 rating = round((cutoff_for_positive_sort_rating / stat_per_650) if is_reversed else (stat_per_650 / cutoff_for_positive_sort_rating), 3)
@@ -2453,7 +2477,7 @@ class ShowdownPlayerCard(BaseModel):
         print(f"Era: {self.era.value.title()}")
         print(f"Data Source: {self.stats_period.source}")
         if not self.image.source.type.is_empty:
-            print(f"Img Source: {self.image.source.type}")
+            print(f"Img Source: {self.image.source.type.value}")
 
         # ----- POSITION AND ICONS  ----- #
 
@@ -2840,13 +2864,14 @@ class ShowdownPlayerCard(BaseModel):
 # CARD IMAGE COMPONENTS
 # ------------------------------------------------------------------------
 
-    def generate_card_image(self, show:bool=False, img_name_suffix:str='') -> None:
+    def generate_card_image(self, show:bool=False, img_name_prefix:str='', img_name_suffix:str='') -> None:
         """Generates a 1500/2100 (larger if bordered) card image mocking what a real MLB Showdown card
         would look like for the player output. Final image is dumped to mlb_showdown_bot/output folder.
 
         Args:
-          show: Boolean flag for whether to open the final image after creation.
-          img_name_suffix: Optional suffix added to the image name.
+            show: Boolean flag for whether to open the final image after creation.
+            img_name_prefix: Optional prefix added to the image name.
+            img_name_suffix: Optional suffix added to the image name.
 
         Returns:
           None
@@ -2860,11 +2885,17 @@ class ShowdownPlayerCard(BaseModel):
             # LOAD DIRECTLY FROM GOOGLE DRIVE
             response = requests.get(cached_img_link)
             card_image = Image.open(BytesIO(response.content))
-            self.save_image(image=card_image, start_time=start_time, show=show, disable_add_border=True)
+            self.save_image(image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix, disable_add_border=True)
             return
         
         # CHECK FOR SPECIAL EDITION
-        self.image.update_special_edition(has_nationality=self.nationality.is_populated, enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, year=str(self.stats_period.last_year or self.year), is_04_05=self.set.is_04_05)
+        self.image.update_special_edition(
+            has_nationality=self.nationality.is_populated, 
+            has_wbc_info=self.wbc_team and self.wbc_team != WBCTeam.NONE and self.wbc_year and self.image.edition == Edition.WBC,
+            enable_cooperstown_special_edition=self.set.enable_cooperstown_special_edition, 
+            year=str(self.stats_period.last_year or self.year), 
+            is_04_05=self.set.is_04_05
+        )
         
         # BACKGROUND IMAGE
         card_image = self._background_image()
@@ -2900,13 +2931,14 @@ class ShowdownPlayerCard(BaseModel):
         is_2000_logo_override = self.image.edition.has_additional_logo_00_01 \
                                     and self.set == Set._2000 \
                                     and self.image.special_edition not in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025]
-        disable_team_logo = self.image.hide_team_logo or is_2000_logo_override
+        is_logo_handled_by_different_component = self.image.special_edition == SpecialEdition.WBC and self.set.is_00_01
+        disable_team_logo = self.image.hide_team_logo or is_2000_logo_override or is_logo_handled_by_different_component
         if not disable_team_logo:
             team_logo, team_logo_coords = self._team_logo_image()
             card_image.paste(team_logo, self._coordinates_adjusted_for_bordering(team_logo_coords), team_logo)
 
-        # 00/01 ADDITIONAL LOGO
-        card_image = self._add_additional_logos_00_01(image=card_image)
+        # ADDITIONAL LOGO
+        card_image = self._add_additional_logo(image=card_image)
 
         # METADATA
         metadata_image, color = self._metadata_image()
@@ -2947,7 +2979,7 @@ class ShowdownPlayerCard(BaseModel):
 
         # SPLIT/DATE RANGE
         if self.stats_period.type.show_text_on_card_image and not self.stats_period.disable_display_text_on_card:
-            split_image = self._date_range_or_split_image()
+            split_image = self._stats_period_type_text_img()
             paste_coordinates = self.set.template_component_paste_coordinates(component=TemplateImageComponent.SPLIT, is_multi_year=self.stats_period.is_multi_year, is_full_career=self.stats_period.is_full_career)
             card_image.paste(split_image, self._coordinates_adjusted_for_bordering(paste_coordinates), split_image)
 
@@ -2979,7 +3011,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.error:
             print(self.name, self.year, self.image.error)
 
-        self.save_image(image=card_image, start_time=start_time, show=show, img_name_suffix=img_name_suffix)
+        self.save_image(image=card_image, start_time=start_time, show=show, img_name_prefix=img_name_prefix, img_name_suffix=img_name_suffix)
 
     def _background_image(self) -> Image.Image:
         """Loads background image for card. Either loads from upload, url, or default
@@ -3003,6 +3035,12 @@ class ShowdownPlayerCard(BaseModel):
         match self.image.special_edition:
             case SpecialEdition.NATIONALITY:
                 custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality.value}.png")
+            case SpecialEdition.WBC:
+                wbc_specific_nationality = os.path.join(os.path.dirname(__file__), 'countries', 'wbc', 'backgrounds', f"{self.wbc_team.nationality.value}.png")
+                if os.path.exists(wbc_specific_nationality):
+                    custom_image_path = wbc_specific_nationality
+                else:
+                    custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.wbc_team.nationality.value}.png")
             case SpecialEdition.ASG_2023 | SpecialEdition.ASG_2025:
                 custom_image_path = self._card_art_path(f"ASG-{str(self.year)}-BG-{self.league}")
             case SpecialEdition.ASG_2024:
@@ -3061,6 +3099,10 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.is_bordered and not has_border_already:
             # USE WHITE OR BLACK
             border_color = colors.BLACK if self.image.is_dark_mode else colors.WHITE
+            if self.image.special_edition == SpecialEdition.NATIONALITY and self.nationality and self.nationality != Nationality.NONE:
+                border_color = self.nationality.primary_color
+            if self.image.special_edition == SpecialEdition.WBC and self.wbc_team:
+                border_color = self.wbc_team.nationality.primary_color
             image_border = Image.new('RGBA', self.set.card_size_bordered, color=border_color)
             image_border.paste(background_image.convert("RGBA"),(self.set.card_border_padding,self.set.card_border_padding),background_image.convert("RGBA"))
             background_image = image_border
@@ -3078,19 +3120,23 @@ class ShowdownPlayerCard(BaseModel):
         """
         
         is_2001_set = self.set == Set._2001
+        is_wbc_special_edition = (self.set.is_00_01 and self.image.special_edition == SpecialEdition.WBC)
+
         image_size = self.set.card_size_bordered if self.image.is_bordered else self.set.card_size
         team_override = self.team_override_for_images
         background_color = (60,60,60,255) if self.image.is_dark_mode else self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
         team_colors = [self._team_color_rgbs(is_secondary_color=is_secondary, team_override=team_override) for is_secondary in [False, True]]
-        team_background_image = self._gradient_img(size=image_size, colors=team_colors) if self.image.is_multi_colored else Image.new('RGB', image_size, color=background_color)
+        team_background_image = self._gradient_img(size=image_size, colors=team_colors) if self.image.is_multi_colored or is_wbc_special_edition else Image.new('RGB', image_size, color=background_color)
         
         # ADD 2001 SET ADDITIONS
-        if is_2001_set:
-            # BLACK OVERLAY
-            color_overlay_image = Image.new('RGBA', image_size, color=colors.BLACK)
-            opacity_rgb = int(255 * 0.25)
-            color_overlay_image.putalpha(opacity_rgb)
-            team_background_image.paste(color_overlay_image, (0,0), color_overlay_image)
+        if is_2001_set or is_wbc_special_edition:
+
+            if not is_wbc_special_edition:
+                # BLACK OVERLAY
+                color_overlay_image = Image.new('RGBA', image_size, color=colors.BLACK)
+                opacity_rgb = int(255 * 0.25)
+                color_overlay_image.putalpha(opacity_rgb)
+                team_background_image.paste(color_overlay_image, (0,0), color_overlay_image)
 
             # ADD LINES
             line_colors = ['BLACK','WHITE']
@@ -3193,6 +3239,10 @@ class ShowdownPlayerCard(BaseModel):
                     logo_size_multiplier = self.nationality.logo_size_multiplier
                     if self.set.is_showdown_bot:
                         logo_paste_coordinates = (logo_paste_coordinates[0] - 35, logo_paste_coordinates[1] + 10)
+                if self.image.special_edition == SpecialEdition.WBC:
+                    logo_name = f'{self.wbc_team.value}{self.wbc_team.logo_extension(self.wbc_year)}.png'
+                    team_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'wbc', 'team_logos', logo_name)
+                    logo_size_multiplier = self.wbc_team.logo_size_multiplier
 
             team_logo = Image.open(team_logo_path).convert("RGBA")
             size_adjusted = tuple(int(v * logo_size_multiplier) for v in logo_size)
@@ -3276,10 +3326,21 @@ class ShowdownPlayerCard(BaseModel):
 
         # OVERRIDE IF ROOKIE SEASON/POSTSEASON
         if is_edition_static_logo and not is_00_01:
-            component = TemplateImageComponent.ROOKIE_SEASON if self.image.edition == Edition.ROOKIE_SEASON else TemplateImageComponent.POSTSEASON
-            team_logo = self._rookie_season_image() if self.image.edition == Edition.ROOKIE_SEASON else self._postseason_image()
-            team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.set == Set._2002 else team_logo
-            logo_paste_coordinates = self.set.template_component_paste_coordinates(component)
+            component = None
+            team_logo = None
+            match self.image.edition:
+                case Edition.ROOKIE_SEASON:
+                    component = TemplateImageComponent.ROOKIE_SEASON
+                    team_logo = self._rookie_season_image()
+                case Edition.POSTSEASON:
+                    component = TemplateImageComponent.POSTSEASON
+                    team_logo = self._postseason_image()
+                case Edition.WBC:
+                    component = TemplateImageComponent.WBC
+            if component:
+                team_logo = self._rookie_season_image() if self.image.edition == Edition.ROOKIE_SEASON else self._postseason_image()
+                team_logo = team_logo.rotate(10, resample=Image.BICUBIC) if self.set == Set._2002 else team_logo
+                logo_paste_coordinates = self.set.template_component_paste_coordinates(component)
 
         return team_logo, adjusted_paste_coords(logo_paste_coordinates)
 
@@ -3294,6 +3355,24 @@ class ShowdownPlayerCard(BaseModel):
             PIL Image object with edited team logo.
             Coordinates to paste logo.
         """
+
+        if self.image.special_edition == SpecialEdition.WBC and self.wbc_team and self.wbc_year:
+            wbc_logo_image, _ = self._team_logo_image(
+                ignore_dynamic_elements=True, 
+                force_use_alternate=True, 
+                rotation=18,
+                size=(600, 600)
+            )
+            # Apply opacity
+            opacity = 0.30
+            wbc_logo_image_copy = wbc_logo_image.copy()
+            wbc_logo_image_copy.putalpha(int(255 * opacity))
+            wbc_logo_image.paste(wbc_logo_image_copy, wbc_logo_image)
+
+            default_image_size = self.set.card_size
+            paste_location = self._coordinates_adjusted_for_bordering((-40, -70))
+            return wbc_logo_image, paste_location
+            
 
         # DEFINE TEAM TO USE
         team = team_override if team_override else self.team
@@ -3350,10 +3429,14 @@ class ShowdownPlayerCard(BaseModel):
             edition_extension = ''
             default_template_color = self.player_type.template_color_04_05
             team_color_name = self.team.color_name(year=self.median_year, is_secondary=self.image.use_secondary_color, is_showdown_bot_set=self.set.is_showdown_bot)
+            if self.image.special_edition == SpecialEdition.WBC and self.wbc_team:
+                team_color_name = self.wbc_team.color_name(is_secondary=self.image.use_secondary_color)
+
             if self.image.edition.template_color_0405:
                 edition_extension = f'-{self.image.edition.template_color_0405}'
-            elif self.image.special_edition == SpecialEdition.NATIONALITY:
-                edition_extension = f'-{self.nationality.template_color}'
+            elif self.image.special_edition == SpecialEdition.NATIONALITY or self.image.special_edition == SpecialEdition.WBC:
+                nationality = self.wbc_team.nationality if self.image.special_edition == SpecialEdition.WBC else self.nationality
+                edition_extension = f'-{nationality.template_color}'
             elif self.image.special_edition == SpecialEdition.ASG_2024:
                 edition_extension = f'-GRAY-DARK'
             elif self.image.special_edition == SpecialEdition.ASG_2025:
@@ -3406,12 +3489,15 @@ class ShowdownPlayerCard(BaseModel):
             # DEFINE COLOR(S) FOR CHART CONTAINER
             team_override = self.team_override_for_images
             fill_color = self._team_color_rgbs(is_secondary_color=self.image.use_secondary_color, team_override=team_override)
-            is_multi_colored = self.image.is_multi_colored or ( self.image.special_edition == SpecialEdition.NATIONALITY and len(self.nationality.colors) > 1 )
+            is_multi_colored = self.image.is_multi_colored \
+                or ( self.image.special_edition == SpecialEdition.NATIONALITY and len(self.nationality.colors) > 1 ) \
+                or ( self.image.special_edition == SpecialEdition.WBC and len(self.wbc_team.nationality.colors) > 1 )
 
             if is_multi_colored:
                 # GRADIENT
                 team_colors = [self._team_color_rgbs(is_secondary_color=is_secondary, team_override=team_override) for is_secondary in [True, False]]
                 team_colors = self.nationality.colors if self.image.special_edition == SpecialEdition.NATIONALITY else team_colors
+                team_colors = self.wbc_team.nationality.colors if self.image.special_edition == SpecialEdition.WBC else team_colors
                 gradient_img_width = self.player_sub_type.nationality_chart_gradient_img_width
                 gradient_img_rect = self._gradient_img(size=(gradient_img_width, 190), colors=team_colors)
                 container_img_black.paste(gradient_img_rect, self._coordinates_adjusted_for_bordering(coordinates=(70, 1780), is_forced=True), gradient_img_rect)
@@ -3700,7 +3786,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return final_text, name_color
 
-    def _player_name_special_edition_text_image(self, first:str, last:str | Image.Image) -> tuple[Image.Image, str]:
+    def _player_name_special_edition_text_image(self, first:str, last:str) -> tuple[Image.Image, str]:
         """Updates player name image and color for 
 
         Args:
@@ -3718,6 +3804,40 @@ class ShowdownPlayerCard(BaseModel):
             return None, None
         
         match self.image.special_edition:
+
+            case SpecialEdition.WBC:
+                # FOR WBC, USE CUSTOM FONT AND ADD THE COUNTRY FLAG NEXT TO THE NAME
+                name_font_path = self._font_path('WBC-Font', extension='otf')
+                flag_and_name_img = Image.new('RGBA', (1000, 250))
+
+                # LOAD AND PASTE TEAM LOGO
+                team_logo = self._team_logo_image(ignore_dynamic_elements=True)[0]
+                team_logo = team_logo.resize((225,225), Image.Resampling.LANCZOS)
+                flag_and_name_img.paste(team_logo, (0, 0), team_logo)
+
+                for name_part in tuple([first, last]):
+                    
+                    # NAME LENGTH HANDLING                    
+                    font_size = int( (185 if name_part == last else 100) )
+                    new_name_font, name_length_multiplier = self._fit_font_to_width(
+                        text=name_part,
+                        font_path=name_font_path,
+                        base_size=font_size,
+                        max_width=700,
+                        min_scale=0.4,
+                    )
+                    
+                    text = self._text_image(text=name_part, size=(700, 250), font=new_name_font, fill="#ffffff")
+                    paste_location = (255, 0) if name_part == first else (255, int( 55 + (75 * (1-name_length_multiplier)) ))
+                    flag_and_name_img.paste(text, paste_location, text)
+
+                # ADD DROP SHADOW
+                name_text_img = self._add_drop_shadow(image=flag_and_name_img)
+                name_color = name_text_img
+
+                # Return 
+                return name_text_img, name_color
+            
             
             # USE TEXAS FONT FOR ASG 2024
             case SpecialEdition.ASG_2024 | SpecialEdition.ASG_2025:
@@ -3727,20 +3847,20 @@ class ShowdownPlayerCard(BaseModel):
                 name_text_img = Image.new('RGBA', (font_frame_width, 300))
                 for name_part in tuple([first, last]):
 
-                    # IF 2025, USE TITLE CASE AND MOVE DOWM TEXT
+                    # IF 2025, USE TITLE CASE AND MOVE DOWN TEXT
                     name_part_formatted = name_part
                     if self.image.special_edition == SpecialEdition.ASG_2025:
                         name_part_formatted = name_part_formatted.title()
 
                     # NAME LENGTH HANDLING                    
                     font_size = int( (145 if name_part == last else 80) )
-                    name_font = ImageFont.truetype(name_font_path, size=font_size)
-
-                    # ESIMATE FONT SIZING
-                    text_width, _ = self._estimate_text_size(name_part, name_font)
-                    name_length_multiplier = max( 1 - ( max( text_width - font_frame_width, 0) / font_frame_width ), 0.4)
-                    new_font_size = int( font_size * name_length_multiplier )
-                    new_name_font = ImageFont.truetype(name_font_path, size=new_font_size)
+                    new_name_font, name_length_multiplier = self._fit_font_to_width(
+                        text=name_part,
+                        font_path=name_font_path,
+                        base_size=font_size,
+                        max_width=font_frame_width,
+                        min_scale=0.4,
+                    )
                     
                     text = self._text_image(text=name_part, size=(font_frame_width, 200), font=new_name_font, fill="#ffffff")
                     paste_location = (5, 0) if name_part == first else (5, int( 75 + (30 * (1-name_length_multiplier)) ))
@@ -4411,6 +4531,33 @@ class ShowdownPlayerCard(BaseModel):
 
         return postseason_logo_image
 
+    def _wbc_image(self) -> Image.Image:
+        """Identifies year and creates image for optional WBC edition logo.
+
+        Args:
+          None
+        
+        Returns:
+            PIL image object for WBC logo + year.
+        """
+
+        if not self.wbc_year:
+            return None
+
+        # SEARCH IN WBC FOLDER FOR UNIQUE YEARS
+        # CREATE A DICT OF YEAR: WBC YEAR, ALSO ADDING THE PREVIOUS YEAR AS AN OPTION FOR EACH IN CASE OF OFF-BY-ONE YEARS (EX: 2006 LOGO USED FOR 2005 CARD)
+        wbc_logo_folder_path = os.path.join(os.path.dirname(__file__), 'countries', 'wbc', 'tournament_logos')
+        
+        # LOAD LOGO BASED ON WBC YEAR
+        wbc_logo_image = Image.open(os.path.join(wbc_logo_folder_path, f'WBC-{self.wbc_year}.png'))
+        logo_size = self.set.template_component_size(TemplateImageComponent.WBC)
+        wbc_logo_image = wbc_logo_image.resize(logo_size, Image.Resampling.LANCZOS)
+
+        # ADD DROP SHADOW TO MAKE LOGO POP AGAINST BACKGROUND
+        wbc_logo_image = self._add_drop_shadow(image=wbc_logo_image, blur_radius=10)
+
+        return wbc_logo_image
+         
     def _add_icons_to_image(self, player_image:Image.Image) -> Image.Image:
         """Add icon images (if player has icons) to existing player_image object.
            Only for >= 2003 sets.
@@ -4482,7 +4629,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return icon_img
         
-    def _add_additional_logos_00_01(self, image:Image.Image) -> Image.Image:
+    def _add_additional_logo(self, image:Image.Image) -> Image.Image:
         """Add CC/RS/SS/PS logo to existing player_image object.
            Only for 2000/2001 sets.
 
@@ -4492,13 +4639,31 @@ class ShowdownPlayerCard(BaseModel):
         Returns:
           Updated PIL Image with logos added above the chart.
         """
+
+        # ADD LOGO FOR 02+ SETS FOR WBC
+        if not self.set.is_00_01 and self.image.special_edition == SpecialEdition.WBC:
+            wbc_logo = self._wbc_image()
+            if wbc_logo:
+                paste_coordinates = self.set.template_component_paste_coordinates(TemplateImageComponent.WBC)
+                image.paste(wbc_logo, self._coordinates_adjusted_for_bordering(paste_coordinates), wbc_logo)
+            return image
         
         # ONLY FOR 00/01 SETS
         if not self.set.is_00_01:
             return image
         
         # DEFINE COORDINATES, START WITH ROOKIE SEASON DESTINATION AND EDIT FOR OTHERS
-        template_component = TemplateImageComponent.POSTSEASON if self.image.edition == Edition.POSTSEASON else TemplateImageComponent.ROOKIE_SEASON
+        match self.image.edition:
+            case Edition.ROOKIE_SEASON:
+                template_component = TemplateImageComponent.ROOKIE_SEASON
+            case Edition.POSTSEASON:
+                template_component = TemplateImageComponent.POSTSEASON
+            case Edition.WBC:
+                template_component = TemplateImageComponent.WBC
+            case _:
+                # USE ROOKIE SEASON AS DEFAULT FOR OTHER EDITIONS
+                template_component = TemplateImageComponent.ROOKIE_SEASON
+        
         paste_coordinates = self.set.template_component_paste_coordinates(template_component)
         if self.image.edition != Edition.ROOKIE_SEASON and self.set == Set._2001:
             # MOVE LOGO TO THE RIGHT
@@ -4530,6 +4695,10 @@ class ShowdownPlayerCard(BaseModel):
             case Edition.POSTSEASON:
                 ps_logo = self._postseason_image()
                 image.paste(ps_logo, self._coordinates_adjusted_for_bordering(paste_coordinates), ps_logo)
+            case Edition.WBC:
+                wbc_logo = self._wbc_image()
+                if wbc_logo:
+                    image.paste(wbc_logo, self._coordinates_adjusted_for_bordering(paste_coordinates), wbc_logo)
             case _:
                 return image
             
@@ -4661,7 +4830,7 @@ class ShowdownPlayerCard(BaseModel):
 
         return year_img
 
-    def _date_range_or_split_image(self) -> Image.Image:
+    def _stats_period_type_text_img(self) -> Image.Image:
         """ Date Range or Split text image for partial year cards. Rounded rectangle with text.
 
         Args: 
@@ -4859,11 +5028,11 @@ class ShowdownPlayerCard(BaseModel):
 
                 if local_folder_path:
                     # USE LOCAL FOLDER AS DIRECTORY
-                    img_components_dict = self._query_local_drive_for_auto_images(folder_path=local_folder_path, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
+                    img_components_dict = self._query_local_drive_for_auto_images(folder_path=local_folder_path, components_dict=img_components_dict, bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
                 else:
                     # USE FIREBASE AS DIRECTORY
                     folder_id = self.set.player_image_gdrive_folder_id
-                    file_service, img_components_dict = self._query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, year=self.year)
+                    file_service, img_components_dict = self._query_google_drive_for_auto_player_image_urls(folder_id=folder_id, components_dict=img_components_dict, bref_id=self.bref_id, mlb_id=self.mlb_id, year=self.year)
             
             # ADD SILHOUETTE IF NECESSARY
             non_empty_components = [typ for typ in self.image_component_ordered_list if img_components_dict.get(typ, None) is not None and typ.is_loaded_via_download]
@@ -5176,13 +5345,14 @@ class ShowdownPlayerCard(BaseModel):
 
         return image
 
-    def _query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int = None) -> dict[PlayerImageComponent, str]:
+    def _query_local_drive_for_auto_images(self, folder_path:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None) -> dict[PlayerImageComponent, str]:
         """Attempts to query local drive for a player image, if it does not exist use siloutte background.
 
         Args:
           folder_path: Path to folder where images are stored.
           components_dict: Dict of all the image types to included in the image.
           bref_id: Unique ID for the player.
+          mlb_id: Unique MLB ID for the player.
           year: Year(s) of card.
 
         Returns:
@@ -5199,12 +5369,12 @@ class ShowdownPlayerCard(BaseModel):
             return components_dict
 
         # SEARCH FILES FOR BREF ID MATCHES
-        file_matches_bref_id = [{'id': os.path.join(folder_path, f), 'name': f } for f in files if f'({bref_id})' in f]
+        file_matches_bref_id = [{'id': os.path.join(folder_path, f), 'name': f } for f in files if (f'({bref_id})' in f or (mlb_id and str(mlb_id) in f))]
         file_matches_metadata_dict = self._img_file_matches_dict(files_metadata=file_matches_bref_id, components_dict=components_dict, bref_id=bref_id, year=year)
         
         return file_matches_metadata_dict
 
-    def _query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, year:int = None) -> tuple:
+    def _query_google_drive_for_auto_player_image_urls(self, folder_id:str, components_dict:dict[PlayerImageComponent, str], bref_id:str, mlb_id:Optional[int] = None, year:int = None) -> tuple:
         """Attempts to query google drive for a player image, if 
         it does not exist use siloutte background.
 
@@ -5212,6 +5382,7 @@ class ShowdownPlayerCard(BaseModel):
           folder_id: Unique ID for folder in drive (found in URL)
           components_dict: Dict of all the image types to included in the image.
           bref_id: Unique ID for the player.
+          mlb_id: Unique MLB ID for the player.
           additional_substring_search_list: List of strings to filter down results in case of multiple results.
           year: Year(s) of card.
 
@@ -5247,7 +5418,10 @@ class ShowdownPlayerCard(BaseModel):
         while True and failure_number < 3:
             try:
                 bref_id_cleaned = bref_id.replace("'",'')
-                query = f"parents = '{folder_id}' and name contains '({bref_id_cleaned})'"
+                query = f"parents = '{folder_id}' and (name contains '({bref_id_cleaned})'"
+                if mlb_id:
+                    query += f" or name contains '({mlb_id})'"
+                query += ")"
                 file_service = service.files()
                 response = file_service.list(q=query,pageSize=1000,pageToken=page_token).execute()
                 new_files_list = response.get('files')
@@ -5290,7 +5464,8 @@ class ShowdownPlayerCard(BaseModel):
             file_name = img_file[file_name_key]
             num_components_in_filename = len([c for c in components_dict.keys() if f'{c.source_name}-' in file_name])
             bref_id = bref_id.replace("'",'')
-            if bref_id in file_name and num_components_in_filename > 0:
+            mlb_id = str(self.mlb_id) if self.mlb_id else 'N/A'
+            if (bref_id in file_name or mlb_id in file_name) and num_components_in_filename > 0:
                 component_name = file_name.split('-')[0].upper()
                 component = PlayerImageComponent(component_name)
                 current_files_for_component = component_player_file_matches_dict.get(component, [])
@@ -5303,7 +5478,11 @@ class ShowdownPlayerCard(BaseModel):
                 component_player_file_matches_dict[component] = current_files_for_component
 
         # CHECK THAT THERE ARE MATCHES IN EACH COMPONENT
+        print(f"Matches found for {self.name} ({self.year}):")
+        print(component_player_file_matches_dict)
         num_matches_per_component = [len(matches) for _, matches in component_player_file_matches_dict.items()]
+        if len(num_matches_per_component) == 0:
+            return components_dict
         if min(num_matches_per_component) < 1:
             return components_dict
 
@@ -5364,6 +5543,10 @@ class ShowdownPlayerCard(BaseModel):
         if '(POST)' in img_name and self.stats_period.type != StatsPeriodType.POSTSEASON:
             match_score -= 2
 
+        # IF WBC IMAGE BUT NOT WBC CARD, REDUCE ACCURACY
+        if '(WBC_' in img_name and self.image.special_edition != SpecialEdition.WBC:
+            match_score -= 2
+
         return match_score
 
     def _img_match_keyword_list(self) -> list[str]:
@@ -5395,6 +5578,11 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.special_edition == SpecialEdition.NATIONALITY:
             for _ in range(0,4):
                 additional_substring_filters.append(f'({self.nationality.value})') # ADDS NATIONALITY THREE TIMES TO GIVE IT 3X IMPORTANCE
+        
+        if self.image.special_edition == SpecialEdition.WBC and self.wbc_team and self.wbc_year:
+            additional_substring_filters.append(f'{self.wbc_year}') 
+            for _ in range(0,4):
+                additional_substring_filters.append(f'(WBC_{self.wbc_team.value})') # ADDS TEAM FOUR TIMES TO GIVE IT 4X IMPORTANCE FOR WBC CARDS
         
         # PERIOD TYPE
         if self.stats_period.type.player_image_search_term: 
@@ -5487,6 +5675,23 @@ class ShowdownPlayerCard(BaseModel):
             if self.set == Set._2000:
                 components_dict.pop(PlayerImageComponent.NAME_CONTAINER_2000, None)
 
+            return components_dict
+
+        # WBC/NATIONALITY SPECIAL EDITIONS
+        is_wbc = self.image.special_edition == SpecialEdition.WBC and self.wbc_team and self.wbc_year
+        if is_wbc or self.image.special_edition == SpecialEdition.NATIONALITY:
+            components_dict = { c:v for c, v in special_components_for_context.items() if c not in [PlayerImageComponent.NAME_CONTAINER_2000, PlayerImageComponent.BACKGROUND, PlayerImageComponent.SHADOW] }
+            components_dict.update({
+                PlayerImageComponent.GLOW: None,
+            })
+            if not self.set.is_00_01:
+                if is_wbc:
+                    wbc_specific_nationality = os.path.join(os.path.dirname(__file__), 'countries', 'wbc', 'backgrounds', f"{self.wbc_team.nationality.value}.png")
+                    if os.path.exists(wbc_specific_nationality): custom_image_path = wbc_specific_nationality
+                    else: custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.wbc_team.nationality.value}.png")
+                else:
+                    custom_image_path = os.path.join(os.path.dirname(__file__), 'countries', 'backgrounds', f"{self.nationality.value}.png")
+                components_dict[PlayerImageComponent.CUSTOM_BACKGROUND] = custom_image_path
             return components_dict
 
         if self.image.special_edition == SpecialEdition.ASG_LINES:
@@ -5601,6 +5806,12 @@ class ShowdownPlayerCard(BaseModel):
           String with full image path.
         """
 
+        if self.image.special_edition == SpecialEdition.WBC and self.wbc_team and self.wbc_year:
+            logo_name = f'{self.wbc_team.value}{self.wbc_team.logo_extension(self.wbc_year)}.png'
+            wbc_logo_path = os.path.join(os.path.dirname(__file__), 'countries', 'wbc', 'team_logos', logo_name)
+            if os.path.exists(wbc_logo_path):
+                return wbc_logo_path
+
         alternate_substring = '-A'
         is_alternate = alternate_substring in name
         path = os.path.join(os.path.dirname(__file__), 'team_logos', f'{name}.{extension}')
@@ -5644,6 +5855,9 @@ class ShowdownPlayerCard(BaseModel):
         # NATIONALITY COLOR
         if self.image.special_edition == SpecialEdition.NATIONALITY and not ignore_team_overrides:
             return self.nationality.secondary_color if is_secondary_color else self.nationality.primary_color
+        
+        if self.image.special_edition == SpecialEdition.WBC and self.wbc_team and not ignore_team_overrides:
+            return self.wbc_team.secondary_color if is_secondary_color else self.wbc_team.primary_color
         
         # SPECIAL EDITION COLOR
         special_edition_color = self.image.special_edition.color(league=self.league)
@@ -5820,6 +6034,45 @@ class ShowdownPlayerCard(BaseModel):
         
         return text_width, text_height
 
+    def _fit_font_to_width(self, text:str, font_path:str, base_size:int, max_width:int, min_scale:float=0.4) -> tuple[ImageFont.ImageFont, float]:
+        """Find the largest font size that fits inside a max width.
+
+        Args:
+            text: Text to size.
+            font_path: Path to the font file.
+            base_size: Starting/preferred font size.
+            max_width: Maximum text width in pixels.
+            min_scale: Minimum font scale relative to base_size.
+
+        Returns:
+            Tuple containing:
+            - Best-fit font object.
+            - Applied size multiplier relative to base_size.
+        """
+
+        safe_base_size = max(1, int(base_size))
+        min_size = max(1, int(safe_base_size * min_scale))
+
+        low = min_size
+        high = safe_base_size
+        best_size = min_size
+
+        while low <= high:
+            mid = (low + high) // 2
+            test_font = ImageFont.truetype(font_path, size=mid)
+            text_width, _ = self._estimate_text_size(text, test_font)
+
+            if text_width <= max_width:
+                best_size = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        best_font = ImageFont.truetype(font_path, size=best_size)
+        size_multiplier = best_size / safe_base_size
+
+        return best_font, size_multiplier
+
     def _round_corners(self, image:Image.Image, radius:int) -> Image.Image:
         """Round corners of a given image to a certain radius.
 
@@ -5943,12 +6196,13 @@ class ShowdownPlayerCard(BaseModel):
 
         return colored_img
 
-    def _gradient_img(self, size:tuple[int,int], colors:list[tuple[int,int,int,int]]) -> Image.Image:
+    def _gradient_img(self, size:tuple[int,int], colors:list[tuple[int,int,int,int]], type:str='DIAGONAL') -> Image.Image:
         """Create PIL Image with a horizontal gradient of 2 colors
 
         Args:
           size: Tuple of x and y sizing of output
           colors: List of colors to use. Order determines left -> right.
+          type: Type of gradient to produce. Options are 'LINEAR' or 'DIAGONAL' (optional, default is 'LINEAR')
 
         Returns:
             PIL image with color gradient
@@ -5959,20 +6213,42 @@ class ShowdownPlayerCard(BaseModel):
         num_iterations = len(colors) - 1
         w, h = (int(size[0] / num_iterations), size[1])
 
-        for index in range(0, num_iterations):
-            # GRADIENT
-            color1 = colors[index]
-            color2 = colors[index + 1]
-            
-            gradient = np.zeros((h,w,3), np.uint8)
-            
-            # FILL R, G AND B CHANNELS WITH LINEAR GRADIENT BETWEEN TWO COLORS
-            gradient[:,:,0] = np.linspace(color1[0], color2[0], w, dtype=np.uint8)
-            gradient[:,:,1] = np.linspace(color1[1], color2[1], w, dtype=np.uint8)
-            gradient[:,:,2] = np.linspace(color1[2], color2[2], w, dtype=np.uint8)
+        match type:
+            case 'DIAGONAL':
+                full_w = size[0]
 
-            sub_image = Image.fromarray(gradient).convert("RGBA")
-            final_image.paste(sub_image, (int(index * w),0))
+                x = np.linspace(-1, 1, full_w)
+                y = np.linspace(-1, 1, h)
+                xx, yy = np.meshgrid(x, y)
+
+                # Diagonal blend: combines x and y so corners are opposite colors
+                # Negate y so top-right = +1 (color[-1]), bottom-left = +1 as well
+                blend = (xx - yy) / 2  # range roughly -1 to 1 diagonally
+                blend = (blend - blend.min()) / (blend.max() - blend.min())  # normalize 0 to 1
+
+                gradient = np.zeros((h, full_w, 3), np.float32)
+                for c in range(3):
+                    color_values = np.array([col[c] for col in colors], dtype=np.float32)
+                    gradient[:, :, c] = np.interp(blend, np.linspace(0, 1, len(colors)), color_values)
+
+                # # Optional subtle vignette to darken edges slightly
+                dist = np.sqrt(xx**2 + yy**2)
+                dark = np.clip(1 - dist * 0.05, 0.95, 1.0)
+                gradient = (gradient * dark[:, :, np.newaxis]).clip(0, 255).astype(np.uint8)
+
+                final_image = Image.fromarray(gradient).convert("RGBA")
+
+            case 'LINEAR':
+                # Original linear behavior
+                for index in range(num_iterations):
+                    color1 = colors[index]
+                    color2 = colors[index + 1]
+                    gradient = np.zeros((h, w, 3), np.uint8)
+                    gradient[:, :, 0] = np.linspace(color1[0], color2[0], w, dtype=np.uint8)
+                    gradient[:, :, 1] = np.linspace(color1[1], color2[1], w, dtype=np.uint8)
+                    gradient[:, :, 2] = np.linspace(color1[2], color2[2], w, dtype=np.uint8)
+                    sub_image = Image.fromarray(gradient).convert("RGBA")
+                    final_image.paste(sub_image, (int(index * w), 0))
 
         return final_image
 
@@ -6239,7 +6515,7 @@ class ShowdownPlayerCard(BaseModel):
 # EXPORTING
 # ------------------------------------------------------------------------
 
-    def save_image(self, image:Image.Image, start_time:datetime, show:bool=False, img_name_suffix:str='') -> None:
+    def save_image(self, image:Image.Image, start_time:datetime, show:bool=False, img_name_prefix:str='', img_name_suffix:str='') -> None:
         """Stores image in proper folder depending on the context of the run.
 
         Args:
@@ -6247,6 +6523,7 @@ class ShowdownPlayerCard(BaseModel):
           start_time: Datetime in which card image processing began.
           show: Boolean flag for whether to open the final image after creation.
           disable_add_border: Optional flag to skip border addition.
+          img_name_prefix: Optional prefix added to the image name.
           img_name_suffix: Optional suffix added to the image name.
 
         Returns:
@@ -6256,7 +6533,7 @@ class ShowdownPlayerCard(BaseModel):
         if self.image.output_file_name is None:
             self.image.output_file_name = f'{self.name}-{str(datetime.now())}.png'
         if self.image.set_name:
-            self.image.output_file_name = f'{self.image.set_number} {self.name}{img_name_suffix}.png'            
+            self.image.output_file_name = f'{img_name_prefix}{self.image.set_number} {self.name}{img_name_suffix}.png'            
         
         if self.set.convert_final_image_to_rgb:
             image = image.convert('RGB')
@@ -6282,6 +6559,39 @@ class ShowdownPlayerCard(BaseModel):
         # CALCULATE LOAD TIME
         end_time = datetime.now()
         self.load_time = round((end_time - start_time).total_seconds(),2)
+
+    def upload_image_to_supabase(self) -> None:
+        """Uploads current image to Supabase storage.
+
+        Args:
+          None
+
+        Returns:
+          None
+        """
+
+        if self.image.output_file_name is None:
+            print("Image output file name is not set. Skipping upload.")
+            return
+        
+        # UPLOAD IMAGE
+        if self.is_running_on_website:
+            img_path = os.path.join(Path(os.path.dirname(__file__)).parent, 'static', 'output', self.image.output_file_name)
+        else:
+            img_path = os.path.join(os.path.dirname(__file__), 'image_output', self.image.output_file_name)
+        
+        card_bucket = 'card_images'
+        card_folder_destination = f'users/{self.user_id}' if self.user_id else f'public/{self.set.name}'
+        full_path = f'{card_folder_destination}/{self.image.output_file_name}'
+
+        upload_result_data:dict = upload_to_supabase(
+            bucket_name=card_bucket,
+            file_path=img_path,
+            destination_path=full_path
+        )
+        self.image.storage_path = upload_result_data.get('path', None)
+
+        print("Image uploaded to Supabase storage with path: ", self.image.storage_path)
 
     def _clean_images_directory(self) -> None:
         """Removes all images from output folder that are not the current card. Leaves

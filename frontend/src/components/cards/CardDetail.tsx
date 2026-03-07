@@ -48,7 +48,7 @@ type CardDetailProps = {
     /** Loading state for live game data */
     isLoadingGameBoxscore?: boolean;
     /** Usage context: 'custom' for card builder, 'explore' for database browser */
-    context?: 'custom' | 'explore' | 'home';
+    context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail';
     parent?: string;
 };
 
@@ -102,6 +102,8 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     const { isDark } = useTheme();
     const { userShowdownSet } = useSiteSettings();
 
+    console.log("CardDetail: Rendered with internalCardId =", internalCardId, "and cardId prop =", cardId);
+
     /**
      * Sync internal state with prop changes
      * Ensures component reflects updates from parent while maintaining ability
@@ -114,7 +116,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
             const isSameCard = 
                 context !== 'custom' &&
                 (
-                    internalCardData?.card?.bref_id === showdownBotCardData?.card?.bref_id &&
+                    (internalCardData?.card?.bref_id || internalCardData?.card?.mlb_id) === (showdownBotCardData?.card?.bref_id || showdownBotCardData?.card?.mlb_id) &&
                     internalCardData?.card?.year === showdownBotCardData?.card?.year &&
                     internalCardData?.card?.set === showdownBotCardData?.card?.set
                 );
@@ -124,6 +126,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                 setInternalCardId(cardId);
 
                 // Load image if necessary
+                console.log("Image Output Filename:", showdownBotCardData.card);
                 const isDataWithoutImage = !showdownBotCardData.card?.image.output_file_name && showdownBotCardData.card;
                 if (isDataWithoutImage && !isGeneratingImage) {
                     console.log("Generating image for new prop data...");
@@ -253,7 +256,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     };
 
     const teamGlowColor = activeCardData?.card?.image ? (
-        ( ['NYM', 'SDP', 'NYY'].includes(activeCardData?.card?.team || '') && isDark )
+        ( ['NYM', 'SDP', 'NYY'].includes(activeCardData?.card?.team || '') && isDark && !activeCardData.card.wbc_team)
             ? enhanceColorVisibility(activeCardData?.card?.image?.color_secondary) 
             : enhanceColorVisibility(activeCardData?.card?.image?.color_primary)
     ) : 'rgb(0, 0, 0)';
@@ -271,7 +274,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
 
                         {/* Footnote */}
                         <div className='flex flex-col text-xs leading-tight space-y-2'>
-                            <i>* Indicates a Bot estimated value, real stat unavailable (ex: 1800's, Negro Leagues, PU/FB/GB)</i>
+                            <i>* Indicates a Bot estimated value, real stat unavailable or adjusted (ex: 1800's, Negro Leagues, KBO/NPB, PU/FB/GB)</i>
                             <i>** Chart category was adjusted in post-processing to increase accuracy</i>
                         </div>
 
@@ -332,7 +335,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
 
             {/* Warnings */}
             {activeCardData?.card?.warnings && activeCardData.card.warnings.length > 0 && (
-                <div className="bg-[var(--warning)]/5 border-2 border-[var(--warning)] text-[var(--warning)] p-2 rounded-md">
+                <div className="bg-(--warning)/5 border-2 border-(--warning) text-(--warning) p-2 rounded-md">
                     <h4 className="font-semibold">Warnings</h4>
                     <ul className="list-disc list-inside">
                         {activeCardData.card.warnings.map((warning, index) => (
@@ -393,8 +396,8 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
             {/* Notes */}
             {activeCardData?.card?.notes && (
                 <div className="
-                    bg-secondary/50
-                    border-2 border-form-element
+                    bg-(--secondary)/50
+                    border-2 border-(--form-element)
                     rounded-lg
                     p-3
                     text-xs

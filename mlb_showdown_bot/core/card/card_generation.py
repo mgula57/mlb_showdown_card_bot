@@ -6,7 +6,8 @@ import traceback
 import json
 
 # INTERNAL
-from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team
+from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team, Edition
+from ..data.replacement_season_averages import get_replacement_hitting_avgs, get_replacement_pitching_avgs
 from .stats.baseball_ref_scraper import BaseballReferenceScraper
 from .stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodDateAggregation
 from .utils.shared_functions import convert_to_date, convert_year_string_to_list
@@ -25,6 +26,24 @@ def clean_kwargs(kwargs: dict) -> dict:
     for replacement in ['image_source_', 'image_',]:
         kwargs = {k.replace(replacement, ''): v for k, v in kwargs.items()}
     return kwargs
+
+def check_for_preprocessed_card(**kwargs) -> ShowdownPlayerCard:
+    """Check if a card with the given parameters has already been generated and stored in the database. If so, return that card instead of generating a new one."""
+    
+    showdown_set = kwargs.get('set', None)
+    name = kwargs.get('name', None)
+    year = kwargs.get('year', None)
+    if not name or not showdown_set or not year:
+        return None
+
+    edition_raw = kwargs.get('edition', None)
+    is_wbc = Edition(edition_raw) == Edition.WBC if edition_raw else False
+
+    if is_wbc and str(year) in ['2025', '2026']:
+        db = PostgresDB()
+        return db.wbc_card_search(name, showdown_set, wbc_season=2026, exclude_mlb_players=True) # HARD CODE 2026 FOR NOW SINCE 2025 WBC NON-MLB CARDS ARE NOT AVAILABLE
+
+    return None
 
 def generate_card(**kwargs) -> dict[str, Any]:
     """
@@ -57,9 +76,10 @@ def generate_card(**kwargs) -> dict[str, Any]:
     # SETUP LOGGING
     log_to_db = kwargs.get('store_in_logs', False)
     db_for_logs = kwargs.get('db_connection', None)
+    user_id = kwargs.get('user_id', None)
     if log_to_db:
         # CONNECT TO DB
-        db_for_logs = db_for_logs or PostgresDB(is_archive=False)
+        db_for_logs = db_for_logs or PostgresDB()
         if not db_for_logs.connection:
             db_for_logs = None
             print("Failed to connect to database for logging. Continuing without logging.")
@@ -67,6 +87,10 @@ def generate_card(**kwargs) -> dict[str, Any]:
         db_for_logs = None
 
     try:
+
+        # LOG ORIGINAL NAME
+        # WE LOG THIS BEFORE ANY PROCESSING BECAUSE WE WANT TO CAPTURE EXACTLY WHAT THE USER INPUT, EVEN IF IT CAUSED AN ERROR LATER ON
+        kwargs['name_original'] = kwargs.get('name', None)
 
         # ADD RANDOM PLAYER ID AND YEAR IF NEEDED
         if kwargs.get('randomize', False):
@@ -94,6 +118,34 @@ def generate_card(**kwargs) -> dict[str, Any]:
         stats_period = StatsPeriod(type=stats_period_type, **kwargs)
         stats: dict[str: any] = None
 
+        # CHECK FOR YEAR IN THE FUTURE AND WBC
+        edition_raw = kwargs.get('edition', None)
+        edition = Edition(edition_raw) if edition_raw else None
+        if edition == Edition.WBC and stats_period.year_int and stats_period.year_int == 2026 and datetime.now().month < 4:
+            kwargs['year'] = '2025' # TEMPORARY FIX TO ALLOW WBC 2025 NON-MLB CARDS TO BE GENERATED BEFORE THE 2025 SEASON STARTS. WILL BE REMOVED ONCE 2025 WBC CARDS ARE AVAILABLE.
+            stats_period = StatsPeriod(type=stats_period_type, **kwargs)
+
+        # CHECK FOR PRE-PROCESSED CARD IN DB
+        preprocessed_card = check_for_preprocessed_card(**kwargs)
+        if preprocessed_card:
+            
+            # RESET IMAGE SETTINGS TO WHAT USER INPUTTED
+            image_source = ImageSource(**kwargs)
+            image = ShowdownImage(source=image_source, **kwargs)
+            preprocessed_card.image = image
+            preprocessed_card.generate_card_image(show=kwargs.get('show_image', False))
+
+            if kwargs.get('print_to_cli', False): preprocessed_card.print_player()
+
+            additional_logs['error'] = None
+            additional_logs['error_for_user'] = None
+            if db_for_logs: db_for_logs.log_custom_card_submission(card=preprocessed_card, user_inputs=kwargs, additional_attributes=additional_logs)
+
+            final_card_payload = additional_logs
+            final_card_payload['card'] = preprocessed_card.as_json()
+
+            return final_card_payload # STOP PROCESSING
+
         expected_source = Datasource(kwargs.get('datasource', 'BREF'))
         scraper_load_time = None
         match expected_source:
@@ -103,14 +155,16 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 # PULL FROM MLB API
                 # NORMALIZE FORMAT
                 mlb_stats_api = MLBStatsAPI_V2()
-                player_data = mlb_stats_api.build_full_player_from_search(search_name=kwargs.get('name', ''), stats_period=stats_period)
+                league = kwargs.get('league', 'MLB')
+                player_data = mlb_stats_api.build_full_player_from_search(search_name=kwargs.get('name', ''), stats_period=stats_period, league=league)
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
 
                 # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS
                 # GRAB FROM FANGRAPHS IF AVAILABLE
                 if player_data.fangraphs_id:
                     fangraphs_api = FangraphsAPIClient()
-                    fielding_stats_list = fangraphs_api.fetch_fielding_stats(
+                    fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
+                        stat_type="fld",
                         stats_period=stats_period,
                         position="all",
                         fangraphs_player_ids=[str(player_data.fangraphs_id)],
@@ -119,17 +173,13 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     position_stats = [PositionStats.from_fangraphs_fielding_stats(pos_stats) for pos_stats in fielding_stats_list]
                     normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
 
-                if stats_period.is_during_statcast_era:
+                if stats_period.is_during_statcast_era and normalized_player_stats.type == PlayerType.HITTER:
                     statcast_api_client = StatcastAPIClient()
                     sprint_speed_data = statcast_api_client.fetch_sprint_speed_for_player(stats_period=stats_period, player_id=player_data.id)
-                    normalized_player_stats.sprint_speed = sprint_speed_data.sprint_speed
+                    normalized_player_stats.sprint_speed = sprint_speed_data.sprint_speed if sprint_speed_data else None
 
                 # TODO: EVENTUALLY PASS INTO SHOWDOWN PLAYER CARD AS CLASS
-                stats = normalized_player_stats.model_dump(
-                    exclude_none=True, 
-                    exclude_unset=True, 
-                    by_alias=True
-                )
+                stats = normalized_player_stats.as_dict()
                 stats_period.source = 'MLB Stats API'
                 scraper_load_time = (datetime.now() - start_time).total_seconds()
 
@@ -157,11 +207,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     if len(stats_yearly_list) > 0:
                         # COMBINE STATS FROM EACH YEAR
                         combined_stats = PlayerStatsNormalizer.combine_multi_year_stats(stats_yearly_list, stats_period=baseball_reference_stats.stats_period)
-                        stats = combined_stats.model_dump(
-                            exclude_none=True,
-                            exclude_unset=True,
-                            by_alias=True,
-                        )
+                        stats = combined_stats.as_dict()
                         stats_period = baseball_reference_stats.stats_period
                         stats_period.year_list = [int(y.year_id) for y in stats_yearly_list]
                         stats_period.source = 'Archive'
@@ -195,7 +241,21 @@ def generate_card(**kwargs) -> dict[str, Any]:
                                 is_disabled=kwargs.get('disable_realtime', False)
                             )
         player_mlb_api_stats.populate_all_player_data()
-        
+
+        # IF WBC CARD, WE HAVE TO CHECK THE DB FOR WHAT TEAM THEY WERE ON:
+        edition_str = kwargs.get('edition', None)
+        edition = Edition(edition_str) if edition_str else None
+        if edition and edition == Edition.WBC:
+            db = PostgresDB()
+            wbc_team_info = db.fetch_wbc_team_for_player(bref_id=baseball_reference_stats.baseball_ref_id, year=stats_period.year_int)
+            if wbc_team_info:
+                wbc_team_abbreviation, wbc_team_year = wbc_team_info
+                kwargs['wbc_team'] = wbc_team_abbreviation
+                kwargs['wbc_year'] = wbc_team_year
+            else:
+                # Remove edition and warn user
+                kwargs.pop('edition', None)
+                stats['warnings'] = stats.get('warnings', []) + ["Could not find WBC team for this player in the database. Double check the player was a part of a WBC roster in the year provided or following year. Note that non-MLB WBC players are only available for 2025/2026."]
 
         # PROCESS CARD
         image_source = ImageSource(**kwargs)
@@ -289,8 +349,12 @@ def generate_card(**kwargs) -> dict[str, Any]:
         elif is_error_cannot_find_bref_page:
             # TRY TO GIVE CONTEXT INTO WHY A BASEBALL REFERENCE PAGE WAS NOT FOUND FOR THE NAME/YEAR
             error_for_user = "Player/year not found on Baseball Reference. "
+            edition_raw = kwargs.get('edition', None)
+            edition = edition_raw if edition_raw and type(edition_raw) == Edition else Edition(edition_raw)
             if is_user_year_before_player_career_start:
                 error_for_user += year_range_error_message
+            elif edition == Edition.WBC:
+                error_for_user += "For non-MLB WBC players, customs are only available for 2025/2026. For MLB WBC players, double check the player was a part of a WBC roster in the year provided or following year."
             else:
                 error_for_user += "If looking for a rookie try using their bref id as the name (ex: 'ramirjo01')"
         elif is_user_year_before_player_career_start:
@@ -313,7 +377,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
                     'in_season_trends': None,
                     'latest_game_box_score': None,
                     'scraper_load_time': None,
-                    'version': ''
+                    'version': '',
+                    'user_id': user_id,
                 }
             )
 

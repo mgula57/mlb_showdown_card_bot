@@ -4,8 +4,9 @@ from enum import Enum
 from pprint import pprint
 
 from ...mlb_stats_api.models.person import Position, Player as MLBStatsApi_Player, StatGroupEnum, StatTypeEnum, StatSplit
-from ...fangraphs.models import FieldingStats
+from ...fangraphs.models import FieldingStats, LeaderboardStats
 from ...shared.player_position import PlayerType
+from ...shared.hand import Hand
 from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
 
@@ -54,8 +55,8 @@ class NormalizedPlayerStats(BaseModel):
     # Player Type & Physical
     type: PlayerType  # "Hitter" or "Pitcher"
     player_type_override: Optional[PlayerType] = None  # Manually override player type if needed
-    hand: Optional[str] = None  # "Left", "Right", "Both"
-    hand_throw: Optional[str] = None  # "Left", "Right"
+    hand: Optional[Hand] = None  # "Left", "Right", "Both"
+    hand_throw: Optional[Hand] = None  # "Left", "Right"
     
     # Career Context
     years_played: Optional[List[str]] = None
@@ -231,6 +232,10 @@ class NormalizedPlayerStats(BaseModel):
 
         self.defense_datasource = source
 
+    def as_dict(self) -> Dict[str, Any]:
+        """Returns a dictionary representation of the model, including aliases"""
+        return self.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
+
 # -------------------------------
 # MARK: - Normalizer Class
 # -------------------------------
@@ -267,7 +272,7 @@ class PlayerStatsNormalizer:
 
             # Missing
             'outs_above_avg': {}, # TODO: Extract from Statcast data
-            'sprint_speed': None, # Extracted later from statcase
+            'sprint_speed': None, # Extracted later from statcast
             'accolades': PlayerStatsNormalizer._convert_mlb_stats_awards_and_ranks_to_accolades_dict(player, stats_period),
             'is_rookie': PlayerStatsNormalizer._determine_rookie_status(player, stats_period),
             'award_summary': PlayerStatsNormalizer._build_award_summary_str(player, stats_period),
@@ -295,6 +300,50 @@ class PlayerStatsNormalizer:
         # This is a placeholder for the actual normalization logic
         normalized_stats = NormalizedPlayerStats(primary_datasource=Datasource.BREF, **bref_data)
         return normalized_stats
+
+    @staticmethod
+    def from_fangraphs_leaderboard_data(fg_data: LeaderboardStats, mlb_id: Optional[int] = None, hand: Optional[Hand] = None, hand_throw: Optional[Hand] = None) -> NormalizedPlayerStats:
+        """Normalizes stats from a Fangraphs leaderboard record"""
+        # Implementation would extract and map fields from record to NormalizedPlayerStats
+        # This is a placeholder for the actual normalization logic
+        player_type = PlayerType.PITCHER if fg_data.is_pitcher else PlayerType.HITTER
+        normalized_data = {
+            # Identity
+            'primary_datasource': Datasource.FANGRAPHS,
+            'mlb_id': mlb_id,
+            'player_type': player_type,
+
+            'name': fg_data.player_name,
+            'year_ID': fg_data.season,
+            'team_ID': 'MLB',  # Fangraphs doesn't always provide team info in leaderboard data, so default to MLB
+            'lg_ID': fg_data.league,
+            'type': player_type.value,
+            'hand': hand.value if hand else Hand.RIGHT.value,  # Fangraphs doesn't provide handedness in leaderboard data, so default to Right
+            'hand_throw': hand_throw.value if hand_throw else Hand.RIGHT.value,  # Fangraphs doesn't provide throwing hand in leaderboard data, so default to Right
+            
+            # Required stats
+            **PlayerStatsNormalizer._extract_standard_stats_from_fangraphs_leaderboard(fg_data),
+            
+            # Defensive stats
+            'positions': PlayerStatsNormalizer._create_generic_position_stats_from_list(positions=fg_data.positions, games=fg_data.g or 0),
+
+            # Missing
+            'outs_above_avg': {}, # Doesn't Exist in Fangraphs leaderboard data 
+            'sprint_speed': None, # Doesn't Exist in Fangraphs leaderboard data
+            'accolades': {},
+            'is_rookie': False, # Doesn't Exist in Fangraphs leaderboard data
+            'award_summary': '',
+            'is_above_w_threshold': False, # Doesn't Exist in Fangraphs leaderboard data
+        }
+        # FILL IN EMPTY VALUES
+        normalized_data = fill_empty_stat_categories(
+            stats_data=normalized_data,
+            is_pitcher=player_type.is_pitcher,
+            is_game_logs=False
+        )
+
+        normalized_player_stats = NormalizedPlayerStats(**normalized_data)
+        return normalized_player_stats
 
     # Helper methods for normalization
 
@@ -383,6 +432,20 @@ class PlayerStatsNormalizer:
         return converted_stats
 
     @staticmethod
+    def _create_generic_position_stats_from_list(positions: List[str], games: int) -> Dict[str, Dict[str, Any]]:
+        """Creates a generic position stats dict from a list of position abbreviations. Used when we don't have actual defensive metrics but want to populate the positions field."""
+        position_stats = {}
+        for pos in positions:
+            position_stats[pos] = {
+                'g': games,
+                # 'tzr': None,
+                'drs': 0,
+                # 'oaa': None,
+                # 'uzr': None,
+            }
+        return position_stats
+
+    @staticmethod
     def _extract_standard_stats(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Dict[str, Any]:
         """Extracts standard stats from a MLBStatsPlayer stat splits"""
 
@@ -402,11 +465,19 @@ class PlayerStatsNormalizer:
         
         stat_name_mapping = PlayerStatsNormalizer._map_mlb_api_stats_to_bref()
         stat_type_mapping = PlayerStatsNormalizer._stat_datatype_dict()
+        unique_sport_ids = list(set([split.sport.id for split in standard_stat_splits if split.sport]))
+
         ip_multi_split_list: List[float] = [] # COMBINE IP FROM MULTIPLE SPLITS
         for split in standard_stat_splits:
             stats = split.stat
             if not stats:
                 continue
+
+            # CHECK IF MULTIPLE SPLITS, IF SO WE MAY NEED TO TAKE THE LAST ONE
+            minor_total_sport_id = 21
+            if len(unique_sport_ids) > 1 and split.sport and minor_total_sport_id in unique_sport_ids and split.sport.id != minor_total_sport_id:
+                continue
+
             for key, value in stats.items():
 
                 # NORMALIZE STAT NAME AND TYPE
@@ -457,6 +528,33 @@ class PlayerStatsNormalizer:
         if len(ip_multi_split_list) > 0:
             total_ip = total_innings_pitched(ip_multi_split_list)
             standard_stats['IP'] = total_ip
+
+        return standard_stats
+
+    @staticmethod
+    def _extract_standard_stats_from_fangraphs_leaderboard(fg_data: LeaderboardStats) -> Dict[str, Any]:
+        """Extracts standard stats from a Fangraphs leaderboard record. This is separate from the MLB API extraction because the stat keys and structure can be different."""
+        stat_name_mapping = PlayerStatsNormalizer._map_fangraphs_leaderboard_stats_to_bref()
+        stat_type_mapping = PlayerStatsNormalizer._stat_datatype_dict()
+
+        standard_stats: Dict[str, Any] = {}
+        for key, value in fg_data.model_dump(by_alias=True).items():
+            if value is None: # Skip None values
+                continue
+            stat_key_normalized = stat_name_mapping.get(key, key)
+
+            if stat_key_normalized not in NormalizedPlayerStats.all_valid_field_names():
+                continue
+
+            try:
+                stat_value_converted = stat_type_mapping.get(stat_key_normalized, int)(value)
+                if isinstance(stat_value_converted, float):
+                    stat_value_converted = round(stat_value_converted, 4)
+            except Exception as e:
+                print(f"Error converting stat '{stat_key_normalized}' from Fangraphs data: {e}")
+                stat_value_converted = value
+
+            standard_stats[stat_key_normalized] = stat_value_converted
 
         return standard_stats
 
@@ -558,6 +656,22 @@ class PlayerStatsNormalizer:
         }
     
     @staticmethod
+    def _map_fangraphs_leaderboard_stats_to_bref() -> Dict[str, str]:
+        """Maps Fangraphs leaderboard stat keys to Baseball Reference stat keys"""
+        return {
+            'WHIP': 'whip',
+            'ERA': 'earned_run_avg',
+            'ER': 'ER',
+            'TBF': 'batters_faced',
+
+            # Slashline
+            'AVG': 'batting_avg',
+            'SLG': 'slugging_perc',
+            'OBP': 'onbase_perc',
+            'OPS': 'onbase_plus_slugging',
+        }
+
+    @staticmethod
     def _stat_datatype_dict() -> dict[str, str]:
         """
         Maps the normalized stat keys to their data types
@@ -604,6 +718,9 @@ class PlayerStatsNormalizer:
             type=stats_type,
             seasons=stats_period.year_list
         )
+
+        if not rankings_by_year or len(rankings_by_year) == 0:
+            return accolades  # No stats available
 
         # MLB STATS API WILL RETURN 2 SPLITS FOR YEARS
         # FILTER TO ONE PER YEAR
@@ -704,6 +821,9 @@ class PlayerStatsNormalizer:
         Returns:
             str: Comma-separated award summary string
         """
+
+        if not mlb_player.awards or len(mlb_player.awards) == 0:
+            return ""
 
         award_abbr_list: List[str] = []
 

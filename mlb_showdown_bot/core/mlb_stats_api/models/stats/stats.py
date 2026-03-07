@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Any, Dict, Optional, List
 
 from ..teams.team import Team
+from ..sports.sport import Sport
 from .enums import GameTypeEnum
 from ..generic import DisplayNameGeneric
 
@@ -17,4 +18,5 @@ class StatSplit(BaseModel):
     season: Optional[str] = None
     stat: Optional[Dict[str, Any]] = None
     team: Optional[Team] = None
+    sport: Optional[Sport] = None
     game_type: Optional[GameTypeEnum] = Field(None, alias='gameType')
