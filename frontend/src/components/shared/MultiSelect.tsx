@@ -54,6 +54,8 @@ interface MultiSelectProps {
     placeholder?: string;
     /** Optional CSS class for styling customization */
     className?: string;
+    /** Whether the field is disabled */
+    disabled?: boolean;
 }
 
 /**
@@ -71,7 +73,7 @@ interface MultiSelectProps {
  * @param props - Component props
  * @returns A multi-selection dropdown with tags and advanced UX
  */
-const MultiSelect = ({ label, labelDescription, options, selections, onChange, placeholder = "Select...", className }: MultiSelectProps) => {
+const MultiSelect = ({ label, labelDescription, options, selections, onChange, placeholder = "Select...", className, disabled = false }: MultiSelectProps) => {
 
     // State management for dropdown behavior and positioning
     /** Controls dropdown visibility */
@@ -95,6 +97,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
      * @param value - The option value to toggle
      */
     const toggleOption = (value: string) => {
+        if (disabled) return;
         const newValues = selectedValues.includes(value)
             ? selectedValues.filter(v => v !== value)  // Remove if already selected
             : [...selectedValues, value];              // Add if not selected
@@ -107,6 +110,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
      * @param event - Mouse event to prevent dropdown toggle
      */
     const removeOption = (value: string, event: React.MouseEvent) => {
+        if (disabled) return;
         event.stopPropagation(); // Prevent triggering dropdown toggle
         const newValues = selectedValues.filter(v => v !== value);
         onChange(newValues);
@@ -117,6 +121,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
      * @param event - Mouse event to prevent dropdown toggle
      */
     const clearAll = (event: React.MouseEvent) => {
+        if (disabled) return;
         event.stopPropagation(); // Prevent triggering dropdown toggle
         onChange([]);
     };
@@ -227,13 +232,15 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                 <button
                     type="button"
                     ref={triggerRef}
-                    onClick={() => setIsOpen(o => !o)}  // re-click closes
+                    onClick={() => !disabled && setIsOpen(o => !o)}  // re-click closes
+                    disabled={disabled}
                     className={`
                         w-full flex items-center justify-between px-3 py-2 min-h-[2.5rem]
                         border-2 border-form-element rounded-lg 
                         bg-[var(--background-primary)] text-[var(--text-primary)]
                         hover:border-[var(--tertiary)] focus:outline-none focus:ring-2 focus:ring-primary/20
                         ${isOpen ? 'border-primary' : ''}
+                        ${disabled ? 'opacity-60 cursor-not-allowed' : ''}
                     `}
                 >
                     <div className="flex flex-wrap gap-1 flex-1 mr-2">
@@ -261,7 +268,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                     </div>
                     
                     <div className="flex items-center space-x-1">
-                        {selectedValues.length > 1 && (
+                        {selectedValues.length > 1 && !disabled && (
                             <button
                                 onClick={clearAll}
                                 className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1"
@@ -277,7 +284,7 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                 </button>
 
                 {/* Dropdown dropdown */}
-                {isOpen && createPortal(
+                {isOpen && !disabled && createPortal(
                     <div
                         ref={menuRef}
                         style={dropdownStyle}
@@ -289,12 +296,14 @@ const MultiSelect = ({ label, labelDescription, options, selections, onChange, p
                             <div className="flex justify-between text-xs">
                                 <button
                                     onClick={() => onChange(options.map(opt => opt.value))}
+                                    disabled={disabled}
                                     className="text-primary hover:text-primary-dark"
                                 >
                                     Select All
                                 </button>
                                 <button
                                     onClick={() => onChange([])}
+                                    disabled={disabled}
                                     className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                                 >
                                     Clear All

@@ -1084,6 +1084,8 @@ class Set(str, Enum):
         match special_edition:
             case SpecialEdition.ASG_2024 | SpecialEdition.ASG_2025:
                 return self.value in ['2000','2001']
+            case SpecialEdition.WBC:
+                return self.value in ['2000', '2001']
         
         return False
 
@@ -1117,13 +1119,18 @@ class Set(str, Enum):
     def player_image_crop_adjustment(self, special_edition:SpecialEdition = SpecialEdition.NONE) -> tuple[int,int]:
 
         # SPECIAL CASES
-        if special_edition in [SpecialEdition.ASG_2024]:
-            match self:
-                case Set._2000: return (-35,-460) # MATCH 01 IF ASG
-                case Set._2004 | Set._2005: return (0, int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
-        if special_edition in [SpecialEdition.ASG_2025]:
-            match self:
-                case Set._2000 | Set._2001: return (25,-400) # 2025 ASG HAS LOTS OF SPACE TO THE LEFT SIDE
+        match special_edition:
+            case SpecialEdition.WBC:
+                match self:
+                    case Set._2000: return (45,-300) # MOVE TO LEFT A BIT
+                    case Set._2001: return (35,-460) # MOVE TO LEFT A BIT
+            case SpecialEdition.ASG_2024:
+                match self:
+                    case Set._2000: return (-35,-460) # MATCH 01 IF ASG
+                    case Set._2004 | Set._2005: return (0, int((self.player_image_crop_size(special_edition)[1] - 2100) / 2))
+            case SpecialEdition.ASG_2025:
+                match self:
+                    case Set._2000 | Set._2001: return (25,-400) # 2025 ASG HAS LOTS OF SPACE TO THE LEFT SIDE
 
         match self.value:
             case '2000': return (-25,-300)
@@ -1258,10 +1265,11 @@ class Set(str, Enum):
                 match self.value:
                     case '2004' | '2005': return (981,1335)
             case TemplateImageComponent.PLAYER_NAME:
-                if special_edition in [SpecialEdition.ASG_2024, SpecialEdition.ASG_2025] and self in [Set._2000, Set._2001]:
+                if special_edition.hide_2000_player_name and self in [Set._2000, Set._2001]:
                     match special_edition:
                         case SpecialEdition.ASG_2024: return (360, 1565)
                         case SpecialEdition.ASG_2025: return (360, 1600)
+                        case SpecialEdition.WBC: return (80, 1600)
                 match self.value:
                     case '2000': return (137,0)
                     case '2001': return (105,0)
@@ -1335,6 +1343,14 @@ class Set(str, Enum):
                 return (288, 745)
             case TemplateImageComponent.POSTSEASON_YEAR_TEXT:
                 return (288, 755)
+            case TemplateImageComponent.WBC:
+                match self.value:
+                    case '2000': return (1185,1030)
+                    case '2001': return (1080,1000)
+                    case '2002': return (550,1520)
+                    case '2003': return (10,1275)
+                    case '2004' | '2005': return (10,1275)
+                    case 'CLASSIC' | 'EXPANDED': return (10,1265)
             case TemplateImageComponent.EXPANSION:
                 match self.value:
                     case '2000' | '2001': return (1287,1855)
@@ -1431,6 +1447,14 @@ class Set(str, Enum):
                     case '2003': return (375,375)
                     case '2004' | '2005': return (339,339)
                     case 'CLASSIC' | 'EXPANDED': return (380,380)
+            case TemplateImageComponent.WBC: 
+                match self.value:
+                    case '2000': return (273,273)
+                    case '2001': return (300,300)
+                    case '2002': return (225,225)
+                    case '2003': return (250,250)
+                    case '2004' | '2005': return (250,250)
+                    case 'CLASSIC' | 'EXPANDED': return (225,225)
             case TemplateImageComponent.POSTSEASON_YEAR_TEXT_BOX: 
                 return (415, 140)
             case TemplateImageComponent.BOT_LOGO: 

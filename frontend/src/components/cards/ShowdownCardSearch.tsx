@@ -15,7 +15,7 @@
  * - Filters and sort options are automatically cleaned when switching between sources
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { type CardDatabaseRecord, fetchCardData } from "../../api/card_db/cardDatabase";
 import { CardDetail } from "./CardDetail";
 import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
@@ -52,8 +52,14 @@ type ShowdownCardSearchProps = {
     showdownCards?: CardDatabaseRecord[] | null;
     /** Additional CSS classes */
     className?: string;
+    /** Vertical offset of the content that lives above */
+    verticalOffset?: string;
     /** Source of the card data */
     source: CardSource;
+    /** Optional default filters merged on top of source defaults */
+    defaultFilters?: Partial<FilterSelections>;
+    /** Optionally disable storing and loading from local storage */
+    disableLocalStorage?: boolean;
 };
 
 // =============================================================================
@@ -158,6 +164,10 @@ interface FilterSelections {
     showdown_set?: string[];
     expansion?: string[];
     edition?: string[];
+
+    // WBC
+    wbc_team?: string[];
+    pro_league?: string[];
 }
 
 /**
@@ -179,6 +189,11 @@ const getDefaultFilterSelections = (source: CardSource): FilterSelections => {
         case CardSource.BOT:
             return baseDefaults;
         case CardSource.WOTC:
+            return {
+                sort_by: "points",
+                sort_direction: "desc",
+            };
+        case CardSource.WBC:
             return {
                 sort_by: "points",
                 sort_direction: "desc",
@@ -215,6 +230,8 @@ const FILTER_AVAILABILITY: FilterAvailability = {
     // Organization/League filtering might not make sense for WOTC
     organization: [CardSource.BOT],
     league: [CardSource.BOT],
+    wbc_team: [CardSource.WBC],
+    pro_league: [CardSource.WBC],
 
     // Expansion and edition filters - only for WOTC
     expansion: [CardSource.WOTC],
@@ -416,7 +433,7 @@ const SHOWDOWN_CHART_RANGE_FILTERS: RangeDef[] = [
 // =============================================================================
 
 /** localStorage key for persisting filter selections across sessions */
-const FILTERS_STORAGE_KEY = 'exploreFilters:v1.01';
+const FILTERS_STORAGE_KEY = 'exploreFilters:v1.02';
 
 /**
  * Removes empty/null/undefined values from filter objects
@@ -434,20 +451,22 @@ const stripEmpty = (obj: any) =>
  * Loads previously saved filter selections from localStorage
  * @returns Saved filters merged with defaults, or null if none exist
  */
-const loadSavedFilters = (source: CardSource): FilterSelections | null => {
+const loadSavedFilters = (source: CardSource, defaultFilters: Partial<FilterSelections> = {}, disableLocalStorage = false): FilterSelections | null => {
     if (typeof window === 'undefined') return null;
+    if (disableLocalStorage) return null;
     try {
         const raw = localStorage.getItem(FILTERS_STORAGE_KEY + ':' + source);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
-        return { ...getDefaultFilterSelections(source), ...parsed } as FilterSelections;
+        return { ...getDefaultFilterSelections(source), ...parsed, ...defaultFilters } as FilterSelections;
     } catch {
         return null;
     }
 };
 
-const saveFilters = (filters: FilterSelections, source: CardSource) => {
+const saveFilters = (filters: FilterSelections, source: CardSource, disableLocalStorage = false) => {
     if (typeof window === 'undefined') return;
+    if (disableLocalStorage) return;
     try {
         localStorage.setItem(FILTERS_STORAGE_KEY + ':' + source, JSON.stringify(stripEmpty(filters)));
     } catch {
@@ -456,8 +475,8 @@ const saveFilters = (filters: FilterSelections, source: CardSource) => {
 };
 
 // Helper used for lazy init so we don't set state in an effect
-const getInitialFilters = (source: CardSource): FilterSelections =>
-  loadSavedFilters(source) ?? getDefaultFilterSelections(source);
+const getInitialFilters = (source: CardSource, defaultFilters: Partial<FilterSelections> = {}, disableLocalStorage = false): FilterSelections =>
+    loadSavedFilters(source, defaultFilters, disableLocalStorage) ?? ({ ...getDefaultFilterSelections(source), ...defaultFilters });
 
 // --------------------------------------------
 // MARK: - Component
@@ -480,8 +499,10 @@ const getInitialFilters = (source: CardSource): FilterSelections =>
  * 
  * @param className - Additional CSS classes for the container
  * @param source - Source of the card data (CardSource enum)
+ * @param disableLocalStorage - Optionally disable storing and loading from local storage
+ * @param verticalOffset - Vertical offset of the content that lives above
  */
-export default function ShowdownCardSearch({ className, source = CardSource.BOT }: ShowdownCardSearchProps) {
+export default function ShowdownCardSearch({ className, verticalOffset='24', source = CardSource.BOT, defaultFilters = {}, disableLocalStorage = false }: ShowdownCardSearchProps) {
     // =============================================================================
     // CORE STATE MANAGEMENT
     // =============================================================================
@@ -522,16 +543,33 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
     const [debouncedSearchText, setDebouncedSearchText] = useState('');
 
     // Filters
-    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source));
-    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source));
+    const defaultFiltersForSource = { ...getDefaultFilterSelections(source), ...defaultFilters };
+    const lockedDefaultFilters = useMemo(
+        () => Object.fromEntries(Object.entries(defaultFilters).filter(([, value]) => value !== undefined)) as Partial<FilterSelections>,
+        [defaultFilters]
+    );
+    const lockedFilterKeys = useMemo(
+        () => new Set(Object.keys(lockedDefaultFilters) as (keyof FilterSelections)[]),
+        [lockedDefaultFilters]
+    );
+    const isFilterLocked = (key: keyof FilterSelections) => lockedFilterKeys.has(key);
+    const applyLockedFilters = useCallback(
+        (nextFilters: FilterSelections): FilterSelections => ({ ...nextFilters, ...lockedDefaultFilters }),
+        [lockedDefaultFilters]
+    );
+    const [filters, setFilters] = useState<FilterSelections>(getInitialFilters(source, defaultFilters));
+    const [filtersForEditing, setFiltersForEditing] = useState<FilterSelections>(getInitialFilters(source, defaultFilters));
     const filtersWithoutSorting = { ...filters, sort_by: null, sort_direction: null };
     const filtersWithoutSortingForEditing = { ...filtersForEditing, sort_by: null, sort_direction: null };
-    const hasCustomFiltersApplied = JSON.stringify(stripEmpty(filtersWithoutSorting)) !== JSON.stringify(stripEmpty(getDefaultFilterSelections(source)));
+    const defaultsWithoutSorting = { ...defaultFiltersForSource, sort_by: null, sort_direction: null };
+    const hasCustomFiltersApplied = JSON.stringify(stripEmpty(filtersWithoutSorting)) !== JSON.stringify(stripEmpty(defaultsWithoutSorting));
     const bindRange = (minKey: keyof FilterSelections, maxKey: keyof FilterSelections) => ({
         minValue: filtersForEditing[minKey] as number | undefined,
         maxValue: filtersForEditing[maxKey] as number | undefined,
-        onMinChange: (n?: number) => setFiltersForEditing(prev => ({ ...prev, [minKey]: n })),
-        onMaxChange: (n?: number) => setFiltersForEditing(prev => ({ ...prev, [maxKey]: n })),
+        onMinChange: (n?: number) => !isFilterLocked(minKey) && setFiltersForEditing(prev => ({ ...prev, [minKey]: n })),
+        onMaxChange: (n?: number) => !isFilterLocked(maxKey) && setFiltersForEditing(prev => ({ ...prev, [maxKey]: n })),
+        minDisabled: isFilterLocked(minKey),
+        maxDisabled: isFilterLocked(maxKey),
     });
 
     // Team hierarchy data - loaded once (daily) and cached
@@ -549,8 +587,10 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
     // Save filters whenever they change (kept separate so it doesn't run on search or set changes)
     useEffect(() => {
-        saveFilters(filters, source);
-    }, [filters]);
+        if (!disableLocalStorage) {
+            saveFilters(filters, source);
+        }
+    }, [filters, source]);
 
     // Clean filters when source changes to remove unavailable filters
     useEffect(() => {
@@ -565,6 +605,17 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
             setFiltersForEditing(cleanedForEditing);
         }
     }, [source]);
+
+    useEffect(() => {
+        setFilters((prev) => {
+            const next = applyLockedFilters(prev);
+            return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
+        });
+        setFiltersForEditing((prev) => {
+            const next = applyLockedFilters(prev);
+            return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
+        });
+    }, [applyLockedFilters]);
 
     // On initial load
     useEffect(() => {
@@ -600,7 +651,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
         const timeoutId = setTimeout(() => {
             getCardsData();
-        }, 100); // Small delay to prevent rapid successive calls
+        }, 200); // Small delay to prevent rapid successive calls
 
         return () => clearTimeout(timeoutId);
     }, [userShowdownSet, filters, debouncedSearchText]);
@@ -665,6 +716,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                 Object.entries(combinedFilters).filter(([_, v]) => v !== undefined && v !== null && v.length !== 0)
             );
             const data = await fetchCardData(source, cleanedFilters);
+
+            console.log("Fetched cards data:", { source, filters: cleanedFilters, data });
 
             let newCardData;
             if (append && showdownCards) {
@@ -772,7 +825,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
     }
 
     const handleOpenFilters = () => {
-        setFiltersForEditing(filters);
+        setFiltersForEditing(applyLockedFilters(filters));
         setShowFiltersModal(true);
     }
 
@@ -783,17 +836,17 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
         // Check if difference between filters and filtersForEditing
         const filtersChanged = JSON.stringify(filters) !== JSON.stringify(filtersForEditing);
         if (filtersChanged) {
-            setFilters(filtersForEditing);
+            setFilters(applyLockedFilters(filtersForEditing));
         }
         setShowFiltersModal(false);
     }
 
     const resetFilters = (targets: String[]) => {
         if (targets.includes('filters')) {
-            setFilters(getDefaultFilterSelections(source));
+            setFilters(defaultFiltersForSource);
         }
         if (targets.includes('editing')) {
-            setFiltersForEditing(getDefaultFilterSelections(source));
+            setFiltersForEditing(defaultFiltersForSource);
         }
     }
 
@@ -856,7 +909,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
     const renderResetButton = (targets: String[]) => {
         return (
-            <button onClick={() => resetFilters(targets)} className="text-[var(--background-primary)] font-bold flex items-center bg-[var(--showdown-gray)] rounded-full px-2 gap-1 py-1 cursor-pointer">
+            <button onClick={() => resetFilters(targets)} className="text-(--background-primary) font-bold flex items-center bg-(--showdown-gray) rounded-full px-2 gap-1 py-1 cursor-pointer">
                 <FaArrowRotateRight />
                 <span className="text-sm">Reset</span>
             </button>
@@ -868,10 +921,10 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
         <div
             className={`
                 flex flex-col ${className}
-                md:h-[calc(100vh-theme(spacing.24))]                            /* fallback */
-                md:supports-[height:100dvh]:h-[calc(100dvh-theme(spacing.24))]  /* prefer dvh */
-                md:overflow-y-auto                                              /* scroller on desktop */
-                md:min-h-0                                                      /* allow child to size for overflow */
+                md:h-[calc(100vh-(--spacing(${verticalOffset})))]                                /* fallback */
+                md:supports-[height:100dvh]:h-[calc(100dvh-(--spacing(${verticalOffset})))]      /* prefer dvh */
+                md:overflow-y-auto                                                              /* scroller on desktop */
+                md:min-h-0                                                                      /* allow child to size for overflow */
             `}
         >
 
@@ -899,9 +952,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                             onClick={handleOpenFilters}
                             className="
                                 px-3 h-11
-                                rounded-xl bg-[var(--background-secondary)] border-2 border-form-element 
+                                rounded-xl bg-(--background-secondary) border-2 border-form-element 
                                 flex items-center gap-2
-                                hover:bg-[var(--background-secondary-hover)]
+                                hover:bg-(--background-secondary-hover)
                             ">
                             <FaFilter className="text-primary" />
                             <span className="hidden sm:inline">Filter</span>
@@ -914,11 +967,11 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         onClick={() => setShowPlayerDetailSidebar(true)}
                         className={`
                             items-center gap-2
-                            hover:bg-[var(--background-secondary-hover)]
+                            hover:bg-(--background-secondary-hover)
                             hidden lg:flex
                         `}>
-                        <FaChevronCircleLeft className="text-[var(--tertiary)] w-7 h-7" />
-                        <span className="text-[var(--tertiary)] text-lg font-bold">Card Detail</span>
+                        <FaChevronCircleLeft className="text-(--tertiary) w-7 h-7" />
+                        <span className="text-(--tertiary) text-lg font-bold">Card Detail</span>
                     </button>
 
                 </div>
@@ -930,7 +983,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         {/* Sorting Summary */}
                         {selectedSortOption && (
                             <button
-                                className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                className="flex items-center bg-(--background-secondary) rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                disabled={isFilterLocked('sort_direction')}
                                 onClick={() => setFilters((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
                             >
                                 <div className="flex flex-row gap-1 items-center">
@@ -947,17 +1001,20 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         {/* The last element should add lots of padding */}
                         {Object.entries(filtersWithoutSorting)
                             .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
+                            .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
                             .map(([key, value]) => (
-                                <div key={key} className={`flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1`}>
+                                <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
                                     <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
-                                    <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
-                                        <FaTimes />
-                                    </button>
+                                    {!isFilterLocked(key as keyof FilterSelections) && (
+                                        <button onClick={() => setFilters((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
+                                            <FaTimes />
+                                        </button>
+                                    )}
                                 </div>
                         ))}
 
                         {/* Add Blank element with width of 32 */}
-                        <div className="flex-shrink-0 w-16"></div>
+                        <div className="shrink-0 w-16"></div>
                     </div>
 
                     {/* Reset Button */}
@@ -1004,6 +1061,13 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         isSelected={selectedCard?.id === cardRecord.id}
                                     />
                                 )}
+                                {source === CardSource.WBC && (
+                                    <CardItemFromCardDatabaseRecord
+                                        card={cardRecord}
+                                        onClick={() => handleRowClick(cardRecord)}
+                                        isSelected={selectedCard?.id === cardRecord.id}
+                                    />
+                                )}
                             </div>
 
                         ))}
@@ -1011,7 +1075,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
                     {/* No results found message */}
                     {warningMessage && (
-                        <div className="flex justify-center p-6 text-secondary bg-[var(--primary)]/10 rounded-xl m-10">
+                        <div className="flex justify-center p-6 text-secondary bg-(--primary)/10 rounded-xl m-10">
                             <span className="text-sm">{warningMessage}</span>
                         </div>
                     )}
@@ -1035,7 +1099,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                 
                 {/* Right Sidebar with Slide Animation */}
                 <div className={`
-                    fixed right-0 top-24 bottom-0 w-96 z-30
+                    fixed right-0 top-${verticalOffset} bottom-0 w-96 z-30
                     bg-primary border-l-2 border-form-element 
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
@@ -1050,9 +1114,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                         <div className="py-8 h-12 flex items-center space-x-2 p-2 border-b border-form-element">
                             <button 
                                 onClick={handleCloseSidebar}>
-                                <FaChevronCircleRight className="text-[var(--tertiary)] w-7 h-7" />
+                                <FaChevronCircleRight className="text-(--tertiary) w-7 h-7" />
                             </button>
-                            <h2 className="text-[var(--tertiary)] text-lg font-bold">Card Detail</h2>
+                            <h2 className="text-(--tertiary) text-lg font-bold">Card Detail</h2>
                         </div>
                         
 
@@ -1076,7 +1140,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
             {isLoading && (
                 <div className="
                     fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-                    bg-[var(--primary)]/10 backdrop-blur 
+                    bg-(--primary)/10 backdrop-blur 
                     p-4 rounded-2xl
                     flex items-center space-x-2
                 ">
@@ -1115,7 +1179,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                             <div className="flex items-center gap-2">
                                 <h2 className="text-xl font-bold">Filter Options</h2>
 
-                                <div className="absolute text-sm flex gap-x-6 right-0 p-4 text-[var(--background-primary)]">
+                                <div className="absolute text-sm flex gap-x-6 right-0 p-4 text-(--background-primary)">
                                     {/* Reset button */}
                                     {renderResetButton(['editing'])}
 
@@ -1123,7 +1187,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     {hasFiltersChanged ? (
                                         <button
                                             onClick={handleFilterApply}
-                                            className="bg-[var(--success)] rounded-full flex items-center px-2 gap-1 py-1 cursor-pointer"
+                                            className="bg-(--success) rounded-full flex items-center px-2 gap-1 py-1 cursor-pointer"
                                         >
                                             <FaCheck />
                                             <span className="font-bold">Apply</span>
@@ -1131,7 +1195,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     ) : (
                                         <button
                                             onClick={handleFilterApply}
-                                            className="bg-[var(--warning)] rounded-full flex items-center px-3 gap-1 py-1 cursor-pointer"
+                                            className="bg-(--warning) rounded-full flex items-center px-3 gap-1 py-1 cursor-pointer"
                                         >
                                             <FaXmark />
                                             <span className="font-bold">Exit</span>
@@ -1145,7 +1209,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
                                 {selectedSortOptionForEditing && (
                                     <button
-                                        className="flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                        className="flex items-center bg-(--background-secondary) rounded-full px-2 py-1 text-sm text-nowrap cursor-pointer"
+                                        disabled={isFilterLocked('sort_direction')}
                                         onClick={() => setFiltersForEditing((prev) => ({ ...prev, sort_direction: prev.sort_direction === 'asc' ? 'desc' : 'asc' }))} // Toggle direction
                                     >
                                         <div className="flex flex-row gap-1 items-center">
@@ -1160,12 +1225,15 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
 
                                 {Object.entries(filtersWithoutSortingForEditing)
                                     .filter(([_, value]) => !(value === undefined || value === null || (Array.isArray(value) && value.length === 0)))
+                                    .filter(([key, _]) => !isFilterLocked(key as keyof FilterSelections))
                                     .map(([key, value]) => (
-                                        <div key={key} className={`flex items-center bg-[var(--background-secondary)] rounded-full px-2 py-1`}>
+                                        <div key={key} className={`flex items-center bg-(--background-secondary) rounded-full px-2 py-1`}>
                                             <span className="text-sm max-w-84 overflow-x-clip text-nowrap">{filterDisplayText(key, value)}</span>
-                                            <button onClick={() => setFiltersForEditing((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
-                                                <FaTimes />
-                                            </button>
+                                            {!isFilterLocked(key as keyof FilterSelections) && (
+                                                <button onClick={() => setFiltersForEditing((prev) => ({ ...prev, [key]: undefined }))} className="ml-1 cursor-pointer">
+                                                    <FaTimes />
+                                                </button>
+                                            )}
                                         </div>
                                 ))}
                             </div>
@@ -1182,6 +1250,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     options={sortOptions}
                                     selectedOption={filtersForEditing.sort_by || 'points'}
                                     onChange={(value) => setFiltersForEditing({ ...filtersForEditing, sort_by: value })}
+                                    disabled={isFilterLocked('sort_by')}
                                 />
 
                                 <FormDropdown
@@ -1192,6 +1261,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     ]}
                                     selectedOption={filtersForEditing.sort_direction || 'asc'}
                                     onChange={(value) => setFiltersForEditing({ ...filtersForEditing, sort_direction: value })}
+                                    disabled={isFilterLocked('sort_direction')}
                                 />
 
                             </FormSection>
@@ -1216,6 +1286,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         ]}
                                         selections={filtersForEditing.showdown_set || []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, showdown_set: values })}
+                                        disabled={isFilterLocked('showdown_set')}
                                     />
 
                                     {/* Expansion */}
@@ -1230,6 +1301,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         ]}
                                         selections={filtersForEditing.expansion || []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, expansion: values })}
+                                        disabled={isFilterLocked('expansion')}
                                     />
 
                                     {/* Edition */}
@@ -1244,6 +1316,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         ]}
                                         selections={filtersForEditing.edition || []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, edition: values })}
+                                        disabled={isFilterLocked('edition')}
                                     />
                                 
                                 </FormSection>
@@ -1270,6 +1343,9 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         onOrganizationChange={(values) => setFiltersForEditing({ ...filtersForEditing, organization: values })}
                                         onLeagueChange={(values) => setFiltersForEditing({ ...filtersForEditing, league: values })}
                                         onTeamChange={(values) => setFiltersForEditing({ ...filtersForEditing, team: values })}
+                                        disableOrganization={isFilterLocked('organization')}
+                                        disableLeague={isFilterLocked('league')}
+                                        disableTeam={isFilterLocked('team')}
                                     />
                                 )}
 
@@ -1282,6 +1358,53 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         ]}
                                         selections={filtersForEditing.is_multi_team}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_multi_team: values })}
+                                        disabled={isFilterLocked('is_multi_team')}
+                                    />
+                                )}
+
+                                {isFilterAvailable('wbc_team', source) && (
+                                    <MultiSelect
+                                        label="WBC Team"
+                                        options={[
+                                            { value: 'AUS', label: 'AUS' },
+                                            { value: 'BRA', label: 'BRA' },
+                                            { value: 'CAN', label: 'CAN' },
+                                            { value: 'COL', label: 'COL' },
+                                            { value: 'CUB', label: 'CUB' },
+                                            { value: 'CZE', label: 'CZE' },
+                                            { value: 'DOM', label: 'DOM' },
+                                            { value: 'GBR', label: 'GBR' },
+                                            { value: 'ISR', label: 'ISR' },
+                                            { value: 'ITA', label: 'ITA' },
+                                            { value: 'JPN', label: 'JPN' },
+                                            { value: 'KOR', label: 'KOR' },
+                                            { value: 'MEX', label: 'MEX' },
+                                            { value: 'NCA', label: 'NCA' },
+                                            { value: 'NED', label: 'NED' },
+                                            { value: 'PAN', label: 'PAN' },
+                                            { value: 'PUR', label: 'PUR' },
+                                            { value: 'TPE', label: 'TPE' },
+                                            { value: 'USA', label: 'USA' },
+                                            { value: 'VEN', label: 'VEN' },
+                                        ]}
+                                        selections={filtersForEditing.wbc_team || []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, wbc_team: values })}
+                                        disabled={isFilterLocked('wbc_team')}
+                                    />
+                                )}
+
+                                {isFilterAvailable('pro_league', source) && (
+                                    <MultiSelect
+                                        label="Pro League"
+                                        options={[
+                                            { value: 'MLB', label: 'MLB' },
+                                            { value: 'NPB', label: 'NPB' },
+                                            { value: 'KBO', label: 'KBO' },
+                                            { value: 'MILB', label: 'MiLB' },
+                                        ]}
+                                        selections={filtersForEditing.pro_league || []}
+                                        onChange={(values) => setFiltersForEditing({ ...filtersForEditing, pro_league: values })}
+                                        disabled={isFilterLocked('pro_league')}
                                     />
                                 )}
 
@@ -1297,6 +1420,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     ]}
                                     selections={filtersForEditing.player_type}
                                     onChange={(values) => setFiltersForEditing({ ...filtersForEditing, player_type: values })}
+                                    disabled={isFilterLocked('player_type')}
                                 />
 
                                 <MultiSelect
@@ -1309,6 +1433,8 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         { value: 'SS', label: 'SS' },
                                         { value: 'LF/RF', label: 'LF/RF' },
                                         { value: 'CF', label: 'CF' },
+                                        { value: 'IF', label: 'IF' },
+                                        { value: 'OF', label: 'OF' },
                                         { value: 'DH', label: 'DH' },
                                         { value: 'STARTER', label: 'SP' },
                                         { value: 'RELIEVER', label: 'RP' },
@@ -1316,6 +1442,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     ]}
                                     selections={filtersForEditing.positions || []}
                                     onChange={(values) => setFiltersForEditing({ ...filtersForEditing, positions: values })}
+                                    disabled={isFilterLocked('positions')}
                                 />
 
                                 <MultiSelect
@@ -1327,6 +1454,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     ]}
                                     selections={filtersForEditing.hand || []}
                                     onChange={(values) => setFiltersForEditing({ ...filtersForEditing, hand: values })}
+                                    disabled={isFilterLocked('hand')}
                                 />
                             </FormSection>
 
@@ -1351,6 +1479,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                             ]}
                                             selections={filtersForEditing.include_small_sample_size || []}
                                             onChange={(values) => setFiltersForEditing({ ...filtersForEditing, include_small_sample_size: values })}
+                                            disabled={isFilterLocked('include_small_sample_size')}
                                         />
                                     )}
 
@@ -1370,6 +1499,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                             ]}
                                             selections={filtersForEditing.awards || []}
                                             onChange={(values) => setFiltersForEditing({ ...filtersForEditing, awards: values })}
+                                            disabled={isFilterLocked('awards')}
                                         />
                                     )}
 
@@ -1382,6 +1512,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                             ]}
                                             selections={filtersForEditing.is_hof ? filtersForEditing.is_hof.map(String) : []}
                                             onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_hof: values.length > 0 ? values : undefined })}
+                                            disabled={isFilterLocked('is_hof')}
                                         />
                                     )}
                                 </FormSection>
@@ -1413,6 +1544,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                     ]}
                                     selections={filtersForEditing.icons || []}
                                     onChange={(values) => setFiltersForEditing({ ...filtersForEditing, icons: values })}
+                                    disabled={isFilterLocked('icons')}
                                 />
                             </FormSection>
 
@@ -1426,6 +1558,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         ]}
                                         selections={filtersForEditing.is_chart_outlier ? filtersForEditing.is_chart_outlier.map(String) : []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_chart_outlier: values.length > 0 ? values : undefined })}
+                                        disabled={isFilterLocked('is_chart_outlier')}
                                     />
                                 )}
 
@@ -1438,6 +1571,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         ]}
                                         selections={filtersForEditing.is_errata ? filtersForEditing.is_errata.map(String) : []}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, is_errata: values.length > 0 ? values : undefined })}
+                                        disabled={isFilterLocked('is_errata')}
                                     />
                                 )}
                 
@@ -1464,6 +1598,7 @@ export default function ShowdownCardSearch({ className, source = CardSource.BOT 
                                         ]}
                                         selections={filtersForEditing.image_match_type}
                                         onChange={(values) => setFiltersForEditing({ ...filtersForEditing, image_match_type: values })}
+                                        disabled={isFilterLocked('image_match_type')}
                                     />
                                 </FormSection>
                             )}

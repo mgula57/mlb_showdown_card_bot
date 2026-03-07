@@ -6,6 +6,7 @@
  * labeling and layout, commonly used throughout the card customization interface.
  */
 
+import { type ReactNode } from "react";
 import { type SelectOption } from "../shared/CustomSelect";
 import CustomSelect from "../shared/CustomSelect";
 
@@ -14,7 +15,7 @@ import CustomSelect from "../shared/CustomSelect";
  */
 type FormDropdownProps = {
     /** Display label for the dropdown field */
-    label: string;
+    label: ReactNode;
     /** Array of selectable options with display and value properties */
     options: SelectOption[];
     /** Currently selected option value */
@@ -23,6 +24,8 @@ type FormDropdownProps = {
     onChange: (value: string) => void;
     /** Optional CSS class names for additional styling */
     className?: string;
+    /** Whether this dropdown is disabled */
+    disabled?: boolean;
 };
 
 /**
@@ -52,17 +55,18 @@ type FormDropdownProps = {
  * @param className - Additional styling classes
  * @returns Labeled dropdown form component
  */
-const FormDropdown = ({ label, options, selectedOption, onChange, className="" }: FormDropdownProps) => {
+const FormDropdown = ({ label, options, selectedOption, onChange, className="", disabled = false }: FormDropdownProps) => {
     return (
         <div className={className}>
             {/* Form label with consistent styling */}
-            <label className="text-sm font-medium text-secondary">{label}</label>
+            <label className="text-sm font-medium text-secondary block">{label}</label>
 
             {/* Dropdown selection component */}
             <CustomSelect
                 value={selectedOption}
                 onChange={onChange}
                 options={options}
+                disabled={disabled}
             />
         </div>
     );

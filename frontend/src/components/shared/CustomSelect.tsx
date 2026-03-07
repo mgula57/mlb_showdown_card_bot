@@ -74,6 +74,8 @@ type CustomSelectProps = {
     dropdownClassName?: string;
     /** Optional text to display after the selected value */
     suffix?: string;
+    /** Whether the select is disabled */
+    disabled?: boolean;
 };
 
 /**
@@ -90,7 +92,7 @@ type CustomSelectProps = {
  * @param props - Component props
  * @returns A customizable select dropdown component
  */
-const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "" }) => {
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, className = "", suffix = null, buttonClassName = "", imageClassName = "", labelClassName = "", dropdownClassName = "", disabled = false }) => {
 
     // State management for dropdown behavior and positioning
     /** Controls whether the dropdown menu is visible */
@@ -106,11 +108,13 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
 
     /** Toggles dropdown visibility when the select button is clicked */
     const handleToggle = () => {
+        if (disabled) return;
         setIsOpen(!isOpen);
     };
 
     /** Handles option selection and closes the dropdown */
     const handleOptionClick = (optionValue: string) => {
+        if (disabled) return;
         onChange(optionValue);
         setIsOpen(false);
     };
@@ -222,7 +226,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
      */
     const renderIcon = (icon: React.ReactNode) => {
         if (icon) {
-            return <span className="bg-secondary my-auto mr-2">{icon}</span>;
+            return <span className="bg-(--background-secondary) my-auto mr-2">{icon}</span>;
         }
         return null;
     };
@@ -245,6 +249,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                     cursor-pointer
                 `}
                 onClick={handleToggle}
+                disabled={disabled}
             >
                 <div className="flex overflow-clip">
                     { renderImage(options.find(option => option.value === value)?.image) }
@@ -256,16 +261,16 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
             </button>
 
             {/* Dropdown menu popup */}
-            {isOpen && typeof document !== 'undefined' && (
+            {isOpen && !disabled && typeof document !== 'undefined' && (
                 createPortal(
                     <div 
                         ref={dropdownRef}
                         className={`
                             ${dropdownClassName}
-                            fixed z-[1000]
+                            fixed z-1000
                             left-0 transform
                             ${openAbove ? '-translate-y-full -mt-1' : 'mt-1'}
-                            bg-primary rounded-xl shadow-lg
+                            bg-(--background-primary) rounded-xl shadow-lg
                             text-nowrap overflow-auto max-h-[60vh]
                         `}
                         style={{ left: menuPos.left, top: menuPos.top }}
@@ -275,8 +280,8 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, c
                                 key={option.value}
                                 className={`
                                     ${className} px-2 py-2 
-                                    cursor-pointer hover:bg-[var(--background-secondary)]
-                                    border-b-1 border-[var(--background-tertiary)] last:border-b-0
+                                    cursor-pointer hover:bg-(--background-secondary)
+                                    border-b border-(--background-tertiary) last:border-b-0
                                     flex ${option.textColor || 'text-inherit'}
                                 `}
                                 onClick={() => handleOptionClick(option.value)}

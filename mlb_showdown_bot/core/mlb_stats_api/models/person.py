@@ -10,6 +10,8 @@ from .stats.stats import StatGroup, StatSplit
 from .stats.enums import StatGroupEnum, StatTypeEnum
 from .stats.awards import Award
 
+from ...card.showdown_player_card import ShowdownPlayerCard
+
 class Person(BaseModel):
     
     # Basic identification
@@ -83,7 +85,6 @@ class Player(Person):
                         final_list.append(split)
 
         if not final_list or len(final_list) == 0:
-            print(f"No stats found for group type: {group_type}, type: {type}, seasons: {seasons}")
             return None
         
         return final_list
@@ -102,7 +103,14 @@ class Player(Person):
                     return None
             
         return None
+
+
+class PlayerWithShowdownCard(Player):
+    """Extended Player model that includes showdown card data"""
     
+    points: Optional[int] = None # Points from showdown card data
+    showdown_card_data: Optional[ShowdownPlayerCard] = None # Flexible field to hold any relevant showdown card data for the player 
+
 
 class FreeAgent(BaseModel):
     """Model for free agents"""

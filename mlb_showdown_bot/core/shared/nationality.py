@@ -1,4 +1,5 @@
 from enum import Enum
+from .color import color_name
 
 class Nationality(Enum):
 
@@ -24,6 +25,9 @@ class Nationality(Enum):
     CN = 'CN'
     CZ = 'CZ'
     IS = 'IS'
+    BR = 'BR'
+    ES = 'ES'
+    ZA = 'ZA'
     NONE = 'NONE'
 
     @classmethod
@@ -145,6 +149,19 @@ class Nationality(Enum):
             case 'IS': return [
                 (1, 55, 183, 255), # BLUE
             ]
+            case 'BR': return [
+                (0, 148, 64, 255), # GREEN
+                (255, 203, 0, 255), # YELLOW
+            ]
+            case 'ES': return [
+                (173, 21, 25, 255), # RED
+                (250, 189, 0, 255), # YELLOW
+            ]
+            case 'ZA': return [
+                (224, 60, 49, 255), # RED
+                (0, 119, 73, 255), # GREEN
+                (0, 20, 137, 255), # BLUE
+            ]
             case _: return [
                 (0, 0, 0, 0), # BLACK
             ]
@@ -153,7 +170,7 @@ class Nationality(Enum):
     def template_color(self) -> str:
         match self.value:
             case 'US': return 'RED'
-            case 'DO': return 'RED'
+            case 'DO': return 'BLUE'
             case 'VE': return 'YELLOW'
             case 'CU': return 'BLUE'
             case 'CA': return 'RED'
@@ -174,8 +191,139 @@ class Nationality(Enum):
             case 'CN': return 'RED'
             case 'CZ': return 'RED'
             case 'IS': return 'BLUE'
+            case 'BR': return 'YELLOW'
+            case 'ES': return 'RED'
+            case 'ZA': return 'BLUE'
             case _: return 'BLUE'
 
     @property
     def logo_size_multiplier(self) -> float:
         return 1.25
+    
+            
+class WBCTeam(Enum):
+    AUS = "AUS"
+    BRA = "BRA"
+    CAN = "CAN"
+    CHN = "CHN"
+    COL = "COL"
+    CUB = "CUB"
+    CZE = "CZE"
+    DOM = "DOM"
+    ESP = "ESP"
+    GBR = "GBR"
+    ISR = "ISR"
+    ITA = "ITA"
+    JPN = "JPN"
+    KOR = "KOR"
+    MEX = "MEX"
+    NCA = "NCA"
+    NED = "NED"
+    PAN = "PAN"
+    PUR = "PUR"
+    RSA = "RSA"
+    TPE = "TPE"
+    USA = "USA"
+    VEN = "VEN"
+
+    NONE = 'NONE'
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls.NONE
+
+    @property
+    def nationality(self) -> Nationality:
+        match self:
+            case WBCTeam.AUS: return Nationality.AU
+            case WBCTeam.BRA: return Nationality.BR
+            case WBCTeam.CAN: return Nationality.CA
+            case WBCTeam.CHN: return Nationality.CN
+            case WBCTeam.COL: return Nationality.CO
+            case WBCTeam.CUB: return Nationality.CU
+            case WBCTeam.CZE: return Nationality.CZ
+            case WBCTeam.DOM: return Nationality.DO
+            case WBCTeam.ESP: return Nationality.ES
+            case WBCTeam.GBR: return Nationality.GB
+            case WBCTeam.ISR: return Nationality.IS
+            case WBCTeam.ITA: return Nationality.IT
+            case WBCTeam.JPN: return Nationality.JP
+            case WBCTeam.KOR: return Nationality.KR
+            case WBCTeam.MEX: return Nationality.MX
+            case WBCTeam.NCA: return Nationality.NI
+            case WBCTeam.NED: return Nationality.NL
+            case WBCTeam.PAN: return Nationality.PA
+            case WBCTeam.PUR: return Nationality.PR
+            case WBCTeam.RSA: return Nationality.ZA
+            case WBCTeam.TPE: return Nationality.TW
+            case WBCTeam.USA: return Nationality.US
+            case WBCTeam.VEN: return Nationality.VE
+            case _: return Nationality.NONE
+
+    @property
+    def logo_size_multiplier(self) -> float:
+        return 1.00
+
+    @property
+    def colors(self) -> list[tuple[int,int,int,int]]:
+        """Override colors for WBC teams that differ from their nationality's typical colors, to better match their WBC branding"""
+        match self:
+            case WBCTeam.AUS: return [
+                (0, 72, 58, 255), # GREEN
+                (255, 188, 44, 255), # YELLOW
+            ]
+            case WBCTeam.BRA: return [
+                (255, 223, 1, 255), # YELLOW
+                (1, 84, 158, 255), # BLUE
+            ]
+            case WBCTeam.ITA: return [
+                (8, 94, 153, 255), # BLUE
+                (239, 73, 66, 255), # RED
+            ]
+            case WBCTeam.NED: return [
+                (244, 124, 49, 255), # ORANGE
+                (0, 0, 0, 255), # BLACK
+            ]
+            case _: 
+                return self.nationality.colors
+
+    @property
+    def primary_color(self) -> tuple[int,int,int,int]:
+        if len(self.colors) == 0:
+            return (0,0,0,0)
+        
+        return self.colors[0]
+    
+    @property
+    def secondary_color(self) -> tuple[int,int,int,int]:
+        num_colors = len(self.colors)
+
+        match num_colors:
+            case 0: return (0,0,0,0)
+            case 1: return self.primary_color
+            case _: return self.colors[1]
+
+    def logo_extension(self, wbc_year: int) -> str:
+        """Adds `-` and an index for the few teams that had multiple logos across different WBC years"""
+        try:
+            wbc_year = int(wbc_year)
+        except:
+            return ""
+        
+        match self:
+            case WBCTeam.CHN:
+                if wbc_year <= 2017:
+                    return "-1"
+            case WBCTeam.JPN:
+                if wbc_year <= 2013:
+                    return "-1"
+            case WBCTeam.KOR:
+                if wbc_year <= 2017:
+                    return "-1"
+        
+        return ""
+    
+    def color_name(self, is_secondary: bool = False) -> str:
+        """Returns the name of the primary or secondary color for this team, based on the RGB values. Uses the `color_name` function to determine closest color name."""
+        color_tuple = self.secondary_color if is_secondary else self.primary_color
+        return color_name(color_tuple)

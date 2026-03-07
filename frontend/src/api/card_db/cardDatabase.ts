@@ -4,7 +4,9 @@
  */
 
 import { type ShowdownBotCard } from '../showdownBotCard';
+import { type ShowdownBotCardCompact } from '../showdownBotCard';
 import { type CardSource } from '../../types/cardSource';
+import { type CustomCardFormState } from "../../components/customs/CustomCardBuilder";
 
 const API_BASE = import.meta.env.PROD ? "/api" : "http://127.0.0.1:5000/api";
 
@@ -20,7 +22,8 @@ export type CardDatabaseRecord = {
     // From Stats Archive
     id: string;  // Composite key: {year}-{bref_id}-{(player_type_override)},
     year: number | string;
-    bref_id: string;
+    bref_id?: string;
+    mlb_id?: string;
     name: string;
     player_type: string;
     player_type_override: string;
@@ -81,6 +84,7 @@ export type CardDatabaseRecord = {
     is_hof: boolean;
     is_small_sample_size: boolean;
     stat_highlights_list: any; // JSON array
+    stat_source?: string | null;
 
     // Chart
     command: number;
@@ -93,6 +97,10 @@ export type CardDatabaseRecord = {
     // Card Misc
     is_errata: boolean;
     notes?: string | null;
+
+    // WBC
+    wbc_season?: number | null;
+    wbc_team?: string | null;
 
     // Auto Images
     image_match_type: 'exact' | 'team match' | 'year match' | 'no match';
@@ -182,6 +190,78 @@ export async function fetchCardData(source: CardSource, payload: Record<string, 
 
     // Convert to CardDatabaseRecords
     return res.json();
+}
+
+/**
+ * Fetches compact card data for a batch of MLB player IDs.
+ * Returns a map of mlb_id → ShowdownBotCardCompact.
+ */
+export async function fetchCompactCardsByMlbIds(
+    mlbIds: number[],
+    season: number,
+    showdownSet: string,
+    isWbc: boolean,
+): Promise<Record<number, ShowdownBotCardCompact>> {
+    if (mlbIds.length === 0) return {};
+
+    const res = await fetch(`${API_BASE}/cards/compact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            mlb_ids: mlbIds,
+            season,
+            showdown_set: showdownSet,
+            is_wbc: isWbc,
+        }),
+    });
+
+    if (!res.ok) return {};
+
+    // Backend returns { "mlb_id_string": card_data }
+    const raw: Record<string, ShowdownBotCardCompact> = await res.json();
+
+    // Convert string keys back to numbers
+    const result: Record<number, ShowdownBotCardCompact> = {};
+    for (const [key, value] of Object.entries(raw)) {
+        result[Number(key)] = value;
+    }
+    return result;
+}
+
+/**
+ * Fetches full card data for a batch of MLB player IDs.
+ * Returns a map of mlb_id → CardDatabaseRecord.
+ */
+export async function fetchCardsByMlbIds(
+    mlbIds: number[],
+    season: number,
+    showdownSet: string,
+    isWbc: boolean,
+): Promise<Record<number, CardDatabaseRecord>> {
+    if (mlbIds.length === 0) return {};
+
+    const res = await fetch(`${API_BASE}/cards/full`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            mlb_ids: mlbIds,
+            season,
+            showdown_set: showdownSet,
+            is_wbc: isWbc,
+        }),
+    });
+
+    if (!res.ok) return {};
+
+    // Backend returns { "mlb_id_string": card_data }
+    const raw: Record<string, CardDatabaseRecord> = await res.json();
+
+    // Convert string keys back to numbers
+    const result: Record<number, CardDatabaseRecord> = {};
+    for (const [key, value] of Object.entries(raw)) {
+        result[Number(key)] = value;
+    }
+    return result;
 }
 
 export async function fetchTotalCardCount(): Promise<number> {
@@ -362,3 +442,56 @@ export const fetchTeamHierarchy = async (): Promise<TeamHierarchyRecord[]> => {
         return [];
     }
 };
+
+// =============================================================================
+// MARK: - CUSTOM CARD LOGS
+// =============================================================================
+
+/**
+ * Fetches historical logs of custom card creations for a user:
+ * 
+ * - Shows past custom cards created by the user
+ * - Useful for allowing users to view past creations
+ * - Returns array of card records with creation metadata
+ * 
+ * @param userId - Unique identifier for the user
+ * @returns Promise resolving to array of card records with creation logs
+ * @throws Error if API request fails
+ * 
+ * @example
+ * ```typescript
+ * const logs = await fetchCustomCardLogs('user-123');
+ * logs.forEach(log => {
+ *   console.log(`Created card ${log.card_id} on ${log.created_at}`);
+ *  }`);
+ * });
+ * ```
+ */
+
+export type CustomCardLogRecord = CardDatabaseRecord & {
+    id: string; // Unique identifier for the log entry
+    name: string; // Name of the player
+    year: string; // Year of the card
+    set: string; // Showdown set
+    user_id?: string; // ID of the user who created the card
+    created_on: string; // Timestamp of when the custom card was created
+    error_for_user?: string | null; // Error message if card creation failed
+    user_inputs?: CustomCardFormState | null; // Original user inputs for the card creation, if available
+};
+
+export async function fetchCustomCardLogs(userId?: string): Promise<CustomCardLogRecord[]> {
+    const res = await fetch(`${API_BASE}/cards/customs/history`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user_id: userId }),
+    });
+    if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    const response = await res.json();
+    const data: CustomCardLogRecord[] = response.custom_card_history || [];
+    console.log('Fetched custom card logs:', data);
+    return data;
+}

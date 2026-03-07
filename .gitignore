@@ -45,6 +45,8 @@ mlb_showdown_bot/scripts/output/
 mlb_showdown_bot/scripts/cache/
 mlb_showdown_bot/data/wotc*
 mlb_showdown_bot/data/MLB Showdown WOTC Cards*
+mlb_showdown_bot/core/set_builder/output/
+mlb_showdown_bot/core/set_builder/expansions/
 static/output/
 mlb_showdown_bot/uploads/
 mlb_showdown_bot/output/
@@ -54,6 +56,7 @@ showdown-bot-app/
 **/cache_data/
 **/image_output/
 **/image_uploads/
+data/*
 
 # FRONTEND
 frontend/node_modules/

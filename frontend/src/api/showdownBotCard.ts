@@ -299,10 +299,16 @@ export type ShowdownBotCard = {
     
     /** Team abbreviation */
     team: string;
+    league?: string | null;
+
+    /* Overrides */
+    wbc_team?: string | null;
+    wbc_year?: number | null;
 
     // Baseball Reference integration
     /** Baseball Reference player ID */
     bref_id: string;
+    mlb_id?: number | null;
     
     /** Full Baseball Reference player URL */
     bref_url: string;
@@ -363,6 +369,7 @@ export type ShowdownBotCard = {
     /** Stats Object */
     stats: Record<string, any>;
     stats_period: StatsPeriod;
+    is_stats_estimate?: boolean;
 
     /** Flag indicating if the card is a WOTC card */
     is_wotc?: boolean;
@@ -373,6 +380,21 @@ export type ShowdownBotCard = {
     notes?: string | null;
 };
 
+export type ShowdownBotCardCompact = {
+    id: string;
+    name: string;
+    year: string | number;
+    set: string;
+    points: number;
+    command: number;
+    is_pitcher: boolean;
+    color_primary: string | null;
+    color_secondary: string | null;
+    team: string | null;
+    positions_and_defense_string: string | null;
+    ip: number | null;
+
+}
 // =============================================================================
 // MARK: - CARD IMAGE & VISUAL TYPES
 // =============================================================================
@@ -422,7 +444,7 @@ export type ShowdownBotCardImage = {
 // MARK: - STATS
 // =============================================================================
 
-type StatsPeriodType = "REGULAR" | "DATES" | "POST" | "SPLIT";
+type StatsPeriodType = "REGULAR" | "DATES" | "POST" | "SPLIT" | "PROJECTED" | "REPLACEMENT";
 
 export type StatsPeriod = {
     /** Type of stats period (e.g., "REGULAR", "DATES") */

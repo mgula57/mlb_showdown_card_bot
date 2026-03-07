@@ -33,6 +33,8 @@ import {
     flexRender,
     type ColumnDef,
     type SortingState,
+    type ColumnPinningState,
+    type Column,
 } from "@tanstack/react-table";
 
 // Extend TanStack Table's ColumnMeta interface to support custom CSS classes
@@ -56,6 +58,8 @@ export type BasicDataTableProps<TData> = {
     className?: string;
     /** Initial sorting state for the table */
     initialSorting?: SortingState;
+    /** Optional initial column pinning configuration */
+    initialColumnPinning?: ColumnPinningState;
     /** Custom content to display when table is empty */
     emptyState?: React.ReactNode;
     /** Optional callback function triggered when a row is clicked */
@@ -76,23 +80,48 @@ export type BasicDataTableProps<TData> = {
  * @param props - The component props
  * @returns A rendered data table with sorting and interaction capabilities
  */
-export function BasicDataTable<TData>({ data, columns, className = "", initialSorting = [], emptyState = <div className="p-6 text-center text-sm opacity-70">No rows</div>, onRowClick }: BasicDataTableProps<TData>) {
+export function BasicDataTable<TData>({ data, columns, className = "", initialSorting = [], initialColumnPinning = {}, emptyState = <div className="p-6 text-center text-sm opacity-70">No rows</div>, onRowClick }: BasicDataTableProps<TData>) {
 
     // Initialize sorting state with provided initial sorting configuration
     const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
+    const [columnPinning, setColumnPinning] = React.useState<ColumnPinningState>(initialColumnPinning);
+
+    const getPinnedStyles = (column: Column<TData, unknown>, background: string) => {
+        const isPinned = column.getIsPinned();
+        if (!isPinned) {
+            return undefined;
+        }
+
+        const isLeftPinned = isPinned === 'left';
+        const isRightPinned = isPinned === 'right';
+
+        return {
+            position: 'sticky' as const,
+            left: isLeftPinned ? `${column.getStart('left')}px` : undefined,
+            right: isRightPinned ? `${column.getAfter('right')}px` : undefined,
+            zIndex: 2,
+            background,
+            boxShadow: isLeftPinned && column.getIsLastColumn('left')
+                ? '1px 0 0 0 var(--divider), 4px 0 8px -6px rgba(0,0,0,0.35)'
+                : isRightPinned && column.getIsFirstColumn('right')
+                    ? '-1px 0 0 0 var(--divider), -4px 0 8px -6px rgba(0,0,0,0.35)'
+                    : undefined,
+        };
+    };
 
     // Configure TanStack Table with data, columns, and sorting capabilities
     const table = useReactTable({
         data,
         columns,
-        state: { sorting },
+        state: { sorting, columnPinning },
         onSortingChange: setSorting,
+        onColumnPinningChange: setColumnPinning,
         getCoreRowModel: getCoreRowModel(), // Core table functionality
         getSortedRowModel: getSortedRowModel(), // Enable column sorting
     });
 
     return (
-        <div className={`overflow-scroll rounded-lg border-2 border-[var(--background-tertiary)] ${className} text-sm`}>
+        <div className={`overflow-scroll rounded-lg border-2 border-(--background-tertiary) ${className} text-sm`}>
             <table className="min-w-full">
                 {/* Table Header with sortable columns */}
                 <thead className="bg-table-header">
@@ -103,6 +132,7 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
                                     key={h.id}
                                     className={`px-3 py-2 text-left font-semibold select-none cursor-pointer ${h.column.columnDef.meta?.className || ''}`}
                                     onClick={h.column.getToggleSortingHandler()}
+                                    style={getPinnedStyles(h.column, 'var(--table-header)')}
                                 >
                                     <div className="flex items-center gap-2">
                                         {/* Render column header content */}
@@ -132,14 +162,18 @@ export function BasicDataTable<TData>({ data, columns, className = "", initialSo
                             <tr 
                                 key={r.id} 
                                 className={`
-                                    odd:bg-[var(--table-banding)]
                                     ${onRowClick ? 'cursor-pointer' : ''}
                                 `}
+                                style={{
+                                    backgroundColor: r.index % 2 === 0
+                                        ? 'var(--table-banding, var(--background-secondary))'
+                                        : 'var(--background-secondary)',
+                                }}
                                 onClick={() => onRowClick?.(r.original)}
                             >
                                 {/* Render each cell in the row */}
                                 {r.getVisibleCells().map(c => (
-                                    <td key={c.id} className={`px-3 py-2 ${c.column.columnDef.meta?.className || ''}`}>
+                                    <td key={c.id} className={`px-3 py-2 ${c.column.columnDef.meta?.className || ''}`} style={getPinnedStyles(c.column, 'inherit')}>
                                         {flexRender(c.column.columnDef.cell, c.getContext())}
                                     </td>
                                 ))}

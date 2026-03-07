@@ -86,4 +86,5 @@ class StatcastAPIClient:
             if entry.player_id == player_id:
                 return entry
         
-        raise Exception(f"Sprint speed data for player {player_id} not found")
+        print(f"Sprint speed data for player {player_id} not found")
+        return None

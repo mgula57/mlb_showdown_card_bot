@@ -356,13 +356,13 @@ export function PlayerSearchInput({
 
     return (
         <div className={`relative ${className}`}>
-            <label className="block text-sm font-medium text-secondary mb-1">
+            <label className="block text-sm font-medium text-secondary">
                 {label}
             </label>
 
-            <div className="relative bg-gradient-to-r from-blue-500 to-red-500 p-[2px] rounded-lg">
+            <div className="relative bg-linear-to-r from-blue-500 to-red-500 p-0.5 rounded-lg">
 
-                <div className="bg-primary rounded-[calc(0.5rem-2px)] relative">
+                <div className="bg-primary rounded-md relative">
                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary">
                         <FaSearch className="w-4 h-4" />
                     </div>

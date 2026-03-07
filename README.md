@@ -659,6 +659,7 @@ Use Editions to add style variety to your cards. There are currently 6 different
 4. [All-Star Game](#all-star-game)
 5. [Rookie Season](#rookie-season)
 6. [Holiday](#holiday)
+7. [WBC](#wbc)
 
 ### **Cooperstown Collection**
 
@@ -829,6 +830,26 @@ Rookie Season replaces a player's team logo with a custom rookie season icon.
 ![Image](./docs/images/RM-HolidayPlayers.png)
 
 The Holiday theme adds a simple Christmas Tree inspired border to any card. This includes user uploaded photos, automated images, and silhouettes. 
+
+### **WBC**
+
+![Image](./docs/images/RM-WBC.png)
+
+Adds a WBC theme to your cards for players who participated in the tournament. You can apply it to any MLB player from:
+
+- The year before the WBC
+- The year of the WBC
+- A combination of the year before and the current year
+
+For the 2026 WBC, you can also make cards for players in NPB, KBO, or the Minors. There are a few limitations:
+
+- No defensive stats are available. The bot assigns average defense at each position where players are listed on Fangraphs and MLB.com.
+- To create a level playing field with MLB players, KBO, NPB, and MiLB cards are slightly nerfed by reducing their stat lines by a "run value":
+  - NPB: -20 Run Value
+  - KBO: -25 Run Value
+  - MiLB: -25 Run Value
+- If a WBC player is not part of MLB, NPB, KBO, or MiLB, they are given replacement-level card stats.
+
 
 ### **Postseason**
 
@@ -1015,17 +1036,7 @@ Tips for uploading your own custom images:
  - If image uploads fail, wait a few seconds and try again. Sometimes larger image will take 5-10 seconds to upload.
  - For 2000/2001, cut out the player image for best results. Add an outer glow to match the original sets. The team background will be added automatically.
 
-----
-## Showdown Explorer
 
-The Showdown Explorer tool leverages the power of the Showdown Library to provide the user with the ability to discover and explore cards from 1900-Present.
-
-_In depth walkthroughs and guides will be linked here in a future update._
-
-----
-
-
----
 
 ## 🛠️ Development & Local Setup
 

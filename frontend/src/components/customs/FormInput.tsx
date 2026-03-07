@@ -33,6 +33,8 @@ type FormInputProps = {
     onChangeFile?: (file: File | null) => void;
     /** Whether to automatically format text in title case */
     isTitleCase?: boolean;
+    /** Whether the input should be disabled */
+    disabled?: boolean;
 };
 
 /**
@@ -75,7 +77,7 @@ type FormInputProps = {
  * @param isTitleCase - Auto-format text in title case
  * @returns Versatile input component with label
  */
-const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase }) => {
+const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className = "", type="text", inputMode="text", isClearable=false, placeholder, onChangeFile, isTitleCase, disabled = false }) => {
 
     /** Check if this is a file upload input */
     const isFileInput = type === "file";
@@ -106,6 +108,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                         accept="image/*"
                         multiple={false}
                         onChange={handleFile}
+                        disabled={disabled}
                         className="
                             w-full py-2 pl-2 pr-2
                             rounded-xl
@@ -130,6 +133,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                             autoComplete="off"
                             spellCheck="false"
                             onChange={(e) => onChange && onChange(e.target.value)}
+                            disabled={disabled}
                             className={`
                                 w-full py-2 pl-2 ${ isClearable ? 'pr-0' : 'pr-2' }
                                 rounded-xl border-form-element
@@ -139,7 +143,7 @@ const FormInput: React.FC<FormInputProps> = ({ label, value, onChange, className
                         />
 
                         {/* Clear button - shown when clearable and has content */}
-                        {isClearable && String(value).length > 0 && (
+                        {isClearable && String(value).length > 0 && !disabled && (
                             <button
                                 type="button"
                                 onClick={() => onChange && onChange("")}

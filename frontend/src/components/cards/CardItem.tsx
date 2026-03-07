@@ -1,4 +1,4 @@
-import type { ShowdownBotCard } from "../../api/showdownBotCard";
+import type { ShowdownBotCard, StatsPeriod } from "../../api/showdownBotCard";
 import type { CardDatabaseRecord } from "../../api/card_db/cardDatabase";
 import CardChart from "./card_elements/CardChart";
 import CardCommand from "./card_elements/CardCommand";
@@ -16,7 +16,11 @@ type CardItemProps = {
     // Name and Year
     cardName?: string;
     cardYear?: string;
+    cardStatsPeriod?: StatsPeriod;
+
+    // Team and League
     cardTeam?: string;
+    cardLeague?: string;
 
     // Set
     cardSet?: string;
@@ -55,6 +59,7 @@ type CardItemProps = {
     // Misc
     cardIsErrata?: boolean;
     cardNotes?: string;
+    cardIsStatsEstimate?: boolean;
 
     /** Click handler for card selection */
     onClick?: () => void | undefined;
@@ -93,23 +98,23 @@ type CardItemProps = {
  * ```
  */
 export const CardItem = ({ 
-    cardId, cardTeam, cardName, cardYear, 
+    cardId, cardTeam, cardName, cardYear, cardStatsPeriod,
     cardCommand, cardIsPitcher,
     cardPoints, cardPointsEstimated, cardPointsDiffEstimatedVsActual,
     cardSpeed, cardHand, cardIp, cardPositionsAndDefenseString,
-    cardIsErrata, cardNotes,
+    cardIsErrata, cardNotes, cardIsStatsEstimate,
     cardPrimaryColor, cardSecondaryColor, cardEdition,
     cardSet, cardExpansion, cardSetNumber,
     cardIcons, cardAwardList, cardStatHighlightsList,
-    cardChartRanges,
+    cardChartRanges, cardLeague,
     onClick, className, isSelected 
 }: CardItemProps) => {
 
     const { isDark } = useTheme();
     const isRedacted = cardId === null || cardId === undefined;
     
-    // Team-specific color handling for better contrast (NYM, SDP use secondary first)
-    const primaryColor = (['NYM', 'SDP'].includes(cardTeam || 'N/A') 
+    // Team-specific color handling for better contrast (NYM, SDP, JPN use secondary first)
+    const primaryColor = (['NYM', 'SDP', 'JPN'].includes(cardTeam || 'N/A') 
         ? cardSecondaryColor
         : cardPrimaryColor) || 'rgb(0, 0, 0)';
     const colorStylingPrimary = { 
@@ -117,13 +122,16 @@ export const CardItem = ({
         color: getContrastColor(primaryColor) 
     };
     
-    const secondaryColor = (['NYM', 'SDP'].includes(cardTeam || 'N/A') 
+    const secondaryColor = (['NYM', 'SDP', 'JPN'].includes(cardTeam || 'N/A') 
         ? cardPrimaryColor
         : cardSecondaryColor) || 'rgb(0, 0, 0)';
     const colorStylingSecondary = { 
         backgroundColor: secondaryColor, 
         color: getContrastColor(secondaryColor) 
     };
+
+    // Determine whether the stats have been estimated
+    const isStatsEstimate = cardIsStatsEstimate || (cardLeague && cardEdition === 'WBC' && !['AL', 'NL', 'MLB'].includes(cardLeague)); // WBC cards for MLB players are often estimates
     
     // Dynamic border styling based on selection state and theme
     const borderSettings = isSelected 
@@ -153,7 +161,7 @@ export const CardItem = ({
             <div className="flex items-center">
                 EST: {estPoints}
                 {diffPoints !== 0 && (
-                    <span className={`ml-0.5 text-[8px] ${diffPoints > 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
+                    <span className={`ml-0.5 text-[8px] ${diffPoints > 0 ? 'text-(--green)' : 'text-(--red)'}`}>
                         {differenceSign}
                         {absoluteDifference}
                     </span>
@@ -198,8 +206,8 @@ export const CardItem = ({
                                     text-[9px] flex
                                     items-center font-bold justify-center
                                     rounded-lg tracking-tight shrink-0
-                                    border-1 border-white/30 px-1
-                                    bg-[var(--red)] text-white
+                                    border border-white/30 px-1
+                                    bg-(--red) text-white
                                     " 
                                 title="Errata Card"
                             >
@@ -282,6 +290,16 @@ export const CardItem = ({
                 {/* Statistical highlights ribbon */}
                 <div className="flex flex-row text-[9px] gap-1.5 px-1 text-nowrap overflow-x-scroll scrollbar-hide text-secondary">
                     
+                    {/* On WBC Cards, show the Stat Source */}
+                    {cardLeague && cardEdition === 'WBC' && (() => {
+                        const leagueGrouped = ['AL', 'NL'].includes(cardLeague) ? 'MLB' : cardLeague;
+                        return (
+                            <div className="font-semibold italic text-(--text-secondary)">
+                                {leagueGrouped}
+                            </div>
+                        )
+                    })()}
+
                     {/* AWARDS: NEW WAY */}
                     {cardAwardList && cardAwardList.length > 0 && (
                         <div className="font-semibold underline">
@@ -302,11 +320,22 @@ export const CardItem = ({
                             ))}
                         </div>
                     )}
-                    {cardStatHighlightsList?.map((stat, index) => (
-                        <div key={index} className="">
-                            {stat}
+                    {cardStatsPeriod?.type === 'REPLACEMENT' ? (
+                        <div className="font-semibold italic text-(--text-secondary)">
+                            Showing Replacement Level Stats
                         </div>
-                    ))}
+                    ) : (
+                        <>
+                        {isStatsEstimate && (
+                            <span>**</span>
+                        )}
+                        {cardStatHighlightsList?.map((stat, index) => (
+                            <div key={index} className="">
+                                {stat}
+                            </div>
+                        ))}
+                        </>
+                    )}
                 </div>
 
                 {/* Set and Expansion */}
@@ -314,7 +343,7 @@ export const CardItem = ({
                     className="
                         flex flex-row justify-end items-center gap-x-1
                         text-[9px] text-nowrap tracking-tight text-primary
-                        bg-[var(--background-tertiary)]
+                        bg-(--background-tertiary)
                         px-1 rounded-md font-bold shadow-md
                     "
                     style={{
@@ -327,7 +356,7 @@ export const CardItem = ({
                     {cardExpansion && ['TD', 'PR'].includes(cardExpansion) && (
                         <img 
                             src={`/images/card/expansion-${cardExpansion.toLowerCase()}.png`} 
-                            className="inline-block w-5 h-4 object-contain object-center flex-shrink-0"
+                            className="inline-block w-5 h-4 object-contain object-center shrink-0"
                             alt="Expansion"
                         />
                     )}
@@ -362,18 +391,20 @@ type CardItemFromCardProps = {
 
 export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardItemFromCardProps) => {
 
-    const primaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+    const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
                             : card?.image.color_primary) || 'rgb(0, 0, 0)';
-    const secondaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+    const secondaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_primary 
                             : card?.image.color_secondary) || 'rgb(0, 0, 0)';
     return (
         <CardItem
             cardId={card === undefined || card === null ? undefined : `${card.bref_id}-${card.stats_period.year}-${card.set}`}
-            cardTeam={card?.team}
+            cardTeam={card?.wbc_team || card?.team}
+            cardLeague={card?.league || undefined}
             cardName={card?.name}
-            cardYear={card?.stats_period.year}
+            cardYear={card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period.year)}
+            cardStatsPeriod={card?.stats_period}
             cardCommand={card?.chart.command}
             cardOuts={card?.chart.outs}
             cardIsPitcher={card?.chart.is_pitcher}
@@ -386,6 +417,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardI
             cardPositionsAndDefenseString={card?.positions_and_defense_string || undefined}
             cardIsErrata={card?.is_errata || false}
             cardNotes={card?.notes || undefined}
+            cardIsStatsEstimate={card?.is_stats_estimate || false}
             cardPrimaryColor={primaryColor}
             cardSecondaryColor={secondaryColor}
             cardEdition={card?.image.edition || undefined}
@@ -419,17 +451,17 @@ type CardItemFromCardDatabaseRecordProps = {
 };
 
 export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected }: CardItemFromCardDatabaseRecordProps) => {
-    const primaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+    const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_secondary
                             : card?.color_primary) || 'rgb(0, 0, 0)';
-    const secondaryColor = (['NYM', 'SDP'].includes(card?.team || '') 
+    const secondaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_primary 
                             : card?.color_secondary) || 'rgb(0, 0, 0)';
     
     return (
         <CardItem
             cardId={card?.card_id}
-            cardTeam={card?.team}
+            cardTeam={card?.wbc_team || card?.team}
             cardName={card?.name}
             cardYear={card?.card_year}
             cardCommand={card?.command}
@@ -453,6 +485,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardIcons={card?.icons_list || []}
             cardAwardList={card?.awards_list || []}
             cardStatHighlightsList={card?.stat_highlights_list || []}
+            cardLeague={card?.league || undefined}
             cardChartRanges={card?.chart_ranges || {}}
             onClick={onClick}
             className={className}

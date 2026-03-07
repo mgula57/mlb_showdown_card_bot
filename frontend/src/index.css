@@ -80,6 +80,11 @@
     .bg-tertiary {
         background-color: var(--background-tertiary);
     }
+
+    .bg-quaternary {
+        background-color: var(--background-quaternary);
+    }
+
     .gradient-page {
         background-image: var(--background-gradient);
     }
