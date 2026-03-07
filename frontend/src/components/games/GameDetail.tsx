@@ -137,7 +137,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
 
     if (isLoading) {
         return (
-            <div className="space-y-4 sm:pr-6">
+            <div className="space-y-4">
                 <BackButton onBack={onBack} />
                 <div className="flex items-center justify-center py-20 text-(--text-secondary) text-sm">
                     Loading boxscore…
@@ -148,7 +148,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
 
     if (error || !boxscore) {
         return (
-            <div className="space-y-4 sm:pr-6">
+            <div className="space-y-4">
                 <BackButton onBack={onBack} />
                 <div className="flex items-center justify-center py-20 text-red-400 text-sm">
                     {error ?? "Boxscore data unavailable."}

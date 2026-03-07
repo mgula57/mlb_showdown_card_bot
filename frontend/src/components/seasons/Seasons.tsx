@@ -919,7 +919,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     {/* Standings Tab */}
                             		<Tabs.Content
                                         value="standings"
-                                        className="focus:outline-none data-[state=inactive]:hidden sm:pt-6 sm:pr-6"
+                                        className="focus:outline-none data-[state=inactive]:hidden lg:pt-6 lg:pr-6"
                                         forceMount
                                     >
                                         <div className="space-y-2 pb-24">
@@ -938,7 +938,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     {/* Schedule Tab - Only for ongoing seasons */}
                                     <Tabs.Content
                                         value="schedule"
-                                        className="focus:outline-none data-[state=inactive]:hidden sm:pt-6 sm:pr-6"
+                                        className="focus:outline-none data-[state=inactive]:hidden lg:pt-6 lg:pr-6"
                                         forceMount
                                     >
                                         {selectedGamePk !== null ? (
@@ -950,7 +950,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 onBack={() => setSelectedGamePk(null)}
                                             />
                                         ) : (
-                                        <div className="space-y-5 sm:pr-6">
+                                        <div className="space-y-5 lg:pr-6">
                                                 <div className="rounded-xl border border-(--divider) bg-(--background-secondary) px-4 py-3">
                                                     <div className="flex items-center justify-between">
                                                         <button
@@ -1004,7 +1004,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     {/* Teams Tab */}
                                     <Tabs.Content
                                         value="teams"
-                                        className="focus:outline-none data-[state=inactive]:hidden sm:pt-6 sm:pr-6"
+                                        className="focus:outline-none data-[state=inactive]:hidden lg:pt-6 lg:pr-6"
                                         forceMount
                                     >                                        
                                             {selectedTeam && (
