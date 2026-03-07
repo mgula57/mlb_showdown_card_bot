@@ -178,11 +178,11 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
                 detailedState={detailedState}
             />
 
-            {/* Linescore Table */}
-            <LinescoreTable away={away} home={home} innings={ls.innings} teams={ls.teams} />
-
             {/* Live Situation */}
             {isInProgress && <LiveSituation linescore={ls} isRefreshing={isRefreshing} cardMap={cardMap} onCardSelect={setSelectedCard} />}
+
+            {/* Linescore Table */}
+            <LinescoreTable away={away} home={home} innings={ls.innings} teams={ls.teams} />
 
             {/* Decisions */}
             {isFinal && <Decisions boxscore={boxscore} />}
@@ -208,10 +208,10 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
             <div className={selectedCard ? '' : 'hidden pointer-events-none'}>
                 <Modal onClose={handleModalCardClose} isVisible={!!selectedCard}>
                     <CardDetail
-                        showdownBotCardData={{ card: selectedCard} as ShowdownBotCardAPIResponse} 
+                        cardId={selectedCard?.card_id}
                         hideTrendGraphs={true}
-                        context="home"
-                        parent='home'
+                        context="game_detail"
+                        parent='game_detail'
                     />
                 </Modal>
             </div>

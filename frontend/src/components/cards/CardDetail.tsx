@@ -48,7 +48,7 @@ type CardDetailProps = {
     /** Loading state for live game data */
     isLoadingGameBoxscore?: boolean;
     /** Usage context: 'custom' for card builder, 'explore' for database browser */
-    context?: 'custom' | 'explore' | 'home' | 'season' | 'roster';
+    context?: 'custom' | 'explore' | 'home' | 'season' | 'roster' | 'game_detail';
     parent?: string;
 };
 

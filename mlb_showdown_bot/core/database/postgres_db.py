@@ -600,7 +600,16 @@ class PostgresDB:
         """)
         raw_data = self.execute_query(query=query, filter_values=(card_id,))
         if len(raw_data) == 0:
-            return None
+            # Check in the WBC table if not found in the main card table (since some WBC cards are only stored there)
+            query_wbc = sql.SQL("""
+                SELECT id, card_data
+                FROM card_wbc
+                WHERE id = %s
+                LIMIT 1
+            """)
+            raw_data = self.execute_query(query=query_wbc, filter_values=(card_id,))
+            if len(raw_data) == 0:
+                return None
         
         if 'card_data' not in raw_data[0]:
             return None
