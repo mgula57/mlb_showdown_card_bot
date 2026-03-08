@@ -17,7 +17,7 @@ export const countryCodeForTeam = (sportId: number, team: string) => {
         DOM: "DO",
         ESP: "ES",
         GBR: "GB",
-        ISR: "IS",
+        ISR: "IL",
         ITA: "IT",
         JPN: "JP",
         KOR: "KR",

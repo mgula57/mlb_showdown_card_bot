@@ -162,6 +162,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const hasLoadedSeasonsRef = useRef(false);
     const isLoadingSeasonsRef = useRef(false);
     const pendingRequestsRef = useRef(0);
+    const isRunningLoadAllRef = useRef(false);
 
     const beginLoading = () => {
         pendingRequestsRef.current += 1;
@@ -442,6 +443,106 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         setTeams(allTeams);
     };
 
+    const loadAll = async () => {
+        if (!selectedSeason) return;
+
+        isRunningLoadAllRef.current = true;
+        beginLoading();
+        try {
+            // 1. Resolve sport (without waiting for state to settle)
+            let resolvedSport: Sport | null = null;
+            if (hasStaticSports) {
+                const storedSportId = getStoredValue(STORAGE_KEYS.sportId);
+                resolvedSport = storedSportId
+                    ? (staticSports!.find(s => s.id.toString() === storedSportId) ?? staticSports![0] ?? null)
+                    : (staticSports![0] ?? null);
+                setSelectedSport(resolvedSport);
+            } else {
+                const sportsData = await fetchSeasonSports(selectedSeason);
+                setSports(sportsData);
+                const storedSportId = getStoredValue(STORAGE_KEYS.sportId);
+                resolvedSport = storedSportId
+                    ? (sportsData.find(s => s.id.toString() === storedSportId) ?? sportsData[0] ?? null)
+                    : (sportsData[0] ?? null);
+                setSelectedSport(resolvedSport);
+            }
+
+            if (!resolvedSport) return;
+
+            // 2. Resolve leagues
+            const resolvedLeagues = await fetchSeasonLeagues(selectedSeason, resolvedSport);
+            const resolvedLeagueGroups = Array.from(
+                new Set(
+                    resolvedLeagues
+                        .map(league => getLeagueGroupForLeague(league))
+                        .filter((g): g is string => g !== null)
+                )
+            );
+            const resolvedLeagueGroup = resolvedLeagueGroups.length > 1
+                ? (() => {
+                    const stored = getStoredValue(STORAGE_KEYS.leagueGroup);
+                    return stored && resolvedLeagueGroups.includes(stored) ? stored : resolvedLeagueGroups[0];
+                })()
+                : null;
+
+            setLeagueGroups(resolvedLeagueGroups);
+            setSelectedLeagueGroup(resolvedLeagueGroup);
+            setLeagues(resolvedLeagues);
+
+            // 3. Determine filtered leagues
+            const shouldFilter = resolvedLeagueGroups.length > 1 && resolvedLeagueGroup !== null;
+            const leaguesToQuery = shouldFilter
+                ? resolvedLeagues.filter(l => getLeagueGroupForLeague(l) === resolvedLeagueGroup)
+                : resolvedLeagues;
+
+            if (leaguesToQuery.length === 0) return;
+
+            const leagueIdFilter = leaguesToQuery.length > 1 ? leaguesToQuery[0] : undefined;
+            const selectedDate = formatDateForApi(gamesDate);
+
+            // 4. Parallel: standings + todaysSchedule + gamesSchedule
+            const [standingsData] = await Promise.all([
+                fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet).then(data => {
+                    setStandings(data);
+                    return data;
+                }),
+                fetchTodaysSchedule(resolvedSport.id, selectedSeason, leagueIdFilter, userShowdownSet)
+                    .then(setTodaysSchedule)
+                    .catch(() => setTodaysSchedule(null)),
+                fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leagueIdFilter, userShowdownSet)
+                    .then(setGamesSchedule)
+                    .catch(() => setGamesSchedule(null)),
+            ]);
+
+            // 5. Populate teams from standings
+            const allTeams: Team[] = [];
+            Object.values(standingsData).forEach(leagueStandings => {
+                leagueStandings.forEach(standing => {
+                    standing.team_records?.forEach(record => allTeams.push(record.team));
+                });
+            });
+            allTeams.sort((a, b) => (a.abbreviation || "").localeCompare(b.abbreviation || ""));
+            setTeams(allTeams);
+            setSelectedTeam(prevTeam => {
+                if (prevTeam && allTeams.some(t => `${t.id}-${t.season}` === `${prevTeam.id}-${prevTeam.season}`)) {
+                    return prevTeam;
+                }
+                return allTeams.sort((a, b) => {
+                    const aStarred = starredTeamKeys.includes(`${a.id}-${a.season}`);
+                    const bStarred = starredTeamKeys.includes(`${b.id}-${b.season}`);
+                    if (aStarred !== bStarred) return aStarred ? -1 : 1;
+                    return (a.abbreviation || "").localeCompare(b.abbreviation || "");
+                })[0] ?? null;
+            });
+
+        } catch (error) {
+            console.error(`Error in loadAll for season ${selectedSeason.season_id}:`, error);
+        } finally {
+            isRunningLoadAllRef.current = false;
+            endLoading();
+        }
+    };
+
     const loadTeamRoster = async (team: Team) => {
         if (!selectedSeason || !selectedSport || !team) {
             return;
@@ -527,12 +628,25 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         loadSeasons();
     }, []);
 
+    // Single orchestrated load: sports → leagues → standings + schedules in parallel
     useEffect(() => {
-        if (selectedSeason === null || selectedSeason.season_id === undefined) {
-            return;
-        }
-        loadSports();
+        if (!selectedSeason) return;
+        loadAll();
     }, [selectedSeason]);
+
+    // Re-run standings + both schedules when user changes league group or showdown set
+    useEffect(() => {
+        if (isRunningLoadAllRef.current || !selectedSeason || leagues.length === 0) return;
+        loadStandings();
+        loadSchedule();
+        loadGamesSchedule();
+    }, [selectedLeagueGroup, userShowdownSet]);
+
+    // Re-run only games schedule when selected date changes
+    useEffect(() => {
+        if (!selectedSeason || leagues.length === 0) return;
+        loadGamesSchedule();
+    }, [gamesDate]);
 
     useEffect(() => {
         setStoredValue(STORAGE_KEYS.seasonId, selectedSeason?.season_id?.toString() ?? null);
@@ -569,34 +683,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             setIsTeamsNavOpen(true);
         }
     }, [activeTab]);
-
-    useEffect(() => {
-        if (selectedSeason === null || selectedSeason.season_id === undefined || selectedSport === null || selectedSport.id === undefined) {
-            return;
-        }
-        loadLeagues();
-    }, [selectedSeason, selectedSport]);
-
-    useEffect(() => {
-        if (selectedSeason === null || selectedSeason.season_id === undefined || leagues.length === 0) {
-            return;
-        }
-        loadStandings();
-    }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup]);
-
-    useEffect(() => {
-        if (selectedSeason === null || selectedSeason.season_id === undefined || leagues.length === 0) {
-            return;
-        }
-        loadSchedule();
-    }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup, userShowdownSet]);
-
-    useEffect(() => {
-        if (selectedSeason === null || selectedSeason.season_id === undefined || leagues.length === 0) {
-            return;
-        }
-        loadGamesSchedule();
-    }, [selectedSeason, leagues, leagueGroups, selectedLeagueGroup, userShowdownSet, gamesDate]);
 
     useEffect(() => {
         if (selectedTeam === null || selectedTeam.id === undefined) {
