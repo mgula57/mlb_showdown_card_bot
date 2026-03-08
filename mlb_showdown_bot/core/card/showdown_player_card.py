@@ -3826,8 +3826,9 @@ class ShowdownPlayerCard(BaseModel):
                         max_width=700,
                         min_scale=0.4,
                     )
-                    
-                    text = self._text_image(text=name_part, size=(700, 250), font=new_name_font, fill="#ffffff")
+                    # REMOVE '-' FROM NAME (ISSUE WITH FONT BEING DEMO)
+                    name_no_dashes = name_part.replace('-', ' ')
+                    text = self._text_image(text=name_no_dashes, size=(700, 250), font=new_name_font, fill="#ffffff")
                     paste_location = (255, 0) if name_part == first else (255, int( 55 + (75 * (1-name_length_multiplier)) ))
                     flag_and_name_img.paste(text, paste_location, text)
 
