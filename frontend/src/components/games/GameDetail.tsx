@@ -743,7 +743,7 @@ function PitcherRow({ pitcher, card, hasCards, onCardSelect }: { pitcher: Boxsco
             )}
             {hasCards && (
                 <td className="px-1 py-1 text-center">
-                    {card && <PointsBadge points={card.points} />}
+                    {card && <PointsBadge points={card.points} bg_color={card.color_secondary} />}
                 </td>
             )}
             <td className="px-2 py-1.5 text-right text-(--text-primary)">{pitcher.stats.innings_pitched}</td>
