@@ -9,7 +9,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import {
     fetchSeasons, fetchSeasonSports, fetchSeasonLeagues, fetchSeasonStandings, fetchTeamRoster,
-    fetchTodaysSchedule, fetchSchedule,
+    fetchTodaysSchedule, fetchSchedule, fetchSeasonTeams,
     type Season, type Sport, type League, type Standings, type Team, type Roster,
     type Schedule
 } from '../../api/mlbAPI';
@@ -402,6 +402,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
 
         var standingsData: { [leagueAbbreviation: string]: Standings[] } = {};
+        let standingsFailed = false;
         beginLoading();
         try {
             standingsData = await fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet);
@@ -409,12 +410,13 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
             setStandings(standingsData);
         } catch (error) {
             console.error(`Error fetching standings for season ${selectedSeason.season_id}:`, error);
+            standingsFailed = true;
         } finally {
             endLoading();
         }
 
         // Populate Teams for Teams Tab
-        const allTeams: Team[] = [];
+        let allTeams: Team[] = [];
         Object.values(standingsData).forEach((leagueStandings) => {
             leagueStandings.forEach((standing) => {
                 standing.team_records?.forEach((record) => {
@@ -422,6 +424,16 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                 });
             });
         });
+
+        if (standingsFailed || allTeams.length === 0) {
+            // Standings endpoint unavailable; fetch teams directly
+            const fetched = await Promise.all(
+                leaguesToQuery.map(league =>
+                    fetchSeasonTeams(selectedSeason, league, selectedSport?.id ?? 1).catch(() => [] as Team[])
+                )
+            );
+            allTeams = fetched.flat();
+        }
         allTeams.sort((a, b) => (a.abbreviation || "").localeCompare(b.abbreviation || ""));
         // Check if currently selected team still exists in the new data, otherwise set to first value
         setSelectedTeam((prevTeam) => {
@@ -502,10 +514,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
             // 4. Parallel: standings + todaysSchedule + gamesSchedule
             const [standingsData] = await Promise.all([
-                fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet).then(data => {
-                    setStandings(data);
-                    return data;
-                }),
+                fetchSeasonStandings(selectedSeason, leaguesToQuery, userShowdownSet)
+                    .then(data => {
+                        setStandings(data);
+                        return data;
+                    })
+                    .catch(error => {
+                        console.error(`Standings fetch failed, will fall back to teams endpoint:`, error);
+                        return {} as { [leagueAbbreviation: string]: Standings[] };
+                    }),
                 fetchTodaysSchedule(resolvedSport.id, selectedSeason, leagueIdFilter, userShowdownSet)
                     .then(setTodaysSchedule)
                     .catch(() => setTodaysSchedule(null)),
@@ -514,13 +531,24 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                     .catch(() => setGamesSchedule(null)),
             ]);
 
-            // 5. Populate teams from standings
-            const allTeams: Team[] = [];
+            // 5. Populate teams from standings, or fetch separately if standings failed
+            let allTeams: Team[] = [];
             Object.values(standingsData).forEach(leagueStandings => {
                 leagueStandings.forEach(standing => {
                     standing.team_records?.forEach(record => allTeams.push(record.team));
                 });
             });
+
+            if (allTeams.length === 0) {
+                // Standings endpoint unavailable; fetch teams directly
+                const fetched = await Promise.all(
+                    leaguesToQuery.map(league =>
+                        fetchSeasonTeams(selectedSeason, league, resolvedSport.id).catch(() => [] as Team[])
+                    )
+                );
+                allTeams = fetched.flat();
+            }
+
             allTeams.sort((a, b) => (a.abbreviation || "").localeCompare(b.abbreviation || ""));
             setTeams(allTeams);
             setSelectedTeam(prevTeam => {
