@@ -60,6 +60,15 @@ export const fetchSeasonStandings = async (season: Season, leagues: League[], sh
     return Object.fromEntries(standingsEntries);
 }
 
+export const fetchSeasonTeams = async (season: Season, league: League, sportId: number): Promise<Team[]> => {
+    const response = await fetch(`${API_BASE}/seasons/${season.season_id}/teams?league_id=${league.id}&sport_id=${sportId}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch teams for season ${season.season_id} and league ${league.id}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.teams as Team[];
+}
+
 export const fetchTeamRoster = async (season: Season, teamId: number, rosterType: string, showdownSet: string, sportId: number, teamAbbr: string): Promise<Roster> => {
     const response = await fetch(`${API_BASE}/seasons/${season.season_id}/teams/${teamId}/roster?roster_type=${rosterType}&showdown_set=${showdownSet}&sport_id=${sportId}&team_abbr=${teamAbbr}`);
     if (!response.ok) {
