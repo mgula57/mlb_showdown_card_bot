@@ -130,3 +130,22 @@ def fetch_roster(season_id: str, team_id: str):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+    
+@seasons_bp.route('/seasons/<season_id>/teams', methods=["GET"])
+def fetch_teams_for_season(season_id: str):
+    """Fetch teams for a given season"""
+    try:
+        if not season_id:
+            return jsonify({'error': 'Missing required parameter: season'}), 400
+        
+        sport_id = request.args.get('sport_id', 1)  # Optional filter for sport_id
+        league_id = request.args.get('league_id', None)  # Optional filter for league_id
+
+        teams = _mlb_stats_api.teams.get_teams(season=season_id, sport_id=sport_id, league_id=league_id)
+        teams_data = [team.model_dump() for team in teams]
+        return jsonify({'teams': teams_data}), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
