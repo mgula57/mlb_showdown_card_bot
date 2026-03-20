@@ -126,9 +126,4 @@ export const sideMenuItems: SideMenuItemType[] = [
         icon: FaLayerGroup,      // Compass icon representing exploration/discovery
         path: "/cards"
     },
-    {
-        text: "WBC",
-        icon: FaGlobeAmericas,
-        path: "/wbc"
-    },
 ];

@@ -1299,14 +1299,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             />
 
                                             <FormDropdown
-                                                label={(
-                                                    <span className="flex items-center justify-between gap-2">
-                                                        <span>Edition</span>
-                                                        <span className="inline-flex items-center rounded-md bg-(--showdown-red) px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">
-                                                            NEW
-                                                        </span>
-                                                    </span>
-                                                )}
+                                                label="Edition"
                                                 options={editionOptions}
                                                 selectedOption={form.edition}
                                                 onChange={(value) => setForm({ ...form, edition: value })}
