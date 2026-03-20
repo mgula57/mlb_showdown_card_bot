@@ -4,6 +4,7 @@ from prettytable import PrettyTable
 from datetime import datetime, timedelta
 import traceback
 import json
+import ast
 
 # INTERNAL
 from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team, Edition
@@ -68,7 +69,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
     """
 
     # SETUP KNOWN PARAMETERS
-    stats: dict[str, Any] = {}
+    stats: dict[str, Any] = kwargs.get('stats', None)
     card: ShowdownPlayerCard = None
     additional_logs: dict[str, Any] = {}
     final_card_payload: dict[str, Any] = {}
@@ -114,9 +115,24 @@ def generate_card(**kwargs) -> dict[str, Any]:
             raise Exception("Year is a required input.")
         
         # PREPARE STATS
+        expected_source = Datasource(kwargs.get('datasource', 'BREF'))
+        if expected_source == Datasource.MANUAL:
+            if not stats:
+                raise Exception("Stats must be provided when datasource is MANUAL.")
+            
+            try:
+                try:
+                    stats = json.loads(stats)
+                except json.JSONDecodeError:
+                    # Fall back to ast.literal_eval to support Python dict syntax (single quotes)
+                    stats = ast.literal_eval(stats)
+                kwargs.pop('stats') # Remove stats from kwargs since it's not needed beyond this point and can cause issues with ShowdownPlayerCard initialization
+            except Exception as e:
+                stats = {}
+                raise Exception(f"Failed to parse stats JSON: {str(e)}")
+        
         stats_period_type = kwargs.get('stats_period_type', 'REGULAR')
         stats_period = StatsPeriod(type=stats_period_type, **kwargs)
-        stats: dict[str: any] = None
 
         # CHECK FOR YEAR IN THE FUTURE AND WBC
         edition_raw = kwargs.get('edition', None)
@@ -146,7 +162,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
             return final_card_payload # STOP PROCESSING
 
-        expected_source = Datasource(kwargs.get('datasource', 'BREF'))
+        
         scraper_load_time = None
         match expected_source:
             case Datasource.MLB_API:
@@ -224,6 +240,9 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 # ALWAYS APPLY THESE
                 kwargs['player_type_override'] = baseball_reference_stats.player_type_override
                 kwargs['team_override'] = baseball_reference_stats.team_override
+
+            case Datasource.MANUAL:
+                """"""
 
         # -----------------------------------
         # HIT MLB API FOR REALTIME STATS

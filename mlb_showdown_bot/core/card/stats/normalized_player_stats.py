@@ -18,6 +18,8 @@ class Datasource(str, Enum):
     BREF = "bref"
     FANGRAPHS = "fangraphs"
 
+    MANUAL = "manual"
+
     @classmethod
     def _missing_(cls, value):
         if isinstance(value, str):

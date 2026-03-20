@@ -1912,9 +1912,9 @@ class ShowdownPlayerCard(BaseModel):
             stats['strikeouts_per_nine'] = round(k_per_9, 2)
 
         # CLEAN SLASHLINE
-        ba = float(stats['batting_avg']) if len(str(stats['batting_avg'])) > 0 else 1.0
-        obp = float(stats['onbase_perc']) if len(str(stats['onbase_perc'])) > 0 else 1.0
-        slg = float(stats['slugging_perc']) if len(str(stats['slugging_perc'])) > 0 else 1.0
+        ba = float(stats.get('batting_avg', 1.0)) if len(str(stats.get('batting_avg', ''))) > 0 else 1.0
+        obp = float(stats.get('onbase_perc', 1.0)) if len(str(stats.get('onbase_perc', ''))) > 0 else 1.0
+        slg = float(stats.get('slugging_perc', 1.0)) if len(str(stats.get('slugging_perc', ''))) > 0 else 1.0
         ops = round(obp + slg, 4)
         if_fb = stats.get('IF/FB', replacement_ratio('IF/FB', slg)) or replacement_ratio('IF/FB', slg)
         go_ao = stats.get('GO/AO', replacement_ratio('GO/AO', slg)) or replacement_ratio('GO/AO', slg)
