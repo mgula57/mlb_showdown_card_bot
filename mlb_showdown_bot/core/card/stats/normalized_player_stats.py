@@ -8,7 +8,7 @@ from ...fangraphs.models import FieldingStats, LeaderboardStats
 from ...shared.player_position import PlayerType
 from ...shared.hand import Hand
 from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
-from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
+from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType
 
 # -------------------------------
 # MARK: - Primary Datasources 
@@ -95,6 +95,7 @@ class NormalizedPlayerStats(BaseModel):
     L: int = 0
     GS: int = 0
     IP: float = 0.0
+    IP_GS: Optional[float] = Field(None, alias='IP/GS')
     ER: int = 0
     earned_run_avg: Optional[float] = None
     whip: Optional[float] = None
@@ -128,6 +129,7 @@ class NormalizedPlayerStats(BaseModel):
     defense_datasource: Optional[Datasource] = None
     dWAR: Optional[float] = None
     bWAR: Optional[float] = None
+    fWAR: Optional[float] = None
     
     # Statcast Metrics
     sprint_speed: Optional[float] = None
@@ -238,6 +240,11 @@ class NormalizedPlayerStats(BaseModel):
         """Returns a dictionary representation of the model, including aliases"""
         return self.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
 
+    def add_bref_id(self, bref_id: str) -> None:
+        """Adds a Baseball Reference ID to the model"""
+        self.bref_id = bref_id
+        self.bref_url = f"https://www.baseball-reference.com/players/{bref_id[0]}/{bref_id}.shtml"
+
 # -------------------------------
 # MARK: - Normalizer Class
 # -------------------------------
@@ -284,6 +291,17 @@ class PlayerStatsNormalizer:
             # 'sprint_speed': getattr(mlb_player, 'sprint_speed', None),
             # 'onbase_plus_slugging_plus': self._extract_ops_plus(hitting_stats),
         }
+
+        # TYPE BASED ADDITIONS
+        if player_type == PlayerType.PITCHER.value:
+            # LOOK WITHIN STAT SPLITS FOR IP/GS
+            gs_ip = PlayerStatsNormalizer._extract_ip_per_gs(player, stats_period)
+            if gs_ip:
+                normalized_data['IP/GS'] = gs_ip
+
+        # ADD GAME LOGS
+        if stats_period.year_type == StatsPeriodYearType.SINGLE_YEAR:
+            normalized_data['game_logs'] = PlayerStatsNormalizer._extract_game_logs(player, stats_period)
 
         # FILL IN EMPTY VALUES
         normalized_data = fill_empty_stat_categories(
@@ -392,12 +410,34 @@ class PlayerStatsNormalizer:
         # Get fielding data for season(s)
         fielding_stat_splits = mlb_player.get_stat_splits(
             group_type=StatGroupEnum.FIELDING,
-            type=stats_type,
+            types=[stats_type],
             seasons=stats_period.year_list
         )
 
-        if not fielding_stat_splits or len(fielding_stat_splits) == 0:
-            print("No fielding stats available.")
+        # For pitchers, use games pitched from the standard stats split to fill in positions if no fielding splits are available, since many pitchers won't have fielding stats but we can assume they played pitcher for any games they pitched in
+        if mlb_player.is_pitcher and (not fielding_stat_splits or len(fielding_stat_splits) == 0):
+            pitching_standard_stats = mlb_player.get_stat_splits(
+                group_type=StatGroupEnum.PITCHING,
+                types=[stats_type],
+                seasons=stats_period.year_list
+            )
+            games_pitched = 0
+            for split in pitching_standard_stats:
+                stats = split.stat
+                if stats and 'gamesPitched' in stats:
+                    games_pitched += stats['gamesPitched']
+            if games_pitched > 0:
+                return {
+                    'P': {
+                        'g': games_pitched,
+                        # 'tzr': None,
+                        'drs': 0,
+                        # 'oaa': None,
+                        # 'uzr': None,
+                    }
+                }
+
+        if not mlb_player.is_pitcher and (not fielding_stat_splits or len(fielding_stat_splits) == 0):
             return None  # No stats available
 
         converted_stats: Dict[str, Dict[str, Any]] = {}
@@ -449,89 +489,122 @@ class PlayerStatsNormalizer:
 
     @staticmethod
     def _extract_standard_stats(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Dict[str, Any]:
-        """Extracts standard stats from a MLBStatsPlayer stat splits"""
-
-        stats_type = PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)
-        group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
-        standard_stat_splits = mlb_player.get_stat_splits(
-            group_type=group_type,
-            type=stats_type,
-            seasons=stats_period.year_list
-        )
-
-        # Combine stats from all splits
-        standard_stats: Dict[str, Any] = {}
-        if not standard_stat_splits or len(standard_stat_splits) == 0:
-            print("No standard stats available.")
-            return standard_stats  # No stats available
+        """Extracts standard stats from a MLBStatsPlayer stat splits.
         
+        Fetches each StatType separately and merges results to avoid double-counting stats
+        that appear in multiple types (e.g. statsSingleSeason + statsSingleSeasonAdvanced).
+        The primary stat type wins for any overlapping keys; subsequent types only contribute
+        keys not already present. Counting stats are still summed across years/teams within
+        each stat type.
+        """
+
+        is_pitcher = mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.PITCHER
+        stats_types = [PlayerStatsNormalizer._primary_stats_type(stats_period.year_type)] \
+                        + ([StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED] if is_pitcher else []) \
+                        + [StatTypeEnum.SABERMETRICS]
+        group_type = StatGroupEnum.PITCHING if is_pitcher else StatGroupEnum.HITTING
+
         stat_name_mapping = PlayerStatsNormalizer._map_mlb_api_stats_to_bref()
         stat_type_mapping = PlayerStatsNormalizer._stat_datatype_dict()
-        unique_sport_ids = list(set([split.sport.id for split in standard_stat_splits if split.sport]))
 
-        ip_multi_split_list: List[float] = [] # COMBINE IP FROM MULTIPLE SPLITS
-        for split in standard_stat_splits:
-            stats = split.stat
-            if not stats:
+        # PROCESS EACH STAT TYPE INDEPENDENTLY, THEN MERGE
+        # This prevents double-counting fields shared across stat types (e.g. GS, SB, 2B)
+        # while still summing correctly across teams/years within each type.
+        combined_stats: Dict[str, Any] = {}
+
+        for stats_type in stats_types:
+            splits = mlb_player.get_stat_splits(
+                group_type=group_type,
+                types=[stats_type],
+                seasons=stats_period.year_list
+            )
+            if not splits:
                 continue
 
-            # CHECK IF MULTIPLE SPLITS, IF SO WE MAY NEED TO TAKE THE LAST ONE
-            minor_total_sport_id = 21
-            if len(unique_sport_ids) > 1 and split.sport and minor_total_sport_id in unique_sport_ids and split.sport.id != minor_total_sport_id:
-                continue
+            unique_sport_ids = list(set([split.sport.id for split in splits if split.sport]))
+            ip_splits: List[float] = []
+            type_stats: Dict[str, Any] = {}
 
-            for key, value in stats.items():
+            # ACCUMULATE RAW BATTED BALL COUNTS FOR IF/FB (keys not in NormalizedPlayerStats)
+            popup_total = flyball_total = linedrive_total = 0
 
-                # NORMALIZE STAT NAME AND TYPE
-                stat_key_normalized = stat_name_mapping.get(key, key)
-                is_non_counting_metric = stat_key_normalized in [
-                    'batting_avg', 'onbase_perc', 'slugging_perc', 
-                    'onbase_plus_slugging', 'earned_run_avg', 'whip', 'GO/AO'
-                ]
-
-                # PASS ON STATS IF NOT A KEY IN NORMALIZEDPLAYERSTATS
-                if stat_key_normalized not in NormalizedPlayerStats.all_valid_field_names():
-                    # print(f"Skipping unrecognized stat key: {stat_key_normalized}")
+            for split in splits:
+                stats = split.stat
+                if not stats:
                     continue
 
-                # PASS IF MULTIPLE SPLITS AND THIS IS A NON-COUNTING METRIC
-                # ONCE SPLITS ARE COMBINED, THESE METRICS WILL BE RECALCULATED
-                if is_non_counting_metric and len(standard_stat_splits) > 1:
-                    # print(f"Skipping non-counting metric for multiple splits: {stat_key_normalized}")
+                # IF THERE ARE MULTIPLE SPLITS AND SOME HAVE TEAM AND ANOTHER IS OVERALL, TAKE THE OVERALL SPLIT
+                if len(splits) > 1 and split.team and any(s.team is None for s in splits):
                     continue
 
-                try:
-                    stat_value_converted = stat_type_mapping.get(stat_key_normalized, int)(value)
-                    # LIMIT TO 4 DECIMAL PLACES FOR FLOATS
-                    if isinstance(stat_value_converted, float):
-                        stat_value_converted = round(stat_value_converted, 4)
-                        
-                except Exception as e:
-                    print(f"Error converting stat '{stat_key_normalized}': {e}")
-                    stat_value_converted = str(value)
-
-                # IP needs custom handling
-                if stat_key_normalized == 'IP' and len(standard_stat_splits) > 1:
-                    ip_multi_split_list.append(stat_value_converted)
+                # SKIP NON-TOTAL SPLITS WHEN A MINOR LEAGUE TOTAL ROW EXISTS
+                minor_total_sport_id = 21
+                if len(unique_sport_ids) > 1 and split.sport and minor_total_sport_id in unique_sport_ids and split.sport.id != minor_total_sport_id:
                     continue
 
-                if stat_key_normalized not in standard_stats:
-                    # STAT IS NOT YET IN DICT
-                    standard_stats[stat_key_normalized] = stat_value_converted
-                    continue
-                
-                # Sum numeric stats
-                if isinstance(stat_value_converted, (int, float)):
-                    standard_stats[stat_key_normalized] += stat_value_converted
-                # For non-numeric stats, you might want to handle differently
-                # e.g., take the latest value, average, etc. Here we skip.
+                # ACCUMULATE BATTED BALL COUNTS FOR IF/FB CALCULATION
+                if is_pitcher:
+                    popup_total += stats.get('popOuts', 0) + stats.get('popHits', 0)
+                    flyball_total += stats.get('flyOuts', 0) + stats.get('flyHits', 0)
+                    linedrive_total += stats.get('lineOuts', 0) + stats.get('lineHits', 0)
 
-        # HANDLE COMBINED INNINGS PITCHED
-        if len(ip_multi_split_list) > 0:
-            total_ip = total_innings_pitched(ip_multi_split_list)
-            standard_stats['IP'] = total_ip
+                for key, value in stats.items():
 
-        return standard_stats
+                    # NORMALIZE STAT NAME AND TYPE
+                    stat_key_normalized = stat_name_mapping.get(key, key)
+                    is_non_counting_metric = stat_key_normalized in [
+                        'batting_avg', 'onbase_perc', 'slugging_perc',
+                        'onbase_plus_slugging', 'earned_run_avg', 'whip',
+                    ]
+
+                    # SKIP STATS NOT IN NORMALIZEDPLAYERSTATS
+                    if stat_key_normalized not in NormalizedPlayerStats.all_valid_field_names():
+                        continue
+
+                    # SKIP NON-COUNTING METRICS WHEN MULTIPLE SPLITS EXIST
+                    # THEY WILL BE RECALCULATED AFTER SUMMING COUNTING STATS
+                    if is_non_counting_metric and len(splits) > 1:
+                        continue
+
+                    try:
+                        stat_value_converted = stat_type_mapping.get(stat_key_normalized, int)(value)
+                        if isinstance(stat_value_converted, float):
+                            stat_value_converted = round(stat_value_converted, 4)
+                    except Exception as e:
+                        print(f"Error converting stat '{stat_key_normalized}': {e}")
+                        stat_value_converted = str(value)
+
+                    # IP NEEDS SPECIAL HANDLING TO COMBINE FRACTIONAL INNINGS
+                    if stat_key_normalized == 'IP' and len(splits) > 1:
+                        ip_splits.append(stat_value_converted)
+                        continue
+
+                    if stat_key_normalized not in type_stats:
+                        type_stats[stat_key_normalized] = stat_value_converted
+                    elif isinstance(stat_value_converted, (int, float)):
+                        type_stats[stat_key_normalized] += stat_value_converted
+
+            # COMBINE FRACTIONAL INNINGS PITCHED ACROSS SPLITS
+            if ip_splits:
+                type_stats['IP'] = total_innings_pitched(ip_splits)
+
+            # COMPUTE IF/FB FROM ACCUMULATED BATTED BALL COUNTS
+            if is_pitcher and 'IF/FB' not in combined_stats:
+                total_airborne = popup_total + flyball_total + linedrive_total
+                if total_airborne > 0:
+                    type_stats['IF/FB'] = round(popup_total / total_airborne, 4)
+
+            # MERGE INTO COMBINED: PRIMARY TYPE WINS FOR OVERLAPPING KEYS
+            # SUBSEQUENT TYPES ONLY CONTRIBUTE KEYS NOT ALREADY PRESENT
+            is_primary_type = (stats_type == stats_types[0])
+            for key, value in type_stats.items():
+                if is_primary_type or key not in combined_stats:
+                    combined_stats[key] = value
+
+        if not combined_stats:
+            print("No standard stats available.")
+
+        return combined_stats
 
     @staticmethod
     def _extract_standard_stats_from_fangraphs_leaderboard(fg_data: LeaderboardStats) -> Dict[str, Any]:
@@ -567,7 +640,7 @@ class PlayerStatsNormalizer:
         group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
         standard_stat_splits = mlb_player.get_stat_splits(
             group_type=group_type,
-            type=stats_type,
+            types=[stats_type],
             seasons=stats_period.year_list
         )
 
@@ -588,7 +661,22 @@ class PlayerStatsNormalizer:
             return None
 
         # Return the team with the most games played
-        return max(team_games_played, key=team_games_played.get)
+        team_raw = max(team_games_played, key=team_games_played.get)
+
+        return PlayerStatsNormalizer._convert_to_bref_team_id(team_raw)
+
+    @staticmethod
+    def _convert_to_bref_team_id(team_id: str) -> str:
+        """Converts MLB API team ID to Baseball Reference team ID if needed"""
+        conversion_map = {
+            'CWS': 'CHW',
+            'KC': 'KCR',
+            'SD': 'SDP',
+            'SF': 'SFG',
+            'TB': 'TBR',
+            'WSH': 'WSN',
+        }
+        return conversion_map.get(team_id, team_id)
 
     @staticmethod
     def _extract_league_id(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[str]:
@@ -605,7 +693,7 @@ class PlayerStatsNormalizer:
         group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
         standard_stat_splits = mlb_player.get_stat_splits(
             group_type=group_type,
-            type=stats_type,
+            types=[stats_type],
             seasons=stats_period.year_list
         )
         for split in standard_stat_splits:
@@ -615,6 +703,59 @@ class PlayerStatsNormalizer:
                     return team.league.abbreviation
                 
         return None
+
+    @staticmethod
+    def _extract_game_logs(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> List['GameLog']:
+        """Extracts game logs for the player. Stats are in a gameLogs split. Returns a list of GameLog objects."""
+        stats_type = StatTypeEnum.GAME_LOG
+        group_type = StatGroupEnum.PITCHING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.PITCHER else StatGroupEnum.HITTING
+        game_log_splits = mlb_player.get_stat_splits(
+            group_type=group_type,
+            types=[stats_type],
+            seasons=stats_period.year_list
+        )
+
+        if not game_log_splits or len(game_log_splits) == 0:
+            return []  # No stats available
+        
+        stat_name_mapping = PlayerStatsNormalizer._map_mlb_api_stats_to_bref()
+        stat_type_mapping = PlayerStatsNormalizer._stat_datatype_dict()
+
+        game_logs: List['GameLog'] = []
+        for split in game_log_splits:
+            stats = split.stat
+            if not stats:
+                continue
+            
+            game_date = split.date
+            team_id = PlayerStatsNormalizer._convert_to_bref_team_id(split.team.abbreviation) if split.team and split.team.abbreviation else None
+            stats_normalized = {}
+            for key, value in stats.items():
+                
+                stat_key_normalized = stat_name_mapping.get(key, key)
+
+                if stat_key_normalized not in NormalizedPlayerStats.all_valid_field_names():
+                    continue
+
+                try:
+                    stat_value_converted = stat_type_mapping.get(stat_key_normalized, int)(value)
+                    if isinstance(stat_value_converted, float):
+                        stat_value_converted = round(stat_value_converted, 4)
+                except Exception as e:
+                    stat_value_converted = str(value)
+
+                if type(stat_value_converted) == float or type(stat_value_converted) == int and stat_value_converted == 0:
+                    continue # Skip zero values in game logs to reduce size
+                stats_normalized[stat_key_normalized] = stat_value_converted
+
+            game_log_entry = {
+                'date': game_date,
+                'team_ID': team_id,
+                **stats_normalized
+            }
+            game_logs.append(GameLog(**game_log_entry))
+
+        return game_logs
 
     @staticmethod
     def _map_mlb_api_stats_to_bref() -> Dict[str, str]:
@@ -655,6 +796,9 @@ class PlayerStatsNormalizer:
             'slg': 'slugging_perc',
             'obp': 'onbase_perc',
             'ops': 'onbase_plus_slugging',
+
+            # Value
+            'war': 'fWAR',
         }
     
     @staticmethod
@@ -671,6 +815,8 @@ class PlayerStatsNormalizer:
             'SLG': 'slugging_perc',
             'OBP': 'onbase_perc',
             'OPS': 'onbase_plus_slugging',
+
+            'WAR': 'fWAR',
         }
 
     @staticmethod
@@ -687,6 +833,10 @@ class PlayerStatsNormalizer:
             'whip': float,
             'IP': float,
             'GO/AO': float,
+            'IF/FB': float,
+            'fWAR': float,
+            'dWAR': float,
+            'bWAR': float,
             'date': str,  # Date is stored as a string in the format YYYY-MM-DD
         }
 
@@ -717,7 +867,7 @@ class PlayerStatsNormalizer:
         group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
         rankings_by_year = mlb_player.get_stat_splits(
             group_type=group_type,
-            type=stats_type,
+            types=[stats_type],
             seasons=stats_period.year_list
         )
 
@@ -848,7 +998,7 @@ class PlayerStatsNormalizer:
         group_type = StatGroupEnum.HITTING if mlb_player.primary_position and mlb_player.primary_position.player_type == PlayerType.HITTER else StatGroupEnum.PITCHING
         standard_stat_splits = mlb_player.get_stat_splits(
             group_type=group_type,
-            type=stats_type,
+            types=[stats_type],
             seasons=stats_period.year_list
         )
 
@@ -865,6 +1015,35 @@ class PlayerStatsNormalizer:
                         continue
 
         return False
+
+    @staticmethod
+    def _extract_ip_per_gs(mlb_player: MLBStatsApi_Player, stats_period: StatsPeriod) -> Optional[float]:
+        """Calculates GS/IP by looking inside stat splits for the split code 'sp' and dividing gamesStarted by inningsPitched. This is necessary because MLB Stats API doesn't provide a direct GS/IP stat and we want to be able to calculate it for all players, even those with minimal pitching stats who may not have this ratio calculated in the API."""
+        group_type = StatGroupEnum.PITCHING
+        pitching_stat_splits = mlb_player.get_stat_splits(
+            group_type=group_type,
+            types=[StatTypeEnum.STAT_SPLITS],
+            seasons=stats_period.year_list
+        )
+        
+        total_ip_list = []
+        total_gs = 0
+        for split in pitching_stat_splits:
+            if split.split and split.split.code == 'sp' and split.stat:
+                games_started = split.stat.get('gamesStarted', 0)
+                innings_pitched_str = split.stat.get('inningsPitched', '0')
+                try:
+                    ip_float = float(innings_pitched_str)
+                except:
+                    ip_float = 0.0
+                total_gs += games_started
+                total_ip_list.append(ip_float)
+        total_ip = total_innings_pitched(total_ip_list)
+        if total_gs > 0:
+            return round(total_ip / total_gs, 1) # Rounded to 1 to match bref
+        
+        return None
+        
 
     # -------------------------------
     # Multi-Year Combining Methods
@@ -910,7 +1089,7 @@ class PlayerStatsNormalizer:
         counting_stats = {
             'G', 'PA', 'AB', 'R', 'H', 'singles', 'doubles', 'triples', 'HR', 'RBI',
             'SB', 'CS', 'BB', 'SO', 'TB', 'GIDP', 'HBP', 'SH', 'SF', 'IBB',
-            'W', 'L', 'GS', 'ER', 'SV', 'bWAR', 'dWAR'
+            'W', 'L', 'GS', 'ER', 'SV', 'bWAR', 'dWAR', 'fWAR', 'batters_faced',  # Use aliases here too
         }
         
         averaging_stats = {
@@ -1164,7 +1343,7 @@ class BaseGameLog(BaseModel):
     date: Optional[str] = None # e.g., "2024-04-01"
     date_game: Optional[str] = None  # e.g., "Apr 1"
     team_ID: str
-    player_game_span: str  # e.g., "CG", "GS-8", "CG(10)"
+    player_game_span: Optional[str] = None  # e.g., "CG", "GS-8", "CG(10)"
     game_decision: Optional[str] = None  # e.g., "W", "L", "SV", "HLD", etc.
     
     # Game stats
@@ -1191,6 +1370,7 @@ class BaseGameLog(BaseModel):
     ER: Optional[int] = 0
     IP: Optional[float] = 0.0
     SV: Optional[int] = 0
+    GS: Optional[int] = 0
     batters_faced: Optional[int] = 0
 
     @field_validator('GIDP', 'AB', 'R', 'SB', 'ER', 'IP', 'RBI', 'PA', mode='before')

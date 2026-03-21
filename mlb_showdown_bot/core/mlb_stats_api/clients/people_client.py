@@ -16,22 +16,25 @@ class PeopleClient(BaseMLBClient):
     # STANDARD PLAYERS
     # -----------------------
 
-    def search_players(self, name: str, active_status: str = 'both', limit: int = 25) -> List[Player]:
+    def search_players(self, name: str, active_status: str = 'both', limit: int = 25, seasons: Optional[List[int]] = None) -> List[Player]:
         """Search for players by name"""
         params = {
             'names': name,
             'activeStatus': active_status,
             'limit': limit
         }
+        if seasons:
+            params['seasons'] = ','.join(map(str, seasons))
         # Uses base client's _make_request with caching and rate limiting
         data = self._make_request('people/search', params)
         return [Player(**player_data) for player_data in data.get('people', [])]
 
-    def get_player(self, player_id: int, stats_period: StatsPeriod = None, include_stats: bool = True, league_list: Optional[LeagueListEnum] = None) -> Player:
+    def get_player(self, player_id: int, primary_position: str = None, stats_period: StatsPeriod = None, include_stats: bool = True, league_list: Optional[LeagueListEnum] = None) -> Player:
         """Get player information by ID
 
         Args:
             player_id: MLB player ID
+            primary_position: Optional primary position abbreviation for the player (e.g. 'P' for pitcher, 'OF' for outfielder). This can help with context-specific stats.
             stats_period: Optional StatsPeriod object for context-specific data
             include_stats: Whether to include basic stats in the response
             league_list: Optional LeagueListEnum for specifying league context
@@ -47,6 +50,7 @@ class PeopleClient(BaseMLBClient):
         ]
         params: Dict[str, Any] = {}
         seasons: Optional[List[int]] = []
+        is_pitcher = primary_position and primary_position.upper() == 'P'
         if include_stats:
             hydrations.extend([
                 'team(league)',
@@ -72,13 +76,18 @@ class PeopleClient(BaseMLBClient):
                     case StatsPeriodYearType.MULTI_YEAR:
                         seasons = stats_period.year_list
                         types.extend([StatTypeEnum.STATS_SINGLE_SEASON, StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED])
+
+                if is_pitcher:
+                    types.append(StatTypeEnum.STAT_SPLITS) 
                     
             # Finalize parameters
             combined_types = ",".join([t.value for t in types])
             seasons_list_str = ",".join([str(season) for season in seasons])
             seasons_hydration = f",seasons=[{seasons_list_str}]" if len(seasons) > 0 else ""
+            groups = 'pitching,fielding' if is_pitcher else 'hitting,fielding'
             league_list_hydration = f",leagueListId={league_list.value}" if league_list else ""
-            hydrations.append(f'stats(group=[hitting,fielding,pitching],type=[{combined_types}],team(league){seasons_hydration}{league_list_hydration})')
+            sit_codes = ',sitCodes=[sp,rp]' if is_pitcher else ''
+            hydrations.append(f'stats(group=[{groups}],type=[{combined_types}],team(league){seasons_hydration}{league_list_hydration}{sit_codes})')
 
             params['hydrate'] = ','.join(hydrations)
             if len(seasons) > 0:

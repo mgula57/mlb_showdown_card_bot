@@ -58,7 +58,7 @@ class MLBStatsAPI:
     def build_full_player_from_search(self, search_name: str, stats_period: StatsPeriod, league:str='MLB') -> Player:
 
         # Search for the player by name
-        player_search_results = self.people.search_players(name=search_name)
+        player_search_results = self.people.search_players(name=search_name, seasons=stats_period.year_list, active_status='both')
 
         # If no results found, return None
         if not player_search_results or len(player_search_results) == 0:
@@ -70,7 +70,8 @@ class MLBStatsAPI:
         match league.upper():
             case 'MILB':
                 league_list = LeagueListEnum.MILB_FULL
-        player = self.people.get_player(player_id=player_search_results[0].id, stats_period=stats_period, league_list=league_list)
+        
+        player = self.people.get_player(player_id=player_search_results[0].id, primary_position=player_search_results[0].primary_position.abbreviation, stats_period=stats_period, league_list=league_list)
 
         return player
     

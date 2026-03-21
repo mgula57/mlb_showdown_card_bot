@@ -458,9 +458,12 @@ class StatsPeriod(BaseModel):
             # ADD TO GAMES PLAYED
             game_log_data['G'] = 1
             innings_text = game_log_data.get('player_game_span', None)
-            if innings_text:
-                is_start = 'GS' in str(innings_text) or 'SHO' in str(innings_text) or 'CG' in str(innings_text)
-                game_log_data['GS'] = int(is_start)
+            if is_pitcher:
+                is_start = False
+                if innings_text:
+                    is_start = 'GS' in str(innings_text) or 'SHO' in str(innings_text) or 'CG' in str(innings_text)
+                
+                game_log_data['GS'] = int(is_start) or game_log_data.get('GS', 0)
                 if is_start:
                     game_log_data['IP_GS'] = game_log_data.get('IP', 0)
 

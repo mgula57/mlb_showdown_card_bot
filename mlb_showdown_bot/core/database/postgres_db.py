@@ -1607,7 +1607,34 @@ class PostgresDB:
         finally:
             if cursor:
                 cursor.close()
+
+    def fetch_bref_id_for_mlb_id(self, mlb_id: int) -> Optional[str]:
+        """Fetch the bref_id corresponding to a given MLB ID from the dim_player_id_map table."""
         
+        if self.connection is None:
+            print("No database connection available for fetching bref_id from MLB ID.")
+            return None
+        
+        try:
+            cursor = self.connection.cursor()
+            query = sql.SQL("""
+                SELECT bref_id
+                FROM internal.dim_player_id_map
+                WHERE mlb_id = %s
+                LIMIT 1
+            """)
+            cursor.execute(query, (mlb_id,))
+            result = cursor.fetchone()
+            return result[0] if result else None
+                    
+        except Exception as e:
+            print("Error fetching bref_id from MLB ID:", e)
+            traceback.print_exc()
+            return None
+        finally:
+            if cursor:
+                cursor.close()
+                 
 # ------------------------------------------------------------------------
 # MATERIALIZED VIEWS
 # ------------------------------------------------------------------------

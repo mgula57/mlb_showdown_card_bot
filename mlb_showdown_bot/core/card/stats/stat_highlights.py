@@ -29,6 +29,7 @@ class StatHighlightsCategory(Enum):
     DEFENSE = "Defense"
     dWAR = 'dWAR'
     bWAR = 'bWAR'
+    fWAR = 'fWAR'
     SB = 'SB'
     RBI = 'RBI'
     H = 'H'
@@ -48,6 +49,7 @@ class StatHighlightsCategory(Enum):
             case StatHighlightsCategory.RBI: return 0.85
             case StatHighlightsCategory.SV: return 1.1
             case StatHighlightsCategory.bWAR: return 1.1
+            case StatHighlightsCategory.fWAR: return 1.1
             case _: return 1.0
 
     @property
@@ -77,6 +79,7 @@ class StatHighlightsCategory(Enum):
             case StatHighlightsCategory.K_9: return 8.5
             case StatHighlightsCategory.FIP: return 3.5
             case StatHighlightsCategory.bWAR: return 5.0
+            case StatHighlightsCategory.fWAR: return 5.0
             case StatHighlightsCategory.dWAR: return 0.5
             case _: return None
 
