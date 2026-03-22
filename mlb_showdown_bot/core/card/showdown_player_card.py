@@ -2516,6 +2516,7 @@ class ShowdownPlayerCard(BaseModel):
             'SLG': 'slugging_perc',
             'OPS': 'onbase_plus_slugging',
             'OPS+': 'onbase_plus_slugging_plus',
+            'wRC+': 'wRcPlus',
             'PA': 'PA',
             'AB': 'AB',
             'H': 'H',
@@ -2551,8 +2552,11 @@ class ShowdownPlayerCard(BaseModel):
             numeric_values = []
             for key in stat_categories_dict.values():
                 
-                stat_raw = source_dict.get(key, 0) or 0
-                stat_str = self._stat_formatted(category=key, value=stat_raw)
+                stat_raw = source_dict.get(key, None) 
+                if stat_raw is None:
+                    stat_str = '-'
+                else:
+                    stat_str = self._stat_formatted(category=key, value=stat_raw)
                 values.append(stat_str)
                 numeric_values.append(stat_raw)
             final_dict[source] = values
@@ -2601,18 +2605,21 @@ class ShowdownPlayerCard(BaseModel):
         final_player_data: list[RealVsProjectedStat] = []
 
         # SLASH LINE
-        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS'), ('onbase_plus_slugging_plus', 'OPS+')]
+        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS'), ('onbase_plus_slugging_plus', 'OPS+'), ('wRcPlus', 'wRC+')]
         for key, cleaned_category in slash_categories:
-            if self.is_pitcher and cleaned_category == 'OPS+':
+            if self.is_pitcher and cleaned_category in ['OPS+', 'wRC+']:
                 continue
             precision = None if cleaned_category == 'OPS+' else 3
-            actual = round(float(self.stats_for_card.get(key, 0)), precision) if precision else int(self.stats_for_card.get(key, 0)) 
-            in_game = 0 if self.projected.get(key, 0) is None else ( round(float(self.projected.get(key, 0)), precision) if precision else int(self.projected.get(key, 0)) )
+            actual_raw = self.stats_for_card.get(key, None)
+            actual = round(float(actual_raw), precision) if actual_raw is not None and precision else int(actual_raw) if actual_raw is not None else None
+            in_game = None if self.projected.get(key, None) is None else ( round(float(self.projected.get(key, 0)), precision) if precision else int(self.projected.get(key, 0)) )
+            if actual is None and in_game is None:
+                continue
             table_row = RealVsProjectedStat(
                 stat=cleaned_category,
                 real=actual,
                 projected=in_game,
-                diff=round(in_game - actual, precision),
+                diff=round(in_game - actual, precision) if in_game is not None else None,
                 precision=precision,
                 is_real_estimated=self.is_stats_estimate
             )

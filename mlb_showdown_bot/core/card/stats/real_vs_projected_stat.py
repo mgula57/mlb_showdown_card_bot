@@ -5,7 +5,7 @@ class RealVsProjectedStat(BaseModel):
     """Model for comparing real vs projected for a single stat"""
 
     stat: str
-    real: int | float
+    real: Optional[int | float] = None
     projected: Optional[float] = None
     diff: Optional[float] = None
     diff_str: Optional[str] = None

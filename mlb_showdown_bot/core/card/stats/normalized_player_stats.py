@@ -109,6 +109,7 @@ class NormalizedPlayerStats(BaseModel):
     slugging_perc: float = 0.0
     onbase_plus_slugging: float = 0.0
     onbase_plus_slugging_plus: Optional[int | float] = None  # OPS+
+    wrc_plus: Optional[float] = Field(None, alias='wRcPlus') 
     
     # Advanced Ratios
     go_ao_ratio: Optional[float] = Field(None, alias='GO/AO')
