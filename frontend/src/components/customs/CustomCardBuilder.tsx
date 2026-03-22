@@ -658,6 +658,17 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 delete finalPayload.image_url;
             }
 
+            // Define datasource
+            // Use MLB API if year has 2026+
+            if (finalPayload.year) {
+                const yearNums = (finalPayload.year as string).match(/\d+/g)?.map(Number) ?? [];
+                const maxYear = yearNums.length > 0 ? Math.max(...yearNums) : 0;
+                if (maxYear >= 2025) {
+                    finalPayload.datasource = 'MLB_API';
+                } else {
+                    finalPayload.datasource = 'BREF';
+                }
+            }
             const cardData = await buildCustomCard({
                 ...finalPayload,
 
@@ -667,7 +678,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 image_output_folder_path: "static/output",
                 show_historical_points: true,
                 season_trend_date_aggregation: 'WEEK',
-                // datasource: 'MLB_API',
                 user_id: user?.id,
             });
             
