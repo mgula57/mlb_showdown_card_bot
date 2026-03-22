@@ -182,16 +182,22 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS
                 # GRAB FROM FANGRAPHS IF AVAILABLE
                 if player_data.fangraphs_id and normalized_player_stats.type == PlayerType.HITTER:
-                    fangraphs_api = FangraphsAPIClient()
-                    fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
-                        stat_type="fld",
-                        stats_period=stats_period,
-                        position="all",
-                        fangraphs_player_ids=[str(player_data.fangraphs_id)],
-                    )
-                    # INJECT INTO NORMALIZED STATS
-                    position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list]
-                    normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+                    try:
+                        fangraphs_api = FangraphsAPIClient()
+                        fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
+                            stat_type="fld",
+                            stats_period=stats_period,
+                            position="all",
+                            fangraphs_player_ids=[str(player_data.fangraphs_id)],
+                        )
+                        # INJECT INTO NORMALIZED STATS
+                        position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list]
+                        normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+                    except Exception as e:
+                        warning = f"Failed to fetch defensive stats from Fangraphs. Using league avg for defense instead."
+                        if normalized_player_stats.warnings is None:
+                            normalized_player_stats.warnings = []
+                        normalized_player_stats.warnings.append(warning)
                 
                 if not normalized_player_stats.bref_id and player_data.id:
                     db = PostgresDB(is_archive=True)
