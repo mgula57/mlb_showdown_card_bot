@@ -163,6 +163,22 @@ class Team(str, Enum):
                 if member.value.upper() == value.upper():
                     return member
         return cls.MLB
+    
+    @staticmethod
+    def map_from_mlb_api_team(mlb_api_team: str) -> 'Team':
+        """Helper method to map a team object from the MLB API to a Team enum member. This is used to convert team data from the MLB API into the corresponding Team enum member based on the team's abbreviation."""
+        conversion_map = {
+            'AZ': 'ARI',
+            'CWS': 'CHW',
+            'KC': 'KCR',
+            'SD': 'SDP',
+            'SF': 'SFG',
+            'TB': 'TBR',
+            'WSH': 'WSN',
+        }
+        if mlb_api_team in conversion_map:
+            return Team(conversion_map[mlb_api_team])
+        return Team(mlb_api_team)
 
 # ------------------------------------------------------------------------
 # COLOR

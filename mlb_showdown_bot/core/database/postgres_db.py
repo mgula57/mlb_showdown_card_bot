@@ -625,6 +625,8 @@ class PostgresDB:
         team_field = "wbc_team" if is_wbc else "team"
         
         year = season if is_wbc else str(season)
+        if not is_wbc and datetime.now().date() < datetime(season, 5, 1).date():
+            year = str(season - 1)
         query = sql.SQL("""
             SELECT 
                 mlb_id,
@@ -1109,9 +1111,9 @@ class PostgresDB:
                 player_id = roster_slot.person.id
                 card = showdown_card_data.get(f"{year}-{player_id}")
 
+                wbc_team: WBCTeam = None
+                wbc_year: int = None
                 if team_abbr and sport_id == SportEnum.INTERNATIONAL:
-                    wbc_team: WBCTeam = None
-                    wbc_year: int = None
                     try:
                         wbc_team = WBCTeam(team_abbr)
                         wbc_year = season
@@ -1884,6 +1886,7 @@ class PostgresDB:
                 player_season_stats.id,
                 player_season_stats.year,
                 player_season_stats.bref_id,
+                cast(dim_card.card_data->>'mlb_id' as int) as mlb_id,
                 unaccent(player_season_stats.name) as name,
                 player_season_stats.player_type,
                 player_season_stats.player_type_override,
@@ -2007,7 +2010,8 @@ class PostgresDB:
                 case
                     when exists (
                         select 1 from internal.dim_auto_image i
-                        where i.player_id = player_season_stats.bref_id
+                        where (i.player_id = player_season_stats.bref_id
+                        or i.player_id = player_season_stats.mlb_id::text)
                         and i.year = player_season_stats.year::text
                         and i.team_id = player_season_stats.team_id
                         and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
@@ -2016,7 +2020,8 @@ class PostgresDB:
                     ) then 'exact'
                     when exists (
                         select 1 from internal.dim_auto_image i
-                        where i.player_id = player_season_stats.bref_id
+                        where (i.player_id = player_season_stats.bref_id
+                        or i.player_id = player_season_stats.mlb_id::text)
                         and i.team_id = player_season_stats.team_id
                         and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
                         and not i.is_postseason
@@ -2024,7 +2029,8 @@ class PostgresDB:
                     ) then 'team match'
                     when exists (
                         select 1 from internal.dim_auto_image i
-                        where i.player_id = player_season_stats.bref_id
+                        where (i.player_id = player_season_stats.bref_id
+                        or i.player_id = player_season_stats.mlb_id::text)
                         and i.year = player_season_stats.year::text
                         and coalesce(i.player_type_override, 'n/a') = coalesce(player_season_stats.player_type_override, 'n/a')
                         and not i.is_postseason
@@ -2167,6 +2173,7 @@ class PostgresDB:
                         id text NOT NULL,
                         year integer,
                         bref_id text,
+                        mlb_id integer,
                         name text,
                         player_type text,
                         player_type_override text,
@@ -2270,7 +2277,9 @@ class PostgresDB:
                     OR dim_card.modified_date > '{last_update}'
                     OR EXISTS (
                         SELECT 1 FROM internal.dim_auto_image dai
-                        WHERE dai.player_id = player_season_stats.bref_id
+                        WHERE 
+                        (dai.player_id = player_season_stats.bref_id
+                            OR dai.player_id = player_season_stats.mlb_id::text)
                         AND dai.year = player_season_stats.year::text
                         AND dai.image_modified_date > '{last_update}'
                     )
@@ -2289,6 +2298,7 @@ class PostgresDB:
                 DO UPDATE SET
                     year = EXCLUDED.year,
                     bref_id = EXCLUDED.bref_id,
+                    mlb_id = EXCLUDED.mlb_id,
                     name = EXCLUDED.name,
                     player_type = EXCLUDED.player_type,
                     player_type_override = EXCLUDED.player_type_override,
@@ -4666,6 +4676,80 @@ class PostgresDB:
 # -----------------------------------------------------------------------
 # MLB API ADDITIONS
 # -----------------------------------------------------------------------
+
+    def store_rosters(self, rosters: list[dict]) -> None:
+        """Store team rosters in the database. Used for reference when attaching player cards to the game schedule.
+
+        Args:
+            rosters: A list of dictionaries containing roster information for each team. Each dictionary represents a player's roster information as returned from the MLB API.
+        """
+
+        if self.connection is None:
+            print("ERROR: NO CONNECTION TO DB")
+            return
+        
+        print(f"Storing {len(rosters)} players in the database...")
+        cursor = self.connection.cursor()
+
+        # CREATE TABLE IF NOT EXISTS
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS internal.dim_roster_history (
+                id VARCHAR(255),
+                player_id VARCHAR(50),
+                full_name VARCHAR(255),
+                position VARCHAR(50),
+                team_id VARCHAR(50),
+                team VARCHAR(50),
+                season INT,
+                snapshot_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+                modified_date TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+            );
+        '''
+        index_sql = '''
+            CREATE INDEX IF NOT EXISTS idx_roster_history_player_season
+            ON internal.dim_roster_history (player_id, season);
+        '''
+        index_sql_2 = '''
+            CREATE INDEX IF NOT EXISTS idx_roster_history_season_snapshot_date
+            ON internal.dim_roster_history (season, snapshot_date);
+        '''
+        try:
+            cursor.execute(create_table_sql)
+            cursor.execute(index_sql)
+            cursor.execute(index_sql_2)
+            self.connection.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR creating roster_history table: {e}")
+            return
+
+        # UPSERT PLAYERS
+        upsert_sql = '''
+            INSERT INTO internal.dim_roster_history (id, player_id, full_name, position, team_id, team, season, snapshot_date, modified_date)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        '''
+        try:
+            values = [
+                (
+                    f"{player['player_id']}-{player['season']}",
+                    player['player_id'],
+                    player['full_name'],
+                    player['position'],
+                    player['team_id'],
+                    player['team'],
+                    player['season']
+                )
+                for player in rosters
+            ]
+            cursor.executemany(upsert_sql, values)
+            self.connection.commit()
+            print(f"✓ Successfully stored {len(rosters)} players in the database.")
+        except Exception as e:
+            print(f"ERROR upserting roster players: {e}")
+            self.connection.rollback()
+        finally:
+            cursor.close()
 
     def add_player_cards_to_game_schedule(self, schedule: Schedule, showdown_set: str, is_wbc: bool, season: int) -> Schedule:
         """Attach showdown cards to key schedule game players based on game state.

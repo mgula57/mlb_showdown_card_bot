@@ -670,6 +670,7 @@ class PlayerStatsNormalizer:
     def _convert_to_bref_team_id(team_id: str) -> str:
         """Converts MLB API team ID to Baseball Reference team ID if needed"""
         conversion_map = {
+            'AZ': 'ARI',
             'CWS': 'CHW',
             'KC': 'KCR',
             'SD': 'SDP',

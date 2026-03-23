@@ -1037,9 +1037,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         forceMount
                                     >
                                         <div className="space-y-2 pb-24">
-                                            <div className="font-black text-yellow-600 py-1">
-                                                NOTE: WBC Standings are currently stale on MLB's API. They should be fixing it soon, but in the meantime you can see a team's pool play record in the schedule.
-                                            </div>
                                             <StandingsTab
                                                 standingsEntries={standingsEntries}
                                                 selectedSportId={selectedSport?.id}

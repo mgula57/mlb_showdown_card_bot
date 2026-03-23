@@ -7,7 +7,7 @@ import time
 from prettytable import PrettyTable
 
 from ...core.mlb_stats_api import MLBStatsAPI
-from ...core.mlb_stats_api.models.leagues.league import LeagueListEnum
+from ...core.mlb_stats_api.models.leagues.league import LeagueListEnum, LeagueEnum
 
 # Import business logic
 from ...core.archive.player_stats_archive import PlayerStatsArchive, PostgresDB
@@ -392,6 +392,10 @@ def store_wbc_data(
         db.build_wbc_card_table(wbc_rosters)
         print("Showdown cards for WBC players stored in database successfully.")
 
+# -------------------------------
+# MARK: - HELPERS
+# -------------------------------
+
 @app.command("refresh_player_id_table")
 def refresh_player_id_table(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in")
@@ -410,6 +414,33 @@ def refresh_player_id_table(
     db.update_player_id_table(data)
     print("✅ player_id_master table refreshed.")
 
+
+@app.command("snapshot_active_rosters")
+def snapshot_active_rosters(
+    env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),
+    seasons: str = typer.Option(None, "--seasons", "-s", help="Which season(s) to include when fetching roster data, comma-separated (e.g. '2023,2024').")
+):
+    """Fetch active roster data and snapshot in Postgres DB"""
+    from ...core.database.postgres_db import PostgresDB
+    is_production = env.lower() == "prod"
+
+    print("Fetching active roster data from MLB API...")
+    season_list = [int(season.strip()) for season in seasons.split(',')] if seasons else None
+    if season_list is None:
+        print("Required: Please specify at least one season using the --seasons option (e.g. --seasons 2023,2024)")
+        return
+    
+    active_rosters = _mlb_api.fetch_rosters_by_season(seasons=season_list, league_ids=[LeagueEnum.AL.value, LeagueEnum.NL.value])
+    print(f"Fetched active roster data for {len(active_rosters)} players.")
+
+    print("Snapshotting active roster data in Postgres DB...")
+    db = PostgresDB(is_archive=is_production)
+    db.store_rosters(active_rosters)
+    print("✅ Active rosters snapshot completed.")
+
+# -------------------------------
+# MARK: - HOME PAGE CONTENT
+# -------------------------------
 @app.command("spotlight")
 def publish_spotlight_cards(
     env: str = typer.Option("dev", "--env", "-e", help="Environment to run the command in"),

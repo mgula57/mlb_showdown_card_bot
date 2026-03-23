@@ -109,13 +109,13 @@ export default function GameItem({ game, sportId, onSelect }: GameItemProps) {
     const liveAtBatCardFallback = createPlaceholderCard(
         'at-bat',
         batterName,
-        game.linescore?.offense?.team?.name || awayAbbr,
+        game.linescore?.offense?.team?.abbreviation || awayAbbr,
         'At Bat',
     );
     const livePitchingCardFallback = createPlaceholderCard(
         'pitching',
         livePitcherName,
-        game.linescore?.defense?.team?.name || homeAbbr,
+        game.linescore?.defense?.team?.abbreviation || homeAbbr,
         'Pitching',
     );
 

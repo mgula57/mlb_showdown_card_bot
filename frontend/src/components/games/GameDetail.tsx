@@ -127,8 +127,13 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
             for (const p of boxscore.teams[side].pitching) allIds.add(p.id);
         }
 
+        // Check if sport is not WBC and date is before May 1st of that season, if so subtract 1 from the season to use last year's cards
+        const isCurrentSeason = new Date().getFullYear() === season;
+        const isBeforeMay = new Date().getMonth() < 4; // Months are 0-indexed
+        const adjustedSeason = (sportId === 1 && isCurrentSeason && isBeforeMay) ? season - 1 : season;
+
         const isWbc = sportId === 51;
-        fetchCardsByMlbIds([...allIds], season, showdownSet, isWbc)
+        fetchCardsByMlbIds([...allIds], adjustedSeason, showdownSet, isWbc)
             .then((map) => { if (!cancelled) setCardMap(map); })
             .catch(() => { /* cards are supplementary – fail silently */ });
 

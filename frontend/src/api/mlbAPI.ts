@@ -304,6 +304,7 @@ export interface GameLinescorePerson {
 export interface GameLinescoreTeamRef {
     id?: number;
     name?: string;
+    abbreviation?: string;
     link?: string;
 }
 

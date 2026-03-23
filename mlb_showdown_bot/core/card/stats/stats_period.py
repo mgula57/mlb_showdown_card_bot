@@ -149,6 +149,9 @@ class StatsPeriod(BaseModel):
     # SPLIT
     split: Optional[str] = None
 
+    # OVERRIDES
+    team_override: Optional[Team] = None
+
     # SOURCE
     source: str = 'Unknown'
 

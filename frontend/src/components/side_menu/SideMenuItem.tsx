@@ -126,4 +126,9 @@ export const sideMenuItems: SideMenuItemType[] = [
         icon: FaLayerGroup,      // Compass icon representing exploration/discovery
         path: "/cards"
     },
+    {
+        text: "Seasons",
+        icon: FaCalendar,      // Calendar icon representing seasons/schedules
+        path: "/seasons"
+    }
 ];
