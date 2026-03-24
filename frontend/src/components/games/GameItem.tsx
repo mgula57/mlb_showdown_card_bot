@@ -1,6 +1,8 @@
 import ReactCountryFlag from "react-country-flag";
+import { FaStar } from "react-icons/fa6";
 
 import { countryCodeForTeam } from "../../functions/flags";
+import { getReadableTextColor } from "../../functions/colors";
 import { type GameScheduled } from "../../api/mlbAPI";
 import { type ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import { CardItemCompact } from "../cards/CardItemCompact";
@@ -8,6 +10,7 @@ import { CardItemCompact } from "../cards/CardItemCompact";
 type GameItemProps = {
     game: GameScheduled;
     sportId?: number;
+    isStarred?: boolean;
     onSelect?: (gamePk: number) => void;
 };
 
@@ -27,7 +30,7 @@ const formatGameTime = (gameDate?: string): string => {
     }).format(parsedDate);
 };
 
-export default function GameItem({ game, sportId, onSelect }: GameItemProps) {
+export default function GameItem({ game, sportId, isStarred, onSelect }: GameItemProps) {
     const awayTeam = game.teams?.away?.team;
     const homeTeam = game.teams?.home?.team;
     const awayAbbr = awayTeam?.abbreviation || awayTeam?.name || "AWAY";
@@ -42,6 +45,11 @@ export default function GameItem({ game, sportId, onSelect }: GameItemProps) {
 
     const awayCountryCode = countryCodeForTeam(sportId || 0, awayAbbr);
     const homeCountryCode = countryCodeForTeam(sportId || 0, homeAbbr);
+
+    const awayBadgeBg = awayTeam?.primary_color ?? undefined;
+    const awayBadgeText = awayBadgeBg ? getReadableTextColor(awayBadgeBg, '#ffffff') : undefined;
+    const homeBadgeBg = homeTeam?.primary_color ?? undefined;
+    const homeBadgeText = homeBadgeBg ? getReadableTextColor(homeBadgeBg, '#ffffff') : undefined;
 
     const awayRecord = game.teams?.away?.league_record;
     const homeRecord = game.teams?.home?.league_record;
@@ -153,15 +161,16 @@ export default function GameItem({ game, sportId, onSelect }: GameItemProps) {
 
     return (
         <div
-            className={`rounded-xl border border-(--divider) bg-(--background-secondary) overflow-hidden p-3 ${onSelect ? 'cursor-pointer hover:border-(--text-secondary)/50 transition-colors' : ''}`}
+            className={`rounded-xl border bg-(--background-secondary) overflow-hidden p-3 ${isStarred ? 'border-yellow-400/50' : 'border-(--divider)'} ${onSelect ? 'cursor-pointer hover:border-(--text-secondary)/50 transition-colors' : ''}`}
             onClick={onSelect ? () => onSelect(game.game_pk) : undefined}
             role={onSelect ? "button" : undefined}
             tabIndex={onSelect ? 0 : undefined}
             onKeyDown={onSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(game.game_pk); } } : undefined}
         >
-            <div className="bg-(--background-primary) text-(--text-primary) rounded-md px-3 py-1 text-center text-sm font-bold">
-                {(game.series_description || game.description || "Game")}
-                {game.series_game_number ? ` | Game ${game.series_game_number}` : ""}
+            <div className="bg-(--background-primary) text-(--text-primary) rounded-md px-3 py-1 text-center text-sm font-bold flex items-center justify-center gap-1.5">
+                {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
+                <span>{(game.series_description || game.description || "Game")}
+                {game.series_game_number ? ` | Game ${game.series_game_number}` : ""}</span>
             </div>
 
             <div className="py-2 flex items-center justify-between gap-2">
@@ -192,7 +201,10 @@ export default function GameItem({ game, sportId, onSelect }: GameItemProps) {
                             {sportId === 51 && awayCountryCode && (
                                 <ReactCountryFlag countryCode={awayCountryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
                             )}
-                            <span className="text-lg font-black text-(--text-primary)">{awayAbbr}</span>
+                            <span
+                                className={`text-lg font-black ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
+                                style={awayBadgeBg ? { backgroundColor: awayBadgeBg, color: awayBadgeText } : undefined}
+                            >{awayAbbr}</span>
                             {awayRecord && (
                                 <span className="text-[11px] font-semibold text-(--text-secondary)">{awayRecord.wins ?? 0} - {awayRecord.losses ?? 0}</span>
                             )}
@@ -207,7 +219,10 @@ export default function GameItem({ game, sportId, onSelect }: GameItemProps) {
                             {sportId === 51 && homeCountryCode && (
                                 <ReactCountryFlag countryCode={homeCountryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
                             )}
-                            <span className="text-lg font-black text-(--text-primary)">{homeAbbr}</span>
+                            <span
+                                className={`text-lg font-black ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
+                                style={homeBadgeBg ? { backgroundColor: homeBadgeBg, color: homeBadgeText } : undefined}
+                            >{homeAbbr}</span>
                             {homeRecord && (
                                 <span className="text-[12px] font-semibold text-(--text-secondary)">{homeRecord.wins ?? 0} - {homeRecord.losses ?? 0}</span>
                             )}

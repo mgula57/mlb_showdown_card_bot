@@ -61,6 +61,33 @@ const mixWithBlack = ([r, g, b]: [number, number, number], amount: number): [num
     ];
 };
 
+const contrastRatio = (rgb1: [number, number, number], rgb2: [number, number, number]): number => {
+    const l1 = luminance(rgb1);
+    const l2 = luminance(rgb2);
+    const lighter = Math.max(l1, l2);
+    const darker = Math.min(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+};
+
+/**
+ * Returns preferredText if it has sufficient contrast (>= 4.5) against bg.
+ * Otherwise returns white or black — whichever has better contrast.
+ */
+export const getReadableTextColor = (bg: string, preferredText: string): string => {
+    const bgRgb = parseToRgb(bg);
+    const textRgb = parseToRgb(preferredText);
+
+    if (!bgRgb) return preferredText;
+
+    if (textRgb && contrastRatio(bgRgb, textRgb) >= 4.5) {
+        return preferredText;
+    }
+
+    const whiteContrast = contrastRatio(bgRgb, [255, 255, 255]);
+    const blackContrast = contrastRatio(bgRgb, [0, 0, 0]);
+    return whiteContrast >= blackContrast ? '#ffffff' : '#000000';
+};
+
 /**
  * Darken a color only when it is too bright against a white background.
  *

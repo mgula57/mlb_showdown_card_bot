@@ -99,15 +99,16 @@ const getDateInTimeZone = (timeZone: string): string => {
     return `${year}-${month}-${day}`;
 };
 
-export const fetchSchedule = async (sportId: number, season: Season, date?: string, league?: League, showdownSet?: string): Promise<Schedule> => {
+export const fetchSchedule = async (sportId: number, season: Season, date?: string, leagues?: League[], showdownSet?: string): Promise<Schedule> => {
     var url = `${API_BASE}/schedule?season=${season.season_id}&sport_id=${sportId}`;
     const userTimeZone = getUserTimeZone();
     url += `&tz_name=${encodeURIComponent(userTimeZone)}`;
     if (date) {
         url += `&date=${encodeURIComponent(date)}`;
     }
-    if (league) {
-        url += `&league_id=${encodeURIComponent(league.id.toString())}`;
+    if (leagues && leagues.length > 0) {
+        const leagueIds = leagues.map(league => league.id).join(',');
+        url += `&league_ids=${encodeURIComponent(leagueIds)}`;
     }
     if (showdownSet) {
         url += `&showdown_set=${encodeURIComponent(showdownSet)}`;
@@ -123,10 +124,10 @@ export const fetchSchedule = async (sportId: number, season: Season, date?: stri
     return data.schedule as Schedule;
 }
 
-export const fetchTodaysSchedule = async (sportId: number, season: Season, league?: League, showdownSet?: string): Promise<Schedule> => {
+export const fetchTodaysSchedule = async (sportId: number, season: Season, leagues?: League[], showdownSet?: string): Promise<Schedule> => {
     const userTimeZone = getUserTimeZone();
     const today = getDateInTimeZone(userTimeZone);
-    return fetchSchedule(sportId, season, today, league, showdownSet);
+    return fetchSchedule(sportId, season, today, leagues, showdownSet);
 }
 
 export const fetchGameBoxscore = async (gamePk: number): Promise<GameBoxscoreDetail> => {
@@ -552,6 +553,9 @@ export interface BoxscoreTeamInfo {
     name: string;
     abbreviation: string;
     record?: BoxscoreTeamRecord;
+
+    primary_color?: string;
+    secondary_color?: string;
 }
 
 export interface BoxscoreTeamData {

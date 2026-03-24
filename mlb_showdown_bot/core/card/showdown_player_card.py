@@ -2619,7 +2619,7 @@ class ShowdownPlayerCard(BaseModel):
                 stat=cleaned_category,
                 real=actual,
                 projected=in_game,
-                diff=round(in_game - actual, precision) if in_game is not None else None,
+                diff=round(in_game - actual, precision) if in_game is not None and actual is not None else None,
                 precision=precision,
                 is_real_estimated=self.is_stats_estimate
             )

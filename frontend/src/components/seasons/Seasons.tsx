@@ -509,7 +509,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
             if (leaguesToQuery.length === 0) return;
 
-            const leagueIdFilter = leaguesToQuery.length > 1 ? leaguesToQuery[0] : undefined;
             const selectedDate = formatDateForApi(gamesDate);
 
             // 4. Parallel: standings + todaysSchedule + gamesSchedule
@@ -523,11 +522,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                         console.error(`Standings fetch failed, will fall back to teams endpoint:`, error);
                         return {} as { [leagueAbbreviation: string]: Standings[] };
                     }),
-                fetchTodaysSchedule(resolvedSport.id, selectedSeason, leagueIdFilter, userShowdownSet)
+                fetchTodaysSchedule(resolvedSport.id, selectedSeason, leaguesToQuery, userShowdownSet)
                     .then(setTodaysSchedule)
                     .catch(() => setTodaysSchedule(null)),
-                fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leagueIdFilter, userShowdownSet)
-                    .then(setGamesSchedule)
+                fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
+                    .then(data => {
+                        setGamesSchedule(data);
+                        console.log(`Fetched games schedule for season ${selectedSeason.season_id} on date ${selectedDate}:`, data);
+                        return data;
+                    })
                     .catch(() => setGamesSchedule(null)),
             ]);
 
@@ -607,8 +610,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
         beginLoading();
         try {
-            const leagueIdFilter = leaguesToQuery.length > 1 ? leaguesToQuery[0] : undefined;
-            const scheduleData = await fetchTodaysSchedule(selectedSport?.id || 1, selectedSeason, leagueIdFilter, userShowdownSet);
+            const scheduleData = await fetchTodaysSchedule(selectedSport?.id || 1, selectedSeason, leaguesToQuery, userShowdownSet);
             console.log(`Fetched schedule for season ${selectedSeason.season_id}:`, scheduleData);
             setTodaysSchedule(scheduleData);
         } catch (error) {
@@ -637,9 +639,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
         beginLoading();
         try {
-            const leagueIdFilter = leaguesToQuery.length > 1 ? leaguesToQuery[0] : undefined;
             const selectedDate = formatDateForApi(gamesDate);
-            const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leagueIdFilter, userShowdownSet);
+            const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet);
             setGamesSchedule(scheduleData);
         } catch (error) {
             console.error(`Error fetching games schedule for season ${selectedSeason.season_id}:`, error);
@@ -1106,6 +1107,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     dateLabel={gamesTabDateLabel}
                                                     description={gamesTabDescription}
                                                     sportId={selectedSport?.id}
+                                                    starredTeamIds={new Set(starredTeamKeys.map((key) => parseInt(key.split('-')[0], 10)))}
                                                     onGameSelect={(gamePk) => setSelectedGamePk(gamePk)}
                                                 />
                                             </div>

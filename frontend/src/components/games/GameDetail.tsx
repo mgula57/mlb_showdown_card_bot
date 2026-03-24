@@ -3,6 +3,7 @@ import ReactCountryFlag from "react-country-flag";
 import { FaChevronLeft } from "react-icons/fa6";
 
 import { countryCodeForTeam } from "../../functions/flags";
+import { getReadableTextColor } from "../../functions/colors";
 import { Modal } from "../shared/Modal";
 import {
     fetchGameBoxscore,
@@ -17,7 +18,6 @@ import { fetchCardsByMlbIds } from "../../api/card_db/cardDatabase";
 import CardCommand from "../cards/card_elements/CardCommand";
 import { CardItemFromCardDatabaseRecord } from "../cards/CardItem";
 import { CardDetail } from "../cards/CardDetail";
-import { type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import { getContrastColor } from "../shared/Color";
 
 type CardMap = Record<number, CardDatabaseRecord>;
@@ -127,13 +127,25 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
             for (const p of boxscore.teams[side].pitching) allIds.add(p.id);
         }
 
+        // Override the team for each ID based on the boxscore data, to ensure we get the correct card even if the player is now on a new team
+        const overrides: Record<number, Record<string, unknown>> = {};
+        for (const side of ["away", "home"] as const) {
+            const teamAbbreviation = boxscore.teams[side].team.abbreviation;
+            for (const b of boxscore.teams[side].batting) {
+                overrides[b.id] = { team: teamAbbreviation };
+            }
+            for (const p of boxscore.teams[side].pitching) {
+                overrides[p.id] = { team: teamAbbreviation };
+            }
+        }
+
         // Check if sport is not WBC and date is before May 1st of that season, if so subtract 1 from the season to use last year's cards
         const isCurrentSeason = new Date().getFullYear() === season;
         const isBeforeMay = new Date().getMonth() < 4; // Months are 0-indexed
         const adjustedSeason = (sportId === 1 && isCurrentSeason && isBeforeMay) ? season - 1 : season;
 
         const isWbc = sportId === 51;
-        fetchCardsByMlbIds([...allIds], adjustedSeason, showdownSet, isWbc)
+        fetchCardsByMlbIds([...allIds], adjustedSeason, showdownSet, isWbc, overrides)
             .then((map) => { if (!cancelled) setCardMap(map); })
             .catch(() => { /* cards are supplementary – fail silently */ });
 
@@ -259,6 +271,11 @@ function ScoreHeader({
     const awayRecord = away.team.record;
     const homeRecord = home.team.record;
 
+    const awayBadgeBg = away.team.primary_color ?? undefined;
+    const awayBadgeText = awayBadgeBg ? getReadableTextColor(awayBadgeBg, '#ffffff') : undefined;
+    const homeBadgeBg = home.team.primary_color ?? undefined;
+    const homeBadgeText = homeBadgeBg ? getReadableTextColor(homeBadgeBg, '#ffffff') : undefined;
+
     return (
         <div className="rounded-xl border border-(--divider) bg-(--background-secondary) p-4 space-y-3">
             <div className="text-center text-xs font-bold uppercase tracking-wide text-(--text-secondary)">
@@ -271,7 +288,10 @@ function ScoreHeader({
                     {sportId === 51 && awayCode && (
                         <ReactCountryFlag countryCode={awayCode} svg style={{ width: '2em', height: '2em' }} />
                     )}
-                    <span className="text-lg font-black text-(--text-primary)">{away.team.abbreviation}</span>
+                    <span
+                        className={`text-lg font-black ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
+                        style={awayBadgeBg ? { backgroundColor: awayBadgeBg, color: awayBadgeText } : undefined}
+                    >{away.team.abbreviation}</span>
                     {awayRecord && (
                         <span className="text-[11px] text-(--text-secondary)">
                             {awayRecord.wins ?? 0}-{awayRecord.losses ?? 0}
@@ -291,7 +311,10 @@ function ScoreHeader({
                     {sportId === 51 && homeCode && (
                         <ReactCountryFlag countryCode={homeCode} svg style={{ width: '2em', height: '2em' }} />
                     )}
-                    <span className="text-lg font-black text-(--text-primary)">{home.team.abbreviation}</span>
+                    <span
+                        className={`text-lg font-black ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
+                        style={homeBadgeBg ? { backgroundColor: homeBadgeBg, color: homeBadgeText } : undefined}
+                    >{home.team.abbreviation}</span>
                     {homeRecord && (
                         <span className="text-[11px] text-(--text-secondary)">
                             {homeRecord.wins ?? 0}-{homeRecord.losses ?? 0}
@@ -338,7 +361,9 @@ function LinescoreTable({
                 </thead>
                 <tbody>
                     <tr className="border-b border-(--divider)">
-                        <td className="pl-3 pr-2 py-2 text-left font-black text-(--text-primary)">{away.team.abbreviation}</td>
+                        <td className="pl-3 pr-2 py-2 text-left">
+                            {(() => { const bg = away.team.primary_color; const tc = bg ? getReadableTextColor(bg, '#ffffff') : undefined; return <span className={`font-black ${bg ? 'px-1 py-0.5 rounded' : 'text-(--text-primary)'}`} style={bg ? { backgroundColor: bg, color: tc } : undefined}>{away.team.abbreviation}</span>; })()}
+                        </td>
                         {filledInnings.map((inn) => (
                             <td key={inn.num} className="px-1.5 py-2 text-(--text-primary)">{inn.away.runs ?? "-"}</td>
                         ))}
@@ -347,7 +372,9 @@ function LinescoreTable({
                         <td className="px-2 py-2 font-bold text-(--text-primary)">{teams.away.errors}</td>
                     </tr>
                     <tr>
-                        <td className="pl-3 pr-2 py-2 text-left font-black text-(--text-primary)">{home.team.abbreviation}</td>
+                        <td className="pl-3 pr-2 py-2 text-left">
+                            {(() => { const bg = home.team.primary_color; const tc = bg ? getReadableTextColor(bg, '#ffffff') : undefined; return <span className={`font-black ${bg ? 'px-1 py-0.5 rounded' : 'text-(--text-primary)'}`} style={bg ? { backgroundColor: bg, color: tc } : undefined}>{home.team.abbreviation}</span>; })()}
+                        </td>
                         {filledInnings.map((inn) => (
                             <td key={inn.num} className="px-1.5 py-2 text-(--text-primary)">{inn.home.runs ?? "-"}</td>
                         ))}
@@ -534,6 +561,8 @@ function Decisions({ boxscore }: { boxscore: GameBoxscoreDetail }) {
 function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: CardDatabaseRecord) => void }) {
     const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
     const hasCards = Object.keys(cardMap).length > 0;
+    const badgeBg = team.team.primary_color ?? undefined;
+    const badgeText = badgeBg ? getReadableTextColor(badgeBg, '#ffffff') : undefined;
 
     // Sort: lineup batters first in batting order, then substitutes
     const sortedBatters = [...team.batting]
@@ -550,7 +579,10 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
                 {sportId === 51 && countryCode && (
                     <ReactCountryFlag countryCode={countryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
                 )}
-                <span className="font-black text-(--text-primary)">{team.team.abbreviation}</span>
+                <span
+                    className={`font-black ${badgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
+                    style={badgeBg ? { backgroundColor: badgeBg, color: badgeText } : undefined}
+                >{team.team.abbreviation}</span>
                 <span className="text-xs text-(--text-secondary) font-semibold">Batting</span>
             </div>
 
@@ -653,6 +685,8 @@ function BatterRow({ batter, card, hasCards, onCardSelect }: { batter: BoxscoreB
 function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: BoxscoreTeamData; sportId?: number; cardMap: CardMap; onCardSelect?: (card: CardDatabaseRecord) => void }) {
     const countryCode = countryCodeForTeam(sportId ?? 0, team.team.abbreviation);
     const hasCards = Object.keys(cardMap).length > 0;
+    const badgeBg = team.team.primary_color ?? undefined;
+    const badgeText = badgeBg ? getReadableTextColor(badgeBg, '#ffffff') : undefined;
 
     return (
         <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
@@ -660,7 +694,10 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscor
                 {sportId === 51 && countryCode && (
                     <ReactCountryFlag countryCode={countryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
                 )}
-                <span className="font-black text-(--text-primary)">{team.team.abbreviation}</span>
+                <span
+                    className={`font-black ${badgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
+                    style={badgeBg ? { backgroundColor: badgeBg, color: badgeText } : undefined}
+                >{team.team.abbreviation}</span>
                 <span className="text-xs text-(--text-secondary) font-semibold">Pitching</span>
             </div>
 

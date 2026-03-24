@@ -181,6 +181,8 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
                 # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS
                 # GRAB FROM FANGRAPHS IF AVAILABLE
+                has_pulled_fangraphs_defense = False
+                defense_empty_warning = "Failed to fetch defensive stats. Using league avg for defense instead."
                 if player_data.fangraphs_id and normalized_player_stats.type == PlayerType.HITTER:
                     try:
                         fangraphs_api = FangraphsAPIClient()
@@ -193,12 +195,23 @@ def generate_card(**kwargs) -> dict[str, Any]:
                         # INJECT INTO NORMALIZED STATS
                         position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list]
                         normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+                        has_pulled_fangraphs_defense = True
                     except Exception as e:
-                        warning = f"Failed to fetch defensive stats from Fangraphs. Using league avg for defense instead."
                         if normalized_player_stats.warnings is None:
                             normalized_player_stats.warnings = []
-                        normalized_player_stats.warnings.append(warning)
-                
+                        if player_data.positions and len(player_data.positions) > 0 \
+                            and list(player_data.positions.keys()) != ['DH']: # IF THE PLAYER HAS NO POSITIONS OR IS A DH, WE DON'T NEED TO WARN ABOUT MISSING DEFENSE
+                            
+                            normalized_player_stats.warnings.append(defense_empty_warning)
+
+                # IF FANGRAPHS FAILS, USE STATCAST DEFENSE IF AVAILABLE
+                if not has_pulled_fangraphs_defense and normalized_player_stats.type == PlayerType.HITTER and stats_period.is_during_statcast_era:
+                    statcast_api_client = StatcastAPIClient()
+                    oaa_dict = statcast_api_client.fetch_defense_for_player(stats_period=stats_period, mlb_player_id=player_data.id)
+                    normalized_player_stats.inject_statcast_oaa(oaa_stats=oaa_dict)
+                    if len(oaa_dict) > 0 and normalized_player_stats.warnings and defense_empty_warning in normalized_player_stats.warnings:
+                        normalized_player_stats.warnings.remove(defense_empty_warning)
+                        
                 if not normalized_player_stats.bref_id and player_data.id:
                     db = PostgresDB(is_archive=True)
                     bref_id = db.fetch_bref_id_for_mlb_id(player_data.id)

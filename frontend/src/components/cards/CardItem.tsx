@@ -221,9 +221,11 @@ export const CardItem = ({
                         )}
                         
                         {/* Year and team badge with team colors */}
-                        <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
-                            {cardYear} {cardTeam?.toUpperCase()}
-                        </div>
+                        {cardTeam && cardYear && (
+                            <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
+                                {cardYear} {cardTeam?.toUpperCase()}
+                            </div>
+                        )}
 
                         {/* Edition */}
                         {(cardEdition && cardEdition !== 'NONE') && (

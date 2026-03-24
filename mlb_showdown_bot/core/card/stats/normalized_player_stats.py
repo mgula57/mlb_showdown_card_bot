@@ -237,6 +237,19 @@ class NormalizedPlayerStats(BaseModel):
 
         self.defense_datasource = source
 
+    def inject_statcast_oaa(self, oaa_stats: Dict[str, float]) -> None:
+        """Injects statcast Outs Above Average (OAA) defensive stats into existing PositionStats. This is used to merge the two sources of defensive metrics since they often have different coverage."""
+        if not oaa_stats or len(oaa_stats) == 0:
+            return
+        
+        if not self.positions:
+            return
+
+        for pos, oaa in oaa_stats.items():
+            if pos in self.positions:
+                self.positions[pos].oaa = oaa
+
+
     def as_dict(self) -> Dict[str, Any]:
         """Returns a dictionary representation of the model, including aliases"""
         return self.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
