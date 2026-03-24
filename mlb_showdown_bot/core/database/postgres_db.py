@@ -1187,15 +1187,46 @@ class PostgresDB:
                             FROM card_wbc
                             WHERE wbc_team_id IS NOT NULL and wbc_season = %s and showdown_set = %s
                             GROUP BY wbc_team_id
-                    """)
+                        """)
+                        filter_values = (standing.league.season, showdown_set)
                     case _:
-                        print("Standings league is not WBC, no points data to fetch.")
-                        continue
+                        query = sql.SQL("""
+                            with 
+
+                            latest_rosters as (
+
+                                select
+                                    team_id,
+                                    player_id,
+                                    season
+                                from internal.dim_roster_history
+                                where 
+                                    snapshot_date = (select max(snapshot_date) from internal.dim_roster_history where season = %s)
+                                    and season = %s
+
+                            )
+                            select 
+                                latest_rosters.team_id::int as team_id,
+                                sum(cards.points) as total_points
+                            from latest_rosters
+                            left join card_bot as cards
+                                on cards.mlb_id::text = latest_rosters.player_id
+                                and cards.year + %s = latest_rosters.season
+                                and cards.showdown_set = %s
+                            group by 1
+                        """)
+                        current_year = datetime.now().year
+                        current_month = datetime.now().month
+                        try:
+                            season_int = int(standing.league.season)
+                        except ValueError:
+                            season_int = datetime.now().year
+                        season_offset = 1 if season_int == current_year and standing.league.sport.id == 1 and current_month < 4 else 0
+                        filter_values = (standing.league.season, standing.league.season, season_offset, showdown_set)
                 
-                results = self.execute_query(query=query, filter_values=(int(standing.league.season), showdown_set))
+                results = self.execute_query(query=query, filter_values=filter_values)
 
                 points_by_team_id = {row['team_id']: row['total_points'] for row in results}
-
                 for record in standing.team_records:
                     record.showdown_points = points_by_team_id.get(record.team.id, 0)
 
@@ -4727,9 +4758,10 @@ class PostgresDB:
         # UPSERT PLAYERS
         upsert_sql = '''
             INSERT INTO internal.dim_roster_history (id, player_id, full_name, position, team_id, team, season, snapshot_date, modified_date)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
         '''
         try:
+            snapshot_timestamp = datetime.now()
             values = [
                 (
                     f"{player['player_id']}-{player['season']}",
@@ -4738,7 +4770,8 @@ class PostgresDB:
                     player['position'],
                     player['team_id'],
                     player['team'],
-                    player['season']
+                    player['season'],
+                    snapshot_timestamp
                 )
                 for player in rosters
             ]
