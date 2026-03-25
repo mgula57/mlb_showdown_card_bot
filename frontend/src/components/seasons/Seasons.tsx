@@ -29,6 +29,7 @@ import {
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 import GameSchedule from "../games/GameSchedule";
 import GameDetail from "../games/GameDetail";
+import { getReadableTextColor } from "../../functions/colors";
 
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
@@ -854,13 +855,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                             className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors ${
                                                                 isSelected
                                                                     ? "bg-(--background-quaternary) font-semibold"
-                                                                        : "text-(--text-primary) hover:bg-(--divider) hover:text-(--team-hover-color)"
+                                                                        : "text-(--text-primary) hover:bg-(--team-primary-color) hover:text-(--team-hover-text-color)"
                                                             }`}
                                                             style={{
-                                                                ["--team-hover-color" as string]: team.primary_color || "var(--text-primary)",
+                                                                ["--team-primary-color" as string]: team.primary_color || "var(--divider)",
+                                                                ["--team-hover-text-color" as string]: team.primary_color ? getReadableTextColor(team.primary_color, "#ffffff") : "var(--text-primary)",
                                                                 backgroundColor: isSelected ? team.primary_color || "var(--background-quaternary)" : "",
-                                                                color: isSelected ? "white" : undefined,
-                                                            
+                                                                color: isSelected
+                                                                    ? (team.primary_color ? getReadableTextColor(team.primary_color, "#ffffff") : "white")
+                                                                    : undefined,
                                                             }}
                                                         >
                                                             <div className="flex items-center justify-between gap-2">
@@ -1136,7 +1139,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="players"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        {hasLoadedTeams && (
+                                        {/* {hasLoadedTeams && (
                                             <ShowdownCardSearch
                                                 source="WBC"
                                                 verticalOffset="12"
@@ -1146,7 +1149,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 }}
                                                 disableLocalStorage={true}
                                             />
-                                        )}
+                                        )} */}
+                                        <div className="flex justify-center p-24 text-2xl">
+                                            <span className="p-12 rounded-lg bg-secondary">Coming soon - once 2026 stats mature!</span>
+                                        </div>
                                     </Tabs.Content>
 
                                 </div>
