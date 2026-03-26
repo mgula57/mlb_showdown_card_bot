@@ -233,7 +233,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         { id: "players", label: "Players", icon: <FaUserGroup /> },
-        ...(selectedSeason && isMidSeason(selectedSeason) ? [{ id: "games", label: "Games", icon: <FaGamepad /> }] : [])
     ];
 
     // ************************
@@ -488,9 +487,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                 new Set(
                     resolvedLeagues
                         .map(league => getLeagueGroupForLeague(league))
-                        .filter((g): g is string => g !== null)
+                        .filter((g): g is string => g !== null && g !== "Spring Training")
+                        
                 )
             );
+            console.log("Unique league groups identified:", resolvedLeagueGroups);
             const resolvedLeagueGroup = resolvedLeagueGroups.length > 1
                 ? (() => {
                     const stored = getStoredValue(STORAGE_KEYS.leagueGroup);

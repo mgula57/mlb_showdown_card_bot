@@ -492,7 +492,7 @@ function LiveSituation({ linescore, isRefreshing, cardMap, onCardSelect }: { lin
                         <div className="space-y-1 min-w-0">
                             <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-secondary) pl-1">Pitching</div>
                             {pitcherCard ? (
-                                <CardItemFromCardDatabaseRecord card={pitcherCard} onClick={() => onCardSelect?.(pitcherCard)} />
+                                <CardItemFromCardDatabaseRecord card={pitcherCard} hideYear={true} onClick={() => onCardSelect?.(pitcherCard)} />
                             ) : pitcherName ? (
                                 <div className="px-2 py-1.5 text-sm font-semibold text-(--text-primary) truncate">{pitcherName}</div>
                             ) : null}
@@ -500,7 +500,7 @@ function LiveSituation({ linescore, isRefreshing, cardMap, onCardSelect }: { lin
                         <div className="space-y-1 min-w-0">
                             <div className="text-[10px] font-bold uppercase tracking-wide text-(--text-secondary) pl-1">At Bat</div>
                             {batterCard ? (
-                                <CardItemFromCardDatabaseRecord card={batterCard} onClick={() => onCardSelect?.(batterCard)} />
+                                <CardItemFromCardDatabaseRecord card={batterCard} hideYear={true} onClick={() => onCardSelect?.(batterCard)} />
                             ) : batterName ? (
                                 <div className="px-2 py-1.5 text-sm font-semibold text-(--text-primary) truncate">{batterName}</div>
                             ) : null}
