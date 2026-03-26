@@ -16,7 +16,8 @@ def fetch_schedule():
         season = request.args.get('season', default=None, type=str)
         if not season:
             return jsonify({'error': 'Missing required parameter: season'}), 400
-        league_id = request.args.get('league_id', default=None, type=int)
+        league_ids = request.args.get('league_id', default=None, type=str)
+        league_id_list = [int(league_id.strip()) for league_id in league_ids.split(',')] if league_ids else None
         date = request.args.get('date', default=None, type=str)
         tz_name = request.args.get('tz_name', default='America/New_York', type=str)
         probable_pitchers = request.args.get('include_probable_pitchers', default='true', type=str).lower() == 'true'
@@ -26,7 +27,7 @@ def fetch_schedule():
         schedule = _mlb_stats_api.games.get_schedule(
             sport_id=sport_id,
             season=season,
-            league_id=league_id,
+            league_ids=league_id_list,
             date=date,
             includeProbablePitchers=probable_pitchers,
             tz_name=tz_name,
@@ -45,6 +46,10 @@ def fetch_schedule():
                 is_wbc=is_wbc,
                 season=int(season)
             )
+        
+        # ADD TEAM COLORS IF SPORT IS MLB (SPORT_ID 1)
+        if schedule and sport_id == SportEnum.MLB.value:
+            schedule.add_team_colors()
         
         schedule_data = schedule.model_dump() if schedule else None
         return jsonify({'schedule': schedule_data}), 200

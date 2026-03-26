@@ -65,7 +65,7 @@ class Player(Person):
 
     # -------------------------------
 
-    def get_stat_splits(self, group_type: StatGroupEnum, type: StatTypeEnum, seasons: list[str | int]) -> Optional[List[StatSplit]]:
+    def get_stat_splits(self, group_type: StatGroupEnum, types: List[StatTypeEnum], seasons: list[str | int]) -> Optional[List[StatSplit]]:
         """Retrieve a specific StatsGroup by type"""
         
         # Check if stats are available
@@ -76,8 +76,7 @@ class Player(Person):
         # Find the correct stats group
         final_list: List[StatSplit] = []
         for stats_group in self.stats:
-            # print(f"Checking stats group: {stats_group.group.display_name} = {group_type.value} | {stats_group.type.display_name} = {type.value}")
-            if stats_group.group.display_name == group_type.value and stats_group.type.display_name == type.value:
+            if stats_group.group.display_name == group_type.value and stats_group.type.display_name in [t.value for t in types]:
 
                 for split in stats_group.splits:
                     is_included = group_type == StatTypeEnum.CAREER or int(split.season) in seasons
@@ -104,6 +103,10 @@ class Player(Person):
             
         return None
 
+    @property
+    def is_pitcher(self) -> bool:
+        """Determine if the player is a pitcher based on primary position"""
+        return self.primary_position and self.primary_position.abbreviation == 'P'
 
 class PlayerWithShowdownCard(Player):
     """Extended Player model that includes showdown card data"""

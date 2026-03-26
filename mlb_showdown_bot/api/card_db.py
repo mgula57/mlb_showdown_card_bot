@@ -1,7 +1,7 @@
 from pprint import pprint
 from flask import Blueprint, request, jsonify
 
-from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard
+from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, Team
 from ..core.database.postgres_db import PostgresDB
 
 card_db_bp = Blueprint('card_data', __name__)
@@ -156,21 +156,39 @@ def fetch_full_cards():
         season = payload.get('season')
         showdown_set = payload.get('showdown_set', '2000')
         is_wbc = payload.get('is_wbc', False)
+        overrides: dict[int, dict] = payload.get('overrides', {})  # Optional overrides for specific mlb_ids
 
         if not mlb_ids or not season:
             return jsonify({}), 200
 
         db = PostgresDB()
-        card_map = db.fetch_full_cards_by_mlb_id(
+        card_map: dict = db.fetch_full_cards_by_mlb_id(
             mlb_ids=mlb_ids,
             is_wbc=is_wbc,
             season=int(season),
-            showdown_set=showdown_set,
+            showdown_set=showdown_set
         )
         db.close_connection()
 
         # Serialize: convert int keys to strings (JSON requirement)
         result = {str(k): v for k, v in card_map.items()}
+
+        # Apply overrides to the result if provided (this allows for dynamic modification of card data without needing to update the database)
+        for mlb_id_int, override_data in (overrides or {}).items():
+            if str(mlb_id_int) in result:
+                if not isinstance(override_data, dict):
+                    continue  # Skip invalid override data
+                
+                team_override = override_data.get('team', None)
+                if team_override:
+                    # If team override, make sure it conforms to Team Enum
+                    team_cleaned = Team.map_from_mlb_api_team(team_override)  # This will raise an error if the team name is invalid
+                    if 'color_primary' not in override_data:
+                        override_data['color_primary'] = f'rgb({team_cleaned.primary_color[0]}, {team_cleaned.primary_color[1]}, {team_cleaned.primary_color[2]})'
+                        override_data['color_secondary'] = f'rgb({team_cleaned.secondary_color[0]}, {team_cleaned.secondary_color[1]}, {team_cleaned.secondary_color[2]})'
+                    override_data['team'] = team_cleaned.value  # Store the standardized team name in the card data
+                result[str(mlb_id_int)].update(override_data)
+
         return jsonify(result), 200
 
     except Exception as e:
@@ -187,6 +205,7 @@ def fetch_compact_cards():
         season = payload.get('season')
         showdown_set = payload.get('showdown_set', '2000')
         is_wbc = payload.get('is_wbc', False)
+        overrides: dict[int, dict] = payload.get('overrides', {})  # Optional overrides for specific mlb_ids
 
         if not mlb_ids or not season:
             return jsonify({}), 200
@@ -199,6 +218,23 @@ def fetch_compact_cards():
             showdown_set=showdown_set,
         )
         db.close_connection()
+
+        # Apply overrides to the card map if provided (this allows for dynamic modification of card data without needing to update the database)
+        for mlb_id_int, override_data in (overrides or {}).items():
+            mlb_id_str = str(mlb_id_int)
+            if mlb_id_str in card_map:
+                if not isinstance(override_data, dict):
+                    continue  # Skip invalid override data
+                
+                team_override = override_data.get('team', None)
+                if team_override:
+                    # If team override, make sure it conforms to Team Enum
+                    team_cleaned = Team.map_from_mlb_api_team(team_override)  # This will raise an error if the team name is invalid
+                    if 'color_primary' not in override_data:
+                        override_data['color_primary'] = f'rgb({team_cleaned.primary_color[0]}, {team_cleaned.primary_color[1]}, {team_cleaned.primary_color[2]})'
+                        override_data['color_secondary'] = f'rgb({team_cleaned.secondary_color[0]}, {team_cleaned.secondary_color[1]}, {team_cleaned.secondary_color[2]})'
+                    override_data['team'] = team_cleaned.value  # Store the standardized team name in the card data
+                card_map[mlb_id_str].update(override_data)
 
         # Serialize: convert int keys to strings (JSON requirement)
         result = {str(k): v for k, v in card_map.items()}

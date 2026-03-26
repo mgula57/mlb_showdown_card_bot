@@ -59,7 +59,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
     // Calculate team points summary
     const teamRosterSlots = roster?.roster ?? [];
     const teamShowdownPointsTotal = teamRosterSlots.reduce((total, slot) => {
-        const playerPoints = slot.person.showdown_card_data?.points ?? slot.person.points ?? 0;
+        const playerPoints = slot.person.showdown_card_data?.stats_period?.type !== "REPLACEMENT" ? slot.person.showdown_card_data?.points ?? 0 : 0;
         return total + playerPoints;
     }, 0);
     const teamPlayersWithShowdownCards = teamRosterSlots.filter((slot) =>
@@ -207,6 +207,7 @@ export default function TeamRoster({ team, sportId, roster, isStarred = false, o
                                         key={slot.person.id}
                                         card={card}
                                         className="w-full"
+                                        hideYear={true}
                                         onClick={() => handleRowClick(slot)}
                                     />
                                 );

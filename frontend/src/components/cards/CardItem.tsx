@@ -221,9 +221,11 @@ export const CardItem = ({
                         )}
                         
                         {/* Year and team badge with team colors */}
-                        <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
-                            {cardYear} {cardTeam?.toUpperCase()}
-                        </div>
+                        {cardTeam && cardYear && (
+                            <div className="text-[9px] rounded-md px-1" style={colorStylingPrimary}>
+                                {cardYear} {cardTeam?.toUpperCase()}
+                            </div>
+                        )}
 
                         {/* Edition */}
                         {(cardEdition && cardEdition !== 'NONE') && (
@@ -387,9 +389,11 @@ type CardItemFromCardProps = {
     className?: string;
     /** Whether this card is currently selected */
     isSelected?: boolean;
+    /** Optionally hide the year */
+    hideYear?: boolean;
 };
 
-export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardItemFromCardProps) => {
+export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear }: CardItemFromCardProps) => {
 
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
@@ -403,7 +407,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardI
             cardTeam={card?.wbc_team || card?.team}
             cardLeague={card?.league || undefined}
             cardName={card?.name}
-            cardYear={card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period.year)}
+            cardYear={hideYear ? undefined : (card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period.year))}
             cardStatsPeriod={card?.stats_period}
             cardCommand={card?.chart.command}
             cardOuts={card?.chart.outs}
@@ -448,9 +452,11 @@ type CardItemFromCardDatabaseRecordProps = {
     className?: string;
     /** Whether this card is currently selected */
     isSelected?: boolean;
+    /** Optionally hide the year */
+    hideYear?: boolean;
 };
 
-export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected }: CardItemFromCardDatabaseRecordProps) => {
+export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSelected, hideYear }: CardItemFromCardDatabaseRecordProps) => {
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.color_secondary
                             : card?.color_primary) || 'rgb(0, 0, 0)';
@@ -463,7 +469,7 @@ export const CardItemFromCardDatabaseRecord = ({ card, onClick, className, isSel
             cardId={card?.card_id}
             cardTeam={card?.wbc_team || card?.team}
             cardName={card?.name}
-            cardYear={card?.card_year}
+            cardYear={hideYear ? undefined : card?.card_year}
             cardCommand={card?.command}
             cardOuts={card?.outs}
             cardIsPitcher={card?.is_pitcher}

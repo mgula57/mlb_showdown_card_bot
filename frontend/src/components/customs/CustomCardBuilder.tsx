@@ -658,6 +658,17 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 delete finalPayload.image_url;
             }
 
+            // Define datasource
+            // Use MLB API if year has 2026+
+            if (finalPayload.year) {
+                const yearNums = (finalPayload.year as string).match(/\d+/g)?.map(Number) ?? [];
+                const maxYear = yearNums.length > 0 ? Math.max(...yearNums) : 0;
+                if (maxYear >= 2026) {
+                    finalPayload.datasource = 'MLB_API';
+                } else {
+                    finalPayload.datasource = 'BREF';
+                }
+            }
             const cardData = await buildCustomCard({
                 ...finalPayload,
 
@@ -667,7 +678,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                 image_output_folder_path: "static/output",
                 show_historical_points: true,
                 season_trend_date_aggregation: 'WEEK',
-                // datasource: 'MLB_API',
                 user_id: user?.id,
             });
             
@@ -1299,14 +1309,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             />
 
                                             <FormDropdown
-                                                label={(
-                                                    <span className="flex items-center justify-between gap-2">
-                                                        <span>Edition</span>
-                                                        <span className="inline-flex items-center rounded-md bg-(--showdown-red) px-1.5 py-0.5 text-[8px] font-black tracking-wide text-white">
-                                                            NEW
-                                                        </span>
-                                                    </span>
-                                                )}
+                                                label="Edition"
                                                 options={editionOptions}
                                                 selectedOption={form.edition}
                                                 onChange={(value) => setForm({ ...form, edition: value })}

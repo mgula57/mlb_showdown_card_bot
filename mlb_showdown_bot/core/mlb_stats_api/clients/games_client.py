@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from ..base_client import BaseMLBClient
 from ..models.games.schedule import Schedule, GameScheduled
+from ..models.teams.team import ShowdownTeam
 
 
 class GamesClient(BaseMLBClient):
@@ -31,11 +32,15 @@ class GamesClient(BaseMLBClient):
 
         def _extract_team_info(side: str) -> dict:
             team_raw = game_data.get("teams", {}).get(side, {})
+            abbreviation = team_raw.get("abbreviation", "")
+            team_match = ShowdownTeam.map_from_mlb_api_team(abbreviation)
             return {
                 "id": team_raw.get("id"),
                 "name": team_raw.get("name"),
                 "abbreviation": team_raw.get("abbreviation", ""),
                 "record": team_raw.get("record", {}),
+                "primary_color": f"rgb({team_match.primary_color[0]}, {team_match.primary_color[1]}, {team_match.primary_color[2]})" if team_match else None,
+                "secondary_color": f"rgb({team_match.secondary_color[0]}, {team_match.secondary_color[1]}, {team_match.secondary_color[2]})" if team_match else None,
             }
 
         def _extract_team_boxscore(side: str) -> dict:
@@ -308,7 +313,7 @@ class GamesClient(BaseMLBClient):
         sport_id: int = 1,
         season: Optional[int] = None,
         date: Optional[str] = None,
-        league_id: Optional[int] = None,
+        league_ids: Optional[list[int]] = None,
         includeProbablePitchers: bool = False,
         tz_name: str = "America/New_York",
         use_date_window: bool = True,
@@ -320,8 +325,8 @@ class GamesClient(BaseMLBClient):
 
         if season:
             params["season"] = season
-        if league_id:
-            params["leagueId"] = league_id
+        if league_ids:
+            params["leagueIds"] = league_ids
 
         target_date = self._resolve_target_date(date, tz_name)
 

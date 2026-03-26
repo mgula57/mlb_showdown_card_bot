@@ -79,6 +79,14 @@ class BaseMLBClient(BaseModel):
         for attempt in range(self.max_retries):
             try:
                 data = self._execute_request(endpoint, params)
+
+                # Print curlable URL for debugging
+                from urllib.parse import urlencode
+                full_url = f"{self.base_url}/{endpoint}"
+                if params:
+                    full_url += f"?{urlencode(params)}"
+                # print(f"curl -g '{full_url}'")
+
                 # Cache successful response
                 if use_cache:
                     self._cache_response(cache_key, data)

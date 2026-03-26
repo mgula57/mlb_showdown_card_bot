@@ -148,7 +148,7 @@ export default function Home() {
 
             <div className='pt-4'>
                 <Link
-                    to="/wbc"
+                    to="/seasons"
                     className={`
                         max-w-7xl mx-auto mb-2 rounded-2xl border overflow-hidden
                         flex items-center justify-between gap-4 px-4 md:px-6 py-4
@@ -156,25 +156,26 @@ export default function Home() {
                         ${isDark ? 'border-white/15' : 'border-black/10'}
                     `}
                     style={{
-                        backgroundImage: 'linear-gradient(95deg, var(--showdown-blue), color-mix(in srgb, var(--showdown-blue) 60%, var(--showdown-red) 40%), var(--showdown-red))',
+                        backgroundImage: 'linear-gradient(95deg, #1a2f6e, color-mix(in srgb, #1a2f6e 60%, #8b1a1a 40%), #8b1a1a)',
                     }}
-                    aria-label="Open the new WBC tab"
+                    aria-label="Open the live seasons tab"
                 >
                     <div className="flex items-center gap-3 md:gap-4 min-w-0">
-                        <img
-                            src="/images/card/edition-wbc.png"
-                            alt="WBC logo"
-                            className="h-9 md:h-10 w-auto shrink-0"
-                        />
                         <div className="min-w-0">
-                            <p className="text-[11px] md:text-xs font-semibold uppercase tracking-wide text-white/85">New</p>
-                            <p className="text-sm md:text-base font-bold text-white truncate">World Baseball Classic tab is live</p>
-                            <p className="text-xs md:text-sm text-white/90 truncate">Browse WBC standings, teams, and players</p>
+                            <p className="text-[11px] md:text-xs font-semibold uppercase tracking-wide text-white/85 flex items-center gap-1.5">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400"></span>
+                                </span>
+                                Live
+                            </p>
+                            <p className="text-sm md:text-base font-bold text-white truncate">2026 MLB Season is underway</p>
+                            <p className="text-xs md:text-sm text-white/90 truncate">Browse standings, schedules, teams, and players</p>
                         </div>
                     </div>
 
                     <span className="inline-flex items-center gap-2 text-xs md:text-sm font-semibold text-white shrink-0">
-                        Open WBC
+                        View Season
                         <FaChevronRight className="text-xs" />
                     </span>
                 </Link>

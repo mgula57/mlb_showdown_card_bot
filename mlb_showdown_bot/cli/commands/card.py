@@ -39,6 +39,7 @@ def card_main(
     glow_multiplier: float = typer.Option(1.0, "--glow_multiplier", "-gm", help="Glow/Shadow multiplier for card image"),
     
     # STATS PERIOD
+    stats: Optional[str] = typer.Option(None, "--stats", "-sts", help="Optionally pass stats as a JSON string. This will override any stats pulled from the MLB API or other datasource."),
     stats_period_type: str = typer.Option("REGULAR", "--stats_period_type", "-sp", help="Period to use for stats. Allowed options are REGULAR,DATES,POST,SPLIT"),
     start_date: Optional[str] = typer.Option(None, "--start_date", "-start", help="Optional Start Date for stats. Only available post-1900."),
     end_date: Optional[str] = typer.Option(None, "--end_date", "-end", help="Optional End Date for stats. Only available post-1900."),

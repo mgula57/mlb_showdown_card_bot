@@ -1719,6 +1719,10 @@ class ShowdownPlayerCard(BaseModel):
             bWAR = self.stats_for_card.get('bWAR', None)
             if bWAR:
                 accolades_rank_and_priority_tuples.append( (f"{bWAR} WAR", 58, default_stat_priority) )
+            # fWAR
+            fWAR = self.stats_for_card.get('fWAR', None)
+            if fWAR:
+                accolades_rank_and_priority_tuples.append( (f"{fWAR} fWAR", 59, default_stat_priority) )
 
         sorted_tuples = sorted(accolades_rank_and_priority_tuples, key=lambda t: (t[2],t[1]))
         sorted_accolades = [tup[0] for tup in sorted_tuples]
@@ -1912,9 +1916,9 @@ class ShowdownPlayerCard(BaseModel):
             stats['strikeouts_per_nine'] = round(k_per_9, 2)
 
         # CLEAN SLASHLINE
-        ba = float(stats['batting_avg']) if len(str(stats['batting_avg'])) > 0 else 1.0
-        obp = float(stats['onbase_perc']) if len(str(stats['onbase_perc'])) > 0 else 1.0
-        slg = float(stats['slugging_perc']) if len(str(stats['slugging_perc'])) > 0 else 1.0
+        ba = float(stats.get('batting_avg', 1.0)) if len(str(stats.get('batting_avg', ''))) > 0 else 1.0
+        obp = float(stats.get('onbase_perc', 1.0)) if len(str(stats.get('onbase_perc', ''))) > 0 else 1.0
+        slg = float(stats.get('slugging_perc', 1.0)) if len(str(stats.get('slugging_perc', ''))) > 0 else 1.0
         ops = round(obp + slg, 4)
         if_fb = stats.get('IF/FB', replacement_ratio('IF/FB', slg)) or replacement_ratio('IF/FB', slg)
         go_ao = stats.get('GO/AO', replacement_ratio('GO/AO', slg)) or replacement_ratio('GO/AO', slg)
@@ -2063,7 +2067,7 @@ class ShowdownPlayerCard(BaseModel):
 
                 # STATS DISABLED FOR SPLIT/DATE/POSTSEASON
                 is_reg_season = self.stats_period.type == StatsPeriodType.REGULAR_SEASON
-                if not is_reg_season and key in ['onbase_plus_slugging_plus', 'bWAR', 'dWAR', ]:
+                if not is_reg_season and key in ['onbase_plus_slugging_plus', 'bWAR', 'dWAR', 'fWAR']:
                     continue
 
                 # IGNORE dWAR IF OTHER DEFENSIVE METRIC WAS SHOWN
@@ -2209,7 +2213,7 @@ class ShowdownPlayerCard(BaseModel):
                     return f"{value:.2f}"
                 case 'onbase_plus_slugging_plus':
                     return f"{value:.0f}"
-                case 'dWAR' | 'bWAR' | 'strikeouts_per_nine':
+                case 'dWAR' | 'bWAR' | 'fWAR' | 'strikeouts_per_nine':
                     return f"{float(value):.1f}"
                 case _: return str(round(value)) if value is not None else 0
         except:
@@ -2512,6 +2516,7 @@ class ShowdownPlayerCard(BaseModel):
             'SLG': 'slugging_perc',
             'OPS': 'onbase_plus_slugging',
             'OPS+': 'onbase_plus_slugging_plus',
+            'wRC+': 'wRcPlus',
             'PA': 'PA',
             'AB': 'AB',
             'H': 'H',
@@ -2547,8 +2552,11 @@ class ShowdownPlayerCard(BaseModel):
             numeric_values = []
             for key in stat_categories_dict.values():
                 
-                stat_raw = source_dict.get(key, 0) or 0
-                stat_str = self._stat_formatted(category=key, value=stat_raw)
+                stat_raw = source_dict.get(key, None) 
+                if stat_raw is None:
+                    stat_str = '-'
+                else:
+                    stat_str = self._stat_formatted(category=key, value=stat_raw)
                 values.append(stat_str)
                 numeric_values.append(stat_raw)
             final_dict[source] = values
@@ -2597,18 +2605,21 @@ class ShowdownPlayerCard(BaseModel):
         final_player_data: list[RealVsProjectedStat] = []
 
         # SLASH LINE
-        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS'), ('onbase_plus_slugging_plus', 'OPS+')]
+        slash_categories = [('batting_avg', 'BA'),('onbase_perc', 'OBP'),('slugging_perc', 'SLG'),('onbase_plus_slugging', 'OPS'), ('onbase_plus_slugging_plus', 'OPS+'), ('wRcPlus', 'wRC+')]
         for key, cleaned_category in slash_categories:
-            if self.is_pitcher and cleaned_category == 'OPS+':
+            if self.is_pitcher and cleaned_category in ['OPS+', 'wRC+']:
                 continue
             precision = None if cleaned_category == 'OPS+' else 3
-            actual = round(float(self.stats_for_card.get(key, 0)), precision) if precision else int(self.stats_for_card.get(key, 0)) 
-            in_game = 0 if self.projected.get(key, 0) is None else ( round(float(self.projected.get(key, 0)), precision) if precision else int(self.projected.get(key, 0)) )
+            actual_raw = self.stats_for_card.get(key, None)
+            actual = round(float(actual_raw), precision) if actual_raw is not None and precision else int(actual_raw) if actual_raw is not None else None
+            in_game = None if self.projected.get(key, None) is None else ( round(float(self.projected.get(key, 0)), precision) if precision else int(self.projected.get(key, 0)) )
+            if actual is None and in_game is None:
+                continue
             table_row = RealVsProjectedStat(
                 stat=cleaned_category,
                 real=actual,
                 projected=in_game,
-                diff=round(in_game - actual, precision),
+                diff=round(in_game - actual, precision) if in_game is not None and actual is not None else None,
                 precision=precision,
                 is_real_estimated=self.is_stats_estimate
             )
@@ -2643,7 +2654,7 @@ class ShowdownPlayerCard(BaseModel):
             )
         
         # NON COMPARABLE STATS
-        category_dict = {'ERA': 'earned_run_avg', 'WHIP': 'whip', 'bWAR': 'bWAR'} if self.is_pitcher else {'SB': 'SB', 'dWAR': 'dWAR', 'bWAR': 'bWAR'}
+        category_dict = {'ERA': 'earned_run_avg', 'WHIP': 'whip', 'bWAR': 'bWAR', 'fWAR': 'fWAR'} if self.is_pitcher else {'SB': 'SB', 'dWAR': 'dWAR', 'bWAR': 'bWAR', 'fWAR': 'fWAR'}
         rounded_metrics_list = ['SB']
         for alias, key in category_dict.items():
             if key not in self.stats_for_card.keys():
@@ -5479,8 +5490,6 @@ class ShowdownPlayerCard(BaseModel):
                 component_player_file_matches_dict[component] = current_files_for_component
 
         # CHECK THAT THERE ARE MATCHES IN EACH COMPONENT
-        print(f"Matches found for {self.name} ({self.year}):")
-        print(component_player_file_matches_dict)
         num_matches_per_component = [len(matches) for _, matches in component_player_file_matches_dict.items()]
         if len(num_matches_per_component) == 0:
             return components_dict

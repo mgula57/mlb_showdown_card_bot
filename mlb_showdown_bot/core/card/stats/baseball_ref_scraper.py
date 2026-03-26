@@ -451,7 +451,7 @@ class BaseballReferenceScraper(BaseModel):
             rows_for_year = soup_for_advanced_stats.find_all('tr',attrs={'id': f'players_standard_{table_prefix}.{year}'})
             if len(rows_for_year) == 0:
                 type = None
-                break
+                continue
 
             for row in rows_for_year:
                 # Check for 'Did not play' text or space in tr classes
@@ -569,6 +569,10 @@ class BaseballReferenceScraper(BaseModel):
             # COMBINE INDIVIDUAL YEAR DATA
             stats_dict.update(self.__combine_multi_year_dict(yearly_stats_dict=master_stats_dict, years=years_for_loop))
             stats_dict['team_ID'] = self.__team_w_most_games_played(type, soup_for_homepage_stats, years_filter_list=years_for_loop)
+
+            # FILL IN WITH OVERALL TYPE
+            if stats_dict.get('type', None) is None:
+                stats_dict['type'] = overall_type
         
         # PARSE ACCOLADES IN TOTAL
         stats_dict['accolades'] = self.__accolades_dict(soup_for_homepage_stats=soup_for_homepage_stats, years_included=years_for_loop)

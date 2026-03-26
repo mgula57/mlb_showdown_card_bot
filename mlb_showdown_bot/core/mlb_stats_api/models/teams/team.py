@@ -37,9 +37,9 @@ class TeamWithColors(Team):
     def load_colors_from_showdown_team(self):
         """Helper method to load primary and secondary colors from a ShowdownTeam object"""
         # Match the team ID to the corresponding ShowdownTeam and load colors
-        showdown_team_match = next((st for st in ShowdownTeam if st.value == self.abbreviation), None)
+        showdown_team_match = ShowdownTeam.map_from_mlb_api_team(self.abbreviation)
     
-        if showdown_team_match:
+        if showdown_team_match and showdown_team_match != ShowdownTeam.MLB:
             self.primary_color = f"rgb({showdown_team_match.primary_color[0]}, {showdown_team_match.primary_color[1]}, {showdown_team_match.primary_color[2]})"
             self.secondary_color = f"rgb({showdown_team_match.secondary_color[0]}, {showdown_team_match.secondary_color[1]}, {showdown_team_match.secondary_color[2]})"
 

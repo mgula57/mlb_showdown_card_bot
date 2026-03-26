@@ -129,12 +129,12 @@ def schedule(
     sport_id: int = typer.Option(1, "--sport_id", "-sp", help="MLB sport ID. Default is 1 (Major League Baseball)."),
     season: int = typer.Option(None, "--season", "-s", help="Season year to filter schedule by."),
     date: str = typer.Option(None, "--date", "-d", help="Specific date to filter schedule by (YYYY-MM-DD)."),
-    league_id: int = typer.Option(None, "--league_id", "-l", help="League ID to filter schedule by."),
+    league_ids: str = typer.Option(None, "--league_ids", "-l", help="Comma-separated list of League IDs to filter schedule by."),
 ):
     """Fetch game schedule from MLB Stats API"""
 
-    schedule = _mlb_api_no_cache.games.get_schedule(sport_id=sport_id, season=season, date=date, league_id=league_id)
-    print(f"Schedule for season {season}, date {date}, league ID {league_id}:")
+    league_id_list = [int(league_id.strip()) for league_id in league_ids.split(',')] if league_ids else None
+    schedule = _mlb_api_no_cache.games.get_schedule(sport_id=sport_id, season=season, date=date, league_ids=league_id_list)
     table = PrettyTable()
     table.field_names = ["Game PK", "Date", "Home Team", "Away Team", "Venue"]
     if schedule.dates:

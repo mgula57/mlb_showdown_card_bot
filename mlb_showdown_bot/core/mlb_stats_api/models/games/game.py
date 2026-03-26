@@ -4,7 +4,7 @@ from typing import Optional
 from .enums import GameType
 from .game_linescore import GameLinescore
 
-from ..teams.team import Team
+from ..teams.team import TeamWithColors
 from ....database.classes import ShowdownBotCardCompact
 
 
@@ -39,7 +39,7 @@ class GameProbablePitcher(BaseModel):
 class GameTeamLine(BaseModel):
     """Away/home game team information."""
 
-    team: Optional[Team] = None
+    team: Optional[TeamWithColors] = None
     league_record: Optional[LeagueRecord] = Field(None, alias='leagueRecord')
     score: Optional[int] = None
     is_winner: Optional[bool] = Field(None, alias='isWinner')

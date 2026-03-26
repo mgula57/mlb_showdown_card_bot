@@ -127,8 +127,8 @@ export const sideMenuItems: SideMenuItemType[] = [
         path: "/cards"
     },
     {
-        text: "WBC",
-        icon: FaGlobeAmericas,
-        path: "/wbc"
-    },
+        text: "Seasons",
+        icon: FaCalendar,      // Calendar icon representing seasons/schedules
+        path: "/seasons"
+    }
 ];
