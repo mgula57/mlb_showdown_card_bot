@@ -663,7 +663,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             if (finalPayload.year) {
                 const yearNums = (finalPayload.year as string).match(/\d+/g)?.map(Number) ?? [];
                 const maxYear = yearNums.length > 0 ? Math.max(...yearNums) : 0;
-                if (maxYear >= 2025) {
+                if (maxYear >= 2026) {
                     finalPayload.datasource = 'MLB_API';
                 } else {
                     finalPayload.datasource = 'BREF';
