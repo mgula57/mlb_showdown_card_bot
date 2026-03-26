@@ -51,6 +51,8 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.ERA,
                         StatHighlightsCategory.FIP,
                         StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.fWAR,
+                        StatHighlightsCategory.fWAR,
                         StatHighlightsCategory.K_9,
                     ]
                     case StatHighlightsType.ALL: categories += [
@@ -60,6 +62,7 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.SV,
                         StatHighlightsCategory.K_9,
                         StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.fWAR,
                         StatHighlightsCategory.W,
                         StatHighlightsCategory.FIP,
                     ]
@@ -79,6 +82,7 @@ class PlayerSubType(Enum):
                     case StatHighlightsType.MODERN: return [
                         StatHighlightsCategory.G,
                         StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.fWAR,
                         StatHighlightsCategory.OPS_PLUS,
                         StatHighlightsCategory.DEFENSE,
                         StatHighlightsCategory.dWAR,
@@ -95,6 +99,7 @@ class PlayerSubType(Enum):
                         StatHighlightsCategory.OPS_PLUS,
                         StatHighlightsCategory.DEFENSE,
                         StatHighlightsCategory.bWAR,
+                        StatHighlightsCategory.fWAR,
                         StatHighlightsCategory.dWAR,
                         StatHighlightsCategory.HR,
                         StatHighlightsCategory.SB,

@@ -102,8 +102,6 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
     const { isDark } = useTheme();
     const { userShowdownSet } = useSiteSettings();
 
-    console.log("CardDetail: Rendered with internalCardId =", internalCardId, "and cardId prop =", cardId);
-
     /**
      * Sync internal state with prop changes
      * Ensures component reflects updates from parent while maintaining ability

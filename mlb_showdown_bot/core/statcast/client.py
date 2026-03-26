@@ -1,8 +1,10 @@
 import io
 import csv
+import cloudscraper
 import requests
 from typing import Any, Dict, List
-
+import re
+import json
 from ..card.stats.stats_period import StatsPeriod
 from .models import StatcastLeaderboardEntry
 
@@ -40,6 +42,32 @@ class StatcastAPIClient:
         except requests.RequestException as e:
             raise Exception(f"API request failed: {e}")
     
+    def html_for_url(self, url:str) -> str:
+        """Make request for URL to get HTML
+
+        Args:
+          url: URL for the request.
+
+        Raises:
+          TimeoutError: 502 - BAD GATEWAY
+          TimeoutError: 429 - TOO MANY REQUESTS TO BASEBALL REFERENCE
+
+        Returns:
+          HTML string for URL request.
+        """
+
+        scraper = cloudscraper.create_scraper()
+        html = scraper.get(url)
+
+        if html.status_code == 502:
+            self.error = "502 - BAD GATEWAY"
+            raise TimeoutError(self.error)
+        if html.status_code == 429:
+            website = url.split('//')[1].split('/')[0]
+            self.error = f"429 - TOO MANY REQUESTS TO {website}. PLEASE TRY AGAIN IN A FEW MINUTES."
+            raise TimeoutError(self.error)
+
+        return html.text
     
     # -------------------
     # SPRINT SPEED 
@@ -88,3 +116,52 @@ class StatcastAPIClient:
         
         print(f"Sprint speed data for player {player_id} not found")
         return None
+    
+
+    # -------------------
+    # FIELDING
+    # -------------------
+    def fetch_defense_for_player(self, stats_period: StatsPeriod, mlb_player_id: int) -> Dict:
+        """Fetch fielding stats for a specific player from Statcast
+        
+        Args:
+            stats_period: StatsPeriod object defining the time frame.
+            mlb_player_id: MLB player ID.
+        
+        Returns:
+            Fielding stats dictionary for the player
+        """
+
+        # DATA ONLY AVAILABLE 2016+
+        if stats_period.last_year < 2016:
+            return {}
+        
+        player_detail_url = f'https://baseballsavant.mlb.com/savant-player/{mlb_player_id}?stats=statcast-r-fielding-mlb'
+        player_detail_html = self.html_for_url(url=player_detail_url)
+        fielding_data_extracted = re.search('infieldDefense: (.*),',player_detail_html)
+        if fielding_data_extracted:
+            fielding_data_grouped = fielding_data_extracted.group(1)
+            fielding_data_jsons = json.loads(fielding_data_grouped)
+            fielding_data = {}
+            for fielding_row in fielding_data_jsons:
+                team_abbr = fielding_row['fld_abbreviation']
+                is_year_match = int(fielding_row['year']) in stats_period.year_list
+                is_team_row = stats_period.team_override.value == team_abbr if stats_period.team_override else team_abbr != 'NA'
+                if is_year_match and is_team_row:
+                    position = fielding_row['pos_name_short']
+                    ooa = fielding_row['outs_above_average']
+                    if ooa:                              
+                        ooa_rounded = round(ooa, 3)
+                        if position in fielding_data.keys():
+                            # POSITION IS ALREADY IN JSON, ADD TO IT
+                            fielding_data[position] += ooa_rounded
+                        else:
+                            fielding_data[position] = ooa_rounded
+                        # IF OF POSITION, ADD TO TOTAL OF DEFENSE
+                        if position in ['LF','CF','RF']:
+                            if 'OF' in fielding_data.keys():
+                                # POSITION IS ALREADY IN JSON, ADD TO IT
+                                fielding_data['OF'] += ooa_rounded
+                            else:
+                                fielding_data['OF'] = ooa_rounded
+            return fielding_data

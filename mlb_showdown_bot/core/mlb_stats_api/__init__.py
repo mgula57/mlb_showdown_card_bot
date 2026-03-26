@@ -58,7 +58,7 @@ class MLBStatsAPI:
     def build_full_player_from_search(self, search_name: str, stats_period: StatsPeriod, league:str='MLB') -> Player:
 
         # Search for the player by name
-        player_search_results = self.people.search_players(name=search_name)
+        player_search_results = self.people.search_players(name=search_name, seasons=stats_period.year_list, active_status='both')
 
         # If no results found, return None
         if not player_search_results or len(player_search_results) == 0:
@@ -70,7 +70,8 @@ class MLBStatsAPI:
         match league.upper():
             case 'MILB':
                 league_list = LeagueListEnum.MILB_FULL
-        player = self.people.get_player(player_id=player_search_results[0].id, stats_period=stats_period, league_list=league_list)
+        
+        player = self.people.get_player(player_id=player_search_results[0].id, primary_position=player_search_results[0].primary_position.abbreviation, stats_period=stats_period, league_list=league_list)
 
         return player
     
@@ -81,7 +82,7 @@ class MLBStatsAPI:
 
     def fetch_wbc_players_by_year(self, seasons: list[int] = None) -> list[dict]:
         """Fetches all players who participated in the WBC for a given year"""
-        
+
         # Get the WBC league
         wbc_league = self.leagues.get_league(abbreviation="WBC", sport_id=SportEnum.INTERNATIONAL.value)
 
@@ -94,11 +95,20 @@ class MLBStatsAPI:
         wbc_seasons = [2006, 2009, 2013, 2017, 2023, 2026] + ( [] if current_year < 2029 else list(range(2029, current_year + 1, 3))) # Add future seasons every 3 years until current year
         if seasons:
             wbc_seasons = [season for season in wbc_seasons if season in seasons]
+
+        all_players = self.fetch_rosters_by_season(seasons=wbc_seasons, league_ids=[wbc_league.id])
+        return all_players
+
+    def fetch_rosters_by_season(self, seasons: list[int] = None, league_ids: list[int] = None) -> list[dict]:
+        """Fetches all players who participated in the WBC for a given year"""
+        
+        # Get the WBC league
+        
         all_players: list[dict] = []
 
         season_progress: dict[int, dict[str, int | str]] = {
             season: {"teams": 0, "players_added": 0, "status": "PENDING", "teams_source": "-"}
-            for season in wbc_seasons
+            for season in seasons
         }
         team_loading_rows: list[list] = []
         last_rendered_lines = 0
@@ -130,7 +140,7 @@ class MLBStatsAPI:
             season_summary_table = PrettyTable(field_names=["Season", "Teams", "Players Added", "Status", "Teams Source"])
             team_loading_table = PrettyTable(field_names=["Season", "Team", "Abbr", "Players Added", "Status", "Source"])
 
-            for season in wbc_seasons:
+            for season in seasons:
                 progress = season_progress[season]
                 season_summary_table.add_row([
                     season,
@@ -147,7 +157,7 @@ class MLBStatsAPI:
                 team_loading_table.add_row(row_copy)
 
             output = "\n".join([
-                "WBC Player Load Progress",
+                "Player Load Progress",
                 "",
                 str(season_summary_table),
                 str(team_loading_table),
@@ -161,14 +171,16 @@ class MLBStatsAPI:
 
         render_progress_tables()
 
-        for season in wbc_seasons:
+        for season in seasons:
             season_players_added = 0
             season_had_errors = False
 
             # Get Rosters for each season
             try:
-                wbc_teams: list[Team] = self.teams.get_teams(season=season, league_id=wbc_league.id)
-                season_progress[season]["teams"] = len(wbc_teams)
+                teams: list[Team] = []
+                for league_id in league_ids or []:
+                    teams.extend(self.teams.get_teams(season=season, league_id=league_id))
+                season_progress[season]["teams"] = len(teams)
                 season_progress[season]["status"] = "LOADING"
                 season_progress[season]["teams_source"] = getattr(self.teams, "last_response_cache_layer", "UNKNOWN")
                 render_progress_tables()
@@ -179,7 +191,7 @@ class MLBStatsAPI:
                 render_progress_tables()
                 continue
 
-            for team in wbc_teams:
+            for team in teams:
                 last_source = None
                 try:
                     roster = self.teams.get_team_roster(team_id=team.id, season=season, roster_type=RosterTypeEnum.ACTIVE)

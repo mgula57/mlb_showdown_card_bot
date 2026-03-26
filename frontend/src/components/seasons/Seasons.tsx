@@ -29,6 +29,7 @@ import {
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
 import GameSchedule from "../games/GameSchedule";
 import GameDetail from "../games/GameDetail";
+import { getReadableTextColor } from "../../functions/colors";
 
 const formatScheduleDate = (date?: string): string => {
     if (!date) {
@@ -232,7 +233,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         { id: "standings", label: "Standings", icon: <FaRankingStar /> },
         { id: "teams", label: "Teams", icon: <FaClipboardList /> },
         { id: "players", label: "Players", icon: <FaUserGroup /> },
-        ...(selectedSeason && isMidSeason(selectedSeason) ? [{ id: "games", label: "Games", icon: <FaGamepad /> }] : [])
     ];
 
     // ************************
@@ -487,9 +487,11 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                 new Set(
                     resolvedLeagues
                         .map(league => getLeagueGroupForLeague(league))
-                        .filter((g): g is string => g !== null)
+                        .filter((g): g is string => g !== null && g !== "Spring Training")
+                        
                 )
             );
+            console.log("Unique league groups identified:", resolvedLeagueGroups);
             const resolvedLeagueGroup = resolvedLeagueGroups.length > 1
                 ? (() => {
                     const stored = getStoredValue(STORAGE_KEYS.leagueGroup);
@@ -509,7 +511,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
             if (leaguesToQuery.length === 0) return;
 
-            const leagueIdFilter = leaguesToQuery.length > 1 ? leaguesToQuery[0] : undefined;
             const selectedDate = formatDateForApi(gamesDate);
 
             // 4. Parallel: standings + todaysSchedule + gamesSchedule
@@ -523,11 +524,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                         console.error(`Standings fetch failed, will fall back to teams endpoint:`, error);
                         return {} as { [leagueAbbreviation: string]: Standings[] };
                     }),
-                fetchTodaysSchedule(resolvedSport.id, selectedSeason, leagueIdFilter, userShowdownSet)
+                fetchTodaysSchedule(resolvedSport.id, selectedSeason, leaguesToQuery, userShowdownSet)
                     .then(setTodaysSchedule)
                     .catch(() => setTodaysSchedule(null)),
-                fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leagueIdFilter, userShowdownSet)
-                    .then(setGamesSchedule)
+                fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
+                    .then(data => {
+                        setGamesSchedule(data);
+                        console.log(`Fetched games schedule for season ${selectedSeason.season_id} on date ${selectedDate}:`, data);
+                        return data;
+                    })
                     .catch(() => setGamesSchedule(null)),
             ]);
 
@@ -607,8 +612,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
         beginLoading();
         try {
-            const leagueIdFilter = leaguesToQuery.length > 1 ? leaguesToQuery[0] : undefined;
-            const scheduleData = await fetchTodaysSchedule(selectedSport?.id || 1, selectedSeason, leagueIdFilter, userShowdownSet);
+            const scheduleData = await fetchTodaysSchedule(selectedSport?.id || 1, selectedSeason, leaguesToQuery, userShowdownSet);
             console.log(`Fetched schedule for season ${selectedSeason.season_id}:`, scheduleData);
             setTodaysSchedule(scheduleData);
         } catch (error) {
@@ -637,9 +641,8 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
         beginLoading();
         try {
-            const leagueIdFilter = leaguesToQuery.length > 1 ? leaguesToQuery[0] : undefined;
             const selectedDate = formatDateForApi(gamesDate);
-            const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leagueIdFilter, userShowdownSet);
+            const scheduleData = await fetchSchedule(selectedSport?.id || 1, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet);
             setGamesSchedule(scheduleData);
         } catch (error) {
             console.error(`Error fetching games schedule for season ${selectedSeason.season_id}:`, error);
@@ -853,13 +856,15 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                             className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors ${
                                                                 isSelected
                                                                     ? "bg-(--background-quaternary) font-semibold"
-                                                                        : "text-(--text-primary) hover:bg-(--divider) hover:text-(--team-hover-color)"
+                                                                        : "text-(--text-primary) hover:bg-(--team-primary-color) hover:text-(--team-hover-text-color)"
                                                             }`}
                                                             style={{
-                                                                ["--team-hover-color" as string]: team.primary_color || "var(--text-primary)",
+                                                                ["--team-primary-color" as string]: team.primary_color || "var(--divider)",
+                                                                ["--team-hover-text-color" as string]: team.primary_color ? getReadableTextColor(team.primary_color, "#ffffff") : "var(--text-primary)",
                                                                 backgroundColor: isSelected ? team.primary_color || "var(--background-quaternary)" : "",
-                                                                color: isSelected ? "white" : undefined,
-                                                            
+                                                                color: isSelected
+                                                                    ? (team.primary_color ? getReadableTextColor(team.primary_color, "#ffffff") : "white")
+                                                                    : undefined,
                                                             }}
                                                         >
                                                             <div className="flex items-center justify-between gap-2">
@@ -1037,9 +1042,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         forceMount
                                     >
                                         <div className="space-y-2 pb-24">
-                                            <div className="font-black text-yellow-600 py-1">
-                                                NOTE: WBC Standings are currently stale on MLB's API. They should be fixing it soon, but in the meantime you can see a team's pool play record in the schedule.
-                                            </div>
                                             <StandingsTab
                                                 standingsEntries={standingsEntries}
                                                 selectedSportId={selectedSport?.id}
@@ -1109,6 +1111,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     dateLabel={gamesTabDateLabel}
                                                     description={gamesTabDescription}
                                                     sportId={selectedSport?.id}
+                                                    starredTeamIds={new Set(starredTeamKeys.map((key) => parseInt(key.split('-')[0], 10)))}
                                                     onGameSelect={(gamePk) => setSelectedGamePk(gamePk)}
                                                 />
                                             </div>
@@ -1137,7 +1140,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                         value="players"
                                         className="focus:outline-none data-[state=inactive]:hidden"
                                     >
-                                        {hasLoadedTeams && (
+                                        {/* {hasLoadedTeams && (
                                             <ShowdownCardSearch
                                                 source="WBC"
                                                 verticalOffset="12"
@@ -1147,7 +1150,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                 }}
                                                 disableLocalStorage={true}
                                             />
-                                        )}
+                                        )} */}
+                                        <div className="flex justify-center p-24 text-2xl">
+                                            <span className="p-12 rounded-lg bg-secondary">Coming soon - once 2026 stats mature!</span>
+                                        </div>
                                     </Tabs.Content>
 
                                 </div>

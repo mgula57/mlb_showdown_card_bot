@@ -11,6 +11,11 @@ class SportEnum(int, Enum):
     MLB = 1
     INTERNATIONAL = 51
 
+class LeagueEnum(int, Enum):
+    AL = 103
+    NL = 104
+    WBC = 160
+
 class LeagueListEnum(str, Enum):
     MILB_FULL = "milb_full"
     MILB_SHORT = "milb_short"

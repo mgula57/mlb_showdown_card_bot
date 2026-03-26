@@ -237,6 +237,7 @@ export async function fetchCardsByMlbIds(
     season: number,
     showdownSet: string,
     isWbc: boolean,
+    overrides?: Record<number, Record<string, unknown>>, // Optional overrides for specific mlb_ids
 ): Promise<Record<number, CardDatabaseRecord>> {
     if (mlbIds.length === 0) return {};
 
@@ -248,6 +249,7 @@ export async function fetchCardsByMlbIds(
             season,
             showdown_set: showdownSet,
             is_wbc: isWbc,
+            overrides: overrides ?? undefined,
         }),
     });
 

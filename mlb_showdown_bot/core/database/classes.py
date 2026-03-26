@@ -4,7 +4,7 @@ from typing import Optional
 from unidecode import unidecode
 
 from ..card.sets import Set
-from ..card.showdown_player_card import ShowdownPlayerCard, PlayerType, WBCTeam
+from ..card.showdown_player_card import ShowdownPlayerCard, PlayerType, WBCTeam, Team
 from ..fangraphs.models import LeaderboardStats
 
 # -------------------------------
@@ -27,6 +27,14 @@ class ShowdownBotCardCompact(BaseModel):
     team: Optional[str] = None
     position_and_defense: Optional[str] = None
     ip: Optional[int] = None
+
+    def update_with_mlb_api_team(self, mlb_api_team_name: str):
+        """Helper method to update the team name and colors for this card based on the MLB API team name, which can help ensure consistency in team naming and coloring across different data sources"""
+        team_enum = Team.map_from_mlb_api_team(mlb_api_team_name)
+        if team_enum != Team.MLB:
+            self.team = team_enum.value
+            self.color_primary = f'rgb({team_enum.primary_color[0]}, {team_enum.primary_color[1]}, {team_enum.primary_color[2]})'
+            self.color_secondary = f'rgb({team_enum.secondary_color[0]}, {team_enum.secondary_color[1]}, {team_enum.secondary_color[2]})'
     
 
 class WbcShowdownCardRecord(BaseModel):

@@ -6,17 +6,25 @@ type GameScheduleProps = {
     dateLabel: string;
     description?: string;
     sportId?: number;
+    starredTeamIds?: Set<number>;
     onGameSelect?: (gamePk: number) => void;
 };
 
-export default function GameSchedule({ games, dateLabel, description, sportId, onGameSelect }: GameScheduleProps) {
+export default function GameSchedule({ games, dateLabel, description, sportId, starredTeamIds, onGameSelect }: GameScheduleProps) {
     if (!games.length) {
         return null;
     }
 
-    // Sort games, putting live games first, then games that havent started, and lastly completed games
+    // Sort: starred-team games first, then by game state (live → upcoming → final)
+    const statusOrder: Record<string, number> = { "Live": 0, "Scheduled": 1, "Final": 2 };
     const sortedGames = [...games].sort((a, b) => {
-        const statusOrder: Record<string, number> = { "Live": 0, "Scheduled": 1, "Final": 2 };
+        const aStarred = starredTeamIds
+            ? (starredTeamIds.has(a.teams?.away?.team?.id ?? -1) || starredTeamIds.has(a.teams?.home?.team?.id ?? -1))
+            : false;
+        const bStarred = starredTeamIds
+            ? (starredTeamIds.has(b.teams?.away?.team?.id ?? -1) || starredTeamIds.has(b.teams?.home?.team?.id ?? -1))
+            : false;
+        if (aStarred !== bStarred) return aStarred ? -1 : 1;
         return (statusOrder[a.status?.abstract_game_state || ""] ?? 3) - (statusOrder[b.status?.abstract_game_state || ""] ?? 3);
     });
 
@@ -37,6 +45,11 @@ export default function GameSchedule({ games, dateLabel, description, sportId, o
                             game={game}
                             sportId={sportId}
                             onSelect={onGameSelect}
+                            isStarred={
+                                starredTeamIds
+                                    ? (starredTeamIds.has(game.teams?.away?.team?.id ?? -1) || starredTeamIds.has(game.teams?.home?.team?.id ?? -1))
+                                    : false
+                            }
                         />
                     );
                 })}

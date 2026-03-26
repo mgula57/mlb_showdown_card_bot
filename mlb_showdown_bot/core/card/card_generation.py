@@ -4,6 +4,7 @@ from prettytable import PrettyTable
 from datetime import datetime, timedelta
 import traceback
 import json
+import ast
 
 # INTERNAL
 from .showdown_player_card import ShowdownPlayerCard, ImageSource, ShowdownImage, PlayerType, Team, Edition
@@ -17,7 +18,7 @@ from ..database.postgres_db import PostgresDB, PlayerArchive
 # STATS
 from .stats.mlb_stats_api import MLBStatsAPI
 from ..mlb_stats_api import MLBStatsAPI as MLBStatsAPI_V2
-from ..fangraphs.client import FangraphsAPIClient
+from ..fangraphs.client import FangraphsAPIClient, FieldingStats
 from ..statcast.client import StatcastAPIClient
 from .stats.normalized_player_stats import PlayerStatsNormalizer, NormalizedPlayerStats, Datasource, PositionStats
 
@@ -68,7 +69,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
     """
 
     # SETUP KNOWN PARAMETERS
-    stats: dict[str, Any] = {}
+    stats: dict[str, Any] = kwargs.get('stats', None)
     card: ShowdownPlayerCard = None
     additional_logs: dict[str, Any] = {}
     final_card_payload: dict[str, Any] = {}
@@ -114,9 +115,27 @@ def generate_card(**kwargs) -> dict[str, Any]:
             raise Exception("Year is a required input.")
         
         # PREPARE STATS
+        expected_source = Datasource(kwargs.get('datasource', 'BREF'))
+        if expected_source == Datasource.MANUAL:
+            if not stats:
+                raise Exception("Stats must be provided when datasource is MANUAL.")
+            
+            try:
+                try:
+                    stats = json.loads(stats)
+                except json.JSONDecodeError:
+                    # Fall back to ast.literal_eval to support Python dict syntax (single quotes)
+                    stats = ast.literal_eval(stats)
+                kwargs.pop('stats') # Remove stats from kwargs since it's not needed beyond this point and can cause issues with ShowdownPlayerCard initialization
+            except Exception as e:
+                stats = {}
+                raise Exception(f"Failed to parse stats JSON: {str(e)}")
+        else:
+            if stats is None and 'stats' in kwargs:
+                kwargs.pop('stats')
+        
         stats_period_type = kwargs.get('stats_period_type', 'REGULAR')
         stats_period = StatsPeriod(type=stats_period_type, **kwargs)
-        stats: dict[str: any] = None
 
         # CHECK FOR YEAR IN THE FUTURE AND WBC
         edition_raw = kwargs.get('edition', None)
@@ -146,8 +165,9 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
             return final_card_payload # STOP PROCESSING
 
-        expected_source = Datasource(kwargs.get('datasource', 'BREF'))
+        
         scraper_load_time = None
+
         match expected_source:
             case Datasource.MLB_API:
                 start_time = datetime.now()
@@ -161,17 +181,42 @@ def generate_card(**kwargs) -> dict[str, Any]:
 
                 # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS
                 # GRAB FROM FANGRAPHS IF AVAILABLE
-                if player_data.fangraphs_id:
-                    fangraphs_api = FangraphsAPIClient()
-                    fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
-                        stat_type="fld",
-                        stats_period=stats_period,
-                        position="all",
-                        fangraphs_player_ids=[str(player_data.fangraphs_id)],
-                    )
-                    # INJECT INTO NORMALIZED STATS
-                    position_stats = [PositionStats.from_fangraphs_fielding_stats(pos_stats) for pos_stats in fielding_stats_list]
-                    normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+                has_pulled_fangraphs_defense = False
+                defense_empty_warning = "Failed to fetch defensive stats. Using league avg for defense instead."
+                if player_data.fangraphs_id and normalized_player_stats.type == PlayerType.HITTER:
+                    try:
+                        fangraphs_api = FangraphsAPIClient()
+                        fielding_stats_list = fangraphs_api.fetch_leaderboard_stats(
+                            stat_type="fld",
+                            stats_period=stats_period,
+                            position="all",
+                            fangraphs_player_ids=[str(player_data.fangraphs_id)],
+                        )
+                        # INJECT INTO NORMALIZED STATS
+                        position_stats = [PositionStats.from_fangraphs_fielding_stats(FieldingStats(**pos_stats)) for pos_stats in fielding_stats_list]
+                        normalized_player_stats.inject_defensive_stats_list(position_stats_list=position_stats, source=Datasource.FANGRAPHS)
+                        has_pulled_fangraphs_defense = True
+                    except Exception as e:
+                        if normalized_player_stats.warnings is None:
+                            normalized_player_stats.warnings = []
+                        if player_data.positions and len(player_data.positions) > 0 \
+                            and list(player_data.positions.keys()) != ['DH']: # IF THE PLAYER HAS NO POSITIONS OR IS A DH, WE DON'T NEED TO WARN ABOUT MISSING DEFENSE
+                            
+                            normalized_player_stats.warnings.append(defense_empty_warning)
+
+                # IF FANGRAPHS FAILS, USE STATCAST DEFENSE IF AVAILABLE
+                if not has_pulled_fangraphs_defense and normalized_player_stats.type == PlayerType.HITTER and stats_period.is_during_statcast_era:
+                    statcast_api_client = StatcastAPIClient()
+                    oaa_dict = statcast_api_client.fetch_defense_for_player(stats_period=stats_period, mlb_player_id=player_data.id)
+                    normalized_player_stats.inject_statcast_oaa(oaa_stats=oaa_dict)
+                    if len(oaa_dict) > 0 and normalized_player_stats.warnings and defense_empty_warning in normalized_player_stats.warnings:
+                        normalized_player_stats.warnings.remove(defense_empty_warning)
+                        
+                if not normalized_player_stats.bref_id and player_data.id:
+                    db = PostgresDB(is_archive=True)
+                    bref_id = db.fetch_bref_id_for_mlb_id(player_data.id)
+                    db.close_connection()
+                    normalized_player_stats.add_bref_id(bref_id)
 
                 if stats_period.is_during_statcast_era and normalized_player_stats.type == PlayerType.HITTER:
                     statcast_api_client = StatcastAPIClient()
@@ -225,6 +270,9 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 kwargs['player_type_override'] = baseball_reference_stats.player_type_override
                 kwargs['team_override'] = baseball_reference_stats.team_override
 
+            case Datasource.MANUAL:
+                """"""
+
         # -----------------------------------
         # HIT MLB API FOR REALTIME STATS
         # ONLY APPLIES WHEN
@@ -232,15 +280,17 @@ def generate_card(**kwargs) -> dict[str, Any]:
         # 2. REALTIME STATS ARE ENABLED
         # 3. STATS PERIOD IS REGULAR SEASON
         # -----------------------------------
-        name_from_stats = stats.get('name', kwargs.get('name', None))
-        team_abbreviation = stats.get('team_ID', None)
-        is_pitcher = stats.get('type', PlayerType.HITTER.value) == PlayerType.PITCHER.value
-        player_mlb_api_stats = MLBStatsAPI(
-                                name=name_from_stats, stats_period=stats_period, 
-                                team_abbreviation=team_abbreviation, is_pitcher=is_pitcher,
-                                is_disabled=kwargs.get('disable_realtime', False)
-                            )
-        player_mlb_api_stats.populate_all_player_data()
+        player_mlb_api_stats: MLBStatsAPI = None
+        if expected_source in [Datasource.BREF] and stats_period.is_this_year and not kwargs.get('disable_realtime', False) and stats_period.type == StatsPeriodType.REGULAR_SEASON:
+            name_from_stats = stats.get('name', kwargs.get('name', None))
+            team_abbreviation = stats.get('team_ID', None)
+            is_pitcher = stats.get('type', PlayerType.HITTER.value) == PlayerType.PITCHER.value
+            player_mlb_api_stats = MLBStatsAPI(
+                                    name=name_from_stats, stats_period=stats_period, 
+                                    team_abbreviation=team_abbreviation, is_pitcher=is_pitcher,
+                                    is_disabled=kwargs.get('disable_realtime', False)
+                                )
+            player_mlb_api_stats.populate_all_player_data()
 
         # IF WBC CARD, WE HAVE TO CHECK THE DB FOR WHAT TEAM THEY WERE ON:
         edition_str = kwargs.get('edition', None)
@@ -263,7 +313,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
         card = ShowdownPlayerCard(
             stats_period=stats_period, 
             stats=stats, 
-            realtime_game_logs=player_mlb_api_stats.game_logs, 
+            realtime_game_logs=player_mlb_api_stats.game_logs if player_mlb_api_stats else None, 
             image=image,
             warnings=stats.get('warnings', []),
             **kwargs
@@ -281,18 +331,18 @@ def generate_card(**kwargs) -> dict[str, Any]:
             in_season_trends_data = generate_in_season_trends_for_player(
                 actual_card=card, 
                 date_aggregation=in_season_trend_aggregation, 
-                latest_game_boxscore=player_mlb_api_stats.latest_game_boxscore,
+                latest_game_boxscore=player_mlb_api_stats.latest_game_boxscore if player_mlb_api_stats else None,
                 **kwargs
             )
             if in_season_trends_data:
                 additional_logs["in_season_trends"] = in_season_trends_data.as_json() 
                 # NEED DAY OVER DAY POINTS IN GAME BOXSCORE FOR DISPLAY PURPOSES
                 game_pts_change = in_season_trends_data.pts_change.get('day', None)
-                if player_mlb_api_stats.latest_game_boxscore and game_pts_change:
+                if player_mlb_api_stats and player_mlb_api_stats.latest_game_boxscore and game_pts_change:
                     player_mlb_api_stats.latest_game_boxscore["game_player_pts_change"] = game_pts_change
 
         # ADD LATEST GAME BOX SCORE
-        additional_logs["latest_game_box_score"] = player_mlb_api_stats.latest_game_boxscore
+        additional_logs["latest_game_box_score"] = player_mlb_api_stats.latest_game_boxscore if player_mlb_api_stats else None
 
         # THERE WERE NO ERRORS IF WE GOT HERE
         additional_logs['error'] = None
