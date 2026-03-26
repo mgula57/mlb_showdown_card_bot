@@ -389,9 +389,11 @@ type CardItemFromCardProps = {
     className?: string;
     /** Whether this card is currently selected */
     isSelected?: boolean;
+    /** Optionally hide the year */
+    hideYear?: boolean;
 };
 
-export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardItemFromCardProps) => {
+export const CardItemFromCard = ({ card, onClick, className, isSelected, hideYear }: CardItemFromCardProps) => {
 
     const primaryColor = (['NYM', 'SDP'].includes(card?.wbc_team || card?.team || '') 
                             ? card?.image.color_secondary 
@@ -405,7 +407,7 @@ export const CardItemFromCard = ({ card, onClick, className, isSelected }: CardI
             cardTeam={card?.wbc_team || card?.team}
             cardLeague={card?.league || undefined}
             cardName={card?.name}
-            cardYear={card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period.year)}
+            cardYear={hideYear ? undefined : (card?.wbc_year && card.wbc_year !== undefined ? String(card?.wbc_year) : String(card?.stats_period.year))}
             cardStatsPeriod={card?.stats_period}
             cardCommand={card?.chart.command}
             cardOuts={card?.chart.outs}
