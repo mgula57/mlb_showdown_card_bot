@@ -36,6 +36,12 @@ app.register_blueprint(feature_status_bp, url_prefix='/api')
 app.register_blueprint(seasons_bp, url_prefix='/api')
 app.register_blueprint(schedule_bp, url_prefix='/api')
 
+# Warm up DB connection pools at startup so the first request doesn't
+# pay the TCP + SSL handshake cost.
+from mlb_showdown_bot.core.database.postgres_db import _get_pool
+_get_pool('DATABASE_URL_LOGS')
+_get_pool('DATABASE_URL_ARCHIVE')
+
 @app.route('/static/output/<path:filename>')
 def serve_output_files(filename):
     """Serve generated card images"""
