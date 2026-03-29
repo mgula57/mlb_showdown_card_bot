@@ -254,8 +254,10 @@ class NormalizedPlayerStats(BaseModel):
         """Returns a dictionary representation of the model, including aliases"""
         return self.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
 
-    def add_bref_id(self, bref_id: str) -> None:
+    def add_bref_id(self, bref_id: Optional[str]) -> None:
         """Adds a Baseball Reference ID to the model"""
+        if not bref_id:
+            return
         self.bref_id = bref_id
         self.bref_url = f"https://www.baseball-reference.com/players/{bref_id[0]}/{bref_id}.shtml"
 
