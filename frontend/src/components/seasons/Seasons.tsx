@@ -23,7 +23,7 @@ import StandingsTab from "./Standings";
 import {
     FaRankingStar, FaClipboardList, FaUserGroup, FaGamepad, FaEarthAmericas, FaCalendarDays,
     FaChevronDown, FaBaseball, FaChevronRight, FaChevronLeft,
-    FaStar, FaRegStar
+    FaStar, FaRegStar, FaArrowsRotate
 } from "react-icons/fa6";
 
 import ShowdownCardSearch from "../cards/ShowdownCardSearch";
@@ -956,15 +956,27 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             sections={sidebarSections}
                                             className="p-2 lg:p-6 lg:sticky lg:top-0 lg:self-start lg:h-full lg:min-h-0 lg:overflow-y-auto"
                                             headerAction={(
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsSidebarCollapsed(true)}
-                                                    className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
-                                                    aria-label="Collapse sidebar panel"
-                                                    title="Collapse sidebar panel"
-                                                >
-                                                    <FaChevronLeft className="h-3.5 w-3.5" />
-                                                </button>
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => loadAll()}
+                                                        disabled={isLoading}
+                                                        className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        aria-label="Refresh data"
+                                                        title="Refresh data"
+                                                    >
+                                                        <FaArrowsRotate className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsSidebarCollapsed(true)}
+                                                        className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer"
+                                                        aria-label="Collapse sidebar panel"
+                                                        title="Collapse sidebar panel"
+                                                    >
+                                                        <FaChevronLeft className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
                                             )}
                                         />
                                     )}
@@ -974,10 +986,21 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                     <div className="lg:hidden mb-4 rounded-2xl space-y-4">
                                         <div className="space-y-2">
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
-                                                <div className="flex items-center font-bold text-2xl">
-                                                    <FaEarthAmericas className="inline-block mr-2" />
-                                                    {title}
-                                                    <span className="ml-2 text-xs font-semibold bg-red-500 rounded-md px-2">BETA</span>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center font-bold text-2xl">
+                                                        <FaEarthAmericas className="inline-block mr-2" />
+                                                        {title}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => loadAll()}
+                                                        disabled={isLoading}
+                                                        className="p-2 rounded-full text-(--text-secondary) hover:bg-(--divider) cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        aria-label="Refresh data"
+                                                        title="Refresh data"
+                                                    >
+                                                        <FaArrowsRotate className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                                                    </button>
                                                 </div>
                                             )}
                                             {!(hasStaticSeasons && seasonOptions.length <= 1) && (

@@ -141,7 +141,7 @@ const AppContent = () => {
                 <div className={isActive('/seasons') ? 'block' : 'hidden'}>
                     <Seasons 
                         type="mlb" 
-                        title="MLB Seasons" 
+                        title="Seasons" 
                         subtitle="Browse season standings, teams, and players with Showdown context"
                         staticSports={[{ id: 1, name: 'MLB' }]}
                         staticSeasons={[
