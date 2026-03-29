@@ -573,6 +573,10 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
             return orderA - orderB;
         });
 
+    const totalPoints = hasCards
+        ? sortedBatters.reduce((sum, b) => sum + (cardMap[b.id]?.points ?? 0), 0)
+        : 0;
+
     return (
         <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
             <div className="px-3 py-2 border-b border-(--divider) flex items-center gap-2">
@@ -584,6 +588,9 @@ function BattingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscore
                     style={badgeBg ? { backgroundColor: badgeBg, color: badgeText } : undefined}
                 >{team.team.abbreviation}</span>
                 <span className="text-xs text-(--text-secondary) font-semibold">Batting</span>
+                {hasCards && totalPoints > 0 && (
+                    <span className="ml-auto text-xs font-bold text-(--text-secondary)">{totalPoints.toLocaleString()} PTS</span>
+                )}
             </div>
 
             <div className="overflow-x-auto">
@@ -688,6 +695,10 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscor
     const badgeBg = team.team.primary_color ?? undefined;
     const badgeText = badgeBg ? getReadableTextColor(badgeBg, '#ffffff') : undefined;
 
+    const totalPoints = hasCards
+        ? team.pitching.reduce((sum, p) => sum + (cardMap[p.id]?.points ?? 0), 0)
+        : 0;
+
     return (
         <div className="rounded-xl border border-(--divider) bg-(--background-secondary) overflow-hidden">
             <div className="px-3 py-2 border-b border-(--divider) flex items-center gap-2">
@@ -699,6 +710,9 @@ function PitchingTable({ team, sportId, cardMap, onCardSelect }: { team: Boxscor
                     style={badgeBg ? { backgroundColor: badgeBg, color: badgeText } : undefined}
                 >{team.team.abbreviation}</span>
                 <span className="text-xs text-(--text-secondary) font-semibold">Pitching</span>
+                {hasCards && totalPoints > 0 && (
+                    <span className="ml-auto text-xs font-bold text-(--text-secondary)">{totalPoints.toLocaleString()} PTS</span>
+                )}
             </div>
 
             <div className="overflow-x-auto">
