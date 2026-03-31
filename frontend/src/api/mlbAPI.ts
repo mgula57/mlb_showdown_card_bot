@@ -259,6 +259,9 @@ export interface GameTeamLine {
 
         card?: ShowdownBotCardCompact;
     }
+
+    batting?: BoxscoreBatter[];
+    pitching?: BoxscorePitcher[];
 }
 
 export interface GameTeams {

@@ -3,16 +3,90 @@ import { FaStar } from "react-icons/fa6";
 
 import { countryCodeForTeam } from "../../functions/flags";
 import { getReadableTextColor } from "../../functions/colors";
-import { type GameScheduled } from "../../api/mlbAPI";
+import { type GameScheduled, type GameBoxscoreDetail } from "../../api/mlbAPI";
 import { type ShowdownBotCardCompact } from "../../api/showdownBotCard";
 import { CardItemCompact } from "../cards/CardItemCompact";
 
 type GameItemProps = {
-    game: GameScheduled;
+    game: GameScheduled | GameBoxscoreDetail;
     sportId?: number;
     isStarred?: boolean;
+    showMatchupDetails?: boolean;
+    playerIdForLinescoreHighlight?: number;
     onSelect?: (gamePk: number) => void;
 };
+
+function isBoxscoreDetail(game: GameScheduled | GameBoxscoreDetail): game is GameBoxscoreDetail {
+    return 'datetime' in game && 'linescore' in game && (game as GameBoxscoreDetail).teams?.away?.batting !== undefined;
+}
+
+function normalizeGame(raw: GameScheduled | GameBoxscoreDetail): GameScheduled {
+    if (!isBoxscoreDetail(raw)) return raw;
+
+    const ls = raw.linescore;
+    const awayRuns = ls?.teams?.away?.runs;
+    const homeRuns = ls?.teams?.home?.runs;
+    const awayWins = awayRuns != null && homeRuns != null && awayRuns > homeRuns;
+    const homeWins = awayRuns != null && homeRuns != null && homeRuns > awayRuns;
+
+    const awayTeamInfo = raw.teams.away.team;
+    const homeTeamInfo = raw.teams.home.team;
+
+    return {
+        game_pk: raw.game_pk,
+        official_date: raw.datetime?.official_date,
+        game_date: raw.datetime?.date_time,
+        status: raw.status,
+        teams: {
+            away: {
+                team: awayTeamInfo,
+                score: awayRuns,
+                is_winner: awayWins,
+                league_record: awayTeamInfo.record
+                    ? { wins: (awayTeamInfo.record as { wins?: number }).wins, losses: (awayTeamInfo.record as { losses?: number }).losses }
+                    : undefined,
+                batting: raw.teams.away.batting,
+            },
+            home: {
+                team: homeTeamInfo,
+                score: homeRuns,
+                is_winner: homeWins,
+                league_record: homeTeamInfo.record
+                    ? { wins: (homeTeamInfo.record as { wins?: number }).wins, losses: (homeTeamInfo.record as { losses?: number }).losses }
+                    : undefined,
+                batting: raw.teams.home.batting,
+            },
+        },
+        linescore: {
+            current_inning: ls?.current_inning,
+            current_inning_ordinal: ls?.current_inning_ordinal,
+            inning_state: ls?.inning_state,
+            inning_half: ls?.inning_half,
+            is_top_inning: ls?.is_top_inning,
+            outs: ls?.outs,
+            balls: ls?.balls,
+            strikes: ls?.strikes,
+            offense: ls?.offense
+                ? {
+                    batter: ls.offense.batter_id != null ? { id: ls.offense.batter_id, full_name: ls.offense.batter } : undefined,
+                    first: ls.offense.first ? { full_name: ls.offense.first } : undefined,
+                    second: ls.offense.second ? { full_name: ls.offense.second } : undefined,
+                    third: ls.offense.third ? { full_name: ls.offense.third } : undefined,
+                }
+                : undefined,
+            defense: ls?.defense
+                ? { pitcher: ls.defense.pitcher_id != null ? { id: ls.defense.pitcher_id, full_name: ls.defense.pitcher } : undefined }
+                : undefined,
+        },
+        decisions: raw.decisions
+            ? {
+                winner: raw.decisions.winner ? { full_name: raw.decisions.winner.full_name } : undefined,
+                loser: raw.decisions.loser ? { full_name: raw.decisions.loser.full_name } : undefined,
+                save: raw.decisions.save ? { full_name: raw.decisions.save.full_name } : undefined,
+            }
+            : undefined,
+    };
+}
 
 const formatGameTime = (gameDate?: string): string => {
     if (!gameDate) {
@@ -30,7 +104,8 @@ const formatGameTime = (gameDate?: string): string => {
     }).format(parsedDate);
 };
 
-export default function GameItem({ game, sportId, isStarred, onSelect }: GameItemProps) {
+export default function GameItem({ game: rawGame, sportId, isStarred, showMatchupDetails, playerIdForLinescoreHighlight, onSelect }: GameItemProps) {
+    const game = normalizeGame(rawGame);
     const awayTeam = game.teams?.away?.team;
     const homeTeam = game.teams?.home?.team;
     const awayAbbr = awayTeam?.abbreviation || awayTeam?.name || "AWAY";
@@ -94,6 +169,16 @@ export default function GameItem({ game, sportId, isStarred, onSelect }: GameIte
         </div>
     );
 
+    const playerIdLinescoreMatch = playerIdForLinescoreHighlight ?
+        (game.teams?.away?.batting?.find(player => player.id === playerIdForLinescoreHighlight) || game.teams?.home?.batting?.find(player => player.id === playerIdForLinescoreHighlight))
+        || (game.teams?.away?.pitching?.find(player => player.id === playerIdForLinescoreHighlight) || game.teams?.home?.pitching?.find(player => player.id === playerIdForLinescoreHighlight))
+        : undefined;
+    const playerLinescoreSummary = playerIdLinescoreMatch ? (
+        <div className="mt-2 px-3 py-1 rounded border border-yellow-400/50 bg-yellow-400/5 text-yellow-400 text-xs font-bold">
+            {playerIdLinescoreMatch.name} {playerIdLinescoreMatch.stats.summary}
+        </div>
+    ) : null;
+
     const createPlaceholderCard = (
         idSuffix: string,
         name: string | undefined,
@@ -156,7 +241,7 @@ export default function GameItem({ game, sportId, isStarred, onSelect }: GameIte
     const stateBadgeClasses = isFinal
         ? 'border-green-500/40 bg-green-500/10 text-green-300'
         : isInProgress
-            ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300'
+            ? 'border-yellow-400/50 bg-yellow-400/5 text-yellow-400'
             : 'border-(--divider) bg-(--background-primary) text-(--text-secondary)';
 
     return (
@@ -167,11 +252,14 @@ export default function GameItem({ game, sportId, isStarred, onSelect }: GameIte
             tabIndex={onSelect ? 0 : undefined}
             onKeyDown={onSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(game.game_pk); } } : undefined}
         >
-            <div className="bg-(--background-primary) text-(--text-primary) rounded-md px-3 py-1 text-center text-sm font-bold flex items-center justify-center gap-1.5">
-                {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
-                <span>{(game.series_description || game.description || "Game")}
-                {game.series_game_number ? ` | Game ${game.series_game_number}` : ""}</span>
-            </div>
+            {(game.series_description || game.description) && (
+                <div className="bg-(--background-primary) text-(--text-primary) rounded-md px-3 py-1 text-center text-sm font-bold flex items-center justify-center gap-1.5">
+                    {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
+                    <span>{(game.series_description || game.description || "Game")}
+                    {game.series_game_number ? ` | Game ${game.series_game_number}` : ""}</span>
+                </div>
+                )
+            }
 
             <div className="py-2 flex items-center justify-between gap-2">
                 <div className="text-md font-extrabold text-(--text-primary)">
@@ -238,7 +326,7 @@ export default function GameItem({ game, sportId, isStarred, onSelect }: GameIte
 
             </div>
             
-            {isNotStarted && (
+            {isNotStarted && showMatchupDetails && (
                 <>
                     <div className="border-t border-(--divider) my-2" />
                     <div className="flex justify-between items-center">
@@ -256,7 +344,7 @@ export default function GameItem({ game, sportId, isStarred, onSelect }: GameIte
                 </>
             )}
 
-            {isInProgress && (
+            {isInProgress && showMatchupDetails && (
                 <>
                     <div className="border-t border-(--divider) my-2" />
                     <div className="flex justify-between items-center">
@@ -274,7 +362,7 @@ export default function GameItem({ game, sportId, isStarred, onSelect }: GameIte
                 </>
             )}
 
-            {isFinal && (
+            {isFinal && showMatchupDetails && (
                 <>
                     <div className="border-t border-(--divider) my-2" />
                     <div className="flex justify-between items-center">
@@ -289,6 +377,12 @@ export default function GameItem({ game, sportId, isStarred, onSelect }: GameIte
                         <CardItemCompact card={winningPitcherCard} />
                         <CardItemCompact card={losingPitcherCard} />
                     </div>
+                </>
+            )}
+
+            {playerLinescoreSummary && (
+                <>
+                    {playerLinescoreSummary}
                 </>
             )}
 
