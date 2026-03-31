@@ -174,8 +174,8 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
         || (game.teams?.away?.pitching?.find(player => player.id === playerIdForLinescoreHighlight) || game.teams?.home?.pitching?.find(player => player.id === playerIdForLinescoreHighlight))
         : undefined;
     const playerLinescoreSummary = playerIdLinescoreMatch ? (
-        <div className="mt-2 px-3 py-1 rounded border border-yellow-400/50 bg-yellow-400/5 text-yellow-400 text-xs font-bold">
-            {playerIdLinescoreMatch.name} {playerIdLinescoreMatch.stats.summary}
+        <div className="mt-2 px-3 py-1 rounded border border-yellow-400/50 bg-yellow-400/5 text-yellow-400 text-sm font-bold">
+            {playerIdLinescoreMatch.name}: {playerIdLinescoreMatch.stats.summary ?? '-'}
         </div>
     ) : null;
 

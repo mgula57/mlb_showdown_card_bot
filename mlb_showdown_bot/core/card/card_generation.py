@@ -280,17 +280,23 @@ def generate_card(**kwargs) -> dict[str, Any]:
         # 2. REALTIME STATS ARE ENABLED
         # 3. STATS PERIOD IS REGULAR SEASON
         # -----------------------------------
-        player_mlb_api_stats: MLBStatsAPI = None
-        if expected_source in [Datasource.BREF] and stats_period.is_this_year and not kwargs.get('disable_realtime', False) and stats_period.type == StatsPeriodType.REGULAR_SEASON:
-            name_from_stats = stats.get('name', kwargs.get('name', None))
-            team_abbreviation = stats.get('team_ID', None)
-            is_pitcher = stats.get('type', PlayerType.HITTER.value) == PlayerType.PITCHER.value
-            player_mlb_api_stats = MLBStatsAPI(
-                                    name=name_from_stats, stats_period=stats_period, 
-                                    team_abbreviation=team_abbreviation, is_pitcher=is_pitcher,
-                                    is_disabled=kwargs.get('disable_realtime', False)
-                                )
-            player_mlb_api_stats.populate_all_player_data()
+        game_boxscore: dict = None
+        existing_game_logs = stats.get('game_logs', None) or []
+        pull_latest_game_data = expected_source in [Datasource.MLB_API] \
+                                and stats_period.is_this_year \
+                                and not kwargs.get('disable_realtime', False) \
+                                and stats_period.check_for_realtime_stats \
+                                and len(existing_game_logs) > 0
+        if pull_latest_game_data:
+            try:
+                latest_game = existing_game_logs[-1]
+                game_date_str = latest_game.get('date', None)
+                game_pk = latest_game.get('game_pk', None)
+                if game_pk and game_date_str and datetime.strptime(game_date_str, "%Y-%m-%d").date() >= (datetime.now().date() - timedelta(days=1)):
+                    mlb_stats_api = MLBStatsAPI_V2()
+                    game_boxscore = mlb_stats_api.games.get_game_boxscore(game_pk)
+            except Exception as e:
+                print("Error loading game: ", e)
 
         # IF WBC CARD, WE HAVE TO CHECK THE DB FOR WHAT TEAM THEY WERE ON:
         edition_str = kwargs.get('edition', None)
@@ -313,7 +319,7 @@ def generate_card(**kwargs) -> dict[str, Any]:
         card = ShowdownPlayerCard(
             stats_period=stats_period, 
             stats=stats, 
-            realtime_game_logs=player_mlb_api_stats.game_logs if player_mlb_api_stats else None, 
+            realtime_game_logs=[game_boxscore] if game_boxscore else None, 
             image=image,
             warnings=stats.get('warnings', []),
             **kwargs
@@ -331,18 +337,18 @@ def generate_card(**kwargs) -> dict[str, Any]:
             in_season_trends_data = generate_in_season_trends_for_player(
                 actual_card=card, 
                 date_aggregation=in_season_trend_aggregation, 
-                latest_game_boxscore=player_mlb_api_stats.latest_game_boxscore if player_mlb_api_stats else None,
+                latest_game_boxscore=game_boxscore,
                 **kwargs
             )
             if in_season_trends_data:
                 additional_logs["in_season_trends"] = in_season_trends_data.as_json() 
                 # NEED DAY OVER DAY POINTS IN GAME BOXSCORE FOR DISPLAY PURPOSES
                 game_pts_change = in_season_trends_data.pts_change.get('day', None)
-                if player_mlb_api_stats and player_mlb_api_stats.latest_game_boxscore and game_pts_change:
-                    player_mlb_api_stats.latest_game_boxscore["game_player_pts_change"] = game_pts_change
+                if game_boxscore and game_pts_change:
+                    game_boxscore['game_player_pts_change'] = game_pts_change
 
         # ADD LATEST GAME BOX SCORE
-        additional_logs["latest_game_box_score"] = player_mlb_api_stats.latest_game_boxscore if player_mlb_api_stats else None
+        additional_logs["latest_game_box_score"] = game_boxscore
 
         # THERE WERE NO ERRORS IF WE GOT HERE
         additional_logs['error'] = None
@@ -532,7 +538,7 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     
     # DEFINE DATE RANGES
     date_ranges = StatsPeriodDateAggregation(date_aggregation.upper()).date_ranges(year=year, start_date=player_first_date, stop_date=player_last_date)
-    date_str_from_boxscore = latest_game_boxscore.get('date', None) if latest_game_boxscore else None
+    date_str_from_boxscore = latest_game_boxscore.get('datetime', {}).get('official_date', None) if latest_game_boxscore else None
     is_day_over_day_comparison = False
     if date_str_from_boxscore:
         # IF LATEST GAME DATE = THE PLAYER LAST DATE:
@@ -548,7 +554,7 @@ def generate_in_season_trends_for_player(actual_card: ShowdownPlayerCard, date_a
     for dr in date_ranges:
         start_date, end_date = dr
         end_date_str = end_date.strftime('%Y-%m-%d')
-        end_date_minimum = min(datetime(year=int(year), month=4, day=1), datetime.now()).date()
+        end_date_minimum = min(datetime(year=int(year), month=3, day=28), datetime.now()).date()
         if end_date < end_date_minimum: continue # SKIP EARLY SEASON
         try:
             weekly_card = ShowdownPlayerCard(
