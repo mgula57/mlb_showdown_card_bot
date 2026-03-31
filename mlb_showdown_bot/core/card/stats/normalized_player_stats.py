@@ -908,7 +908,7 @@ class PlayerStatsNormalizer:
 
         # ----- AWARDS ----- #
 
-        for award in mlb_player.awards:
+        for award in (mlb_player.awards or []):
 
             # ONLY INCLUDE RELEVANT AWARDS
             if not award.is_included_in_accolades:
