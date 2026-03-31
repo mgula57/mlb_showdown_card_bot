@@ -31,7 +31,7 @@ import { generateCardImage, fetchCardById } from '../../api/showdownBotCard';
 import ChartPlayerPointsTrend from './ChartPlayerPointsTrend';
 
 // Live game integration
-import { GameBoxscore } from '../games/GameBoxscore';
+import GameItem from '../games/GameItem';
 
 /**
  * Props for the CardDetail component
@@ -181,7 +181,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
         
         try {
             // Parse the date string without timezone conversion
-            const dateStr = activeCardData.latest_game_box_score.date;
+            const dateStr = activeCardData.latest_game_box_score.datetime.official_date || "1970-01-01";
             const [year, month, day] = dateStr.split('-').map(Number);
             
             // Create date object in local timezone (no conversion)
@@ -191,7 +191,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
 
             return gameDate >= oneDayAgo;
         } catch (error) {
-            console.error('Invalid date format:', activeCardData.latest_game_box_score.date);
+            console.error('Invalid date format:', activeCardData.latest_game_box_score.datetime.official_date);
             return false;
         }
     };
@@ -316,7 +316,11 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
         return `/images/blank_players/blankplayer-${setName}-${appearance}.png`;
     };
 
+    const hasGameBoxscore = (): boolean => {
+        return !!activeCardData?.latest_game_box_score && showGameBoxscore();
+    }
     const breakdownFirstRowHeight = '@xl:max-h-[500px] @xl:overflow-hidden @3xl:max-h-[600px] @6xl:max-h-[700px]';
+    const breakdownTablesHeight = hasGameBoxscore() ? `@xl:max-h-[300px] @xl:overflow-hidden @3xl:max-h-[400px] @6xl:max-h-[500px]` : breakdownFirstRowHeight;
 
     // MARK: MAIN CONTENT
     return (
@@ -404,15 +408,6 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                 </div>
             )}
 
-            {/* Game Boxscore */}
-            {showGameBoxscore() &&  (
-                <GameBoxscore 
-                    boxscore={activeCardData?.latest_game_box_score || null} 
-                    isLoading={isLoadingGameBoxscore} 
-                />
-            )}
-            
-
             {/* Image and Breakdown Tables */}
             <div
                 className={`
@@ -428,6 +423,15 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                     w-full
                     px-0 @md:px-3 @xl:px-0
                 `}>
+                    {/* Game Boxscore — on mobile sits above card, hidden here on xl (shown in right col) */}
+                    {showGameBoxscore() && activeCardData?.latest_game_box_score && (
+                        <div className='@xl:hidden mb-3'>
+                            <GameItem
+                                game={activeCardData.latest_game_box_score}
+                                playerIdForLinescoreHighlight={activeCardData?.card?.mlb_id ?? undefined}
+                            />
+                        </div>
+                    )}
                     <img
                         src={cardImagePath == null ? getBlankPlayerImageName() : cardImagePath}
                         alt="Blank Player"
@@ -483,6 +487,16 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                 </div>            
 
                 {/* Card Tables */}
+                <div className="flex flex-col gap-3">
+                    {/* Game Boxscore — desktop only, above the stats panel */}
+                    {showGameBoxscore() && activeCardData?.latest_game_box_score && (
+                        <div className='hidden @xl:block'>
+                            <GameItem
+                                game={activeCardData.latest_game_box_score}
+                                playerIdForLinescoreHighlight={activeCardData?.card?.mlb_id ?? undefined}
+                            />
+                        </div>
+                    )}
                 <div
                     className={`
                         flex flex-col
@@ -491,7 +505,7 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                         p-4 rounded-xl
                         space-y-4
                         border-2 border-form-element
-                        ${breakdownFirstRowHeight}
+                        ${breakdownTablesHeight}
                         ${isLoadingFromId ? 'blur-xs' : ''}
                     `}
                 >
@@ -510,6 +524,8 @@ export function CardDetail({ showdownBotCardData, cardId, isLoading, isLoadingGa
                     {renderBreakdownTable()}
 
                 </div>
+
+                </div>{/* end flex flex-col gap-3 right column */}
 
             </div>
 

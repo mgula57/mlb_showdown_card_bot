@@ -45,6 +45,7 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
                             game={game}
                             sportId={sportId}
                             onSelect={onGameSelect}
+                            showMatchupDetails={true}
                             isStarred={
                                 starredTeamIds
                                     ? (starredTeamIds.has(game.teams?.away?.team?.id ?? -1) || starredTeamIds.has(game.teams?.home?.team?.id ?? -1))

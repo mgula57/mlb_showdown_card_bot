@@ -38,6 +38,7 @@ from .stats.accolade import Accolade
 from .stats.metrics import DefenseMetric
 from .stats.stats_period import StatsPeriod, StatsPeriodType
 from .stats.real_vs_projected_stat import RealVsProjectedStat
+from .stats.datasource import Datasource
 
 from .sets import Set, Era, SpeedMetric, PlayerType, PlayerSubType, Position, PlayerImageComponent, TemplateImageComponent, ValueRange, Chart, ImageParallel
 from .chart import ChartCategory, Stat, ChartAccuracyBreakdown
@@ -184,17 +185,23 @@ class ShowdownPlayerCard(BaseModel):
 
         # HANDLE GAME LOGS IF APPLICABLE
         game_logs: list[dict] = self.stats.get(self.stats_period.type.stats_dict_key or 'n/a', [])
-
         if self.realtime_game_logs:
-            added_game_logs = self.realtime_game_logs
-            # FILTER FILTER REALTIME GAME LOGS TO NOT HAVE DUPLICATES
-            latest_bref_date_str = game_logs[-1].get('date', None) if len(game_logs) > 0 else None
-            latest_bref_date = convert_to_date(game_log_date_str=latest_bref_date_str, year=datetime.now().year) if latest_bref_date_str else None
-            if latest_bref_date:
-                # FILTER OUT THE LATEST GAME LOGS FROM REALTIME LOGS
-                # TO AVOID DUPLICATES
-                added_game_logs = [gl for gl in self.realtime_game_logs if convert_to_date(gl.get('date', '1970-01-01')) > latest_bref_date]
-            game_logs += added_game_logs
+
+            # CLEAN DATASOURCE INPUT
+            datasource_raw = self.stats.get('primary_datasource', 'bref')
+            datasource = datasource_raw if type(datasource_raw) == Datasource else Datasource(datasource_raw)
+            match datasource:
+                case Datasource.BREF:
+                    # FILTER BASED ON TRACKING DATES
+                    added_game_logs = self.realtime_game_logs
+                    # FILTER FILTER REALTIME GAME LOGS TO NOT HAVE DUPLICATES
+                    latest_bref_date_str = game_logs[-1].get('date', None) if len(game_logs) > 0 else None
+                    latest_bref_date = convert_to_date(game_log_date_str=latest_bref_date_str, year=datetime.now().year) if latest_bref_date_str else None
+                    if latest_bref_date:
+                        # FILTER OUT THE LATEST GAME LOGS FROM REALTIME LOGS
+                        # TO AVOID DUPLICATES
+                        added_game_logs = [gl for gl in self.realtime_game_logs if convert_to_date(gl.get('date', '1970-01-01')) > latest_bref_date]
+                    game_logs += added_game_logs
         
         # ADD LOGS AS STATS IN PERIOD
         self.stats_period.add_stats_from_game_logs(game_logs=game_logs, is_pitcher=self.is_pitcher, team_override=self.team_override)
@@ -306,7 +313,7 @@ class ShowdownPlayerCard(BaseModel):
         required_attributes = [
             'name_input', 'player_type', 
             'bref_id', 'bref_url', 'league', 'team', 'nationality',
-            'is_stats_estimate', 'player_type_override',
+            'is_stats_estimate', 'player_type_override', 'mlb_id',
         ]
         for attr in required_attributes:
             if attr not in values.keys():
@@ -375,6 +382,13 @@ class ShowdownPlayerCard(BaseModel):
                 return bref_url
         stats: dict = info.data.get('stats', {})
         return stats.get('bref_url', '')
+    
+    @field_validator('mlb_id', mode='before')
+    def parse_mlb_id(cls, mlb_id:str, info:ValidationInfo) -> str:
+        if mlb_id:
+            return mlb_id
+        stats: dict = info.data.get('stats', {})
+        return stats.get('mlb_id', None)
     
     @field_validator('is_stats_estimate', mode='before')
     def parse_is_stats_estimate(cls, is_stats_estimate:str, info:ValidationInfo) -> bool:

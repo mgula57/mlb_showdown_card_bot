@@ -519,9 +519,9 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             return undefined;
         }
         return (
-            <div className="text-sm font-bold flex flex-wrap items-center gap-x-2 gap-y-1 text-[var(--tertiary)]">
+            <div className="text-sm font-bold flex flex-wrap items-center gap-x-2 gap-y-1 text-(--tertiary)">
                 {summaryItems.map(item => (
-                    <div key={item.label} className={`flex rounded-lg px-1 border-2 ${item.borderColor || 'border-[var(--tertiary)]/65'}`}>
+                    <div key={item.label} className={`flex rounded-lg px-1 border-2 ${item.borderColor || 'border(--tertiary)/65'}`}>
                         <span className="font-semibold">{item.icon}</span>
                         {(() => {
                             const label = item.label?.toLowerCase()
@@ -555,73 +555,6 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
             </div>
         );
     };
-
-    // MARK: Live Updates
-
-    // Check if there's a live game
-    const hasLiveGame = showdownBotCardData?.latest_game_box_score && 
-                        !showdownBotCardData.latest_game_box_score.has_game_ended;
-
-    useEffect(() => {
-
-        // Temp Disable Live updates
-        console.log(isLiveUpdating);
-        return;
-
-        if (hasLiveGame && showdownBotCardData && lastFormRef.current) {
-            // Start live updates
-            setIsLiveUpdating(true);
-            
-            intervalRef.current = setInterval(async () => {
-                try {
-                    console.log('Updating live game data...');
-                    setIsLoadingGameBoxscore(true);
-
-                    const { image_upload, image_source, ...payload } = lastFormRef.current!;
-                    
-                    const updatedCardData = await buildCustomCard({
-                        ...payload,
-                        set: userShowdownSet,
-                        is_running_on_website: true,
-                        image_output_folder_path: "static/output",
-                        show_historical_points: true,
-                        season_trend_date_aggregation: 'WEEK',
-                    });
-                    
-                    setShowdownBotCardData(updatedCardData);
-                    
-                    // Stop updating if game has ended
-                    if (updatedCardData.latest_game_box_score?.has_game_ended) {
-                        setIsLiveUpdating(false);
-                        if (intervalRef.current) {
-                            clearInterval(intervalRef.current);
-                            intervalRef.current = null;
-                        }
-                    }
-                    setIsLoadingGameBoxscore(false);
-                } catch (error) {
-                    console.error('Error updating live game:', error);
-                    // Continue trying updates even on error
-                    setIsLoadingGameBoxscore(false);
-                }
-            }, 20000); // 20 seconds
-        } else {
-            // Stop live updates
-            setIsLiveUpdating(false);
-            if (intervalRef.current) {
-                // clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
-        }
-        
-        // Cleanup on unmount
-        return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
-        };
-    }, [hasLiveGame, showdownBotCardData, userShowdownSet]);
 
     // ---------------------------------
     // MARK: Build Processing
@@ -1174,7 +1107,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                 transition-all duration-300 ease-in-out space-y-4
                                 ${isFormCollapsed 
                                     ? 'max-h-0 opacity-0 overflow-hidden transform -translate-x-full' 
-                                    : 'max-h-[9999px] opacity-100 transform translate-x-0'
+                                    : 'max-h-2499.75 opacity-100 transform translate-x-0'
                                 }
                             `}>
 
@@ -1297,7 +1230,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             onToggle={() => toggleSection('Set')}
                                             childrenWhenClosed={sectionWhenClosed('Set')}
                                         >
-                                            <div className="col-span-full font-semibold text-xs text-[var(--tertiary)] italic">
+                                            <div className="col-span-full font-semibold text-xs text-(--tertiary) italic">
                                                 Want to change the Showdown Set? Look in the top right corner of the browser.
                                             </div>
 
@@ -1375,7 +1308,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
                                             {getImagePreview() && (
                                                 <div className="col-span-full grid grid-cols-[12fr_8fr] gap-2 items-center">
                                                     <div>
-                                                        <label className="block text-sm font-medium text-[var(--tertiary)] mb-1">
+                                                        <label className="block text-sm font-medium text-(--tertiary) mb-1">
                                                             Preview
                                                         </label>
                                                         <img

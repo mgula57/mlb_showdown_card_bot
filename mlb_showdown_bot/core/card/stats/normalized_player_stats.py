@@ -9,28 +9,7 @@ from ...shared.player_position import PlayerType
 from ...shared.hand import Hand
 from ..utils.shared_functions import fill_empty_stat_categories, convert_number_to_ordinal, total_innings_pitched, total_ip_for_calculations
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodType, StatsPeriodYearType
-
-# -------------------------------
-# MARK: - Primary Datasources 
-# -------------------------------
-class Datasource(str, Enum):
-    MLB_API = "mlb_api"
-    BREF = "bref"
-    FANGRAPHS = "fangraphs"
-
-    MANUAL = "manual"
-
-    @classmethod
-    def _missing_(cls, value):
-        if isinstance(value, str):
-            match value.lower():
-                case 'mlb_api' | 'mlb' | 'mlbstatsapi':
-                    return cls.MLB_API
-                case 'bref' | 'baseball_reference' | 'baseballreference':
-                    return cls.BREF
-                case 'fangraphs' | 'fg':
-                    return cls.FANGRAPHS
-        return cls.BREF # Default to BREF if unrecognized
+from .datasource import Datasource
 
 # -------------------------------
 # MARK: - Normalized Player Stats Model
@@ -249,13 +228,14 @@ class NormalizedPlayerStats(BaseModel):
             if pos in self.positions:
                 self.positions[pos].oaa = oaa
 
-
     def as_dict(self) -> Dict[str, Any]:
         """Returns a dictionary representation of the model, including aliases"""
         return self.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
 
-    def add_bref_id(self, bref_id: str) -> None:
+    def add_bref_id(self, bref_id: Optional[str]) -> None:
         """Adds a Baseball Reference ID to the model"""
+        if not bref_id:
+            return
         self.bref_id = bref_id
         self.bref_url = f"https://www.baseball-reference.com/players/{bref_id[0]}/{bref_id}.shtml"
 
@@ -743,6 +723,7 @@ class PlayerStatsNormalizer:
                 continue
             
             game_date = split.date
+            game_pk = split.game.get('gamePk', None) if split.game else None
             team_id = PlayerStatsNormalizer._convert_to_bref_team_id(split.team.abbreviation) if split.team and split.team.abbreviation else None
             stats_normalized = {}
             for key, value in stats.items():
@@ -766,6 +747,7 @@ class PlayerStatsNormalizer:
             game_log_entry = {
                 'date': game_date,
                 'team_ID': team_id,
+                'game_pk': game_pk,
                 **stats_normalized
             }
             game_logs.append(GameLog(**game_log_entry))
@@ -1355,6 +1337,7 @@ class PositionStats(BaseModel):
 class BaseGameLog(BaseModel):
     """Base game log model"""
     
+    game_pk: Optional[int] = None  # Unique identifier for the game log entry, can be generated as needed
     date: Optional[str] = None # e.g., "2024-04-01"
     date_game: Optional[str] = None  # e.g., "Apr 1"
     team_ID: str
