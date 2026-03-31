@@ -10,6 +10,8 @@
  * @version 4.0
  */
 
+import { type GameBoxscoreDetail } from "./mlbAPI";
+
 // =============================================================================
 // MARK: - CONFIGURATION & CONSTANTS
 // =============================================================================
@@ -187,7 +189,7 @@ export type ShowdownBotCardAPIResponse = {
     in_season_trends?: InSeasonTrends | null;
 
     /** Live game box score if player is currently playing */
-    latest_game_box_score?: GameBoxscore | null;
+    latest_game_box_score?: GameBoxscoreDetail | null;
 
     /** Technical error message for debugging */
     error: string | null;

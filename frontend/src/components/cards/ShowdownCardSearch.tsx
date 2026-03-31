@@ -919,12 +919,13 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
     // MARK: Render
     return (
         <div
+            style={{ ['--sidebar-offset' as string]: `calc(${verticalOffset} * 0.25rem)` }}
             className={`
                 flex flex-col ${className}
-                md:h-[calc(100vh-(--spacing(${verticalOffset})))]                                /* fallback */
-                md:supports-[height:100dvh]:h-[calc(100dvh-(--spacing(${verticalOffset})))]      /* prefer dvh */
-                md:overflow-y-auto                                                              /* scroller on desktop */
-                md:min-h-0                                                                      /* allow child to size for overflow */
+                md:h-[calc(100vh-var(--sidebar-offset))]
+                md:supports-[height:100dvh]:h-[calc(100dvh-var(--sidebar-offset))]
+                md:overflow-y-auto
+                md:min-h-0
             `}
         >
 
@@ -1098,9 +1099,11 @@ export default function ShowdownCardSearch({ className, verticalOffset='24', sou
 
                 
                 {/* Right Sidebar with Slide Animation */}
-                <div className={`
-                    fixed right-0 top-${verticalOffset} bottom-0 w-96 z-30
-                    bg-primary border-l-2 border-form-element 
+                <div
+                    style={{ top: `calc(${verticalOffset} * 0.25rem)` }}
+                    className={`
+                    fixed right-0 bottom-0 w-96 z-30
+                    bg-primary border-l-2 border-form-element
                     transform transition-transform duration-300 ease-in-out
                     ${showPlayerDetailSidebar ? 'translate-x-0' : 'translate-x-full'}
                     hidden lg:block

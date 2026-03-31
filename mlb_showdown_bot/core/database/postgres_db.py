@@ -5,9 +5,36 @@ import psycopg2
 import traceback
 from unidecode import unidecode
 from psycopg2.extras import RealDictCursor, execute_values
-from psycopg2 import extensions, extras
+from psycopg2 import extensions, extras, pool as psycopg2_pool
 from psycopg2.extensions import AsIs
 from psycopg2 import sql
+
+# ----------------------------------------------------------------
+# MARK: - CONNECTION POOLS
+# Module-level pools persist across requests within a gunicorn worker,
+# eliminating per-request TCP + SSL handshake overhead.
+# ----------------------------------------------------------------
+_pools: dict[str, psycopg2_pool.ThreadedConnectionPool] = {}
+
+def _get_pool(env_var_name: str) -> 'psycopg2_pool.ThreadedConnectionPool | None':
+    if env_var_name not in _pools:
+        url = os.getenv(env_var_name)
+        if not url:
+            return None
+        try:
+            _pools[env_var_name] = psycopg2_pool.ThreadedConnectionPool(
+                1, 5, url,
+                sslmode='require',
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5,
+            )
+            extensions.register_adapter(dict, extras.Json)
+        except Exception as e:
+            print(f"Error creating connection pool for {env_var_name}: {e}")
+            return None
+    return _pools.get(env_var_name)
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Optional, Any, Dict, List
@@ -248,27 +275,62 @@ class PostgresDB:
             self.connect()
         
     def connect(self) -> None:
-        """Connect to a postgres database. Connection is stored to the class as 'connection'.
-        If no environment variable for DATABASE_URL exists, None is stored.
-        
+        """Borrow a connection from the module-level pool.
+        Falls back to a direct connection if the pool is unavailable.
         """
+        pool = _get_pool(self.env_var_name)
+        if pool is not None:
+            try:
+                conn = pool.getconn()
+                # Validate the connection is still alive (catches stale connections after dyno sleep)
+                try:
+                    conn.cursor().execute("SELECT 1")
+                except Exception:
+                    pool.putconn(conn, close=True)
+                    conn = pool.getconn()
+                # Roll back any open transaction before setting autocommit
+                # (psycopg2 starts a transaction implicitly; setting autocommit inside one raises ProgrammingError)
+                if not conn.autocommit:
+                    conn.rollback()
+                    conn.autocommit = True
+                self.connection = conn
+                self._pool = pool
+                return
+            except Exception as e:
+                print(f"Error getting connection from pool for {self.env_var_name}: {e}")
+                traceback.print_exc()
+        
+        # Fallback: direct connection
         DATABASE_URL = os.getenv(self.env_var_name)
-
         try:
-            self.connection = psycopg2.connect(DATABASE_URL, sslmode='require')
+            self.connection = psycopg2.connect(
+                DATABASE_URL,
+                sslmode='require',
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5,
+            )
             self.connection.autocommit = True
-
-            # THIS WILL ENABLE NATURAL PASSING OF DICTS AS JSONB
             extensions.register_adapter(dict, extras.Json)
-
         except Exception as e:
             print(f"Error connecting to database: {e}")
             self.connection = None
+        self._pool = None
 
     def close_connection(self) -> None:
-        """Close the connection if it exists"""
+        """Return the connection to the pool (or close if no pool)."""
         if self.connection:
-            self.connection.close()
+            pool = getattr(self, '_pool', None)
+            if pool is not None:
+                pool.putconn(self.connection)
+            else:
+                self.connection.close()
+            self.connection = None
+
+    def __del__(self) -> None:
+        """Safety net: return connection to pool if caller forgot to call close_connection()."""
+        self.close_connection()
 
 # ------------------------------------------------------------------------
 # QUERIES
