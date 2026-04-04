@@ -988,7 +988,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                             {hasStaticSports && sportOptions.length <= 1 && selectedSport && (
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center font-bold text-2xl">
-                                                        <FaEarthAmericas className="inline-block mr-2" />
+                                                        {type === "wbc" ? <FaEarthAmericas className="inline-block mr-2" /> : <FaCalendarDays className="inline-block mr-2" />}
                                                         {title}
                                                     </div>
                                                     <button
