@@ -6,7 +6,7 @@ from datetime import datetime
 from ..base_client import BaseMLBClient
 from ..models.person import Player, FreeAgent, StatTypeEnum
 from ..models.leagues.league import LeagueListEnum
-from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType
+from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType, PlayerType
 import json
 
 class PeopleClient(BaseMLBClient):
@@ -50,7 +50,7 @@ class PeopleClient(BaseMLBClient):
         ]
         params: Dict[str, Any] = {}
         seasons: Optional[List[int]] = []
-        is_pitcher = primary_position and primary_position.upper() == 'P'
+        is_pitcher = stats_period.player_type_for_mlb_api(primary_position) == PlayerType.PITCHER if stats_period else (primary_position.upper() == 'P' if primary_position else None)
         if include_stats:
             hydrations.extend([
                 'team(league)',

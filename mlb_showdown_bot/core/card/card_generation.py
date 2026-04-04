@@ -176,7 +176,13 @@ def generate_card(**kwargs) -> dict[str, Any]:
                 # NORMALIZE FORMAT
                 mlb_stats_api = MLBStatsAPI_V2()
                 league = kwargs.get('league', 'MLB')
-                player_data = mlb_stats_api.build_full_player_from_search(search_name=kwargs.get('name', ''), stats_period=stats_period, league=league)
+                # Strip all extra overrides from the search name (ex: "Shohei Ohtani (Pitching)" -> "Shohei Ohtani") to improve MLB API search results. MLB API is very bad at handling extra characters in the search query.
+                search_name = kwargs.get('name', '')
+                if search_name:
+                    search_name = search_name.split('(')[0].strip()
+                player_data = mlb_stats_api.build_full_player_from_search(search_name=search_name, stats_period=stats_period, league=league)
+                if player_data is None:
+                    raise Exception(f"Player not found in MLB API with name: {kwargs.get('name', '')} and year: {kwargs.get('year', '')}")
                 normalized_player_stats = PlayerStatsNormalizer.from_mlb_api(player=player_data, stats_period=stats_period)
 
                 # MLB API DOES NOT HAVE REQUIRED DEFENSIVE METRICS

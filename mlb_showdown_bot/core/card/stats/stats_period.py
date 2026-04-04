@@ -8,6 +8,7 @@ import calendar
 # INTERNAL
 from ..utils.shared_functions import aggregate_stats, convert_to_numeric, fill_empty_stat_categories, convert_to_date, convert_year_string_to_list
 from ...shared.team import Team
+from ...shared.player_position import PlayerType, Position
 
 class StatsPeriodType(str, Enum):
 
@@ -151,6 +152,7 @@ class StatsPeriod(BaseModel):
 
     # OVERRIDES
     team_override: Optional[Team] = None
+    player_type_override: Optional[PlayerType] = None
 
     # SOURCE
     source: str = 'Unknown'
@@ -162,6 +164,37 @@ class StatsPeriod(BaseModel):
     # ADDITIONAL INFO
     display_text: Optional[str] = None
     disable_display_text_on_card: Optional[bool] = None
+
+    # ---------------------------------
+    # INITIALIZATION
+    # ---------------------------------
+
+    def __init__(self, **data):
+
+        # CHECK FOR ANY "NAME" ATTRIBUTE THAT INCLUDES OVERRIDES
+        name:str = data.get('name', None)
+        player_type_override = data.get('player_type_override', None)
+        team_override = data.get('team_override', None)
+        if name:
+
+            # CHECK FOR OVERRIDES WITHIN THE PLAYER NAME
+            if player_type_override is None:
+                if '(PITCHER)' in name.upper() or '(PITCHING)' in name.upper():
+                    data['player_type_override'] = PlayerType.PITCHER
+                elif '(HITTER)' in name.upper() or '(HITTING)' in name.upper():
+                    data['player_type_override'] = PlayerType.HITTER
+
+            if team_override is None:
+                for team_id in [team.value for team in Team]:
+                    team_match = f'({team_id})' in name.upper()
+                    if team_match:
+                        data['team_override'] = Team(team_id)
+
+            # VALIDATE TEAM OVERRIDE
+            if data.get('team_override') is not None and type(data.get('team_override')) == Team and data['team_override'] == Team.MLB:
+                data['team_override'] = None
+
+        super().__init__(**data)
 
     def model_post_init(self, __context):
 
@@ -359,10 +392,39 @@ class StatsPeriod(BaseModel):
     def year_list_as_strs(self) -> str:
         """Returns the year list as a list of strings. Orders in ascending order."""
         return [str(year) for year in sorted(self.year_list)]
+    
+    @property
+    def is_pitcher_override(self) -> bool:
+        """
+        Returns True if the player type override is set to pitcher.
+        """
+        return self.player_type_override and self.player_type_override == PlayerType.PITCHER
+    
+    @property
+    def is_hitter_override(self) -> bool:
+        """
+        Returns True if the player type override is set to hitter.
+        """
+        return self.player_type_override and self.player_type_override == PlayerType.HITTER
 
     # ---------------------------------
     # METHODS
     # ---------------------------------
+
+    def player_type_for_mlb_api(self, primary_position:str | Position = None) -> PlayerType:
+        """
+        Determine whether to use pitching or hitting stats for the MLB API based on the stats period overrides and primary position.
+        """
+        if primary_position and type(primary_position) == Position:
+            primary_position = 'P' if primary_position.is_pitcher else 'HITTER'
+
+        is_pitcher = (
+            (
+                (primary_position and primary_position == 'P') and not self.is_hitter_override
+            )
+            or self.is_pitcher_override
+        )
+        return PlayerType.PITCHER if is_pitcher else PlayerType.HITTER
 
     def _check_and_apply_current_season_adjustment(self) -> None:
         """
