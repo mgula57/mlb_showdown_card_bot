@@ -6,6 +6,7 @@ from .clients.leagues_client import LeaguesClient, Standings
 from .clients.seasons_client import SeasonsClient
 from .clients.sports_client import SportsClient, SportEnum
 from .clients.games_client import GamesClient, Schedule
+from .clients.stats_client import StatsClient
 from .models.person import Player
 from .models.leagues.league import LeagueListEnum
 from typing import Optional
@@ -51,6 +52,8 @@ class MLBStatsAPI:
         self.seasons = SeasonsClient(**config)
         self.sports = SportsClient(**config)
         self.games = GamesClient(**config)
+        self.stats = StatsClient(**config)
+        
     # -------------------------
     # PLAYER SEARCH + BUILD
     # -------------------------
