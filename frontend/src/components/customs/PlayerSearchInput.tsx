@@ -426,7 +426,7 @@ export function PlayerSearchInput({
                     <div 
                         ref={dropdownRef}
                         className="
-                            fixed z-[5]
+                            fixed z-5
                             transform
                             bg-secondary rounded-xl shadow-lg
                             text-nowrap overflow-auto max-h-[40vh]
@@ -440,7 +440,7 @@ export function PlayerSearchInput({
                                 onClick={() => handleSelect(option)}
                                 className={`
                                     px-3 py-3 cursor-pointer border-b border-form-element last:border-b-0
-                                    hover:bg-[var(--background-tertiary)]
+                                    hover:bg-(--background-tertiary)
                                     ${index === 0 ? 'rounded-t-lg' : ''}
                                     ${index === options.length - 1 ? 'rounded-b-lg' : ''}
                                 `}
