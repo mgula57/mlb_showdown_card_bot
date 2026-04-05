@@ -22,6 +22,7 @@ import CardCommand from './cards/card_elements/CardCommand';
 import CardChart from './cards/card_elements/CardChart';
 import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from '../api/showdownBotCard';
 import { CardDetail } from './cards/CardDetail';
+import { getReadableTextColor } from '../functions/colors';
 
 // API
 import { fetchCardById, buildCards } from '../api/showdownBotCard';
@@ -284,6 +285,10 @@ export default function Home() {
                             const homeAbbr = home?.team?.abbreviation ?? '???';
                             const awayScore = away?.score;
                             const homeScore = home?.score;
+                            const awayBadgeBg = away?.team?.primary_color ?? undefined;
+                            const awayBadgeText = awayBadgeBg ? getReadableTextColor(awayBadgeBg, '#ffffff') : undefined;
+                            const homeBadgeBg = home?.team?.primary_color ?? undefined;
+                            const homeBadgeText = homeBadgeBg ? getReadableTextColor(homeBadgeBg, '#ffffff') : undefined;
                             const state = game.status?.abstract_game_state;
                             const detailedState = game.status?.detailed_state;
                             const isFinal = state === 'Final';
@@ -293,7 +298,7 @@ export default function Home() {
                             const inningHalf = linescore?.inning_half === 'Top' ? '▲' : linescore?.inning_half === 'Bottom' ? '▼' : '';
 
                             const statusLabel = isFinal
-                                ? 'F'
+                                ? 'FINAL'
                                 : isLive
                                 ? `${inningHalf}${inning ?? ''}`
                                 : game.game_date
@@ -328,9 +333,14 @@ export default function Home() {
                                     </div>
 
                                     {/* Away team */}
-                                    <div className={`flex items-center justify-between gap-1 mb-0.5 ${awayWin ? '' : isFinal ? 'opacity-50' : ''}`}>
+                                    <div className={`flex items-center justify-between gap-1 mb-1 ${awayWin ? '' : isFinal ? 'opacity-50' : ''}`}>
                                         <div className="flex items-center gap-2">
-                                            <span className={`text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{awayAbbr}</span>
+                                            <span 
+                                                className={`text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`}
+                                                style={awayBadgeBg ? { backgroundColor: awayBadgeBg, color: awayBadgeText } : undefined}
+                                            >
+                                                {awayAbbr}
+                                            </span>
                                             {away?.league_record && (
                                                 <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{away.league_record.wins}-{away.league_record.losses}</span>
                                             )}
@@ -341,7 +351,12 @@ export default function Home() {
                                     {/* Home team */}
                                     <div className={`flex items-center justify-between gap-1 ${homeWin ? '' : isFinal ? 'opacity-50' : ''}`}>
                                         <div className="flex items-center gap-2">
-                                            <span className={`text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{homeAbbr}</span>
+                                            <span 
+                                                className={`text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`} 
+                                                style={homeBadgeBg ? { backgroundColor: homeBadgeBg, color: homeBadgeText } : undefined}
+                                            >
+                                                {homeAbbr}
+                                            </span>
                                             {home?.league_record && (
                                                 <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{home.league_record.wins}-{home.league_record.losses}</span>
                                             )}
