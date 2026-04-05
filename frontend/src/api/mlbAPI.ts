@@ -69,6 +69,31 @@ export const fetchSeasonTeams = async (season: Season, league: League, sportId: 
     return data.teams as Team[];
 }
 
+export interface LeadersResponse {
+    leaders: LeadersGroup[];
+    cardData?: { [playerId: string]: ShowdownBotCard };
+}
+
+export const fetchSeasonLeaders = async (
+    seasonId: string,
+    categories?: string[],
+    limit: number = 5,
+    showdownSet?: string
+): Promise<LeadersResponse> => {
+    let url = `${API_BASE}/seasons/${seasonId}/leaders?limit=${limit}`;
+    if (categories && categories.length > 0) {
+        url += `&categories=${encodeURIComponent(categories.join(','))}`;
+    }
+    if (showdownSet) {
+        url += `&showdown_set=${encodeURIComponent(showdownSet)}`;
+    }
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch leaders for season ${seasonId}: ${response.statusText}`);
+    }
+    return response.json() as Promise<LeadersResponse>;
+};
+
 export const fetchTeamRoster = async (season: Season, teamId: number, rosterType: string, showdownSet: string, sportId: number, teamAbbr: string): Promise<Roster> => {
     const response = await fetch(`${API_BASE}/seasons/${season.season_id}/teams/${teamId}/roster?roster_type=${rosterType}&showdown_set=${showdownSet}&sport_id=${sportId}&team_abbr=${teamAbbr}`);
     if (!response.ok) {
@@ -644,5 +669,37 @@ export interface GameBoxscoreDetail {
     };
     linescore: BoxscoreLinescore;
     decisions: BoxscoreDecisions;
+}
+
+// ***************************
+// Stat Leaders Types
+// ***************************
+
+export interface LeaderPerson {
+    id: number;
+    full_name?: string;
+    first_name?: string;
+    last_name?: string;
+}
+
+export interface LeaderTeam {
+    id?: number;
+    name?: string;
+    abbreviation?: string;
+}
+
+export interface PlayerLeader {
+    rank?: number;
+    value?: string;
+    season?: string;
+    person?: LeaderPerson;
+    team?: LeaderTeam;
+}
+
+export interface LeadersGroup {
+    leader_category?: string;
+    stat_group?: string;
+    season?: string;
+    leaders?: PlayerLeader[];
 }
 

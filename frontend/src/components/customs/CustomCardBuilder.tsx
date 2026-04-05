@@ -1096,7 +1096,7 @@ function CustomCardBuilder({ isHidden }: CustomCardBuilderProps) {
 
                     {/* Scrollable area */}
                     <div className={`flex-1 ${animationTw} ${isFormCollapsed ? 'px-1' : 'px-4'}
-                        overflow-visible @2xl:overflow-y-auto 
+                        overflow-visible @2xl:overflow-y-auto scrollbar-hide
                     `}>
 
                         {/* Search and Form Inputs */}

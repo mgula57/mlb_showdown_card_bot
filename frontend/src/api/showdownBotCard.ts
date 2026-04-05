@@ -168,6 +168,22 @@ export async function fetchCardById(cardId: string, source: string): Promise<Sho
     return res.json();
 }
 
+export async function buildCards(requestedCards: Record<string, any>[]): Promise<ShowdownBotMultiCardAPIResponse> {
+    const res = await fetch(`${API_BASE}/build_cards`, {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requested_cards: requestedCards }),
+    });
+
+    if (!res.ok) {
+        throw new Error(`Fetch cards failed: ${res.status} ${res.statusText}`);
+    }
+
+    return res.json();
+}
+
 // =============================================================================
 // MARK: - API RESPONSE TYPES
 // =============================================================================
@@ -196,6 +212,17 @@ export type ShowdownBotCardAPIResponse = {
     
     /** User-friendly error message for display */
     error_for_user: string | null;
+
+    /** Generic extra stat attribute. Used to display things like badges, icons, or other visual indicators */
+    extra_stat?: Record<string, any> | null;
+};
+
+export type ShowdownBotMultiCardAPIResponse = {
+
+    cards?: ShowdownBotCardAPIResponse[] | null;
+    error: string | null;
+    error_for_user: string | null;
+
 };
 
 // =============================================================================

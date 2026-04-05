@@ -6,6 +6,8 @@ import {
 import { useState, useEffect, useRef } from 'react';
 import { useTheme } from './shared/SiteSettingsContext';
 import { useSiteSettings } from './shared/SiteSettingsContext';
+import { fetchTodaysSchedule, fetchSeasons, fetchSeasonLeaders } from '../api/mlbAPI';
+import type { GameScheduled, Season, LeadersGroup } from '../api/mlbAPI';
 
 // Modal
 import { Modal } from './shared/Modal';
@@ -22,7 +24,7 @@ import type { ShowdownBotCard, ShowdownBotCardAPIResponse } from '../api/showdow
 import { CardDetail } from './cards/CardDetail';
 
 // API
-import { fetchCardById } from '../api/showdownBotCard';
+import { fetchCardById, buildCards } from '../api/showdownBotCard';
 import { fetchTotalCardCount, fetchTrendingPlayers, fetchPopularCards, fetchSpotlightCards, fetchCardOfTheDay } from '../api/card_db/cardDatabase';
 import type { PopularCardRecord, TrendingCardRecord, SpotlightCardRecord, CardOfTheDayRecord } from '../api/card_db/cardDatabase';
 
@@ -34,6 +36,21 @@ export default function Home() {
     const [isLoadingSearchCard, setIsLoadingSearchCard] = useState<boolean>(false);
     const [isRefreshingTrends, setIsRefreshingTrends] = useState<boolean>(false);
     const [selectedModalCard, setSelectedModalCard] = useState<ShowdownBotCard | null>(null);
+
+    // Today's games ticker
+    const [todaysGames, setTodaysGames] = useState<GameScheduled[]>([]);
+    const [tickerSeason, setTickerSeason] = useState<Season | null>(null);
+    const [isLoadingGames, setIsLoadingGames] = useState<boolean>(false);
+
+    // Ticker leaders
+    const [leaderGroups, setLeaderGroups] = useState<LeadersGroup[]>([]);
+    const [isLoadingLeaders, setIsLoadingLeaders] = useState<boolean>(false);
+    const [leaderCards, setLeaderCards] = useState<{ [playerId: string]: ShowdownBotCard }>({});
+
+    const LEADER_CATEGORY_LABELS: Record<string, string> = {
+        onBasePlusSlugging:          'OPS Leaders',
+        walksAndHitsPerInningPitched: 'WHIP Leaders',
+    };
 
     // Trends
     const [totalCardCount, setTotalCardCount] = useState<number | null>(null);
@@ -53,6 +70,83 @@ export default function Home() {
     const gradientBlueBg = isDark ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30' : 'bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300'
     const cardOfDayPlaceholder = `/images/blank_players/blankplayer-${userShowdownSet.toLowerCase()}-${isDark ? 'dark' : 'light'}.png`;
     const cardOfDayImageSrc = cardOfTheDay?.card_data.image.output_folder_path ? `${cardOfTheDay.card_data.image.output_folder_path}/${cardOfTheDay.card_data.image.output_file_name}` : cardOfDayPlaceholder;
+
+    // Fetch today's games + leaders for the ticker
+    useEffect(() => {
+        setIsLoadingGames(true);
+        fetchSeasons().then(seasons => {
+            const today = new Date();
+            const active = seasons.find(s => {
+                const start = new Date(s.regular_season_start_date);
+                const end = new Date(s.season_end_date);
+                return today >= start && today <= end;
+            });
+            if (!active) { setIsLoadingGames(false); return; }
+            setTickerSeason(active);
+
+            const gamesPromise = fetchTodaysSchedule(1, active).then(schedule => {
+                const games: GameScheduled[] = [];
+                schedule.dates?.forEach(d => d.games?.forEach(g => games.push(g)));
+                setTodaysGames(games);
+            });
+
+            setIsLoadingLeaders(true);
+            const leadersPromise = fetchSeasonLeaders(active.season_id, ['ON_BASE_PLUS_SLUGGING', 'WALKS_HITS_PER_INNING_PITCHED'], 3)
+                .then(({ leaders }) => {
+                    // MLB API returns one group per league (AL + NL) per category — dedupe, keep first occurrence
+                    const seenCategories = new Set<string>();
+                    const deduped = leaders.filter(g => {
+                        const key = g.leader_category ?? '';
+                        if (seenCategories.has(key)) return false;
+                        seenCategories.add(key);
+                        return true;
+                    });
+                    setLeaderGroups(deduped);
+
+                    // Build cards for all unique leader player IDs
+                    const allEntries = leaders.flatMap(g => g.leaders ?? []);
+                    const seenIds = new Set<number>();
+                    const requestedCards = allEntries
+                        .filter(e => { if (!e.person?.id || seenIds.has(e.person.id)) return false; seenIds.add(e.person.id); return true; })
+                        .map(e => ({
+                            player_id: String(e.person!.id),
+                            year: active.season_id,
+                            name: e.person?.full_name ?? 'Unknown Player',
+                            stat_highlights_type: 'ALL',
+                            set: userShowdownSet,
+                        }));
+                    if (requestedCards.length > 0) {
+                        buildCards(requestedCards).then(res => {
+                            if (res.cards) {
+                                const cardMap: { [playerId: string]: ShowdownBotCard } = {};
+                                res.cards.forEach(response => {
+                                    
+                                    if (response?.card?.mlb_id) {
+                                        cardMap[String(response.card.mlb_id)] = response.card;
+                                    } else {
+                                        console.warn('Card missing mlb_id, cannot map to player:', response.card);
+                                    }
+                                });
+                                console.log('Final leader card map:', cardMap);
+                                setLeaderCards(cardMap);
+                                
+                            }
+                        }).catch(err => console.error('Failed to build leader cards:', err))
+                        .finally(() => setIsLoadingLeaders(false));
+                    } else {
+                        setIsLoadingLeaders(false);
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to fetch ticker leaders:', err);
+                    setIsLoadingLeaders(false);
+                });
+
+            return Promise.all([gamesPromise, leadersPromise]);
+        }).catch(err => {
+            console.error('Failed to fetch ticker games:', err);
+        }).finally(() => setIsLoadingGames(false));
+    }, []);
 
     // Fetch total card count on mount
     useEffect(() => {
@@ -140,49 +234,161 @@ export default function Home() {
             className={`
                 px-6
                 md:px-8
-                space-y-6
-                md:space-y-8
+                space-y-4
+                md:space-y-6
                 gradient-page
                 pb-24
             `}>
 
-            <div className='pt-4'>
-                <Link
-                    to="/seasons"
-                    className={`
-                        max-w-7xl mx-auto mb-2 rounded-2xl border overflow-hidden
-                        flex items-center justify-between gap-4 px-4 md:px-6 py-4
-                        transition cursor-pointer hover:brightness-105
-                        ${isDark ? 'border-white/15' : 'border-black/10'}
-                    `}
-                    style={{
-                        backgroundImage: 'linear-gradient(95deg, #1a2f6e, color-mix(in srgb, #1a2f6e 60%, #8b1a1a 40%), #8b1a1a)',
-                    }}
-                    aria-label="Open the live seasons tab"
-                >
-                    <div className="flex items-center gap-3 md:gap-4 min-w-0">
-                        <div className="min-w-0">
-                            <p className="text-[11px] md:text-xs font-semibold uppercase tracking-wide text-white/85 flex items-center gap-1.5">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400"></span>
-                                </span>
-                                Live
-                            </p>
-                            <p className="text-sm md:text-base font-bold text-white truncate">2026 MLB Season is underway</p>
-                            <p className="text-xs md:text-sm text-white/90 truncate">Browse standings, schedules, teams, and players</p>
-                        </div>
-                    </div>
+            {/* Add spacer for padding */}
+            <div className="h-1" />
 
-                    <span className="inline-flex items-center gap-2 text-xs md:text-sm font-semibold text-white shrink-0">
-                        View Season
-                        <FaChevronRight className="text-xs" />
-                    </span>
-                </Link>
+            {/* Game Ticker */}
+            <div
+                className={`rounded-2xl border-2 overflow-hidden ${isDark ? 'bg-neutral-900/80 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}
+            >
+                {/* Ticker header */}
+                <div
+                    className="flex items-center justify-between gap-4 px-4 md:px-6 py-3"
+                    style={{ backgroundImage: 'linear-gradient(95deg, #1a2f6e, color-mix(in srgb, #1a2f6e 60%, #8b1a1a 40%), #8b1a1a)' }}
+                >
+                    <p className="text-xs font-bold uppercase tracking-widest text-white/90 flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400"></span>
+                        </span>
+                        Today's Games
+                        {tickerSeason && (
+                            <span className="text-white/60 font-normal normal-case tracking-normal">
+                                {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            </span>
+                        )}
+                    </p>
+                    <Link to="/seasons" className="text-xs font-semibold text-white/80 hover:text-white flex items-center gap-1 shrink-0">
+                        Full Season Details <FaChevronRight className="text-[10px]" />
+                    </Link>
+                </div>
+
+                {/* Scrollable game cards row */}
+                <div className="overflow-x-auto scrollbar-hide">
+                    <div className="flex gap-0 min-w-max">
+                        {isLoadingGames && (
+                            [...Array(6)].map((_, i) => (
+                                <div key={i} className={`w-36 shrink-0 px-4 py-3 border-r border-(--divider) animate-pulse ${isDark ? 'bg-neutral-800/40' : 'bg-neutral-100'}`}>
+                                    <div className={`h-3 w-16 rounded mb-2 ${isDark ? 'bg-neutral-700' : 'bg-neutral-300'}`} />
+                                    <div className={`h-3 w-20 rounded mb-1 ${isDark ? 'bg-neutral-700' : 'bg-neutral-300'}`} />
+                                    <div className={`h-3 w-20 rounded ${isDark ? 'bg-neutral-700' : 'bg-neutral-300'}`} />
+                                </div>
+                            ))
+                        )}
+                        {!isLoadingGames && todaysGames.length === 0 && !tickerSeason && (
+                            <div className={`px-6 py-4 text-sm ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                                No games scheduled today.
+                            </div>
+                        )}
+                        {!isLoadingGames && todaysGames.map((game) => {
+                            const away = game.teams?.away;
+                            const home = game.teams?.home;
+                            const awayAbbr = away?.team?.abbreviation ?? '???';
+                            const homeAbbr = home?.team?.abbreviation ?? '???';
+                            const awayScore = away?.score;
+                            const homeScore = home?.score;
+                            const state = game.status?.abstract_game_state;
+                            const detailedState = game.status?.detailed_state;
+                            const isFinal = state === 'Final';
+                            const isLive = state === 'Live';
+                            const linescore = game.linescore;
+                            const inning = linescore?.current_inning;
+                            const inningHalf = linescore?.inning_half === 'Top' ? '▲' : linescore?.inning_half === 'Bottom' ? '▼' : '';
+
+                            const statusLabel = isFinal
+                                ? 'F'
+                                : isLive
+                                ? `${inningHalf}${inning ?? ''}`
+                                : game.game_date
+                                ? new Date(game.game_date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                                : detailedState ?? '';
+
+                            const awayWin = isFinal && (awayScore ?? 0) > (homeScore ?? 0);
+                            const homeWin = isFinal && (homeScore ?? 0) > (awayScore ?? 0);
+
+                            return (
+                                <Link
+                                    key={game.game_pk}
+                                    to="/seasons"
+                                    className={`w-36 shrink-0 px-4 py-3 border-r border-(--divider) hover:brightness-105 transition ${isDark ? 'hover:bg-neutral-800/60' : 'hover:bg-neutral-50'}`}
+                                >
+                                    {/* Status badge */}
+                                    <div className="mb-2">
+                                        <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                                            isLive
+                                                ? 'bg-green-500/20 text-green-500'
+                                                : isFinal
+                                                ? isDark ? 'bg-neutral-700 text-neutral-400' : 'bg-neutral-200 text-neutral-500'
+                                                : isDark ? 'bg-neutral-700 text-neutral-400' : 'bg-neutral-200 text-neutral-500'
+                                        }`}>
+                                            {isLive ? 'LIVE' : statusLabel}
+                                        </span>
+                                    </div>
+
+                                    {/* Away team */}
+                                    <div className={`flex items-center justify-between gap-1 mb-1 ${awayWin ? '' : isFinal ? 'opacity-50' : ''}`}>
+                                        <span className={`text-sm font-black ${isDark ? 'text-white' : 'text-black'}`}>{awayAbbr}</span>
+                                        {(isLive || isFinal) && awayScore != null && (
+                                            <span className={`text-sm font-black tabular-nums ${awayWin ? isDark ? 'text-white' : 'text-black' : isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{awayScore}</span>
+                                        )}
+                                    </div>
+
+                                    {/* Home team */}
+                                    <div className={`flex items-center justify-between gap-1 ${homeWin ? '' : isFinal ? 'opacity-50' : ''}`}>
+                                        <span className={`text-sm font-black ${isDark ? 'text-white' : 'text-black'}`}>{homeAbbr}</span>
+                                        {(isLive || isFinal) && homeScore != null && (
+                                            <span className={`text-sm font-black tabular-nums ${homeWin ? isDark ? 'text-white' : 'text-black' : isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{homeScore}</span>
+                                        )}
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Leaders rows */}
+                <div className="relative border-t border-(--divider) px-4 md:px-6 py-4 space-y-4">
+                    {isLoadingLeaders && (
+                        <div className={`absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-b-2xl backdrop-blur-[2px] ${isDark ? 'bg-neutral-900/60' : 'bg-white/60'}`}>
+                            <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:0ms] ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} />
+                            <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:150ms] ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} />
+                            <span className={`w-2 h-2 rounded-full animate-bounce [animation-delay:300ms] ${isDark ? 'bg-neutral-400' : 'bg-neutral-500'}`} />
+                        </div>
+                    )}
+                    {(isLoadingLeaders && leaderGroups.length === 0 ? [null, null] : leaderGroups).map((group, gi) => {
+                        const label = group?.leader_category ? (LEADER_CATEGORY_LABELS[group.leader_category] ?? group.leader_category) : '';
+                        const entries = group ? (group.leaders ?? []).slice(0, 3) : [...Array(3)].map(() => null);
+                        return (
+                            <div key={group?.leader_category ?? gi}>
+                                <span className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{label}</span>
+                                <div className="mt-2 flex gap-2 overflow-x-auto scrollbar-hide lg:grid lg:grid-cols-3">
+                                    {entries.map((entry, i) => {
+                                        const card = entry?.person?.id ? leaderCards[String(entry.person.id)] : undefined;
+                                        return (
+                                            <div key={entry?.rank ?? i} className="flex flex-col items-center gap-1 shrink-0 w-72 lg:w-auto">
+                                                <CardItemFromCard
+                                                    card={card}
+                                                    className={`max-w-full w-full ${card ? 'cursor-pointer' : 'pointer-events-none'} ${!entry ? 'animate-pulse opacity-50' : ''}`}
+                                                    onClick={card ? () => setSelectedModalCard(card) : undefined}
+                                                />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* Hero Section */}
-            <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between py-10 gap-10">
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-10">
 
                 {/* Left: Text and Actions */}
                 <div className="w-full md:w-1/2 3xl:flex-[0.6] flex flex-col gap-4 items-start">
@@ -202,12 +408,8 @@ export default function Home() {
                     <p className={`text-lg max-w-xl leading-6 ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
                         Enter a player and season. We turn real stats into a simulated card for the iconic 20-sided dice game — ready to share, use in your league, or just admire.
                     </p>
-                    <form className={`rounded-2xl p-6 flex flex-col w-full gap-4 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <PlayerSearchInput label='Try it out! Search for a player' value={searchQuery} onChange={handlePlayerSelect} searchOptions={{ exclude_multi_year: true }} />
-                        <CardItemFromCard card={selectedCard || undefined} className={`${selectedCard ? '' : 'pointer-events-none'} ${isLoadingSearchCard ? 'blur-xs' : ''}`} onClick={() => setSelectedModalCard(selectedCard)} />
-                    </form>
                     <div className="flex gap-4 mt-2">
-                        <Link to="/customs" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow hover:bg-neutral-200 transition ${isDark ? 'bg-white text-black' : 'bg-black text-white'}`}>
+                        <Link to="/customs" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow hover:bg-neutral-200 transition bg-(--showdown-red) ${isDark ? 'text-white' : 'text-white'}`}>
                             Build your Own <FaChevronRight />
                         </Link>
                         <Link to="/cards" className={`flex items-center gap-2 px-6 py-3 rounded-xl text-lg font-semibold shadow transition ${isDark ? 'bg-neutral-900 border border-neutral-700 text-white hover:bg-neutral-800' : 'bg-white border border-neutral-300 text-black hover:bg-neutral-100'}`}>
@@ -219,12 +421,10 @@ export default function Home() {
                 {/* Right: Random Card of the Day */}
                 <div className="flex-1 3xl:flex-[0.4] flex flex-col items-center md:items-end w-full">
                     <div className={`rounded-3xl p-6 w-full max-w-md min-h-100 flex flex-col relative gap-2 ${isDark ? 'bg-neutral-900/80 border border-neutral-800' : 'bg-white/80 border border-neutral-200'}`}>
-                        <div className="flex justify-between items-center mb-2">
-                            <span className={`text-lg font-semibold ${isDark ? 'text-white/80' : 'text-black/80'}`}>Card of the Day</span>
-                            <span className={`text-xs ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>Generated by the Community</span>
-                        </div>
+                        <PlayerSearchInput value={searchQuery} onChange={handlePlayerSelect} searchOptions={{ exclude_multi_year: true }} />
+
                         <div className="flex-1 flex flex-col justify-center items-center gap-4">
-                            <img src={cardOfDayImageSrc} alt="Sample Showdown Card" className={`min-h-64 max-h-124 rounded-lg object-contain shadow-2xl ${isRefreshingTrends ? 'animate-pulse' : ''}`} />
+                            <img src={cardOfDayImageSrc} alt="Sample Showdown Card" className={`md:min-h-48 md:max-h-128 rounded-lg object-contain shadow-2xl ${isRefreshingTrends ? 'animate-pulse' : ''}`} />
                         </div>
                         <div className={`left-4 right-4 text-xs text-left pt-2 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
                             {cardOfTheDay ? (

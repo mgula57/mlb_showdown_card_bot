@@ -6,6 +6,7 @@ from typing import List, Optional
 from ..core.mlb_stats_api import MLBStatsAPI, RosterTypeEnum
 from ..core.mlb_stats_api.models.leagues.league import League
 from ..core.mlb_stats_api.models.leagues.standings import StandingsType
+from ..core.mlb_stats_api.models.stats.enums import PlayerPoolEnum, StatGroupEnum, LeaderLeaderStatEnum
 from ..core.database.postgres_db import PostgresDB, Set as ShowdownSet
 
 seasons_bp = Blueprint('seasons', __name__)
@@ -96,7 +97,6 @@ def fetch_standings(season_id: str, league_id: str):
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     
-
 @seasons_bp.route('/seasons/<season_id>/teams/<team_id>/roster', methods=["GET"])
 def fetch_roster(season_id: str, team_id: str):
     """Fetch single roster for a given season and team"""
@@ -144,6 +144,43 @@ def fetch_teams_for_season(season_id: str):
         teams = _mlb_stats_api.teams.get_teams(season=season_id, sport_id=sport_id, league_id=league_id)
         teams_data = [team.model_dump() for team in teams]
         return jsonify({'teams': teams_data}), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
+@seasons_bp.route('/seasons/<season_id>/leaders', methods=["GET"])
+def fetch_leaders_for_season(season_id: str):
+    """Fetch stat leaders for a given season, with optional filters for category, stat group, and player pool"""
+    try:
+        if not season_id:
+            return jsonify({'error': 'Missing required parameter: season'}), 400
+
+        sport_id = request.args.get('sport_id', 1)
+        categories_str = request.args.get('categories', None)
+        stat_groups_str = request.args.get('stat_groups', None)
+        player_pool_str = request.args.get('player_pool', None)
+        limit = request.args.get('limit', None)
+        days_back = request.args.get('days_back', None)
+
+        category_enums = [LeaderLeaderStatEnum(category.strip()) for category in categories_str.split(',')] if categories_str else None
+        stat_group_enums = [StatGroupEnum(stat_group.strip()) for stat_group in stat_groups_str.split(',')] if stat_groups_str else None
+        player_pool_enum = PlayerPoolEnum(player_pool_str.strip()) if player_pool_str else None
+
+        leaders_groups = _mlb_stats_api.stats.get_leaders(
+            sport_id=sport_id,
+            season=season_id,
+            categories=category_enums,
+            statGroups=stat_group_enums,
+            playerPool=player_pool_enum,
+            limit=int(limit) if limit else None,
+            days_back=int(days_back) if days_back else None
+        )
+        leaders_data = [group.model_dump() for group in leaders_groups]
+        final_data = {'leaders': leaders_data}
+
+        return jsonify(final_data), 200
 
     except Exception as e:
         import traceback

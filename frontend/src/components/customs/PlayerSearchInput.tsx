@@ -48,7 +48,7 @@ export type PlayerSearchSelection = {
  */
 interface PlayerSearchInputProps {
     /** Display label for the search input */
-    label: string;
+    label?: string;
     /** Current search query value */
     value: string;
     /** Callback when player is selected from search results */
@@ -119,7 +119,7 @@ const PLACEHOLDER_EXAMPLES = [
  * @returns Advanced player search component
  */
 export function PlayerSearchInput({
-    label,
+    label='',
     value,
     onChange,
     className = '',
