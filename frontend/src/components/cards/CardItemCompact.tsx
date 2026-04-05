@@ -64,15 +64,33 @@ export const CardItemCompact = ({
         return parts[parts.length - 1];
     };
 
-    const displayName = hidePoints ? getLastName(card?.name) : (card?.name || 'Unknown Player');
+    const getFirstInitial = (name?: string): string => {
+        if (!name) {
+            return '';
+        }
+
+        const trimmed = name.trim();
+        if (!trimmed) {
+            return '';
+        }
+
+        const parts = trimmed.split(/\s+/);
+        if (parts.length === 1) {
+            return parts[0][0].toUpperCase();
+        }
+
+        return parts[0][0].toUpperCase();
+    };
+
+    const displayName = `${getFirstInitial(card?.name)}. ${getLastName(card?.name)}`;
 
     useEffect(() => {
         const element = containerRef.current;
         if (!element) {
             return;
         }
-
         const updateHidePoints = () => {
+            console.log('CardItemCompact: Updating hidePoints for', element);
             const width = element.getBoundingClientRect().width || element.clientWidth;
             setHidePoints(width < 100);
             setShowExtraDetails(width >= 180);
@@ -126,7 +144,7 @@ export const CardItemCompact = ({
                 secondaryColor={secondaryColor}
                 command={card?.command}
                 team={card?.team || 'N/A'}
-                className="w-8 h-8 shrink-0"
+                className="w-6 h-6 shrink-0"
             />
 
             <div className="min-w-0 flex-1 text-left">
@@ -134,12 +152,12 @@ export const CardItemCompact = ({
                     {displayName}
                 </div>
                 <div className="flex items-center gap-1 min-w-0">
-                    <div className="text-[11px] font-semibold text-(--text-secondary) truncate">
+                    <div className="text-[10px] font-semibold text-(--text-secondary) truncate">
                         {card?.team || 'N/A'}
                     </div>
                     {!hidePoints && (
                         <div
-                            className="shrink-0 text-[10px] leading-none font-black rounded px-1 py-0.5"
+                            className="shrink-0 text-[9px] leading-none font-black rounded px-0.5 py-0.5"
                             style={pointsBadgeStyle}
                         >
                             {card?.points != null ? `${card.points} PTS` : '-- PTS'}

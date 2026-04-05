@@ -246,23 +246,22 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
 
     return (
         <div
-            className={`rounded-xl border bg-(--background-secondary) overflow-hidden p-3 ${isStarred ? 'border-yellow-400/50' : 'border-(--divider)'} ${onSelect ? 'cursor-pointer hover:border-(--text-secondary)/50 transition-colors' : ''}`}
+            className={`rounded-xl border-2 bg-(--background-secondary) overflow-hidden p-3 ${isStarred ? 'border-yellow-400/50' : 'border-(--divider)'} ${onSelect ? 'cursor-pointer hover:border-(--text-secondary)/50 transition-colors' : ''}`}
             onClick={onSelect ? () => onSelect(game.game_pk) : undefined}
             role={onSelect ? "button" : undefined}
             tabIndex={onSelect ? 0 : undefined}
             onKeyDown={onSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(game.game_pk); } } : undefined}
         >
-            {(game.series_description || game.description) && (
+            {(game.series_description || game.description) && game.series_description !== "Regular Season" && (
                 <div className="bg-(--background-primary) text-(--text-primary) rounded-md px-3 py-1 text-center text-sm font-bold flex items-center justify-center gap-1.5">
-                    {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
                     <span>{(game.series_description || game.description || "Game")}
                     {game.series_game_number ? ` | Game ${game.series_game_number}` : ""}</span>
                 </div>
                 )
             }
 
-            <div className="py-2 flex items-center justify-between gap-2">
-                <div className="text-md font-extrabold text-(--text-primary)">
+            <div className="py-1 flex items-center justify-between gap-2">
+                <div className="flex items-center space-x-1 text-sm font-extrabold text-(--text-primary)">
                     {isFinal && (
                         <><span>FINAL</span></>
                     )}
@@ -272,6 +271,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                     {!isFinal && !hasStarted && (
                         <span>{formatGameTime(game.game_date)}</span>
                     )}
+                    {isStarred && <FaStar className="text-yellow-400 h-3 w-3 shrink-0" />}
                 </div>
                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${stateBadgeClasses}`}>
                     {stateBadgeLabel}
@@ -290,7 +290,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                                 <ReactCountryFlag countryCode={awayCountryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
                             )}
                             <span
-                                className={`text-lg font-black ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
+                                className={`font-black ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
                                 style={awayBadgeBg ? { backgroundColor: awayBadgeBg, color: awayBadgeText } : undefined}
                             >{awayAbbr}</span>
                             {awayRecord && (
@@ -298,7 +298,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                             )}
                         </div>
                         {hasStarted && awayScore != null && (
-                            <span className="text-lg font-black text-(--text-primary)">{awayScore}</span>
+                            <span className="font-black text-(--text-primary)">{awayScore}</span>
                         )}
                     </div>
 
@@ -308,7 +308,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                                 <ReactCountryFlag countryCode={homeCountryCode} svg style={{ width: '1.25em', height: '1.25em' }} />
                             )}
                             <span
-                                className={`text-lg font-black ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
+                                className={`font-black ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : 'text-(--text-primary)'}`}
                                 style={homeBadgeBg ? { backgroundColor: homeBadgeBg, color: homeBadgeText } : undefined}
                             >{homeAbbr}</span>
                             {homeRecord && (
@@ -316,7 +316,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
                             )}
                         </div>
                         {hasStarted && homeScore != null && (
-                            <span className="text-lg font-black text-(--text-primary)">{homeScore}</span>
+                            <span className="font-black text-(--text-primary)">{homeScore}</span>
                         )}
                     </div>
                 </div>
@@ -328,17 +328,10 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
             
             {isNotStarted && showMatchupDetails && (
                 <>
-                    <div className="border-t border-(--divider) my-2" />
-                    <div className="flex justify-between items-center">
-                        <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">Away Probable</span>
-                        </div>
-                        <div className="flex gap-1 items-center">
-                            <span className="text-[12px] font-black text-(--text-primary)">Home Probable</span>
-                        </div>
-                    </div>
-                    <div className="pt-1 flex gap-2">
+                    <div className="border-t border-(--divider) my-1" />
+                    <div className="pt-1 flex gap-2 items-center">
                         <CardItemCompact card={awayProbableCard} />
+                        <span className="text-[12px]">vs</span>
                         <CardItemCompact card={homeProbableCard} />
                     </div>
                 </>
@@ -346,7 +339,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
 
             {isInProgress && showMatchupDetails && (
                 <>
-                    <div className="border-t border-(--divider) my-2" />
+                    <div className="border-t border-(--divider) my-1" />
                     <div className="flex justify-between items-center">
                         <div className="flex gap-1 items-center">
                             <span className="text-[12px] font-black text-(--text-primary)">At Bat</span>
@@ -364,7 +357,7 @@ export default function GameItem({ game: rawGame, sportId, isStarred, showMatchu
 
             {isFinal && showMatchupDetails && (
                 <>
-                    <div className="border-t border-(--divider) my-2" />
+                    <div className="border-t border-(--divider) my-1" />
                     <div className="flex justify-between items-center">
                         <div className="flex gap-1 items-center">
                             <span className="text-[12px] font-black text-(--text-primary)">Winning Pitcher</span>
