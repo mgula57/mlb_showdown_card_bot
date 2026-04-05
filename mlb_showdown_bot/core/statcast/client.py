@@ -2,17 +2,21 @@ import io
 import csv
 import cloudscraper
 import requests
-from typing import Any, Dict, List
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 import re
 import json
 from ..card.stats.stats_period import StatsPeriod
 from .models import StatcastLeaderboardEntry
 
+_LEADERBOARD_CACHE: dict[tuple, tuple[list, datetime]] = {}
+_LEADERBOARD_CACHE_TTL = timedelta(hours=8)
+
 class StatcastAPIClient:
     """Client to interact with Statcast API for fetching baseball statistics"""
 
     BASE_URL = "https://baseballsavant.mlb.com"
-    
+
     def __init__(self, timeout: int = 30):
         self.timeout = timeout
         self.session = requests.Session()
@@ -87,15 +91,22 @@ class StatcastAPIClient:
         # PARSE INPUTS
         season = stats_period.year_int if stats_period.year_int else None
 
+        cache_key = (season, min_opportunities)
+        now = datetime.now(timezone.utc)
+        cached = _LEADERBOARD_CACHE.get(cache_key)
+        if cached and now < cached[1]:
+            print("Serving sprint speed leaderboard from cache")
+            return cached[0]
+
         params = {
             "year": season,
             "min_opportunities": min_opportunities,
         }
 
         data = self._request("leaderboard/sprint_speed", params)
-
         leaderboard_entries = [StatcastLeaderboardEntry(**entry) for entry in data]
 
+        _LEADERBOARD_CACHE[cache_key] = (leaderboard_entries, now + _LEADERBOARD_CACHE_TTL)
         return leaderboard_entries
     
     def fetch_sprint_speed_for_player(self, stats_period: StatsPeriod, player_id: int) -> StatcastLeaderboardEntry:

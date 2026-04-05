@@ -5,6 +5,7 @@
  * player cards, team points, and performance analytics.
  */
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import * as Tabs from '@radix-ui/react-tabs';
 import CustomSelect, { type SelectOption } from '../shared/CustomSelect';
 import {
@@ -145,6 +146,21 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const [standings, setStandings] = useState<{ [leagueAbbreviation: string]: Standings[] }>({});
 
     const [activeTab, setActiveTab] = useState<string>(() => getStoredValue(STORAGE_KEYS.activeTab) ?? "schedule");
+
+    // Open a specific game if ?gamePk=XXX is in the URL (e.g. linked from Home ticker)
+    const location = useLocation();
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const gamePkParam = params.get('gamePk');
+        if (gamePkParam) {
+            const pk = parseInt(gamePkParam, 10);
+            if (!isNaN(pk)) {
+                setSelectedGamePk(pk);
+                setActiveTab('schedule');
+            }
+        }
+    }, [location.search]);
+
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => getStoredValue(STORAGE_KEYS.sidebarCollapsed) === "true");
     const [starredTeamKeys, setStarredTeamKeys] = useState<string[]>(() => {
         const stored = getStoredValue(STORAGE_KEYS.starredTeams);

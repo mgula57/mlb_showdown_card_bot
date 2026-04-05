@@ -93,7 +93,6 @@ export default function Home() {
             setIsLoadingLeaders(true);
             const leadersPromise = fetchSeasonLeaders(active.season_id, ['ON_BASE_PLUS_SLUGGING', 'WALKS_HITS_PER_INNING_PITCHED'], 3)
                 .then(({ leaders }) => {
-                    // MLB API returns one group per league (AL + NL) per category — dedupe, keep first occurrence
                     const seenCategories = new Set<string>();
                     const deduped = leaders.filter(g => {
                         const key = g.leader_category ?? '';
@@ -102,51 +101,43 @@ export default function Home() {
                         return true;
                     });
                     setLeaderGroups(deduped);
-
-                    // Build cards for all unique leader player IDs
-                    const allEntries = leaders.flatMap(g => g.leaders ?? []);
-                    const seenIds = new Set<number>();
-                    const requestedCards = allEntries
-                        .filter(e => { if (!e.person?.id || seenIds.has(e.person.id)) return false; seenIds.add(e.person.id); return true; })
-                        .map(e => ({
-                            player_id: String(e.person!.id),
-                            year: active.season_id,
-                            name: e.person?.full_name ?? 'Unknown Player',
-                            stat_highlights_type: 'ALL',
-                            set: userShowdownSet,
-                        }));
-                    if (requestedCards.length > 0) {
-                        buildCards(requestedCards).then(res => {
-                            if (res.cards) {
-                                const cardMap: { [playerId: string]: ShowdownBotCard } = {};
-                                res.cards.forEach(response => {
-                                    
-                                    if (response?.card?.mlb_id) {
-                                        cardMap[String(response.card.mlb_id)] = response.card;
-                                    } else {
-                                        console.warn('Card missing mlb_id, cannot map to player:', response.card);
-                                    }
-                                });
-                                console.log('Final leader card map:', cardMap);
-                                setLeaderCards(cardMap);
-                                
-                            }
-                        }).catch(err => console.error('Failed to build leader cards:', err))
-                        .finally(() => setIsLoadingLeaders(false));
-                    } else {
-                        setIsLoadingLeaders(false);
-                    }
                 })
-                .catch(err => {
-                    console.error('Failed to fetch ticker leaders:', err);
-                    setIsLoadingLeaders(false);
-                });
+                .catch(err => console.error('Failed to fetch ticker leaders:', err))
+                .finally(() => setIsLoadingLeaders(false));
 
             return Promise.all([gamesPromise, leadersPromise]);
         }).catch(err => {
             console.error('Failed to fetch ticker games:', err);
         }).finally(() => setIsLoadingGames(false));
     }, []);
+
+    // Build leader cards whenever the groups or showdown set changes
+    useEffect(() => {
+        if (!tickerSeason || leaderGroups.length === 0) return;
+        const allEntries = leaderGroups.flatMap(g => g.leaders ?? []);
+        const seenIds = new Set<number>();
+        const requestedCards = allEntries
+            .filter(e => { if (!e.person?.id || seenIds.has(e.person.id)) return false; seenIds.add(e.person.id); return true; })
+            .map(e => ({
+                player_id: String(e.person!.id),
+                year: tickerSeason.season_id,
+                name: e.person?.full_name ?? 'Unknown Player',
+                stat_highlights_type: 'ALL',
+                set: userShowdownSet,
+            }));
+        if (requestedCards.length === 0) return;
+        setIsLoadingLeaders(true);
+        buildCards(requestedCards).then(res => {
+            if (res.cards) {
+                const cardMap: { [playerId: string]: ShowdownBotCard } = {};
+                res.cards.forEach(response => {
+                    if (response?.card?.mlb_id) cardMap[String(response.card.mlb_id)] = response.card;
+                });
+                setLeaderCards(cardMap);
+            }
+        }).catch(err => console.error('Failed to build leader cards:', err))
+        .finally(() => setIsLoadingLeaders(false));
+    }, [leaderGroups, userShowdownSet]);
 
     // Fetch total card count on mount
     useEffect(() => {
@@ -315,11 +306,11 @@ export default function Home() {
                             return (
                                 <Link
                                     key={game.game_pk}
-                                    to="/seasons"
+                                    to={`/seasons?gamePk=${game.game_pk}`}
                                     className={`w-36 shrink-0 px-4 py-3 border-r border-(--divider) hover:brightness-105 transition ${isDark ? 'hover:bg-neutral-800/60' : 'hover:bg-neutral-50'}`}
                                 >
                                     {/* Status badge */}
-                                    <div className="mb-2">
+                                    <div className="mb-2 flex items-center justify-between gap-1.5">
                                         <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
                                             isLive
                                                 ? 'bg-green-500/20 text-green-500'
@@ -329,22 +320,33 @@ export default function Home() {
                                         }`}>
                                             {isLive ? 'LIVE' : statusLabel}
                                         </span>
+                                        {isLive && inning != null && (
+                                            <span className="text-[10px] font-bold text-green-500">
+                                                {inningHalf}{inning}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {/* Away team */}
-                                    <div className={`flex items-center justify-between gap-1 mb-1 ${awayWin ? '' : isFinal ? 'opacity-50' : ''}`}>
-                                        <span className={`text-sm font-black ${isDark ? 'text-white' : 'text-black'}`}>{awayAbbr}</span>
-                                        {(isLive || isFinal) && awayScore != null && (
-                                            <span className={`text-sm font-black tabular-nums ${awayWin ? isDark ? 'text-white' : 'text-black' : isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{awayScore}</span>
-                                        )}
+                                    <div className={`flex items-center justify-between gap-1 mb-0.5 ${awayWin ? '' : isFinal ? 'opacity-50' : ''}`}>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{awayAbbr}</span>
+                                            {away?.league_record && (
+                                                <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{away.league_record.wins}-{away.league_record.losses}</span>
+                                            )}
+                                        </div>
+                                        <span className={`text-sm font-black tabular-nums ${awayWin ? isDark ? 'text-white' : 'text-black' : isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{awayScore === undefined || awayScore === null ? "-" : awayScore}</span>
                                     </div>
 
                                     {/* Home team */}
                                     <div className={`flex items-center justify-between gap-1 ${homeWin ? '' : isFinal ? 'opacity-50' : ''}`}>
-                                        <span className={`text-sm font-black ${isDark ? 'text-white' : 'text-black'}`}>{homeAbbr}</span>
-                                        {(isLive || isFinal) && homeScore != null && (
-                                            <span className={`text-sm font-black tabular-nums ${homeWin ? isDark ? 'text-white' : 'text-black' : isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{homeScore}</span>
-                                        )}
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{homeAbbr}</span>
+                                            {home?.league_record && (
+                                                <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{home.league_record.wins}-{home.league_record.losses}</span>
+                                            )}
+                                        </div>
+                                            <span className={`text-sm font-black tabular-nums ${homeWin ? isDark ? 'text-white' : 'text-black' : isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{homeScore === undefined || homeScore === null ? "-" : homeScore}</span>
                                     </div>
                                 </Link>
                             );
