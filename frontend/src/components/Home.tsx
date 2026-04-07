@@ -42,6 +42,12 @@ export default function Home() {
     const [todaysGames, setTodaysGames] = useState<GameScheduled[]>([]);
     const [tickerSeason, setTickerSeason] = useState<Season | null>(null);
     const [isLoadingGames, setIsLoadingGames] = useState<boolean>(false);
+    const [starredTeamKeys] = useState<string[]>(() => {
+        try {
+            const stored = window.localStorage.getItem('mlb.seasons.starredTeams');
+            return stored ? JSON.parse(stored) : [];
+        } catch { return []; }
+    });
 
     // Ticker leaders
     const [leaderGroups, setLeaderGroups] = useState<LeadersGroup[]>([]);
@@ -276,7 +282,14 @@ export default function Home() {
                                 No games scheduled today.
                             </div>
                         )}
-                        {!isLoadingGames && todaysGames.map((game) => {
+                        {!isLoadingGames && [...todaysGames].sort((a, b) => {
+                            const seasonId = tickerSeason?.season_id ?? '';
+                            const aStarred = starredTeamKeys.includes(`${a.teams?.away?.team?.id}-${seasonId}`) || starredTeamKeys.includes(`${a.teams?.home?.team?.id}-${seasonId}`);
+                            const bStarred = starredTeamKeys.includes(`${b.teams?.away?.team?.id}-${seasonId}`) || starredTeamKeys.includes(`${b.teams?.home?.team?.id}-${seasonId}`);
+                            if (aStarred !== bStarred) return aStarred ? -1 : 1;
+                            const statusOrder: Record<string, number> = { "Live": 0, "Scheduled": 1, "Final": 2 };
+                            return (statusOrder[a.status?.abstract_game_state || ""] ?? 3) - (statusOrder[b.status?.abstract_game_state || ""] ?? 3);
+                        }).map((game) => {
                             const away = game.teams?.away;
                             const home = game.teams?.home;
                             const awayAbbr = away?.team?.abbreviation ?? '???';
@@ -314,24 +327,24 @@ export default function Home() {
                                 >
                                     {/* Status badge */}
                                     <div className="mb-2 flex items-center justify-between gap-1.5">
-                                        <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                                        <span className={`text-[10px] font-bold uppercase tracking-wide py-0.5 ${isLive || isFinal ? 'px-1.5 rounded' : ''} ${
                                             isLive
-                                                ? 'bg-green-500/20 text-green-500'
+                                                ? 'bg-yellow-400/10 text-yellow-400'
                                                 : isFinal
-                                                ? isDark ? 'bg-neutral-700 text-neutral-400' : 'bg-neutral-200 text-neutral-500'
-                                                : isDark ? 'bg-neutral-700 text-neutral-400' : 'bg-neutral-200 text-neutral-500'
+                                                ? 'bg-green-500/10 text-green-300'
+                                                : isDark ? 'text-neutral-100' : 'text-neutral-500'
                                         }`}>
                                             {isLive ? 'LIVE' : statusLabel}
                                         </span>
                                         {isLive && inning != null && (
-                                            <span className="text-[10px] font-bold text-green-500">
-                                                {inningHalf}{inning}
+                                            <span className="text-[10px] font-bold text-yellow-400">
+                                                {inningHalf} {inning}
                                             </span>
                                         )}
                                     </div>
 
                                     {/* Away team */}
-                                    <div className={`flex items-center justify-between gap-1 mb-1 ${awayWin ? '' : isFinal ? 'opacity-50' : ''}`}>
+                                    <div className={`flex items-center justify-between gap-1 mb-1`}>
                                         <div className="flex items-center gap-2">
                                             <span 
                                                 className={`text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${awayBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`}
@@ -343,11 +356,11 @@ export default function Home() {
                                                 <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{away.league_record.wins}-{away.league_record.losses}</span>
                                             )}
                                         </div>
-                                        <span className={`text-sm font-black tabular-nums ${awayWin ? isDark ? 'text-white' : 'text-black' : isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{awayScore === undefined || awayScore === null ? "-" : awayScore}</span>
+                                        <span className={`text-sm font-black tabular-nums `}>{awayScore === undefined || awayScore === null ? "-" : awayScore}</span>
                                     </div>
 
                                     {/* Home team */}
-                                    <div className={`flex items-center justify-between gap-1 ${homeWin ? '' : isFinal ? 'opacity-50' : ''}`}>
+                                    <div className={`flex items-center justify-between gap-1`}>
                                         <div className="flex items-center gap-2">
                                             <span 
                                                 className={`text-sm font-black leading-tight ${isDark ? 'text-white' : 'text-black'} ${homeBadgeBg ? 'px-1.5 py-0.5 rounded' : ''}`} 
@@ -359,7 +372,7 @@ export default function Home() {
                                                 <span className={`text-[10px] leading-tight ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{home.league_record.wins}-{home.league_record.losses}</span>
                                             )}
                                         </div>
-                                            <span className={`text-sm font-black tabular-nums ${homeWin ? isDark ? 'text-white' : 'text-black' : isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{homeScore === undefined || homeScore === null ? "-" : homeScore}</span>
+                                            <span className={`text-sm font-black tabular-nums`}>{homeScore === undefined || homeScore === null ? "-" : homeScore}</span>
                                     </div>
                                 </Link>
                             );
