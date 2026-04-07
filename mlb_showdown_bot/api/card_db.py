@@ -1,10 +1,21 @@
 from pprint import pprint
+import os
+import time
 from flask import Blueprint, request, jsonify
 
 from mlb_showdown_bot.core.card.showdown_player_card import ShowdownPlayerCard, Team
 from ..core.database.postgres_db import PostgresDB
 
 card_db_bp = Blueprint('card_data', __name__)
+
+_HOMEPAGE_CACHE_TTL = 8 * 60 * 60  # 8 hours
+
+_card_of_the_day_cache: dict[str, tuple[dict, float]] = {}
+_CARD_OF_THE_DAY_FOLDER = "static/card_of_the_day"
+
+_trending_cache: dict[str, tuple[list, float]] = {}
+_popular_cache: dict[str, tuple[list, float]] = {}
+_spotlight_cache: dict[str, tuple[list, float]] = {}  # key: "{set}:{limit}"
 
 @card_db_bp.route('/cards/search', methods=["POST", "GET"])
 def fetch_card_list():
@@ -74,13 +85,18 @@ def fetch_total_card_count():
 def fetch_trending_cards():
     """Fetch trending cards from the database"""
     try:
-
         payload = request.get_json() or {}
-        showdown_set = payload.get('set')
+        showdown_set = payload.get('set') or 'default'
+
+        cached_result, cached_at = _trending_cache.get(showdown_set, (None, 0.0))
+        if cached_result is not None and (time.time() - cached_at) < _HOMEPAGE_CACHE_TTL:
+            return jsonify({'trending_cards': cached_result})
+
         db = PostgresDB()
         trending_cards = db.fetch_trending_cards(set=showdown_set)
         db.close_connection()
 
+        _trending_cache[showdown_set] = (trending_cards, time.time())
         return jsonify({'trending_cards': trending_cards})
 
     except Exception as e:
@@ -91,13 +107,18 @@ def fetch_trending_cards():
 def fetch_popular_cards():
     """Fetch all-time popular cards from the database"""
     try:
-
         payload = request.get_json() or {}
-        showdown_set = payload.get('set')
+        showdown_set = payload.get('set') or 'default'
+
+        cached_result, cached_at = _popular_cache.get(showdown_set, (None, 0.0))
+        if cached_result is not None and (time.time() - cached_at) < _HOMEPAGE_CACHE_TTL:
+            return jsonify({'popular_cards': cached_result})
+
         db = PostgresDB()
         popular_cards = db.fetch_popular_cards(set=showdown_set)
         db.close_connection()
 
+        _popular_cache[showdown_set] = (popular_cards, time.time())
         return jsonify({'popular_cards': popular_cards})
 
     except Exception as e:
@@ -108,14 +129,20 @@ def fetch_popular_cards():
 def fetch_spotlight_cards():
     """Fetch spotlight cards from the database"""
     try:
-
         payload = request.get_json() or {}
-        showdown_set = payload.get('set')
+        showdown_set = payload.get('set') or 'default'
         limit = payload.get('limit', 4)
+        cache_key = f"{showdown_set}:{limit}"
+
+        cached_result, cached_at = _spotlight_cache.get(cache_key, (None, 0.0))
+        if cached_result is not None and (time.time() - cached_at) < _HOMEPAGE_CACHE_TTL:
+            return jsonify({'spotlight_cards': cached_result})
+
         db = PostgresDB()
         spotlight_cards = db.fetch_latest_spotlight_cards(set=showdown_set, limit=limit)
         db.close_connection()
 
+        _spotlight_cache[cache_key] = (spotlight_cards, time.time())
         return jsonify({'spotlight_cards': spotlight_cards})
 
     except Exception as e:
@@ -127,19 +154,25 @@ def fetch_card_of_the_day():
     """Fetch the card of the day from the database"""
     try:
         payload = request.get_json() or {}
-        showdown_set = payload.get('set')
+        showdown_set = payload.get('set') or 'default'
+
+        cached_result, cached_at = _card_of_the_day_cache.get(showdown_set, (None, 0.0))
+        if cached_result is not None and (time.time() - cached_at) < _HOMEPAGE_CACHE_TTL:
+            return jsonify({'card_of_the_day': cached_result})
+
         db = PostgresDB()
         card_of_the_day = db.fetch_card_of_the_day(set=showdown_set)
         db.close_connection()
 
         # GENERATE AN IMAGE FOR THE CARD
+        os.makedirs(_CARD_OF_THE_DAY_FOLDER, exist_ok=True)
         card_json = card_of_the_day.get('card_data')
         card = ShowdownPlayerCard(**card_json)
-        card.image.output_folder_path = "static/output"
-
-        # PRODUCE IMAGE AND UPDATE DATASET
+        card.image.output_folder_path = _CARD_OF_THE_DAY_FOLDER
         card.generate_card_image()
         card_of_the_day['card_data'] = card.as_json()
+
+        _card_of_the_day_cache[showdown_set] = (card_of_the_day, time.time())
 
         return jsonify({'card_of_the_day': card_of_the_day})
 
