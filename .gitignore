@@ -48,6 +48,7 @@ mlb_showdown_bot/data/MLB Showdown WOTC Cards*
 mlb_showdown_bot/core/set_builder/output/
 mlb_showdown_bot/core/set_builder/expansions/
 static/output/
+static/card_of_the_day/
 mlb_showdown_bot/uploads/
 mlb_showdown_bot/output/
 mlb_showdown_bot/cache_data/
