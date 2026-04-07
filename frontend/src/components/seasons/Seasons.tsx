@@ -114,11 +114,9 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
 
     const [teams, setTeams] = useState<Team[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-    const hasLoadedTeams = teams.length > 0;
 
     const [selectedRoster, setSelectedRoster] = useState<Roster | null>(null);
 
-    const [todaysSchedule, setTodaysSchedule] = useState<Schedule | null>(null);
     const [gamesSchedule, setGamesSchedule] = useState<Schedule | null>(null);
     const [gamesDate, setGamesDate] = useState<Date>(() => {
         const now = new Date();
@@ -311,93 +309,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
     };
 
-    const loadSports = async () => {
-        if (!selectedSeason) {
-            return;
-        }
-
-        if (hasStaticSports) {
-            const staticSportsData = staticSports ?? [];
-            setSports(staticSportsData);
-
-            const storedSportId = getStoredValue(STORAGE_KEYS.sportId);
-            const sportFromStorage = storedSportId
-                ? staticSportsData.find((sport) => sport.id.toString() === storedSportId)
-                : null;
-
-            setSelectedSport((previousSport) => {
-                if (previousSport && staticSportsData.some((sport) => sport.id === previousSport.id)) {
-                    return previousSport;
-                }
-                return sportFromStorage ?? (staticSportsData.length > 0 ? staticSportsData[0] : null);
-            });
-            return;
-        }
-
-        beginLoading();
-        try {
-            const sportsData = await fetchSeasonSports(selectedSeason);
-            console.log(`Fetched sports for season ${selectedSeason.season_id}:`, sportsData);
-            setSports(sportsData);
-
-            const storedSportId = getStoredValue(STORAGE_KEYS.sportId);
-            const sportFromStorage = storedSportId
-                ? sportsData.find((sport) => sport.id.toString() === storedSportId)
-                : null;
-
-            setSelectedSport((previousSport) => {
-                if (previousSport && sportsData.some((sport) => sport.id === previousSport.id)) {
-                    return previousSport;
-                }
-                return sportFromStorage ?? (sportsData.length > 0 ? sportsData[0] : null);
-            });
-        } catch (error) {
-            console.error(`Error fetching sports for season ${selectedSeason.season_id}:`, error);
-        } finally {
-            endLoading();
-        }
-    };
-
-    const loadLeagues = async () => {
-        if (!selectedSeason || !selectedSport) {
-            return;
-        }
-        
-        beginLoading();
-        try {
-            
-            const leaguesData = await fetchSeasonLeagues(selectedSeason, selectedSport);
-            console.log(`Fetched leagues for season ${selectedSeason.season_id}:`, leaguesData);
-
-            const uniqueLeagueGroups = Array.from(
-                new Set(
-                    leaguesData
-                        .map((league) => getLeagueGroupForLeague(league))
-                        .filter((group): group is string => group !== null)
-                )
-            );
-            console.log("Unique league groups identified:", uniqueLeagueGroups);
-            setLeagueGroups(uniqueLeagueGroups);
-
-            setSelectedLeagueGroup((prevGroup) => {
-                if (uniqueLeagueGroups.length <= 1) {
-                    return null;
-                }
-                if (prevGroup && uniqueLeagueGroups.includes(prevGroup)) {
-                    return prevGroup;
-                }
-                return uniqueLeagueGroups[0] ?? null;
-            });
-
-            setLeagues(leaguesData);
-            
-        } catch (error) {
-            console.error(`Error fetching leagues for season ${selectedSeason.season_id}:`, error);
-        } finally {
-            endLoading();
-        }
-    };
-
     // ************************
     // Loading for individual tabs
     // ************************
@@ -540,9 +451,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                         console.error(`Standings fetch failed, will fall back to teams endpoint:`, error);
                         return {} as { [leagueAbbreviation: string]: Standings[] };
                     }),
-                fetchTodaysSchedule(resolvedSport.id, selectedSeason, leaguesToQuery, userShowdownSet)
-                    .then(setTodaysSchedule)
-                    .catch(() => setTodaysSchedule(null)),
                 fetchSchedule(resolvedSport.id, selectedSeason, selectedDate, leaguesToQuery, userShowdownSet)
                     .then(data => {
                         setGamesSchedule(data);
@@ -610,35 +518,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
         }
     };
 
-    const loadSchedule = async () => {
-        if (!selectedSeason || leagues.length === 0) {
-            setTodaysSchedule(null);
-            return;
-        }
-
-        const shouldFilterByLeagueGroup = leagueGroups.length > 1 && selectedLeagueGroup !== null;
-        const leaguesToQuery = shouldFilterByLeagueGroup
-            ? leagues.filter((league) => getLeagueGroupForLeague(league) === selectedLeagueGroup)
-            : leagues;
-
-        if (leaguesToQuery.length === 0) {
-            setTodaysSchedule(null);
-            return;
-        }
-
-        beginLoading();
-        try {
-            const scheduleData = await fetchTodaysSchedule(selectedSport?.id || 1, selectedSeason, leaguesToQuery, userShowdownSet);
-            console.log(`Fetched schedule for season ${selectedSeason.season_id}:`, scheduleData);
-            setTodaysSchedule(scheduleData);
-        } catch (error) {
-            console.error(`Error fetching schedule for season ${selectedSeason.season_id}:`, error);
-            setTodaysSchedule(null);
-        } finally {
-            endLoading();
-        }
-    };
-
     const loadGamesSchedule = async () => {
         if (!selectedSeason || leagues.length === 0) {
             setGamesSchedule(null);
@@ -685,7 +564,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     useEffect(() => {
         if (isRunningLoadAllRef.current || !selectedSeason || leagues.length === 0) return;
         loadStandings();
-        loadSchedule();
         loadGamesSchedule();
     }, [selectedLeagueGroup, userShowdownSet]);
 
@@ -741,10 +619,6 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
     const selectedTeamKey = selectedTeam ? `${selectedTeam.id}-${selectedTeam.season}` : null;
     const isSelectedTeamStarred = selectedTeamKey ? starredTeamKeys.includes(selectedTeamKey) : false;
     const standingsEntries = Object.entries(standings);
-    const scheduleDates = todaysSchedule?.dates ?? [];
-    const todaysGames = scheduleDates.flatMap((scheduleDate) => scheduleDate.games ?? []);
-    const scheduleDateLabel = formatScheduleDate(scheduleDates[0]?.date);
-    const scheduleDescription = todaysGames[0]?.series_description || todaysGames[0]?.description || "";
 
     const gamesScheduleDates = gamesSchedule?.dates ?? [];
     const gamesTabGames = gamesScheduleDates.flatMap((scheduleDate) => scheduleDate.games ?? []);
