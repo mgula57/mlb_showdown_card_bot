@@ -226,7 +226,7 @@ export default function Home() {
             className={`
                 px-6
                 md:px-8
-                space-y-4
+                space-y-6
                 md:space-y-6
                 gradient-page
                 pb-24
@@ -441,7 +441,7 @@ export default function Home() {
                         <PlayerSearchInput value={searchQuery} onChange={handlePlayerSelect} searchOptions={{ exclude_multi_year: true }} />
 
                         <div className="flex-1 flex flex-col justify-center items-center gap-4">
-                            <img src={cardOfDayImageSrc} alt="Sample Showdown Card" className={`md:min-h-48 md:max-h-128 rounded-lg object-contain shadow-2xl ${isRefreshingTrends ? 'animate-pulse' : ''}`} />
+                            <img src={cardOfDayImageSrc} alt="Sample Showdown Card" className={`md:min-h-48 md:max-h-108 rounded-lg object-contain shadow-2xl ${isRefreshingTrends ? 'animate-pulse' : ''}`} />
                         </div>
                         <div className={`left-4 right-4 text-xs text-left pt-2 ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
                             {cardOfTheDay ? (
