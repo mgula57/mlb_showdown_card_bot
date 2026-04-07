@@ -42,6 +42,11 @@ from mlb_showdown_bot.core.database.postgres_db import _get_pool
 _get_pool('DATABASE_URL_LOGS')
 _get_pool('DATABASE_URL_ARCHIVE')
 
+@app.route('/static/card_of_the_day/<path:filename>')
+def serve_card_of_the_day_files(filename):
+    """Serve card of the day images (persisted, not cleaned up)"""
+    return send_from_directory(os.path.join('static', 'card_of_the_day'), filename)
+
 @app.route('/static/output/<path:filename>')
 def serve_output_files(filename):
     """Serve generated card images"""
