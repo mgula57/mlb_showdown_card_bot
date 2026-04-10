@@ -4,10 +4,46 @@ from pprint import pprint
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from ..base_client import BaseMLBClient
-from ..models.person import Player, FreeAgent, StatTypeEnum
+from ..models.person import Players, Player, FreeAgent, StatTypeEnum
 from ..models.leagues.league import LeagueListEnum
 from ...card.stats.stats_period import StatsPeriod, StatsPeriodYearType, PlayerType
 import json
+
+_PLAYER_FIELDS = [
+    # People root and identity
+    'people', 'id', 'fullName', 'batSide', 'description', 'pitchHand',
+    'primaryPosition', 'code', 'abbreviation', 'type',
+    'rookieSeasons',
+    # Cross-reference IDs (for Fangraphs ID lookup)
+    'xrefIds', 'xrefId', 'xrefType',
+    # Awards (id/name drive computed properties; season scopes them)
+    'awards', 'name', 'season',
+    # Stats envelope
+    'stats', 'displayName', 'group', 'splits', 'stat',
+    # Split context metadata
+    'sport', 'split', 'date', 'game', 'gamePk',
+    # Team + league (team.abbreviation, team.league.abbreviation)
+    'team', 'league',
+]
+
+_STAT_KEYS = [
+    # Hitting counting stats
+    'atBats', 'baseOnBalls', 'caughtStealing', 'doubles', 'gamesPlayed',
+    'gamesStarted', 'groundIntoDoublePlay', 'hitByPitch', 'hits', 'homeRuns',
+    'intentionalWalks', 'plateAppearances', 'rbi', 'runs', 'sacBunts',
+    'sacFlies', 'stolenBases', 'strikeOuts', 'totalBases', 'triples',
+    # Pitching counting stats
+    'battersFaced', 'earnedRuns', 'era', 'groundOutsToAirouts', 'hitBatsmen',
+    'inningsPitched', 'losses', 'saves', 'wins', 'whip', 'gamesPitched',
+    # IF/FB batted ball components (pitcher advanced)
+    'popOuts', 'popHits', 'flyOuts', 'flyHits', 'lineOuts', 'lineHits',
+    # Fielding
+    'position',
+    # Rate / slashline
+    'avg', 'slg', 'obp', 'ops',
+    # Sabermetrics
+    'war', 'wRcPlus',
+]
 
 class PeopleClient(BaseMLBClient):
     """Client for person/player related endpoints - inherits all base functionality"""
@@ -48,9 +84,9 @@ class PeopleClient(BaseMLBClient):
             'awards',
             'xrefId',
         ]
-        params: Dict[str, Any] = {}
         seasons: Optional[List[int]] = []
-        is_pitcher = stats_period.player_type_for_mlb_api(primary_position) == PlayerType.PITCHER if stats_period else (primary_position.upper() == 'P' if primary_position else None)
+        player_type = stats_period.player_type_for_mlb_api(primary_position) if stats_period else (PlayerType.PITCHER if primary_position and primary_position.upper() == 'P' else PlayerType.HITTER)
+        types: Optional[List[StatTypeEnum]] = None
         if include_stats:
             hydrations.extend([
                 'team(league)',
@@ -77,44 +113,81 @@ class PeopleClient(BaseMLBClient):
                         seasons = stats_period.year_list
                         types.extend([StatTypeEnum.STATS_SINGLE_SEASON, StatTypeEnum.STATS_SINGLE_SEASON_ADVANCED])
 
-                if is_pitcher:
-                    types.append(StatTypeEnum.STAT_SPLITS) 
-                    
-            # Finalize parameters
-            combined_types = ",".join([t.value for t in types])
-            seasons_list_str = ",".join([str(season) for season in seasons])
-            seasons_hydration = f",seasons=[{seasons_list_str}]" if len(seasons) > 0 else ""
-            groups = 'pitching,fielding' if is_pitcher else 'hitting,fielding'
-            league_list_hydration = f",leagueListId={league_list.value}" if league_list else ""
-            sit_codes = ',sitCodes=[sp,rp]' if is_pitcher else ''
-            hydrations.append(f'stats(group=[{groups}],type=[{combined_types}],team(league){seasons_hydration}{league_list_hydration}{sit_codes})')
+                if player_type.is_pitcher:
+                    types.append(StatTypeEnum.STAT_SPLITS)
 
-            params['hydrate'] = ','.join(hydrations)
-            if len(seasons) > 0:
-                params['seasons'] = seasons_list_str
-            
         try:
-            data = self._make_request(f'people/{player_id}', params=params)
-            if not data.get('people'):
-                raise Exception(f"Player {player_id} not found")
-            
-            player_data = data['people'][0]
-
-            player_object = Player(**player_data)
-            
-            return player_object
+            players = self.get_players(
+                player_ids=[player_id],
+                include_stats=include_stats,
+                type=player_type, 
+                seasons=seasons, 
+                league_list=league_list,
+                stat_types=types if types else None,
+                limit_hydrated_fields=True
+            )
+            if len(players.players) > 0:
+                return players.players[0]
+            else:
+                raise ValueError(f"No player found with ID {player_id}")
         except Exception as e:
-            if "404" in str(e):
-                raise Exception(f"Player {player_id} not found")
-            raise
+            print(f"Error fetching player with ID {player_id}: {e}")
+            raise e
 
-    def get_players(self, player_ids: List[int]) -> List[Player]:
-        """Get multiple players by their IDs"""
+    def get_players(self, player_ids: List[int], include_stats: bool = False, type: Optional[PlayerType] = None, seasons: Optional[List[int]] = None, league_list: Optional[LeagueListEnum] = None, stat_types: Optional[List[StatTypeEnum]] = None, limit_hydrated_fields: Optional[bool] = False) -> Players:
+        """Get multiple players by their IDs. Results in a Players object which contains a list of Player objects.
+        
+        Args:
+            player_ids: List of MLB player IDs
+            include_stats: Whether to include stats in the response (defaults to False for performance when fetching multiple players)
+            type: Optional PlayerType to help determine which stats to include if include_stats is True (e.g. pitcher vs hitter)
+            seasons: Optional list of seasons to include stats for if include_stats is True
+            league_list: Optional LeagueListEnum for specifying league context (e.g. MiLB vs MLB) if include_stats is True
+            stat_types: Optional list of StatTypeEnum to specify which stat types to include if include_stats is True
+
+        Returns:
+            Players object containing a list of Player objects
+        """
         params = {
             'personIds': ",".join([str(pid) for pid in player_ids]),
         }
+        hydrations = [
+            'currentTeam',
+            'rookieSeasons',
+            'awards',
+            'xrefId',
+        ]
+        if include_stats:
+            
+            # Defaults
+            hydrations.append('team(league)')
+
+            # Add seasons
+            if seasons:
+                seasons_list_str = ",".join([str(season) for season in seasons])
+                seasons_hydration = f",seasons=[{seasons_list_str}]" if len(seasons) > 0 else ""
+
+            stat_types = stat_types if stat_types else ([StatTypeEnum.SABERMETRICS] if league_list and 'milb' in league_list.value.lower() else [StatTypeEnum.SABERMETRICS, StatTypeEnum.RANKINGS_BY_YEAR])
+            pitcher_stat_groups = ['pitching', 'fielding']
+            hitter_stat_groups = ['hitting', 'fielding']
+            league_list_hydration = f",leagueListId={league_list.value}" if league_list else ""
+            pitcher_sit_codes = ',sitCodes=[sp,rp]'
+            if type:
+                match type:
+                    case PlayerType.PITCHER:
+                        hydrations.append(f'stats(team(league),group=[{",".join(pitcher_stat_groups)}],type=[{",".join([st.value for st in stat_types])}]{seasons_hydration}{league_list_hydration}{pitcher_sit_codes})')
+                    case PlayerType.HITTER:
+                        hydrations.append(f'stats(team(league),group=[{",".join(hitter_stat_groups)}],type=[{",".join([st.value for st in stat_types])}]{seasons_hydration}{league_list_hydration})')
+            else:
+                unique_groups = set(pitcher_stat_groups + hitter_stat_groups)
+                hydrations.append(f'stats(team(league),group=[{",".join(unique_groups)}],type=[{",".join([st.value for st in stat_types])}]{seasons_hydration}{league_list_hydration}{pitcher_sit_codes})')
+
+            if limit_hydrated_fields:
+                params['fields'] = ','.join(_PLAYER_FIELDS + _STAT_KEYS)
+
+        params['hydrate'] = ','.join(hydrations)
         data = self._make_request('people', params)
-        return [Player(**player_data) for player_data in data.get('people', [])]
+        return Players(**data)
 
     # -----------------------
     # FREE AGENTS

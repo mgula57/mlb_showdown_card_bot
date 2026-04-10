@@ -114,6 +114,11 @@ class PlayerWithShowdownCard(Player):
     points: Optional[int] = None # Points from showdown card data
     showdown_card_data: Optional[ShowdownPlayerCard] = None # Flexible field to hold any relevant showdown card data for the player 
 
+class Players(BaseModel):
+    """Model for API response when fetching multiple players"""
+    
+    players: List[PlayerWithShowdownCard] = Field(..., alias='people')
+
 
 class FreeAgent(BaseModel):
     """Model for free agents"""
