@@ -656,21 +656,6 @@ export interface BoxscoreDecisions {
     save?: BoxscoreDecisionPerson;
 }
 
-export interface GameBoxscoreDetail {
-    game_pk: number;
-    status: GameStatus;
-    datetime: {
-        date_time?: string;
-        official_date?: string;
-    };
-    teams: {
-        away: BoxscoreTeamData;
-        home: BoxscoreTeamData;
-    };
-    linescore: BoxscoreLinescore;
-    decisions: BoxscoreDecisions;
-}
-
 // ***************************
 // Stat Leaders Types
 // ***************************
@@ -701,5 +686,84 @@ export interface LeadersGroup {
     stat_group?: string;
     season?: string;
     leaders?: PlayerLeader[];
+}
+
+// ***************************
+// Play Types (allPlays / most_recent_play)
+// ***************************
+
+export interface PlayPersonRef {
+    id: number;
+    fullName?: string;
+    link?: string;
+}
+
+export interface PlayHandedness {
+    code?: string;
+    description?: string;
+}
+
+export interface PlayResult {
+    type?: string;
+    event?: string;
+    eventType?: string;
+    description?: string;
+    rbi?: number;
+    awayScore?: number;
+    homeScore?: number;
+    isOut?: boolean;
+}
+
+export interface PlayAbout {
+    atBatIndex?: number;
+    halfInning?: 'top' | 'bottom';
+    isTopInning?: boolean;
+    inning?: number;
+    startTime?: string;
+    endTime?: string;
+    isComplete?: boolean;
+    isScoringPlay?: boolean;
+    hasReview?: boolean;
+    hasOut?: boolean;
+    captivatingIndex?: number;
+}
+
+export interface PlayMatchupSplits {
+    batter?: string;
+    pitcher?: string;
+    menOnBase?: string;
+}
+
+export interface PlayMatchup {
+    batter?: PlayPersonRef;
+    batSide?: PlayHandedness;
+    pitcher?: PlayPersonRef;
+    pitchHand?: PlayHandedness;
+    postOnFirst?: PlayPersonRef;
+    postOnSecond?: PlayPersonRef;
+    postOnThird?: PlayPersonRef;
+    splits?: PlayMatchupSplits;
+}
+
+export interface MostRecentPlay {
+    result?: PlayResult;
+    about?: PlayAbout;
+    matchup?: PlayMatchup;
+}
+
+export interface GameBoxscoreDetail {
+    game_pk: number;
+    status: GameStatus;
+    datetime: {
+        date_time?: string;
+        official_date?: string;
+    };
+    teams: {
+        away: BoxscoreTeamData;
+        home: BoxscoreTeamData;
+    };
+    linescore: BoxscoreLinescore;
+    decisions: BoxscoreDecisions;
+    most_recent_play?: MostRecentPlay;
 }
 

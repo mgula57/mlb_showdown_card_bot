@@ -12,6 +12,7 @@ import {
     type BoxscoreBatter,
     type BoxscorePitcher,
     type BoxscoreLinescoreInning,
+    type MostRecentPlay,
 } from "../../api/mlbAPI";
 import { buildCardsFromIds, type ShowdownBotCard, type ShowdownBotCardAPIResponse } from "../../api/showdownBotCard";
 import CardCommand from "../cards/card_elements/CardCommand";
@@ -213,7 +214,7 @@ export default function GameDetail({ gamePk, sportId, season, showdownSet, onBac
             />
 
             {/* Matchup Strip */}
-            {isInProgress && <MatchupStrip linescore={ls} isRefreshing={isRefreshing} cardMap={cardMap} onCardSelect={setSelectedCard} />}
+            {isInProgress && <MatchupStrip linescore={ls} mostRecentPlay={boxscore.most_recent_play} isRefreshing={isRefreshing} cardMap={cardMap} onCardSelect={setSelectedCard} />}
 
             {/* Linescore Table */}
             <LinescoreTable away={away} home={home} innings={ls.innings} teams={ls.teams} currentInning={ls.current_inning} isInProgress={isInProgress} />
@@ -454,7 +455,32 @@ function LinescoreTable({
 }
 
 
-function MatchupStrip({ linescore, isRefreshing, cardMap, onCardSelect }: { linescore: GameBoxscoreDetail["linescore"]; isRefreshing?: boolean; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCard) => void }) {
+function LastResultBanner({ play }: { play?: MostRecentPlay }) {
+    if (!play?.result?.description) return null;
+
+    const isScoringPlay = play.about?.isScoringPlay;
+    const event = play.result.event;
+    const description = play.result.description;
+    const rbi = play.result.rbi;
+    const awayScore = play.result.awayScore;
+    const homeScore = play.result.homeScore;
+
+    return (
+        <div className={`rounded-lg px-3 py-2 text-xs border ${isScoringPlay ? 'bg-green-950/40 border-green-700/40' : 'bg-(--background-primary)/60 border-(--divider)'}`}>
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+                <span className={`font-bold text-[11px] uppercase tracking-wide ${isScoringPlay ? 'text-green-400' : 'text-(--secondary)'}`}>
+                    {event ?? 'Last Play'}
+                </span>
+                {isScoringPlay && rbi != null && rbi > 0 && (
+                    <span className="text-[10px] font-semibold text-green-400">{rbi} RBI · {awayScore}–{homeScore}</span>
+                )}
+            </div>
+            <p className="text-(--secondary) leading-snug line-clamp-2">{description}</p>
+        </div>
+    );
+}
+
+function MatchupStrip({ linescore, mostRecentPlay, isRefreshing, cardMap, onCardSelect }: { linescore: GameBoxscoreDetail["linescore"]; mostRecentPlay?: MostRecentPlay; isRefreshing?: boolean; cardMap: CardMap; onCardSelect?: (card: ShowdownBotCard) => void }) {
     const inningHalf = (linescore.inning_half || linescore.inning_state || "").toUpperCase();
     const inningLabel = linescore.current_inning_ordinal || linescore.current_inning || "";
     const outs = linescore.outs ?? 0;
@@ -481,10 +507,13 @@ function MatchupStrip({ linescore, isRefreshing, cardMap, onCardSelect }: { line
             className="rounded-xl border bg-(--background-secondary) p-4 space-y-3"
             style={{ animation: 'live-border-glow 2s ease-in-out infinite' }}
         >
+            
+
             <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold uppercase tracking-wide text-yellow-600">
                     {inningHalf} {inningLabel}
                 </span>
+
                 <div className="flex items-center gap-2">
                     {isRefreshing && (
                         <svg className="animate-spin h-3 w-3 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -535,6 +564,9 @@ function MatchupStrip({ linescore, isRefreshing, cardMap, onCardSelect }: { line
                     ) : null}
                 </div>
             </div>
+
+            <LastResultBanner play={mostRecentPlay} />
+
         </div>
         </>
     );

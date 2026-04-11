@@ -889,7 +889,7 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                         aria-label="Refresh data"
                                                         title="Refresh data"
                                                     >
-                                                        <FaArrowsRotate className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                                                        <FaArrowsRotate className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
                                                     </button>
                                                 </div>
                                             )}
@@ -1026,6 +1026,10 @@ export default function Seasons({ type, title, subtitle, staticSports, staticSea
                                                     sportId={selectedSport?.id}
                                                     starredTeamIds={new Set(starredTeamKeys.map((key) => parseInt(key.split('-')[0], 10)))}
                                                     onGameSelect={(gamePk) => setSelectedGamePk(gamePk)}
+                                                    onRefresh={() => {
+                                                        // Force re-fetch games schedule for the current date
+                                                        setGamesDate((previous) => new Date(previous));
+                                                    }}
                                                 />
                                             </div>
                                         )}

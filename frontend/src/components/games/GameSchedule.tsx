@@ -1,4 +1,5 @@
 import { type GameScheduled } from "../../api/mlbAPI";
+import { FaArrowsRotate } from "react-icons/fa6";
 import GameItem from "./GameItem";
 
 type GameScheduleProps = {
@@ -8,9 +9,10 @@ type GameScheduleProps = {
     sportId?: number;
     starredTeamIds?: Set<number>;
     onGameSelect?: (gamePk: number) => void;
+    onRefresh?: () => void;
 };
 
-export default function GameSchedule({ games, dateLabel, description, sportId, starredTeamIds, onGameSelect }: GameScheduleProps) {
+export default function GameSchedule({ games, dateLabel, description, sportId, starredTeamIds, onGameSelect, onRefresh }: GameScheduleProps) {
     if (!games.length) {
         return null;
     }
@@ -30,12 +32,32 @@ export default function GameSchedule({ games, dateLabel, description, sportId, s
 
     return (
         <div className="space-y-3">
-            <div>
-                <div className="text-lg font-extrabold text-(--text-primary)">{dateLabel}</div>
-                {description && (
-                    <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
+            <div className="flex justify-between items-center">
+                <div>
+                    <div className="text-lg font-extrabold text-(--text-primary)">{dateLabel}</div>
+                    {description && (
+                        <div className="text-sm font-semibold text-(--text-secondary)">{description}</div>
+                    )}
+                </div>
+                
+                {/* Refresh button */}
+                {onRefresh && (
+                    <button
+                        className="
+                            hidden md:flex ml-4 px-4 py-2 items-center gap-1
+                            bg-(--showdown-blue) text-white rounded-lg
+                            hover:bg-(--showdown-blue)/50 transition-colors
+                            cursor-pointer
+                        "
+                        onClick={onRefresh}
+                    >
+                        <FaArrowsRotate className="inline-block mr-1" />
+                        Refresh
+                    </button>
                 )}
+
             </div>
+            
 
             <div className="grid grid-cols-[repeat(auto-fit,minmax(270px,1fr))] gap-4">
                 {sortedGames.map((game) => {
